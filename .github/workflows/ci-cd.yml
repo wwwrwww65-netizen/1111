@@ -49,11 +49,17 @@ jobs:
         with:
           version: 10
 
-      - name: Ensure pnpm is available (fallback if needed)
+      - name: Enable corepack & prepare pnpm (official fallback)
+        run: |
+          corepack enable || true
+          corepack prepare pnpm@10 --activate || true
+          echo "corepack prepared (if available)"
+
+      - name: Ensure pnpm is available (final fallback)
         run: |
           if ! command -v pnpm >/dev/null 2>&1; then
-            echo "pnpm not found — installing fallback via npm"
-            npm i -g pnpm@8
+            echo "pnpm not found — installing via npm as last resort"
+            npm i -g pnpm@10
           fi
           echo "pnpm version: $(pnpm -v)"
 
@@ -104,10 +110,15 @@ jobs:
         with:
           version: 10
 
-      - name: Ensure pnpm is available (fallback if needed)
+      - name: Enable corepack & prepare pnpm (official fallback)
+        run: |
+          corepack enable || true
+          corepack prepare pnpm@10 --activate || true
+
+      - name: Ensure pnpm is available (final fallback)
         run: |
           if ! command -v pnpm >/dev/null 2>&1; then
-            npm i -g pnpm@8
+            npm i -g pnpm@10
           fi
           pnpm -v
 
