@@ -28,12 +28,34 @@ env:
 
 jobs:
 
-  # --------------------------
-  # 1) Lint & Unit Tests (JS/TS + API)
-  # --------------------------
   test:
-    name: Lint & Unit Tests
+    name: Lint & Unit Tests (web + api)
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - name: Install pnpm
+        run: npm i -g pnpm
+      - name: Install dependencies (root)
+        run: pnpm install --frozen-lockfile
+      - name: Lint (monorepo)
+        run: pnpm -w run lint || true
+      - name: Run Unit Tests (web & api)
+        run: pnpm -w run test -- --coverage
+      - name: Upload test coverage (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage || ./coverage
+
+  build_web:
+    name: Build Web (Next.js)
+    runs-on: ubuntu-latest
+    needs: test
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -45,55 +67,30 @@ jobs:
         run: npm i -g pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Lint
-        run: pnpm -w run lint || true
-      - name: Run Unit Tests
-        run: pnpm -w run test -- --coverage
-      - name: Upload coverage
+      - name: Build web
+        run: pnpm --filter ./apps/web build
+      - name: Upload web build (artifact)
         uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage || ./coverage
-
-  # --------------------------
-  # 2) Build Web (Next.js)
-  # --------------------------
-  build_web:
-    name: Build Web
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - run: npm i -g pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter ./apps/web build
-      - uses: actions/upload-artifact@v4
         with:
           name: web-build
           path: apps/web/.next
 
-  # --------------------------
-  # 3) Build & Push API Docker Image
-  # --------------------------
   build_api:
-    name: Build & Push API Docker Image
+    name: Build & Push API Docker image
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v2
-      - name: Log in to registry
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Log in to container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ secrets.REGISTRY_HOST }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
-      - uses: docker/build-push-action@v5
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
         with:
           context: ./packages/api
           file: ./packages/api/Dockerfile
@@ -101,83 +98,89 @@ jobs:
           tags: |
             ${{ env.DOCKER_IMAGE_NAME }}:latest
             ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
-      - run: echo "IMAGE=${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}" > image-ref.txt
-      - uses: actions/upload-artifact@v4
+      - name: Write image ref to file
+        run: echo "IMAGE=${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}" > image-ref.txt
+      - name: Upload image-ref
+        uses: actions/upload-artifact@v4
         with:
           name: api-image-ref
           path: image-ref.txt
 
-  # --------------------------
-  # 4) Build Flutter Android
-  # --------------------------
   build_android:
     name: Build Flutter Android
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-      - run: yes | sdkmanager --licenses || true
-      - run: |
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
+      - name: Install dependencies
+        run: |
           cd apps/mobile
           flutter pub get
-      - run: |
+      - name: Build AAB (release)
+        run: |
           cd apps/mobile
           flutter build appbundle --release --build-name=${{ github.run_number }} --build-number=${{ github.run_number }}
-      - run: |
+      - name: Build APK (release, optional)
+        run: |
           cd apps/mobile
           flutter build apk --release
-      - uses: actions/upload-artifact@v4
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: android-artifacts
           path: |
             apps/mobile/build/app/outputs/bundle/release/*.aab
             apps/mobile/build/app/outputs/flutter-apk/*.apk
 
-  # --------------------------
-  # 5) Build Flutter iOS
-  # --------------------------
   build_ios:
-    name: Build Flutter iOS
+    name: Build Flutter iOS (IPA)
     runs-on: macos-latest
     needs: test
     env:
       FASTLANE_USER: ${{ secrets.APPLE_APPLE_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-      - run: brew install cocoapods || true
-      - run: |
+      - name: Install CocoaPods
+        run: brew install cocoapods || true
+      - name: Install dependencies
+        run: |
           cd apps/mobile
           flutter pub get
           cd ios
           pod install --repo-update || true
-      - if: ${{ secrets.IOS_PROV_PROFILE != '' }}
+      - name: Decrypt and install provisioning profile
+        if: ${{ secrets.IOS_PROV_PROFILE != '' }}
         run: |
           echo "${{ secrets.IOS_PROV_PROFILE }}" | base64 --decode > profile.mobileprovision
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-      - if: ${{ secrets.IOS_SIGNING_CERT != '' }}
+      - name: Install signing certificate
+        if: ${{ secrets.IOS_SIGNING_CERT != '' }}
         run: |
           echo "${{ secrets.IOS_SIGNING_CERT }}" | base64 --decode > cert.p12
           security create-keychain -p "" build.keychain
           security import cert.p12 -k ~/Library/Keychains/build.keychain -P "${{ secrets.IOS_CERT_PASSWORD }}" -T /usr/bin/codesign || true
           security list-keychains -s ~/Library/Keychains/build.keychain
-      - run: |
+      - name: Build iOS (ipa)
+        run: |
           cd apps/mobile
           flutter build ipa --export-options-plist=ios/ExportOptions.plist --no-codesign || true
-      - uses: actions/upload-artifact@v4
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: ios-artifacts
           path: apps/mobile/build/ios/ipa || apps/mobile/build/ios/runner/Release-iphoneos/*.ipa
 
-  # --------------------------
-  # 6) Deploy / Terraform
-  # --------------------------
   deploy_staging:
     name: Terraform & Deploy to Staging
     runs-on: ubuntu-latest
@@ -186,26 +189,31 @@ jobs:
       - build_api
       - build_android
       - build_ios
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    if: startsWith(github.ref, 'refs/heads/') && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
-      - run: |
+      - name: Terraform init
+        run: |
           cd infra
           terraform init -input=false
-      - run: |
+      - name: Terraform plan
+        run: |
           cd infra
           terraform workspace select ${{ env.TERRAFORM_WORKSPACE }} || terraform workspace new ${{ env.TERRAFORM_WORKSPACE }}
           terraform plan -out=tfplan -input=false -var "docker_image=${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}"
-      - env:
+      - name: Terraform apply
+        env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           cd infra
           terraform apply -input=false -auto-approve tfplan
-      - uses: actions/github-script@v6
+      - name: Notify deployment success
+        uses: actions/github-script@v6
         with:
           script: |
             github.rest.issues.createComment({
