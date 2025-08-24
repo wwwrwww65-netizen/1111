@@ -33,19 +33,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Use Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-      - name: Install pnpm
-        run: npm i -g pnpm
+
+      - name: Enable corepack & install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
       - name: Install dependencies (root)
         run: pnpm install --frozen-lockfile
+
       - name: Lint (monorepo)
         run: pnpm -w run lint || true
+
       - name: Run Unit Tests (web & api)
         run: pnpm -w run test -- --coverage
+
       - name: Upload test coverage (artifact)
         uses: actions/upload-artifact@v4
         with:
@@ -58,17 +66,24 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-      - name: Install pnpm
-        run: npm i -g pnpm
+
+      - name: Enable corepack & install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
       - name: Build web
         run: pnpm --filter ./apps/web build
+
       - name: Upload web build (artifact)
         uses: actions/upload-artifact@v4
         with:
@@ -81,14 +96,17 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
+
       - name: Log in to container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ secrets.REGISTRY_HOST }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -98,8 +116,10 @@ jobs:
           tags: |
             ${{ env.DOCKER_IMAGE_NAME }}:latest
             ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+
       - name: Write image ref to file
         run: echo "IMAGE=${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}" > image-ref.txt
+
       - name: Upload image-ref
         uses: actions/upload-artifact@v4
         with:
@@ -112,24 +132,30 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
+
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses || true
+
       - name: Install dependencies
         run: |
           cd apps/mobile
           flutter pub get
+
       - name: Build AAB (release)
         run: |
           cd apps/mobile
           flutter build appbundle --release --build-name=${{ github.run_number }} --build-number=${{ github.run_number }}
+
       - name: Build APK (release, optional)
         run: |
           cd apps/mobile
           flutter build apk --release
+
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -149,24 +175,29 @@ jobs:
       IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
+
       - name: Install CocoaPods
         run: brew install cocoapods || true
+
       - name: Install dependencies
         run: |
           cd apps/mobile
           flutter pub get
           cd ios
           pod install --repo-update || true
+
       - name: Decrypt and install provisioning profile
         if: env.IOS_PROV_PROFILE != ''
         run: |
           echo "$IOS_PROV_PROFILE" | base64 --decode > profile.mobileprovision
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
       - name: Install signing certificate
         if: env.IOS_SIGNING_CERT != ''
         run: |
@@ -174,10 +205,12 @@ jobs:
           security create-keychain -p "" build.keychain
           security import cert.p12 -k ~/Library/Keychains/build.keychain -P "$IOS_CERT_PASSWORD" -T /usr/bin/codesign || true
           security list-keychains -s ~/Library/Keychains/build.keychain
+
       - name: Build iOS (ipa)
         run: |
           cd apps/mobile
           flutter build ipa --export-options-plist=ios/ExportOptions.plist --no-codesign || true
+
       - name: Upload iOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -197,19 +230,23 @@ jobs:
     if: startsWith(github.ref, 'refs/heads/') && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
+
       - name: Terraform init
         run: |
           cd infra
           terraform init -input=false
+
       - name: Terraform plan
         run: |
           cd infra
           terraform workspace select ${{ env.TERRAFORM_WORKSPACE }} || terraform workspace new ${{ env.TERRAFORM_WORKSPACE }}
           terraform plan -out=tfplan -input=false -var "docker_image=${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}"
+
       - name: Terraform apply
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -217,6 +254,7 @@ jobs:
         run: |
           cd infra
           terraform apply -input=false -auto-approve tfplan
+
       - name: Notify deployment success
         uses: actions/github-script@v6
         with:
