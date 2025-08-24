@@ -40,10 +40,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Enable corepack & install pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@latest --activate
+      - name: Setup pnpm (official action)
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       - name: Install dependencies (root)
         run: pnpm install --frozen-lockfile
@@ -73,10 +73,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Enable corepack & install pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@latest --activate
+      - name: Setup pnpm (official action)
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
