@@ -1,0 +1,20 @@
+{
+  "name": "@repo/ui",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./index.tsx",
+  "types": "./index.tsx",
+  "scripts": {
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "dependencies": {
+    "react": "^18"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5",
+    "@types/react": "^18",
+    "eslint": "^8",
+    "eslint-config-custom": "workspace:*"
+  }
+}
