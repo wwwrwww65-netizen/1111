@@ -1,56 +1,96 @@
-# --------------------------
-# 5) Build Flutter iOS (IPA) — Requires macOS Runner and Signing Secrets
-# --------------------------
-build_ios:
-  name: Build Flutter iOS (IPA)
-  runs-on: macos-latest
-  needs: test
-  env:
-    FASTLANE_USER: ${{ secrets.APPLE_APPLE_ID }}
-    IOS_PROV_PROFILE_ENV: ${{ secrets.IOS_PROV_PROFILE }}
-    IOS_SIGNING_CERT_ENV: ${{ secrets.IOS_SIGNING_CERT }}
-    IOS_CERT_PASSWORD_ENV: ${{ secrets.IOS_CERT_PASSWORD }}
-  steps:
-    - uses: actions/checkout@v4
+name: CI/CD
 
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
+on:
+  push:
+    branches:
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+      - staging
+  workflow_dispatch: {}
 
-    - name: Install CocoaPods
-      run: brew install cocoapods || true
+jobs:
+  # --------------------------
+  # 1) Lint & Unit Tests (JS/TS + API)
+  # --------------------------
+  test:
+    name: Lint & Unit Tests (web + api)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install pnpm
+        run: npm i -g pnpm
+      - name: Install dependencies (root)
+        run: pnpm install --frozen-lockfile
+      - name: Lint (monorepo)
+        run: pnpm -w run lint || true
+      - name: Run Unit Tests (web & api)
+        run: pnpm -w run test -- --coverage
+      - name: Upload test coverage (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage || ./coverage
 
-    - name: Install dependencies
-      run: |
-        cd apps/mobile
-        flutter pub get
-        cd ios
-        pod install --repo-update || true
+  # --------------------------
+  # 5) Build Flutter iOS (IPA)
+  # --------------------------
+  build_ios:
+    name: Build Flutter iOS (IPA)
+    runs-on: macos-latest
+    needs: test
+    env:
+      FASTLANE_USER: ${{ secrets.APPLE_APPLE_ID }}
+      IOS_PROV_PROFILE_ENV: ${{ secrets.IOS_PROV_PROFILE }}
+      IOS_SIGNING_CERT_ENV: ${{ secrets.IOS_SIGNING_CERT }}
+      IOS_CERT_PASSWORD_ENV: ${{ secrets.IOS_CERT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Decrypt and install provisioning profile
-      if: env.IOS_PROV_PROFILE_ENV != ''
-      run: |
-        echo "${{ env.IOS_PROV_PROFILE_ENV }}" | base64 --decode > profile.mobileprovision
-        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
 
-    - name: Install signing certificate
-      if: env.IOS_SIGNING_CERT_ENV != ''
-      run: |
-        echo "${{ env.IOS_SIGNING_CERT_ENV }}" | base64 --decode > cert.p12
-        security create-keychain -p "" build.keychain
-        security import cert.p12 -k ~/Library/Keychains/build.keychain -P "${{ env.IOS_CERT_PASSWORD_ENV }}" -T /usr/bin/codesign || true
-        security list-keychains -s ~/Library/Keychains/build.keychain
+      - name: Install CocoaPods
+        run: brew install cocoapods || true
 
-    - name: Build iOS (ipa) using flutter & xcodebuild
-      run: |
-        cd apps/mobile
-        flutter build ipa --export-options-plist=ios/ExportOptions.plist --no-codesign || true
-        # If you use fastlane match / gym, replace the above with a fastlane lane
+      - name: Install dependencies
+        run: |
+          cd apps/mobile
+          flutter pub get
+          cd ios
+          pod install --repo-update || true
 
-    - name: Upload iOS artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ios-artifacts
-        path: apps/mobile/build/ios/ipa || apps/mobile/build/ios/runner/Release-iphoneos/*.ipa
+      - name: Decrypt and install provisioning profile
+        if: env.IOS_PROV_PROFILE_ENV != ''
+        run: |
+          echo "${{ env.IOS_PROV_PROFILE_ENV }}" | base64 --decode > profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Install signing certificate
+        if: env.IOS_SIGNING_CERT_ENV != ''
+        run: |
+          echo "${{ env.IOS_SIGNING_CERT_ENV }}" | base64 --decode > cert.p12
+          security create-keychain -p "" build.keychain
+          security import cert.p12 -k ~/Library/Keychains/build.keychain -P "${{ env.IOS_CERT_PASSWORD_ENV }}" -T /usr/bin/codesign || true
+          security list-keychains -s ~/Library/Keychains/build.keychain
+
+      - name: Build iOS (ipa) using flutter & xcodebuild
+        run: |
+          cd apps/mobile
+          flutter build ipa --export-options-plist=ios/ExportOptions.plist --no-codesign || true
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-artifacts
+          path: apps/mobile/build/ios/ipa || apps/mobile/build/ios/runner/Release-iphoneos/*.ipa
