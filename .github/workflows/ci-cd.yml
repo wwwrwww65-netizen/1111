@@ -30,6 +30,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
@@ -38,37 +43,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Try setup pnpm (official action)
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Enable corepack & prepare pnpm (official fallback)
+      - name: Ensure pnpm is installed (corepack || npm fallback)
         run: |
-          corepack enable || true
-          corepack prepare pnpm@10 --activate || true
-          echo "corepack prepared (if available)"
+          set -e
+          echo "TRY: corepack enable && corepack prepare pnpm@10 --activate"
+          corepack enable >/dev/null 2>&1 || true
+          corepack prepare pnpm@10 --activate >/dev/null 2>&1 || true
 
-      - name: Ensure pnpm is available (final fallback)
-        run: |
           if ! command -v pnpm >/dev/null 2>&1; then
-            echo "pnpm not found — installing via npm as last resort"
+            echo "corepack didn't provide pnpm — installing pnpm via npm globally"
             npm i -g pnpm@10
           fi
-          echo "pnpm version: $(pnpm -v)"
 
-      - name: Debug node/npm/pnpm
+          # ensure npm global bin is on PATH (defensive)
+          NPM_GLOB_BIN="$(npm bin -g)"
+          echo "npm global bin: $NPM_GLOB_BIN"
+          if [ -d "$NPM_GLOB_BIN" ]; then
+            export PATH="$NPM_GLOB_BIN:$PATH"
+          fi
+          hash -r || true
+          echo "Final pnpm path: $(which pnpm || echo 'not-found')"
+          pnpm -v
+
+      - name: Debug node/npm/pnpm (important — paste output if any issue)
         run: |
           node -v
           npm -v
-          which pnpm || echo "pnpm not found in PATH"
-          pnpm -v || echo "pnpm command failed"
+          echo "which pnpm: $(which pnpm || echo 'pnpm not found')"
+          pnpm -v || true
           echo "PATH=$PATH"
 
       - name: Install deps & run tests
@@ -91,6 +93,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
@@ -99,27 +106,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Try setup pnpm (official action)
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Enable corepack & prepare pnpm (official fallback)
+      - name: Ensure pnpm is installed (corepack || npm fallback)
         run: |
-          corepack enable || true
-          corepack prepare pnpm@10 --activate || true
-
-      - name: Ensure pnpm is available (final fallback)
-        run: |
+          set -e
+          corepack enable >/dev/null 2>&1 || true
+          corepack prepare pnpm@10 --activate >/dev/null 2>&1 || true
           if ! command -v pnpm >/dev/null 2>&1; then
             npm i -g pnpm@10
           fi
+          NPM_GLOB_BIN="$(npm bin -g)"
+          if [ -d "$NPM_GLOB_BIN" ]; then
+            export PATH="$NPM_GLOB_BIN:$PATH"
+          fi
+          hash -r || true
+          which pnpm || true
           pnpm -v
 
       - name: Install & Build web
@@ -133,182 +133,5 @@ jobs:
           name: web-build
           path: apps/web/.next
 
-  build_api:
-    name: Build & Push API Docker image
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Log in to container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY_HOST }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/api
-          file: ./packages/api/Dockerfile
-          push: true
-          tags: |
-            ${{ env.DOCKER_IMAGE_NAME }}:latest
-            ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
-
-      - name: Write image ref to file
-        run: echo "IMAGE=${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}" > image-ref.txt
-
-      - name: Upload image-ref
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-image-ref
-          path: image-ref.txt
-
-  build_android:
-    name: Build Flutter Android
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-
-      - name: Accept Android licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Install dependencies (mobile)
-        run: |
-          cd apps/mobile
-          flutter pub get
-
-      - name: Build AAB (release)
-        run: |
-          cd apps/mobile
-          flutter build appbundle --release --build-name=${{ github.run_number }} --build-number=${{ github.run_number }}
-
-      - name: Build APK (release, optional)
-        run: |
-          cd apps/mobile
-          flutter build apk --release
-
-      - name: Upload Android artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-artifacts
-          path: |
-            apps/mobile/build/app/outputs/bundle/release/*.aab
-            apps/mobile/build/app/outputs/flutter-apk/*.apk
-
-  build_ios:
-    name: Build Flutter iOS (IPA)
-    runs-on: macos-latest
-    needs: test
-    env:
-      FASTLANE_USER: ${{ secrets.APPLE_APPLE_ID }}
-      IOS_PROV_PROFILE: ${{ secrets.IOS_PROV_PROFILE }}
-      IOS_SIGNING_CERT: ${{ secrets.IOS_SIGNING_CERT }}
-      IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-
-      - name: Install CocoaPods
-        run: brew install cocoapods || true
-
-      - name: Install dependencies (mobile ios)
-        run: |
-          cd apps/mobile
-          flutter pub get
-          cd ios
-          pod install --repo-update || true
-
-      - name: Decrypt and install provisioning profile
-        if: env.IOS_PROV_PROFILE != ''
-        run: |
-          echo "$IOS_PROV_PROFILE" | base64 --decode > profile.mobileprovision
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-
-      - name: Install signing certificate
-        if: env.IOS_SIGNING_CERT != ''
-        run: |
-          echo "$IOS_SIGNING_CERT" | base64 --decode > cert.p12
-          security create-keychain -p "" build.keychain
-          security import cert.p12 -k ~/Library/Keychains/build.keychain -P "$IOS_CERT_PASSWORD" -T /usr/bin/codesign || true
-          security list-keychains -s ~/Library/Keychains/build.keychain
-
-      - name: Build iOS (ipa)
-        run: |
-          cd apps/mobile
-          flutter build ipa --export-options-plist=ios/ExportOptions.plist --no-codesign || true
-
-      - name: Upload iOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-artifacts
-          path: |
-            apps/mobile/build/ios/ipa
-            apps/mobile/build/ios/runner/Release-iphoneos/*.ipa
-
-  deploy_staging:
-    name: Terraform & Deploy to Staging
-    runs-on: ubuntu-latest
-    needs:
-      - build_web
-      - build_api
-      - build_android
-      - build_ios
-    if: startsWith(github.ref, 'refs/heads/') && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
-
-      - name: Terraform init
-        run: |
-          cd infra
-          terraform init -input=false
-
-      - name: Terraform plan
-        run: |
-          cd infra
-          terraform workspace select ${{ env.TERRAFORM_WORKSPACE }} || terraform workspace new ${{ env.TERRAFORM_WORKSPACE }}
-          terraform plan -out=tfplan -input=false -var "docker_image=${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}"
-
-      - name: Terraform apply
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: |
-          cd infra
-          terraform apply -input=false -auto-approve tfplan
-
-      - name: Notify deployment success
-        uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number || 1,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `Deployed to staging: image ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}`
-            })
+  # باقي الـ jobs (build_api, build_android, build_ios, deploy_staging) — أعد استخدامها كما في نسختك السابقة،
+  # إذا أي منها يحتاج pnpm أضف نفس خطوة "Ensure pnpm is installed" قبل أي استدعاء pnpm.
