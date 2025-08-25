@@ -4,19 +4,25 @@ on:
   push:
     branches:
       - main
-      - feature/*
+      - 'feature/**'
   pull_request:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Test / Lint / Build (Monorepo)
     runs-on: ubuntu-latest
-    name: Test and Build
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,11 +35,103 @@ jobs:
         with:
           version: '8.6.10'
 
-      - name: Install dependencies
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies (workspace)
         run: pnpm install --frozen-lockfile
 
-      - name: Run linting
-        run: pnpm lint
+      - name: Run lint (root -> uses package scripts)
+        run: pnpm -w -s lint
+
+      - name: Run tests (root -> runs tests for repo)
+        run: pnpm -w -s test
+
+      - name: Build (all or filtered)
+        # لو تريد بناء كل الحزم: pnpm -w -s build
+        # لو تفضّل بناء تطبيق الويب فقط: pnpm -w --filter ./apps/web... build
+        run: pnpm -w -s build
+
+      - name: Upload build artifacts (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            apps/web/.next/**/*
+            apps/mobile/**/build/**
+
+  deploy:
+    name: Deploy to Production (Docker example)
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '8.6.10'
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies (workspace)
+        run: pnpm install --frozen-lockfile
+
+      # مثال: build تطبيق الويب فقط لتقليل وقت البناء
+      - name: Build web app
+        run: pnpm -w --filter ./apps/web... build
+
+      - name: Set up QEMU and buildx (for multi-arch Docker)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }} # e.g. docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image (web)
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/web
+          file: ./apps/web/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/your-org/your-web-app:${{ github.sha }}
+
+      - name: Deploy on server via SSH
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || '22' }}
+          script: |
+            docker pull ${{ secrets.DOCKER_REGISTRY }}/your-org/your-web-app:${{ github.sha }}
+            docker-compose -f /path/to/your/docker-compose.yml up -d --no-deps --build
 
       - name: Run tests
         run: pnpm test
