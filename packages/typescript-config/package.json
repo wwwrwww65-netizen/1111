@@ -6,5 +6,11 @@
     "base.json",
     "nextjs.json",
     "react-native.json"
-  ]
+  ],
+  "scripts": {
+    "build": "echo \"No build required for typescript-config\"",
+    "lint": "echo \"No linting required for typescript-config\"",
+    "test": "echo \"No tests required for typescript-config\"",
+    "test:coverage": "echo \"No tests required for typescript-config\""
+  }
 }

@@ -8,5 +8,11 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-turbo": "^1.11.3",
     "eslint-plugin-react": "7.33.2"
+  },
+  "scripts": {
+    "build": "echo \"No build required for eslint-config-custom\"",
+    "lint": "echo \"No linting required for eslint-config-custom\"",
+    "test": "echo \"No tests required for eslint-config-custom\"",
+    "test:coverage": "echo \"No tests required for eslint-config-custom\""
   }
 }

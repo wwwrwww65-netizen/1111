@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { middleware } from '../trpc';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import type { Context } from '../trpc';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 

@@ -6,7 +6,7 @@ import { Express } from 'express';
 // CORS configuration
 export const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.NEXT_PUBLIC_APP_URL] 
+    ? [process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'] 
     : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],

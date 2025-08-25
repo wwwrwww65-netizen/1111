@@ -6,7 +6,11 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build": "echo \"No build required for mobile app in CI\"",
+    "lint": "echo \"No linting configured for mobile app\"",
+    "test": "echo \"No tests specified for mobile app\"",
+    "test:coverage": "echo \"No tests specified for mobile app\""
   },
   "dependencies": {
     "expo": "~51.0.8",
