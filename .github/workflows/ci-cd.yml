@@ -2,6 +2,7 @@
 #
 # This workflow merges the advanced CI setup from the main branch
 # with the requested staging deployment functionality.
+# It automatically uses the pnpm version defined in package.json.
 
 name: CI / CD (pnpm & Turborepo)
 
@@ -28,7 +29,6 @@ permissions:
 # Define global environment variables for all jobs.
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '8' # Use major version for latest patches
 
 jobs:
   build_and_test:
@@ -43,8 +43,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # The version is read automatically from the package.json's "packageManager" field.
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -76,8 +75,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # The version is read automatically from the package.json's "packageManager" field.
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
