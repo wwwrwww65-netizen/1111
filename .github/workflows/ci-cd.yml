@@ -23,7 +23,6 @@ permissions:
 # Define global environment variables for all jobs.
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '8' # Use major version for latest patches
 
 jobs:
   build_and_test:
@@ -38,8 +37,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # The version is read automatically from the package.json's "packageManager" field.
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -71,8 +69,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # The version is read automatically from the package.json's "packageManager" field.
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
