@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI & Staging Deployment (pnpm / Turborepo)
 
 on:
   push:
@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test / Lint / Build (Monorepo)
+  build_and_test:
+    name: Build & Test (monorepo)
     runs-on: ubuntu-latest
 
     steps:
@@ -27,13 +27,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20'        # غيّر إلى '18' لو README يطلب 18
           cache: 'pnpm'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: '8.6.10'
+          version: '8.6.10'         # أو '8' لأخذ آخر التصليحات
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -46,15 +46,13 @@ jobs:
       - name: Install dependencies (workspace)
         run: pnpm install --frozen-lockfile
 
-      - name: Run lint (root -> uses package scripts)
+      - name: Lint (workspace)
         run: pnpm -w -s lint
 
-      - name: Run tests (root -> runs tests for repo)
+      - name: Run tests (workspace)
         run: pnpm -w -s test
 
-      - name: Build (all or filtered)
-        # لو تريد بناء كل الحزم: pnpm -w -s build
-        # لو تفضّل بناء تطبيق الويب فقط: pnpm -w --filter ./apps/web... build
+      - name: Build (workspace / turborepo-aware)
         run: pnpm -w -s build
 
       - name: Upload build artifacts (optional)
@@ -62,15 +60,16 @@ jobs:
         with:
           name: build-artifacts
           path: |
-            apps/web/.next/**/*
-            apps/mobile/**/build/**
+            apps/web/.next || true
+            apps/mobile/.expo || true
+            dist || ./**/dist || true
 
-  deploy:
-    name: Deploy to Production (Docker example)
+  deploy_staging:
+    name: Deploy to Staging (SSH example)
     runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    environment: production
+    needs: build_and_test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: staging
 
     steps:
       - name: Checkout repository
@@ -89,82 +88,31 @@ jobs:
         with:
           version: '8.6.10'
 
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-store-${{ runner.os }}-
-
       - name: Install dependencies (workspace)
         run: pnpm install --frozen-lockfile
 
-      # مثال: build تطبيق الويب فقط لتقليل وقت البناء
-      - name: Build web app
+      - name: Build web for deploy (optional)
         run: pnpm -w --filter ./apps/web... build
 
-      - name: Set up QEMU and buildx (for multi-arch Docker)
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker registry
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ secrets.DOCKER_REGISTRY }} # e.g. docker.io
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Docker image (web)
-        uses: docker/build-push-action@v4
-        with:
-          context: ./apps/web
-          file: ./apps/web/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_REGISTRY }}/your-org/your-web-app:${{ github.sha }}
-
-      - name: Deploy on server via SSH
+      - name: Deploy to staging server via SSH
         uses: appleboy/ssh-action@v0.1.8
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || '22' }}
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || '22' }}
           script: |
-            docker pull ${{ secrets.DOCKER_REGISTRY }}/your-org/your-web-app:${{ github.sha }}
-            docker-compose -f /path/to/your/docker-compose.yml up -d --no-deps --build
+            set -e
+            echo "🔔 Staging deploy - example actions below"
+            # مثال إذا تستخدم docker images:
+            # docker pull ${{ secrets.DOCKER_REGISTRY }}/your-org/your-web-app:${{ github.sha }}
+            # docker-compose -f /path/to/docker-compose.yml up -d --no-deps --build
 
-      - name: Run tests
-        run: pnpm test
+            # مثال بديل: استدعاء سكربت نشر موجود على الخادم
+            # cd /var/www/myapp && ./deploy.sh ${{ github.sha }}
 
-      - name: Build project
-        run: pnpm build
+            echo "✅ Deployment to staging finished (simulated)."
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    name: Deploy to Production
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: '8.6.10'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build project
-        run: pnpm build
-
-      - name: Deploy to production
-        run: echo "Deployment step - configure your deployment here"
+      - name: Notify (optional)
+        if: success()
+        run: echo "Staging deploy completed for commit ${{ github.sha }}"
