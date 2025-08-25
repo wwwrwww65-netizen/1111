@@ -1,38 +1,50 @@
-name: CI/CD Pipeline
+# GitHub Actions: CI & Staging Deployment for pnpm/Turborepo Monorepo
+#
+# This workflow automates the process of testing, building, and deploying the application.
+#
+# It includes two main jobs:
+# 1. build_and_test: Runs on every push and pull request to 'main' or 'feature/*' branches.
+#    - Installs dependencies using pnpm.
+#    - Runs linting, testing, and builds the entire monorepo via Turborepo.
+# 2. deploy_staging: Runs ONLY on a push to the 'main' branch, after the 'build_and_test' job succeeds.
+#    - Simulates a deployment to a staging environment.
+#    - This is a placeholder and should be replaced with actual deployment commands.
+
+name: CI & Staging Deployment
 
 on:
   push:
     branches:
       - main
-      - feature/*
+      - 'feature/**' # Also run on feature branches
   pull_request:
     branches:
       - main
 
 jobs:
-  test:
+  build_and_test:
+    name: Build & Test
     runs-on: ubuntu-latest
-    name: Test and Build
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: '8.6.10'
+          version: 8 # Use major version to get latest patches
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Aligned with README
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run linting
+      - name: Lint code
         run: pnpm lint
 
       - name: Run tests
@@ -41,32 +53,46 @@ jobs:
       - name: Build project
         run: pnpm build
 
-  deploy:
+  deploy_staging:
+    name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    name: Deploy to Production
+    needs: build_and_test # This job runs only after build_and_test succeeds
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Only deploy on push to main
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: '8.6.10'
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build project
+      - name: Build project for deployment
         run: pnpm build
 
-      - name: Deploy to production
-        run: echo "Deployment step - configure your deployment here"
+      - name: Deploy to Staging Environment
+        run: |
+          echo "🚀 Deploying to staging server..."
+          # In a real-world scenario, you would add your deployment script here.
+          # For example, using SCP, rsync, or a cloud provider's CLI.
+          #
+          # Example using SCP:
+          # scp -r ./apps/web/.next user@staging-server:/var/www/my-app
+          #
+          # IMPORTANT:
+          # You must store sensitive information like SSH keys, API tokens, etc.,
+          # in GitHub Secrets (Settings > Secrets and variables > Actions).
+          #
+          # secrets.STAGING_SSH_KEY
+          # secrets.STAGING_SERVER_IP
+          echo "✅ Deployment to staging simulated successfully."
