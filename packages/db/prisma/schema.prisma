@@ -12,11 +12,15 @@ model User {
   email     String   @unique
   name      String?
   password  String
-  address   String?
+  phone     String?
+  address   Address?
   role      UserRole @default(USER)
+  isVerified Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   orders    Order[]
+  reviews   Review[]
+  cart      Cart?
 }
 
 enum UserRole {
@@ -31,9 +35,14 @@ model Product {
   price       Float
   images      String[]
   stock       Int
+  isActive    Boolean        @default(true)
+  sku         String?        @unique
+  weight      Float?
+  dimensions  String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   orderItems  OrderItem[]
+  cartItems   CartItem[]
   categories  Category[]
   reviews     Review[]
   variants    ProductVariant[]
@@ -60,6 +69,8 @@ model Order {
   user      User        @relation(fields: [userId], references: [id])
   status    OrderStatus @default(PENDING)
   total     Float
+  shippingAddress Address?
+  payment   Payment?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   items     OrderItem[]
@@ -89,5 +100,70 @@ model Review {
   comment   String?
   productId String
   product   Product  @relation(fields: [productId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  street      String
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  cart      Cart   @relation(fields: [cartId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  orderId   String        @unique
+  order     Order         @relation(fields: [orderId], references: [id])
+  amount    Float
+  currency  String        @default("USD")
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  stripeId  String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  PAYPAL
+  APPLE_PAY
+  GOOGLE_PAY
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
 }

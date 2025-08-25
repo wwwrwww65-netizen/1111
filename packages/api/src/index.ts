@@ -1,11 +1,18 @@
 import express from 'express';
-import cors from 'cors';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
 import { createContext } from './trpc';
+import { applySecurityMiddleware } from './middleware/security';
 
 const app = express();
-app.use(cors());
+
+// Apply security middleware
+applySecurityMiddleware(app);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 app.use(
   '/trpc',
@@ -17,7 +24,9 @@ app.use(
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
-  console.log(`API server listening on port ${port}`);
+  console.log(`🚀 API server listening on port ${port}`);
+  console.log(`📊 Health check: http://localhost:${port}/health`);
+  console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
 });
 
 export type AppRouter = typeof appRouter;
