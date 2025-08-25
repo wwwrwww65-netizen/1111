@@ -1,44 +1,55 @@
 # GitHub Actions: CI & Staging Deployment for pnpm/Turborepo Monorepo
 #
-# This workflow automates the process of testing, building, and deploying the application.
-#
-# It includes two main jobs:
-# 1. build_and_test: Runs on every push and pull request to 'main' or 'feature/*' branches.
-#    - Installs dependencies using pnpm.
-#    - Runs linting, testing, and builds the entire monorepo via Turborepo.
-# 2. deploy_staging: Runs ONLY on a push to the 'main' branch, after the 'build_and_test' job succeeds.
-#    - Simulates a deployment to a staging environment.
-#    - This is a placeholder and should be replaced with actual deployment commands.
+# This workflow merges the advanced CI setup from the main branch
+# with the requested staging deployment functionality.
 
-name: CI & Staging Deployment
+name: CI / CD (pnpm & Turborepo)
 
 on:
   push:
     branches:
       - main
-      - 'feature/**' # Also run on feature branches
+      - 'feature/**'
   pull_request:
     branches:
       - main
 
+# Cancel any in-progress runs on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Define permissions for the workflow, including security event writing.
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+# Define global environment variables for all jobs.
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8' # Use major version for latest patches
+
 jobs:
   build_and_test:
-    name: Build & Test
+    name: Build / Lint / Test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for analysis tools
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8 # Use major version to get latest patches
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Aligned with README
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -66,33 +77,35 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build project for deployment
+        # This build is redundant if artifacts were used, but is kept for simplicity.
+        # For optimization, upload artifacts in the 'build_and_test' job
+        # and download them here.
         run: pnpm build
 
       - name: Deploy to Staging Environment
         run: |
           echo "🚀 Deploying to staging server..."
           # In a real-world scenario, you would add your deployment script here.
-          # For example, using SCP, rsync, or a cloud provider's CLI.
-          #
-          # Example using SCP:
-          # scp -r ./apps/web/.next user@staging-server:/var/www/my-app
+          # Example using SCP, rsync, or a cloud provider's CLI.
           #
           # IMPORTANT:
           # You must store sensitive information like SSH keys, API tokens, etc.,
           # in GitHub Secrets (Settings > Secrets and variables > Actions).
           #
-          # secrets.STAGING_SSH_KEY
-          # secrets.STAGING_SERVER_IP
+          # Example:
+          # echo "${{ secrets.STAGING_SSH_KEY }}" > key.pem
+          # chmod 600 key.pem
+          # scp -i key.pem -r ./apps/web/.next user@${{ secrets.STAGING_SERVER_IP }}:/var/www/my-app
           echo "✅ Deployment to staging simulated successfully."
