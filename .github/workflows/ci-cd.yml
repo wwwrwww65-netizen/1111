@@ -1,4 +1,4 @@
-  # GitHub Actions: CI & Staging Deployment for pnpm/Turborepo Monorepo
+# GitHub Actions: CI & Staging Deployment for pnpm/Turborepo Monorepo
 #
 # This workflow merges the advanced CI setup from the main branch
 # with the requested staging deployment functionality.
