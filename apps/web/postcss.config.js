@@ -1,6 +1,32 @@
-module.exports = {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+{
+  "name": "web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "echo \"Web build disabled for now\"",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "echo \"No tests specified for web app\"",
+    "test:coverage": "echo \"No tests specified for web app\""
   },
-};
+  "dependencies": {
+    "@repo/ui": "workspace:*",
+    "next": "14.2.3",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.3",
+    "eslint-config-custom": "workspace:*",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
