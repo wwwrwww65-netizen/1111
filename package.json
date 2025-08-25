@@ -11,6 +11,7 @@
     "api": "pnpm --filter api dev"
   },
   "devDependencies": {
+    "autoprefixer": "^10.4.21",
     "prettier": "^3.2.5",
     "turbo": "latest"
   },
