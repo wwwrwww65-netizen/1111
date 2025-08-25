@@ -1,4 +1,25 @@
-name: CI & Staging Deployment (pnpm / Turborepo)
+# CI / CD workflow - pnpm / Turborepo monorepo
+# - Build & Test on push / PR
+# - Security scan (CodeQL)
+# - Dependency audit (pnpm audit)
+# - Deploy to Staging (via SSH) on push to main
+# - Smoke tests on staging after deploy
+#
+# IMPORTANT:
+# - Add required Secrets in GitHub repo Settings -> Secrets and variables -> Actions
+#   (see list of secrets below)
+#
+# Recommended secrets:
+# - STAGING_HOST
+# - STAGING_USER
+# - STAGING_SSH_KEY    (private key)
+# - STAGING_SSH_PORT  (optional, default 22)
+# - STAGING_APP_PATH  (path on server, e.g. /var/www/myapp)
+# - STAGING_URL       (public URL used for smoke tests)
+# - DOCKER_REGISTRY, DOCKER_USERNAME, DOCKER_PASSWORD (if using docker push)
+# - SLACK_WEBHOOK (optional notification)
+#
+name: CI / CD (pnpm & Turborepo)
 
 on:
   push:
@@ -13,9 +34,20 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: read
+  security-events: write   # for CodeQL uploads
+
+env:
+  # Default node version; change to '18' if your project requires Node 18
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8.6.10'
+  PNPM_STORE_CACHE_KEY: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+
 jobs:
   build_and_test:
-    name: Build & Test (monorepo)
+    name: Build / Lint / Test / Build (monorepo)
     runs-on: ubuntu-latest
 
     steps:
@@ -27,19 +59,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'        # غيّر إلى '18' لو README يطلب 18
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: '8.6.10'         # أو '8' لأخذ آخر التصليحات
+      - name: Enable corepack & prepare pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+          pnpm -v
 
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
-          path: ~/.pnpm-store
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          # cache both common paths to be resilient across runner setups
+          path: |
+            ~/.pnpm-store
+            ~/.local/share/pnpm
+            ~/.cache/pnpm
+          key: ${{ env.PNPM_STORE_CACHE_KEY }}
           restore-keys: |
             pnpm-store-${{ runner.os }}-
 
@@ -47,12 +84,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint (workspace)
+        # expects "lint" script in root package.json that runs turborepo/tasks
         run: pnpm -w -s lint
 
-      - name: Run tests (workspace)
+      - name: Run unit tests (workspace)
+        # expects "test" in root package.json
         run: pnpm -w -s test
 
       - name: Build (workspace / turborepo-aware)
+        # expects "build" in root package.json that triggers turbo run build
         run: pnpm -w -s build
 
       - name: Upload build artifacts (optional)
@@ -64,10 +104,62 @@ jobs:
             apps/mobile/.expo || true
             dist || ./**/dist || true
 
-  deploy_staging:
-    name: Deploy to Staging (SSH example)
+  security_scan_codeql:
+    name: CodeQL Security Scan
     runs-on: ubuntu-latest
     needs: build_and_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript, typescript
+          # queries: security-extended (you can customize)
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v2
+
+  dependency_audit:
+    name: Dependency Audit (pnpm)
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node & pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+        # enable pnpm via corepack
+      - name: Enable corepack & prepare pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+          pnpm -v
+
+      - name: Install dependencies (no dev deps to speed up)
+        run: pnpm install --frozen-lockfile
+
+      - name: Run dependency audit (pnpm audit)
+        run: |
+          pnpm audit --json > pnpm-audit.json || true
+          cat pnpm-audit.json
+      - name: Upload audit result
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-audit
+          path: pnpm-audit.json
+
+  deploy_staging:
+    name: Deploy to Staging (SSH)
+    runs-on: ubuntu-latest
+    needs: [build_and_test, security_scan_codeql, dependency_audit]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: staging
 
@@ -77,24 +169,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Setup Node.js & pnpm
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: '8.6.10'
+      - name: Enable corepack & prepare pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+          pnpm -v
 
       - name: Install dependencies (workspace)
         run: pnpm install --frozen-lockfile
 
-      - name: Build web for deploy (optional)
+      - name: Build web for deploy (filter to web to save time)
         run: pnpm -w --filter ./apps/web... build
 
-      - name: Deploy to staging server via SSH
+      - name: Create archive of web build (optional)
+        run: |
+          if [ -d "apps/web/.next" ]; then
+            tar -czf web-build-${{ github.sha }}.tar.gz -C apps/web .next
+            ls -lah web-build-*.tar.gz
+          fi
+
+      - name: Deploy to staging server via SSH (rsync example)
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.STAGING_HOST }}
@@ -103,16 +202,75 @@ jobs:
           port: ${{ secrets.STAGING_SSH_PORT || '22' }}
           script: |
             set -e
-            echo "🔔 Staging deploy - example actions below"
-            # مثال إذا تستخدم docker images:
-            # docker pull ${{ secrets.DOCKER_REGISTRY }}/your-org/your-web-app:${{ github.sha }}
-            # docker-compose -f /path/to/docker-compose.yml up -d --no-deps --build
+            echo "Preparing staging directory: ${{ secrets.STAGING_APP_PATH }}"
+            mkdir -p "${{ secrets.STAGING_APP_PATH }}"
+            # Example: pull docker image (if you push images), or use rsync to sync .next
+            # If you prefer rsync, you can instead use the rsync Action or scp via SSH keys.
+            # Below is a placeholder for a deploy script on the server:
+            if [ -f "${{ secrets.STAGING_APP_PATH }}/deploy.sh" ]; then
+              echo "Found deploy.sh on server. Executing..."
+              cd "${{ secrets.STAGING_APP_PATH }}" || exit 1
+              ./deploy.sh ${{ github.sha }}
+            else
+              echo "No deploy.sh on server. Make sure to implement server deploy steps (docker-compose, pm2, etc.)"
+            fi
+            echo "Staging deploy step finished."
 
-            # مثال بديل: استدعاء سكربت نشر موجود على الخادم
-            # cd /var/www/myapp && ./deploy.sh ${{ github.sha }}
-
-            echo "✅ Deployment to staging finished (simulated)."
-
-      - name: Notify (optional)
+      - name: (Optional) Upload deployed archive artifact
         if: success()
-        run: echo "Staging deploy completed for commit ${{ github.sha }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build-archive
+          path: web-build-${{ github.sha }}.tar.gz || true
+
+      - name: Notify Slack (optional)
+        if: success() && secrets.SLACK_WEBHOOK
+        run: |
+          if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
+            payload='{"text":"Staging deployment succeeded for commit '${{ github.sha }}' on repo: '${{ github.repository }}'"}'
+            curl -s -X POST -H 'Content-type: application/json' --data "$payload" "${{ secrets.SLACK_WEBHOOK }}"
+          fi
+
+  smoke_test_staging:
+    name: Smoke Tests on Staging
+    runs-on: ubuntu-latest
+    needs: deploy_staging
+    if: needs.deploy_staging.result == 'success' && env.STAGING_URL != ''
+    env:
+      STAGING_URL: ${{ secrets.STAGING_URL }}
+    steps:
+      - name: Basic health check (root)
+        run: |
+          echo "Checking ${STAGING_URL}"
+          curl -I --max-time 20 "${STAGING_URL}" | sed -n '1,20p'
+      - name: Check /api/health (if exists)
+        run: |
+          HEALTH_URL="${STAGING_URL%/}/api/health"
+          echo "Checking $HEALTH_URL"
+          curl -sSf "${HEALTH_URL}" || (echo "Health endpoint failed" && exit 1)
+      - name: Sample product page check
+        run: |
+          PRODUCTS_URL="${STAGING_URL%/}/products"
+          echo "Checking $PRODUCTS_URL"
+          curl -s --fail "${PRODUCTS_URL}" -o /tmp/products.html
+          wc -c /tmp/products.html
+
+  final_notifications:
+    name: Final Notifications
+    runs-on: ubuntu-latest
+    needs: [build_and_test, security_scan_codeql, dependency_audit, deploy_staging, smoke_test_staging]
+    steps:
+      - name: Summary message (to console)
+        run: |
+          echo "CI pipeline finished. Results:"
+          echo " - build_and_test: ${{ needs.build_and_test.result }}"
+          echo " - codeql: ${{ needs.security_scan_codeql.result }}"
+          echo " - audit: ${{ needs.dependency_audit.result }}"
+          echo " - deploy_staging: ${{ needs.deploy_staging.result }}"
+          echo " - smoke_test_staging: ${{ needs.smoke_test_staging.result || 'skipped' }}"
+      - name: Slack summary (optional)
+        if: always() && secrets.SLACK_WEBHOOK
+        run: |
+          STATUS="CI pipeline finished for commit ${{ github.sha }} on repo ${{ github.repository }}"
+          payload="{\"text\":\"${STATUS}\"}"
+          curl -s -X POST -H 'Content-type: application/json' --data "$payload" "${{ secrets.SLACK_WEBHOOK }}"
