@@ -213,6 +213,9 @@ importers:
       eslint-plugin-react:
         specifier: 7.33.2
         version: 7.33.2(eslint@8.57.1)
+      eslint-plugin-turbo:
+        specifier: ^1.11.3
+        version: 1.11.3(eslint@8.57.1)
 
   packages/typescript-config: {}
 
