@@ -93,6 +93,9 @@ jobs:
       - name: Build Web (skip lint/types)
         run: pnpm --filter web build
 
+      - name: Build Admin (skip lint/types)
+        run: pnpm --filter admin build
+
   deploy_staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
