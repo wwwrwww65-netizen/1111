@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { middleware } from '../trpc';
+import { t } from '../trpc';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import type { Context } from '../trpc';
@@ -36,7 +36,7 @@ export const verifyToken = (token: string): JWTPayload => {
 };
 
 // Auth middleware
-export const authMiddleware = middleware(async ({ ctx, next }) => {
+export const authMiddleware = t.middleware(async ({ ctx, next }) => {
   const token = ctx.req.headers.authorization?.replace('Bearer ', '');
   
   if (!token) {
@@ -57,7 +57,7 @@ export const authMiddleware = middleware(async ({ ctx, next }) => {
 });
 
 // Optional auth middleware (doesn't throw error if no token)
-export const optionalAuthMiddleware = middleware(async ({ ctx, next }) => {
+export const optionalAuthMiddleware = t.middleware(async ({ ctx, next }) => {
   const token = ctx.req.headers.authorization?.replace('Bearer ', '');
   
   if (token) {
@@ -83,7 +83,7 @@ export const optionalAuthMiddleware = middleware(async ({ ctx, next }) => {
 });
 
 // Admin middleware
-export const adminMiddleware = middleware(async ({ ctx, next }) => {
+export const adminMiddleware = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user || ctx.user.role !== 'ADMIN') {
     throw new TRPCError({
       code: 'FORBIDDEN',
