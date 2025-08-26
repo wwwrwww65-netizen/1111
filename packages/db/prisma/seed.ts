@@ -36,64 +36,50 @@ async function main() {
 
   console.log('✅ Users created');
 
-  // Create categories
-  const electronics = await prisma.category.upsert({
-    where: { name: 'Electronics' },
-    update: {},
-    create: {
-      name: 'Electronics',
-      description: 'Electronic devices and gadgets',
-      image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400',
-    },
+  // Create categories (find or create by name since name is not unique)
+  const getOrCreateCategoryByName = async (name: string, data: any) => {
+    const existing = await prisma.category.findFirst({ where: { name } });
+    if (existing) return existing;
+    return prisma.category.create({ data });
+  };
+
+  const electronics = await getOrCreateCategoryByName('Electronics', {
+    name: 'Electronics',
+    description: 'Electronic devices and gadgets',
+    image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400',
   });
 
-  const clothing = await prisma.category.upsert({
-    where: { name: 'Clothing' },
-    update: {},
-    create: {
-      name: 'Clothing',
-      description: 'Fashion and apparel',
-      image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-    },
+  const clothing = await getOrCreateCategoryByName('Clothing', {
+    name: 'Clothing',
+    description: 'Fashion and apparel',
+    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
   });
 
-  const books = await prisma.category.upsert({
-    where: { name: 'Books' },
-    update: {},
-    create: {
-      name: 'Books',
-      description: 'Books and literature',
-      image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400',
-    },
+  const books = await getOrCreateCategoryByName('Books', {
+    name: 'Books',
+    description: 'Books and literature',
+    image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400',
   });
 
   // Create subcategories
-  const smartphones = await prisma.category.upsert({
-    where: { name: 'Smartphones' },
-    update: {},
-    create: {
-      name: 'Smartphones',
-      description: 'Mobile phones and accessories',
-      parentId: electronics.id,
-    },
+  const smartphones = await getOrCreateCategoryByName('Smartphones', {
+    name: 'Smartphones',
+    description: 'Mobile phones and accessories',
+    parentId: electronics.id,
   });
 
-  const laptops = await prisma.category.upsert({
-    where: { name: 'Laptops' },
-    update: {},
-    create: {
-      name: 'Laptops',
-      description: 'Portable computers',
-      parentId: electronics.id,
-    },
+  const laptops = await getOrCreateCategoryByName('Laptops', {
+    name: 'Laptops',
+    description: 'Portable computers',
+    parentId: electronics.id,
   });
 
   console.log('✅ Categories created');
 
-  // Create products
+  // Create products (use sku as unique for upsert)
   const products = await Promise.all([
     prisma.product.upsert({
-      where: { name: 'iPhone 15 Pro' },
+      where: { sku: 'IPHONE15PRO' },
       update: {},
       create: {
         name: 'iPhone 15 Pro',
@@ -114,7 +100,7 @@ async function main() {
     }),
 
     prisma.product.upsert({
-      where: { name: 'MacBook Pro 16"' },
+      where: { sku: 'MBP16M3' },
       update: {},
       create: {
         name: 'MacBook Pro 16"',
@@ -135,7 +121,7 @@ async function main() {
     }),
 
     prisma.product.upsert({
-      where: { name: 'Samsung Galaxy S24' },
+      where: { sku: 'SAMSUNGS24' },
       update: {},
       create: {
         name: 'Samsung Galaxy S24',
@@ -156,7 +142,7 @@ async function main() {
     }),
 
     prisma.product.upsert({
-      where: { name: 'Dell XPS 13' },
+      where: { sku: 'DELLXPS13' },
       update: {},
       create: {
         name: 'Dell XPS 13',
@@ -177,12 +163,12 @@ async function main() {
     }),
 
     prisma.product.upsert({
-      where: { name: 'Nike Air Max 270' },
+      where: { sku: 'NIKEAIRMAX270' },
       update: {},
       create: {
         name: 'Nike Air Max 270',
         description: 'Comfortable running shoes with Air Max technology',
-        price: 150.00,
+        price: 150.0,
         images: [
           'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
           'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
@@ -198,7 +184,7 @@ async function main() {
     }),
 
     prisma.product.upsert({
-      where: { name: 'The Great Gatsby' },
+      where: { sku: 'BOOKGATSBY' },
       update: {},
       create: {
         name: 'The Great Gatsby',
@@ -249,12 +235,12 @@ async function main() {
     // Nike shoes variants
     prisma.productVariant.createMany({
       data: [
-        { productId: products[4].id, name: 'Size', value: 'US 7', price: 150.00 },
-        { productId: products[4].id, name: 'Size', value: 'US 8', price: 150.00 },
-        { productId: products[4].id, name: 'Size', value: 'US 9', price: 150.00 },
-        { productId: products[4].id, name: 'Size', value: 'US 10', price: 150.00 },
-        { productId: products[4].id, name: 'Color', value: 'Black', price: 150.00 },
-        { productId: products[4].id, name: 'Color', value: 'White', price: 150.00 },
+        { productId: products[4].id, name: 'Size', value: 'US 7', price: 150.0 },
+        { productId: products[4].id, name: 'Size', value: 'US 8', price: 150.0 },
+        { productId: products[4].id, name: 'Size', value: 'US 9', price: 150.0 },
+        { productId: products[4].id, name: 'Size', value: 'US 10', price: 150.0 },
+        { productId: products[4].id, name: 'Color', value: 'Black', price: 150.0 },
+        { productId: products[4].id, name: 'Color', value: 'White', price: 150.0 },
       ],
       skipDuplicates: true,
     }),
@@ -469,10 +455,11 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Error during seeding:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
+  .then(async () => {
     await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
   });
