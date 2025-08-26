@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { router, publicProcedure, protectedProcedure } from '../trpc';
+import { router, publicProcedure } from '../trpc';
+import { protectedProcedure } from '../middleware/auth';
 import { db } from '@repo/db';
 import nodemailer from 'nodemailer';
 import jwt from 'jsonwebtoken';

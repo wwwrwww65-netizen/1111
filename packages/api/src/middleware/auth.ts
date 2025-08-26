@@ -95,3 +95,6 @@ export const adminMiddleware = t.middleware(async ({ ctx, next }) => {
     ctx,
   });
 });
+
+// Protected procedure composed here
+export const protectedProcedure = t.procedure.use(authMiddleware);

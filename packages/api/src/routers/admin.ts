@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { router, protectedProcedure } from '../trpc';
+import { router } from '../trpc';
+import { protectedProcedure, adminMiddleware } from '../middleware/auth';
 import { db } from '@repo/db';
-import { adminMiddleware } from '../middleware/auth';
 
 // Admin schemas
 const createProductSchema = z.object({
