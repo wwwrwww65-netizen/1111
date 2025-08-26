@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://jeeeyai.onrender.com/trpc' }}
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     defaults:
       run:
         working-directory: apps/mobile
@@ -39,90 +38,18 @@ jobs:
         run: pnpm install --no-frozen-lockfile
         working-directory: .
 
-      - name: Install EAS CLI
-        run: pnpm dlx eas-cli@latest --version | cat
-
-      - name: Expo whoami (verify token)
-        run: pnpm dlx eas-cli whoami --non-interactive || true
-
-      - name: Resolve Expo owner
-        id: expo_owner
-        run: |
-          OWNER=$(pnpm dlx eas-cli whoami --non-interactive | awk '/Account/{print $2}' | tr -d '\r' || true)
-          if [ -z "$OWNER" ]; then OWNER=""; fi
-          echo "owner=$OWNER" >> $GITHUB_OUTPUT
-          echo "Expo owner: $OWNER"
-
-      - name: Ensure jq is available
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Ensure EAS project (create if missing)
-        id: ensure_project
-        env:
-          OWNER: ${{ steps.expo_owner.outputs.owner }}
-        run: |
-          set -e
-          SLUG="ecom-mobile-${GITHUB_RUN_ID}"
-          PROJECT_ID=""
-          if command -v jq >/dev/null 2>&1; then
-            PROJECT_ID=$(jq -r '.expo.extra.eas.projectId // empty' app.json || true)
-          fi
-          if [ -z "$PROJECT_ID" ]; then
-            echo "Creating EAS project (slug=$SLUG, owner=$OWNER)"
-            pnpm dlx eas-cli project:create --type app --name "E-commerce Mobile App" ${OWNER:+--account $OWNER} --slug "$SLUG" --json > project.json
-            PROJECT_ID=$(cat project.json | jq -r '.id // .projectId // .data.id // empty')
-            if [ -z "$PROJECT_ID" ]; then
-              echo "Failed to create EAS project" && cat project.json && exit 1
-            fi
-            node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.owner=j.expo.owner||process.env.OWNER||undefined;j.expo.slug=j.expo.slug||process.env.SLUG; j.expo.extra=j.expo.extra||{};j.expo.extra.eas=j.expo.extra.eas||{};j.expo.extra.eas.projectId='${PROJECT_ID}';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Linked EAS projectId ->','${PROJECT_ID}');"
-          else
-            echo "Using existing EAS projectId in app.json -> $PROJECT_ID"
-          fi
-          echo "project_id=$PROJECT_ID" >> $GITHUB_OUTPUT
-
       - name: Inject EXPO_PUBLIC_TRPC_URL
         run: |
           node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL;fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
 
-      - name: Build APK with EAS (cloud)
-        continue-on-error: true
-        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --wait --json > build.json || echo "Cloud build failed, will try local build"
+      - name: Install EAS CLI
+        run: pnpm dlx eas-cli@latest --version | cat
 
-      - name: Extract APK URL
-        id: extract
-        run: |
-          if [ -f build.json ]; then
-            URL=$(cat build.json | jq -r '.artifacts.buildUrl // .builds[0].artifacts.buildUrl // .artifacts.url // empty')
-          else
-            URL=""
-          fi
-          if [ -z "$URL" ]; then
-            echo "No cloud APK URL found. Will attempt local build fallback."
-          else
-            echo "apk_url=$URL" >> $GITHUB_OUTPUT
-            echo "$URL" > apk_url.txt
-            echo "APK URL: $URL" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Print APK URL
-        if: ${{ steps.extract.outputs.apk_url != '' }}
-        run: |
-          echo "APK URL: ${{ steps.extract.outputs.apk_url }}"
-
-      - name: Fallback to local build (Docker) if cloud URL missing
-        if: ${{ steps.extract.outputs.apk_url == '' }}
+      - name: Build APK locally (no cloud)
         run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --local --output ./build/app-preview.apk
 
-      - name: Upload local APK artifact (fallback)
-        if: ${{ steps.extract.outputs.apk_url == '' }}
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-preview-apk
           path: apps/mobile/build/app-preview.apk
-
-      - name: Upload APK URL artifact (cloud)
-        if: ${{ steps.extract.outputs.apk_url != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-preview-apk-url
-          path: apps/mobile/apk_url.txt
