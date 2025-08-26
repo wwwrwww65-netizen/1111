@@ -1,0 +1,70 @@
+name: Build Android APK (EAS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      TRPC_URL:
+        description: "tRPC API URL (e.g., https://jeeeyai.onrender.com/trpc)"
+        required: true
+        default: "https://jeeeyai.onrender.com/trpc"
+
+jobs:
+  build_android_apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies (workspace)
+        run: pnpm install --no-frozen-lockfile
+        working-directory: .
+
+      - name: Inject EXPO_PUBLIC_TRPC_URL
+        run: |
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL='${{ github.event.inputs.TRPC_URL }}';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
+
+      - name: Install EAS CLI
+        run: pnpm dlx eas-cli@latest --version | cat
+
+      - name: Ensure jq is available
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Build APK with EAS (cloud)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --wait --json > build.json
+
+      - name: Extract APK URL
+        id: extract
+        run: |
+          URL=$(cat build.json | jq -r '.artifacts.buildUrl // .builds[0].artifacts.buildUrl // .artifacts.url // empty')
+          if [ -z "$URL" ]; then
+            echo "Failed to extract APK URL. Raw response:" && cat build.json && exit 1
+          fi
+          echo "apk_url=$URL" >> $GITHUB_OUTPUT
+          echo "$URL" > apk_url.txt
+          echo "APK URL: $URL" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload APK URL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-preview-apk-url
+          path: apps/mobile/apk_url.txt
+
+      - name: Print APK URL
+        run: |
+          echo "APK URL: ${{ steps.extract.outputs.apk_url }}"
