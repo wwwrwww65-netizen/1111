@@ -243,7 +243,7 @@ export const couponsRouter = router({
           validUntil: { gte: now },
           OR: [
             { maxUses: null },
-            { currentUses: { lt: { maxUses: true } } },
+            { currentUses: { lt: db.$queryRaw`SELECT max_uses FROM "Coupon" WHERE id = id` as any } },
           ],
         },
         orderBy: { discountValue: 'desc' },

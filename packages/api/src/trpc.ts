@@ -27,10 +27,9 @@ export const createContext = ({
 
 export type Context = ReturnType<typeof createContext>;
 
-const trpc = initTRPC.context<Context>().create();
+const t = initTRPC.context<Context>().create();
 
-export const t: typeof trpc = trpc;
-export const router: typeof trpc.router = trpc.router;
-export const publicProcedure: typeof trpc.procedure = trpc.procedure;
-export const middleware: typeof trpc.middleware = trpc.middleware;
-export const protectedProcedure: typeof trpc.procedure = trpc.procedure.use(authMiddleware);
+export const router = t.router;
+export const publicProcedure = t.procedure;
+export const middleware = t.middleware;
+export const protectedProcedure = t.procedure.use(authMiddleware);

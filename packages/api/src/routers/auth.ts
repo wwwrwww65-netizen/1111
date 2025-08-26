@@ -155,7 +155,7 @@ export const authRouter = router({
           phone: true,
           role: true,
           isVerified: true,
-          address: true,
+          addresses: true,
           createdAt: true,
         },
       });
@@ -192,7 +192,7 @@ export const authRouter = router({
           phone: true,
           role: true,
           isVerified: true,
-          address: true,
+          addresses: true,
           createdAt: true,
         },
       });
