@@ -68,12 +68,17 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Build APK with EAS (cloud)
-        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --wait --json > build.json
+        continue-on-error: true
+        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --wait --json > build.json || echo "Cloud build failed, will try local build"
 
       - name: Extract APK URL
         id: extract
         run: |
-          URL=$(cat build.json | jq -r '.artifacts.buildUrl // .builds[0].artifacts.buildUrl // .artifacts.url // empty')
+          if [ -f build.json ]; then
+            URL=$(cat build.json | jq -r '.artifacts.buildUrl // .builds[0].artifacts.buildUrl // .artifacts.url // empty')
+          else
+            URL=""
+          fi
           if [ -z "$URL" ]; then
             echo "No cloud APK URL found. Will attempt local build fallback."
           else
