@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://jeeeyai.onrender.com/trpc' }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     defaults:
       run:
         working-directory: apps/mobile
@@ -45,12 +46,21 @@ jobs:
       - name: Install EAS CLI
         run: pnpm dlx eas-cli@latest --version | cat
 
+      - name: Expo whoami (verify token)
+        run: pnpm dlx eas-cli whoami --non-interactive || true
+
+      - name: Resolve Expo owner
+        id: expo_owner
+        run: |
+          OWNER=$(pnpm dlx eas-cli whoami --non-interactive | awk '/Account/{print $2}' | tr -d '\r' || true)
+          if [ -z "$OWNER" ]; then OWNER=""; fi
+          echo "owner=$OWNER" >> $GITHUB_OUTPUT
+          echo "Expo owner: $OWNER"
+
       - name: Ensure jq is available
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Build APK with EAS (cloud)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --wait --json > build.json
 
       - name: Extract APK URL
