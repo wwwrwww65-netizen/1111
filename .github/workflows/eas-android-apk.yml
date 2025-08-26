@@ -39,22 +39,11 @@ jobs:
         run: pnpm install --no-frozen-lockfile
         working-directory: .
 
-      - name: Inject EXPO_PUBLIC_TRPC_URL
-        run: |
-          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL;fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
-
       - name: Install EAS CLI
         run: pnpm dlx eas-cli@latest --version | cat
 
       - name: Expo whoami (verify token)
         run: pnpm dlx eas-cli whoami --non-interactive || true
-
-      - name: EAS init (non-interactive)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          echo "Initializing EAS project..."
-          pnpm dlx eas-cli init --id || true
 
       - name: Resolve Expo owner
         id: expo_owner
@@ -66,6 +55,34 @@ jobs:
 
       - name: Ensure jq is available
         run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Ensure EAS project (create if missing)
+        id: ensure_project
+        env:
+          OWNER: ${{ steps.expo_owner.outputs.owner }}
+        run: |
+          set -e
+          SLUG="ecom-mobile-${GITHUB_RUN_ID}"
+          PROJECT_ID=""
+          if command -v jq >/dev/null 2>&1; then
+            PROJECT_ID=$(jq -r '.expo.extra.eas.projectId // empty' app.json || true)
+          fi
+          if [ -z "$PROJECT_ID" ]; then
+            echo "Creating EAS project (slug=$SLUG, owner=$OWNER)"
+            pnpm dlx eas-cli project:create --type app --name "E-commerce Mobile App" ${OWNER:+--account $OWNER} --slug "$SLUG" --json > project.json
+            PROJECT_ID=$(cat project.json | jq -r '.id // .projectId // .data.id // empty')
+            if [ -z "$PROJECT_ID" ]; then
+              echo "Failed to create EAS project" && cat project.json && exit 1
+            fi
+            node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.owner=j.expo.owner||process.env.OWNER||undefined;j.expo.slug=j.expo.slug||process.env.SLUG; j.expo.extra=j.expo.extra||{};j.expo.extra.eas=j.expo.extra.eas||{};j.expo.extra.eas.projectId='${PROJECT_ID}';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Linked EAS projectId ->','${PROJECT_ID}');"
+          else
+            echo "Using existing EAS projectId in app.json -> $PROJECT_ID"
+          fi
+          echo "project_id=$PROJECT_ID" >> $GITHUB_OUTPUT
+
+      - name: Inject EXPO_PUBLIC_TRPC_URL
+        run: |
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL;fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
 
       - name: Build APK with EAS (cloud)
         continue-on-error: true
