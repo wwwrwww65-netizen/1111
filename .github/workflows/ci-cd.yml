@@ -5,9 +5,12 @@ on:
     branches:
       - main
       - 'feature/**'
+      - 'feat/**'
+      - '**'
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 # Cancel any in-progress runs on the same branch.
 concurrency:
