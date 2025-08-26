@@ -3,11 +3,27 @@ import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
 import { createContext } from './trpc';
 import { applySecurityMiddleware } from './middleware/security';
+import cookieParser from 'cookie-parser';
+
+// Optional Sentry init
+let sentryEnabled = false;
+try {
+  // Dynamically require to avoid build-time errors if missing
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Sentry = require('@sentry/node');
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({ dsn: process.env.SENTRY_DSN });
+    sentryEnabled = true;
+  }
+} catch {}
 
 const app = express();
 
 // Apply security middleware
 applySecurityMiddleware(app);
+
+// Parse cookies
+app.use(cookieParser());
 
 // Root endpoint for Render root URL
 app.get('/', (req, res) => {
@@ -27,12 +43,26 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Informational handler for GET /trpc
+// Error test endpoint for monitoring
+app.get('/error-test', (_req, _res) => {
+  if (sentryEnabled) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Sentry = require('@sentry/node');
+    Sentry.captureException(new Error('Test error from /error-test'));
+  }
+  throw new Error('Test error endpoint hit');
+});
+
+// Informational handler for GET /trpc (tRPC expects JSON-RPC calls; this is a friendly message)
 app.get('/trpc', (req, res) => {
   res.status(200).json({
     message: 'tRPC endpoint is live.',
     howToUse: 'Use a tRPC client (httpBatchLink) or POST JSON-RPC to /trpc with a procedure path (e.g., search.searchProducts).',
-    example: { procedure: 'search.searchProducts', url: '/trpc', method: 'POST' },
+    example: {
+      procedure: 'search.searchProducts',
+      url: '/trpc',
+      method: 'POST'
+    }
   });
 });
 
