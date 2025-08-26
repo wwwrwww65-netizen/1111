@@ -1,6 +1,7 @@
 import { initTRPC } from '@trpc/server';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { prisma } from '@repo/db';
+import { authMiddleware } from './middleware/auth';
 
 // Define the user type
 export interface JWTPayload {
@@ -16,8 +17,6 @@ export const createContext = ({
   req,
   res,
 }: trpcExpress.CreateExpressContextOptions) => {
-  // Here you could get user session data
-  // For now, we'll just pass the prisma client and request
   return {
     prisma,
     req,
@@ -26,11 +25,12 @@ export const createContext = ({
   };
 };
 
-// You can use any variable name you like.
-// We use t and procedural style to infer types as we add procedures.
-const t = initTRPC.context<typeof createContext>().create();
-
 export type Context = ReturnType<typeof createContext>;
-export const router = t.router;
-export const publicProcedure = t.procedure;
-export const middleware = t.middleware;
+
+const trpc = initTRPC.context<Context>().create();
+
+export const t: typeof trpc = trpc;
+export const router: typeof trpc.router = trpc.router;
+export const publicProcedure: typeof trpc.procedure = trpc.procedure;
+export const middleware: typeof trpc.middleware = trpc.middleware;
+export const protectedProcedure: typeof trpc.procedure = trpc.procedure.use(authMiddleware);

@@ -73,9 +73,7 @@ export const authRouter = router({
 
       // Create cart for user
       await db.cart.create({
-        data: {
-          userId: user.id,
-        },
+        data: { userId: user.id },
       });
 
       // Generate JWT token
@@ -85,10 +83,7 @@ export const authRouter = router({
         role: user.role,
       });
 
-      return {
-        user,
-        token,
-      };
+      return { user, token };
     }),
 
   // Login user
@@ -147,7 +142,7 @@ export const authRouter = router({
     .use(authMiddleware)
     .query(async ({ ctx }) => {
       const user = await db.user.findUnique({
-        where: { id: ctx.user.userId },
+        where: { id: ctx.user!.userId },
         select: {
           id: true,
           email: true,
@@ -155,7 +150,7 @@ export const authRouter = router({
           phone: true,
           role: true,
           isVerified: true,
-          address: true,
+          addresses: true,
           createdAt: true,
         },
       });
@@ -183,7 +178,7 @@ export const authRouter = router({
 
       // Update user
       const user = await db.user.update({
-        where: { id: ctx.user.userId },
+        where: { id: ctx.user!.userId },
         data: updateData,
         select: {
           id: true,
@@ -192,7 +187,7 @@ export const authRouter = router({
           phone: true,
           role: true,
           isVerified: true,
-          address: true,
+          addresses: true,
           createdAt: true,
         },
       });
@@ -200,11 +195,11 @@ export const authRouter = router({
       // Update address if provided
       if (address) {
         await db.address.upsert({
-          where: { userId: ctx.user.userId },
+          where: { userId: ctx.user!.userId },
           update: address,
           create: {
             ...address,
-            userId: ctx.user.userId,
+            userId: ctx.user!.userId,
           },
         });
       }
@@ -224,7 +219,7 @@ export const authRouter = router({
 
       // Get user with password
       const user = await db.user.findUnique({
-        where: { id: ctx.user.userId },
+        where: { id: ctx.user!.userId },
         select: { password: true },
       });
 
@@ -250,7 +245,7 @@ export const authRouter = router({
 
       // Update password
       await db.user.update({
-        where: { id: ctx.user.userId },
+        where: { id: ctx.user!.userId },
         data: { password: hashedNewPassword },
       });
 

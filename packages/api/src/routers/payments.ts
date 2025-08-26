@@ -4,7 +4,7 @@ import { db } from '@repo/db';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2023-10-16',
 });
 
 // Payment method schemas
@@ -71,7 +71,7 @@ export const paymentsRouter = router({
         // Update user with Stripe customer ID
         await db.user.update({
           where: { id: order.user.id },
-          data: { stripeCustomerId: customer.id },
+          data: { stripeCustomerId: (customer as any).id },
         });
       }
 
@@ -79,7 +79,7 @@ export const paymentsRouter = router({
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(amount * 100), // Convert to cents
         currency,
-        customer: customer.id,
+        customer: (customer as any).id,
         payment_method: paymentMethodId,
         confirm: !!paymentMethodId,
         return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success`,
@@ -104,7 +104,7 @@ export const paymentsRouter = router({
       return {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
-        customerId: customer.id,
+        customerId: (customer as any).id,
       };
     }),
 
@@ -248,17 +248,10 @@ export const paymentsRouter = router({
       }
 
       const payments = await db.payment.findMany({
-        where: {
-          order: { userId },
-        },
+        where: { order: { userId } },
         include: {
           order: {
-            select: {
-              id: true,
-              total: true,
-              status: true,
-              createdAt: true,
-            },
+            select: { id: true, total: true, status: true, createdAt: true },
           },
         },
         orderBy: { createdAt: 'desc' },

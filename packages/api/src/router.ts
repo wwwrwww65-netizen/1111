@@ -7,6 +7,8 @@ import { searchRouter } from './routers/search';
 import { adminRouter } from './routers/admin';
 import { wishlistRouter } from './routers/wishlist';
 import { couponsRouter } from './routers/coupons';
+import { cartRouter } from './routers/cart';
+import { ordersRouter } from './routers/orders';
 
 export const appRouter = router({
   // All sub-routers will be merged here
@@ -18,6 +20,8 @@ export const appRouter = router({
   admin: adminRouter,
   wishlist: wishlistRouter,
   coupons: couponsRouter,
+  cart: cartRouter,
+  orders: ordersRouter,
 });
 
 export type AppRouter = typeof appRouter;

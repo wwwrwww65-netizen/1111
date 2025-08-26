@@ -1,10 +1,12 @@
 import { TRPCError } from '@trpc/server';
-import { middleware } from '../trpc';
+import { t } from '../trpc';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import type { Context } from '../trpc';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is not set');
+}
 
 // Schema for JWT payload
 const JWTPayloadSchema = z.object({
@@ -35,10 +37,9 @@ export const verifyToken = (token: string): JWTPayload => {
   }
 };
 
-// Auth middleware
-export const authMiddleware = middleware(async ({ ctx, next }) => {
+export const authMiddleware: ReturnType<typeof t.middleware> = t.middleware(async ({ ctx, next }) => {
   const token = ctx.req.headers.authorization?.replace('Bearer ', '');
-  
+
   if (!token) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
@@ -47,7 +48,7 @@ export const authMiddleware = middleware(async ({ ctx, next }) => {
   }
 
   const payload = verifyToken(token);
-  
+
   return next({
     ctx: {
       ...ctx,
@@ -56,10 +57,9 @@ export const authMiddleware = middleware(async ({ ctx, next }) => {
   });
 });
 
-// Optional auth middleware (doesn't throw error if no token)
-export const optionalAuthMiddleware = middleware(async ({ ctx, next }) => {
+export const optionalAuthMiddleware: ReturnType<typeof t.middleware> = t.middleware(async ({ ctx, next }) => {
   const token = ctx.req.headers.authorization?.replace('Bearer ', '');
-  
+
   if (token) {
     try {
       const payload = verifyToken(token);
@@ -73,7 +73,7 @@ export const optionalAuthMiddleware = middleware(async ({ ctx, next }) => {
       // Continue without user if token is invalid
     }
   }
-  
+
   return next({
     ctx: {
       ...ctx,
@@ -82,15 +82,14 @@ export const optionalAuthMiddleware = middleware(async ({ ctx, next }) => {
   });
 });
 
-// Admin middleware
-export const adminMiddleware = middleware(async ({ ctx, next }) => {
+export const adminMiddleware: ReturnType<typeof t.middleware> = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user || ctx.user.role !== 'ADMIN') {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'Admin access required',
     });
   }
-  
+
   return next({
     ctx,
   });
