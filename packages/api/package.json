@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "ts-node-dev src/index.ts",
     "clean": "rm -rf dist",
-    "build": "pnpm clean && tsc -p tsconfig.json",
+    "build": "pnpm --filter @repo/db build && pnpm clean && tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "echo \"Linting disabled for now\"",
     "test": "jest --passWithNoTests",
