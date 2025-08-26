@@ -9,6 +9,19 @@ const app = express();
 // Apply security middleware
 applySecurityMiddleware(app);
 
+// Root endpoint for Render root URL
+app.get('/', (req, res) => {
+  res.json({
+    name: 'E-commerce API',
+    status: 'ok',
+    endpoints: {
+      health: '/health',
+      trpc: '/trpc'
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
