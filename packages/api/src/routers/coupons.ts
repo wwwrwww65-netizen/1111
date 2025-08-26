@@ -209,15 +209,7 @@ export const couponsRouter = router({
       const couponUsage = await db.couponUsage.findMany({
         where: { userId },
         include: {
-          coupon: true,
-          order: {
-            select: {
-              id: true,
-              total: true,
-              discountAmount: true,
-              createdAt: true,
-            },
-          },
+          coupon: true
         },
         orderBy: { usedAt: 'desc' },
       });
@@ -236,15 +228,12 @@ export const couponsRouter = router({
 
       const now = new Date();
 
+      // Fetch active and currently valid coupons
       const coupons = await db.coupon.findMany({
         where: {
           isActive: true,
           validFrom: { lte: now },
           validUntil: { gte: now },
-          OR: [
-            { maxUses: null },
-            { currentUses: { lt: db.$queryRaw`SELECT max_uses FROM "Coupon" WHERE id = id` as any } },
-          ],
         },
         orderBy: { discountValue: 'desc' },
       });
@@ -256,7 +245,11 @@ export const couponsRouter = router({
       });
 
       const usedCouponIds = userCouponUsage.map(usage => usage.couponId);
-      const availableCoupons = coupons.filter(coupon => !usedCouponIds.includes(coupon.id));
+
+      // Apply remaining limits: maxUses is null or currentUses < maxUses
+      const availableCoupons = coupons
+        .filter(coupon => !usedCouponIds.includes(coupon.id))
+        .filter(coupon => coupon.maxUses == null || coupon.currentUses < coupon.maxUses);
 
       return { coupons: availableCoupons };
     }),
