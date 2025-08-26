@@ -68,18 +68,32 @@ jobs:
         run: |
           URL=$(cat build.json | jq -r '.artifacts.buildUrl // .builds[0].artifacts.buildUrl // .artifacts.url // empty')
           if [ -z "$URL" ]; then
-            echo "Failed to extract APK URL. Raw response:" && cat build.json && exit 1
+            echo "No cloud APK URL found. Will attempt local build fallback."
+          else
+            echo "apk_url=$URL" >> $GITHUB_OUTPUT
+            echo "$URL" > apk_url.txt
+            echo "APK URL: $URL" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "apk_url=$URL" >> $GITHUB_OUTPUT
-          echo "$URL" > apk_url.txt
-          echo "APK URL: $URL" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload APK URL artifact
+      - name: Print APK URL
+        if: ${{ steps.extract.outputs.apk_url != '' }}
+        run: |
+          echo "APK URL: ${{ steps.extract.outputs.apk_url }}"
+
+      - name: Fallback to local build (Docker) if cloud URL missing
+        if: ${{ steps.extract.outputs.apk_url == '' }}
+        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --local --output ./build/app-preview.apk
+
+      - name: Upload local APK artifact (fallback)
+        if: ${{ steps.extract.outputs.apk_url == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-preview-apk
+          path: apps/mobile/build/app-preview.apk
+
+      - name: Upload APK URL artifact (cloud)
+        if: ${{ steps.extract.outputs.apk_url != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: app-preview-apk-url
           path: apps/mobile/apk_url.txt
-
-      - name: Print APK URL
-        run: |
-          echo "APK URL: ${{ steps.extract.outputs.apk_url }}"
