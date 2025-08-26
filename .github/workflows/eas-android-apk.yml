@@ -49,6 +49,13 @@ jobs:
       - name: Expo whoami (verify token)
         run: pnpm dlx eas-cli whoami --non-interactive || true
 
+      - name: EAS init (non-interactive)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          echo "Initializing EAS project..."
+          pnpm dlx eas-cli init --id || true
+
       - name: Resolve Expo owner
         id: expo_owner
         run: |
