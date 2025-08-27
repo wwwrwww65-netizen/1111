@@ -44,6 +44,15 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
+      - name: Create placeholder assets (icon/splash)
+        run: |
+          mkdir -p assets
+          B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9n3aQAAAAASUVORK5CYII="
+          echo $B64 | base64 -d > assets/icon.png
+          echo $B64 | base64 -d > assets/adaptive-icon.png
+          echo $B64 | base64 -d > assets/splash.png
+          echo $B64 | base64 -d > assets/favicon.png
+
       - name: Set EXPO_PUBLIC_TRPC_URL (release)
         run: |
           node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL || 'https://jeeeyai.onrender.com/trpc';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"

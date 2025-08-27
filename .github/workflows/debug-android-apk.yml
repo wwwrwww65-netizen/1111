@@ -48,8 +48,17 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
+      - name: Create placeholder assets (icon/splash)
+        run: |
+          mkdir -p assets
+          B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9n3aQAAAAASUVORK5CYII="
+          echo $B64 | base64 -d > assets/icon.png
+          echo $B64 | base64 -d > assets/adaptive-icon.png
+          echo $B64 | base64 -d > assets/splash.png
+          echo $B64 | base64 -d > assets/favicon.png
+
       - name: Expo prebuild (android)
-        run: pnpm dlx expo prebuild --platform android --non-interactive
+        run: pnpm dlx expo prebuild --platform android --non-interactive --clean
 
       - name: Gradle assembleDebug
         run: |
