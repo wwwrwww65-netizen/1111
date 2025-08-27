@@ -1,0 +1,53 @@
+name: Build Android Debug APK (Standalone)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_debug_apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies (workspace)
+        run: pnpm install --no-frozen-lockfile
+        working-directory: .
+
+      - name: Set EXPO_PUBLIC_TRPC_URL (debug)
+        run: |
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL || 'https://jeeeyai.onrender.com/trpc';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
+
+      - name: Install Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Expo prebuild (android)
+        run: pnpm dlx expo prebuild --platform android --non-interactive --no-install
+
+      - name: Gradle assembleDebug
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
