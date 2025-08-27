@@ -1,0 +1,55 @@
+name: Build Android APK (EAS)
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      TRPC_URL:
+        description: "tRPC API URL (e.g., https://jeeeyai.onrender.com/trpc)"
+        required: false
+        default: "https://jeeeyai.onrender.com/trpc"
+
+jobs:
+  build_android_apk:
+    runs-on: ubuntu-latest
+    env:
+      TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://jeeeyai.onrender.com/trpc' }}
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies (workspace)
+        run: pnpm install --no-frozen-lockfile
+        working-directory: .
+
+      - name: Inject EXPO_PUBLIC_TRPC_URL
+        run: |
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL;fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
+
+      - name: Install EAS CLI
+        run: pnpm dlx eas-cli@latest --version | cat
+
+      - name: Build APK locally (no cloud)
+        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --local --output ./build/app-preview.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-preview-apk
+          path: apps/mobile/build/app-preview.apk
