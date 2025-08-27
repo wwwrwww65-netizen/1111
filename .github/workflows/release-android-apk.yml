@@ -9,6 +9,8 @@ on:
 jobs:
   build_release_apk:
     runs-on: ubuntu-latest
+    env:
+      CI: true
     defaults:
       run:
         working-directory: apps/mobile
@@ -50,12 +52,7 @@ jobs:
 
       - name: Create placeholder assets (icon/splash)
         run: |
-          mkdir -p assets
-          B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9n3aQAAAAASUVORK5CYII="
-          echo $B64 | base64 -d > assets/icon.png
-          echo $B64 | base64 -d > assets/adaptive-icon.png
-          echo $B64 | base64 -d > assets/splash.png
-          echo $B64 | base64 -d > assets/favicon.png
+          node -e "const fs=require('fs');const b='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9n3aQAAAAASUVORK5CYII=';fs.mkdirSync('assets',{recursive:true});const buf=Buffer.from(b,'base64');['icon.png','adaptive-icon.png','splash.png','favicon.png'].forEach(f=>fs.writeFileSync('assets/'+f,buf));console.log('Wrote assets');"
 
       - name: Inject android.package for prebuild
         run: |
@@ -66,7 +63,7 @@ jobs:
           node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL || 'https://jeeeyai.onrender.com/trpc';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
 
       - name: Expo prebuild (android)
-        run: pnpm dlx expo prebuild --platform android --non-interactive
+        run: pnpm dlx expo prebuild --platform android --clean
 
       - name: Assemble release (Gradle)
         run: |
