@@ -81,8 +81,8 @@ jobs:
           echo "DATABASE_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
           echo "DIRECT_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
 
-      - name: Prisma migrate
-        run: pnpm --filter @repo/db db:migrate
+      - name: Prisma push schema (non-destructive)
+        run: pnpm --filter @repo/db db:push
 
       - name: Prisma seed
         run: pnpm --filter @repo/db db:seed
