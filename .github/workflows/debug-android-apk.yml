@@ -55,9 +55,19 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Install ImageMagick and pngcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick pngcheck
+
       - name: Create placeholder assets (icon/splash)
         run: |
-          node -e "const fs=require('fs');const b='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9n3aQAAAAASUVORK5CYII=';fs.mkdirSync('assets',{recursive:true});const buf=Buffer.from(b,'base64');['icon.png','adaptive-icon.png','splash.png','favicon.png'].forEach(f=>fs.writeFileSync('assets/'+f,buf));console.log('Wrote assets');"
+          mkdir -p assets
+          convert -size 512x512 canvas:white assets/icon.png
+          convert -size 512x512 canvas:white assets/adaptive-icon.png
+          convert -size 1242x2436 canvas:white assets/splash.png
+          convert -size 32x32 canvas:white assets/favicon.png
+          pngcheck -v assets/*.png | cat
 
       - name: Inject android.package for prebuild
         run: |
