@@ -61,6 +61,10 @@ jobs:
           echo $B64 | base64 -d > assets/splash.png
           echo $B64 | base64 -d > assets/favicon.png
 
+      - name: Inject android.package for prebuild
+        run: |
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.android=j.expo.android||{};j.expo.android.package=j.expo.android.package||'com.example.ecom';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('android.package ->',j.expo.android.package);"
+
       - name: Expo prebuild (android)
         run: pnpm dlx expo prebuild --platform android --non-interactive --clean
 
