@@ -2,8 +2,7 @@
 module.exports = {
   root: true,
   extends: [
-    "custom",
-    "next/core-web-vitals"
+    "custom"
   ],
   rules: {
     "no-console": "warn"
