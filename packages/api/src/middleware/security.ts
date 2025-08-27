@@ -49,7 +49,7 @@ export const applySecurityMiddleware = (app: Express) => {
     },
   }));
 
-  // CORS
+  // CORS (with credentials for cookies)
   app.use(cors(corsOptions));
 
   // Rate limiting
