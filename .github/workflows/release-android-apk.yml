@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'cursor/**'
+      - 'auto-fix/**'
 
 jobs:
   build_release_apk:
