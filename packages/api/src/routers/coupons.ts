@@ -245,12 +245,12 @@ export const couponsRouter = router({
         select: { couponId: true },
       });
 
-      const usedCouponIds = userCouponUsage.map(usage => usage.couponId);
+      const usedCouponIds = userCouponUsage.map((usage: { couponId: string }) => usage.couponId);
 
       // Apply remaining limits: maxUses is null or currentUses < maxUses
       const availableCoupons = coupons
-        .filter(coupon => !usedCouponIds.includes(coupon.id))
-        .filter(coupon => coupon.maxUses == null || coupon.currentUses < coupon.maxUses);
+        .filter((coupon: { id: string; maxUses: number | null; currentUses: number }) => !usedCouponIds.includes(coupon.id))
+        .filter((coupon: { maxUses: number | null; currentUses: number }) => coupon.maxUses == null || coupon.currentUses < coupon.maxUses);
 
       return { coupons: availableCoupons };
     }),

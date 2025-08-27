@@ -130,14 +130,14 @@ export const adminRouter = router({
       ]);
 
       // Get product details for top selling
-      const topSellingProductIds = topSellingProducts.map(item => item.productId);
+      const topSellingProductIds = topSellingProducts.map((item: { productId: string }) => item.productId);
       const topSellingProductDetails = await db.product.findMany({
         where: { id: { in: topSellingProductIds } },
         select: { id: true, name: true, price: true, images: true },
       });
 
-      const topSellingWithDetails = topSellingProducts.map(item => {
-        const product = topSellingProductDetails.find(p => p.id === item.productId);
+      const topSellingWithDetails = topSellingProducts.map((item: { productId: string; _sum: { quantity: number | null } }) => {
+        const product = topSellingProductDetails.find((p: { id: string }) => p.id === item.productId);
         return {
           product,
           totalSold: item._sum.quantity || 0,

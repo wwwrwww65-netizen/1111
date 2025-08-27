@@ -125,9 +125,9 @@ export const searchRouter = router({
       ]);
 
       // Calculate average rating for each product
-      const productsWithRating = products.map(product => {
+      const productsWithRating = products.map((product: any) => {
         const avgRating = product.reviews.length > 0
-          ? product.reviews.reduce((sum, review) => sum + review.rating, 0) / product.reviews.length
+          ? product.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / product.reviews.length
           : 0;
 
         return {
@@ -395,12 +395,12 @@ export const searchRouter = router({
       ]);
 
       return {
-        categories: categories.filter(cat => cat._count.products > 0),
+        categories: categories.filter((cat: any) => cat._count.products > 0),
         priceRange: {
           min: priceRanges._min.price || 0,
           max: priceRanges._max.price || 1000,
         },
-        brands: brands.map(b => b.brand).filter(Boolean),
+        brands: brands.map((b: any) => b.brand).filter(Boolean),
       };
     }),
 });
