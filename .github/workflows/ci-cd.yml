@@ -96,6 +96,12 @@ jobs:
       - name: Build Admin (skip lint/types)
         run: pnpm --filter admin build
 
+      - name: Run UI tests
+        run: pnpm --filter @repo/ui test -- --ci --reporters=default --reporters=summary
+
+      - name: Run API tests
+        run: pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
+
   deploy_staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
