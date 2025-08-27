@@ -68,7 +68,7 @@ jobs:
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          ./gradlew :app:clean :app:assembleRelease --no-daemon --stacktrace
 
       - name: Generate temporary release keystore
         run: |
@@ -82,7 +82,8 @@ jobs:
           if [ ! -f "$APK_UNSIGNED" ]; then echo "Unsigned APK not found"; ls -la; exit 1; fi
           BUILD_TOOLS=$(ls -v "$ANDROID_SDK_ROOT"/build-tools | tail -1)
           "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK_UNSIGNED" app-release-aligned.apk
-          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../app/release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
+          # keystore created at android/app/release.keystore; relative path from release dir requires going up 4 levels
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
           "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner verify app-release-signed.apk
 
       - name: Upload release APK artifact
