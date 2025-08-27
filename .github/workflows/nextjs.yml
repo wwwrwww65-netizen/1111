@@ -47,10 +47,6 @@ jobs:
       - name: Build web (Next.js)
         run: pnpm --filter web build
 
-      - name: Export static site
-        run: pnpm exec next export
-        working-directory: apps/web
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
