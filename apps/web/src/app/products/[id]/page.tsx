@@ -2,6 +2,11 @@ interface ProductPageProps {
   params: { id: string }
 }
 
+export const dynamicParams = false;
+export async function generateStaticParams() {
+  return [] as { id: string }[];
+}
+
 export default function ProductPage({ params }: ProductPageProps) {
   return (
     <main style={{ padding: 24 }}>
