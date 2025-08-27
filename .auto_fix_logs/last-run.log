@@ -1,0 +1,3 @@
+Auto-fix run 2025-08-27T11:02:46+00:00
+Wrote placeholder assets in apps/mobile/assets
+Updated app.json with local asset refs and android.package
