@@ -595,14 +595,14 @@ export const adminRouter = router({
       ]);
 
       // Get product details for top products
-      const topProductIds = topProducts.map(item => item.productId);
+      const topProductIds = topProducts.map((item: { productId: string }) => item.productId);
       const topProductDetails = await db.product.findMany({
         where: { id: { in: topProductIds } },
         select: { id: true, name: true, price: true },
       });
 
-      const topProductsWithDetails = topProducts.map(item => {
-        const product = topProductDetails.find(p => p.id === item.productId);
+      const topProductsWithDetails = topProducts.map((item: { productId: string; _sum: { quantity: number | null } }) => {
+        const product = topProductDetails.find((p: { id: string }) => p.id === item.productId);
         return {
           product,
           totalSold: item._sum.quantity || 0,
