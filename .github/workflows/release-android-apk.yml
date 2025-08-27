@@ -44,6 +44,10 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
+      - name: Install required Android SDK packages
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
       - name: Create placeholder assets (icon/splash)
         run: |
           mkdir -p assets
@@ -63,6 +67,7 @@ jobs:
       - name: Assemble release (Gradle)
         run: |
           cd android
+          chmod +x ./gradlew
           ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
       - name: Generate temporary release keystore
