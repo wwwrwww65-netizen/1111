@@ -96,6 +96,27 @@ jobs:
       - name: Build Admin (skip lint/types)
         run: pnpm --filter admin build
 
+      - name: Upload Web artifact (.next standalone)
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-standalone
+          path: apps/web/.next/standalone
+          if-no-files-found: warn
+
+      - name: Upload Admin artifact (.next standalone)
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-standalone
+          path: apps/admin/.next/standalone
+          if-no-files-found: warn
+
+      - name: Upload API dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: packages/api/dist
+          if-no-files-found: warn
+
       - name: Run UI tests
         run: pnpm --filter @repo/ui test -- --ci --reporters=default --reporters=summary
 
