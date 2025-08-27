@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://jeeeyai.onrender.com/trpc' }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     defaults:
       run:
         working-directory: apps/mobile
