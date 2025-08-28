@@ -6,15 +6,16 @@ const API_BASE = process.env.API_BASE || 'http://localhost:4000';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
 
+
 async function trpcCall(path, input, cookie) {
-	// Single-call style: POST to /trpc/<procedure> with body { input }
+	// Single-call JSON-RPC style: { id, json } where json is the input object
 	const res = await fetch(`${TRPC_URL.replace(/\/$/, '')}/${path}`, {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
 			...(cookie ? { cookie } : {}),
 		},
-		body: JSON.stringify({ input }),
+		body: JSON.stringify({ id: 1, json: input }),
 	});
 	const setCookie = res.headers.get('set-cookie') || '';
 	const json = await res.json();
