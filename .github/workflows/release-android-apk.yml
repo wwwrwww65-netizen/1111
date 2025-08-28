@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
+      REACT_NATIVE_DIR: ../node_modules/react-native
+      REACT_NATIVE_NPM_PACKAGE: ../node_modules/@react-native/gradle-plugin
     defaults:
       run:
         working-directory: apps/mobile
@@ -75,6 +77,23 @@ jobs:
 
       - name: Expo prebuild (android)
         run: pnpm dlx expo prebuild --platform android --clean
+
+      - name: Patch settings.gradle for RN gradle-plugin path
+        run: |
+          SETTINGS=android/settings.gradle
+          if [ -f "$SETTINGS" ]; then
+            node -e '
+              const fs=require("fs");
+              const p="android/settings.gradle";
+              let s=fs.readFileSync(p,"utf8");
+              s=s.replace(/includeBuild\((?:"|\')null(?:"|\')\)/g, "includeBuild(\"../node_modules/@react-native/gradle-plugin\")");
+              if(!s.includes("@react-native/gradle-plugin")){
+                s += "\nincludeBuild(\"../node_modules/@react-native/gradle-plugin\")\n";
+              }
+              fs.writeFileSync(p,s);
+              console.log("Patched",p);
+            '
+          fi
 
       - name: Assemble release (Gradle)
         run: |
