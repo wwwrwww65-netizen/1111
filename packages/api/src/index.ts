@@ -55,11 +55,7 @@ app.get('/error-test', (_req, _res) => {
 app.get('/trpc', (req, res) => {
   res.status(200).json({
     message: 'tRPC endpoint is live.',
-<<<<<<< HEAD
-    howToUse: 'Use a tRPC client (e.g., httpBatchLink) or POST JSON-RPC to /trpc with a procedure path such as search.searchProducts.',
-=======
     howToUse: 'Use a tRPC client (httpBatchLink) or POST JSON-RPC to /trpc with a procedure path (e.g., search.searchProducts).',
->>>>>>> origin/main
     example: {
       procedure: 'search.searchProducts',
       url: '/trpc',

@@ -69,21 +69,13 @@ export const authRouter = router({
       });
 
       // Create cart for user
-<<<<<<< HEAD
       await db.cart.create({ data: { userId: user.id } });
-=======
-      await db.cart.create({ data: { userId: user.id } });
->>>>>>> origin/main
 
       // Generate JWT token and set cookie
       const token = createToken({ userId: user.id, email: user.email, role: user.role });
       ctx.res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
 
-<<<<<<< HEAD
       return { user };
-=======
-      return { user };
->>>>>>> origin/main
     }),
 
   // Login user
@@ -180,11 +172,7 @@ export const authRouter = router({
         await db.address.upsert({
           where: { userId: ctx.user!.userId },
           update: address,
-<<<<<<< HEAD
           create: { ...address, userId: ctx.user.userId },
-=======
-          create: { ...address, userId: ctx.user.userId },
->>>>>>> origin/main
         });
       }
 
@@ -199,12 +187,7 @@ export const authRouter = router({
       const { currentPassword, newPassword } = input;
 
       // Get user with password
-<<<<<<< HEAD
       const user = await db.user.findUnique({ where: { id: ctx.user.userId }, select: { password: true } });
-
-=======
-      const user = await db.user.findUnique({ where: { id: ctx.user.userId }, select: { password: true } });
->>>>>>> origin/main
       if (!user) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
       }
@@ -217,11 +200,7 @@ export const authRouter = router({
 
       // Hash new password
       const hashedNewPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
-<<<<<<< HEAD
       await db.user.update({ where: { id: ctx.user.userId }, data: { password: hashedNewPassword } });
-=======
-      await db.user.update({ where: { id: ctx.user.userId }, data: { password: hashedNewPassword } });
->>>>>>> origin/main
 
       return { success: true };
     }),
