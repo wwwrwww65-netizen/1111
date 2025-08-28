@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ecom-api
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: pnpm install --frozen-lockfile=false && pnpm --filter @repo/db db:generate && pnpm --filter @repo/api build
+    startCommand: node packages/api/dist/index.js
+    healthCheckPath: /health
+    autoDeploy: true
