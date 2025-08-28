@@ -83,11 +83,19 @@ jobs:
           SETTINGS=android/settings.gradle
           if [ -f "$SETTINGS" ]; then
             sed -i.bak -E "s/includeBuild\((\"|'|)null\1\)/includeBuild(\"..\/node_modules\/@react-native\/gradle-plugin\")/g" "$SETTINGS"
+            sed -i -E "s/includeBuild\([^)]*file\([^)]*null[^)]*\)[^)]*\)/includeBuild(\"..\/node_modules\/@react-native\/gradle-plugin\")/g" "$SETTINGS"
             if ! grep -q "@react-native/gradle-plugin" "$SETTINGS"; then
               echo 'includeBuild("../node_modules/@react-native/gradle-plugin")' >> "$SETTINGS"
             fi
             echo "Patched $SETTINGS:" && head -n 30 "$SETTINGS" | cat
           fi
+
+      - name: Ensure gradle.properties has RN paths
+        run: |
+          GP=android/gradle.properties
+          echo "REACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin" >> "$GP"
+          echo "reactNativeDir=../node_modules/react-native" >> "$GP"
+          echo "Wrote $GP:" && tail -n 5 "$GP" | cat
 
       - name: Assemble release (Gradle)
         run: |
