@@ -5,6 +5,7 @@
     "module": "CommonJS",
     "outDir": "dist",
     "rootDir": "src",
+<<<<<<< HEAD
     "resolveJsonModule": true,
     "sourceMap": true,
     "declaration": false,
@@ -12,6 +13,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true
+=======
+    "declaration": false,
+    "declarationMap": false
+>>>>>>> origin/main
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/__tests__/**"]

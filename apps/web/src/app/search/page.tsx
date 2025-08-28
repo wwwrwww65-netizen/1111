@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client";
 import { trpc } from "../providers";
 
@@ -23,6 +24,13 @@ export default function SearchPage(): JSX.Element {
           </div>
         ))}
       </div>
+=======
+export default function SearchPage() {
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Search</h1>
+      <p>Find products by name, category, or tags.</p>
+>>>>>>> origin/main
     </main>
   );
 }

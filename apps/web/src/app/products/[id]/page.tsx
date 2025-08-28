@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client";
 import { trpc } from "../../providers";
 import Image from "next/image";
@@ -42,6 +43,22 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           <button className="mt-6 px-4 py-2 bg-black text-white rounded">Add to Cart</button>
         </div>
       </div>
+=======
+interface ProductPageProps {
+  params: { id: string }
+}
+
+export const dynamicParams = false;
+export async function generateStaticParams() {
+  return [] as { id: string }[];
+}
+
+export default function ProductPage({ params }: ProductPageProps) {
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Product {params.id}</h1>
+      <p>Product details will be displayed here.</p>
+>>>>>>> origin/main
     </main>
   );
 }

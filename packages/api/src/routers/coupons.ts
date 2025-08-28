@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { router, publicProcedure, protectedProcedure } from '../trpc';
+import { router, publicProcedure } from '../trpc';
+import { protectedProcedure } from '../middleware/auth';
 import { db } from '@repo/db';
 
 export const couponsRouter = router({
@@ -128,7 +129,11 @@ export const couponsRouter = router({
       const couponUsage = await db.couponUsage.findMany({
         where: { userId },
         include: {
+<<<<<<< HEAD
           coupon: true,
+=======
+          coupon: true
+>>>>>>> origin/main
         },
         orderBy: { usedAt: 'desc' },
       });
@@ -143,6 +148,7 @@ export const couponsRouter = router({
 
       const now = new Date();
 
+      // Fetch active and currently valid coupons
       const coupons = await db.coupon.findMany({
         where: {
           isActive: true,
@@ -158,9 +164,18 @@ export const couponsRouter = router({
       });
       const usedCouponIds = new Set(userCouponUsage.map((u) => u.couponId));
 
+<<<<<<< HEAD
       const availableCoupons = coupons
         .filter((c) => (!c.maxUses || c.currentUses < c.maxUses))
         .filter((c) => !usedCouponIds.has(c.id));
+=======
+      const usedCouponIds = userCouponUsage.map((usage: { couponId: string }) => usage.couponId);
+
+      // Apply remaining limits: maxUses is null or currentUses < maxUses
+      const availableCoupons = coupons
+        .filter((coupon: { id: string; maxUses: number | null; currentUses: number }) => !usedCouponIds.includes(coupon.id))
+        .filter((coupon: { maxUses: number | null; currentUses: number }) => coupon.maxUses == null || coupon.currentUses < coupon.maxUses);
+>>>>>>> origin/main
 
       return { coupons: availableCoupons };
     }),

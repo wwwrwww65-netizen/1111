@@ -2,7 +2,7 @@
   "name": "ecom-platform",
   "private": true,
   "scripts": {
-    "build": "turbo build",
+    "build": "pnpm --filter @repo/db build && turbo build",
     "dev": "turbo dev --parallel",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client";
 import { trpc } from "../providers";
 
@@ -55,6 +56,13 @@ export default function CartPage(): JSX.Element {
           </div>
         </div>
       )}
+=======
+export default function CartPage() {
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Cart</h1>
+      <p>Your shopping cart is empty.</p>
+>>>>>>> origin/main
     </main>
   );
 }
