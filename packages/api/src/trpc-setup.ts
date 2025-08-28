@@ -9,11 +9,6 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 export const middleware = t.middleware;
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-	throw new Error('JWT_SECRET environment variable is not set');
-}
-
 const JWTPayloadSchema = z.object({
 	userId: z.string(),
 	email: z.string().email(),
@@ -24,16 +19,20 @@ const JWTPayloadSchema = z.object({
 export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
 
 export const createToken = (payload: Omit<JWTPayload, 'iat' | 'exp'>): string => {
-	return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET is not set');
+  return jwt.sign(payload, secret, { expiresIn: '7d' });
 };
 
 export const verifyToken = (token: string): JWTPayload => {
-	try {
-		const decoded = jwt.verify(token, JWT_SECRET);
-		return JWTPayloadSchema.parse(decoded);
-	} catch {
-		throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
-	}
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error('JWT_SECRET is not set');
+    const decoded = jwt.verify(token, secret);
+    return JWTPayloadSchema.parse(decoded);
+  } catch {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
+  }
 };
 
 const readTokenFromRequest = (req: any): string | null => {
