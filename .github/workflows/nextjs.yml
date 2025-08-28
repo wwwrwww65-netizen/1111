@@ -41,8 +41,9 @@ jobs:
           node-version: "20"
           cache: pnpm
 
-      - name: Install dependencies
+      - name: Install dependencies (workspace)
         run: pnpm install --no-frozen-lockfile
+        working-directory: .
 
       - name: Build web (Next.js)
         run: pnpm build
