@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { t } from '../trpc';
+import { t } from '../trpc-setup';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 

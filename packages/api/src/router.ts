@@ -1,4 +1,4 @@
-import { router } from './trpc';
+import { router } from './trpc-setup';
 import { productsRouter } from './routers/products';
 import { authRouter } from './routers/auth';
 import { paymentsRouter } from './routers/payments';

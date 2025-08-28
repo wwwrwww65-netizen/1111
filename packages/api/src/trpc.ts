@@ -1,6 +1,7 @@
 import { initTRPC } from '@trpc/server';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { createContext, Context } from './context';
+export { t, router, publicProcedure, middleware } from './trpc-setup';
 
 // Define the user type
 export interface JWTPayload {

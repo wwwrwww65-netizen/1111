@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router } from '../trpc';
+import { router } from '../trpc-setup';
 import { protectedProcedure } from '../middleware/auth';
 import { db } from '@repo/db';
 
