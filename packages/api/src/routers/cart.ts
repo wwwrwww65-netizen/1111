@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { router, protectedProcedure } from '../trpc';
+import { router } from '../trpc';
+import { protectedProcedure } from '../middleware/auth';
 import { db } from '@repo/db';
 
 export const cartRouter = router({
