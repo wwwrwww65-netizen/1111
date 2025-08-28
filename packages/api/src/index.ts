@@ -24,6 +24,58 @@ const app = express();
 applySecurityMiddleware(app);
 // Parse cookies
 app.use(cookieParser());
+
+// Stripe webhook (raw body) before any JSON middleware on this route
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+	try {
+		const stripeSecret = process.env.STRIPE_SECRET_KEY;
+		const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+		if (!stripeSecret || !webhookSecret) {
+			return res.status(500).json({ error: 'Stripe secrets not configured' });
+		}
+		const Stripe = require('stripe');
+		const stripe = new Stripe(stripeSecret, { apiVersion: '2023-10-16' });
+		const sig = req.headers['stripe-signature'];
+		let event;
+		try {
+			event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+		} catch (err) {
+			return res.status(400).send(`Webhook Error: ${(err as Error).message}`);
+		}
+		const { db } = require('@repo/db');
+		if (event.type === 'payment_intent.succeeded') {
+			const intent = event.data.object;
+			const paymentIntentId = intent.id as string;
+			// Update payment + order, adjust inventory in a transaction
+			await db.$transaction(async (tx: any) => {
+				const payment = await tx.payment.update({
+					where: { stripeId: paymentIntentId },
+					data: { status: 'COMPLETED' },
+				});
+				await tx.order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } });
+				const items = await tx.orderItem.findMany({ where: { orderId: payment.orderId } });
+				for (const it of items) {
+					await tx.product.update({
+						where: { id: it.productId },
+						data: { stockQuantity: { decrement: it.quantity } },
+					});
+				}
+			});
+		}
+		if (event.type === 'payment_intent.payment_failed') {
+			const intent = event.data.object;
+			const paymentIntentId = intent.id as string;
+			await require('@repo/db').db.payment.update({
+				where: { stripeId: paymentIntentId },
+				data: { status: 'FAILED' },
+			});
+		}
+		return res.json({ received: true });
+	} catch (e) {
+		return res.status(500).json({ error: 'internal_error' });
+	}
+});
+
 // Root endpoint for Render root URL
 app.get('/', (req, res) => {
   res.json({
