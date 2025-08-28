@@ -8,14 +8,14 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
 
 async function trpcCall(path, input, cookie) {
-	// Single-call JSON-RPC style: { id, json } where json is the input object
+	// Single-call JSON-RPC expected by tRPC HTTP: { id, json: { input } }
 	const res = await fetch(`${TRPC_URL.replace(/\/$/, '')}/${path}`, {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
 			...(cookie ? { cookie } : {}),
 		},
-		body: JSON.stringify({ id: 1, json: input }),
+		body: JSON.stringify({ id: 1, json: { input } }),
 	});
 	const setCookie = res.headers.get('set-cookie') || '';
 	const json = await res.json();
