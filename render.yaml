@@ -8,3 +8,21 @@ services:
     startCommand: node packages/api/dist/index.js
     healthCheckPath: /health
     autoDeploy: true
+  - type: web
+    name: ecom-web
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: pnpm install --frozen-lockfile=false && pnpm --filter web build
+    startCommand: pnpm --filter web start
+    healthCheckPath: /
+    autoDeploy: true
+  - type: web
+    name: ecom-admin
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: pnpm install --frozen-lockfile=false && pnpm --filter admin build
+    startCommand: pnpm --filter admin start
+    healthCheckPath: /
+    autoDeploy: true
