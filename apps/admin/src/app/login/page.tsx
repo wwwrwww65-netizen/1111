@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
+import { trpc } from "../providers";
 
 export default function LoginPage(): JSX.Element {
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState<string | null>(null);
+  const login = trpc.auth.login.useMutation();
 
   return (
     <main style={{ padding: 24, maxWidth: 400, margin: "0 auto" }}>
@@ -16,13 +18,7 @@ export default function LoginPage(): JSX.Element {
         <button
           onClick={async () => {
             try {
-              const res = await fetch((process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc") + "/auth.login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ input: { email, password } }),
-              });
-              if (!res.ok) throw new Error("فشل تسجيل الدخول");
+              await login.mutateAsync({ email, password });
               window.location.href = "/";
             } catch (e: any) {
               setError(e.message);
