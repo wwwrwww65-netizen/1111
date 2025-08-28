@@ -50,6 +50,16 @@ jobs:
           # sanitize possible spaces in DB URLs
           DB_MAIN="${{ secrets.DATABASE_URL }}"; DB_MAIN="${DB_MAIN// /}"
           DB_DIRECT="${{ secrets.DIRECT_URL }}"; DB_DIRECT="${DB_DIRECT// /}"
+          # ensure sslmode=require present
+          ensure_sslmode() {
+            local url="$1"; local out="$url";
+            if [ -n "$url" ] && [[ "$url" != *"sslmode="* ]]; then
+              if [[ "$url" == *"?"* ]]; then out="${url}&sslmode=require"; else out="${url}?sslmode=require"; fi
+            fi
+            printf '%s' "$out"
+          }
+          DB_MAIN=$(ensure_sslmode "$DB_MAIN")
+          DB_DIRECT=$(ensure_sslmode "$DB_DIRECT")
           {
             echo "DATABASE_URL=${DB_MAIN}";
             echo "DIRECT_URL=${DB_DIRECT}";
