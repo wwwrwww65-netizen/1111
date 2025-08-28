@@ -20,12 +20,7 @@ try {
 
 const app = express();
 
-// Apply security middleware
-applySecurityMiddleware(app);
-// Parse cookies
-app.use(cookieParser());
-
-// Stripe webhook (raw body) before any JSON middleware on this route
+// Stripe webhook MUST be registered BEFORE any body parser middlewares
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
 	try {
 		const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -75,6 +70,11 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
 		return res.status(500).json({ error: 'internal_error' });
 	}
 });
+
+// Apply security middleware AFTER webhook so JSON parser doesn't consume raw body
+applySecurityMiddleware(app);
+// Parse cookies
+app.use(cookieParser());
 
 // Root endpoint for Render root URL
 app.get('/', (req, res) => {
