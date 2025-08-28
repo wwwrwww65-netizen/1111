@@ -82,11 +82,10 @@ jobs:
         run: |
           SETTINGS=android/settings.gradle
           if [ -f "$SETTINGS" ]; then
-            sed -i.bak -E "s/includeBuild\((\"|'|)null\1\)/includeBuild(\"..\/node_modules\/@react-native\/gradle-plugin\")/g" "$SETTINGS"
-            sed -i -E "s/includeBuild\([^)]*file\([^)]*null[^)]*\)[^)]*\)/includeBuild(\"..\/node_modules\/@react-native\/gradle-plugin\")/g" "$SETTINGS"
-            if ! grep -q "@react-native/gradle-plugin" "$SETTINGS"; then
-              echo 'includeBuild("../node_modules/@react-native/gradle-plugin")' >> "$SETTINGS"
-            fi
+            cp "$SETTINGS" "$SETTINGS.bak"
+            # Remove any existing includeBuild lines and append correct plugin include
+            sed -i '/includeBuild/d' "$SETTINGS"
+            echo 'includeBuild("../node_modules/@react-native/gradle-plugin")' >> "$SETTINGS"
             echo "Patched $SETTINGS:" && head -n 30 "$SETTINGS" | cat
           fi
 
