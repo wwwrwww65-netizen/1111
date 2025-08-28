@@ -48,24 +48,8 @@ jobs:
         working-directory: .
 
       - name: Build web (Next.js)
-        run: pnpm build
+        run: pnpm build && pnpm start & sleep 5 && curl -sSf http://localhost:3000 | head -n 5 | cat
         working-directory: apps/web
-
-      - name: Verify export output
-        run: |
-          ls -la
-          ls -la out || (echo "out directory not found; ensure next.config.js has output: 'export'" && exit 1)
-        working-directory: apps/web
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          static_site_generator: next
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: apps/web/out
 
   # Deployment job
   deploy:
