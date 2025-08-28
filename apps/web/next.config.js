@@ -3,9 +3,8 @@ const nextConfig = {
   transpilePackages: ["@repo/ui"],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  output: 'export',
+  output: 'standalone',
   images: {
-    unoptimized: true,
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
