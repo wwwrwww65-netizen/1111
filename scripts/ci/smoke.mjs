@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import crypto from 'node:crypto';
 
-const TRPC_URL = process.env.NEXT_PUBLIC_TRPC_URL || 'http://localhost:4000/trpc';
+const TRPC_URL = process.env.TRPC_URL || process.env.NEXT_PUBLIC_TRPC_URL || 'http://localhost:4000/trpc';
 const API_BASE = process.env.API_BASE || 'http://localhost:4000';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 

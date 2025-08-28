@@ -78,7 +78,8 @@ jobs:
       - name: Materialize .env files for packages (runtime only)
         run: |
           # root .env (optional)
-          printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "$DIRECT_URL" > .env
+          printf "DATABASE_URL=%s\nDIRECT_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\n" \
+            "$DATABASE_URL" "$DIRECT_URL" "$JWT_SECRET" "$STRIPE_SECRET_KEY" "$STRIPE_WEBHOOK_SECRET" > .env
           # db package
           printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "$DIRECT_URL" > packages/db/.env
           # api package
@@ -115,7 +116,8 @@ jobs:
 
       - name: Smoke/E2E checks (API and tRPC GET)
         env:
-          NEXT_PUBLIC_TRPC_URL: ${{ env.NEXT_PUBLIC_TRPC_URL }}
+          TRPC_URL: http://localhost:4000/trpc
+          NEXT_PUBLIC_TRPC_URL: http://localhost:4000/trpc
           API_BASE: http://localhost:4000
           STRIPE_WEBHOOK_SECRET: ${{ env.STRIPE_WEBHOOK_SECRET }}
         run: |
