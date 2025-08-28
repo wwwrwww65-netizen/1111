@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
-import { createContext } from './trpc';
+import { createContext } from './context';
 import { applySecurityMiddleware } from './middleware/security';
 import cookieParser from 'cookie-parser';
 

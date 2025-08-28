@@ -1,6 +1,6 @@
 import { initTRPC } from '@trpc/server';
 import * as trpcExpress from '@trpc/server/adapters/express';
-import { prisma } from '@repo/db';
+import { createContext, Context } from './context';
 
 // Define the user type
 export interface JWTPayload {
@@ -12,19 +12,8 @@ export interface JWTPayload {
 }
 
 // The context is passed to all procedures
-export const createContext = ({
-  req,
-  res,
-}: trpcExpress.CreateExpressContextOptions) => {
-  return {
-    prisma,
-    req,
-    res,
-    user: null as JWTPayload | null,
-  };
-};
-
-export type Context = ReturnType<typeof createContext>;
+export { createContext };
+export type { Context };
 
 export const t = initTRPC.context<Context>().create();
 
