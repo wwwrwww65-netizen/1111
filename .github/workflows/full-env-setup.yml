@@ -47,9 +47,12 @@ jobs:
 
       - name: Configure env
         run: |
+          # sanitize possible spaces in DB URLs
+          DB_MAIN="${{ secrets.DATABASE_URL }}"; DB_MAIN="${DB_MAIN// /}"
+          DB_DIRECT="${{ secrets.DIRECT_URL }}"; DB_DIRECT="${DB_DIRECT// /}"
           {
-            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}";
-            echo "DIRECT_URL=${{ secrets.DIRECT_URL }}";
+            echo "DATABASE_URL=${DB_MAIN}";
+            echo "DIRECT_URL=${DB_DIRECT}";
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}";
             echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}";
             echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}";
@@ -59,12 +62,27 @@ jobs:
             echo "SMTP_PASS=${{ secrets.SMTP_PASS }}";
             echo "NEXT_PUBLIC_TRPC_URL=${{ secrets.NEXT_PUBLIC_TRPC_URL }}";
             echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}";
+            echo "EXPO_PUBLIC_TRPC_URL=${{ secrets.EXPO_PUBLIC_TRPC_URL || secrets.NEXT_PUBLIC_TRPC_URL }}";
           } | tee -a $GITHUB_ENV | sed 's/.*/[masked]/' | cat
+
+      - name: Materialize .env files for packages (runtime only)
+        run: |
+          # root .env (optional)
+          printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "$DIRECT_URL" > .env
+          # db package
+          printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "$DIRECT_URL" > packages/db/.env
+          # api package
+          printf "JWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\nSMTP_HOST=%s\nSMTP_PORT=%s\nSMTP_USER=%s\nSMTP_PASS=%s\n" \
+            "$JWT_SECRET" "$STRIPE_SECRET_KEY" "$STRIPE_WEBHOOK_SECRET" "$SMTP_HOST" "$SMTP_PORT" "$SMTP_USER" "$SMTP_PASS" > packages/api/.env
+          # web and admin (build-time public env)
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "$NEXT_PUBLIC_TRPC_URL" "$NEXT_PUBLIC_APP_URL" > apps/web/.env
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "$NEXT_PUBLIC_TRPC_URL" "$NEXT_PUBLIC_APP_URL" > apps/admin/.env
+          # mobile (expo public)
+          printf "EXPO_PUBLIC_TRPC_URL=%s\n" "$EXPO_PUBLIC_TRPC_URL" > apps/mobile/.env
 
       - name: Prisma push and seed
         run: |
-          echo "DATABASE_URL=$DATABASE_URL" >> .env
-          echo "DIRECT_URL=$DIRECT_URL" >> .env
+          pnpm --filter @repo/db db:generate
           pnpm --filter @repo/db db:push
           pnpm --filter @repo/db db:seed
 
