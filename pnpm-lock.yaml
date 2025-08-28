@@ -4674,19 +4674,7 @@ packages:
     resolution: {integrity: sha512-fUWthHO9k9DSdPCSPRqcu6TWhYyxTBg382vlNIttSe9M7XfsT06y0f24KHXtbnijPGGRIcVvdKHTNikOI6qiHA==}
     dependencies:
       '@types/node': 20.19.11
-<<<<<<< HEAD
     dev: true
-
-  /@types/nodemailer@6.4.19:
-    resolution: {integrity: sha512-Fi8DwmuAduTk1/1MpkR9EwS0SsDvYXx5RxivAVII1InDCIxmhj/iQm3W8S3EVb/0arnblr6PK0FK4wYa7bwdLg==}
-    dependencies:
-      '@aws-sdk/client-ses': 3.873.0
-      '@types/node': 20.19.11
-    transitivePeerDependencies:
-      - aws-crt
-    dev: true
-=======
->>>>>>> origin/main
 
   /@types/prop-types@15.7.15:
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
