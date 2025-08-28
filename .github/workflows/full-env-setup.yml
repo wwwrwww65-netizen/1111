@@ -108,10 +108,13 @@ jobs:
 
       - name: Start API server (background)
         run: |
-          nohup node packages/api/dist/index.js >/tmp/api.log 2>&1 & echo $! > /tmp/api.pid
+          set -e
+          cd packages/api
+          nohup node -r dotenv/config dist/index.js >/tmp/api.log 2>&1 & echo $! > /tmp/api.pid
           echo "PID: $(cat /tmp/api.pid)"
           for i in {1..60}; do
             if curl -sf http://localhost:4000/health >/dev/null; then echo "API up"; break; fi; sleep 2; done
+          if ! curl -sf http://localhost:4000/ >/dev/null; then echo "--- API log ---"; tail -n +1 /tmp/api.log | cat; exit 1; fi
           curl -sS http://localhost:4000/ | cat
 
       - name: Smoke/E2E checks (API and tRPC GET)
