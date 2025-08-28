@@ -4,9 +4,10 @@ import { protectedProcedure } from '../middleware/auth';
 import { db } from '@repo/db';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+const isMockPayments = !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_MOCK === 'true';
+const stripe = !isMockPayments
+  ? new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2023-10-16' })
+  : (null as unknown as Stripe);
 
 // Payment method schemas
 const createPaymentIntentSchema = z.object({
@@ -58,10 +59,29 @@ export const paymentsRouter = router({
         throw new Error('Order not found');
       }
 
+      if (isMockPayments) {
+        const mockId = `pi_mock_${Date.now()}`;
+        await db.payment.create({
+          data: {
+            orderId,
+            amount,
+            currency,
+            method: 'STRIPE',
+            status: 'PENDING',
+            stripeId: mockId,
+          },
+        });
+        return {
+          clientSecret: null,
+          paymentIntentId: mockId,
+          customerId: null,
+        };
+      }
+
       // Create or get customer
       let customer;
-      if (order.user.stripeCustomerId) {
-        customer = await stripe.customers.retrieve(order.user.stripeCustomerId);
+      if ((order.user as any).stripeCustomerId) {
+        customer = await stripe.customers.retrieve((order.user as any).stripeCustomerId as any);
       } else {
         customer = await stripe.customers.create({
           email: order.user.email,
@@ -114,6 +134,14 @@ export const paymentsRouter = router({
     .input(confirmPaymentSchema)
     .mutation(async ({ input }) => {
       const { paymentIntentId, paymentMethodId } = input;
+      if (isMockPayments) {
+        await db.payment.update({ where: { stripeId: paymentIntentId }, data: { status: 'COMPLETED' } });
+        const payment = await db.payment.findUnique({ where: { stripeId: paymentIntentId } });
+        if (payment) {
+          await db.order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } });
+        }
+        return { status: 'succeeded', paymentIntent: { id: paymentIntentId } } as any;
+      }
 
       const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
         payment_method: paymentMethodId,
