@@ -36,46 +36,7 @@ async function main() {
 
   console.log('✅ Users created');
 
-<<<<<<< HEAD
-  // Create categories (find or create by name since name is not unique)
-  const getOrCreateCategoryByName = async (name: string, data: any) => {
-    const existing = await prisma.category.findFirst({ where: { name } });
-    if (existing) return existing;
-    return prisma.category.create({ data });
-  };
-
-  const electronics = await getOrCreateCategoryByName('Electronics', {
-    name: 'Electronics',
-    description: 'Electronic devices and gadgets',
-    image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400',
-  });
-
-  const clothing = await getOrCreateCategoryByName('Clothing', {
-    name: 'Clothing',
-    description: 'Fashion and apparel',
-    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-  });
-
-  const books = await getOrCreateCategoryByName('Books', {
-    name: 'Books',
-    description: 'Books and literature',
-    image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400',
-  });
-
-  // Create subcategories
-  const smartphones = await getOrCreateCategoryByName('Smartphones', {
-    name: 'Smartphones',
-    description: 'Mobile phones and accessories',
-    parentId: electronics.id,
-  });
-
-  const laptops = await getOrCreateCategoryByName('Laptops', {
-    name: 'Laptops',
-    description: 'Portable computers',
-    parentId: electronics.id,
-  });
-=======
-  // Create categories
+  // Create categories (idempotent)
   const electronics = await (async () => {
     const existing = await prisma.category.findFirst({ where: { name: 'Electronics' } });
     if (existing) return existing;
@@ -136,7 +97,6 @@ async function main() {
       },
     });
   })();
->>>>>>> origin/main
 
   console.log('✅ Categories created');
 
