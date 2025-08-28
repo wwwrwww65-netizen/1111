@@ -2,6 +2,9 @@ name: Build Android Release APK (Standalone)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build_release_apk:
