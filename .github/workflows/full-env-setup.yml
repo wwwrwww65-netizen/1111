@@ -166,7 +166,6 @@ jobs:
           echo "\n### Notes" >> $REPORT
           echo "- Provide STRIPE webhook tests in future run" >> $REPORT
           echo "\n(end)" >> $REPORT
-          mv $REPORT ./
 
       - name: Commit report
         uses: stefanzweifel/git-auto-commit-action@v5
