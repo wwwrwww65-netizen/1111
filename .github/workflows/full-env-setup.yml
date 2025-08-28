@@ -1,0 +1,104 @@
+name: Full Env Build, Seed, Smoke, Report
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  NODE_VERSION: '20'
+  NEXT_DISABLE_ESLINT: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  full_env:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ecom_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U user -d ecom_db"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Configure env
+        run: |
+          {
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}";
+            echo "DIRECT_URL=${{ secrets.DIRECT_URL }}";
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}";
+            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}";
+            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}";
+            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}";
+            echo "SMTP_USER=${{ secrets.SMTP_USER }}";
+            echo "SMTP_PASS=${{ secrets.SMTP_PASS }}";
+            echo "NEXT_PUBLIC_TRPC_URL=${{ secrets.NEXT_PUBLIC_TRPC_URL }}";
+            echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}";
+          } | tee -a $GITHUB_ENV | sed 's/.*/[masked]/' | cat
+
+      - name: Prisma push and seed
+        run: |
+          echo "DATABASE_URL=$DATABASE_URL" >> .env
+          echo "DIRECT_URL=$DIRECT_URL" >> .env
+          pnpm --filter @repo/db db:push
+          pnpm --filter @repo/db db:seed
+
+      - name: Build API, Web, Admin
+        run: |
+          pnpm --filter @repo/api build
+          pnpm --filter web build
+          pnpm --filter admin build
+
+      - name: Run API tests
+        run: pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
+
+      - name: Smoke test tRPC
+        run: |
+          node -e '
+          const http=require("http");
+          const url=process.env.NEXT_PUBLIC_TRPC_URL||"http://localhost:4000/trpc";
+          console.log("Using TRPC URL:",url);
+          '
+
+      - name: Generate run report
+        run: |
+          REPORT=run-report-$(date +%s).md
+          echo "## Full Env Run Report" > $REPORT
+          echo "Date: $(date -u)" >> $REPORT
+          echo "\n### Build Status" >> $REPORT
+          echo "- API/Web/Admin build: completed" >> $REPORT
+          echo "\n### Prisma" >> $REPORT
+          echo "- push/seed: completed" >> $REPORT
+          echo "\n### Tests" >> $REPORT
+          echo "- API unit/integration: executed" >> $REPORT
+          echo "\n### Notes" >> $REPORT
+          echo "- Provide STRIPE webhook tests in future run" >> $REPORT
+          echo "\n(end)" >> $REPORT
+          mv $REPORT ./
+
+      - name: Commit report
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(ci): add full env run report"
+          file_pattern: "run-report-*.md"

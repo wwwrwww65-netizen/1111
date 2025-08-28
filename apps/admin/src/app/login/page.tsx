@@ -19,12 +19,10 @@ export default function LoginPage(): JSX.Element {
               const res = await fetch((process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc") + "/auth.login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: "include",
                 body: JSON.stringify({ input: { email, password } }),
               });
-              const json = await res.json();
-              const token = json?.result?.data?.json?.token;
-              if (!token) throw new Error("فشل تسجيل الدخول");
-              window.localStorage.setItem("auth_token", token);
+              if (!res.ok) throw new Error("فشل تسجيل الدخول");
               window.location.href = "/";
             } catch (e: any) {
               setError(e.message);
