@@ -52,6 +52,7 @@ jobs:
             echo "DIRECT_URL=${{ secrets.DIRECT_URL }}";
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}";
             echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}";
+            echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}";
             echo "SMTP_HOST=${{ secrets.SMTP_HOST }}";
             echo "SMTP_PORT=${{ secrets.SMTP_PORT }}";
             echo "SMTP_USER=${{ secrets.SMTP_USER }}";
@@ -85,10 +86,15 @@ jobs:
           curl -sS http://localhost:4000/ | cat
 
       - name: Smoke/E2E checks (API and tRPC GET)
+        env:
+          NEXT_PUBLIC_TRPC_URL: ${{ env.NEXT_PUBLIC_TRPC_URL }}
+          API_BASE: http://localhost:4000
+          STRIPE_WEBHOOK_SECRET: ${{ env.STRIPE_WEBHOOK_SECRET }}
         run: |
           set -e
           curl -sS http://localhost:4000/health | cat
           curl -sS http://localhost:4000/trpc | cat
+          node ./scripts/ci/smoke.mjs
 
       - name: Start Web (background)
         working-directory: apps/web
