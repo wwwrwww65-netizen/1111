@@ -82,7 +82,7 @@ jobs:
         run: |
           SETTINGS=android/settings.gradle
           if [ -f "$SETTINGS" ]; then
-            sed -i.bak "s/includeBuild(['\"]null['\"]/includeBuild(\"..\/node_modules\/@react-native\/gradle-plugin\")/g" "$SETTINGS"
+            sed -i.bak -E "s/includeBuild\((\"|'|)null\1\)/includeBuild(\"..\/node_modules\/@react-native\/gradle-plugin\")/g" "$SETTINGS"
             if ! grep -q "@react-native/gradle-plugin" "$SETTINGS"; then
               echo 'includeBuild("../node_modules/@react-native/gradle-plugin")' >> "$SETTINGS"
             fi
@@ -93,7 +93,7 @@ jobs:
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew -PREACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin -PreactNativeDir=../node_modules/react-native assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
