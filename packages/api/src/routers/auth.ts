@@ -70,9 +70,7 @@ export const authRouter = router({
 
       // Create cart for user
 <<<<<<< HEAD
-      await db.cart.create({
-        data: { userId: user.id },
-      });
+      await db.cart.create({ data: { userId: user.id } });
 =======
       await db.cart.create({ data: { userId: user.id } });
 >>>>>>> origin/main
@@ -82,7 +80,7 @@ export const authRouter = router({
       ctx.res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
 
 <<<<<<< HEAD
-      return { user, token };
+      return { user };
 =======
       return { user };
 >>>>>>> origin/main
@@ -183,10 +181,7 @@ export const authRouter = router({
           where: { userId: ctx.user!.userId },
           update: address,
 <<<<<<< HEAD
-          create: {
-            ...address,
-            userId: ctx.user!.userId,
-          },
+          create: { ...address, userId: ctx.user.userId },
 =======
           create: { ...address, userId: ctx.user.userId },
 >>>>>>> origin/main
@@ -205,10 +200,7 @@ export const authRouter = router({
 
       // Get user with password
 <<<<<<< HEAD
-      const user = await db.user.findUnique({
-        where: { id: ctx.user!.userId },
-        select: { password: true },
-      });
+      const user = await db.user.findUnique({ where: { id: ctx.user.userId }, select: { password: true } });
 
 =======
       const user = await db.user.findUnique({ where: { id: ctx.user.userId }, select: { password: true } });
@@ -226,12 +218,7 @@ export const authRouter = router({
       // Hash new password
       const hashedNewPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
 <<<<<<< HEAD
-
-      // Update password
-      await db.user.update({
-        where: { id: ctx.user!.userId },
-        data: { password: hashedNewPassword },
-      });
+      await db.user.update({ where: { id: ctx.user.userId }, data: { password: hashedNewPassword } });
 =======
       await db.user.update({ where: { id: ctx.user.userId }, data: { password: hashedNewPassword } });
 >>>>>>> origin/main

@@ -34,17 +34,6 @@ export const verifyToken = (token: string): JWTPayload => {
   }
 };
 
-<<<<<<< HEAD
-export const authMiddleware: ReturnType<typeof t.middleware> = t.middleware(async ({ ctx, next }) => {
-  const token = ctx.req.headers.authorization?.replace('Bearer ', '');
-
-  if (!token) {
-    throw new TRPCError({
-      code: 'UNAUTHORIZED',
-      message: 'No token provided',
-    });
-  }
-=======
 const readTokenFromRequest = (req: any): string | null => {
   const cookieToken = req?.cookies?.auth_token as string | undefined;
   if (cookieToken) return cookieToken;
@@ -52,7 +41,6 @@ const readTokenFromRequest = (req: any): string | null => {
   if (header?.startsWith('Bearer ')) return header.replace('Bearer ', '');
   return null;
 };
->>>>>>> origin/main
 
 // Auth middleware
 export const authMiddleware = t.middleware(async ({ ctx, next }) => {
@@ -61,64 +49,28 @@ export const authMiddleware = t.middleware(async ({ ctx, next }) => {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No token provided' });
   }
   const payload = verifyToken(token);
-<<<<<<< HEAD
-
-  return next({
-    ctx: {
-      ...ctx,
-      user: payload,
-    },
-  });
-});
-
-export const optionalAuthMiddleware: ReturnType<typeof t.middleware> = t.middleware(async ({ ctx, next }) => {
-  const token = ctx.req.headers.authorization?.replace('Bearer ', '');
-
-=======
   return next({ ctx: { ...ctx, user: payload } });
 });
 
 // Optional auth middleware
 export const optionalAuthMiddleware = t.middleware(async ({ ctx, next }) => {
   const token = readTokenFromRequest(ctx.req);
->>>>>>> origin/main
   if (token) {
     try {
       const payload = verifyToken(token);
       return next({ ctx: { ...ctx, user: payload } });
     } catch {}
   }
-<<<<<<< HEAD
-
-  return next({
-    ctx: {
-      ...ctx,
-      user: null,
-    },
-  });
-});
-
-export const adminMiddleware: ReturnType<typeof t.middleware> = t.middleware(async ({ ctx, next }) => {
-=======
   return next({ ctx: { ...ctx, user: null } });
 });
 
 // Admin middleware
 export const adminMiddleware = t.middleware(async ({ ctx, next }) => {
->>>>>>> origin/main
   if (!ctx.user || ctx.user.role !== 'ADMIN') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
   }
-<<<<<<< HEAD
-
-  return next({
-    ctx,
-  });
-});
-=======
   return next({ ctx });
 });
 
 // Protected procedure composed here
 export const protectedProcedure = t.procedure.use(authMiddleware);
->>>>>>> origin/main

@@ -22,13 +22,8 @@ const app = express();
 
 // Apply security middleware
 applySecurityMiddleware(app);
-
-<<<<<<< HEAD
-=======
 // Parse cookies
 app.use(cookieParser());
-
->>>>>>> origin/main
 // Root endpoint for Render root URL
 app.get('/', (req, res) => {
   res.json({
@@ -47,8 +42,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-<<<<<<< HEAD
-=======
 // Error test endpoint for monitoring
 app.get('/error-test', (_req, _res) => {
   if (sentryEnabled) {
@@ -58,8 +51,6 @@ app.get('/error-test', (_req, _res) => {
   }
   throw new Error('Test error endpoint hit');
 });
-
->>>>>>> origin/main
 // Informational handler for GET /trpc (tRPC expects JSON-RPC calls; this is a friendly message)
 app.get('/trpc', (req, res) => {
   res.status(200).json({

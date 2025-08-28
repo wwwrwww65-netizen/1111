@@ -128,13 +128,7 @@ export const couponsRouter = router({
 
       const couponUsage = await db.couponUsage.findMany({
         where: { userId },
-        include: {
-<<<<<<< HEAD
-          coupon: true,
-=======
-          coupon: true
->>>>>>> origin/main
-        },
+        include: { coupon: true },
         orderBy: { usedAt: 'desc' },
       });
       return { couponUsage };
@@ -162,20 +156,10 @@ export const couponsRouter = router({
         where: { userId },
         select: { couponId: true },
       });
-      const usedCouponIds = new Set(userCouponUsage.map((u) => u.couponId));
-
-<<<<<<< HEAD
+      const usedIds = userCouponUsage.map((u) => u.couponId);
       const availableCoupons = coupons
-        .filter((c) => (!c.maxUses || c.currentUses < c.maxUses))
-        .filter((c) => !usedCouponIds.has(c.id));
-=======
-      const usedCouponIds = userCouponUsage.map((usage: { couponId: string }) => usage.couponId);
-
-      // Apply remaining limits: maxUses is null or currentUses < maxUses
-      const availableCoupons = coupons
-        .filter((coupon: { id: string; maxUses: number | null; currentUses: number }) => !usedCouponIds.includes(coupon.id))
-        .filter((coupon: { maxUses: number | null; currentUses: number }) => coupon.maxUses == null || coupon.currentUses < coupon.maxUses);
->>>>>>> origin/main
+        .filter((c: { id: string; maxUses: number | null; currentUses: number }) => !usedIds.includes(c.id))
+        .filter((c: { maxUses: number | null; currentUses: number }) => c.maxUses == null || c.currentUses < c.maxUses);
 
       return { coupons: availableCoupons };
     }),
