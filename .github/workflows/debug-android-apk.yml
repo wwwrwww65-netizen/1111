@@ -82,17 +82,11 @@ jobs:
         run: |
           SETTINGS=android/settings.gradle
           if [ -f "$SETTINGS" ]; then
-            node -e '
-              const fs=require("fs");
-              const p="android/settings.gradle";
-              let s=fs.readFileSync(p,"utf8");
-              s=s.replace(/includeBuild\((?:"|\')null(?:"|\')\)/g, "includeBuild(\"../node_modules/@react-native/gradle-plugin\")");
-              if(!s.includes("@react-native/gradle-plugin")){
-                s += "\nincludeBuild(\"../node_modules/@react-native/gradle-plugin\")\n";
-              }
-              fs.writeFileSync(p,s);
-              console.log("Patched",p);
-            '
+            sed -i.bak "s/includeBuild(['\"]null['\"]/includeBuild(\"..\/node_modules\/@react-native\/gradle-plugin\")/g" "$SETTINGS"
+            if ! grep -q "@react-native/gradle-plugin" "$SETTINGS"; then
+              echo 'includeBuild("../node_modules/@react-native/gradle-plugin")' >> "$SETTINGS"
+            fi
+            echo "Patched $SETTINGS:" && head -n 30 "$SETTINGS" | cat
           fi
 
       - name: Gradle assembleDebug
