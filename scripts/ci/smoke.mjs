@@ -5,15 +5,16 @@ const TRPC_URL = process.env.TRPC_URL || process.env.NEXT_PUBLIC_TRPC_URL || 'ht
 const API_BASE = process.env.API_BASE || 'http://localhost:4000';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
+
 async function trpcCall(path, input, cookie) {
-	// tRPC HTTP expects a JSON-RPC style envelope with { id, json: { input } }
+	// tRPC HTTP (httpBatchLink) style: POST to /trpc/<path> with an array of calls [{ id, json }]
 	const res = await fetch(`${TRPC_URL.replace(/\/$/, '')}/${path}`, {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
 			...(cookie ? { cookie } : {}),
 		},
-		body: JSON.stringify({ id: 1, json: { input } }),
+		body: JSON.stringify([{ id: 1, json: input }]),
 	});
 	const setCookie = res.headers.get('set-cookie') || '';
 	const json = await res.json();
