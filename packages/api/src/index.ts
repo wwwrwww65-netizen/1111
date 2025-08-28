@@ -1,4 +1,8 @@
-import 'dotenv/config';
+// Optional dotenv preload for non-Render environments
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv/config');
+} catch {}
 import express from 'express';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
