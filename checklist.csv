@@ -1,0 +1,25 @@
+Check,Status,Severity,File/Path,Comment
+Languages detected,OK,Low,/,Node.js/TS/Next/Express/Prisma/Expo identified
+Workspace manifests present,OK,Low,/pnpm-workspace.yaml; turbo.json,Monorepo configured
+API server entry,OK,Low,packages/api/src/index.ts,Express+tRPC present
+Security headers (Helmet),OK,Medium,packages/api/src/middleware/security.ts,CSP allows 'unsafe-inline' styles
+CORS config,OK,Medium,packages/api/src/middleware/security.ts,Origin list set; ensure prod domain only
+Rate limiting,OK,Medium,packages/api/src/middleware/security.ts,Global limiter applied; add auth limiter usage
+JWT secret required,OK,High,packages/api/src/middleware/auth.ts,Process fails without JWT_SECRET
+Auth cookies HttpOnly,OK,High,packages/api/src/routers/auth.ts,Cookie set; sameSite 'none' used
+CSRF protection,Needs Fix,High,packages/api/src/middleware/security.ts,No CSRF token; rely on strict CORS or add CSRF
+Admin token storage,Needs Fix,Critical,apps/admin/src/app/providers.tsx; apps/admin/src/app/login/page.tsx,Uses localStorage token; switch to HttpOnly cookie
+Admin login token parsing,Needs Fix,High,apps/admin/src/app/login/page.tsx,Expects token in payload; API sets cookie only
+Web tRPC credentials,Needs Fix,High,apps/web/src/app/providers.tsx,Missing credentials:'include' in httpBatchLink
+Stripe webhook handler,Missing,High,packages/api/src/routers/payments.ts,No webhook verification endpoint
+Order stock decrement/locking,Needs Fix,High,packages/api/src/routers/orders.ts,No inventory adjustment; add transaction
+Cart stock validation,Needs Fix,Medium,packages/api/src/routers/cart.ts,Does not validate stock on add/update
+DB schema address uniqueness,Needs Fix,Medium,packages/db/prisma/schema.prisma,Address.userId @unique conflicts with addresses[]
+DB indexes for filters,Needs Fix,Medium,packages/db/prisma/schema.prisma,Add indexes on product/order/payment fields
+SEO basics (robots/sitemap),Missing,Medium,apps/web/,Add robots.txt and sitemap.xml
+Analytics integrations,Missing,Low,apps/web/; apps/mobile/,GA4/Mixpanel not configured
+Tests (web/mobile),Needs Fix,Medium,apps/web/package.json; apps/mobile/package.json,Placeholder tests only
+CI secrets exposure,OK,Low,.github/workflows/ci-cd.yml,Test-only secrets used; acceptable in CI context
+Dockerfiles for prod,Missing,Medium,/,No app Dockerfiles; add for API and Next apps
+Image domains/CDN,Needs Fix,Medium,apps/web/next.config.js,Configure product image domains/CDN
+Accessibility basics,Needs Fix,Low,apps/web/src/app,Verify alts/ARIA/contrast

@@ -1,0 +1,59 @@
+1. Fix admin/web auth to use HttpOnly cookies
+Description: Remove localStorage token usage; configure tRPC clients to send credentials; rely on server-set HttpOnly cookies.
+Repro: Admin login stores token in localStorage; API sets cookie only; subsequent requests may not be authenticated.
+Files: apps/admin/src/app/providers.tsx; apps/admin/src/app/login/page.tsx; apps/web/src/app/providers.tsx; packages/api/src/routers/auth.ts
+Complexity: Medium
+
+2. Add Stripe webhook with signature verification
+Description: Implement /webhooks/stripe endpoint to reconcile payment status and update orders/payments.
+Repro: Payments flow lacks webhook; statuses updated client-side only.
+Files: packages/api/src/index.ts; packages/api/src/routers/payments.ts (new route/module)
+Complexity: Medium
+
+3. Implement transactional inventory updates
+Description: Decrement stock on successful payment in a transaction; validate stock on cart add/update.
+Repro: Orders do not adjust stock; cart ignores stockQuantity.
+Files: packages/api/src/routers/orders.ts; packages/api/src/routers/cart.ts
+Complexity: Medium
+
+4. Fix Prisma Address model multiplicity
+Description: Allow multiple addresses per user or adjust UI to single address; remove @unique on Address.userId if multiple.
+Repro: User has addresses[] but Address.userId is @unique.
+Files: packages/db/prisma/schema.prisma; migration files
+Complexity: Low
+
+5. Harden CSP and security headers
+Description: Remove 'unsafe-inline' styles; adopt nonces/hashes; consider HSTS and X-Frame-Options.
+Repro: Helmet config allows 'unsafe-inline' styles.
+Files: packages/api/src/middleware/security.ts
+Complexity: Low
+
+6. Add CSRF protection or tighten SameSite policy
+Description: Implement CSRF tokens on state-changing endpoints or use SameSite=Lax; ensure CORS restricts to exact origin in prod.
+Repro: Cookies used with sameSite 'none' and credentials; no CSRF token.
+Files: packages/api/src/middleware/security.ts; packages/api/src/middleware/auth.ts
+Complexity: Medium
+
+7. Add DB indexes for query patterns
+Description: Add indexes on product (categoryId, createdAt, price, isActive), orders (userId, createdAt, status), etc.
+Repro: Search/list endpoints filter/sort by these fields without indexes.
+Files: packages/db/prisma/schema.prisma; migrations
+Complexity: Low
+
+8. Add SEO assets and structured data
+Description: robots.txt, sitemap.xml, canonical tags, and JSON-LD for products/categories.
+Repro: None present.
+Files: apps/web/src/app/(routes); next-sitemap config (new)
+Complexity: Low
+
+9. Provide production Dockerfiles and deploy docs
+Description: Dockerize API and Next apps using standalone output; document env and rollout steps.
+Repro: No Dockerfiles beyond dev compose.
+Files: /Dockerfile.api (new); /apps/web/Dockerfile (new); docs
+Complexity: Medium
+
+10. Expand automated tests and add vulnerability scanning in CI
+Description: Add API/web tests (auth, checkout); run pnpm audit/Snyk; consider CodeQL.
+Repro: Web/mobile tests placeholders; API partial.
+Files: apps/web/*; packages/api/*; .github/workflows/ci-cd.yml
+Complexity: Medium

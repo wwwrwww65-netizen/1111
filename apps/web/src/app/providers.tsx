@@ -16,6 +16,9 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
       links: [
         httpBatchLink({
           url: process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc",
+          fetch(input, init) {
+            return fetch(input, { ...(init ?? {}), credentials: "include" });
+          },
         }),
       ],
     })

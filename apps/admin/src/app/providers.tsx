@@ -14,10 +14,8 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
       links: [
         httpBatchLink({
           url: process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc",
-          headers() {
-            if (typeof window === "undefined") return {};
-            const token = window.localStorage.getItem("auth_token");
-            return token ? { Authorization: `Bearer ${token}` } : {};
+          fetch(input, init) {
+            return fetch(input, { ...(init ?? {}), credentials: "include" });
           },
         }),
       ],

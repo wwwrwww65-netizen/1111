@@ -1,0 +1,174 @@
+name: Full Env Build, Seed, Smoke, Report
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/full-repo-audit
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  NODE_VERSION: '20'
+  NEXT_DISABLE_ESLINT: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  full_env:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ecom_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U user -d ecom_db"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Configure env
+        run: |
+          # sanitize possible spaces in DB URLs
+          DB_MAIN="${{ secrets.DATABASE_URL }}"; DB_MAIN="${DB_MAIN// /}"
+          DB_DIRECT="${{ secrets.DIRECT_URL }}"; DB_DIRECT="${DB_DIRECT// /}"
+          # ensure sslmode=require present
+          ensure_sslmode() {
+            local url="$1"; local out="$url";
+            if [ -n "$url" ] && [[ "$url" != *"sslmode="* ]]; then
+              if [[ "$url" == *"?"* ]]; then out="${url}&sslmode=require"; else out="${url}?sslmode=require"; fi
+            fi
+            printf '%s' "$out"
+          }
+          DB_MAIN=$(ensure_sslmode "$DB_MAIN")
+          DB_DIRECT=$(ensure_sslmode "$DB_DIRECT")
+          {
+            echo "DATABASE_URL=${DB_MAIN}";
+            echo "DIRECT_URL=${DB_DIRECT}";
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}";
+            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}";
+            echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}";
+            echo "SMTP_HOST=${{ secrets.SMTP_HOST }}";
+            echo "SMTP_PORT=${{ secrets.SMTP_PORT }}";
+            echo "SMTP_USER=${{ secrets.SMTP_USER }}";
+            echo "SMTP_PASS=${{ secrets.SMTP_PASS }}";
+            echo "NEXT_PUBLIC_TRPC_URL=${{ secrets.NEXT_PUBLIC_TRPC_URL }}";
+            echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}";
+            echo "EXPO_PUBLIC_TRPC_URL=${{ secrets.EXPO_PUBLIC_TRPC_URL || secrets.NEXT_PUBLIC_TRPC_URL }}";
+          } | tee -a $GITHUB_ENV | sed 's/.*/[masked]/' | cat
+
+      - name: Materialize .env files for packages (runtime only)
+        run: |
+          # root .env (optional)
+          printf "DATABASE_URL=%s\nDIRECT_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\n" \
+            "$DATABASE_URL" "$DIRECT_URL" "$JWT_SECRET" "$STRIPE_SECRET_KEY" "$STRIPE_WEBHOOK_SECRET" > .env
+          # db package
+          printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "$DIRECT_URL" > packages/db/.env
+          # api package
+          printf "JWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\nSMTP_HOST=%s\nSMTP_PORT=%s\nSMTP_USER=%s\nSMTP_PASS=%s\n" \
+            "$JWT_SECRET" "$STRIPE_SECRET_KEY" "$STRIPE_WEBHOOK_SECRET" "$SMTP_HOST" "$SMTP_PORT" "$SMTP_USER" "$SMTP_PASS" > packages/api/.env
+          # web and admin (build-time public env)
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "$NEXT_PUBLIC_TRPC_URL" "$NEXT_PUBLIC_APP_URL" > apps/web/.env
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "$NEXT_PUBLIC_TRPC_URL" "$NEXT_PUBLIC_APP_URL" > apps/admin/.env
+          # mobile (expo public)
+          printf "EXPO_PUBLIC_TRPC_URL=%s\n" "$EXPO_PUBLIC_TRPC_URL" > apps/mobile/.env
+
+      - name: Prisma push and seed
+        run: |
+          pnpm --filter @repo/db db:generate
+          pnpm --filter @repo/db db:push
+          pnpm --filter @repo/db db:seed
+
+      - name: Build API, Web, Admin
+        run: |
+          pnpm --filter @repo/api build
+          pnpm --filter web build
+          pnpm --filter admin build
+
+      - name: Run API tests
+        run: pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
+
+      - name: Start API server (background)
+        run: |
+          set -e
+          cd packages/api
+          nohup node -r dotenv/config dist/index.js >/tmp/api.log 2>&1 & echo $! > /tmp/api.pid
+          echo "PID: $(cat /tmp/api.pid)"
+          for i in {1..60}; do
+            if curl -sf http://localhost:4000/health >/dev/null; then echo "API up"; break; fi; sleep 2; done
+          if ! curl -sf http://localhost:4000/ >/dev/null; then echo "--- API log ---"; tail -n +1 /tmp/api.log | cat; exit 1; fi
+          curl -sS http://localhost:4000/ | cat
+
+      - name: Smoke/E2E checks (API and tRPC GET)
+        env:
+          TRPC_URL: http://localhost:4000/trpc
+          NEXT_PUBLIC_TRPC_URL: http://localhost:4000/trpc
+          API_BASE: http://localhost:4000
+          STRIPE_WEBHOOK_SECRET: ${{ env.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          set -e
+          curl -sS http://localhost:4000/health | cat
+          curl -sS http://localhost:4000/trpc | cat
+          node ./scripts/ci/smoke.mjs
+
+      - name: Start Web (background)
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_TRPC_URL: ${{ env.NEXT_PUBLIC_TRPC_URL }}
+          NEXT_PUBLIC_APP_URL: ${{ env.NEXT_PUBLIC_APP_URL }}
+        run: |
+          nohup pnpm start >/tmp/web.log 2>&1 & echo $! > /tmp/web.pid
+          for i in {1..60}; do
+            if curl -sf http://localhost:3000 >/dev/null; then echo "Web up"; break; fi; sleep 2; done
+          curl -sS http://localhost:3000 | head -n 5 | cat
+
+      - name: Load test API /health (autocannon)
+        run: |
+          pnpm dlx autocannon -d 5 -c 20 http://localhost:4000/health | tee /tmp/loadtest.txt
+
+      - name: Stop background servers
+        if: always()
+        run: |
+          kill -9 $(cat /tmp/api.pid) 2>/dev/null || true
+          kill -9 $(cat /tmp/web.pid) 2>/dev/null || true
+
+      - name: Generate run report
+        run: |
+          REPORT=run-report-$(date +%s).md
+          echo "## Full Env Run Report" > $REPORT
+          echo "Date: $(date -u)" >> $REPORT
+          echo "\n### Build Status" >> $REPORT
+          echo "- API/Web/Admin build: completed" >> $REPORT
+          echo "\n### Prisma" >> $REPORT
+          echo "- push/seed: completed" >> $REPORT
+          echo "\n### Tests" >> $REPORT
+          echo "- API unit/integration: executed" >> $REPORT
+          echo "- E2E smoke (API root/health, tRPC GET): executed" >> $REPORT
+          echo "- Load test (autocannon /health 5s, c=20): executed" >> $REPORT
+          echo "\n### Notes" >> $REPORT
+          echo "- Provide STRIPE webhook tests in future run" >> $REPORT
+          echo "\n(end)" >> $REPORT
+
+      - name: Commit report
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(ci): add full env run report"
+          file_pattern: "run-report-*.md"

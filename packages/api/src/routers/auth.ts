@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { publicProcedure, router } from '../trpc';
+import { publicProcedure, router } from '../trpc-setup';
 import { authMiddleware, createToken } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { db } from '@repo/db';

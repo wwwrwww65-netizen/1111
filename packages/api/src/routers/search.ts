@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
+import { router, publicProcedure } from '../trpc-setup';
 import { db } from '@repo/db';
 
 // Search and filter schemas
