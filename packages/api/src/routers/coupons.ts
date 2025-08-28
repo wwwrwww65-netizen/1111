@@ -14,13 +14,8 @@ export const couponsRouter = router({
         where: { code: code.toUpperCase() },
       });
 
-      if (!coupon) {
-        throw new Error('Invalid coupon code');
-      }
-
-      if (!coupon.isActive) {
-        throw new Error('Coupon is not active');
-      }
+      if (!coupon) throw new Error('Invalid coupon code');
+      if (!coupon.isActive) throw new Error('Coupon is not active');
 
       const now = new Date();
       if (now < coupon.validFrom || now > coupon.validUntil) {
@@ -44,31 +39,15 @@ export const couponsRouter = router({
 
   // Apply coupon to order
   applyCoupon: protectedProcedure
-    .input(z.object({ 
-      couponCode: z.string(),
-      orderTotal: z.number(),
-      orderId: z.string(),
-    }))
+    .input(z.object({ couponCode: z.string(), orderTotal: z.number(), orderId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const { couponCode, orderTotal, orderId } = input;
       const userId = ctx.user?.userId;
+      if (!userId) throw new Error('User not authenticated');
 
-      if (!userId) {
-        throw new Error('User not authenticated');
-      }
-
-      // Validate coupon
-      const coupon = await db.coupon.findUnique({
-        where: { code: couponCode.toUpperCase() },
-      });
-
-      if (!coupon) {
-        throw new Error('Invalid coupon code');
-      }
-
-      if (!coupon.isActive) {
-        throw new Error('Coupon is not active');
-      }
+      const coupon = await db.coupon.findUnique({ where: { code: couponCode.toUpperCase() } });
+      if (!coupon) throw new Error('Invalid coupon code');
+      if (!coupon.isActive) throw new Error('Coupon is not active');
 
       const now = new Date();
       if (now < coupon.validFrom || now > coupon.validUntil) {
@@ -83,51 +62,24 @@ export const couponsRouter = router({
         throw new Error(`Minimum order amount of $${coupon.minOrderAmount} required`);
       }
 
-      // Check if user already used this coupon
       const existingUsage = await db.couponUsage.findUnique({
-        where: {
-          couponId_userId_orderId: {
-            couponId: coupon.id,
-            userId,
-            orderId,
-          },
-        },
+        where: { couponId_userId_orderId: { couponId: coupon.id, userId, orderId } },
       });
+      if (existingUsage) throw new Error('Coupon already applied to this order');
 
-      if (existingUsage) {
-        throw new Error('Coupon already applied to this order');
-      }
-
-      // Calculate discount
       let discountAmount = 0;
-      if (coupon.discountType === 'PERCENTAGE') {
-        discountAmount = (orderTotal * coupon.discountValue) / 100;
-      } else {
-        discountAmount = coupon.discountValue;
-      }
-
-      // Ensure discount doesn't exceed order total
+      discountAmount = coupon.discountType === 'PERCENTAGE'
+        ? (orderTotal * coupon.discountValue) / 100
+        : coupon.discountValue;
       discountAmount = Math.min(discountAmount, orderTotal);
 
-      // Update order with coupon
       await db.order.update({
         where: { id: orderId },
-        data: {
-          couponId: coupon.id,
-          discountAmount,
-        },
+        data: { couponId: coupon.id, discountAmount },
       });
 
-      // Record coupon usage
-      await db.couponUsage.create({
-        data: {
-          couponId: coupon.id,
-          userId,
-          orderId,
-        },
-      });
+      await db.couponUsage.create({ data: { couponId: coupon.id, userId, orderId } });
 
-      // Update coupon usage count
       await db.coupon.update({
         where: { id: coupon.id },
         data: { currentUses: coupon.currentUses + 1 },
@@ -151,50 +103,20 @@ export const couponsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { orderId } = input;
       const userId = ctx.user?.userId;
+      if (!userId) throw new Error('User not authenticated');
 
-      if (!userId) {
-        throw new Error('User not authenticated');
-      }
+      const order = await db.order.findFirst({ where: { id: orderId, userId }, include: { coupon: true } });
+      if (!order) throw new Error('Order not found');
+      if (!order.couponId) throw new Error('No coupon applied to this order');
 
-      const order = await db.order.findFirst({
-        where: { id: orderId, userId },
-        include: { coupon: true },
-      });
-
-      if (!order) {
-        throw new Error('Order not found');
-      }
-
-      if (!order.couponId) {
-        throw new Error('No coupon applied to this order');
-      }
-
-      // Remove coupon usage record
-      await db.couponUsage.deleteMany({
-        where: {
-          couponId: order.couponId,
-          userId,
-          orderId,
-        },
-      });
-
-      // Update order
-      await db.order.update({
-        where: { id: orderId },
-        data: {
-          couponId: null,
-          discountAmount: 0,
-        },
-      });
-
-      // Decrease coupon usage count
+      await db.couponUsage.deleteMany({ where: { couponId: order.couponId, userId, orderId } });
+      await db.order.update({ where: { id: orderId }, data: { couponId: null, discountAmount: 0 } });
       if (order.coupon) {
         await db.coupon.update({
           where: { id: order.coupon.id },
           data: { currentUses: Math.max(0, order.coupon.currentUses - 1) },
         });
       }
-
       return { success: true };
     }),
 
@@ -202,19 +124,13 @@ export const couponsRouter = router({
   getCouponHistory: protectedProcedure
     .query(async ({ ctx }) => {
       const userId = ctx.user?.userId;
-
-      if (!userId) {
-        throw new Error('User not authenticated');
-      }
+      if (!userId) throw new Error('User not authenticated');
 
       const couponUsage = await db.couponUsage.findMany({
         where: { userId },
-        include: {
-          coupon: true
-        },
+        include: { coupon: true },
         orderBy: { usedAt: 'desc' },
       });
-
       return { couponUsage };
     }),
 
@@ -222,10 +138,7 @@ export const couponsRouter = router({
   getAvailableCoupons: protectedProcedure
     .query(async ({ ctx }) => {
       const userId = ctx.user?.userId;
-
-      if (!userId) {
-        throw new Error('User not authenticated');
-      }
+      if (!userId) throw new Error('User not authenticated');
 
       const now = new Date();
 
@@ -239,18 +152,14 @@ export const couponsRouter = router({
         orderBy: { discountValue: 'desc' },
       });
 
-      // Filter out coupons already used by this user
       const userCouponUsage = await db.couponUsage.findMany({
         where: { userId },
         select: { couponId: true },
       });
-
-      const usedCouponIds = userCouponUsage.map((usage: { couponId: string }) => usage.couponId);
-
-      // Apply remaining limits: maxUses is null or currentUses < maxUses
+      const usedIds = userCouponUsage.map((u) => u.couponId);
       const availableCoupons = coupons
-        .filter((coupon: { id: string; maxUses: number | null; currentUses: number }) => !usedCouponIds.includes(coupon.id))
-        .filter((coupon: { maxUses: number | null; currentUses: number }) => coupon.maxUses == null || coupon.currentUses < coupon.maxUses);
+        .filter((c: { id: string; maxUses: number | null; currentUses: number }) => !usedIds.includes(c.id))
+        .filter((c: { maxUses: number | null; currentUses: number }) => c.maxUses == null || c.currentUses < c.maxUses);
 
       return { coupons: availableCoupons };
     }),

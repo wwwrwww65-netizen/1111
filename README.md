@@ -216,3 +216,44 @@ For support and questions:
 - 📧 Email: support@yourapp.com
 - 📖 Documentation: [docs/](./docs/)
 - 🐛 Issues: [GitHub Issues](https://github.com/your-repo/issues)
+
+## ⚙️ Admin App (Next.js)
+
+- Dev: `pnpm --filter admin dev`
+- Build: `pnpm --filter admin build && pnpm --filter admin start`
+- Auth (seed): admin@example.com / admin123
+
+## 🌐 Web App (Next.js)
+
+- Dev: `pnpm --filter web dev`
+- Build: `pnpm --filter web build && pnpm --filter web start`
+- Key pages: `/` المنتجات، `/products/[id]`، `/cart`، `/checkout`، `/account`، `/categories`، `/search`
+
+## 🧩 API (tRPC + Express)
+
+- Dev: `pnpm --filter @repo/api dev`
+- Build: `pnpm --filter @repo/api build`
+- Endpoint: `${NEXT_PUBLIC_TRPC_URL}` (مثلاً http://localhost:4000/trpc)
+
+## 🗄️ Database (Prisma + Postgres)
+
+- Migrate: `pnpm --filter @repo/db db:migrate`
+- Seed: `pnpm --filter @repo/db db:seed`
+
+## 📱 Mobile (Expo)
+
+- Dev (Expo): `pnpm --filter mobile start`
+- Public env: `EXPO_PUBLIC_TRPC_URL` (مُعرّف في app.json)
+- EAS preview (اختياري):
+  - Android: `pnpm --filter mobile dlx eas-cli build -p android --profile preview`
+  - iOS: `pnpm --filter mobile dlx eas-cli build -p ios --profile preview`
+
+## 🧭 CI (GitHub Actions)
+
+- يقوم بتشغيل Postgres، تطبيق المايجريشن والـ seed، ثم بناء API وWeb وAdmin تلقائياً على أي دفع.
+- تشغيل يدوي: Actions > CI / CD (pnpm & Turborepo) > Run workflow.
+
+## 🔐 Admin Credentials (Seed)
+
+- Email: `admin@example.com`
+- Password: `admin123`

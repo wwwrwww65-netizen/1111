@@ -36,7 +36,7 @@ async function main() {
 
   console.log('✅ Users created');
 
-  // Create categories
+  // Create categories (idempotent)
   const electronics = await (async () => {
     const existing = await prisma.category.findFirst({ where: { name: 'Electronics' } });
     if (existing) return existing;
@@ -100,7 +100,7 @@ async function main() {
 
   console.log('✅ Categories created');
 
-  // Create products
+  // Create products (use sku as unique for upsert)
   const products = await Promise.all([
     prisma.product.upsert({
       where: { sku: 'IPHONE15PRO' },
@@ -192,7 +192,7 @@ async function main() {
       create: {
         name: 'Nike Air Max 270',
         description: 'Comfortable running shoes with Air Max technology',
-        price: 150.00,
+        price: 150.0,
         images: [
           'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
           'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400',
@@ -259,12 +259,12 @@ async function main() {
     // Nike shoes variants
     prisma.productVariant.createMany({
       data: [
-        { productId: products[4].id, name: 'Size', value: 'US 7', price: 150.00 },
-        { productId: products[4].id, name: 'Size', value: 'US 8', price: 150.00 },
-        { productId: products[4].id, name: 'Size', value: 'US 9', price: 150.00 },
-        { productId: products[4].id, name: 'Size', value: 'US 10', price: 150.00 },
-        { productId: products[4].id, name: 'Color', value: 'Black', price: 150.00 },
-        { productId: products[4].id, name: 'Color', value: 'White', price: 150.00 },
+        { productId: products[4].id, name: 'Size', value: 'US 7', price: 150.0 },
+        { productId: products[4].id, name: 'Size', value: 'US 8', price: 150.0 },
+        { productId: products[4].id, name: 'Size', value: 'US 9', price: 150.0 },
+        { productId: products[4].id, name: 'Size', value: 'US 10', price: 150.0 },
+        { productId: products[4].id, name: 'Color', value: 'Black', price: 150.0 },
+        { productId: products[4].id, name: 'Color', value: 'White', price: 150.0 },
       ],
       skipDuplicates: true,
     }),
@@ -479,10 +479,11 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Error during seeding:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
+  .then(async () => {
     await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
   });

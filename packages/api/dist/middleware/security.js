@@ -4,9 +4,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.applySecurityMiddleware = exports.authRateLimit = exports.rateLimitConfig = exports.corsOptions = void 0;
-var cors_1 = __importDefault(require("cors"));
-var express_rate_limit_1 = __importDefault(require("express-rate-limit"));
-var helmet_1 = __importDefault(require("helmet"));
+const cors_1 = __importDefault(require("cors"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const helmet_1 = __importDefault(require("helmet"));
 // CORS configuration
 exports.corsOptions = {
     origin: process.env.NODE_ENV === 'production'
@@ -18,8 +18,8 @@ exports.corsOptions = {
 };
 // Rate limiting configuration
 exports.rateLimitConfig = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
     message: {
         error: 'Too many requests from this IP, please try again later.',
     },
@@ -28,8 +28,8 @@ exports.rateLimitConfig = (0, express_rate_limit_1.default)({
 });
 // Stricter rate limit for auth endpoints
 exports.authRateLimit = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // limit each IP to 5 requests per windowMs
     message: {
         error: 'Too many authentication attempts, please try again later.',
     },
@@ -37,7 +37,7 @@ exports.authRateLimit = (0, express_rate_limit_1.default)({
     legacyHeaders: false,
 });
 // Apply security middleware to Express app
-var applySecurityMiddleware = function (app) {
+const applySecurityMiddleware = (app) => {
     // Basic security headers
     app.use((0, helmet_1.default)({
         contentSecurityPolicy: {
@@ -60,3 +60,4 @@ var applySecurityMiddleware = function (app) {
     app.disable('x-powered-by');
 };
 exports.applySecurityMiddleware = applySecurityMiddleware;
+//# sourceMappingURL=security.js.map

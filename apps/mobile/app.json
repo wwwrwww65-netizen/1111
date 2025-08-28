@@ -18,10 +18,15 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.example.ecom"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "EXPO_PUBLIC_TRPC_URL": "http://localhost:4000/trpc"
+    },
+    "adaptiveIcon": {}
   }
 }

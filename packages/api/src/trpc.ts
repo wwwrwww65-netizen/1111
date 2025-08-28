@@ -1,6 +1,7 @@
 import { initTRPC } from '@trpc/server';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { prisma } from '@repo/db';
+import { authMiddleware } from './middleware/auth';
 
 // Define the user type
 export interface JWTPayload {
@@ -31,3 +32,4 @@ export const t = initTRPC.context<Context>().create();
 export const router = t.router;
 export const publicProcedure = t.procedure;
 export const middleware = t.middleware;
+export const protectedProcedure = t.procedure.use(authMiddleware);

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
@@ -21,10 +22,8 @@ const app = express();
 
 // Apply security middleware
 applySecurityMiddleware(app);
-
 // Parse cookies
 app.use(cookieParser());
-
 // Root endpoint for Render root URL
 app.get('/', (req, res) => {
   res.json({
@@ -52,7 +51,6 @@ app.get('/error-test', (_req, _res) => {
   }
   throw new Error('Test error endpoint hit');
 });
-
 // Informational handler for GET /trpc (tRPC expects JSON-RPC calls; this is a friendly message)
 app.get('/trpc', (req, res) => {
   res.status(200).json({

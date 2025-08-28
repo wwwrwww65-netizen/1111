@@ -5,8 +5,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "dev": "ts-node-dev src/index.ts",
-    "clean": "rm -rf dist",
+    "dev": "node -r dotenv/config ./node_modules/.bin/ts-node-dev src/index.ts",
+    "clean": "rimraf dist",
     "build": "pnpm --filter @repo/db build && pnpm clean && tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "echo \"Linting disabled for now\"",
@@ -15,6 +15,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "@repo/db": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@trpc/server": "^10.45.2",
@@ -42,6 +43,8 @@
     "supertest": "^6.3.3",
     "@types/supertest": "^2.0.16",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "rimraf": "^5.0.0",
+    "@types/nodemailer": "^6.4.14"
   }
 }

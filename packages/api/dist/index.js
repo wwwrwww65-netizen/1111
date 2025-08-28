@@ -15,36 +15,47 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-var express_1 = __importDefault(require("express"));
-var trpcExpress = __importStar(require("@trpc/server/adapters/express"));
-var router_1 = require("./router");
-var trpc_1 = require("./trpc");
-var security_1 = require("./middleware/security");
-var app = (0, express_1.default)();
+const express_1 = __importDefault(require("express"));
+const trpcExpress = __importStar(require("@trpc/server/adapters/express"));
+const router_1 = require("./router");
+const trpc_1 = require("./trpc");
+const security_1 = require("./middleware/security");
+const app = (0, express_1.default)();
 // Apply security middleware
 (0, security_1.applySecurityMiddleware)(app);
 // Health check endpoint
-app.get('/health', function (req, res) {
+app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 app.use('/trpc', trpcExpress.createExpressMiddleware({
     router: router_1.appRouter,
     createContext: trpc_1.createContext,
 }));
-var port = process.env.PORT || 4000;
-app.listen(port, function () {
-    console.log("\uD83D\uDE80 API server listening on port ".concat(port));
-    console.log("\uD83D\uDCCA Health check: http://localhost:".concat(port, "/health"));
-    console.log("\uD83D\uDD17 tRPC endpoint: http://localhost:".concat(port, "/trpc"));
+const port = process.env.PORT || 4000;
+app.listen(port, () => {
+    console.log(`🚀 API server listening on port ${port}`);
+    console.log(`📊 Health check: http://localhost:${port}/health`);
+    console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
 });
+//# sourceMappingURL=index.js.map

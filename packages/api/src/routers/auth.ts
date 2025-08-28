@@ -120,7 +120,7 @@ export const authRouter = router({
     .use(authMiddleware)
     .query(async ({ ctx }) => {
       const user = await db.user.findUnique({
-        where: { id: ctx.user.userId },
+        where: { id: ctx.user!.userId },
         select: {
           id: true,
           email: true,
@@ -153,7 +153,7 @@ export const authRouter = router({
 
       // Update user
       const user = await db.user.update({
-        where: { id: ctx.user.userId },
+        where: { id: ctx.user!.userId },
         data: updateData,
         select: {
           id: true,
@@ -170,7 +170,7 @@ export const authRouter = router({
       // Update address if provided
       if (address) {
         await db.address.upsert({
-          where: { userId: ctx.user.userId },
+          where: { userId: ctx.user!.userId },
           update: address,
           create: { ...address, userId: ctx.user.userId },
         });
