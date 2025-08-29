@@ -12,6 +12,8 @@ const buildAllowedOrigins = (): string[] => {
   if (appUrl) origins.push(appUrl);
   if (adminUrl) origins.push(adminUrl);
   if (extra) origins.push(...extra.split(',').map((s) => s.trim()).filter(Boolean));
+  // Known deployment fallbacks for current project
+  origins.push('https://jeeey1.onrender.com', 'https://jeeey-manger.onrender.com');
   // In non-prod, include local defaults as well
   if (process.env.NODE_ENV !== 'production') {
     origins.push('http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081');
