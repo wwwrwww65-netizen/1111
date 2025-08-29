@@ -23,6 +23,8 @@ try {
 } catch {}
 
 const app = express();
+// Behind Render proxy, trust proxy so secure cookies & protocol are detected correctly
+app.set('trust proxy', 1);
 
 // Stripe webhook MUST be registered BEFORE any body parser middlewares
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
