@@ -1,6 +1,6 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { AnyRouter } from "@trpc/server";
 import React from "react";
@@ -12,11 +12,20 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
   const [trpcClient] = React.useState(() =>
     trpc.createClient({
       links: [
-        httpBatchLink({
-          url: process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc",
-          fetch(input, init) {
-            return fetch(input, { ...(init ?? {}), credentials: "include" });
-          },
+        splitLink({
+          condition: (op) => op.type === 'query',
+          true: httpLink({
+            url: process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc",
+            fetch(input, init) {
+              return fetch(input, { ...(init ?? {}), credentials: "include" });
+            },
+          }),
+          false: httpBatchLink({
+            url: process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc",
+            fetch(input, init) {
+              return fetch(input, { ...(init ?? {}), credentials: "include" });
+            },
+          }),
         }),
       ],
     })
