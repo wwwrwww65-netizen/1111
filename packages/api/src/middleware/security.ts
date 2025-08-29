@@ -5,9 +5,6 @@ import { Express } from 'express';
 
 // CORS configuration
 const buildAllowedOrigins = (): string[] => {
-  if (process.env.NODE_ENV !== 'production') {
-    return ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081'];
-  }
   const origins: string[] = [];
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL;
@@ -15,15 +12,25 @@ const buildAllowedOrigins = (): string[] => {
   if (appUrl) origins.push(appUrl);
   if (adminUrl) origins.push(adminUrl);
   if (extra) origins.push(...extra.split(',').map((s) => s.trim()).filter(Boolean));
+  // In non-prod, include local defaults as well
+  if (process.env.NODE_ENV !== 'production') {
+    origins.push('http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081');
+  }
   if (origins.length === 0) origins.push('http://localhost:3000');
-  return origins;
+  return Array.from(new Set(origins));
 };
 
 export const corsOptions = {
-  origin: buildAllowedOrigins(),
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    const allowed = buildAllowedOrigins();
+    if (!origin) return callback(null, true); // non-browser or same-origin
+    if (allowed.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
 };
 
 // Rate limiting configuration
@@ -72,6 +79,17 @@ export const applySecurityMiddleware = (app: Express) => {
 
   // CORS (with credentials for cookies)
   app.use(cors(corsOptions));
+  // Manual header reinforcement for some proxies/CDNs
+  app.use((req, res, next) => {
+    const allowed = buildAllowedOrigins();
+    const origin = req.headers.origin as string | undefined;
+    if (origin && allowed.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
+    next();
+  });
 
   // Rate limiting
   app.use(rateLimitConfig);
