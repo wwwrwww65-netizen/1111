@@ -83,6 +83,8 @@ export const applySecurityMiddleware = (app: Express) => {
 
   // CORS (with credentials for cookies)
   app.use(cors(corsOptions));
+  // Ensure OPTIONS preflight responds with proper headers
+  app.options('*', cors(corsOptions));
   // Manual header reinforcement for some proxies/CDNs
   app.use((req, res, next) => {
     const allowed = buildAllowedOrigins();
