@@ -4,10 +4,23 @@ import helmet from 'helmet';
 import { Express } from 'express';
 
 // CORS configuration
+const buildAllowedOrigins = (): string[] => {
+  if (process.env.NODE_ENV !== 'production') {
+    return ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081'];
+  }
+  const origins: string[] = [];
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL;
+  const extra = process.env.CORS_ALLOW_ORIGINS; // comma-separated list
+  if (appUrl) origins.push(appUrl);
+  if (adminUrl) origins.push(adminUrl);
+  if (extra) origins.push(...extra.split(',').map((s) => s.trim()).filter(Boolean));
+  if (origins.length === 0) origins.push('http://localhost:3000');
+  return origins;
+};
+
 export const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'] 
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081'],
+  origin: buildAllowedOrigins(),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
