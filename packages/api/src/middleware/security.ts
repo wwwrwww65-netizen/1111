@@ -63,6 +63,7 @@ export const applySecurityMiddleware = (app: Express) => {
       useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
+        // Allow styles from self; UI frameworks inline styles are not used here
         styleSrc: ["'self'"],
         scriptSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "https:"],
@@ -71,9 +72,12 @@ export const applySecurityMiddleware = (app: Express) => {
         upgradeInsecureRequests: [],
       },
     },
-    crossOriginEmbedderPolicy: true,
-    crossOriginOpenerPolicy: { policy: "same-origin" },
-    crossOriginResourcePolicy: { policy: "same-origin" },
+    // For API responses, disable COEP to avoid cross-origin fetch blocking
+    crossOriginEmbedderPolicy: false,
+    // Loosen COOP to allow integrations/popups if needed
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    // Allow cross-origin consumers (the web/admin frontends)
+    crossOriginResourcePolicy: { policy: "cross-origin" },
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 15552000, includeSubDomains: true, preload: true } : false,
   }));
 
