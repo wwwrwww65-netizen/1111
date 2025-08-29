@@ -12,10 +12,15 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
   const [queryClient] = React.useState(() => new QueryClient());
   const [trpcClient] = React.useState(() => {
     const envUrl = process.env.NEXT_PUBLIC_TRPC_URL;
-    const fallbackProdUrl = 'https://jeeeyai.onrender.com/trpc';
     const isBrowser = typeof window !== 'undefined';
-    const isProd = process.env.NODE_ENV === 'production';
-    const resolvedUrl = envUrl || (isProd ? fallbackProdUrl : 'http://localhost:4000/trpc');
+    let resolvedUrl = envUrl;
+    if (!resolvedUrl) {
+      if (isBrowser && window.location.hostname.endsWith('onrender.com')) {
+        resolvedUrl = 'https://jeeeyai.onrender.com/trpc';
+      } else {
+        resolvedUrl = 'http://localhost:4000/trpc';
+      }
+    }
 
     return trpc.createClient({
       transformer: superjson,
