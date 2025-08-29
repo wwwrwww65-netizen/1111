@@ -46,5 +46,8 @@
     "typescript": "^5.3.3",
     "rimraf": "^5.0.0",
     "@types/nodemailer": "^6.4.14"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }
