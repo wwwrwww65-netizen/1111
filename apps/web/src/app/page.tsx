@@ -4,6 +4,7 @@ import { ProductCard } from "@repo/ui";
 
 export default function Page(): JSX.Element {
   const query: any = (trpc as any);
+  const now = new Date();
   const { data, isLoading, error, fetchNextPage, hasNextPage } = query.products.list.useInfiniteQuery(
     { limit: 12 },
     { getNextPageParam: (lastPage: any) => lastPage.nextCursor }
@@ -15,8 +16,49 @@ export default function Page(): JSX.Element {
   const products = data?.pages.flatMap((p: any) => p.items) ?? [];
 
   return (
-    <main className="min-h-screen p-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Latest Products</h1>
+    <main className="min-h-screen p-0 md:p-8 max-w-7xl mx-auto">
+      {/* Hero Banner */}
+      <section className="relative w-full h-56 md:h-80 bg-gradient-to-r from-indigo-600 to-purple-600 text-white flex items-center justify-center">
+        <div className="text-center px-4">
+          <h1 className="text-2xl md:text-4xl font-bold">عروض اليوم</h1>
+          <p className="mt-2 md:mt-3 opacity-90">خصومات حصرية على أفضل المنتجات لفترة محدودة</p>
+        </div>
+      </section>
+
+      {/* Sections */}
+      <section className="p-6 md:p-0 md:mt-8">
+        <h2 className="text-xl md:text-2xl font-bold mb-4">الأحدث</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {products.map((p: any) => (
+            <ProductCard
+              key={p.id}
+              product={{
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                price: p.price,
+                images: p.images,
+                stock: p.stockQuantity,
+                rating: 0,
+                reviewCount: 0,
+              }}
+              onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Best Sellers placeholder */}
+      <section className="p-6 md:p-0 md:mt-10">
+        <h2 className="text-xl md:text-2xl font-bold mb-4">الأكثر مبيعاً</h2>
+        <div className="text-gray-600">سيتم ملؤها بمنتجات شائعة قريباً.</div>
+      </section>
+
+      {/* Limited Offers placeholder */}
+      <section className="p-6 md:p-0 md:mt-10">
+        <h2 className="text-xl md:text-2xl font-bold mb-4">عروض محدودة</h2>
+        <div className="text-gray-600">تابعونا لعروض فلاش قريبة.</div>
+      </section>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {products.map((p: any) => (
           <ProductCard
