@@ -22,7 +22,7 @@ const buildAllowedOrigins = (): string[] => {
 export const corsOptions = {
   origin: buildAllowedOrigins(),
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
