@@ -25,6 +25,19 @@ export default function Page(): JSX.Element {
         </div>
       </section>
 
+      {/* Figma Embed Preview */}
+      <section className="p-4 md:p-6">
+        <div className="w-full flex justify-center">
+          <iframe
+            style={{ border: '1px solid rgba(0, 0, 0, 0.1)' }}
+            width={800}
+            height={450}
+            src="https://embed.figma.com/design/iBFo5QZCthBkGD7xoZgcVm/shein--Community-?node-id=0-1&embed-host=share"
+            allowFullScreen
+          />
+        </div>
+      </section>
+
       {/* Sections */}
       <section className="p-6 md:p-0 md:mt-8">
         <h2 className="text-xl md:text-2xl font-bold mb-4">الأحدث</h2>
