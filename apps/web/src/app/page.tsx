@@ -6,6 +6,8 @@ import { LoadingOverlay } from "../components/LoadingOverlay";
 import { PromoBar } from "../components/PromoBar";
 import { HeroBanner } from "../components/HeroBanner";
 import { CategoryGrid } from "../components/CategoryGrid";
+import { SectionGrid } from "../components/SectionGrid";
+import { PromoBanners } from "../components/PromoBanners";
 import { SkeletonCard } from "../components/SkeletonCard";
 
 export default function Page(): JSX.Element {
@@ -79,6 +81,12 @@ export default function Page(): JSX.Element {
           ))}
         </div>
       </section>
+
+      <PromoBanners />
+
+      {!!products?.length && (
+        <SectionGrid title="الأكثر مبيعاً" products={products.slice(0, 10)} />
+      )}
     </main>
   );
 }
