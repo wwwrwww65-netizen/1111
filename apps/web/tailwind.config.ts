@@ -9,7 +9,19 @@ const config: Config = {
     "../../packages/ui/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        brand: {
+          DEFAULT: "#111111",
+          muted: "#6b7280",
+          accent: "#e11d48",
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+      },
+      container: { center: true, padding: "1rem" },
+    },
   },
   plugins: [],
 };

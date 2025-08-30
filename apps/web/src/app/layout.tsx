@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppProviders } from "./providers";
+import { Header } from "../components/Header";
 
 export const metadata: Metadata = {
   title: "Jeeey | موضة نساء على الإنترنت | تسوق الفساتين والأحذية والحقائب",
@@ -20,7 +21,10 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl">
       <body>
-        <AppProviders>{children}</AppProviders>
+        <AppProviders>
+          <Header />
+          {children}
+        </AppProviders>
       </body>
     </html>
   );
