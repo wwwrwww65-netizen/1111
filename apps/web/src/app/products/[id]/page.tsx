@@ -2,12 +2,14 @@
 import { trpc } from "../../providers";
 import Image from "next/image";
 import React from "react";
+import { ProductCard } from "@repo/ui";
 
 export default function ProductDetail({ params }: { params: { id: string } }): JSX.Element {
   const { data, isLoading, error } = trpc.products.getById.useQuery({ id: params.id });
   const addItem = trpc.cart.addItem.useMutation();
   const [activeIdx, setActiveIdx] = React.useState(0);
   const [qty, setQty] = React.useState(1);
+  const [tab, setTab] = React.useState<'desc' | 'specs' | 'reviews'>("desc");
 
   if (isLoading) return <main className="p-8">Loading product...</main>;
   if (error) return <main className="p-8">Error: {error.message}</main>;
@@ -48,14 +50,25 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           <div className="text-sm text-gray-500 mt-1">
             {product.stockQuantity > 0 ? `${product.stockQuantity} متوفر` : "غير متوفر"}
           </div>
-          <p className="text-gray-700 mt-4 leading-relaxed">
-            {product.description}
-          </p>
-          <ul className="mt-4 space-y-1 text-sm text-gray-600 list-disc pr-5">
-            {(product.specs || []).map((s: string, idx: number) => (
-              <li key={idx}>{s}</li>
-            ))}
-          </ul>
+          {/* Tabs */}
+          <div className="mt-5 border-b flex items-center gap-6 text-sm">
+            <button className={`pb-2 ${tab==='desc'?'border-b-2 border-black':''}`} onClick={()=>setTab('desc')}>الوصف</button>
+            <button className={`pb-2 ${tab==='specs'?'border-b-2 border-black':''}`} onClick={()=>setTab('specs')}>المواصفات</button>
+            <button className={`pb-2 ${tab==='reviews'?'border-b-2 border-black':''}`} onClick={()=>setTab('reviews')}>التقييمات</button>
+          </div>
+          {tab === 'desc' && (
+            <p className="text-gray-700 mt-4 leading-relaxed">{product.description}</p>
+          )}
+          {tab === 'specs' && (
+            <ul className="mt-4 space-y-1 text-sm text-gray-600 list-disc pr-5">
+              {(product.variants?.[0]?.attributes || product.specs || []).map((s: any, idx: number) => (
+                <li key={idx}>{typeof s === 'string' ? s : `${s.name}: ${s.value}`}</li>
+              ))}
+            </ul>
+          )}
+          {tab === 'reviews' && (
+            <div className="mt-4 text-sm text-gray-700">التقييم العام: {product.averageRating} ({product.reviewCount} تقييم)</div>
+          )}
           <div className="mt-6 flex items-center gap-3">
             <div className="flex items-center border rounded">
               <button className="px-3 py-2" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="decrease">-</button>
@@ -75,6 +88,29 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           </div>
         </div>
       </div>
+      {/* Recommended products */}
+      <section className="mt-12">
+        <h2 className="text-xl md:text-2xl font-bold mb-4">منتجات مقترحة</h2>
+        {/* Fallback to latest list; ideally filter by same category */}
+        <RecommendedGrid />
+      </section>
     </main>
+  );
+}
+
+function RecommendedGrid(): JSX.Element {
+  const query: any = (trpc as any);
+  const { data } = query.products.list.useQuery({ limit: 10 });
+  const items = data?.items ?? [];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      {items.map((p: any) => (
+        <ProductCard
+          key={p.id}
+          product={{ id: p.id, name: p.name, description: p.description, price: p.price, images: p.images, stock: p.stockQuantity, rating: p.averageRating || 0, reviewCount: p.reviewCount || 0 }}
+          onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+        />
+      ))}
+    </div>
   );
 }
