@@ -6,6 +6,8 @@ export default function CheckoutPage(): JSX.Element {
   const q: any = trpc as any;
   const { data, isLoading, error } = q.cart.getCart.useQuery();
   const createOrder = q.orders.createOrder.useMutation();
+  const applyCoupon = q.coupons.apply.useMutation();
+  const [coupon, setCoupon] = React.useState("");
 
   if (isLoading) return <main className="p-8">Loading...</main>;
   if (error) return <main className="p-8">Error: {(error as any).message}</main>;
@@ -41,6 +43,12 @@ export default function CheckoutPage(): JSX.Element {
           <div className="flex justify-between text-sm text-gray-600">
             <span>الإجمالي الفرعي</span>
             <span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="كوبون" className="border rounded px-3 py-2 flex-1" />
+            <button className="px-3 py-2 border rounded" onClick={async () => { if (coupon) await applyCoupon.mutateAsync({ code: coupon }); }}>
+              تطبيق
+            </button>
           </div>
           <div className="flex justify-between text-sm text-gray-600 mt-1">
             <span>الشحن</span>
