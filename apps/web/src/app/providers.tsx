@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { AnyRouter } from "@trpc/server";
-import superjson from "superjson";
 import React from "react";
 
 export const trpc = createTRPCReact<AnyRouter>();
@@ -23,7 +22,6 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
     }
 
     return trpc.createClient({
-      transformer: superjson,
       links: [
         splitLink({
           condition: (op) => op.type === 'query',

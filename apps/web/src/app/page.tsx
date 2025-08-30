@@ -10,10 +10,29 @@ export default function Page(): JSX.Element {
     { getNextPageParam: (lastPage: any) => lastPage.nextCursor }
   );
 
-  if (isLoading) return <main className="p-8">Loading products...</main>;
-  if (error) return <main className="p-8">Error: {(error as any).message}</main>;
+  const [fallbackProducts, setFallbackProducts] = React.useState<any[] | null>(null as any);
+  React.useEffect(() => {
+    let timer: any;
+    if (isLoading) {
+      timer = setTimeout(async () => {
+        try {
+          const url = 'https://jeeeyai.onrender.com/trpc/products.list?input=' + encodeURIComponent(JSON.stringify({ limit: 12 }));
+          const res = await fetch(url, { credentials: 'include' });
+          if (res.ok) {
+            const json = await res.json();
+            const items = json?.result?.data?.items || [];
+            if (items.length) setFallbackProducts(items);
+          }
+        } catch {}
+      }, 1500);
+    }
+    return () => timer && clearTimeout(timer);
+  }, [isLoading]);
 
-  const products = data?.pages.flatMap((p: any) => p.items) ?? [];
+  if (isLoading && !fallbackProducts) return <main className="p-8">Loading products...</main>;
+  if (error && !fallbackProducts) return <main className="p-8">Error: {(error as any).message}</main>;
+
+  const products = fallbackProducts ?? (data?.pages.flatMap((p: any) => p.items) ?? []);
 
   return (
     <main className="min-h-screen p-0 md:p-8 max-w-7xl mx-auto">
