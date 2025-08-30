@@ -13,7 +13,7 @@ export function Header(): JSX.Element {
           <a href="/search" aria-label="Search" className="p-2">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </a>
-          <a href="/" className="text-xl font-extrabold tracking-wide">Jeeey</a>
+          <a href="/" className="text-xl font-extrabold tracking-wide">جي jeeey</a>
           <div className="flex items-center gap-1">
             <a href="/cart" aria-label="Cart" className="p-2">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6"/></svg>
@@ -31,7 +31,7 @@ export function Header(): JSX.Element {
             <a href="/account" className="hover:text-brand-accent">{t('account')}</a>
           </nav>
           <div className="col-span-4 flex justify-center">
-            <a href="/" className="text-2xl font-extrabold tracking-wide">Jeeey</a>
+            <a href="/" className="text-2xl font-extrabold tracking-wide">جي jeeey</a>
           </div>
           <div className="col-span-4 flex items-center justify-end gap-3">
             <form

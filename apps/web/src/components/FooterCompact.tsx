@@ -33,7 +33,7 @@ export function FooterCompact(): JSX.Element {
           <div className="text-xs">بطاقات، مدى، Apple Pay</div>
         </div>
       </div>
-      <div className="mt-6 text-center text-xs text-gray-500">© {new Date().getFullYear()} Jeeey</div>
+      <div className="mt-6 text-center text-xs text-gray-500">© {new Date().getFullYear()} جي jeeey</div>
     </footer>
   );
 }
