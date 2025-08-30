@@ -11,6 +11,7 @@ const dict: Dictionary = {
   search: { ar: "البحث", en: "Search" },
   account: { ar: "حسابي", en: "Account" },
   cart: { ar: "سلة التسوق", en: "Cart" },
+  wishlist: { ar: "المفضلة", en: "Wishlist" },
   checkout: { ar: "الدفع", en: "Checkout" },
   notFound: { ar: "الصفحة غير موجودة", en: "Page not found" },
   backHome: { ar: "العودة للرئيسية", en: "Back to home" },

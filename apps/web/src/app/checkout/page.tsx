@@ -6,7 +6,7 @@ export default function CheckoutPage(): JSX.Element {
   const q: any = trpc as any;
   const { data, isLoading, error } = q.cart.getCart.useQuery();
   const createOrder = q.orders.createOrder.useMutation();
-  const applyCoupon = q.coupons.apply.useMutation();
+  const applyCoupon = q.coupons.validateCoupon.useMutation();
   const [coupon, setCoupon] = React.useState("");
 
   if (isLoading) return <main className="p-8">Loading...</main>;
