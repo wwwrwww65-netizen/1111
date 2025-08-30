@@ -3,13 +3,16 @@ import { trpc } from "../../providers";
 import Image from "next/image";
 import React from "react";
 import { ProductCard } from "@repo/ui";
+import { useI18n } from "../../lib/i18n";
 
 export default function ProductDetail({ params }: { params: { id: string } }): JSX.Element {
+  const { t } = useI18n();
   const { data, isLoading, error } = trpc.products.getById.useQuery({ id: params.id });
   const addItem = trpc.cart.addItem.useMutation();
   const [activeIdx, setActiveIdx] = React.useState(0);
   const [qty, setQty] = React.useState(1);
   const [tab, setTab] = React.useState<'desc' | 'specs' | 'reviews'>("desc");
+  const [selectedSize, setSelectedSize] = React.useState<string | null>(null);
 
   if (isLoading) return <main className="p-8">Loading product...</main>;
   if (error) return <main className="p-8">Error: {error.message}</main>;
@@ -52,19 +55,38 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           </div>
           {/* Tabs */}
           <div className="mt-5 border-b flex items-center gap-6 text-sm">
-            <button className={`pb-2 ${tab==='desc'?'border-b-2 border-black':''}`} onClick={()=>setTab('desc')}>الوصف</button>
-            <button className={`pb-2 ${tab==='specs'?'border-b-2 border-black':''}`} onClick={()=>setTab('specs')}>المواصفات</button>
-            <button className={`pb-2 ${tab==='reviews'?'border-b-2 border-black':''}`} onClick={()=>setTab('reviews')}>التقييمات</button>
+            <button className={`pb-2 ${tab==='desc'?'border-b-2 border-black':''}`} onClick={()=>setTab('desc')}>{t('description')}</button>
+            <button className={`pb-2 ${tab==='specs'?'border-b-2 border-black':''}`} onClick={()=>setTab('specs')}>{t('specs')}</button>
+            <button className={`pb-2 ${tab==='reviews'?'border-b-2 border-black':''}`} onClick={()=>setTab('reviews')}>{t('reviews')}</button>
           </div>
           {tab === 'desc' && (
             <p className="text-gray-700 mt-4 leading-relaxed">{product.description}</p>
           )}
           {tab === 'specs' && (
-            <ul className="mt-4 space-y-1 text-sm text-gray-600 list-disc pr-5">
-              {(product.variants?.[0]?.attributes || product.specs || []).map((s: any, idx: number) => (
-                <li key={idx}>{typeof s === 'string' ? s : `${s.name}: ${s.value}`}</li>
-              ))}
-            </ul>
+            <div className="mt-4">
+              {/* Size swatches */}
+              {product.variants && product.variants.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-sm text-gray-600 mb-2">{t('size')}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {product.variants.map((v: any) => (
+                      <button
+                        key={v.id}
+                        onClick={() => setSelectedSize(v.name)}
+                        className={`px-3 py-1.5 border rounded ${selectedSize===v.name? 'border-black bg-black text-white':'bg-white'}`}
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <ul className="space-y-1 text-sm text-gray-600 list-disc pr-5">
+                {(product.specs || []).map((s: any, idx: number) => (
+                  <li key={idx}>{typeof s === 'string' ? s : `${s.name}: ${s.value}`}</li>
+                ))}
+              </ul>
+            </div>
           )}
           {tab === 'reviews' && (
             <div className="mt-4 text-sm text-gray-700">التقييم العام: {product.averageRating} ({product.reviewCount} تقييم)</div>
@@ -83,7 +105,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
               }}
               className="px-5 py-3 bg-black text-white rounded disabled:opacity-50"
             >
-              أضف إلى السلة
+              {t('addToCart')}
             </button>
           </div>
         </div>

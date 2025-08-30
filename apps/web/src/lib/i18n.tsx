@@ -15,6 +15,15 @@ const dict: Dictionary = {
   checkout: { ar: "الدفع", en: "Checkout" },
   notFound: { ar: "الصفحة غير موجودة", en: "Page not found" },
   backHome: { ar: "العودة للرئيسية", en: "Back to home" },
+  description: { ar: "الوصف", en: "Description" },
+  specs: { ar: "المواصفات", en: "Specifications" },
+  reviews: { ar: "التقييمات", en: "Reviews" },
+  shipping: { ar: "الشحن", en: "Shipping" },
+  returns: { ar: "الإرجاع", en: "Returns" },
+  apply: { ar: "تطبيق", en: "Apply" },
+  coupon: { ar: "كوبون", en: "Coupon" },
+  size: { ar: "المقاس", en: "Size" },
+  addToCart: { ar: "أضف إلى السلة", en: "Add to cart" },
 };
 
 interface I18nContextValue {
