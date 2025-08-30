@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "NEXT_DISABLE_ESLINT=1 next build",
-    "start": "node .next/standalone/server.js",
+    "start": "next start",
     "lint": "next lint",
     "test": "echo \"No tests specified for web app\"",
     "test:coverage": "echo \"No tests specified for web app\""
