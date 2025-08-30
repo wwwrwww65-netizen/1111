@@ -13,8 +13,8 @@ services:
     env: node
     plan: free
     region: oregon
-    buildCommand: pnpm install --frozen-lockfile=false && pnpm --filter web build
-    startCommand: pnpm --filter web start
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter web build
+    startCommand: node apps/web/render-start.js
     healthCheckPath: /
     autoDeploy: true
   - type: web
