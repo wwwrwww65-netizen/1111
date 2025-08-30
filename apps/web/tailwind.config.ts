@@ -14,7 +14,7 @@ const config: Config = {
         brand: {
           DEFAULT: "#111111",
           muted: "#6b7280",
-          accent: "#e11d48",
+          accent: "#800020",
         },
       },
       fontFamily: {
