@@ -4,6 +4,7 @@ import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { AnyRouter } from "@trpc/server";
 import React from "react";
+import { I18nProvider } from "../lib/i18n";
 
 export const trpc = createTRPCReact<AnyRouter>();
 
@@ -45,7 +46,9 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>{children}</I18nProvider>
+      </QueryClientProvider>
     </trpc.Provider>
   );
 }

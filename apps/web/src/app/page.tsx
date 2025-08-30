@@ -12,6 +12,7 @@ import { TabsSection } from "../components/TabsSection";
 import { Recommendations } from "../components/Recommendations";
 import { FooterCompact } from "../components/FooterCompact";
 import { SkeletonCard } from "../components/SkeletonCard";
+import { HtmlLangDir } from "../lib/i18n";
 
 export default function Page(): JSX.Element {
   const query: any = (trpc as any);
@@ -49,6 +50,7 @@ export default function Page(): JSX.Element {
 
   return (
     <main className="min-h-screen p-0 md:p-6 max-w-7xl mx-auto">
+      <HtmlLangDir />
       <PromoBar />
       <HeroBanner />
       <CategoryGrid />

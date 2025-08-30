@@ -1,6 +1,7 @@
 "use client";
 import { trpc } from "../providers";
 import React from "react";
+import { ProductCard } from "@repo/ui";
 
 export default function SearchPage(): JSX.Element {
   const q: any = trpc as any;
@@ -73,11 +74,22 @@ export default function SearchPage(): JSX.Element {
       </div>
 
       {/* Results */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {products.map((p: any) => (
-          <div key={p.id} className="border rounded p-4">
-            <a href={`/products/${p.id}`}>{p.name}</a>
-          </div>
+          <ProductCard
+            key={p.id}
+            product={{
+              id: p.id,
+              name: p.name,
+              description: p.description,
+              price: p.price,
+              images: p.images,
+              stock: p.stockQuantity,
+              rating: p.rating || 0,
+              reviewCount: p.reviewCount || 0,
+            }}
+            onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+          />
         ))}
       </div>
     </main>
