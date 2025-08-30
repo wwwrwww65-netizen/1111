@@ -1,15 +1,15 @@
 # 🛒 E-commerce Platform Monorepo
 
-A modern, full-stack e-commerce platform built with cutting-edge technologies and best practices.
+Monorepo for a full‑stack e‑commerce platform (Web, Admin, API, Mobile) using Next.js 14, tRPC, Prisma, PostgreSQL, and Turborepo.
 
 ## 🏗️ Architecture
 
-This monorepo contains a complete e-commerce solution with:
+This monorepo contains a complete e‑commerce solution with:
 
-- **🌐 Web App** (`apps/web`): Next.js 14 with App Router
-- **📱 Mobile App** (`apps/mobile`): React Native with Expo
-- **🔧 API** (`packages/api`): tRPC + Express.js backend
-- **🗄️ Database** (`packages/db`): PostgreSQL with Prisma ORM
+- **🌐 Web App** (`apps/web`): Next.js 14 (App Router) with Tailwind, tRPC client
+- **🛠️ Admin App** (`apps/admin`): Next.js 14 (App Router) with tRPC client
+- **🔧 API** (`packages/api`): tRPC + Express.js (cookies auth, CORS, Helmet, rate‑limit)
+- **🗄️ Database** (`packages/db`): Prisma ORM + PostgreSQL (migrations/seed)
 - **🎨 UI Components** (`packages/ui`): Shared React components
 - **🏗️ Infrastructure** (`infra`): Docker & deployment configs
 
@@ -36,19 +36,18 @@ This monorepo contains a complete e-commerce solution with:
 - State management with Zustand
 - Optimized for performance
 
-### 🧪 Quality Assurance
-- Comprehensive test suite (Jest + Testing Library)
-- Type safety throughout the stack
-- ESLint + Prettier for code quality
+### 🧪 Quality
+- Jest test setup (API/UI), TypeScript across the stack
+- ESLint + Prettier
 - API documentation
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Node.js** (v18 or higher)
-- **pnpm** (v8 or higher)
-- **Docker** & Docker Compose
+- Node.js 20+
+- pnpm 8+
+- Docker (optional for local Postgres/Redis/MinIO)
 
 ### 1. Clone & Install
 
@@ -58,17 +57,22 @@ cd ecom-platform
 pnpm install
 ```
 
-### 2. Environment Setup
+### 2. Environment Setup (overview)
+
+Set these variables (locally via shell or .env files per package, and on Render via dashboard):
+
+- API (`packages/api`):
+  - DATABASE_URL, DIRECT_URL
+  - JWT_SECRET
+  - NEXT_PUBLIC_APP_URL (web URL), NEXT_PUBLIC_ADMIN_URL (admin URL)
+  - STRIPE_SECRET_KEY (optional), STRIPE_WEBHOOK_SECRET (optional)
+- Web/Admin (`apps/web`, `apps/admin`):
+  - NEXT_PUBLIC_TRPC_URL (e.g. https://<api>/trpc)
+
+### 3. (Optional) Local infrastructure
 
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-### 3. Start Infrastructure
-
-```bash
-docker-compose -f infra/dev-docker-compose.yml up -d
+docker compose -f infra/dev-docker-compose.yml up -d
 ```
 
 ### 4. Database Setup
@@ -84,7 +88,7 @@ pnpm --filter @repo/db db:seed
 pnpm --filter @repo/db db:studio
 ```
 
-### 5. Start Development
+### 4. Start Development
 
 ```bash
 # Run all services
@@ -98,9 +102,8 @@ pnpm api      # API server (http://localhost:4000)
 
 ## 📚 Documentation
 
-- [API Documentation](./docs/API.md)
-- [Database Schema](./packages/db/prisma/schema.prisma)
-- [Component Library](./packages/ui/src)
+- Database Schema: `packages/db/prisma/schema.prisma`
+- UI Components: `packages/ui/src`
 
 ## 🧪 Testing
 
@@ -121,7 +124,8 @@ pnpm test:watch
 ecom-platform/
 ├── 📁 apps/
 │   ├── 📁 web/                 # Next.js web application
-│   └── 📁 mobile/             # React Native mobile app
+│   ├── 📁 admin/               # Next.js admin application
+│   └── 📁 mobile/              # React Native (Expo)
 ├── 📁 packages/
 │   ├── 📁 api/                # tRPC + Express API
 │   │   ├── src/
@@ -166,9 +170,9 @@ ecom-platform/
 - **Docker** - Containerization
 
 ### Infrastructure
-- **Docker Compose** - Local development
-- **MinIO** - Object storage
-- **GitHub Actions** - CI/CD
+- Docker Compose (local)
+- Render (deployment)
+- GitHub Actions (CI/CD)
 
 ## 🔧 Development Commands
 
@@ -180,7 +184,7 @@ pnpm install
 pnpm dev
 
 # Build all packages
-pnpm build
+pnpm build   # runs prisma generate + builds API/Web/Admin via turbo
 
 # Run linting
 pnpm lint
@@ -226,14 +230,15 @@ For support and questions:
 ## 🌐 Web App (Next.js)
 
 - Dev: `pnpm --filter web dev`
-- Build: `pnpm --filter web build && pnpm --filter web start`
+- Build: `pnpm --filter web build`
+- Start (Render): `node .next/standalone/server.js` or `node render-start.js` (fallback)
 - Key pages: `/` المنتجات، `/products/[id]`، `/cart`، `/checkout`، `/account`، `/categories`، `/search`
 
 ## 🧩 API (tRPC + Express)
 
 - Dev: `pnpm --filter @repo/api dev`
 - Build: `pnpm --filter @repo/api build`
-- Endpoint: `${NEXT_PUBLIC_TRPC_URL}` (مثلاً http://localhost:4000/trpc)
+- Endpoint: `${NEXT_PUBLIC_TRPC_URL}` (e.g. http://localhost:4000/trpc)
 
 ## 🗄️ Database (Prisma + Postgres)
 
@@ -257,3 +262,24 @@ For support and questions:
 
 - Email: `admin@example.com`
 - Password: `admin123`
+
+## 🚀 Render Deployment (recommended)
+
+Services and suggested configuration:
+
+- API (Root: `packages/api`)
+  - Build: `pnpm install --no-frozen-lockfile && pnpm --filter @repo/db build && pnpm --filter @repo/api build`
+  - Start: `node dist/index.js`
+  - Node: 20
+- Web (Root: `apps/web`)
+  - Build: `pnpm install --no-frozen-lockfile && pnpm build && [ -d public ] && cp -r public .next/standalone/ || echo "skip"`
+  - Start: `node .next/standalone/server.js` (or `node render-start.js`)
+  - Node: 20
+- Admin (Root: `apps/admin`)
+  - Build: `pnpm install --no-frozen-lockfile && pnpm build && [ -d public ] && cp -r public .next/standalone/ || echo "skip"`
+  - Start: `node .next/standalone/server.js`
+  - Node: 20
+
+Tips:
+- Clear Build Cache before redeploying when switching Start/Build commands.
+- Ensure `NEXT_PUBLIC_TRPC_URL`, `NEXT_PUBLIC_APP_URL`, `JWT_SECRET`, `DATABASE_URL` are set.
