@@ -25,7 +25,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "EXPO_PUBLIC_TRPC_URL": "http://localhost:4000/trpc"
+      "EXPO_PUBLIC_TRPC_URL": "https://jeeeyai.onrender.com/trpc"
     },
     "adaptiveIcon": {}
   }
