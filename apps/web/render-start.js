@@ -3,7 +3,7 @@ const { existsSync } = require('node:fs');
 const { join } = require('node:path');
 
 const standalone = join(__dirname, '.next', 'standalone', 'server.js');
-const nextStartCmd = ['next', 'start'];
+const nextBin = join(__dirname, 'node_modules', 'next', 'dist', 'bin', 'next');
 
 function runNode(args, env) {
   const child = spawn('node', args, { stdio: 'inherit', env: { ...process.env, ...env } });
@@ -14,7 +14,12 @@ function runNode(args, env) {
 if (existsSync(standalone)) {
   runNode([standalone]);
 } else {
-  const child = spawn(nextStartCmd[0], [nextStartCmd[1]], { stdio: 'inherit', env: process.env });
+  const args = [nextBin, 'start'];
+  const child = spawn(process.execPath, args, { stdio: 'inherit', env: process.env });
+  child.on('error', (err) => {
+    console.error('Failed to start Next via local bin:', err);
+    process.exit(1);
+  });
   child.on('exit', (code) => process.exit(code || 0));
 }
 
