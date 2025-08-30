@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useI18n } from "../../lib/i18n";
+import { useI18n } from "../lib/i18n";
 
 export function Header(): JSX.Element {
   const { locale, setLocale, t } = useI18n();
