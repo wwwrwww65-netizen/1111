@@ -3,6 +3,9 @@ import { trpc } from "./providers";
 import { ProductCard } from "@repo/ui";
 import React from "react";
 import { LoadingOverlay } from "../components/LoadingOverlay";
+import { PromoBar } from "../components/PromoBar";
+import { HeroBanner } from "../components/HeroBanner";
+import { CategoryGrid } from "../components/CategoryGrid";
 import { SkeletonCard } from "../components/SkeletonCard";
 
 export default function Page(): JSX.Element {
@@ -42,12 +45,9 @@ export default function Page(): JSX.Element {
 
   return (
     <main className="min-h-screen p-0 md:p-6 max-w-7xl mx-auto">
-      <section className="relative w-full h-56 md:h-72 bg-black text-white flex items-center justify-center">
-        <div className="text-center px-4">
-          <h1 className="text-2xl md:text-4xl font-extrabold tracking-wide">خصومات حتى 70%</h1>
-          <p className="mt-2 opacity-90">عروض سريعة اليوم فقط</p>
-        </div>
-      </section>
+      <PromoBar />
+      <HeroBanner />
+      <CategoryGrid />
 
       <section className="mt-6">
         <div className="flex items-center justify-between">
