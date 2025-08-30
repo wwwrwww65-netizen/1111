@@ -1,6 +1,7 @@
 "use client";
 import { trpc } from "./providers";
 import { ProductCard } from "@repo/ui";
+import React from "react";
 
 export default function Page(): JSX.Element {
   const query: any = (trpc as any);
