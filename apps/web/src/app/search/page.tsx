@@ -2,8 +2,10 @@
 import { trpc } from "../providers";
 import React from "react";
 import { ProductCard } from "@repo/ui";
+import { useI18n } from "../lib/i18n";
 
 export default function SearchPage(): JSX.Element {
+  const { t } = useI18n();
   const q: any = trpc as any;
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const initialCategoryId = params.get("categoryId") || undefined;
@@ -62,9 +64,13 @@ export default function SearchPage(): JSX.Element {
           </select>
           <button className="md:col-span-6 px-4 py-2 bg-black text-white rounded" onClick={() => refetch()}>تطبيق</button>
         </div>
-        {/* Mobile drawer trigger */}
+        {/* Mobile filters: chips + simple dropdown */}
         <div className="md:hidden flex justify-between items-center">
-          <button className="px-4 py-2 border rounded" onClick={() => alert('فتح فلاتر (تصميم درج)')}>الفلاتر</button>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button className={`px-3 py-1.5 rounded-full border ${inStock ? 'bg-black text-white' : 'bg-white'}`} onClick={() => setInStock(inStock ? undefined : true)}>متوفر</button>
+            <button className={`px-3 py-1.5 rounded-full border ${inStock===false ? 'bg-black text-white' : 'bg-white'}`} onClick={() => setInStock(inStock===false ? undefined : false)}>غير متوفر</button>
+            <button className={`px-3 py-1.5 rounded-full border ${sortBy==='price' ? 'bg-black text-white' : 'bg-white'}`} onClick={() => setSortBy(sortBy==='price'? undefined : 'price')}>السعر</button>
+          </div>
           <select className="border rounded px-3 py-2" onChange={(e) => setSortBy((e.target.value as any) || undefined)}>
             <option value="">الترتيب</option>
             <option value="createdAt">الأحدث</option>

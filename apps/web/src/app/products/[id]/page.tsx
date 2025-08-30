@@ -13,6 +13,8 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   const [qty, setQty] = React.useState(1);
   const [tab, setTab] = React.useState<'desc' | 'specs' | 'reviews'>("desc");
   const [selectedSize, setSelectedSize] = React.useState<string | null>(null);
+  const [showShip, setShowShip] = React.useState(false);
+  const [showReturn, setShowReturn] = React.useState(false);
 
   if (isLoading) return <main className="p-8">Loading product...</main>;
   if (error) return <main className="p-8">Error: {error.message}</main>;
@@ -108,7 +110,38 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
               {t('addToCart')}
             </button>
           </div>
+          {/* Accordions: Shipping & Returns */}
+          <div className="mt-6 space-y-2">
+            <div className="border rounded">
+              <button className="w-full flex items-center justify-between px-3 py-2 text-sm" onClick={() => setShowShip((v)=>!v)}>
+                <span>{t('shipping')}</span>
+                <span>{showShip ? '−' : '+'}</span>
+              </button>
+              {showShip && (
+                <div className="px-3 pb-3 text-sm text-gray-600">شحن خلال 2-5 أيام عمل. تتبع فوري عند الشحن.</div>
+              )}
+            </div>
+            <div className="border rounded">
+              <button className="w-full flex items-center justify-between px-3 py-2 text-sm" onClick={() => setShowReturn((v)=>!v)}>
+                <span>{t('returns')}</span>
+                <span>{showReturn ? '−' : '+'}</span>
+              </button>
+              {showReturn && (
+                <div className="px-3 pb-3 text-sm text-gray-600">إرجاع خلال 15 يومًا وفق الشروط.</div>
+              )}
+            </div>
+          </div>
         </div>
+      </div>
+      {/* Sticky ATC on mobile */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 border-t bg-white p-3 flex items-center justify-between z-40">
+        <div className="text-sm">${product.price}</div>
+        <button
+          className="px-4 py-2 bg-black text-white rounded"
+          onClick={async () => { await addItem.mutateAsync({ productId: product.id, quantity: 1 }); window.location.href = '/cart'; }}
+        >
+          {t('addToCart')}
+        </button>
       </div>
       {/* Recommended products */}
       <section className="mt-12">
