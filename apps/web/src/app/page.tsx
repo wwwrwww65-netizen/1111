@@ -26,18 +26,15 @@ export default function Page(): JSX.Element {
     let aborted = false;
     const fetchFallback = async () => {
       try {
-        const url = 'https://jeeeyai.onrender.com/trpc/products.list?input=' + encodeURIComponent(JSON.stringify({ limit: 12 }));
-        const res = await fetch(url, { credentials: 'include', cache: 'no-store' });
+        const res = await fetch('/api/products', { cache: 'no-store' });
         if (!aborted && res.ok) {
           const json = await res.json();
-          const items = json?.result?.data?.items || [];
+          const items = json?.items || [];
           if (items.length) setFallbackProducts(items);
         }
       } catch {}
     };
-    // Trigger immediately on mount
     fetchFallback();
-    // Also retrigger if still loading after a short delay
     const timer = setTimeout(() => { if (!fallbackProducts) fetchFallback(); }, 1200);
     return () => { aborted = true; clearTimeout(timer); };
   }, []);
