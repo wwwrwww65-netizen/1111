@@ -8,6 +8,9 @@ import { HeroBanner } from "../components/HeroBanner";
 import { CategoryGrid } from "../components/CategoryGrid";
 import { SectionGrid } from "../components/SectionGrid";
 import { PromoBanners } from "../components/PromoBanners";
+import { TabsSection } from "../components/TabsSection";
+import { Recommendations } from "../components/Recommendations";
+import { FooterCompact } from "../components/FooterCompact";
 import { SkeletonCard } from "../components/SkeletonCard";
 
 export default function Page(): JSX.Element {
@@ -85,8 +88,18 @@ export default function Page(): JSX.Element {
       <PromoBanners />
 
       {!!products?.length && (
-        <SectionGrid title="الأكثر مبيعاً" products={products.slice(0, 10)} />
+        <>
+          <TabsSection
+            newArrivals={products.slice(0, 10)}
+            bestSellers={products.slice(5, 15)}
+            recommended={products.slice(2, 12)}
+          />
+          <Recommendations products={products.slice(0, 12)} />
+          <SectionGrid title="الأكثر مبيعاً" products={products.slice(0, 10)} />
+        </>
       )}
+
+      <FooterCompact />
     </main>
   );
 }
