@@ -20,7 +20,7 @@ export default function CartPage(): JSX.Element {
       {!cart || cart.items.length === 0 ? (
         <p>السلة فارغة</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           <div className="md:col-span-2 space-y-4">
             {cart.items.map((item: any) => (
               <div key={item.id} className="flex items-center justify-between border p-4 rounded gap-4">

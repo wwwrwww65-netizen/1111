@@ -18,7 +18,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
 
   return (
     <main className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
         <div>
           <div className="relative w-full aspect-square bg-gray-100 rounded">
             <Image
@@ -51,6 +51,11 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           <p className="text-gray-700 mt-4 leading-relaxed">
             {product.description}
           </p>
+          <ul className="mt-4 space-y-1 text-sm text-gray-600 list-disc pr-5">
+            {(product.specs || []).map((s: string, idx: number) => (
+              <li key={idx}>{s}</li>
+            ))}
+          </ul>
           <div className="mt-6 flex items-center gap-3">
             <div className="flex items-center border rounded">
               <button className="px-3 py-2" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="decrease">-</button>

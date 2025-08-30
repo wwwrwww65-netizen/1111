@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --brand: 17 17 17;
+    --brand-accent: 128 0 32; /* maroon */
+    --text: 17 17 17;
+  }
+  html { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  body { color: rgb(var(--text)); background-color: #fff; }
+}
