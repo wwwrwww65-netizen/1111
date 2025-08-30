@@ -23,22 +23,24 @@ export default function Page(): JSX.Element {
 
   const [fallbackProducts, setFallbackProducts] = React.useState<any[] | null>(null as any);
   React.useEffect(() => {
-    let timer: any;
-    if (isLoading) {
-      timer = setTimeout(async () => {
-        try {
-          const url = 'https://jeeeyai.onrender.com/trpc/products.list?input=' + encodeURIComponent(JSON.stringify({ limit: 12 }));
-          const res = await fetch(url, { credentials: 'include' });
-          if (res.ok) {
-            const json = await res.json();
-            const items = json?.result?.data?.items || [];
-            if (items.length) setFallbackProducts(items);
-          }
-        } catch {}
-      }, 1500);
-    }
-    return () => timer && clearTimeout(timer);
-  }, [isLoading]);
+    let aborted = false;
+    const fetchFallback = async () => {
+      try {
+        const url = 'https://jeeeyai.onrender.com/trpc/products.list?input=' + encodeURIComponent(JSON.stringify({ limit: 12 }));
+        const res = await fetch(url, { credentials: 'include', cache: 'no-store' });
+        if (!aborted && res.ok) {
+          const json = await res.json();
+          const items = json?.result?.data?.items || [];
+          if (items.length) setFallbackProducts(items);
+        }
+      } catch {}
+    };
+    // Trigger immediately on mount
+    fetchFallback();
+    // Also retrigger if still loading after a short delay
+    const timer = setTimeout(() => { if (!fallbackProducts) fetchFallback(); }, 1200);
+    return () => { aborted = true; clearTimeout(timer); };
+  }, []);
 
   if (isLoading && !fallbackProducts) return <>
     <main className="p-8">Loading products...</main>
