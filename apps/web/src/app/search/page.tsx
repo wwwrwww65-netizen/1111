@@ -4,7 +4,7 @@ import React from "react";
 
 export default function SearchPage(): JSX.Element {
   const q: any = trpc as any;
-  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const initialCategoryId = params.get("categoryId") || undefined;
   const initialQuery = params.get("q") || undefined;
 
@@ -34,31 +34,42 @@ export default function SearchPage(): JSX.Element {
   const products = data?.products ?? [];
 
   return (
-    <main className="min-h-screen p-8 max-w-7xl mx-auto">
+    <main className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">البحث</h1>
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-6 gap-3">
-        <input className="border rounded px-3 py-2" placeholder="ابحث..." value={query || ''} onChange={(e) => setQuery(e.target.value || undefined)} />
-        <input className="border rounded px-3 py-2" placeholder="السعر الأدنى" type="number" onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : undefined)} />
-        <input className="border rounded px-3 py-2" placeholder="السعر الأعلى" type="number" onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : undefined)} />
-        <select className="border rounded px-3 py-2" onChange={(e) => setInStock(e.target.value === '' ? undefined : e.target.value === 'in')}>
-          <option value="">التوفر</option>
-          <option value="in">متوفر</option>
-          <option value="out">غير متوفر</option>
-        </select>
-        <select className="border rounded px-3 py-2" onChange={(e) => setSortBy((e.target.value as any) || undefined)}>
-          <option value="">الترتيب</option>
-          <option value="createdAt">الأحدث</option>
-          <option value="name">الاسم</option>
-          <option value="price">السعر</option>
-          <option value="rating">التقييم</option>
-        </select>
-        <select className="border rounded px-3 py-2" onChange={(e) => setSortOrder((e.target.value as any) || undefined)}>
-          <option value="">اتجاه</option>
-          <option value="asc">تصاعدي</option>
-          <option value="desc">تنازلي</option>
-        </select>
-        <button className="md:col-span-6 px-4 py-2 bg-black text-white rounded" onClick={() => refetch()}>تطبيق</button>
+      <div className="mb-6">
+        <div className="hidden md:grid grid-cols-1 md:grid-cols-6 gap-3">
+          <input className="border rounded px-3 py-2" placeholder="ابحث..." value={query || ''} onChange={(e) => setQuery(e.target.value || undefined)} />
+          <input className="border rounded px-3 py-2" placeholder="السعر الأدنى" type="number" onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : undefined)} />
+          <input className="border rounded px-3 py-2" placeholder="السعر الأعلى" type="number" onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : undefined)} />
+          <select className="border rounded px-3 py-2" onChange={(e) => setInStock(e.target.value === '' ? undefined : e.target.value === 'in')}>
+            <option value="">التوفر</option>
+            <option value="in">متوفر</option>
+            <option value="out">غير متوفر</option>
+          </select>
+          <select className="border rounded px-3 py-2" onChange={(e) => setSortBy((e.target.value as any) || undefined)}>
+            <option value="">الترتيب</option>
+            <option value="createdAt">الأحدث</option>
+            <option value="name">الاسم</option>
+            <option value="price">السعر</option>
+            <option value="rating">التقييم</option>
+          </select>
+          <select className="border rounded px-3 py-2" onChange={(e) => setSortOrder((e.target.value as any) || undefined)}>
+            <option value="">اتجاه</option>
+            <option value="asc">تصاعدي</option>
+            <option value="desc">تنازلي</option>
+          </select>
+          <button className="md:col-span-6 px-4 py-2 bg-black text-white rounded" onClick={() => refetch()}>تطبيق</button>
+        </div>
+        {/* Mobile drawer trigger */}
+        <div className="md:hidden flex justify-between items-center">
+          <button className="px-4 py-2 border rounded" onClick={() => alert('فتح فلاتر (تصميم درج)')}>الفلاتر</button>
+          <select className="border rounded px-3 py-2" onChange={(e) => setSortBy((e.target.value as any) || undefined)}>
+            <option value="">الترتيب</option>
+            <option value="createdAt">الأحدث</option>
+            <option value="price">السعر</option>
+          </select>
+        </div>
       </div>
 
       {/* Results */}
