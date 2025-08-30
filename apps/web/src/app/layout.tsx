@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppProviders } from "./providers";
 import { Header } from "../components/Header";
+import { FooterCompact } from "../components/FooterCompact";
 
 export const metadata: Metadata = {
   title: "Jeeey | موضة نساء على الإنترنت | تسوق الفساتين والأحذية والحقائب",
@@ -24,6 +25,7 @@ export default function RootLayout({
         <AppProviders>
           <Header />
           {children}
+          <FooterCompact />
         </AppProviders>
       </body>
     </html>
