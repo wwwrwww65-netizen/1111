@@ -16,6 +16,7 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
           condition: (op) => op.type === 'query',
           true: httpLink({
             url: process.env.NEXT_PUBLIC_TRPC_URL || "http://localhost:4000/trpc",
+            method: 'GET',
             fetch(input, init) {
               return fetch(input, { ...(init ?? {}), credentials: "include" });
             },

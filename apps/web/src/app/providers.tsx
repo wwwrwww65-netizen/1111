@@ -29,6 +29,7 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
           condition: (op) => op.type === 'query',
           true: httpLink({
             url: resolvedUrl,
+            method: 'GET',
             fetch(input, init) {
               return fetch(input, { ...(init ?? {}), credentials: "include" });
             },
