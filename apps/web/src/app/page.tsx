@@ -2,6 +2,7 @@
 import { trpc } from "./providers";
 import { ProductCard } from "@repo/ui";
 import React from "react";
+import { LoadingOverlay } from "../components/LoadingOverlay";
 
 export default function Page(): JSX.Element {
   const query: any = (trpc as any);
@@ -30,7 +31,10 @@ export default function Page(): JSX.Element {
     return () => timer && clearTimeout(timer);
   }, [isLoading]);
 
-  if (isLoading && !fallbackProducts) return <main className="p-8">Loading products...</main>;
+  if (isLoading && !fallbackProducts) return <>
+    <main className="p-8">Loading products...</main>
+    <LoadingOverlay />
+  </>;
   if (error && !fallbackProducts) return <main className="p-8">Error: {(error as any).message}</main>;
 
   const products = fallbackProducts ?? (data?.pages.flatMap((p: any) => p.items) ?? []);
