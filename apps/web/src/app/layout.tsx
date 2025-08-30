@@ -3,9 +3,10 @@ import "./globals.css";
 import { AppProviders } from "./providers";
 
 export const metadata: Metadata = {
-  title: "منصة التجارة الإلكترونية",
-  description: "تجربة تسوق حديثة.",
-  metadataBase: new URL("http://localhost:3000"),
+  title: "Jeeey | موضة نساء على الإنترنت | تسوق الفساتين والأحذية والحقائب",
+  description:
+    "اكتشف أحدث صيحات الموضة النسائية. تسوق فساتين، أحذية، حقائب، وإكسسوارات محدثة أسبوعياً.",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
