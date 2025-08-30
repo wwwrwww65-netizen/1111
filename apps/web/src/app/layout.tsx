@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppProviders } from "./providers";
 import { Header } from "../components/Header";
 import { FooterCompact } from "../components/FooterCompact";
+import { MobileBottomNav } from "../components/MobileBottomNav";
 
 export const metadata: Metadata = {
   title: "Jeeey | موضة نساء على الإنترنت | تسوق الفساتين والأحذية والحقائب",
@@ -26,8 +27,9 @@ export default function RootLayout({
       <body>
         <AppProviders>
           <Header />
-          {children}
+          <div className="pb-16 md:pb-0">{children}</div>
           <FooterCompact />
+          <MobileBottomNav />
         </AppProviders>
       </body>
     </html>
