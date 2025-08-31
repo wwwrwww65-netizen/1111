@@ -160,11 +160,13 @@ export const expressApp = app;
 const port = process.env.PORT || 4000;
 (async () => {
   await ensureSchema();
-  app.listen(port, () => {
-    console.log(`🚀 API server listening on port ${port}`);
-    console.log(`📊 Health check: http://localhost:${port}/health`);
-    console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
-  });
+  if (process.env.NODE_ENV !== 'test') {
+    app.listen(port, () => {
+      console.log(`🚀 API server listening on port ${port}`);
+      console.log(`📊 Health check: http://localhost:${port}/health`);
+      console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
+    });
+  }
 })();
 
 export type AppRouter = typeof appRouter;
