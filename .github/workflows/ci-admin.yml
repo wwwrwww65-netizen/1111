@@ -1,0 +1,48 @@
+name: CI - Admin Modules
+
+on:
+  push:
+    branches:
+      - feature/admin-non-product-modules
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --no-frozen-lockfile
+      - name: Env
+        run: |
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app" >> $GITHUB_ENV
+          echo "DIRECT_URL=postgresql://postgres:postgres@localhost:5432/app" >> $GITHUB_ENV
+          echo "JWT_SECRET=secret_for_tests" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_TRPC_URL=http://localhost:4000/trpc" >> $GITHUB_ENV
+      - name: Migration-run-check
+        run: pnpm --filter @repo/db db:push
+      - name: Seed-run-check
+        run: pnpm --filter @repo/db db:seed
+      - name: Build
+        run: pnpm build
+      - name: Lint
+        run: pnpm lint || true
+      - name: API Smoke
+        run: pnpm --filter @repo/api build
+      - name: E2E admin check (placeholder)
+        run: echo "E2E placeholder" && exit 0

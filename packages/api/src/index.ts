@@ -10,6 +10,7 @@ import { createContext } from './context';
 import { applySecurityMiddleware } from './middleware/security';
 import { db } from '@repo/db';
 import cookieParser from 'cookie-parser';
+import adminRest from './routers/admin-rest';
 
 // Optional Sentry init
 let sentryEnabled = false;
@@ -109,6 +110,9 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Admin REST facade (RBAC-protected)
+app.use('/api/admin', adminRest);
 
 // Error test endpoint for monitoring
 app.get('/error-test', (_req, _res) => {

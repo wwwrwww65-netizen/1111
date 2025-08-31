@@ -34,7 +34,7 @@ export const verifyToken = (token: string): JWTPayload => {
   }
 };
 
-const readTokenFromRequest = (req: any): string | null => {
+export const readTokenFromRequest = (req: any): string | null => {
   const cookieToken = req?.cookies?.auth_token as string | undefined;
   if (cookieToken) return cookieToken;
   const header = req?.headers?.authorization as string | undefined;
