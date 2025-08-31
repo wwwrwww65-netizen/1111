@@ -112,6 +112,37 @@ paths:
         - bearerAuth: []
       responses:
         '200': { description: OK }
+  /api/admin/users/list:
+    get:
+      summary: List users
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: search
+          schema: { type: string }
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/coupons/list:
+    get:
+      summary: List coupons
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
   /api/admin/settings:
     post:
       summary: Upsert a setting key/value

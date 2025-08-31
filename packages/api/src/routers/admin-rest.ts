@@ -243,6 +243,26 @@ adminRest.post('/payments/refund', async (req, res) => {
   }
 });
 adminRest.get('/users', (_req, res) => res.json({ users: [] }));
+adminRest.get('/users/list', async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'users.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const page = Number(req.query.page ?? 1);
+    const limit = Math.min(Number(req.query.limit ?? 20), 100);
+    const search = (req.query.search as string | undefined) ?? undefined;
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (search) where.OR = [{ email: { contains: search, mode: 'insensitive' } }, { name: { contains: search, mode: 'insensitive' } }];
+    const [users, total] = await Promise.all([
+      db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, createdAt: true } }),
+      db.user.count({ where }),
+    ]);
+    await audit(req, 'users', 'list', { page, limit });
+    res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'users_list_failed' });
+  }
+});
 adminRest.post('/users/assign-role', async (req, res) => {
   try {
     const user = (req as any).user;
@@ -258,6 +278,23 @@ adminRest.post('/users/assign-role', async (req, res) => {
   }
 });
 adminRest.get('/coupons', (_req, res) => res.json({ coupons: [] }));
+adminRest.get('/coupons/list', async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'coupons.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const page = Number(req.query.page ?? 1);
+    const limit = Math.min(Number(req.query.limit ?? 20), 100);
+    const skip = (page - 1) * limit;
+    const [coupons, total] = await Promise.all([
+      db.coupon.findMany({ orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      db.coupon.count(),
+    ]);
+    await audit(req, 'coupons', 'list', { page, limit });
+    res.json({ coupons, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'coupons_list_failed' });
+  }
+});
 adminRest.post('/coupons', async (req, res) => {
   try {
     const user = (req as any).user;
