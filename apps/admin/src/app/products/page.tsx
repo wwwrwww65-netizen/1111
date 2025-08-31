@@ -6,7 +6,7 @@ export default function AdminProducts(): JSX.Element {
   const q: any = trpc as any;
   const { data, isLoading, error } = q.admin.getProducts.useQuery({ page: 1, limit: 20 });
   const createProduct = q.admin.createProduct.useMutation();
-  const createVariants = q.admin.createProductVariants?.useMutation?.();
+  const createVariants = q.admin.createProductVariants.useMutation?. ? q.admin.createProductVariants.useMutation() : undefined as any;
 
   const [type, setType] = React.useState<'simple'|'variable'>('simple');
   const [name, setName] = React.useState('');
@@ -44,7 +44,7 @@ export default function AdminProducts(): JSX.Element {
     };
     const res = await createProduct.mutateAsync(productPayload);
     const productId = res?.product?.id;
-    if (type === 'variable' && productId && createVariants) {
+    if (type === 'variable' && productId && createVariants?.mutateAsync) {
       // create variants from sizes x colors
       const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
       const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
