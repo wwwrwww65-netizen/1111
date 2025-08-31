@@ -28,6 +28,9 @@ export default function InventoryPage(): JSX.Element {
   function exportCSV() {
     window.open("/api/admin/inventory/export/csv", "_blank");
   }
+  function exportPDF() {
+    window.open("/api/admin/inventory/export/pdf", "_blank");
+  }
 
   if (isLoading) return <main>Loading…</main>;
 
@@ -40,6 +43,7 @@ export default function InventoryPage(): JSX.Element {
         <button onClick={()=>bulkAdjust(1)} disabled={!selectedIds.length} style={{ padding:'8px 12px', background:'#064e3b', color:'#e5e7eb', borderRadius:8 }}>+1 للمحدد</button>
         <button onClick={()=>bulkAdjust(-1)} disabled={!selectedIds.length} style={{ padding:'8px 12px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>-1 للمحدد</button>
         <button onClick={exportCSV} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>تصدير CSV</button>
+        <button onClick={exportPDF} style={{ padding:'8px 12px', background:'#1f2937', color:'#e5e7eb', borderRadius:8 }}>تصدير PDF</button>
       </div>
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead>

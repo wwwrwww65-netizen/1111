@@ -3,6 +3,7 @@ import { verifyToken, readTokenFromRequest } from '../middleware/auth';
 import { db } from '@repo/db';
 import { Parser as CsvParser } from 'json2csv';
 import rateLimit from 'express-rate-limit';
+import PDFDocument from 'pdfkit';
 
 const adminRest = Router();
 
@@ -172,6 +173,32 @@ adminRest.get('/inventory/export/csv', async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'inventory_export_failed' });
   }
+});
+adminRest.get('/inventory/export/pdf', async (_req, res) => {
+  const items = await db.product.findMany({ include: { variants: true, category: true } });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename="inventory.pdf"');
+  const doc = new PDFDocument({ autoFirstPage: true });
+  doc.pipe(res);
+  doc.fontSize(16).text('Inventory Report', { align: 'center' });
+  doc.moveDown();
+  items.forEach(p => {
+    doc.fontSize(12).text(`${p.name} [${p.sku||''}] • ${p.category?.name||''} • stock: ${p.stockQuantity}`);
+    if (p.variants.length) {
+      p.variants.forEach(v => doc.fontSize(10).text(` - ${v.name}:${v.value} • stock: ${v.stockQuantity}`));
+    }
+    doc.moveDown(0.5);
+  });
+  doc.end();
+});
+
+// Bulk actions: deactivate products
+adminRest.post('/inventory/bulk/deactivate', async (req, res) => {
+  const ids = (req.body?.ids as string[]) || [];
+  if (!ids.length) return res.json({ updated: 0 });
+  const result = await db.product.updateMany({ where: { id: { in: ids } }, data: { isActive: false } });
+  await audit(req, 'inventory', 'bulk_deactivate', { ids });
+  res.json({ updated: result.count });
 });
 adminRest.get('/orders', (_req, res) => res.json({ orders: [] }));
 adminRest.get('/orders/list', async (req, res) => {
