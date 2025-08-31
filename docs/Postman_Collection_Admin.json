@@ -1,0 +1,17 @@
+{
+  "info": { "name": "Admin API", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/health", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] }
+    },
+    {
+      "name": "Inventory",
+      "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/inventory", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] }
+    }
+  ],
+  "variable": [
+    {"key": "BASE_URL", "value": "http://localhost:4000"},
+    {"key": "TOKEN", "value": ""}
+  ]
+}

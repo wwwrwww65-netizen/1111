@@ -1,0 +1,28 @@
+openapi: 3.0.3
+info:
+  title: Admin API
+  version: 0.1.0
+servers:
+  - url: http://localhost:4000
+paths:
+  /api/admin/health:
+    get:
+      summary: Health check for admin REST
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/admin/inventory:
+    get:
+      summary: Inventory list (placeholder)
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
