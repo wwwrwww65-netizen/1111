@@ -160,7 +160,8 @@ export const expressApp = app;
 const port = process.env.PORT || 4000;
 (async () => {
   await ensureSchema();
-  if (process.env.NODE_ENV !== 'test') {
+  const forceListen = process.env.API_FORCE_LISTEN === '1';
+  if (process.env.NODE_ENV !== 'test' || forceListen) {
     app.listen(port, () => {
       console.log(`🚀 API server listening on port ${port}`);
       console.log(`📊 Health check: http://localhost:${port}/health`);
