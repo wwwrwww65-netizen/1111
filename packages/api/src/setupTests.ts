@@ -1,10 +1,10 @@
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'secret_for_tests';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/app';
-process.env.DIRECT_URL = process.env.DIRECT_URL || process.env.DATABASE_URL;
-
-// Mock environment variables
-process.env.JWT_SECRET = 'test-secret-key';
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/app';
+}
+if (!process.env.DIRECT_URL) {
+  process.env.DIRECT_URL = process.env.DATABASE_URL;
+}
 
 // Mock console methods to reduce noise in tests
 global.console = {

@@ -1,7 +1,6 @@
 import request from 'supertest';
 import { expressApp } from '../index';
 import jwt from 'jsonwebtoken';
-import { db } from '@repo/db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_for_tests';
 const token = jwt.sign({ userId: 'admin-e2e', email: 'admin@example.com', role: 'ADMIN' }, JWT_SECRET);
@@ -9,6 +8,8 @@ const token = jwt.sign({ userId: 'admin-e2e', email: 'admin@example.com', role: 
 describe('Admin E2E flow', () => {
   beforeAll(async () => {
     // seed minimal order/payment
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { db } = require('@repo/db');
     const user = await db.user.upsert({ where: { email: 'admin@example.com' }, update: {}, create: { email: 'admin@example.com', name: 'Admin', password: '$2a$12$abcdefghijklmnopqrstuv', role: 'ADMIN', isVerified: true } });
     const cat = await db.category.upsert({ where: { id: 'e2e-cat' }, update: {}, create: { id: 'e2e-cat', name: 'E2E' } });
     const product = await db.product.create({ data: { name: 'E2E', description: 'E2E', price: 10, images: [], categoryId: cat.id, stockQuantity: 5 } });
