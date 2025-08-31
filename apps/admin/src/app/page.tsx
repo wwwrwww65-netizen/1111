@@ -1,3 +1,12 @@
+import React from "react";
+
+export default function AdminHome(): JSX.Element {
+  if (typeof window !== 'undefined') {
+    window.location.replace('/products');
+  }
+  return <main style={{ padding: 24 }}>Redirecting…</main>;
+}
+
 export default function AdminHome(): JSX.Element {
   return (
     <main style={{ padding: 24 }}>

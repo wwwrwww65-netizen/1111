@@ -27,6 +27,13 @@ export default function AdminProducts(): JSX.Element {
   const [stockQuantity, setStockQuantity] = React.useState<number | ''>('');
   const [images, setImages] = React.useState<string>(''); // comma-separated URLs
 
+  React.useEffect(() => {
+    const message = (error as any)?.message || '';
+    if (message && (/No token provided/i.test(message) || /UNAUTHORIZED/i.test(message) || /Not authenticated/i.test(message))) {
+      window.location.href = '/login';
+    }
+  }, [error]);
+
   if (isLoading) return <main style={{ padding: 24 }}>Loading products...</main>;
   if (error) return (
     <main style={{ padding: 24 }}>

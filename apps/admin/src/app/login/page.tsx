@@ -7,6 +7,12 @@ export default function LoginPage(): JSX.Element {
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState<string | null>(null);
   const login = trpc.auth.login.useMutation();
+  const [redirect, setRedirect] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('redirect') || '/products';
+    } catch { return '/products'; }
+  });
 
   return (
     <main style={{ padding: 24, maxWidth: 400, margin: "0 auto" }}>
@@ -19,7 +25,7 @@ export default function LoginPage(): JSX.Element {
           onClick={async () => {
             try {
               await login.mutateAsync({ email, password });
-              window.location.href = "/";
+              window.location.href = redirect || "/products";
             } catch (e: any) {
               setError(e.message);
             }
