@@ -15,18 +15,20 @@ export default function AdminProducts(): JSX.Element {
   const [supplier, setSupplier] = React.useState('');
   const [brand, setBrand] = React.useState('');
   const [categoryId, setCategoryId] = React.useState('');
+  const cats = q.admin.getCategories.useQuery();
   const [sizes, setSizes] = React.useState(''); // comma-separated
   const [colors, setColors] = React.useState(''); // comma-separated
   const [purchasePrice, setPurchasePrice] = React.useState<number | ''>('');
   const [salePrice, setSalePrice] = React.useState<number | ''>('');
   const [stockQuantity, setStockQuantity] = React.useState<number | ''>('');
+  const [images, setImages] = React.useState<string>(''); // comma-separated URLs
 
   if (isLoading) return <main style={{ padding: 24 }}>Loading products...</main>;
   if (error) return <main style={{ padding: 24 }}>Error: {(error as any).message}</main>;
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const baseImages: string[] = [];
+    const baseImages: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean);
     const productPayload: any = {
       name,
       description,
@@ -36,7 +38,8 @@ export default function AdminProducts(): JSX.Element {
       stockQuantity: Number(stockQuantity || 0),
       sku: sku || undefined,
       brand: brand || undefined,
-      tags: [],
+      // Store supplier and purchasePrice inside tags for now until dedicated fields added
+      tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
       isActive: true,
     };
     const res = await createProduct.mutateAsync(productPayload);
@@ -91,8 +94,13 @@ export default function AdminProducts(): JSX.Element {
           <label>العلامة التجارية
             <input value={brand} onChange={(e) => setBrand(e.target.value)} style={{ width: '100%', padding: 8 }} />
           </label>
-          <label>التصنيف (ID)
-            <input value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 8 }} />
+          <label>التصنيف
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 8 }}>
+              <option value="">اختر تصنيفاً</option>
+              {(cats.data?.categories ?? []).map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </label>
           <label>المخزون
             <input type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: 8 }} />
@@ -102,6 +110,9 @@ export default function AdminProducts(): JSX.Element {
           </label>
           <label>سعر البيع
             <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))} required style={{ width: '100%', padding: 8 }} />
+          </label>
+          <label>الصور (روابط مفصولة بفواصل)
+            <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" style={{ width: '100%', padding: 8 }} />
           </label>
           {type === 'variable' && (
             <>
