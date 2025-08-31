@@ -307,8 +307,31 @@ adminRest.post('/coupons', async (req, res) => {
     res.status(500).json({ error: e.message || 'coupon_create_failed' });
   }
 });
-adminRest.get('/analytics', (_req, res) => res.json({ kpis: {} }));
-adminRest.get('/media', (_req, res) => res.json({ assets: [] }));
+adminRest.get('/analytics', async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const [users, orders, revenue] = await Promise.all([
+      db.user.count(),
+      db.order.count(),
+      db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID','SHIPPED','DELIVERED'] } } })
+    ]);
+    await audit(req, 'analytics', 'kpis');
+    res.json({ kpis: { users, orders, revenue: revenue._sum.total || 0 } });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'analytics_failed' });
+  }
+});
+adminRest.get('/media/list', async (_req, res) => {
+  const assets = await db.mediaAsset.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ assets });
+});
+adminRest.post('/media', async (req, res) => {
+  const { url, type, alt } = req.body || {};
+  const asset = await db.mediaAsset.create({ data: { url, type, alt } });
+  await audit(req, 'media', 'create', { url });
+  res.json({ asset });
+});
 adminRest.get('/settings', (_req, res) => res.json({ settings: {} }));
 adminRest.post('/settings', async (req, res) => {
   try {
