@@ -255,13 +255,35 @@ For support and questions:
 
 ## 🧭 CI (GitHub Actions)
 
-- يقوم بتشغيل Postgres، تطبيق المايجريشن والـ seed، ثم بناء API وWeb وAdmin تلقائياً على أي دفع.
-- تشغيل يدوي: Actions > CI / CD (pnpm & Turborepo) > Run workflow.
+- للفرع `feature/admin-non-product-modules` يوجد وركفلو خاص: `.github/workflows/ci-admin.yml` يقوم بـ migration-run-check و seed-run-check (admin-only) ثم build/lint/tests/E2E (Placeholder).
+- تشغيل يدوي: Actions > CI / CD > CI - Admin Modules.
 
 ## 🔐 Admin Credentials (Seed)
 
 - Email: `admin@example.com`
 - Password: `admin123`
+
+## 📜 Admin REST & API Docs
+
+- REST الإداري (RBAC): `/api/admin/*` (Authorization: Bearer أو HttpOnly cookie)
+- OpenAPI/Swagger: `packages/api/src/openapi.yaml`
+- Postman: `docs/Postman_Collection_Admin.json`
+ - Swagger UI: `/docs` أثناء التشغيل (API)
+
+## 🧪 Seeds (Admin-only)
+
+- لتشغيل seed بدون منتجات:
+```
+pnpm --filter @repo/db db:seed:admin-only
+```
+
+## 🧪 CI Checks (فرع الميزة)
+
+- migration-run-check: `scripts/ci/migration-run-check.sh`
+- seed-run-check: `scripts/ci/seed-run-check.sh`
+- build/lint/tests: عبر Workflow `ci-admin.yml`
+- e2e-admin-check: `scripts/ci/e2e-admin-check.sh`
+- security scan: `npm audit` (تحذيري)
 
 ## 🚀 Render Deployment (recommended)
 

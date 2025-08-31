@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:admin-only": "ts-node prisma/seed-admin-only.ts",
     "db:reset": "prisma migrate reset --force",
     "db:deploy": "prisma migrate deploy",
     "lint": "echo \"Linting disabled for now\"",

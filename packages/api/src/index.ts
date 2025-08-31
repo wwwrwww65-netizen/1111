@@ -10,6 +10,10 @@ import { createContext } from './context';
 import { applySecurityMiddleware } from './middleware/security';
 import { db } from '@repo/db';
 import cookieParser from 'cookie-parser';
+import adminRest from './routers/admin-rest';
+import shippingWebhooks from './routers/webhooks';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
 
 // Optional Sentry init
 let sentryEnabled = false;
@@ -87,10 +91,19 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
 	}
 });
 
+// Shipping webhook (raw) BEFORE json parsers too
+app.use('/webhooks', shippingWebhooks);
+
 // Apply security middleware AFTER webhook so JSON parser doesn't consume raw body
 applySecurityMiddleware(app);
 // Parse cookies
 app.use(cookieParser());
+
+// Swagger UI (docs)
+try {
+  const openapi = YAML.load(require('path').join(__dirname, 'openapi.yaml').replace('/dist/', '/src/'));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
+} catch {}
 
 // Root endpoint for Render root URL
 app.get('/', (req, res) => {
@@ -109,6 +122,9 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Admin REST facade (RBAC-protected)
+app.use('/api/admin', adminRest);
 
 // Error test endpoint for monitoring
 app.get('/error-test', (_req, _res) => {
@@ -140,14 +156,18 @@ app.use(
   })
 );
 
+export const expressApp = app;
 const port = process.env.PORT || 4000;
 (async () => {
   await ensureSchema();
-  app.listen(port, () => {
-    console.log(`🚀 API server listening on port ${port}`);
-    console.log(`📊 Health check: http://localhost:${port}/health`);
-    console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
-  });
+  const forceListen = process.env.API_FORCE_LISTEN === '1';
+  if (process.env.NODE_ENV !== 'test' || forceListen) {
+    app.listen(port, () => {
+      console.log(`🚀 API server listening on port ${port}`);
+      console.log(`📊 Health check: http://localhost:${port}/health`);
+      console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
+    });
+  }
 })();
 
 export type AppRouter = typeof appRouter;
