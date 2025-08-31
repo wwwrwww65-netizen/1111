@@ -5,6 +5,14 @@ if (!process.env.DATABASE_URL) {
 if (!process.env.DIRECT_URL) {
   process.env.DIRECT_URL = process.env.DATABASE_URL;
 }
+// Force NODE_ENV=test for predictable server behavior in tests
+process.env.NODE_ENV = 'test';
+
+// Repair any stray test DB URL overrides from previous builds
+if (process.env.DATABASE_URL && /postgresql:\/\/test:test@localhost/.test(process.env.DATABASE_URL)) {
+  process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/app';
+  process.env.DIRECT_URL = process.env.DATABASE_URL;
+}
 
 // Mock console methods to reduce noise in tests
 global.console = {
