@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
-export default function AdminHome(): JSX.Element {
+export default function AdminHome() {
   redirect('/products');
 }
