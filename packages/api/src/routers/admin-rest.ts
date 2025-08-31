@@ -346,6 +346,10 @@ adminRest.post('/settings', async (req, res) => {
     res.status(500).json({ error: e.message || 'settings_failed' });
   }
 });
+adminRest.get('/settings/list', async (_req, res) => {
+  const items = await db.setting.findMany({ orderBy: { updatedAt: 'desc' } });
+  res.json({ settings: items });
+});
 adminRest.get('/tickets', async (_req, res) => {
   const tickets = await db.supportTicket.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ tickets });
@@ -360,15 +364,33 @@ adminRest.post('/returns', async (req, res) => {
   const r = await db.returnRequest.create({ data: { orderId, reason } });
   res.json({ return: r });
 });
+adminRest.get('/returns/list', async (_req, res) => {
+  const items = await db.returnRequest.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ returns: items });
+});
 adminRest.post('/loyalty/add', async (req, res) => {
   const { userId, points, reason } = req.body || {};
   const p = await db.loyaltyPoint.create({ data: { userId, points, reason } });
   res.json({ points: p });
 });
+adminRest.get('/loyalty/list', async (req, res) => {
+  const page = Number(req.query.page ?? 1);
+  const limit = Math.min(Number(req.query.limit ?? 20), 100);
+  const skip = (page - 1) * limit;
+  const [items, total] = await Promise.all([
+    db.loyaltyPoint.findMany({ orderBy: { createdAt: 'desc' }, skip, take: limit }),
+    db.loyaltyPoint.count(),
+  ]);
+  res.json({ points: items, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+});
 adminRest.post('/cms/pages', async (req, res) => {
   const { slug, title, content, published } = req.body || {};
   const page = await db.cMSPage.upsert({ where: { slug }, update: { title, content, published }, create: { slug, title, content, published: !!published } });
   res.json({ page });
+});
+adminRest.get('/cms/pages', async (_req, res) => {
+  const pages = await db.cMSPage.findMany({ orderBy: { updatedAt: 'desc' } });
+  res.json({ pages });
 });
 adminRest.post('/vendors', async (req, res) => {
   const { name, contactEmail, phone } = req.body || {};
@@ -388,6 +410,10 @@ adminRest.post('/events', async (req, res) => {
 adminRest.post('/backups/run', async (_req, res) => {
   const b = await db.backupJob.create({ data: { status: 'PENDING' } });
   res.json({ backup: b });
+});
+adminRest.get('/backups/list', async (_req, res) => {
+  const items = await db.backupJob.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ backups: items });
 });
 
 export default adminRest;
