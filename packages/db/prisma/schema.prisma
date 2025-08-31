@@ -65,6 +65,9 @@ model User {
   userRoles         UserRoleLink[]
   auditLogs         AuditLog[]
   couponUsage       CouponUsage[]
+  supportTickets    SupportTicket[]
+  loyaltyPoints     LoyaltyPoint[]
+  events            Event[]
 }
 
 model Category {
