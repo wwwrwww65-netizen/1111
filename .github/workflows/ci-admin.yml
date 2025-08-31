@@ -34,6 +34,7 @@ jobs:
           echo "DIRECT_URL=postgresql://postgres:postgres@localhost:5432/app" >> $GITHUB_ENV
           echo "JWT_SECRET=secret_for_tests" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_TRPC_URL=http://localhost:4000/trpc" >> $GITHUB_ENV
+          echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
       - name: Migration-run-check
         run: bash scripts/ci/migration-run-check.sh
       - name: Seed-run-check (admin-only)
