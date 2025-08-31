@@ -6,7 +6,9 @@ export default function AdminProducts(): JSX.Element {
   const q: any = trpc as any;
   const { data, isLoading, error } = q.admin.getProducts.useQuery({ page: 1, limit: 20 });
   const createProduct = q.admin.createProduct.useMutation();
-  const createVariants = q.admin.createProductVariants.useMutation?. ? q.admin.createProductVariants.useMutation() : undefined as any;
+  const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
+    ? q.admin.createProductVariants.useMutation()
+    : undefined as any;
 
   const [type, setType] = React.useState<'simple'|'variable'>('simple');
   const [name, setName] = React.useState('');
