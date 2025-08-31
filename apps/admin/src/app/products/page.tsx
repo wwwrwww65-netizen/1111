@@ -26,6 +26,8 @@ export default function AdminProducts(): JSX.Element {
   const [salePrice, setSalePrice] = React.useState<number | ''>('');
   const [stockQuantity, setStockQuantity] = React.useState<number | ''>('');
   const [images, setImages] = React.useState<string>(''); // comma-separated URLs
+  const [files, setFiles] = React.useState<File[]>([]);
+  const [dragOver, setDragOver] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     const message = (error as any)?.message || '';
@@ -86,62 +88,118 @@ export default function AdminProducts(): JSX.Element {
     <main style={{ padding: 24 }}>
       <h1 style={{ marginBottom: 16 }}>إدارة المنتجات</h1>
 
-      <section style={{ marginBottom: 32, border: '1px solid #eee', padding: 16, borderRadius: 8 }}>
-        <h2 style={{ marginBottom: 12 }}>إنشاء منتج</h2>
-        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <label>نوع المنتج
-            <select value={type} onChange={(e) => setType(e.target.value as any)} style={{ width: '100%', padding: 8 }}>
-              <option value="simple">منتج بسيط</option>
-              <option value="variable">منتج متعدد (مقاسات/ألوان)</option>
-            </select>
-          </label>
-          <label>اسم المنتج
-            <input value={name} onChange={(e) => setName(e.target.value)} required style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>الوصف
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>SKU
-            <input value={sku} onChange={(e) => setSku(e.target.value)} style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>اسم المورد
-            <input value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>العلامة التجارية
-            <input value={brand} onChange={(e) => setBrand(e.target.value)} style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>التصنيف
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 8 }}>
-              <option value="">اختر تصنيفاً</option>
-              {(cats.data?.categories ?? []).map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>المخزون
-            <input type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>سعر الشراء
-            <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>سعر البيع
-            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))} required style={{ width: '100%', padding: 8 }} />
-          </label>
-          <label>الصور (روابط مفصولة بفواصل)
-            <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" style={{ width: '100%', padding: 8 }} />
-          </label>
-          {type === 'variable' && (
-            <>
-              <label>المقاسات (افصل بينها بفاصلة)
-                <input value={sizes} onChange={(e) => setSizes(e.target.value)} placeholder="S,M,L,XL" style={{ width: '100%', padding: 8 }} />
+      <section style={{ marginBottom: 32, border: '1px solid #1c2333', padding: 16, borderRadius: 12, background:'#0f1420' }}>
+        <h2 style={{ marginBottom: 16 }}>إنشاء منتج</h2>
+        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, alignItems:'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label>نوع المنتج
+              <select value={type} onChange={(e) => setType(e.target.value as any)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                <option value="simple">منتج بسيط</option>
+                <option value="variable">منتج متعدد (مقاسات/ألوان)</option>
+              </select>
+            </label>
+            <label>SKU
+              <input value={sku} onChange={(e) => setSku(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label style={{ gridColumn:'1 / -1' }}>اسم المنتج
+              <input value={name} onChange={(e) => setName(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label style={{ gridColumn:'1 / -1' }}>الوصف
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>اسم المورد
+              <input value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>العلامة التجارية
+              <input value={brand} onChange={(e) => setBrand(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>التصنيف
+              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                <option value="">اختر تصنيفاً</option>
+                {(cats.data?.categories ?? []).map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>المخزون
+              <input type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>سعر الشراء
+              <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>سعر البيع
+              <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            {type === 'variable' && (
+              <>
+                <label>المقاسات (افصل بينها بفاصلة)
+                  <input value={sizes} onChange={(e) => setSizes(e.target.value)} placeholder="S,M,L,XL" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                </label>
+                <label>الألوان (افصل بينها بفاصلة)
+                  <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="أحمر,أزرق,أسود" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                </label>
+              </>
+            )}
+          </div>
+
+          <div style={{ display:'grid', gap:12 }}>
+            <label>الصور (روابط مفصولة بفواصل)
+              <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const dropped = Array.from(e.dataTransfer.files || []);
+                if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
+              }}
+              style={{
+                border: `2px dashed ${dragOver ? '#60a5fa' : '#1c2333'}`,
+                borderRadius: 12,
+                padding: 16,
+                background: '#0b0e14',
+                color:'#94a3b8',
+                textAlign:'center'
+              }}
+            >
+              اسحب وأفلت الصور هنا أو
+              <br />
+              <label style={{ display:'inline-block', marginTop: 8, padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8, cursor:'pointer' }}>
+                اختر من جهازك
+                <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
+                  const selected = Array.from(e.target.files || []);
+                  if (selected.length) setFiles((prev) => [...prev, ...selected]);
+                }} />
               </label>
-              <label>الألوان (افصل بينها بفاصلة)
-                <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="أحمر,أزرق,أسود" style={{ width: '100%', padding: 8 }} />
-              </label>
-            </>
-          )}
+              <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
+            </div>
+            {files.length > 0 && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+                {files.map((f, idx) => (
+                  <div key={idx} style={{ position:'relative', border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
+                    <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover' }} />
+                    <div style={{ position:'absolute', insetInlineEnd:6, insetBlockStart:6 }}>
+                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} style={{ background:'#111', color:'#fff', borderRadius:6, padding:'2px 6px', fontSize:12 }}>إزالة</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {files.length > 0 && (
+              <button type="button" onClick={() => {
+                const fileNames = files.map(f => f.name);
+                // Placeholder: integrate upload API to get URLs. For now, append names to images field.
+                const current = (images || '').split(',').map(s=>s.trim()).filter(Boolean);
+                const next = Array.from(new Set([...current, ...fileNames]));
+                setImages(next.join(', '));
+              }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>إضافة الملفات إلى قائمة الصور</button>
+            )}
+          </div>
+
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button type="submit" style={{ padding: '8px 16px', background: '#111', color: '#fff', borderRadius: 6 }}>حفظ المنتج</button>
+            <button type="submit" style={{ padding: '10px 18px', background: '#7c2d12', color: '#fff', borderRadius: 8 }}>حفظ المنتج</button>
           </div>
         </form>
       </section>
