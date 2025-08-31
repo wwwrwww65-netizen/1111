@@ -41,8 +41,10 @@ jobs:
       - name: Build
         run: pnpm build
       - name: Lint
-        run: pnpm lint || true
+        run: pnpm lint
       - name: API Smoke
         run: node -e "console.log('API smoke placeholder')"
+      - name: API Tests (unit/integration)
+        run: pnpm --filter @repo/api test -- --passWithNoTests=false
       - name: E2E admin check (placeholder)
         run: bash scripts/ci/e2e-admin-check.sh
