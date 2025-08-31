@@ -44,6 +44,57 @@ paths:
         - bearerAuth: []
       responses:
         '200': { description: OK }
+  /api/admin/orders/ship:
+    post:
+      summary: Mark order as shipped
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId: { type: string }
+                trackingNumber: { type: string }
+              required: [orderId]
+      responses:
+        '200': { description: OK }
+  /api/admin/payments/refund:
+    post:
+      summary: Refund an order payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId: { type: string }
+                amount: { type: number }
+              required: [orderId]
+      responses:
+        '200': { description: OK }
+  /api/admin/settings:
+    post:
+      summary: Upsert a setting key/value
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key: { type: string }
+                value: { type: object }
+              required: [key, value]
+      responses:
+        '200': { description: OK }
       security:
         - bearerAuth: []
       responses:
