@@ -99,6 +99,171 @@ paths:
       responses:
         '200': { description: OK }
   /api/admin/payments/list:
+  /api/admin/users/list:
+    get:
+      summary: List users
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: search
+          schema: { type: string }
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/users/assign-role:
+    post:
+      summary: Assign role to user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId: { type: string }
+                roleName: { type: string }
+              required: [userId, roleName]
+      responses:
+        '200': { description: OK }
+  /api/admin/coupons/list:
+    get:
+      summary: List coupons
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/coupons:
+    post:
+      summary: Create coupon
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/analytics:
+    get:
+      summary: Analytics KPIs
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/media/list:
+    get:
+      summary: List media assets
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/media:
+    post:
+      summary: Create media asset
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/tickets:
+    get:
+      summary: List support tickets
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create support ticket
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/returns/list:
+    get:
+      summary: List return requests
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/loyalty/list:
+    get:
+      summary: List loyalty points
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/cms/pages:
+    get:
+      summary: List CMS pages
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Upsert CMS page
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/vendors/list:
+    get:
+      summary: List vendors
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/vendors:
+    post:
+      summary: Upsert vendor
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/integrations/list:
+    get:
+      summary: List integrations
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/integrations:
+    post:
+      summary: Create integration
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/settings/list:
+    get:
+      summary: List settings
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/backups/list:
+    get:
+      summary: List backup jobs
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/backups/run:
+    post:
+      summary: Run backup
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
     get:
       summary: List payments
       parameters:
