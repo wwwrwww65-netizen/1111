@@ -8,6 +8,7 @@ describe('Shipping webhook HMAC', () => {
     process.env.SHIP_WEBHOOK_SECRET = 'test_secret';
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { db } = require('@repo/db');
+    // Ensure order exists and user has necessary role link to avoid RBAC surprises in other endpoints
     const user = await db.user.upsert({ where: { email: 'user@e2e.com' }, update: {}, create: { email: 'user@e2e.com', name: 'U', password: '$2a$12$abcdefghijklmnopqrstuv' } });
     const cat = await db.category.upsert({ where: { id: 'ship-cat' }, update: {}, create: { id: 'ship-cat', name: 'Ship' } });
     const product = await db.product.create({ data: { name: 'Ship', description: 'Ship', price: 5, images: [], categoryId: cat.id, stockQuantity: 2 } });
@@ -25,6 +26,7 @@ describe('Shipping webhook HMAC', () => {
     const order = await db.order.findFirst({});
     const payload = Buffer.from(JSON.stringify({ type: 'shipment.created', data: { orderId: order!.id, trackingNumber: 'TN-1' } }));
     const sig = crypto.createHmac('sha256', process.env.SHIP_WEBHOOK_SECRET as string).update(payload).digest('hex');
+    // Important: send raw body, not JSON-serialized object, to match express.raw handler
     const res = await request(expressApp).post('/webhooks/shipping').set('x-shipping-signature', sig).set('content-type','application/json').send(payload);
     expect(res.status).toBe(200);
     const updated = await db.order.findUnique({ where: { id: order!.id } });

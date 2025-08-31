@@ -10,6 +10,10 @@ describe('Admin E2E flow', () => {
     // seed minimal order/payment
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { db } = require('@repo/db');
+    // ensure admin-e2e has permissions via roles if RBAC enforced
+    const admin = await db.user.upsert({ where: { email: 'admin@example.com' }, update: {}, create: { id: 'admin-e2e', email: 'admin@example.com', name: 'Admin', password: '$2a$12$abcdefghijklmnopqrstuv', role: 'ADMIN', isVerified: true } });
+    const role = await db.role.upsert({ where: { name: 'ADMIN' }, update: {}, create: { name: 'ADMIN' } });
+    await db.userRoleLink.upsert({ where: { userId_roleId: { userId: admin.id, roleId: role.id } }, update: {}, create: { userId: admin.id, roleId: role.id } });
     const user = await db.user.upsert({ where: { email: 'admin@example.com' }, update: {}, create: { email: 'admin@example.com', name: 'Admin', password: '$2a$12$abcdefghijklmnopqrstuv', role: 'ADMIN', isVerified: true } });
     const cat = await db.category.upsert({ where: { id: 'e2e-cat' }, update: {}, create: { id: 'e2e-cat', name: 'E2E' } });
     const product = await db.product.create({ data: { name: 'E2E', description: 'E2E', price: 10, images: [], categoryId: cat.id, stockQuantity: 5 } });

@@ -3,10 +3,13 @@ import { t } from '../trpc-setup';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is not set');
-}
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is not set');
+  }
+  return secret;
+};
 
 // Schema for JWT payload
 const JWTPayloadSchema = z.object({
@@ -21,13 +24,13 @@ export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
 
 // Create JWT token
 export const createToken = (payload: Omit<JWTPayload, 'iat' | 'exp'>): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
 };
 
 // Verify JWT token
 export const verifyToken = (token: string): JWTPayload => {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     return JWTPayloadSchema.parse(decoded);
   } catch {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
