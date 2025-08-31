@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { verifyToken, readTokenFromRequest } from '../middleware/auth';
 import { db } from '@repo/db';
 import { Parser as CsvParser } from 'json2csv';
+import rateLimit from 'express-rate-limit';
 
 const adminRest = Router();
 
@@ -34,6 +35,26 @@ adminRest.use((req: Request, res: Response, next) => {
     return res.status(401).json({ error: e.message || 'Unauthorized' });
   }
 });
+
+// Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
+adminRest.use(async (req: Request, res: Response, next) => {
+  try {
+    const user = (req as any).user as { userId: string } | undefined;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const dbUser = await db.user.findUnique({ where: { id: user.userId }, select: { twoFactorEnabled: true } });
+    if (dbUser?.twoFactorEnabled) {
+      const code = req.headers['x-2fa-code'];
+      if (!code) return res.status(401).json({ error: '2FA code required' });
+      // TODO: integrate TOTP; placeholder accepts any non-empty code
+    }
+    return next();
+  } catch (e: any) {
+    return res.status(401).json({ error: '2FA check failed' });
+  }
+});
+
+// Rate limit admin REST globally
+adminRest.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
 
 // Placeholder endpoints for acceptance modules; to be filled progressively
 adminRest.get('/health', (_req, res) => res.json({ ok: true }));
@@ -145,9 +166,12 @@ adminRest.get('/inventory/export/csv', async (req, res) => {
 adminRest.get('/orders', (_req, res) => res.json({ orders: [] }));
 adminRest.post('/orders/ship', async (req, res) => {
   try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'orders.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { orderId, trackingNumber } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const order = await db.order.update({ where: { id: orderId }, data: { status: 'SHIPPED', trackingNumber } });
+    await audit(req, 'orders', 'ship', { orderId, trackingNumber });
     res.json({ success: true, order });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'ship_failed' });
@@ -156,12 +180,15 @@ adminRest.post('/orders/ship', async (req, res) => {
 adminRest.get('/payments', (_req, res) => res.json({ payments: [] }));
 adminRest.post('/payments/refund', async (req, res) => {
   try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'payments.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { orderId, amount } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const payment = await db.payment.findUnique({ where: { orderId } });
     if (!payment) return res.status(404).json({ error: 'payment_not_found' });
     // Placeholder: process refund via provider
     await db.payment.update({ where: { orderId }, data: { status: 'REFUNDED' } });
+    await audit(req, 'payments', 'refund', { orderId, amount });
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'refund_failed' });
@@ -170,10 +197,13 @@ adminRest.post('/payments/refund', async (req, res) => {
 adminRest.get('/users', (_req, res) => res.json({ users: [] }));
 adminRest.post('/users/assign-role', async (req, res) => {
   try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'users.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { userId, roleName } = req.body || {};
     if (!userId || !roleName) return res.status(400).json({ error: 'userId_and_roleName_required' });
     const role = await db.role.upsert({ where: { name: roleName }, update: {}, create: { name: roleName } });
     await db.userRoleLink.upsert({ where: { userId_roleId: { userId, roleId: role.id } }, update: {}, create: { userId, roleId: role.id } });
+    await audit(req, 'users', 'assign_role', { userId, roleName });
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'assign_role_failed' });
@@ -182,8 +212,11 @@ adminRest.post('/users/assign-role', async (req, res) => {
 adminRest.get('/coupons', (_req, res) => res.json({ coupons: [] }));
 adminRest.post('/coupons', async (req, res) => {
   try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'coupons.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { code, discountType, discountValue, validFrom, validUntil } = req.body || {};
     const coupon = await db.coupon.create({ data: { code, discountType, discountValue, validFrom, validUntil, isActive: true } });
+    await audit(req, 'coupons', 'create', { code });
     res.json({ coupon });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'coupon_create_failed' });
@@ -194,9 +227,12 @@ adminRest.get('/media', (_req, res) => res.json({ assets: [] }));
 adminRest.get('/settings', (_req, res) => res.json({ settings: {} }));
 adminRest.post('/settings', async (req, res) => {
   try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { key, value } = req.body || {};
     if (!key) return res.status(400).json({ error: 'key_required' });
     const setting = await db.setting.upsert({ where: { key }, update: { value }, create: { key, value } });
+    await audit(req, 'settings', 'upsert', { key });
     res.json({ setting });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'settings_failed' });
