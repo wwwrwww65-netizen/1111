@@ -180,7 +180,7 @@ export default function AdminProducts(): JSX.Element {
                 {files.map((f, idx) => (
                   <div key={idx} style={{ position:'relative', border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
                     <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover' }} />
-                    <div style={{ position:'absolute', insetInlineEnd:6, insetBlockStart:6 }}>
+                    <div style={{ position:'absolute', right:6, top:6 }}>
                       <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} style={{ background:'#111', color:'#fff', borderRadius:6, padding:'2px 6px', fontSize:12 }}>إزالة</button>
                     </div>
                   </div>
