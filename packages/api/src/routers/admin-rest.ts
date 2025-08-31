@@ -5,6 +5,7 @@ import { Parser as CsvParser } from 'json2csv';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
 import { authenticator } from 'otplib';
+import { v2 as cloudinary } from 'cloudinary';
 
 const adminRest = Router();
 
@@ -387,8 +388,15 @@ adminRest.get('/media/list', async (_req, res) => {
   res.json({ assets });
 });
 adminRest.post('/media', async (req, res) => {
-  const { url, type, alt } = req.body || {};
-  const asset = await db.mediaAsset.create({ data: { url, type, alt } });
+  const { url, type, alt, base64 } = req.body || {};
+  let finalUrl = url as string | undefined;
+  if (!finalUrl && base64) {
+    if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error: 'cloudinary_not_configured' });
+    const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media' });
+    finalUrl = uploaded.secure_url;
+  }
+  if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
+  const asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt } });
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
 });

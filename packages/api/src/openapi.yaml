@@ -170,7 +170,28 @@ paths:
         '200': { description: OK }
   /api/admin/media:
     post:
-      summary: Create media asset
+      summary: Create media asset (url or base64)
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/2fa/enable:
+    post:
+      summary: Generate 2FA secret (TOTP)
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/2fa/verify:
+    post:
+      summary: Verify 2FA code and enable
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/2fa/disable:
+    post:
+      summary: Disable 2FA for current admin
       security:
         - bearerAuth: []
       responses:

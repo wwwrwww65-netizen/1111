@@ -6,6 +6,7 @@ export default function UsersPage(): JSX.Element {
   const [search, setSearch] = React.useState("");
   const [rows, setRows] = React.useState<any[]>([]);
   const [roleName, setRoleName] = React.useState("MANAGER");
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
 
   async function load() {
     const url = new URL(window.location.origin + "/api/admin/users/list");
@@ -21,6 +22,10 @@ export default function UsersPage(): JSX.Element {
   async function assign(userId: string) {
     await fetch("/api/admin/users/assign-role", { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ userId, roleName }) });
     await load();
+  }
+  async function bulkAssign() {
+    const ids = rows.filter(r=>selected[r.id]).map(r=>r.id);
+    for (const id of ids) await assign(id);
   }
 
   return (
@@ -38,6 +43,7 @@ export default function UsersPage(): JSX.Element {
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead>
           <tr>
+            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}></th>
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>البريد</th>
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>الاسم</th>
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>الدور</th>
@@ -47,6 +53,7 @@ export default function UsersPage(): JSX.Element {
         <tbody>
           {rows.map((u)=> (
             <tr key={u.id}>
+              <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}><input type="checkbox" checked={!!selected[u.id]} onChange={()=>setSelected(s=>({...s,[u.id]:!s[u.id]}))} /></td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{u.email}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{u.name}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{u.role}</td>
@@ -57,6 +64,9 @@ export default function UsersPage(): JSX.Element {
           ))}
         </tbody>
       </table>
+      <div style={{ marginTop:12 }}>
+        <button onClick={bulkAssign} style={{ padding:'8px 12px', background:'#064e3b', color:'#e5e7eb', borderRadius:8 }}>إسناد جماعي</button>
+      </div>
     </main>
   );
 }

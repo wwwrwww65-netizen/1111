@@ -4,17 +4,26 @@ import React from "react";
 export default function MediaPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [url, setUrl] = React.useState("");
+  const [file, setFile] = React.useState<File|null>(null);
   React.useEffect(()=>{ fetch('/api/admin/media/list').then(r=>r.json()).then(j=>setRows(j.assets||[])); },[]);
   async function add() {
-    await fetch('/api/admin/media', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ url, type:'image' }) });
+    let body: any = { url, type:'image' };
+    if (file) {
+      const b64 = await toBase64(file);
+      body = { base64: b64, type:'image' };
+    }
+    await fetch('/api/admin/media', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
     setUrl("");
+    setFile(null);
     const j = await (await fetch('/api/admin/media/list')).json(); setRows(j.assets||[]);
   }
+  function toBase64(f: File): Promise<string> { return new Promise((resolve,reject)=>{ const r = new FileReader(); r.onload=()=>resolve(String(r.result)); r.onerror=reject; r.readAsDataURL(f); }); }
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>الوسائط</h1>
       <div style={{ display:'flex', gap:8, marginBottom:12 }}>
         <input value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="https://..." style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+        <input type="file" accept="image/*" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
         <button onClick={add} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>إضافة</button>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:8 }}>

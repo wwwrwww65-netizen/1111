@@ -19,6 +19,7 @@
     { "name": "Coupons List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/coupons/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
     { "name": "Analytics", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/analytics", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
     { "name": "Media List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/media/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Media Create (base64)", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/media", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"},{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\n  \"base64\": \"data:image/png;base64,...\"\n}"} } },
     { "name": "Tickets List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/tickets", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
     { "name": "Returns List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/returns/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
     { "name": "Loyalty List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/loyalty/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
@@ -27,6 +28,9 @@
     { "name": "Integrations List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/integrations/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
     { "name": "Settings List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/settings/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
     { "name": "Backups List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/backups/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } }
+    ,{ "name": "2FA Enable", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/2fa/enable", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } }
+    ,{ "name": "2FA Verify", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/2fa/verify", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"},{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\n  \"code\": \"123456\"\n}"} } }
+    ,{ "name": "2FA Disable", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/2fa/disable", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } }
   ],
   "variable": [
     {"key": "BASE_URL", "value": "http://localhost:4000"},

@@ -6,6 +6,7 @@ export default function CouponsPage(): JSX.Element {
   const [code, setCode] = React.useState("");
   const [discountType, setDiscountType] = React.useState("PERCENTAGE");
   const [discountValue, setDiscountValue] = React.useState<string>("10");
+  const [edit, setEdit] = React.useState<Record<string, number>>({});
 
   async function load() {
     const res = await fetch("/api/admin/coupons/list");
@@ -38,6 +39,7 @@ export default function CouponsPage(): JSX.Element {
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>الكود</th>
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>النوع</th>
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>القيمة</th>
+            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>تحرير</th>
           </tr>
         </thead>
         <tbody>
@@ -45,7 +47,16 @@ export default function CouponsPage(): JSX.Element {
             <tr key={c.id}>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{c.code}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{c.discountType}</td>
-              <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{c.discountValue}</td>
+              <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{edit[c.id]!==undefined ? (
+                <input type="number" value={edit[c.id]} onChange={(e)=>setEdit(s=>({...s,[c.id]:Number(e.target.value)}))} style={{ width:100, padding:6, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              ) : c.discountValue}</td>
+              <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                {edit[c.id]!==undefined ? (
+                  <button onClick={async ()=>{ await fetch('/api/admin/coupons', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ code: c.code, discountType: c.discountType, discountValue: edit[c.id], validFrom: c.validFrom, validUntil: c.validUntil }) }); setEdit(s=>{ const x={...s}; delete x[c.id]; return x; }); await load(); }} style={{ padding:'6px 10px', background:'#064e3b', color:'#e5e7eb', borderRadius:6 }}>حفظ</button>
+                ) : (
+                  <button onClick={()=>setEdit(s=>({...s,[c.id]:c.discountValue}))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>تحرير</button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
