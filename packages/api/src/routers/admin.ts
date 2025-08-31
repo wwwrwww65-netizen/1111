@@ -253,6 +253,36 @@ export const adminRouter = router({
       };
     }),
 
+  // Create variants (sizes/colors)
+  createProductVariants: protectedProcedure
+    .use(adminMiddleware)
+    .input(z.object({
+      productId: z.string(),
+      variants: z.array(z.object({
+        name: z.string(),
+        value: z.string(),
+        price: z.number().optional(),
+        sku: z.string().optional(),
+        stockQuantity: z.number().int().min(0),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const { productId, variants } = input;
+      const created = await Promise.all(
+        variants.map((v) => db.productVariant.create({
+          data: {
+            productId,
+            name: v.name,
+            value: v.value,
+            price: v.price ?? null,
+            sku: v.sku ?? null,
+            stockQuantity: v.stockQuantity,
+          },
+        }))
+      );
+      return { variants: created };
+    }),
+
   // Category management
   createCategory: protectedProcedure
     .use(adminMiddleware)
