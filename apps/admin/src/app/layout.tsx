@@ -16,11 +16,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
                   {href:'/users',label:'المستخدمون'},
                   {href:'/coupons',label:'الكوبونات'},
                   {href:'/inventory',label:'المخزون'},
-                  {href:'/reviews',label:'المراجعات'},
+                  {href:'/returns',label:'المرتجعات'},
+                  {href:'/loyalty',label:'الولاء'},
                   {href:'/payments',label:'المدفوعات'},
                   {href:'/analytics',label:'الإحصاءات'},
-                  {href:'/notifications',label:'الإشعارات'},
+                  {href:'/tickets',label:'الدعم'},
+                  {href:'/cms',label:'CMS'},
+                  {href:'/media',label:'الوسائط'},
+                  {href:'/vendors',label:'المورّدون'},
+                  {href:'/integrations',label:'التكاملات'},
                   {href:'/settings',label:'الإعدادات'},
+                  {href:'/backups',label:'النسخ الاحتياطي'},
                 ].map((item)=> (
                   <a key={item.href} href={item.href} style={{padding:'10px 12px',borderRadius:8,background:'#101828',border:'1px solid #1f2937',color:'#e2e8f0',textDecoration:'none'}}>{item.label}</a>
                 ))}

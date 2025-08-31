@@ -397,10 +397,18 @@ adminRest.post('/vendors', async (req, res) => {
   const vendor = await db.vendor.upsert({ where: { name }, update: { contactEmail, phone }, create: { name, contactEmail, phone } });
   res.json({ vendor });
 });
+adminRest.get('/vendors/list', async (_req, res) => {
+  const vendors = await db.vendor.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ vendors });
+});
 adminRest.post('/integrations', async (req, res) => {
   const { provider, config } = req.body || {};
   const integ = await db.integration.create({ data: { provider, config } });
   res.json({ integration: integ });
+});
+adminRest.get('/integrations/list', async (_req, res) => {
+  const list = await db.integration.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ integrations: list });
 });
 adminRest.post('/events', async (req, res) => {
   const { name, userId, properties } = req.body || {};
