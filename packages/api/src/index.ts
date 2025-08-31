@@ -8,6 +8,7 @@ import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
 import { createContext } from './context';
 import { applySecurityMiddleware } from './middleware/security';
+import { db } from '@repo/db';
 import cookieParser from 'cookie-parser';
 
 // Optional Sentry init
@@ -23,6 +24,15 @@ try {
 } catch {}
 
 const app = express();
+// Ensure critical DB schema tweaks are applied (idempotent)
+async function ensureSchema(): Promise<void> {
+  try {
+    await db.$executeRawUnsafe('ALTER TABLE "ProductVariant" ADD COLUMN IF NOT EXISTS "purchasePrice" DOUBLE PRECISION');
+  } catch (e) {
+    console.warn('Schema ensure warning:', (e as Error).message);
+  }
+}
+
 // Behind Render proxy, trust proxy so secure cookies & protocol are detected correctly
 app.set('trust proxy', 1);
 
@@ -131,10 +141,13 @@ app.use(
 );
 
 const port = process.env.PORT || 4000;
-app.listen(port, () => {
-  console.log(`🚀 API server listening on port ${port}`);
-  console.log(`📊 Health check: http://localhost:${port}/health`);
-  console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
-});
+(async () => {
+  await ensureSchema();
+  app.listen(port, () => {
+    console.log(`🚀 API server listening on port ${port}`);
+    console.log(`📊 Health check: http://localhost:${port}/health`);
+    console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
+  });
+})();
 
 export type AppRouter = typeof appRouter;
