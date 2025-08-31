@@ -164,6 +164,37 @@ adminRest.get('/inventory/export/csv', async (req, res) => {
   }
 });
 adminRest.get('/orders', (_req, res) => res.json({ orders: [] }));
+adminRest.get('/orders/list', async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'orders.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const page = Number(req.query.page ?? 1);
+    const limit = Math.min(Number(req.query.limit ?? 20), 100);
+    const search = (req.query.search as string | undefined) ?? undefined;
+    const status = (req.query.status as string | undefined) ?? undefined;
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (status) where.status = status;
+    if (search) where.OR = [
+      { id: { contains: search, mode: 'insensitive' } },
+      { user: { email: { contains: search, mode: 'insensitive' } } },
+    ];
+    const [orders, total] = await Promise.all([
+      db.order.findMany({
+        where,
+        include: { user: { select: { email: true } }, items: true, payment: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      db.order.count({ where }),
+    ]);
+    await audit(req, 'orders', 'list', { page, limit, status });
+    res.json({ orders, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'orders_list_failed' });
+  }
+});
 adminRest.post('/orders/ship', async (req, res) => {
   try {
     const user = (req as any).user;
@@ -178,6 +209,23 @@ adminRest.post('/orders/ship', async (req, res) => {
   }
 });
 adminRest.get('/payments', (_req, res) => res.json({ payments: [] }));
+adminRest.get('/payments/list', async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'payments.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const page = Number(req.query.page ?? 1);
+    const limit = Math.min(Number(req.query.limit ?? 20), 100);
+    const skip = (page - 1) * limit;
+    const [payments, total] = await Promise.all([
+      db.payment.findMany({ orderBy: { createdAt: 'desc' }, skip, take: limit, include: { order: true } }),
+      db.payment.count(),
+    ]);
+    await audit(req, 'payments', 'list', { page, limit });
+    res.json({ payments, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'payments_list_failed' });
+  }
+});
 adminRest.post('/payments/refund', async (req, res) => {
   try {
     const user = (req as any).user;

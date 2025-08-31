@@ -78,6 +78,40 @@ paths:
               required: [orderId]
       responses:
         '200': { description: OK }
+  /api/admin/orders/list:
+    get:
+      summary: List orders
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: search
+          schema: { type: string }
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/payments/list:
+    get:
+      summary: List payments
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
   /api/admin/settings:
     post:
       summary: Upsert a setting key/value
