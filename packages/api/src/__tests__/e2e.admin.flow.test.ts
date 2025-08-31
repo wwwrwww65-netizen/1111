@@ -31,7 +31,9 @@ describe('Admin E2E flow', () => {
   });
   it('orders ship and payments refund', async () => {
     const orders = await request(expressApp).get('/api/admin/orders/list').set('Authorization', `Bearer ${token}`);
-    const orderId = orders.body.orders[0].id as string;
+    expect(orders.status).toBe(200);
+    const orderId = (orders.body.orders && orders.body.orders[0] && orders.body.orders[0].id) as string;
+    expect(orderId).toBeTruthy();
     const ship = await request(expressApp).post('/api/admin/orders/ship').set('Authorization', `Bearer ${token}`).send({ orderId });
     expect(ship.status).toBe(200);
     const refund = await request(expressApp).post('/api/admin/payments/refund').set('Authorization', `Bearer ${token}`).send({ orderId });
