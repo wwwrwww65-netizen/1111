@@ -144,6 +144,7 @@ app.use(
   })
 );
 
+export const expressApp = app;
 const port = process.env.PORT || 4000;
 (async () => {
   await ensureSchema();
