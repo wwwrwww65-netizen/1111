@@ -11,6 +11,7 @@ import { applySecurityMiddleware } from './middleware/security';
 import { db } from '@repo/db';
 import cookieParser from 'cookie-parser';
 import adminRest from './routers/admin-rest';
+import shippingWebhooks from './routers/webhooks';
 
 // Optional Sentry init
 let sentryEnabled = false;
@@ -87,6 +88,9 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
 		return res.status(500).json({ error: 'internal_error' });
 	}
 });
+
+// Shipping webhook (raw) BEFORE json parsers too
+app.use('/webhooks', shippingWebhooks);
 
 // Apply security middleware AFTER webhook so JSON parser doesn't consume raw body
 applySecurityMiddleware(app);
