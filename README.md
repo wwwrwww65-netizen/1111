@@ -268,6 +268,7 @@ For support and questions:
 - REST الإداري (RBAC): `/api/admin/*` (Authorization: Bearer أو HttpOnly cookie)
 - OpenAPI/Swagger: `packages/api/src/openapi.yaml`
 - Postman: `docs/Postman_Collection_Admin.json`
+ - Swagger UI: `/docs` أثناء التشغيل (API)
 
 ## 🧪 Seeds (Admin-only)
 
@@ -275,6 +276,14 @@ For support and questions:
 ```
 pnpm --filter @repo/db db:seed:admin-only
 ```
+
+## 🧪 CI Checks (فرع الميزة)
+
+- migration-run-check: `scripts/ci/migration-run-check.sh`
+- seed-run-check: `scripts/ci/seed-run-check.sh`
+- build/lint/tests: عبر Workflow `ci-admin.yml`
+- e2e-admin-check: `scripts/ci/e2e-admin-check.sh`
+- security scan: `npm audit` (تحذيري)
 
 ## 🚀 Render Deployment (recommended)
 

@@ -58,6 +58,16 @@ adminRest.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, leg
 
 // Placeholder endpoints for acceptance modules; to be filled progressively
 adminRest.get('/health', (_req, res) => res.json({ ok: true }));
+adminRest.get('/audit-logs', async (req, res) => {
+  const page = Number(req.query.page ?? 1);
+  const limit = Math.min(Number(req.query.limit ?? 20), 100);
+  const skip = (page - 1) * limit;
+  const [logs, total] = await Promise.all([
+    db.auditLog.findMany({ orderBy: { createdAt: 'desc' }, skip, take: limit }),
+    db.auditLog.count(),
+  ]);
+  res.json({ logs, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+});
 adminRest.get('/inventory', (_req, res) => res.json({ items: [] }));
 adminRest.get('/inventory/list', async (req, res) => {
   try {

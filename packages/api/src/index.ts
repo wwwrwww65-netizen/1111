@@ -12,6 +12,8 @@ import { db } from '@repo/db';
 import cookieParser from 'cookie-parser';
 import adminRest from './routers/admin-rest';
 import shippingWebhooks from './routers/webhooks';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
 
 // Optional Sentry init
 let sentryEnabled = false;
@@ -96,6 +98,12 @@ app.use('/webhooks', shippingWebhooks);
 applySecurityMiddleware(app);
 // Parse cookies
 app.use(cookieParser());
+
+// Swagger UI (docs)
+try {
+  const openapi = YAML.load(require('path').join(__dirname, 'openapi.yaml').replace('/dist/', '/src/'));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
+} catch {}
 
 // Root endpoint for Render root URL
 app.get('/', (req, res) => {
