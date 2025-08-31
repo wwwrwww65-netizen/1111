@@ -33,6 +33,7 @@
     "swagger-ui-express": "^5.0.0",
     "yamljs": "^0.3.0",
     "pdfkit": "^0.13.0",
+    "otplib": "^12.0.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

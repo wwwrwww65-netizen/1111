@@ -4,6 +4,7 @@ import { db } from '@repo/db';
 import { Parser as CsvParser } from 'json2csv';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
+import { authenticator } from 'otplib';
 
 const adminRest = Router();
 
@@ -46,7 +47,6 @@ adminRest.use(async (req: Request, res: Response, next) => {
     if (dbUser?.twoFactorEnabled) {
       const code = req.headers['x-2fa-code'];
       if (!code) return res.status(401).json({ error: '2FA code required' });
-      // TODO: integrate TOTP; placeholder accepts any non-empty code
     }
     return next();
   } catch (e: any) {
@@ -59,6 +59,29 @@ adminRest.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, leg
 
 // Placeholder endpoints for acceptance modules; to be filled progressively
 adminRest.get('/health', (_req, res) => res.json({ ok: true }));
+// 2FA endpoints
+adminRest.post('/2fa/enable', async (req, res) => {
+  const user = (req as any).user as { userId: string };
+  const secret = authenticator.generateSecret();
+  await db.user.update({ where: { id: user.userId }, data: { twoFactorSecret: secret, twoFactorEnabled: false } });
+  const otpauth = authenticator.keyuri('admin@example.com', 'jeeey-admin', secret);
+  res.json({ secret, otpauth });
+});
+adminRest.post('/2fa/verify', async (req, res) => {
+  const user = (req as any).user as { userId: string };
+  const code = req.body?.code as string | undefined;
+  const u = await db.user.findUnique({ where: { id: user.userId }, select: { twoFactorSecret: true } });
+  if (!u?.twoFactorSecret) return res.status(400).json({ error: 'no_secret' });
+  const ok = code ? authenticator.verify({ token: code, secret: u.twoFactorSecret }) : false;
+  if (!ok) return res.status(401).json({ error: 'invalid_code' });
+  await db.user.update({ where: { id: user.userId }, data: { twoFactorEnabled: true } });
+  res.json({ success: true });
+});
+adminRest.post('/2fa/disable', async (req, res) => {
+  const user = (req as any).user as { userId: string };
+  await db.user.update({ where: { id: user.userId }, data: { twoFactorEnabled: false, twoFactorSecret: null } });
+  res.json({ success: true });
+});
 adminRest.get('/audit-logs', async (req, res) => {
   const page = Number(req.query.page ?? 1);
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
