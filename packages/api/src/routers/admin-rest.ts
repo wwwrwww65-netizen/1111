@@ -5,6 +5,23 @@ import { Parser as CsvParser } from 'json2csv';
 
 const adminRest = Router();
 
+const can = async (userId: string, permKey: string): Promise<boolean> => {
+  const roleLinks = await db.userRoleLink.findMany({ where: { userId }, include: { role: { include: { permissions: { include: { permission: true } } } } } });
+  for (const rl of roleLinks) {
+    for (const rp of rl.role.permissions) {
+      if (rp.permission.key === permKey) return true;
+    }
+  }
+  return false;
+};
+
+const audit = async (req: Request, module: string, action: string, details?: any) => {
+  try {
+    const user = (req as any).user as { userId: string } | undefined;
+    await db.auditLog.create({ data: { userId: user?.userId, module, action, details, ip: req.ip, userAgent: req.headers['user-agent'] as string | undefined } });
+  } catch {}
+};
+
 adminRest.use((req: Request, res: Response, next) => {
   try {
     const token = readTokenFromRequest(req);
@@ -23,6 +40,8 @@ adminRest.get('/health', (_req, res) => res.json({ ok: true }));
 adminRest.get('/inventory', (_req, res) => res.json({ items: [] }));
 adminRest.get('/inventory/list', async (req, res) => {
   try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'inventory.read'))) return res.status(403).json({ error: 'forbidden' });
     const page = Number(req.query.page ?? 1);
     const limit = Math.min(Number(req.query.limit ?? 20), 100);
     const search = (req.query.search as string | undefined) ?? undefined;
@@ -49,6 +68,7 @@ adminRest.get('/inventory/list', async (req, res) => {
       db.product.count({ where }),
     ]);
 
+    await audit(req, 'inventory', 'list', { page, limit });
     res.json({
       items: products,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -60,6 +80,8 @@ adminRest.get('/inventory/list', async (req, res) => {
 
 adminRest.post('/inventory/adjust', async (req, res) => {
   try {
+    const user = (req as any).user;
+    if (!(await can(user.userId, 'inventory.write'))) return res.status(403).json({ error: 'forbidden' });
     const { productId, delta, variantId } = req.body || {};
     if (!productId && !variantId) return res.status(400).json({ error: 'productId_or_variantId_required' });
     const changeBy = Number(delta ?? 0);
@@ -77,6 +99,7 @@ adminRest.post('/inventory/adjust', async (req, res) => {
       where: { id: productId },
       data: { stockQuantity: { increment: changeBy } },
     });
+    await audit(req, 'inventory', 'adjust', { productId, variantId, delta: changeBy });
     return res.json({ success: true, product: updated });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'inventory_adjust_failed' });
