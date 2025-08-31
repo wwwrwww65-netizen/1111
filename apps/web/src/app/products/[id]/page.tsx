@@ -3,7 +3,7 @@ import { trpc } from "../../providers";
 import Image from "next/image";
 import React from "react";
 import { ProductCard } from "@repo/ui";
-import { useI18n } from "../../lib/i18n";
+import { useI18n } from "../../../lib/i18n";
 
 export default function ProductDetail({ params }: { params: { id: string } }): JSX.Element {
   const { t } = useI18n();
