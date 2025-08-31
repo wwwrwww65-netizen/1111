@@ -80,6 +80,7 @@ jobs:
         run: |
           echo "DATABASE_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
           echo "DIRECT_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
+          echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
       - name: Prisma push schema (non-destructive)
         run: pnpm --filter @repo/db db:push
@@ -95,6 +96,12 @@ jobs:
 
       - name: Build Admin (skip lint/types)
         run: pnpm --filter admin build
+
+      - name: Lint (non-blocking)
+        run: pnpm lint || true
+
+      - name: Security scan (npm audit)
+        run: npm audit --audit-level=high || true
 
       - name: Upload Web artifact (.next standalone)
         uses: actions/upload-artifact@v4
@@ -122,6 +129,9 @@ jobs:
 
       - name: Run API tests
         run: pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
+
+      - name: E2E admin check (smoke)
+        run: bash scripts/ci/e2e-admin-check.sh
 
   deploy_staging:
     name: Deploy to Staging
