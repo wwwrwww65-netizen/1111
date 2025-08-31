@@ -16,6 +16,34 @@ paths:
   /api/admin/inventory:
     get:
       summary: Inventory list (placeholder)
+  /api/admin/inventory/list:
+    get:
+      summary: Inventory list (paged)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/inventory/adjust:
+    post:
+      summary: Adjust stock
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
+  /api/admin/inventory/export/csv:
+    get:
+      summary: Export inventory CSV
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: OK }
       security:
         - bearerAuth: []
       responses:
