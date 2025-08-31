@@ -25,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
                   {href:'/media',label:'الوسائط'},
                   {href:'/vendors',label:'المورّدون'},
                   {href:'/integrations',label:'التكاملات'},
+                  {href:'/2fa',label:'2FA'},
                   {href:'/audit-logs',label:'سجلّ التدقيق'},
                   {href:'/settings',label:'الإعدادات'},
                   {href:'/backups',label:'النسخ الاحتياطي'},
