@@ -8,7 +8,25 @@
     {
       "name": "Inventory",
       "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/inventory", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] }
-    }
+    },
+    { "name": "Inventory List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/inventory/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Inventory Adjust", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/inventory/adjust", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"},{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\n  \"productId\": \"...\",\n  \"delta\": 1\n}"} } },
+    { "name": "Orders List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/orders/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Order Ship", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/orders/ship", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"},{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\n  \"orderId\": \"...\"\n}"} } },
+    { "name": "Payments Refund", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/payments/refund", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"},{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\n  \"orderId\": \"...\"\n}"} } },
+    { "name": "Users List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/users/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Assign Role", "request": { "method": "POST", "url": "{{BASE_URL}}/api/admin/users/assign-role", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"},{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\n  \"userId\": \"...\",\n  \"roleName\": \"ADMIN\"\n}"} } },
+    { "name": "Coupons List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/coupons/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Analytics", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/analytics", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Media List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/media/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Tickets List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/tickets", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Returns List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/returns/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Loyalty List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/loyalty/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "CMS Pages", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/cms/pages", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Vendors List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/vendors/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Integrations List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/integrations/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Settings List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/settings/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } },
+    { "name": "Backups List", "request": { "method": "GET", "url": "{{BASE_URL}}/api/admin/backups/list", "header": [{"key":"Authorization","value":"Bearer {{TOKEN}}"}] } }
   ],
   "variable": [
     {"key": "BASE_URL", "value": "http://localhost:4000"},
