@@ -1,12 +1,14 @@
 import request from 'supertest';
 import { expressApp } from '../index';
 import crypto from 'crypto';
-import { db } from '@repo/db';
+// db will be required lazily after envs are set in workflow
 
 describe('Shipping webhook HMAC', () => {
   beforeAll(async () => {
     process.env.SHIP_WEBHOOK_SECRET = 'test_secret';
-    const user = await db.user.upsert({ where: { email: 'user@e2e.com' }, update: {}, create: { email: 'user@e2e.com', name: 'U', password: 'x' } });
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { db } = require('@repo/db');
+    const user = await db.user.upsert({ where: { email: 'user@e2e.com' }, update: {}, create: { email: 'user@e2e.com', name: 'U', password: '$2a$12$abcdefghijklmnopqrstuv' } });
     const cat = await db.category.upsert({ where: { id: 'ship-cat' }, update: {}, create: { id: 'ship-cat', name: 'Ship' } });
     const product = await db.product.create({ data: { name: 'Ship', description: 'Ship', price: 5, images: [], categoryId: cat.id, stockQuantity: 2 } });
     const order = await db.order.create({ data: { userId: user.id, status: 'PAID', total: 5 } });
@@ -18,6 +20,8 @@ describe('Shipping webhook HMAC', () => {
     expect(res.status).toBe(401);
   });
   it('accepts valid signature and updates order', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { db } = require('@repo/db');
     const order = await db.order.findFirst({});
     const payload = Buffer.from(JSON.stringify({ type: 'shipment.created', data: { orderId: order!.id, trackingNumber: 'TN-1' } }));
     const sig = crypto.createHmac('sha256', process.env.SHIP_WEBHOOK_SECRET as string).update(payload).digest('hex');
