@@ -110,6 +110,7 @@ model ProductVariant {
   name      String   // e.g., "Red", "Large"
   value     String   // e.g., "red", "L"
   price     Float?
+  purchasePrice Float?
   stockQuantity Int  @default(0)
   sku       String?  @unique
   createdAt DateTime @default(now())

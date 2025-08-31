@@ -233,6 +233,7 @@ export const adminRouter = router({
           where,
           include: {
             category: true,
+            variants: true,
             _count: { select: { reviews: true, orderItems: true } },
           },
           orderBy: { createdAt: 'desc' },
@@ -262,6 +263,7 @@ export const adminRouter = router({
         name: z.string(),
         value: z.string(),
         price: z.number().optional(),
+        purchasePrice: z.number().optional(),
         sku: z.string().optional(),
         stockQuantity: z.number().int().min(0),
       })),
@@ -275,6 +277,7 @@ export const adminRouter = router({
             name: v.name,
             value: v.value,
             price: v.price ?? null,
+            purchasePrice: v.purchasePrice ?? null,
             sku: v.sku ?? null,
             stockQuantity: v.stockQuantity,
           },

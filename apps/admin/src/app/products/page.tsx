@@ -28,6 +28,8 @@ export default function AdminProducts(): JSX.Element {
   const [images, setImages] = React.useState<string>(''); // comma-separated URLs
   const [files, setFiles] = React.useState<File[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
+  const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
+  const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
 
   React.useEffect(() => {
     const message = (error as any)?.message || '';
@@ -63,19 +65,22 @@ export default function AdminProducts(): JSX.Element {
     const res = await createProduct.mutateAsync(productPayload);
     const productId = res?.product?.id;
     if (type === 'variable' && productId && createVariants?.mutateAsync) {
-      // create variants from sizes x colors
-      const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
-      const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
-      const variants: any[] = [];
-      if (sizeList.length && colorList.length) {
-        for (const s of sizeList) {
-          for (const c of colorList) {
-            variants.push({ name: s, value: c, price: Number(salePrice || 0), stockQuantity: Number(stockQuantity || 0) });
+      let variants = variantRows;
+      if (!variants?.length) {
+        const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
+        const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
+        const rows: typeof variantRows = [];
+        if (sizeList.length && colorList.length) {
+          if (variantMatrix === 'sizes_x_colors') {
+            for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+          } else {
+            for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
           }
+        } else {
+          for (const s of sizeList) rows.push({ name: s, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+          for (const c of colorList) rows.push({ name: c, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
         }
-      } else {
-        for (const s of sizeList) variants.push({ name: s, value: s, price: Number(salePrice || 0), stockQuantity: Number(stockQuantity || 0) });
-        for (const c of colorList) variants.push({ name: c, value: c, price: Number(salePrice || 0), stockQuantity: Number(stockQuantity || 0) });
+        variants = rows;
       }
       if (variants.length) {
         await createVariants.mutateAsync({ productId, variants });
@@ -195,6 +200,82 @@ export default function AdminProducts(): JSX.Element {
                 const next = Array.from(new Set([...current, ...fileNames]));
                 setImages(next.join(', '));
               }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>إضافة الملفات إلى قائمة الصور</button>
+            )}
+            {type === 'variable' && (
+              <div style={{ borderTop:'1px solid #1c2333', paddingTop:12 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
+                  <span style={{ color:'#94a3b8' }}>إنشاء التباينات:</span>
+                  <select value={variantMatrix} onChange={(e)=>setVariantMatrix(e.target.value as any)} style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                    <option value="sizes_x_colors">لكل مقاس كل الألوان</option>
+                    <option value="colors_x_sizes">لكل لون كل المقاسات</option>
+                  </select>
+                  <button type="button" onClick={() => {
+                    const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
+                    const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
+                    const rows: typeof variantRows = [];
+                    if (sizeList.length && colorList.length) {
+                      if (variantMatrix === 'sizes_x_colors') {
+                        for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+                      } else {
+                        for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+                      }
+                    }
+                    setVariantRows(rows);
+                  }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>توليد التباينات</button>
+                </div>
+                {variantRows.length > 0 && (
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>المجموعة</th>
+                          <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>القيمة</th>
+                          <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>سعر الشراء</th>
+                          <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>سعر البيع</th>
+                          <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>المخزون</th>
+                          <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>SKU</th>
+                          <th style={{ borderBottom:'1px solid #1c2333' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {variantRows.map((row, idx) => (
+                          <tr key={idx}>
+                            <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{row.name}</td>
+                            <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{row.value}</td>
+                            <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                              <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
+                                const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, purchasePrice: val } : r));
+                              }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            </td>
+                            <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                              <input type="number" value={row.price ?? ''} onChange={(e)=>{
+                                const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, price: val } : r));
+                              }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            </td>
+                            <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                              <input type="number" value={row.stockQuantity} onChange={(e)=>{
+                                const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, stockQuantity: val } : r));
+                              }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            </td>
+                            <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                              <input value={row.sku ?? ''} onChange={(e)=>{
+                                const val = e.target.value || undefined;
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, sku: val } : r));
+                              }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            </td>
+                            <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                              <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>حذف</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
