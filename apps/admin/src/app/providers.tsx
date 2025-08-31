@@ -1,6 +1,6 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
+import { httpBatchLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { AnyRouter } from "@trpc/server";
 import React from "react";
@@ -22,21 +22,11 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
     }
     return trpc.createClient({
       links: [
-        splitLink({
-          condition: (op) => op.type === 'query',
-          true: httpLink({
-            url: resolvedUrl,
-            method: 'GET',
-            fetch(input, init) {
-              return fetch(input, { ...(init ?? {}), credentials: "include" });
-            },
-          }),
-          false: httpBatchLink({
-            url: resolvedUrl,
-            fetch(input, init) {
-              return fetch(input, { ...(init ?? {}), credentials: "include" });
-            },
-          }),
+        httpBatchLink({
+          url: resolvedUrl,
+          fetch(input, init) {
+            return fetch(input, { ...(init ?? {}), credentials: "include" });
+          },
         }),
       ],
     });

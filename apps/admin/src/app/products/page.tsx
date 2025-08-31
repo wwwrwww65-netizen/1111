@@ -4,7 +4,9 @@ import React from "react";
 
 export default function AdminProducts(): JSX.Element {
   const q: any = trpc as any;
-  const { data, isLoading, error } = q.admin.getProducts.useQuery({ page: 1, limit: 20 });
+  const { data, isLoading, error } = q.admin.getProducts.useQuery({ page: 1, limit: 20 }, {
+    retry: 0,
+  });
   const createProduct = q.admin.createProduct.useMutation();
   const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
     ? q.admin.createProductVariants.useMutation()
@@ -26,7 +28,12 @@ export default function AdminProducts(): JSX.Element {
   const [images, setImages] = React.useState<string>(''); // comma-separated URLs
 
   if (isLoading) return <main style={{ padding: 24 }}>Loading products...</main>;
-  if (error) return <main style={{ padding: 24 }}>Error: {(error as any).message}</main>;
+  if (error) return (
+    <main style={{ padding: 24 }}>
+      <div style={{color:'tomato', marginBottom: 12}}>Error: {(error as any).message}</div>
+      <a href="/login" style={{color:'#60a5fa', textDecoration:'underline'}}>تسجيل الدخول للوحة التحكم</a>
+    </main>
+  );
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
