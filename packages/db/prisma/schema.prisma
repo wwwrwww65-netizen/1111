@@ -66,6 +66,7 @@ model User {
   auditLogs         AuditLog[]
   couponUsage       CouponUsage[]
   supportTickets    SupportTicket[]
+  ticketsAssigned   SupportTicket[] @relation("TicketAssignee")
   loyaltyPoints     LoyaltyPoint[]
   events            Event[]
 }
@@ -188,6 +189,7 @@ model Order {
   payment           Payment?
   items             OrderItem[]
   coupon            Coupon?     @relation(fields: [couponId], references: [id])
+  tickets           SupportTicket[]
 }
 
 model OrderItem {
