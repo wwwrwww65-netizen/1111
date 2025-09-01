@@ -12,14 +12,7 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
   const [trpcClient] = React.useState(() => {
     const envUrl = process.env.NEXT_PUBLIC_TRPC_URL;
     const isBrowser = typeof window !== 'undefined';
-    let resolvedUrl = envUrl;
-    if (!resolvedUrl) {
-      if (isBrowser && window.location.hostname.endsWith('onrender.com')) {
-        resolvedUrl = 'https://jeeeyai.onrender.com/trpc';
-      } else {
-        resolvedUrl = 'http://localhost:4000/trpc';
-      }
-    }
+    const resolvedUrl = envUrl ?? (isBrowser ? `${window.location.origin}/trpc` : 'http://localhost:4000/trpc');
     return trpc.createClient({
       links: [
         httpBatchLink({
