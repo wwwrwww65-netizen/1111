@@ -10,6 +10,7 @@ const createProductSchema = z.object({
   price: z.number().positive(),
   images: z.array(z.string()),
   categoryId: z.string(),
+  vendorId: z.string().optional(),
   stockQuantity: z.number().int().min(0),
   sku: z.string().optional(),
   weight: z.number().optional(),
@@ -163,8 +164,23 @@ export const adminRouter = router({
     .use(adminMiddleware)
     .input(createProductSchema)
     .mutation(async ({ input }) => {
+      let nextSku = input.sku;
+      if (!nextSku && input.vendorId) {
+        const vendor = await db.vendor.findUnique({ where: { id: input.vendorId } });
+        if (vendor?.vendorCode) {
+          const prefix = vendor.vendorCode + '-';
+          const last = await db.product.findFirst({ where: { vendorId: input.vendorId, sku: { startsWith: prefix } }, orderBy: { createdAt: 'desc' } });
+          let n = 0;
+          if (last?.sku && last.sku.startsWith(prefix)) {
+            const tail = last.sku.substring(prefix.length);
+            const parsed = parseInt(tail, 10);
+            if (!isNaN(parsed)) n = parsed;
+          }
+          nextSku = `${prefix}${n + 1}`;
+        }
+      }
       const product = await db.product.create({
-        data: input,
+        data: { ...input, sku: nextSku ?? input.sku ?? null },
         include: { category: true },
       });
 

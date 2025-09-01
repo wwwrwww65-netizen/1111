@@ -518,13 +518,24 @@ adminRest.get('/cms/pages', async (_req, res) => {
   res.json({ pages });
 });
 adminRest.post('/vendors', async (req, res) => {
-  const { name, contactEmail, phone } = req.body || {};
-  const vendor = await db.vendor.upsert({ where: { name }, update: { contactEmail, phone }, create: { name, contactEmail, phone } });
+  const { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } = req.body || {};
+  const vendor = await db.vendor.upsert({ where: { name }, update: { contactEmail, phone, address, storeName, storeNumber, vendorCode }, create: { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } });
   res.json({ vendor });
 });
 adminRest.get('/vendors/list', async (_req, res) => {
   const vendors = await db.vendor.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ vendors });
+});
+adminRest.get('/vendors/:id/overview', async (req, res) => {
+  const { id } = req.params;
+  const v = await db.vendor.findUnique({ where: { id } });
+  if (!v) return res.status(404).json({ error: 'vendor_not_found' });
+  const [products, orders, stock] = await Promise.all([
+    db.product.findMany({ where: { vendorId: id }, select: { id: true, name: true, sku: true, stockQuantity: true } }),
+    db.order.findMany({ where: { items: { some: { product: { vendorId: id } } } }, select: { id: true, status: true, total: true, createdAt: true } }),
+    db.product.aggregate({ _sum: { stockQuantity: true }, where: { vendorId: id } })
+  ]);
+  res.json({ vendor: v, products, orders, stock: stock._sum.stockQuantity || 0, notifications: [] });
 });
 adminRest.post('/integrations', async (req, res) => {
   const { provider, config } = req.body || {};

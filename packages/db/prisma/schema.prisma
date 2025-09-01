@@ -93,6 +93,7 @@ model Product {
   price         Float
   images        String[]
   categoryId    String
+  vendorId      String?
   stockQuantity Int      @default(0)
   isActive      Boolean  @default(true)
   sku           String?  @unique
@@ -105,6 +106,7 @@ model Product {
 
   // Relations
   category      Category     @relation(fields: [categoryId], references: [id])
+  vendor        Vendor?      @relation(fields: [vendorId], references: [id])
   variants      ProductVariant[]
   reviews       Review[]
   orderItems    OrderItem[]
@@ -338,9 +340,14 @@ model Vendor {
   name         String   @unique
   contactEmail String?
   phone        String?
+  address      String?
+  storeName    String?
+  storeNumber  String?
+  vendorCode   String?  @unique
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  products     Product[]
 }
 
 // Media Library
