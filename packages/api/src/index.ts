@@ -33,6 +33,13 @@ async function ensureSchema(): Promise<void> {
   try {
     await db.$executeRawUnsafe('ALTER TABLE "ProductVariant" ADD COLUMN IF NOT EXISTS "purchasePrice" DOUBLE PRECISION');
     await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
+    // Ensure attribute tables exist (id TEXT primary key; Prisma will supply ids)
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeColor" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "hex" TEXT, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeBrand" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeSizeType" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeSize" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "typeId" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    // FK if not exists
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "AttributeSize_typeId_fkey") THEN ALTER TABLE "AttributeSize" ADD CONSTRAINT "AttributeSize_typeId_fkey" FOREIGN KEY ("typeId") REFERENCES "AttributeSizeType"("id") ON DELETE SET NULL; END IF; END $$;');
   } catch (e) {
     console.warn('Schema ensure warning:', (e as Error).message);
   }
