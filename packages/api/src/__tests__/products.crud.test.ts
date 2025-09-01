@@ -7,6 +7,8 @@ const token = jwt.sign({ userId: 'admin-e2e', email: 'admin@example.com', role: 
 
 describe('Products CRUD', () => {
   it('list -> create -> detail -> update -> delete', async () => {
+    const { db } = require('@repo/db');
+    const cat = await db.category.upsert({ where: { id: 'cat-test' }, update: {}, create: { id: 'cat-test', name: 'TestCat' } });
     const list0 = await request(expressApp).get('/api/admin/products').set('Authorization', `Bearer ${token}`);
     expect(list0.status).toBe(200);
     const created = await request(expressApp).post('/api/admin/products').set('Authorization', `Bearer ${token}`).send({ name:'P1', description:'D', price:10, images:[], categoryId:'cat-test', stockQuantity:0, isActive:true });
