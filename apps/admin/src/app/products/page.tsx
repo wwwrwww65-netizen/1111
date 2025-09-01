@@ -30,6 +30,49 @@ export default function AdminProducts(): JSX.Element {
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
+    return 'http://localhost:4000';
+  }, []);
+  const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
+  const [brandOptions, setBrandOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [sizeOptions, setSizeOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [selectedColors, setSelectedColors] = React.useState<string[]>([]);
+  const [selectedSizes, setSelectedSizes] = React.useState<string[]>([]);
+  const [sizeTypeId, setSizeTypeId] = React.useState<string>('');
+
+  React.useEffect(()=>{
+    // Load attributes lists
+    (async ()=>{
+      try {
+        const [colorsRes, brandsRes, typesRes] = await Promise.all([
+          fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include' }),
+          fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include' }),
+          fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include' }),
+        ]);
+        const [cj, bj, tj] = await Promise.all([colorsRes.json(), brandsRes.json(), typesRes.json()]);
+        setColorOptions(cj.colors || []);
+        setBrandOptions(bj.brands || []);
+        setSizeTypeOptions(tj.types || []);
+      } catch {}
+    })();
+  }, [apiBase]);
+
+  React.useEffect(()=>{
+    // When size type changes, load sizes of type
+    (async ()=>{
+      if (!sizeTypeId) { setSizeOptions([]); return; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/attributes/size-types/${sizeTypeId}/sizes`, { credentials:'include' });
+        const j = await res.json();
+        setSizeOptions(j.sizes || []);
+      } catch {}
+    })();
+  }, [sizeTypeId, apiBase]);
+
+  React.useEffect(()=>{ setColors(selectedColors.join(', ')); }, [selectedColors]);
+  React.useEffect(()=>{ setSizes(selectedSizes.join(', ')); }, [selectedSizes]);
 
   React.useEffect(() => {
     const message = (error as any)?.message || '';
@@ -116,7 +159,10 @@ export default function AdminProducts(): JSX.Element {
               <input value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
             </label>
             <label>العلامة التجارية
-              <input value={brand} onChange={(e) => setBrand(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              <select value={brand} onChange={(e) => setBrand(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                <option value="">اختر علامة</option>
+                {brandOptions.map((b)=> (<option key={b.id} value={b.name}>{b.name}</option>))}
+              </select>
             </label>
             <label>التصنيف
               <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
@@ -137,12 +183,31 @@ export default function AdminProducts(): JSX.Element {
             </label>
             {type === 'variable' && (
               <>
-                <label>المقاسات (افصل بينها بفاصلة)
-                  <input value={sizes} onChange={(e) => setSizes(e.target.value)} placeholder="S,M,L,XL" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-                </label>
-                <label>الألوان (افصل بينها بفاصلة)
-                  <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="أحمر,أزرق,أسود" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-                </label>
+                <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                  <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
+                    <div style={{ marginBottom:8, color:'#9ca3af' }}>نوع المقاس</div>
+                    <select value={sizeTypeId} onChange={(e)=>{ setSizeTypeId(e.target.value); setSelectedSizes([]); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                      <option value="">اختر نوعًا</option>
+                      {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
+                    </select>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
+                      {sizeOptions.map((s)=> (
+                        <button type="button" key={s.id} onClick={()=> setSelectedSizes(prev=> prev.includes(s.name) ? prev.filter(x=>x!==s.name) : [...prev, s.name])} style={{ padding:'6px 10px', borderRadius:999, background: selectedSizes.includes(s.name) ? '#800020' : '#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>{s.name}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
+                    <div style={{ marginBottom:8, color:'#9ca3af' }}>الألوان</div>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                      {colorOptions.map((c)=> (
+                        <button type="button" key={c.id} title={c.name} onClick={()=> setSelectedColors(prev=> prev.includes(c.name) ? prev.filter(x=>x!==c.name) : [...prev, c.name])} style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:999, background: selectedColors.includes(c.name) ? '#111827' : 'transparent', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                          <span style={{ width:14, height:14, borderRadius:999, background:c.hex, border:'1px solid #111827' }} />
+                          <span style={{ fontSize:12 }}>{c.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </>
             )}
           </div>
