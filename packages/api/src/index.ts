@@ -38,6 +38,15 @@ async function ensureSchema(): Promise<void> {
   }
 }
 
+async function ensureBootstrap(): Promise<void> {
+  try {
+    // Seed default color "أحمر" if not exists
+    await db.attributeColor.upsert({ where: { name: 'أحمر' }, update: {}, create: { name: 'أحمر', hex: '#ff0000' } });
+  } catch (e) {
+    console.warn('Bootstrap warning:', (e as Error).message);
+  }
+}
+
 // Behind Render proxy, trust proxy so secure cookies & protocol are detected correctly
 app.set('trust proxy', 1);
 
@@ -161,6 +170,7 @@ export const expressApp = app;
 const port = process.env.PORT || 4000;
 (async () => {
   await ensureSchema();
+  await ensureBootstrap();
   const forceListen = process.env.API_FORCE_LISTEN === '1';
   if (process.env.NODE_ENV !== 'test' || forceListen) {
     app.listen(port, () => {
