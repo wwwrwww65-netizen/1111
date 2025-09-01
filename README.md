@@ -66,8 +66,10 @@ Set these variables (locally via shell or .env files per package, and on Render 
   - JWT_SECRET
   - NEXT_PUBLIC_APP_URL (web URL), NEXT_PUBLIC_ADMIN_URL (admin URL)
   - STRIPE_SECRET_KEY (optional), STRIPE_WEBHOOK_SECRET (optional)
+  - CLOUDINARY_URL (اختياري لرفع الوسائط)
 - Web/Admin (`apps/web`, `apps/admin`):
   - NEXT_PUBLIC_TRPC_URL (e.g. https://<api>/trpc)
+  - NEXT_PUBLIC_API_BASE_URL (للنداءات المطلقة في الواجهة الإدارية)
 
 ### 3. (Optional) Local infrastructure
 
@@ -104,6 +106,10 @@ pnpm api      # API server (http://localhost:4000)
 
 - Database Schema: `packages/db/prisma/schema.prisma`
 - UI Components: `packages/ui/src`
+- OpenAPI (Admin REST): `packages/api/src/openapi.yaml` (Swagger UI at `/docs` when API runs)
+- Product Generator Endpoints:
+  - `POST /api/admin/products/parse` — ينظّف النص ويستخرج الاسم/الوصف/المقاسات/الألوان والأسعار ويقترح variants ويعيد palette مبسّطة
+  - `POST /api/admin/products/generate` — ينشئ المنتج والتباينات والوسائط والمخزون استناداً إلى المخرجات المراجَعة
 
 ## 🧪 Testing
 
