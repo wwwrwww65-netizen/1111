@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+export const dynamic = 'force-dynamic';
 
 export default function SizeTypePage({ params }: { params: { typeId: string } }): JSX.Element {
   const { typeId } = params;

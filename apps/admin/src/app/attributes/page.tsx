@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+export const dynamic = 'force-dynamic';
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: ()=>void; children: React.ReactNode }){
   return <button onClick={onClick} style={{ padding:'8px 14px', borderRadius:999, background: active ? '#800020' : '#111827', color: active ? '#fff' : '#e5e7eb', border:'1px solid #1c2333' }}>{children}</button>;
@@ -31,7 +32,7 @@ function ColorsTab(): JSX.Element {
           <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم اللون" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
           <input type="color" value={hex} onChange={(e)=>setHex(e.target.value)} style={{ width:120, height:40, borderRadius:10, border:'1px solid #1c2333', background:'#0f1320' }} />
           <div style={{ display:'flex', gap:8 }}>
-            {'EyeDropper' in (window as any) && (<button onClick={pickWithEyedropper} style={{ padding:'10px 14px', background:'#111827', color:'#e5e7eb', borderRadius:10 }}>قطّارة لون</button>)}
+            {typeof window !== 'undefined' && 'EyeDropper' in (window as any) && (<button onClick={pickWithEyedropper} style={{ padding:'10px 14px', background:'#111827', color:'#e5e7eb', borderRadius:10 }}>قطّارة لون</button>)}
             <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
           </div>
         </div>
