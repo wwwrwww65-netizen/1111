@@ -24,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
                   {href:'/cms',label:'CMS'},
                   {href:'/media',label:'الوسائط'},
                   {href:'/vendors',label:'المورّدون'},
+                  {href:'/attributes',label:'السمات'},
                   {href:'/integrations',label:'التكاملات'},
                   {href:'/2fa',label:'2FA'},
                   {href:'/audit-logs',label:'سجلّ التدقيق'},

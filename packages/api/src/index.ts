@@ -32,6 +32,7 @@ const app = express();
 async function ensureSchema(): Promise<void> {
   try {
     await db.$executeRawUnsafe('ALTER TABLE "ProductVariant" ADD COLUMN IF NOT EXISTS "purchasePrice" DOUBLE PRECISION');
+    await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
   } catch (e) {
     console.warn('Schema ensure warning:', (e as Error).message);
   }
