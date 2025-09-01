@@ -551,6 +551,69 @@ adminRest.post('/events', async (req, res) => {
   const ev = await db.event.create({ data: { name, userId, properties } });
   res.json({ event: ev });
 });
+
+// Products CRUD + bulk
+adminRest.get('/products', async (req, res) => {
+  const page = Number(req.query.page ?? 1);
+  const limit = Math.min(Number(req.query.limit ?? 20), 100);
+  const search = (req.query.search as string | undefined) ?? undefined;
+  const categoryId = (req.query.categoryId as string | undefined) ?? undefined;
+  const status = (req.query.status as string | undefined) ?? undefined; // 'active' | 'archived'
+  const skip = (page - 1) * limit;
+  const where: any = {};
+  if (search) where.OR = [
+    { name: { contains: search, mode: 'insensitive' } },
+    { sku: { contains: search, mode: 'insensitive' } },
+  ];
+  if (categoryId) where.categoryId = categoryId;
+  if (status === 'active') where.isActive = true;
+  if (status === 'archived') where.isActive = false;
+  const [products, total] = await Promise.all([
+    db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { variants: true } }),
+    db.product.count({ where })
+  ]);
+  res.json({ products, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+});
+adminRest.get('/products/:id', async (req, res) => {
+  const { id } = req.params;
+  const p = await db.product.findUnique({ where: { id }, include: { variants: true } });
+  if (!p) return res.status(404).json({ error: 'product_not_found' });
+  res.json({ product: p });
+});
+adminRest.post('/products', async (req, res) => {
+  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive } = req.body || {};
+  const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
+  await audit(req, 'products', 'create', { id: p.id });
+  res.json({ product: p });
+});
+adminRest.patch('/products/:id', async (req, res) => {
+  const { id } = req.params;
+  const data = req.body || {};
+  const p = await db.product.update({ where: { id }, data });
+  await audit(req, 'products', 'update', { id });
+  res.json({ product: p });
+});
+adminRest.delete('/products/:id', async (req, res) => {
+  const { id } = req.params;
+  await db.product.delete({ where: { id } });
+  await audit(req, 'products', 'delete', { id });
+  res.json({ success: true });
+});
+adminRest.post('/products/bulk', async (req, res) => {
+  const { ids, action } = req.body || {};
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids_required' });
+  if (action === 'archive') {
+    const r = await db.product.updateMany({ where: { id: { in: ids } }, data: { isActive: false } });
+    await audit(req, 'products', 'bulk_archive', { ids });
+    return res.json({ updated: r.count });
+  }
+  if (action === 'delete') {
+    const r = await db.product.deleteMany({ where: { id: { in: ids } } });
+    await audit(req, 'products', 'bulk_delete', { ids });
+    return res.json({ deleted: r.count });
+  }
+  return res.status(400).json({ error: 'invalid_action' });
+});
 // Attributes: Colors
 adminRest.get('/attributes/colors', async (_req, res) => {
   const items = await db.attributeColor.findMany({ orderBy: { createdAt: 'desc' } });
