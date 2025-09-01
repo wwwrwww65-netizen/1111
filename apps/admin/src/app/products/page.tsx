@@ -49,10 +49,6 @@ export default function AdminProducts(): JSX.Element {
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
-  const apiBase = React.useMemo(()=>{
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
-    return 'http://localhost:4000';
-  }, []);
   const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
   const [brandOptions, setBrandOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
