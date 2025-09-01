@@ -14,22 +14,35 @@ function ColorsTab(): JSX.Element {
   const [name, setName] = React.useState("");
   const [hex, setHex] = React.useState("#800020");
   const [search, setSearch] = React.useState("");
+  const [toast, setToast] = React.useState<string>("");
+  const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
   async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include' })).json(); setRows(j.colors||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, hex }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
+  async function add(){ await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, hex }) }); setName(""); await load(); showToast('تمت الإضافة'); }
+  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); showToast('تم الحفظ'); }
+  async function remove(id: string){ if (!confirm('تأكيد الحذف؟')) return; await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include' }); await load(); showToast('تم الحذف'); }
+  async function pickWithEyedropper(){ try { const EyeDropper = (window as any).EyeDropper; if (!EyeDropper) return; const ed = new EyeDropper(); const result = await ed.open(); setHex(result.sRGBHex); } catch {}
+  }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
+      {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
       <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:12, marginBottom:12 }}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 120px auto', gap:8 }}>
           <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم اللون" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
           <input type="color" value={hex} onChange={(e)=>setHex(e.target.value)} style={{ width:120, height:40, borderRadius:10, border:'1px solid #1c2333', background:'#0f1320' }} />
-          <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
+          <div style={{ display:'flex', gap:8 }}>
+            {'EyeDropper' in (window as any) && (<button onClick={pickWithEyedropper} style={{ padding:'10px 14px', background:'#111827', color:'#e5e7eb', borderRadius:10 }}>قطّارة لون</button>)}
+            <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
+          </div>
         </div>
         <div>
           <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', width:240 }} />
         </div>
+      </div>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:12 }}>
+        {["#000000","#ffffff","#ef4444","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ec4899","#f97316","#22c55e","#06b6d4"].map((sw)=> (
+          <button key={sw} onClick={()=>setHex(sw)} title={sw} style={{ width:24, height:24, borderRadius:999, border: sw.toLowerCase()==='#ffffff' ? '1px solid #1c2333' : 'none', background: sw }} />
+        ))}
       </div>
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>الاسم</th><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>اللون</th></tr></thead>
