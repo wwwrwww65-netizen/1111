@@ -1,0 +1,39 @@
+"use client";
+import React from "react";
+
+export default function SizeTypePage({ params }: { params: { typeId: string } }): JSX.Element {
+  const { typeId } = params;
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
+    return 'http://localhost:4000';
+  }, []);
+  const [rows, setRows] = React.useState<any[]>([]);
+  const [name, setName] = React.useState("");
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include' })).json(); setRows(j.sizes||[]); }
+  React.useEffect(()=>{ load(); },[apiBase, typeId]);
+  async function add(){ await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
+  return (
+    <main style={{ maxWidth: 900, margin:'0 auto', padding:16 }}>
+      <h1 style={{ marginBottom:16, fontSize:22, fontWeight:700 }}>أنواع المقاسات</h1>
+      <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16, marginBottom:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:12 }}>
+          <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم المقاس" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+          <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
+        </div>
+      </section>
+      <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
+        <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
+          <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>الاسم</th></tr></thead>
+          <tbody>
+            {rows.map((s:any, idx:number)=> (
+              <tr key={s.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
+                <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{s.name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  );
+}
+

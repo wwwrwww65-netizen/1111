@@ -584,6 +584,29 @@ adminRest.post('/attributes/sizes', async (req, res) => {
   const s = await db.attributeSize.create({ data: { name } });
   res.json({ size: s });
 });
+// Size types
+adminRest.get('/attributes/size-types', async (_req, res) => {
+  const items = await db.attributeSizeType.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ types: items });
+});
+adminRest.post('/attributes/size-types', async (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name_required' });
+  const t = await db.attributeSizeType.create({ data: { name } });
+  res.json({ type: t });
+});
+adminRest.get('/attributes/size-types/:id/sizes', async (req, res) => {
+  const { id } = req.params;
+  const sizes = await db.attributeSize.findMany({ where: { typeId: id }, orderBy: { createdAt: 'desc' } });
+  res.json({ sizes });
+});
+adminRest.post('/attributes/size-types/:id/sizes', async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name_required' });
+  const s = await db.attributeSize.create({ data: { name, typeId: id } });
+  res.json({ size: s });
+});
 adminRest.patch('/attributes/sizes/:id', async (req, res) => {
   const { id } = req.params;
   const { name } = req.body || {};

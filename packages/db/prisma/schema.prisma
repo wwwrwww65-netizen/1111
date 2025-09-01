@@ -361,6 +361,8 @@ model AttributeColor {
 model AttributeSize {
   id        String   @id @default(cuid())
   name      String   @unique
+  typeId    String?
+  type      AttributeSizeType? @relation(fields: [typeId], references: [id])
   createdAt DateTime @default(now())
 }
 
@@ -368,6 +370,13 @@ model AttributeBrand {
   id        String   @id @default(cuid())
   name      String   @unique
   createdAt DateTime @default(now())
+}
+
+model AttributeSizeType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  sizes     AttributeSize[]
 }
 
 // Media Library
