@@ -429,13 +429,56 @@ adminRest.get('/settings/list', async (_req, res) => {
   const items = await db.setting.findMany({ orderBy: { updatedAt: 'desc' } });
   res.json({ settings: items });
 });
-adminRest.get('/tickets', async (_req, res) => {
-  const tickets = await db.supportTicket.findMany({ orderBy: { createdAt: 'desc' } });
-  res.json({ tickets });
+// Tickets module
+adminRest.get('/tickets', async (req, res) => {
+  const page = Number(req.query.page ?? 1);
+  const limit = Math.min(Number(req.query.limit ?? 20), 100);
+  const status = (req.query.status as string | undefined) ?? undefined;
+  const search = (req.query.search as string | undefined) ?? undefined;
+  const skip = (page - 1) * limit;
+  const where: any = {};
+  if (status) where.status = status;
+  if (search) where.OR = [ { subject: { contains: search, mode: 'insensitive' } } ];
+  const [tickets, total] = await Promise.all([
+    db.supportTicket.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true } }, assignee: { select: { email: true } } } }),
+    db.supportTicket.count({ where }),
+  ]);
+  res.json({ tickets, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+});
+adminRest.get('/tickets/:id', async (req, res) => {
+  const { id } = req.params;
+  const t = await db.supportTicket.findUnique({ where: { id }, include: { user: { select: { email: true } }, assignee: { select: { email: true } } } });
+  if (!t) return res.status(404).json({ error: 'ticket_not_found' });
+  res.json({ ticket: t });
 });
 adminRest.post('/tickets', async (req, res) => {
-  const { subject, userId, priority } = req.body || {};
-  const t = await db.supportTicket.create({ data: { subject, userId, priority } });
+  const { subject, userId, priority, orderId } = req.body || {};
+  const t = await db.supportTicket.create({ data: { subject, userId, priority, orderId, messages: [] } });
+  await audit(req, 'tickets', 'create', { id: t.id });
+  res.json({ ticket: t });
+});
+adminRest.post('/tickets/:id/assign', async (req, res) => {
+  const { id } = req.params;
+  const { userId } = req.body || {};
+  const t = await db.supportTicket.update({ where: { id }, data: { assignedToUserId: userId } });
+  await audit(req, 'tickets', 'assign', { id, userId });
+  res.json({ ticket: t });
+});
+adminRest.post('/tickets/:id/comment', async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body || {};
+  const t0 = await db.supportTicket.findUnique({ where: { id } });
+  if (!t0) return res.status(404).json({ error: 'ticket_not_found' });
+  const msgs = Array.isArray(t0.messages) ? (t0.messages as any[]) : [];
+  msgs.push({ at: new Date().toISOString(), message });
+  const t = await db.supportTicket.update({ where: { id }, data: { messages: msgs } });
+  await audit(req, 'tickets', 'comment', { id });
+  res.json({ ticket: t });
+});
+adminRest.post('/tickets/:id/close', async (req, res) => {
+  const { id } = req.params;
+  const t = await db.supportTicket.update({ where: { id }, data: { status: 'CLOSED' } });
+  await audit(req, 'tickets', 'close', { id });
   res.json({ ticket: t });
 });
 adminRest.post('/returns', async (req, res) => {
