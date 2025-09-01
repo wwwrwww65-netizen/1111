@@ -66,6 +66,7 @@ model User {
   auditLogs         AuditLog[]
   couponUsage       CouponUsage[]
   supportTickets    SupportTicket[]
+  ticketsAssigned   SupportTicket[] @relation("TicketAssignee")
   loyaltyPoints     LoyaltyPoint[]
   events            Event[]
 }
@@ -188,6 +189,7 @@ model Order {
   payment           Payment?
   items             OrderItem[]
   coupon            Coupon?     @relation(fields: [couponId], references: [id])
+  tickets           SupportTicket[]
 }
 
 model OrderItem {
@@ -286,6 +288,8 @@ model WishlistItem {
 model SupportTicket {
   id        String   @id @default(cuid())
   userId    String?
+  assignedToUserId String?
+  orderId   String?
   subject   String
   status    String   @default("OPEN")
   priority  String   @default("NORMAL")
@@ -293,6 +297,8 @@ model SupportTicket {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assignee  User?    @relation("TicketAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
 }
 
 // Returns & Refunds
