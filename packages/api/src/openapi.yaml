@@ -67,6 +67,33 @@ paths:
     post:
       summary: Bulk actions on products
       tags: [Products]
+  /api/admin/products/parse:
+    post:
+      summary: Parse pasted text and images to extract product fields
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string }
+                images: { type: array, items: { type: string } }
+      responses:
+        '200': { description: Parsed result }
+  /api/admin/products/generate:
+    post:
+      summary: Generate product, variants and media from reviewed payload
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200': { description: Product created }
       requestBody:
         required: true
         content:

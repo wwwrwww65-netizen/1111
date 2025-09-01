@@ -385,6 +385,8 @@ model MediaAsset {
   url       String
   type      String
   alt       String?
+  dominantColors String[]
+  meta      Json?
   createdAt DateTime @default(now())
 }
 
