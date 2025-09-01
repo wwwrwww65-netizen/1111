@@ -562,6 +562,28 @@ adminRest.post('/attributes/colors', async (req, res) => {
   const c = await db.attributeColor.create({ data: { name, hex } });
   res.json({ color: c });
 });
+// Attributes: Sizes
+adminRest.get('/attributes/sizes', async (_req, res) => {
+  const items = await db.attributeSize.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ sizes: items });
+});
+adminRest.post('/attributes/sizes', async (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name_required' });
+  const s = await db.attributeSize.create({ data: { name } });
+  res.json({ size: s });
+});
+// Attributes: Brands
+adminRest.get('/attributes/brands', async (_req, res) => {
+  const items = await db.attributeBrand.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ brands: items });
+});
+adminRest.post('/attributes/brands', async (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name_required' });
+  const b = await db.attributeBrand.create({ data: { name } });
+  res.json({ brand: b });
+});
 adminRest.post('/backups/run', async (_req, res) => {
   // Enforce 30-day retention before creating a new backup
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
