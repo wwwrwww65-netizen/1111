@@ -17,7 +17,7 @@ function ColorsTab(): JSX.Element {
   const [search, setSearch] = React.useState("");
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
-  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include' })).json(); setRows(j.colors||[]); }
+  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', cache:'no-store' }); const j = await res.json(); setRows(j.colors||[]); }
   React.useEffect(()=>{ load(); },[]);
   async function add(){ await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, hex }) }); setName(""); await load(); showToast('تمت الإضافة'); }
   async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); showToast('تم الحفظ'); }
@@ -77,7 +77,7 @@ function SizesTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/sizes`, { credentials:'include' })).json(); setRows(j.sizes||[]); }
+  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/sizes`, { credentials:'include', cache:'no-store' }); const j = await res.json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[]);
   async function add(){ await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
   async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
@@ -118,7 +118,7 @@ function BrandsTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include' })).json(); setRows(j.brands||[]); }
+  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', cache:'no-store' }); const j = await res.json(); setRows(j.brands||[]); }
   React.useEffect(()=>{ load(); },[]);
   async function add(){ await fetch(`${apiBase}/api/admin/attributes/brands`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
   async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
