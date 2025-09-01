@@ -379,6 +379,7 @@ model BackupJob {
   id        String   @id @default(cuid())
   status    String   @default("PENDING")
   location  String?
+  sizeBytes Int?
   createdAt DateTime @default(now())
 }
 

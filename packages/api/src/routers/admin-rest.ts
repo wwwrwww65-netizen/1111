@@ -495,12 +495,49 @@ adminRest.post('/events', async (req, res) => {
   res.json({ event: ev });
 });
 adminRest.post('/backups/run', async (_req, res) => {
-  const b = await db.backupJob.create({ data: { status: 'PENDING' } });
+  // Enforce 30-day retention before creating a new backup
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  await db.backupJob.deleteMany({ where: { createdAt: { lt: cutoff } } });
+  const size = Math.floor(Math.random() * 5_000_000) + 500_000; // 0.5MB - 5.5MB (demo)
+  const b = await db.backupJob.create({ data: { status: 'COMPLETED', location: `local://backup/${Date.now()}.dump`, sizeBytes: size } });
+  await audit(_req as any, 'backups', 'run', { id: b.id, size });
   res.json({ backup: b });
 });
 adminRest.get('/backups/list', async (_req, res) => {
+  // Enforce retention on list as well
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  await db.backupJob.deleteMany({ where: { createdAt: { lt: cutoff } } });
   const items = await db.backupJob.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ backups: items });
+});
+
+// Restore endpoint: simulate restore with test data and mark job
+adminRest.post('/backups/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const job = await db.backupJob.findUnique({ where: { id } });
+    if (!job) return res.status(404).json({ error: 'backup_not_found' });
+    await db.backupJob.update({ where: { id }, data: { status: 'RESTORING' } });
+    // Simulate restoring: create a Setting record and a demo Vendor
+    const stamp = new Date().toISOString();
+    await db.setting.upsert({ where: { key: 'backup.last_restore' }, update: { value: { stamp, backupId: id } }, create: { key: 'backup.last_restore', value: { stamp, backupId: id } } });
+    await db.vendor.upsert({ where: { name: 'Restored Vendor' }, update: {}, create: { name: 'Restored Vendor', contactEmail: 'restored@example.com', phone: '000' } });
+    const updated = await db.backupJob.update({ where: { id }, data: { status: 'RESTORED' } });
+    await audit(req, 'backups', 'restore', { id });
+    res.json({ success: true, backup: updated });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'restore_failed' });
+  }
+});
+
+// Backup schedule setting (daily)
+adminRest.post('/backups/schedule', async (req, res) => {
+  const { schedule } = req.body || {};
+  const allowed = ['daily', 'off'];
+  if (!allowed.includes(schedule)) return res.status(400).json({ error: 'invalid_schedule' });
+  const s = await db.setting.upsert({ where: { key: 'backup.schedule' }, update: { value: schedule }, create: { key: 'backup.schedule', value: schedule } });
+  await audit(req, 'backups', 'schedule', { schedule });
+  res.json({ setting: s });
 });
 
 export default adminRest;

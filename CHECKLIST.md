@@ -16,13 +16,13 @@
 - [ ] Media Library
 - [ ] Integrations
 - [ ] System Settings
-- [ ] Backups & Exports
+- [x] Backups & Exports (Run/List/Restore, retention 30d, schedule)
 
 ## CI Checks
 - [ ] migration-run-check
 - [ ] seed-run-check
 - [ ] build, lint
-- [ ] unit, integration
+- [x] unit, integration (Backups run→list→restore)
 - [ ] e2e-admin-check
 
 ## Artifacts

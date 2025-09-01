@@ -273,6 +273,50 @@ paths:
         '200': { description: OK }
   /api/admin/backups/list:
     get:
+      summary: List backups (applies 30-day retention cleanup)
+      tags: [Backups]
+      responses:
+        '200':
+          description: Backups list
+  /api/admin/backups/run:
+    post:
+      summary: Run a new backup (enforces 30-day retention before listing)
+      tags: [Backups]
+      responses:
+        '200':
+          description: Backup created
+  /api/admin/backups/{id}/restore:
+    post:
+      summary: Restore a backup (test restore creates demo data and marks job)
+      tags: [Backups]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restored
+  /api/admin/backups/schedule:
+    post:
+      summary: Set backup schedule (daily/off)
+      tags: [Backups]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                schedule:
+                  type: string
+                  enum: [daily, off]
+      responses:
+        '200':
+          description: Schedule updated
+  /api/admin/backups/list:
+    get:
       summary: List backup jobs
       security:
         - bearerAuth: []
@@ -356,3 +400,21 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    BackupJob:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, RESTORING, RESTORED]
+        location:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
