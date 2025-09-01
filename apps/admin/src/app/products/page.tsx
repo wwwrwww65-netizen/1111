@@ -11,6 +11,7 @@ export default function AdminProducts(): JSX.Element {
   const [categoryId, setCategoryId] = React.useState('');
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [total, setTotal] = React.useState(0);
+  const q = trpc;
   const apiBase = React.useMemo(()=>{
     if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
     return 'http://localhost:4000';
@@ -37,7 +38,7 @@ export default function AdminProducts(): JSX.Element {
   const [sku, setSku] = React.useState('');
   const [supplier, setSupplier] = React.useState('');
   const [brand, setBrand] = React.useState('');
-  const [categoryId, setCategoryId] = React.useState('');
+  const [formCategoryId, setFormCategoryId] = React.useState('');
   const cats = q.admin.getCategories.useQuery();
   const [sizes, setSizes] = React.useState(''); // comma-separated
   const [colors, setColors] = React.useState(''); // comma-separated
@@ -90,11 +91,11 @@ export default function AdminProducts(): JSX.Element {
   React.useEffect(()=>{ setSizes(selectedSizes.join(', ')); }, [selectedSizes]);
 
   React.useEffect(() => {
-    const message = (error as any)?.message || '';
+    const message = (createProduct as any)?.error?.message || '';
     if (message && (/No token provided/i.test(message) || /UNAUTHORIZED/i.test(message) || /Not authenticated/i.test(message))) {
       window.location.href = '/login';
     }
-  }, [error]);
+  }, [createProduct.error]);
 
   const totalPages = Math.max(1, Math.ceil(total/limit));
 
@@ -106,7 +107,7 @@ export default function AdminProducts(): JSX.Element {
       description,
       price: Number(salePrice || 0),
       images: baseImages,
-      categoryId,
+      categoryId: formCategoryId,
       stockQuantity: Number(stockQuantity || 0),
       sku: sku || undefined,
       brand: brand || undefined,
@@ -186,7 +187,7 @@ export default function AdminProducts(): JSX.Element {
               </select>
             </label>
             <label>التصنيف
-              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+              <select value={formCategoryId} onChange={(e) => setFormCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
                 <option value="">اختر تصنيفاً</option>
                 {(cats.data?.categories ?? []).map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
