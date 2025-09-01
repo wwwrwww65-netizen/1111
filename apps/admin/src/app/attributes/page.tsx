@@ -6,15 +6,19 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function ColorsTab(): JSX.Element {
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
+    return 'http://localhost:4000';
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [hex, setHex] = React.useState("#800020");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch('/api/admin/attributes/colors', { credentials:'include' })).json(); setRows(j.colors||[]); }
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include' })).json(); setRows(j.colors||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch('/api/admin/attributes/colors', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, hex }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
+  async function add(){ await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, hex }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
@@ -50,14 +54,18 @@ function ColorsTab(): JSX.Element {
 }
 
 function SizesTab(): JSX.Element {
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
+    return 'http://localhost:4000';
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch('/api/admin/attributes/sizes', { credentials:'include' })).json(); setRows(j.sizes||[]); }
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/sizes`, { credentials:'include' })).json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch('/api/admin/attributes/sizes', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
+  async function add(){ await fetch(`${apiBase}/api/admin/attributes/sizes`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
@@ -85,14 +93,18 @@ function SizesTab(): JSX.Element {
 }
 
 function BrandsTab(): JSX.Element {
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
+    return 'http://localhost:4000';
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch('/api/admin/attributes/brands', { credentials:'include' })).json(); setRows(j.brands||[]); }
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include' })).json(); setRows(j.brands||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch('/api/admin/attributes/brands', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
+  async function add(){ await fetch(`${apiBase}/api/admin/attributes/brands`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
@@ -129,9 +141,9 @@ export default function AttributesPage(): JSX.Element {
         <TabButton active={tab==='sizes'} onClick={()=>setTab('sizes')}>المقاسات</TabButton>
         <TabButton active={tab==='brands'} onClick={()=>setTab('brands')}>العلامات التجارية</TabButton>
       </div>
-      {tab==='colors' && <ColorsTab />}
-      {tab==='sizes' && <SizesTab />}
-      {tab==='brands' && <BrandsTab />}
+      {tab==='colors' && <div style={{ marginTop: 16 }}><ColorsTab /></div>}
+      {tab==='sizes' && <div style={{ marginTop: 16 }}><SizesTab /></div>}
+      {tab==='brands' && <div style={{ marginTop: 16 }}><BrandsTab /></div>}
     </main>
   );
 }

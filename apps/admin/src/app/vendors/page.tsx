@@ -2,6 +2,12 @@
 import React from "react";
 
 export default function VendorsPage(): JSX.Element {
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) {
+      return 'https://jeeeyai.onrender.com';
+    }
+    return 'http://localhost:4000';
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -11,11 +17,11 @@ export default function VendorsPage(): JSX.Element {
   const [storeNumber, setStoreNumber] = React.useState("");
   const [vendorCode, setVendorCode] = React.useState("");
   const [search, setSearch] = React.useState("");
-  React.useEffect(()=>{ fetch('/api/admin/vendors/list', { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.vendors||[])); },[]);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.vendors||[])); },[apiBase]);
   async function save() {
-    await fetch('/api/admin/vendors', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
+    await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
     setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
-    const j = await (await fetch('/api/admin/vendors/list', { credentials:'include' })).json(); setRows(j.vendors||[]);
+    const j = await (await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include' })).json(); setRows(j.vendors||[]);
   }
   return (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
@@ -43,7 +49,7 @@ export default function VendorsPage(): JSX.Element {
           </div>
         </div>
       </section>
-      <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12 }}>
+      <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12, marginTop: 16 }}>
         <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
           <thead>
             <tr>
