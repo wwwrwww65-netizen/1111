@@ -270,6 +270,26 @@ For support and questions:
 - Postman: `docs/Postman_Collection_Admin.json`
  - Swagger UI: `/docs` أثناء التشغيل (API)
 
+### Backups: Retention & Schedule & Restore
+
+- Endpoints:
+  - `POST /api/admin/backups/run` — تشغيل نسخة احتياطية جديدة، يطبق تنظيف النسخ الأقدم من 30 يومًا (retention) قبل الإرجاع/العرض.
+  - `GET /api/admin/backups/list` — عرض النسخ (بعد تطبيق retention تلقائيًا).
+  - `POST /api/admin/backups/{id}/restore` — استعادة عملية (تحدّث `backup.last_restore` وتُنشئ Vendor تجريبي للتأكيد).
+  - `POST /api/admin/backups/schedule` — ضبط الجدولة (daily/off) محفوظة في إعدادات النظام.
+
+- تشغيل محليًا:
+```bash
+pnpm --filter @repo/api dev # API على http://localhost:4000
+# Swagger UI: http://localhost:4000/docs
+
+# تجربة سريعة (Bearer ADMIN مطلوب)
+curl -H "Authorization: Bearer <TOKEN>" -X POST http://localhost:4000/api/admin/backups/run
+curl -H "Authorization: Bearer <TOKEN>" http://localhost:4000/api/admin/backups/list
+curl -H "Authorization: Bearer <TOKEN>" -X POST http://localhost:4000/api/admin/backups/<id>/restore
+curl -H "Authorization: Bearer <TOKEN>" -H 'content-type: application/json' -d '{"schedule":"daily"}' -X POST http://localhost:4000/api/admin/backups/schedule
+```
+
 ## 🧪 Seeds (Admin-only)
 
 - لتشغيل seed بدون منتجات:
