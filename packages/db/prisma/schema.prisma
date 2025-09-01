@@ -350,6 +350,26 @@ model Vendor {
   products     Product[]
 }
 
+// Attributes
+model AttributeColor {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  hex       String
+  createdAt DateTime @default(now())
+}
+
+model AttributeSize {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model AttributeBrand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
 // Media Library
 model MediaAsset {
   id        String   @id @default(cuid())

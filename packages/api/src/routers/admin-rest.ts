@@ -551,6 +551,17 @@ adminRest.post('/events', async (req, res) => {
   const ev = await db.event.create({ data: { name, userId, properties } });
   res.json({ event: ev });
 });
+// Attributes: Colors
+adminRest.get('/attributes/colors', async (_req, res) => {
+  const items = await db.attributeColor.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ colors: items });
+});
+adminRest.post('/attributes/colors', async (req, res) => {
+  const { name, hex } = req.body || {};
+  if (!name || !hex) return res.status(400).json({ error: 'name_and_hex_required' });
+  const c = await db.attributeColor.create({ data: { name, hex } });
+  res.json({ color: c });
+});
 adminRest.post('/backups/run', async (_req, res) => {
   // Enforce 30-day retention before creating a new backup
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
