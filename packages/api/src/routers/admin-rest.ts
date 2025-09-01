@@ -460,6 +460,9 @@ adminRest.post('/tickets', async (req, res) => {
 adminRest.post('/tickets/:id/assign', async (req, res) => {
   const { id } = req.params;
   const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId_required' });
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) return res.status(404).json({ error: 'assignee_not_found' });
   const t = await db.supportTicket.update({ where: { id }, data: { assignedToUserId: userId } });
   await audit(req, 'tickets', 'assign', { id, userId });
   res.json({ ticket: t });
