@@ -562,6 +562,17 @@ adminRest.post('/attributes/colors', async (req, res) => {
   const c = await db.attributeColor.create({ data: { name, hex } });
   res.json({ color: c });
 });
+adminRest.patch('/attributes/colors/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, hex } = req.body || {};
+  const c = await db.attributeColor.update({ where: { id }, data: { ...(name && { name }), ...(hex && { hex }) } });
+  res.json({ color: c });
+});
+adminRest.delete('/attributes/colors/:id', async (req, res) => {
+  const { id } = req.params;
+  await db.attributeColor.delete({ where: { id } });
+  res.json({ success: true });
+});
 // Attributes: Sizes
 adminRest.get('/attributes/sizes', async (_req, res) => {
   const items = await db.attributeSize.findMany({ orderBy: { createdAt: 'desc' } });
@@ -573,6 +584,17 @@ adminRest.post('/attributes/sizes', async (req, res) => {
   const s = await db.attributeSize.create({ data: { name } });
   res.json({ size: s });
 });
+adminRest.patch('/attributes/sizes/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  const s = await db.attributeSize.update({ where: { id }, data: { ...(name && { name }) } });
+  res.json({ size: s });
+});
+adminRest.delete('/attributes/sizes/:id', async (req, res) => {
+  const { id } = req.params;
+  await db.attributeSize.delete({ where: { id } });
+  res.json({ success: true });
+});
 // Attributes: Brands
 adminRest.get('/attributes/brands', async (_req, res) => {
   const items = await db.attributeBrand.findMany({ orderBy: { createdAt: 'desc' } });
@@ -583,6 +605,17 @@ adminRest.post('/attributes/brands', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name_required' });
   const b = await db.attributeBrand.create({ data: { name } });
   res.json({ brand: b });
+});
+adminRest.patch('/attributes/brands/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  const b = await db.attributeBrand.update({ where: { id }, data: { ...(name && { name }) } });
+  res.json({ brand: b });
+});
+adminRest.delete('/attributes/brands/:id', async (req, res) => {
+  const { id } = req.params;
+  await db.attributeBrand.delete({ where: { id } });
+  res.json({ success: true });
 });
 adminRest.post('/backups/run', async (_req, res) => {
   // Enforce 30-day retention before creating a new backup

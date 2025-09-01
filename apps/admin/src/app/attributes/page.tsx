@@ -9,12 +9,18 @@ function ColorsTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [hex, setHex] = React.useState("#800020");
+  const [search, setSearch] = React.useState("");
   async function load(){ const j = await (await fetch('/api/admin/attributes/colors')).json(); setRows(j.colors||[]); }
   React.useEffect(()=>{ load(); },[]);
   async function add(){ await fetch('/api/admin/attributes/colors', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name, hex }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'DELETE' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+      <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
+        <div style={{ display:'flex', gap:8 }}>
+          <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', width:220 }} />
+        </div>
         <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم اللون" style={{ flex:1, padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
         <input type="color" value={hex} onChange={(e)=>setHex(e.target.value)} style={{ width:48, height:40, border:'none', background:'transparent' }} />
         <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
@@ -22,13 +28,17 @@ function ColorsTab(): JSX.Element {
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>الاسم</th><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>اللون</th></tr></thead>
         <tbody>
-          {rows.map((c:any, idx:number)=> (
+          {rows.filter((c:any)=> !search || c.name?.toLowerCase().includes(search.toLowerCase())).map((c:any, idx:number)=> (
             <tr key={c.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{c.name}</td>
+              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
+                <input defaultValue={c.name} onBlur={(e)=>update(c.id, { name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              </td>
               <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                 <span style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
                   <span style={{ width:16, height:16, borderRadius:999, background:c.hex, border:'1px solid #111827' }} />
                   <code style={{ color:'#9ca3af' }}>{c.hex}</code>
+                  <input type="color" defaultValue={c.hex} onChange={(e)=>update(c.id, { hex: (e.target as HTMLInputElement).value })} style={{ width:28, height:24, border:'none', background:'transparent' }} />
+                  <button onClick={()=>remove(c.id)} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
                 </span>
               </td>
             </tr>
@@ -42,21 +52,30 @@ function ColorsTab(): JSX.Element {
 function SizesTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
+  const [search, setSearch] = React.useState("");
   async function load(){ const j = await (await fetch('/api/admin/attributes/sizes')).json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[]);
   async function add(){ await fetch('/api/admin/attributes/sizes', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'DELETE' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+      <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
+        <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', width:220 }} />
         <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم المقاس" style={{ flex:1, padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
         <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
       </div>
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>الاسم</th></tr></thead>
         <tbody>
-          {rows.map((s:any, idx:number)=> (
+          {rows.filter((s:any)=> !search || s.name?.toLowerCase().includes(search.toLowerCase())).map((s:any, idx:number)=> (
             <tr key={s.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{s.name}</td>
+              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <input defaultValue={s.name} onBlur={(e)=>update(s.id, { name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                  <button onClick={()=>remove(s.id)} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -68,21 +87,30 @@ function SizesTab(): JSX.Element {
 function BrandsTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
+  const [search, setSearch] = React.useState("");
   async function load(){ const j = await (await fetch('/api/admin/attributes/brands')).json(); setRows(j.brands||[]); }
   React.useEffect(()=>{ load(); },[]);
   async function add(){ await fetch('/api/admin/attributes/brands', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'DELETE' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+      <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
+        <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', width:220 }} />
         <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم العلامة" style={{ flex:1, padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
         <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
       </div>
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>الاسم</th></tr></thead>
         <tbody>
-          {rows.map((b:any, idx:number)=> (
+          {rows.filter((b:any)=> !search || b.name?.toLowerCase().includes(search.toLowerCase())).map((b:any, idx:number)=> (
             <tr key={b.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{b.name}</td>
+              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <input defaultValue={b.name} onBlur={(e)=>update(b.id, { name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                  <button onClick={()=>remove(b.id)} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
