@@ -11,11 +11,11 @@ export default function VendorsPage(): JSX.Element {
   const [storeNumber, setStoreNumber] = React.useState("");
   const [vendorCode, setVendorCode] = React.useState("");
   const [search, setSearch] = React.useState("");
-  React.useEffect(()=>{ fetch('/api/admin/vendors/list').then(r=>r.json()).then(j=>setRows(j.vendors||[])); },[]);
+  React.useEffect(()=>{ fetch('/api/admin/vendors/list', { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.vendors||[])); },[]);
   async function save() {
-    await fetch('/api/admin/vendors', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
+    await fetch('/api/admin/vendors', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
     setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
-    const j = await (await fetch('/api/admin/vendors/list')).json(); setRows(j.vendors||[]);
+    const j = await (await fetch('/api/admin/vendors/list', { credentials:'include' })).json(); setRows(j.vendors||[]);
   }
   return (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>

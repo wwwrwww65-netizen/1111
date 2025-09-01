@@ -10,11 +10,11 @@ function ColorsTab(): JSX.Element {
   const [name, setName] = React.useState("");
   const [hex, setHex] = React.useState("#800020");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch('/api/admin/attributes/colors')).json(); setRows(j.colors||[]); }
+  async function load(){ const j = await (await fetch('/api/admin/attributes/colors', { credentials:'include' })).json(); setRows(j.colors||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch('/api/admin/attributes/colors', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name, hex }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'DELETE' }); await load(); }
+  async function add(){ await fetch('/api/admin/attributes/colors', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, hex }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
@@ -53,11 +53,11 @@ function SizesTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch('/api/admin/attributes/sizes')).json(); setRows(j.sizes||[]); }
+  async function load(){ const j = await (await fetch('/api/admin/attributes/sizes', { credentials:'include' })).json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch('/api/admin/attributes/sizes', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'DELETE' }); await load(); }
+  async function add(){ await fetch('/api/admin/attributes/sizes', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
@@ -88,11 +88,11 @@ function BrandsTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const j = await (await fetch('/api/admin/attributes/brands')).json(); setRows(j.brands||[]); }
+  async function load(){ const j = await (await fetch('/api/admin/attributes/brands', { credentials:'include' })).json(); setRows(j.brands||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch('/api/admin/attributes/brands', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'DELETE' }); await load(); }
+  async function add(){ await fetch('/api/admin/attributes/brands', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
+  async function update(id: string, partial: any){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
+  async function remove(id: string){ await fetch(`/api/admin/attributes/brands/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
