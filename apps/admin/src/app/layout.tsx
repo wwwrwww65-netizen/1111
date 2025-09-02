@@ -1,11 +1,12 @@
 import { AppProviders } from "./providers";
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
+  // Client-side guard for non-(auth) routes
   if (typeof window !== 'undefined') {
     const path = window.location.pathname;
-    const isLogin = path === '/login';
+    const inAuthGroup = path.startsWith('/login') || path.startsWith('/(auth)');
     const hasToken = document.cookie.split(';').some(c => c.trim().startsWith('auth_token='));
-    if (!isLogin && !hasToken) {
+    if (!inAuthGroup && !hasToken) {
       const next = encodeURIComponent(window.location.pathname + window.location.search);
       window.location.replace(`/login?next=${next}`);
     }
