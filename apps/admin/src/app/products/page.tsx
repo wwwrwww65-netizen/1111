@@ -3,10 +3,30 @@ import { trpc } from "../providers";
 import React from "react";
 
 export default function AdminProducts(): JSX.Element {
-  const q: any = trpc as any;
-  const { data, isLoading, error } = q.admin.getProducts.useQuery({ page: 1, limit: 20 }, {
-    retry: 0,
-  });
+  const [rows, setRows] = React.useState<any[]>([]);
+  const [page, setPage] = React.useState(1);
+  const [limit] = React.useState(20);
+  const [search, setSearch] = React.useState('');
+  const [status, setStatus] = React.useState('');
+  const [categoryId, setCategoryId] = React.useState('');
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [total, setTotal] = React.useState(0);
+  const q = trpc;
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
+    return 'http://localhost:4000';
+  }, []);
+  async function load(){
+    const url = new URL(`${apiBase}/api/admin/products`);
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('limit', String(limit));
+    if (search) url.searchParams.set('search', search);
+    if (status) url.searchParams.set('status', status);
+    if (categoryId) url.searchParams.set('categoryId', categoryId);
+    const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store' })).json();
+    setRows(j.products||[]); setTotal(j.pagination?.total||0);
+  }
+  React.useEffect(()=>{ load(); }, [page, status, categoryId]);
   const createProduct = q.admin.createProduct.useMutation();
   const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
     ? q.admin.createProductVariants.useMutation()
@@ -18,7 +38,7 @@ export default function AdminProducts(): JSX.Element {
   const [sku, setSku] = React.useState('');
   const [supplier, setSupplier] = React.useState('');
   const [brand, setBrand] = React.useState('');
-  const [categoryId, setCategoryId] = React.useState('');
+  const [formCategoryId, setFormCategoryId] = React.useState('');
   const cats = q.admin.getCategories.useQuery();
   const [sizes, setSizes] = React.useState(''); // comma-separated
   const [colors, setColors] = React.useState(''); // comma-separated
@@ -30,10 +50,6 @@ export default function AdminProducts(): JSX.Element {
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
-  const apiBase = React.useMemo(()=>{
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
-    return 'http://localhost:4000';
-  }, []);
   const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
   const [brandOptions, setBrandOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
@@ -75,19 +91,13 @@ export default function AdminProducts(): JSX.Element {
   React.useEffect(()=>{ setSizes(selectedSizes.join(', ')); }, [selectedSizes]);
 
   React.useEffect(() => {
-    const message = (error as any)?.message || '';
+    const message = (createProduct as any)?.error?.message || '';
     if (message && (/No token provided/i.test(message) || /UNAUTHORIZED/i.test(message) || /Not authenticated/i.test(message))) {
       window.location.href = '/login';
     }
-  }, [error]);
+  }, [createProduct.error]);
 
-  if (isLoading) return <main style={{ padding: 24 }}>Loading products...</main>;
-  if (error) return (
-    <main style={{ padding: 24 }}>
-      <div style={{color:'tomato', marginBottom: 12}}>Error: {(error as any).message}</div>
-      <a href="/login" style={{color:'#60a5fa', textDecoration:'underline'}}>تسجيل الدخول للوحة التحكم</a>
-    </main>
-  );
+  const totalPages = Math.max(1, Math.ceil(total/limit));
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +107,7 @@ export default function AdminProducts(): JSX.Element {
       description,
       price: Number(salePrice || 0),
       images: baseImages,
-      categoryId,
+      categoryId: formCategoryId,
       stockQuantity: Number(stockQuantity || 0),
       sku: sku || undefined,
       brand: brand || undefined,
@@ -134,7 +144,19 @@ export default function AdminProducts(): JSX.Element {
 
   return (
     <main style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 16 }}>إدارة المنتجات</h1>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 16 }}>
+        <h1>إدارة المنتجات</h1>
+        <a href="/products/new" style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8, textDecoration:'none' }}>Add Product</a>
+      </div>
+      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+        <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/sku" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+        <button onClick={()=>{ setPage(1); load(); }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>بحث</button>
+        <select value={status} onChange={(e)=>{ setStatus(e.target.value); setPage(1); }} style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+          <option value="">الكل</option>
+          <option value="active">نشط</option>
+          <option value="archived">مؤرشف</option>
+        </select>
+      </div>
 
       <section style={{ marginBottom: 32, border: '1px solid #1c2333', padding: 16, borderRadius: 12, background:'#0f1420' }}>
         <h2 style={{ marginBottom: 16 }}>إنشاء منتج</h2>
@@ -165,7 +187,7 @@ export default function AdminProducts(): JSX.Element {
               </select>
             </label>
             <label>التصنيف
-              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+              <select value={formCategoryId} onChange={(e) => setFormCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
                 <option value="">اختر تصنيفاً</option>
                 {(cats.data?.categories ?? []).map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -353,21 +375,51 @@ export default function AdminProducts(): JSX.Element {
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>الاسم</th>
-            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>السعر</th>
-            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>التصنيف</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}></th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>ID</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>صورة</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>الاسم</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>SKU/التباينات</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>سعر البيع</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>إجمالي المخزون</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>الحالة</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #1c2333", padding:8 }}>إجراءات</th>
           </tr>
         </thead>
         <tbody>
-          {(data?.products ?? []).map((p: any) => (
-            <tr key={p.id}>
-              <td style={{ padding: 8, borderBottom: "1px solid #f0f0f0" }}>{p.name}</td>
-              <td style={{ padding: 8, borderBottom: "1px solid #f0f0f0" }}>${p.price}</td>
-              <td style={{ padding: 8, borderBottom: "1px solid #f0f0f0" }}>{p.category?.name}</td>
-            </tr>
-          ))}
+          {rows.map((p: any) => {
+            const totalStock = (p.variants||[]).reduce((acc:number,v:any)=> acc + (v.stockQuantity||0), 0) + (p.stockQuantity||0);
+            return (
+              <tr key={p.id}>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}><input type="checkbox" checked={!!selected[p.id]} onChange={()=> setSelected(s=> ({...s, [p.id]: !s[p.id]}))} /></td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{p.id.slice(0,6)}</td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{p.images?.[0] ? <img src={p.images[0]} alt={p.name} style={{ width:40, height:40, objectFit:'cover', borderRadius:6 }} /> : '-'}</td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{p.name}</td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{p.price}</td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{totalStock}</td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{p.isActive ? 'active' : 'archived'}</td>
+                <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                  <a href={`/products/${p.id}`} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:6, textDecoration:'none', marginInlineEnd:6 }}>View</a>
+                  <a href={`/products/new?id=${p.id}`} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6, textDecoration:'none', marginInlineEnd:6 }}>Edit</a>
+                  <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); await load(); }} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>Delete</button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
+        <div>
+          <button onClick={async ()=>{ const ids = Object.keys(selected).filter(k=>selected[k]); if (!ids.length) return; await fetch(`${apiBase}/api/admin/products/bulk`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ ids, action: 'archive' }) }); setSelected({}); await load(); }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, marginInlineEnd:6 }}>Archive selected</button>
+          <button onClick={async ()=>{ const ids = Object.keys(selected).filter(k=>selected[k]); if (!ids.length) return; await fetch(`${apiBase}/api/admin/products/bulk`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ ids, action: 'delete' }) }); setSelected({}); await load(); }} style={{ padding:'8px 12px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>Delete selected</button>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1,p-1))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>السابق</button>
+          <span style={{ color:'#9ca3af' }}>{page} / {totalPages}</span>
+          <button disabled={page>=totalPages} onClick={()=> setPage(p=> Math.min(totalPages,p+1))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>التالي</button>
+        </div>
+      </div>
     </main>
   );
 }

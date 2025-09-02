@@ -5,6 +5,79 @@ info:
 servers:
   - url: http://localhost:4000
 paths:
+  /api/admin/products:
+    get:
+      summary: List products with filters
+      tags: [Products]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, archived] }
+      responses:
+        '200': { description: Products list }
+    post:
+      summary: Create product
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200': { description: Created }
+  /api/admin/products/{id}:
+    get:
+      summary: Get product by id
+      tags: [Products]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: OK }
+    patch:
+      summary: Update product
+      tags: [Products]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Delete product
+      tags: [Products]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Deleted }
+  /api/admin/products/bulk:
+    post:
+      summary: Bulk actions on products
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids: { type: array, items: { type: string } }
+                action: { type: string, enum: [archive, delete] }
+      responses:
+        '200': { description: Bulk result }
   /api/admin/health:
     get:
       summary: Health check for admin REST
@@ -401,6 +474,20 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        price: { type: number }
+        images: { type: array, items: { type: string } }
+        categoryId: { type: string }
+        stockQuantity: { type: integer }
+        sku: { type: string }
+        brand: { type: string }
+        tags: { type: array, items: { type: string } }
+        isActive: { type: boolean }
     BackupJob:
       type: object
       properties:
