@@ -40,6 +40,18 @@ async function ensureSchema(): Promise<void> {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeSize" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "typeId" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
     // FK if not exists
     await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AttributeSize_typeId_fkey') THEN ALTER TABLE \"AttributeSize\" ADD CONSTRAINT \"AttributeSize_typeId_fkey\" FOREIGN KEY (\"typeId\") REFERENCES \"AttributeSizeType\"(\"id\") ON DELETE SET NULL; END IF; END $$;");
+
+    // Auth/session/audit tables & columns (idempotent bootstraps)
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "failedLoginAttempts" INTEGER DEFAULT 0');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lockUntil" TIMESTAMP NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorEnabled" BOOLEAN DEFAULT false');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorSecret" TEXT NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isVerified" BOOLEAN DEFAULT false');
+
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Session" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "userAgent" TEXT NULL, "ip" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "expiresAt" TIMESTAMP NOT NULL)');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId")');
+
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AuditLog" ("id" TEXT PRIMARY KEY, "userId" TEXT NULL, "action" TEXT NOT NULL, "module" TEXT NOT NULL, "details" JSONB NULL, "ip" TEXT NULL, "userAgent" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
   } catch (e) {
     console.warn('Schema ensure warning:', (e as Error).message);
   }
