@@ -11,7 +11,7 @@ export default function SizeTypePage({ params }: { params: { typeId: string } })
   const [name, setName] = React.useState("");
   async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', cache:'no-store' })).json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[apiBase, typeId]);
-  async function add(){ await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
+  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok){ alert('فشل الإضافة'); return; } setName(""); await load(); }
   return (
     <main style={{ maxWidth: 900, margin:'0 auto', padding:16 }}>
       <h1 style={{ marginBottom:16, fontSize:22, fontWeight:700 }}>أنواع المقاسات</h1>

@@ -20,11 +20,14 @@ export default function VendorsPage(): JSX.Element {
   const [storeNumber, setStoreNumber] = React.useState("");
   const [vendorCode, setVendorCode] = React.useState("");
   const [search, setSearch] = React.useState("");
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(r=>r.json()).then(j=>setRows(j.vendors||[])); },[apiBase]);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch(()=>setRows([])); },[apiBase]);
   async function save() {
-    await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
+    const res = await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
+    if (!res.ok) { alert('فشل حفظ المورد'); return; }
     setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
-    const j = await (await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } })).json(); setRows(j.vendors||[]);
+    const listRes = await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+    if (!listRes.ok) { alert('فشل تحديث القائمة'); return; }
+    const j = await listRes.json(); setRows(j.vendors||[]);
   }
   return (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>

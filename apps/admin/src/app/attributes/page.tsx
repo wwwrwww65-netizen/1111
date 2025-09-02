@@ -85,8 +85,8 @@ function SizesTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/sizes`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.sizes||[]); }
-  React.useEffect(()=>{ load(); },[]);
+  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.types||[]); }
+  React.useEffect(()=>{ load(); },[apiBase]);
   async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok) return; setName(""); await load(); }
   async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok) return; await load(); }
   async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok) return; await load(); }

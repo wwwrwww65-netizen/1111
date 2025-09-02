@@ -30,7 +30,7 @@ export default function AdminProducts(): JSX.Element {
     const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() } })).json();
     setRows(j.products||[]); setTotal(j.pagination?.total||0);
   }
-  React.useEffect(()=>{ load(); }, [page, status, categoryId]);
+  React.useEffect(()=>{ load(); }, [page, status, categoryId, apiBase]);
   const createProduct = q.admin.createProduct.useMutation();
   const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
     ? q.admin.createProductVariants.useMutation()
