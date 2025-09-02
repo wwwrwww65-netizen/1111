@@ -28,9 +28,9 @@ const audit = async (req: Request, module: string, action: string, details?: any
 };
 
 adminRest.use((req: Request, res: Response, next) => {
-  // Allow unauthenticated access to login/logout and health/docs
+  // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns')) {
     return next();
   }
   try {
@@ -76,6 +76,23 @@ adminRest.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, leg
 
 // Placeholder endpoints for acceptance modules; to be filled progressively
 adminRest.get('/health', (_req, res) => res.json({ ok: true }));
+
+// Maintenance: ensure auth columns/tables exist on live DB (idempotent)
+adminRest.post('/maintenance/fix-auth-columns', async (_req, res) => {
+  try {
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "failedLoginAttempts" INTEGER DEFAULT 0');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lockUntil" TIMESTAMP NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorEnabled" BOOLEAN DEFAULT false');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorSecret" TEXT NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isVerified" BOOLEAN DEFAULT false');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Session" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "userAgent" TEXT NULL, "ip" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "expiresAt" TIMESTAMP NOT NULL)');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId")');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AuditLog" ("id" TEXT PRIMARY KEY, "userId" TEXT NULL, "action" TEXT NOT NULL, "module" TEXT NOT NULL, "details" JSONB NULL, "ip" TEXT NULL, "userAgent" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e?.message || 'failed' });
+  }
+});
 // 2FA endpoints
 adminRest.post('/2fa/enable', async (req, res) => {
   const user = (req as any).user as { userId: string };
