@@ -10,17 +10,22 @@ function ColorsTab(): JSX.Element {
   const apiBase = React.useMemo(()=>{
     return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
   }, []);
+  const authHeaders = React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [hex, setHex] = React.useState("#800020");
   const [search, setSearch] = React.useState("");
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
-  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', cache:'no-store' }); const j = await res.json(); setRows(j.colors||[]); }
+  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.colors||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, hex }) }); setName(""); await load(); showToast('تمت الإضافة'); }
-  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); showToast('تم الحفظ'); }
-  async function remove(id: string){ if (!confirm('تأكيد الحذف؟')) return; await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include' }); await load(); showToast('تم الحذف'); }
+  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, hex }) }); if(!r.ok){ showToast('فشل الإضافة'); return;} setName(""); await load(); showToast('تمت الإضافة'); }
+  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok){ showToast('فشل الحفظ'); return;} await load(); showToast('تم الحفظ'); }
+  async function remove(id: string){ if (!confirm('تأكيد الحذف؟')) return; const r = await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok){ showToast('فشل الحذف'); return;} await load(); showToast('تم الحذف'); }
   async function pickWithEyedropper(){ try { const EyeDropper = (window as any).EyeDropper; if (!EyeDropper) return; const ed = new EyeDropper(); const result = await ed.open(); setHex(result.sRGBHex); } catch {}
   }
   return (
@@ -72,14 +77,19 @@ function SizesTab(): JSX.Element {
   const apiBase = React.useMemo(()=>{
     return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
   }, []);
+  const authHeaders = React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/sizes`, { credentials:'include', cache:'no-store' }); const j = await res.json(); setRows(j.sizes||[]); }
+  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/sizes`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
+  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok) return; setName(""); await load(); }
+  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok) return; await load(); }
+  async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok) return; await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:12, marginBottom:12 }}>
@@ -112,14 +122,19 @@ function BrandsTab(): JSX.Element {
   const apiBase = React.useMemo(()=>{
     return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
   }, []);
+  const authHeaders = React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
-  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', cache:'no-store' }); const j = await res.json(); setRows(j.brands||[]); }
+  async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.brands||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ await fetch(`${apiBase}/api/admin/attributes/brands`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
-  async function update(id: string, partial: any){ await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(partial) }); await load(); }
-  async function remove(id: string){ await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'DELETE', credentials:'include' }); await load(); }
+  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/brands`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok) return; setName(""); await load(); }
+  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok) return; await load(); }
+  async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok) return; await load(); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>

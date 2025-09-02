@@ -6,6 +6,11 @@ export default function VendorsPage(): JSX.Element {
   const apiBase = React.useMemo(()=>{
     return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
   }, []);
+  const authHeaders = React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -15,11 +20,11 @@ export default function VendorsPage(): JSX.Element {
   const [storeNumber, setStoreNumber] = React.useState("");
   const [vendorCode, setVendorCode] = React.useState("");
   const [search, setSearch] = React.useState("");
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store' }).then(r=>r.json()).then(j=>setRows(j.vendors||[])); },[apiBase]);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(r=>r.json()).then(j=>setRows(j.vendors||[])); },[apiBase]);
   async function save() {
-    await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
+    await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
     setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
-    const j = await (await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store' })).json(); setRows(j.vendors||[]);
+    const j = await (await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } })).json(); setRows(j.vendors||[]);
   }
   return (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
