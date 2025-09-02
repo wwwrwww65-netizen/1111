@@ -859,6 +859,49 @@ adminRest.delete('/attributes/brands/:id', async (req, res) => {
   await db.attributeBrand.delete({ where: { id } });
   res.json({ success: true });
 });
+
+// Categories
+adminRest.get('/categories', async (req, res) => {
+  const search = (req.query.search as string | undefined)?.trim();
+  const where: any = search ? { name: { contains: search, mode: 'insensitive' } } : {};
+  const cats = await db.category.findMany({ where, orderBy: { createdAt: 'desc' } });
+  res.json({ categories: cats });
+});
+adminRest.get('/categories/tree', async (_req, res) => {
+  const cats = await db.category.findMany({ orderBy: { createdAt: 'desc' } });
+  const byParent: Record<string, any[]> = {};
+  for (const c of cats) {
+    const key = c.parentId || 'root';
+    byParent[key] = byParent[key] || [];
+    byParent[key].push(c);
+  }
+  const build = (parentId: string | null): any[] => {
+    return (byParent[parentId || 'root'] || []).map(c => ({ ...c, children: build(c.id) }));
+  };
+  res.json({ tree: build(null) });
+});
+adminRest.post('/categories', async (req, res) => {
+  const { name, description, image, parentId } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name_required' });
+  const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null } });
+  await audit(req, 'categories', 'create', { id: c.id });
+  res.json({ category: c });
+});
+adminRest.patch('/categories/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, description, image, parentId } = req.body || {};
+  const c = await db.category.update({ where: { id }, data: { ...(name && { name }), ...(description !== undefined && { description }), ...(image !== undefined && { image }), ...(parentId !== undefined && { parentId }) } });
+  await audit(req, 'categories', 'update', { id });
+  res.json({ category: c });
+});
+adminRest.delete('/categories/:id', async (req, res) => {
+  const { id } = req.params;
+  // Optional: re-parent children to null
+  await db.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
+  await db.category.delete({ where: { id } });
+  await audit(req, 'categories', 'delete', { id });
+  res.json({ success: true });
+});
 adminRest.post('/backups/run', async (_req, res) => {
   // Enforce 30-day retention before creating a new backup
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
