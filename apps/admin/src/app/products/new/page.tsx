@@ -1,8 +1,10 @@
 "use client";
 import { trpc } from "../../providers";
+import { useRouter } from "next/navigation";
 import React from "react";
 
 export default function AdminProductCreate(): JSX.Element {
+  const router = useRouter();
   const apiBase = React.useMemo(()=>{
     if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
     return 'http://localhost:4000';
@@ -85,6 +87,7 @@ export default function AdminProductCreate(): JSX.Element {
       }
     }
     alert('تم إنشاء المنتج بنجاح');
+    router.push('/products');
   }
 
   return (
