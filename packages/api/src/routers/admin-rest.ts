@@ -28,6 +28,11 @@ const audit = async (req: Request, module: string, action: string, details?: any
 };
 
 adminRest.use((req: Request, res: Response, next) => {
+  // Allow unauthenticated access to login/logout and health/docs
+  const p = req.path || '';
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs')) {
+    return next();
+  }
   try {
     const token = readTokenFromRequest(req);
     if (!token) return res.status(401).json({ error: 'No token provided' });
