@@ -596,7 +596,7 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
     if (host.endsWith('onrender.com')) cookieOpts.domain = '.onrender.com';
     res.cookie('auth_token', token, cookieOpts);
-    return res.json({ success: true });
+    return res.json({ success: true, token });
   } catch (e: any) {
     return res.status(500).json({ error: 'login_failed' });
   }

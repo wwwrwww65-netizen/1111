@@ -21,7 +21,8 @@ export default function AdminLogin(): JSX.Element {
         method: 'POST', headers: { 'content-type':'application/json' }, credentials: 'include',
         body: JSON.stringify({ email, password, remember })
       });
-      if (!res.ok) { const j = await res.json().catch(()=>({error:'login_failed'})); setError(j.error||'فشل تسجيل الدخول'); return; }
+      const j = await res.json().catch(()=>({success:false,error:'login_failed'}));
+      if (!res.ok || !j?.success) { setError(j.error||'فشل تسجيل الدخول'); return; }
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
       window.location.href = redirectTo;
