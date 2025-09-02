@@ -29,6 +29,18 @@ export default function AdminLogin(): JSX.Element {
       });
       const j = await res.json().catch(()=>({success:false,error:'login_failed'}));
       if (!res.ok || !j?.success) { setError(j.error||'فشل تسجيل الدخول'); return; }
+      try {
+        // Bridge cookie on admin domain so Next middleware sees it immediately
+        const maxAge = remember ? 30*24*60*60 : undefined;
+        const parts = [
+          `auth_token=${j.token}`,
+          'Path=/',
+          'SameSite=Lax',
+        ];
+        if (maxAge) parts.push(`Max-Age=${maxAge}`);
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
+        document.cookie = parts.join('; ');
+      } catch {}
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
       window.location.href = redirectTo;
