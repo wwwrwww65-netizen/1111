@@ -57,6 +57,10 @@ adminRest.use((req: Request, res: Response, next) => {
 
 // Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
 adminRest.use(async (req: Request, res: Response, next) => {
+  const p = req.path || '';
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs')) {
+    return next();
+  }
   try {
     const user = (req as any).user as { userId: string } | undefined;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -586,7 +590,10 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000) } });
     await db.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockUntil: null } });
     await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId: session.id } } });
-    res.cookie('auth_token', token, { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' });
+    const host = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || '';
+    const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
+    if (host.endsWith('onrender.com')) cookieOpts.domain = '.onrender.com';
+    res.cookie('auth_token', token, cookieOpts);
     return res.json({ success: true });
   } catch (e: any) {
     return res.status(500).json({ error: 'login_failed' });
