@@ -15,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
                   {[
                     {href:'/',label:'لوحة'},
                     {href:'/products',label:'المنتجات'},
+                    {href:'/categories',label:'التصنيفات'},
                     {href:'/orders',label:'الطلبات'},
                     {href:'/users',label:'المستخدمون'},
                     {href:'/coupons',label:'الكوبونات'},
