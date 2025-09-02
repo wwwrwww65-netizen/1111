@@ -49,6 +49,16 @@ async function ensureBootstrap(): Promise<void> {
   try {
     // Seed default color "أحمر" if not exists
     await db.attributeColor.upsert({ where: { name: 'أحمر' }, update: {}, create: { name: 'أحمر', hex: '#ff0000' } });
+    // Ensure default admin user exists
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const bcrypt = require('bcryptjs');
+    const existing = await db.user.findUnique({ where: { email: adminEmail } });
+    if (!existing) {
+      const hash = await bcrypt.hash(adminPassword, 10);
+      await db.user.create({ data: { email: adminEmail, password: hash, name: 'Admin', role: 'ADMIN', isVerified: true } });
+      await db.auditLog.create({ data: { module: 'bootstrap', action: 'create_admin', details: { email: adminEmail } } });
+    }
   } catch (e) {
     console.warn('Bootstrap warning:', (e as Error).message);
   }
