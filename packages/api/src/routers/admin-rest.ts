@@ -569,6 +569,10 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
     if (user.lockUntil && user.lockUntil > new Date()) return res.status(423).json({ error: 'account_locked' });
     const bcrypt = require('bcryptjs');
+    if (!user.password || typeof user.password !== 'string') {
+      await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { reason: 'no_password' } } });
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
     const ok = await bcrypt.compare(password || '', user.password);
     if (!ok) {
       const attempts = (user as any).failedLoginAttempts ?? 0;
@@ -579,11 +583,7 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
       await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { attempts: next } } });
       return res.status(401).json({ error: 'invalid_credentials' });
     }
-    if (user.twoFactorEnabled) {
-      const code = twoFactorCode as string | undefined;
-      const ok2 = code ? authenticator.verify({ token: code, secret: user.twoFactorSecret! }) : false;
-      if (!ok2) return res.status(401).json({ error: 'invalid_2fa' });
-    }
+    // 2FA requirement disabled for login UI (kept endpoints for later enablement)
     const jwt = require('jsonwebtoken');
     const expDays = remember ? 3650 : 1; // remember: keep cookie long-lived; browser session will drop if not remembered
     const role = user.role || 'ADMIN';

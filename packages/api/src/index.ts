@@ -56,7 +56,7 @@ async function ensureBootstrap(): Promise<void> {
     const existing = await db.user.findUnique({ where: { email: adminEmail } });
     if (!existing) {
       const hash = await bcrypt.hash(adminPassword, 10);
-      await db.user.create({ data: { email: adminEmail, password: hash, name: 'Admin', role: 'ADMIN', isVerified: true } });
+      await db.user.create({ data: { email: adminEmail, password: hash, name: 'Admin', role: 'ADMIN', isVerified: true, failedLoginAttempts: 0, lockUntil: null } });
       await db.auditLog.create({ data: { module: 'bootstrap', action: 'create_admin', details: { email: adminEmail } } });
     }
   } catch (e) {
