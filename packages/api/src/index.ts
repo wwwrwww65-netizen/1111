@@ -187,7 +187,10 @@ export const expressApp = app;
 const port = process.env.PORT || 4000;
 (async () => {
   await ensureSchema();
-  await ensureBootstrap();
+  // Skip bootstrap seeding during tests unless explicitly forced
+  if (process.env.NODE_ENV !== 'test' || process.env.API_BOOTSTRAP_IN_TEST === '1') {
+    await ensureBootstrap();
+  }
   const forceListen = process.env.API_FORCE_LISTEN === '1';
   if (process.env.NODE_ENV !== 'test' || forceListen) {
     app.listen(port, () => {
