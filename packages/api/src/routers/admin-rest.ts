@@ -596,14 +596,20 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     const role = user.role || 'ADMIN';
     const secret = process.env.JWT_SECRET || 'secret_for_tests';
     const token = jwt.sign({ userId: user.id, email: user.email, role }, secret, { expiresIn: remember ? '30d' : '1d' });
-    const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000) } });
-    await db.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockUntil: null } });
-    await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId: session.id } } });
+    let sessionId: string | undefined;
+    try {
+      const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000) } });
+      sessionId = session.id;
+    } catch (e) {
+      console.warn('session_create_failed', (e as any)?.message || e);
+    }
+    try { await db.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockUntil: null } }); } catch {}
+    try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
     const host = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || '';
     const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
     if (host.endsWith('onrender.com')) cookieOpts.domain = '.onrender.com';
     res.cookie('auth_token', token, cookieOpts);
-    return res.json({ success: true, token });
+    return res.json({ success: true, token, sessionId });
   } catch (e: any) {
     console.error('auth_login_error', e?.message || e);
     return res.status(500).json({ error: 'login_failed', message: e?.message || 'internal_error' });
