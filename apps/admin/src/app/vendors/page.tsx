@@ -4,10 +4,7 @@ export const dynamic = 'force-dynamic';
 
 export default function VendorsPage(): JSX.Element {
   const apiBase = React.useMemo(()=>{
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) {
-      return 'https://jeeeyai.onrender.com';
-    }
-    return 'http://localhost:4000';
+    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
   }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");

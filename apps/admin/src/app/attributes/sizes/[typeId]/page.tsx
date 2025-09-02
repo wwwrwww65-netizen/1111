@@ -5,12 +5,11 @@ export const dynamic = 'force-dynamic';
 export default function SizeTypePage({ params }: { params: { typeId: string } }): JSX.Element {
   const { typeId } = params;
   const apiBase = React.useMemo(()=>{
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
-    return 'http://localhost:4000';
+    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
   }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
-  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include' })).json(); setRows(j.sizes||[]); }
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', cache:'no-store' })).json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[apiBase, typeId]);
   async function add(){ await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name }) }); setName(""); await load(); }
   return (
