@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
       <body style={{background:'#0b0e14',color:'#e2e8f0',fontFamily:'system-ui,Segoe UI,Roboto,Arial,sans-serif'}}>
         <AppProviders>
           <div style={{display:'grid',gridTemplateColumns:'220px 1fr',minHeight:'100vh'}}>
-            <aside style={{background:'#0f1420',borderInlineEnd:'1px solid #1c2333',padding:'16px',position:'sticky',top:0,height:'100vh'}}>
+            <aside style={{background:'#0f1420',borderInlineEnd:'1px solid #1c2333',padding:'16px',position:'sticky',top:0,height:'100vh', display: typeof document!=='undefined' && !document.cookie.split(';').some(c=>c.trim().startsWith('auth_token=')) ? 'none':'block'}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,fontWeight:800,letterSpacing:1}}>جي jeeey • Admin</div>
               <nav style={{display:'grid',gap:8}}>
                 {[

@@ -576,12 +576,12 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
       if (!ok2) return res.status(401).json({ error: 'invalid_2fa' });
     }
     const jwt = require('jsonwebtoken');
-    const expDays = remember ? 30 : 1;
-    const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET!, { expiresIn: `${expDays}d` });
-    const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + expDays * 24 * 60 * 60 * 1000) } });
+    const expDays = remember ? 3650 : 1; // remember: keep cookie long-lived; browser session will drop if not remembered
+    const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET!, { expiresIn: remember ? '30d' : '1d' });
+    const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000) } });
     await db.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockUntil: null } });
     await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId: session.id } } });
-    res.cookie('auth_token', token, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: expDays * 24 * 60 * 60 * 1000, path: '/' });
+    res.cookie('auth_token', token, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' });
     return res.json({ success: true });
   } catch (e: any) {
     return res.status(500).json({ error: 'login_failed' });
