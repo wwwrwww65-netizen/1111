@@ -13,8 +13,12 @@ export default function AdminProducts(): JSX.Element {
   const [total, setTotal] = React.useState(0);
   const q = trpc;
   const apiBase = React.useMemo(()=>{
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
-    return 'http://localhost:4000';
+    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
+  }, []);
+  const authHeaders = React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
   }, []);
   async function load(){
     const url = new URL(`${apiBase}/api/admin/products`);
@@ -23,7 +27,7 @@ export default function AdminProducts(): JSX.Element {
     if (search) url.searchParams.set('search', search);
     if (status) url.searchParams.set('status', status);
     if (categoryId) url.searchParams.set('categoryId', categoryId);
-    const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store' })).json();
+    const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() } })).json();
     setRows(j.products||[]); setTotal(j.pagination?.total||0);
   }
   React.useEffect(()=>{ load(); }, [page, status, categoryId]);
@@ -63,9 +67,9 @@ export default function AdminProducts(): JSX.Element {
     (async ()=>{
       try {
         const [colorsRes, brandsRes, typesRes] = await Promise.all([
-          fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include' }),
-          fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include' }),
-          fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include' }),
+          fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers: { ...authHeaders() } }),
+          fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', headers: { ...authHeaders() } }),
+          fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers: { ...authHeaders() } }),
         ]);
         const [cj, bj, tj] = await Promise.all([colorsRes.json(), brandsRes.json(), typesRes.json()]);
         setColorOptions(cj.colors || []);
@@ -80,7 +84,7 @@ export default function AdminProducts(): JSX.Element {
     (async ()=>{
       if (!sizeTypeId) { setSizeOptions([]); return; }
       try {
-        const res = await fetch(`${apiBase}/api/admin/attributes/size-types/${sizeTypeId}/sizes`, { credentials:'include' });
+        const res = await fetch(`${apiBase}/api/admin/attributes/size-types/${sizeTypeId}/sizes`, { credentials:'include', headers: { ...authHeaders() } });
         const j = await res.json();
         setSizeOptions(j.sizes || []);
       } catch {}
@@ -411,8 +415,8 @@ export default function AdminProducts(): JSX.Element {
       </table>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
         <div>
-          <button onClick={async ()=>{ const ids = Object.keys(selected).filter(k=>selected[k]); if (!ids.length) return; await fetch(`${apiBase}/api/admin/products/bulk`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ ids, action: 'archive' }) }); setSelected({}); await load(); }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, marginInlineEnd:6 }}>Archive selected</button>
-          <button onClick={async ()=>{ const ids = Object.keys(selected).filter(k=>selected[k]); if (!ids.length) return; await fetch(`${apiBase}/api/admin/products/bulk`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ ids, action: 'delete' }) }); setSelected({}); await load(); }} style={{ padding:'8px 12px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>Delete selected</button>
+          <button onClick={async ()=>{ const ids = Object.keys(selected).filter(k=>selected[k]); if (!ids.length) return; await fetch(`${apiBase}/api/admin/products/bulk`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids, action: 'archive' }) }); setSelected({}); await load(); }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, marginInlineEnd:6 }}>Archive selected</button>
+          <button onClick={async ()=>{ const ids = Object.keys(selected).filter(k=>selected[k]); if (!ids.length) return; await fetch(`${apiBase}/api/admin/products/bulk`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids, action: 'delete' }) }); setSelected({}); await load(); }} style={{ padding:'8px 12px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>Delete selected</button>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1,p-1))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>السابق</button>
