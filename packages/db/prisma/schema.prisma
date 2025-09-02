@@ -53,6 +53,8 @@ model User {
   twoFactorEnabled  Boolean   @default(false)
   twoFactorSecret   String?
   stripeCustomerId  String?   @unique
+  failedLoginAttempts Int     @default(0)
+  lockUntil         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -69,6 +71,7 @@ model User {
   ticketsAssigned   SupportTicket[] @relation("TicketAssignee")
   loyaltyPoints     LoyaltyPoint[]
   events            Event[]
+  sessions          Session[]
 }
 
 model Category {
@@ -142,6 +145,19 @@ model InventoryLevel {
 
   product    Product? @relation("ProductInventoryLevels", fields: [productId], references: [id], onDelete: Cascade)
   variant    ProductVariant? @relation("VariantInventoryLevels", fields: [variantId], references: [id], onDelete: Cascade)
+}
+
+// Sessions for login tracking and revocation
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
 }
 
 model Address {

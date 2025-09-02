@@ -552,6 +552,65 @@ adminRest.post('/events', async (req, res) => {
   res.json({ event: ev });
 });
 
+// Auth: login/logout + sessions
+adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (req, res) => {
+  try {
+    const { email, password, remember, twoFactorCode } = req.body || {};
+    const user = await db.user.findUnique({ where: { email } });
+    if (!user) return res.status(401).json({ error: 'invalid_credentials' });
+    if (user.lockUntil && user.lockUntil > new Date()) return res.status(423).json({ error: 'account_locked' });
+    const bcrypt = require('bcryptjs');
+    const ok = await bcrypt.compare(password || '', user.password);
+    if (!ok) {
+      const attempts = (user as any).failedLoginAttempts ?? 0;
+      const next = attempts + 1;
+      const toUpdate: any = { failedLoginAttempts: next };
+      if (next >= 5) toUpdate.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+      await db.user.update({ where: { id: user.id }, data: toUpdate });
+      await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { attempts: next } } });
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
+    if (user.twoFactorEnabled) {
+      const code = twoFactorCode as string | undefined;
+      const ok2 = code ? authenticator.verify({ token: code, secret: user.twoFactorSecret! }) : false;
+      if (!ok2) return res.status(401).json({ error: 'invalid_2fa' });
+    }
+    const jwt = require('jsonwebtoken');
+    const expDays = remember ? 30 : 1;
+    const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET!, { expiresIn: `${expDays}d` });
+    const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + expDays * 24 * 60 * 60 * 1000) } });
+    await db.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockUntil: null } });
+    await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId: session.id } } });
+    res.cookie('auth_token', token, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: expDays * 24 * 60 * 60 * 1000, path: '/' });
+    return res.json({ success: true });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'login_failed' });
+  }
+});
+
+adminRest.post('/auth/logout', async (req, res) => {
+  try {
+    res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
+    await db.auditLog.create({ data: { module: 'auth', action: 'logout', userId: (req as any).user?.userId } });
+    res.json({ success: true });
+  } catch { res.json({ success: true }); }
+});
+
+adminRest.get('/auth/sessions', async (req, res) => {
+  const user = (req as any).user as { userId: string } | undefined;
+  if (!user) return res.status(401).json({ error: 'unauthenticated' });
+  const sessions = await db.session.findMany({ where: { userId: user.userId }, orderBy: { createdAt: 'desc' } });
+  res.json({ sessions });
+});
+
+adminRest.post('/auth/sessions/revoke', async (req, res) => {
+  const user = (req as any).user as { userId: string } | undefined;
+  if (!user) return res.status(401).json({ error: 'unauthenticated' });
+  const { sessionId } = req.body || {};
+  await db.session.deleteMany({ where: { id: sessionId, userId: user.userId } });
+  res.json({ success: true });
+});
+
 // Product generator endpoints
 adminRest.post('/products/parse', async (req, res) => {
   try {

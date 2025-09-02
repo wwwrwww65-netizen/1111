@@ -1,6 +1,15 @@
 import { AppProviders } from "./providers";
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname;
+    const isLogin = path === '/login';
+    const hasToken = document.cookie.split(';').some(c => c.trim().startsWith('auth_token='));
+    if (!isLogin && !hasToken) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.replace(`/login?next=${next}`);
+    }
+  }
   return (
     <html lang="ar" dir="rtl">
       <body style={{background:'#0b0e14',color:'#e2e8f0',fontFamily:'system-ui,Segoe UI,Roboto,Arial,sans-serif'}}>
