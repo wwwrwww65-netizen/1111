@@ -565,35 +565,28 @@ adminRest.post('/events', async (req, res) => {
 adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (req, res) => {
   try {
     const { email, password, remember, twoFactorCode } = req.body || {};
-    let user = await db.user.findUnique({ where: { email } });
+    let user = await db.user.findUnique({ where: { email }, select: { id: true, email: true, password: true, role: true } });
     if (!user && email === 'admin@example.com') {
-      // Auto-create admin if missing to unblock login
+      // Auto-create admin if missing to unblock login (minimal columns only)
       const bcrypt = require('bcryptjs');
       const hash = await bcrypt.hash('admin123', 10);
-      user = await db.user.create({ data: { email, password: hash, name: 'Admin', role: 'ADMIN', isVerified: true, failedLoginAttempts: 0 } });
-      await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'auto_admin_created' } });
+      user = await db.user.create({ data: { email, password: hash, name: 'Admin', role: 'ADMIN' } });
+      try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'auto_admin_created' } }); } catch {}
     }
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
-    if (user.lockUntil && user.lockUntil > new Date()) return res.status(423).json({ error: 'account_locked' });
     const bcrypt = require('bcryptjs');
     if (!user.password || typeof user.password !== 'string') {
-      await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { reason: 'no_password' } } });
+      try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { reason: 'no_password' } } }); } catch {}
       return res.status(401).json({ error: 'invalid_credentials' });
     }
     const ok = await bcrypt.compare(password || '', user.password);
     if (!ok) {
-      const attempts = (user as any).failedLoginAttempts ?? 0;
-      const next = attempts + 1;
-      const toUpdate: any = { failedLoginAttempts: next };
-      if (next >= 5) toUpdate.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
-      await db.user.update({ where: { id: user.id }, data: toUpdate });
-      await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { attempts: next } } });
+      try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed' } }); } catch {}
       return res.status(401).json({ error: 'invalid_credentials' });
     }
     // 2FA requirement disabled for login UI (kept endpoints for later enablement)
     const jwt = require('jsonwebtoken');
-    const expDays = remember ? 3650 : 1; // remember: keep cookie long-lived; browser session will drop if not remembered
-    const role = user.role || 'ADMIN';
+    const role = (user as any).role || 'ADMIN';
     const secret = process.env.JWT_SECRET || 'secret_for_tests';
     const token = jwt.sign({ userId: user.id, email: user.email, role }, secret, { expiresIn: remember ? '30d' : '1d' });
     let sessionId: string | undefined;
@@ -603,7 +596,6 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     } catch (e) {
       console.warn('session_create_failed', (e as any)?.message || e);
     }
-    try { await db.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockUntil: null } }); } catch {}
     try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
     const host = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || '';
     const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
