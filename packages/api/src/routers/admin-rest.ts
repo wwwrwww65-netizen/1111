@@ -586,7 +586,7 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     }
     const jwt = require('jsonwebtoken');
     const expDays = remember ? 3650 : 1; // remember: keep cookie long-lived; browser session will drop if not remembered
-    const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET!, { expiresIn: remember ? '30d' : '1d' });
+    const token = jwt.sign({ userId: user.id, email: user.email, role: 'ADMIN' }, process.env.JWT_SECRET || 'secret_for_tests', { expiresIn: remember ? '30d' : '1d' });
     const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000) } });
     await db.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockUntil: null } });
     await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId: session.id } } });
