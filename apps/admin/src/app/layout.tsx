@@ -1,22 +1,12 @@
 import { AppProviders } from "./providers";
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
-  // Client-side guard for non-(auth) routes
-  if (typeof window !== 'undefined') {
-    const path = window.location.pathname;
-    const inAuthGroup = path.startsWith('/login') || path.startsWith('/(auth)');
-    const hasToken = document.cookie.split(';').some(c => c.trim().startsWith('auth_token='));
-    if (!inAuthGroup && !hasToken) {
-      const next = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.replace(`/login?next=${next}`);
-    }
-  }
   return (
     <html lang="ar" dir="rtl">
       <body style={{background:'#0b0e14',color:'#e2e8f0',fontFamily:'system-ui,Segoe UI,Roboto,Arial,sans-serif'}}>
         <AppProviders>
           <div style={{display:'grid',gridTemplateColumns:'220px 1fr',minHeight:'100vh'}}>
-            <aside suppressHydrationWarning style={{background:'#0f1420',borderInlineEnd:'1px solid #1c2333',padding:'16px',position:'sticky',top:0,height:'100vh', display: typeof document!=='undefined' && !document.cookie.split(';').some(c=>c.trim().startsWith('auth_token=')) ? 'none':'block'}}>
+            <aside style={{background:'#0f1420',borderInlineEnd:'1px solid #1c2333',padding:'16px',position:'sticky',top:0,height:'100vh'}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,fontWeight:800,letterSpacing:1}}>جي jeeey • Admin</div>
               <nav style={{display:'grid',gap:8}}>
                 {[
