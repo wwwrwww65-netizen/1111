@@ -560,12 +560,24 @@ adminRest.post('/products/parse', async (req, res) => {
     const nameMatch = clean.match(/(?:اسم|name)[:\s]+(.{3,80})/i);
     const priceMatch = clean.match(/(?:سعر|price)[:\s]+(\d+[\.,]?\d*)/i);
     const supplierMatch = clean.match(/(?:مورد|supplier)[:\s]+([\w\s-]{2,})/i);
-    const sizes = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS)\b/gi)||[]))).map(s=>s.toUpperCase());
-    const colorsText = Array.from(new Set((clean.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|Red|Blue|Green|Black|White|Yellow)\b/gi)||[])));
+    const sizesMatch = clean.match(/\b(XXL|XL|L|M|S|XS)\b/gi) as RegExpMatchArray | null;
+    const sizesSource: string[] = sizesMatch ? Array.from(sizesMatch) : [];
+    const sizes: string[] = Array.from(new Set<string>(sizesSource)).map((s: string) => s.toUpperCase());
+    const colorsMatch = clean.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|Red|Blue|Green|Black|White|Yellow)\b/gi) as RegExpMatchArray | null;
+    const colorsSource: string[] = colorsMatch ? Array.from(colorsMatch) : [];
+    const colorsText: string[] = Array.from(new Set<string>(colorsSource));
     // Simulate palette extraction: pick random dominant per image
-    const palette = (images||[]).slice(0,8).map((u:string)=> ({ url:u, dominant: '#'+Math.floor(Math.random()*16777215).toString(16).padStart(6,'0') }));
-    const variants = [] as Array<{ size:string; color:string; sku:string }>;
-    for (const sz of (sizes.length? sizes: ['M'])) for (const c of (colorsText.length? colorsText: ['Black'])) variants.push({ size: sz, color: c, sku: `${(nameMatch?.[1]||'PRD').slice(0,4).toUpperCase()}-${sz}-${c.toString().toUpperCase()}` });
+    const rawImages = Array.isArray(images) ? (images as unknown[]) : [];
+    const imageUrls: string[] = rawImages.filter((u): u is string => typeof u === 'string').slice(0, 8);
+    const palette = imageUrls.map((u: string) => ({ url: u, dominant: '#'+Math.floor(Math.random()*16777215).toString(16).padStart(6,'0') }));
+    const variants: Array<{ size: string; color: string; sku: string }> = [];
+    const baseSizes: string[] = sizes.length ? sizes : ['M'];
+    const baseColors: string[] = colorsText.length ? colorsText : ['Black'];
+    for (const sz of baseSizes) {
+      for (const col of baseColors) {
+        variants.push({ size: sz, color: col, sku: `${(nameMatch?.[1]||'PRD').slice(0,4).toUpperCase()}-${sz}-${col.toUpperCase()}` });
+      }
+    }
     return res.json({
       extracted: {
         name: nameMatch?.[1]?.trim() || '',
