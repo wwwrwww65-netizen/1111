@@ -10,7 +10,7 @@ export function middleware(req: NextRequest) {
   const hasToken = req.cookies.get('auth_token');
   if (!hasToken) {
     const url = req.nextUrl.clone();
-    url.pathname = '/(auth)/login';
+    url.pathname = '/login';
     url.search = `?next=${encodeURIComponent(pathname + search)}`;
     return NextResponse.redirect(url);
   }
