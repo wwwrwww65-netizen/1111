@@ -89,8 +89,8 @@ adminRest.post('/2fa/verify', async (req, res) => {
 });
 adminRest.post('/2fa/disable', async (req, res) => {
   const user = (req as any).user as { userId: string };
-  await db.user.update({ where: { id: user.userId }, data: { twoFactorEnabled: false, twoFactorSecret: null } });
-  res.json({ success: true });
+  // Disabled 2FA feature path in this deployment
+  return res.json({ success: true });
 });
 adminRest.get('/audit-logs', async (req, res) => {
   const page = Number(req.query.page ?? 1);
