@@ -3,6 +3,23 @@ import { trpc } from "../../providers";
 import React from "react";
 
 export default function AdminProductCreate(): JSX.Element {
+  const apiBase = React.useMemo(()=>{
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
+    return 'http://localhost:4000';
+  }, []);
+  const [paste, setPaste] = React.useState('');
+  const [genImages, setGenImages] = React.useState<File[]>([]);
+  const [review, setReview] = React.useState<any|null>(null);
+  const [busy, setBusy] = React.useState(false);
+  async function handleParse(){
+    try {
+      setBusy(true);
+      const body: any = { text: paste, images: [] };
+      const res = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(body) });
+      const j = await res.json();
+      setReview(j.extracted||j);
+    } finally { setBusy(false); }
+  }
   const q: any = trpc as any;
   const createProduct = q.admin.createProduct.useMutation();
   const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
@@ -73,6 +90,27 @@ export default function AdminProductCreate(): JSX.Element {
   return (
     <main style={{ padding: 24 }}>
       <h1 style={{ marginBottom: 16 }}>إنشاء منتج</h1>
+      <section style={{ border:'1px solid #1c2333', borderRadius:12, padding:16, background:'#0f1420', marginBottom:16 }}>
+        <h2 style={{ margin:0, marginBottom:8 }}>Paste & Generate</h2>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
+          <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={6} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <button type="button" onClick={handleParse} disabled={busy} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>{busy? 'جار التحليل...' : 'تحليل معاينة'}</button>
+            <button type="button" onClick={handleParse} disabled={busy} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>توليد</button>
+          </div>
+          {review && (
+            <div style={{ border:'1px solid #1c2333', borderRadius:8, padding:12, background:'#0b0e14' }}>
+              <h3 style={{ marginTop:0 }}>Review</h3>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <label>الاسم<input defaultValue={review.name||''} onChange={(e)=> review.name = e.target.value } style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                <label>سعر البيع<input type="number" defaultValue={review.salePrice||''} onChange={(e)=> review.salePrice = Number(e.target.value)} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                <label style={{ gridColumn:'1 / -1' }}>وصف قصير<textarea defaultValue={review.shortDesc||''} onChange={(e)=> review.shortDesc = e.target.value } rows={3} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                <label style={{ gridColumn:'1 / -1' }}>وصف طويل<textarea defaultValue={review.longDesc||''} onChange={(e)=> review.longDesc = e.target.value } rows={4} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
       <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, alignItems:'start' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <label>نوع المنتج

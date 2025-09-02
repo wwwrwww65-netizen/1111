@@ -552,6 +552,65 @@ adminRest.post('/events', async (req, res) => {
   res.json({ event: ev });
 });
 
+// Product generator endpoints
+adminRest.post('/products/parse', async (req, res) => {
+  try {
+    const { text, images } = req.body || {};
+    const clean = (text||'').replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}]/gu, '');
+    const nameMatch = clean.match(/(?:اسم|name)[:\s]+(.{3,80})/i);
+    const priceMatch = clean.match(/(?:سعر|price)[:\s]+(\d+[\.,]?\d*)/i);
+    const supplierMatch = clean.match(/(?:مورد|supplier)[:\s]+([\w\s-]{2,})/i);
+    const sizes = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS)\b/gi)||[]))).map(s=>s.toUpperCase());
+    const colorsText = Array.from(new Set((clean.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|Red|Blue|Green|Black|White|Yellow)\b/gi)||[])));
+    // Simulate palette extraction: pick random dominant per image
+    const palette = (images||[]).slice(0,8).map((u:string)=> ({ url:u, dominant: '#'+Math.floor(Math.random()*16777215).toString(16).padStart(6,'0') }));
+    const variants = [] as Array<{ size:string; color:string; sku:string }>;
+    for (const sz of (sizes.length? sizes: ['M'])) for (const c of (colorsText.length? colorsText: ['Black'])) variants.push({ size: sz, color: c, sku: `${(nameMatch?.[1]||'PRD').slice(0,4).toUpperCase()}-${sz}-${c.toString().toUpperCase()}` });
+    return res.json({
+      extracted: {
+        name: nameMatch?.[1]?.trim() || '',
+        shortDesc: clean.slice(0,120),
+        longDesc: clean,
+        supplier: supplierMatch?.[1]?.trim() || '',
+        purchasePrice: priceMatch ? Number(priceMatch[1]) * 0.6 : undefined,
+        salePrice: priceMatch ? Number(priceMatch[1]) : undefined,
+        sizes,
+        colors: colorsText,
+        palette,
+        confidence: {
+          name: nameMatch? 0.9 : 0.4,
+          prices: priceMatch? 0.8 : 0.3,
+          sizes: sizes.length? 0.7 : 0.2,
+          colors: colorsText.length? 0.7 : 0.2,
+        },
+        warnings: [],
+        variants
+      }
+    });
+  } catch (e:any) {
+    return res.status(500).json({ error: 'parse_failed', message: e.message });
+  }
+});
+adminRest.post('/products/generate', async (req, res) => {
+  try {
+    const { product, variants, media } = req.body || {};
+    const p = await db.product.create({ data: { name: product.name, description: product.longDesc||product.shortDesc||'', price: product.salePrice||0, images: (media||[]).map((m:any)=>m.url), categoryId: product.categoryId||'cat', stockQuantity: product.stock||0, sku: product.sku||null, brand: product.brand||null, tags: product.tags||[], isActive: true } });
+    if (Array.isArray(variants) && variants.length) {
+      for (const v of variants) {
+        await db.productVariant.create({ data: { productId: p.id, name: v.size||'Size', value: v.color||'Color', price: v.salePrice||null, purchasePrice: v.purchasePrice||null, sku: v.sku||null, stockQuantity: v.stock||0 } });
+      }
+    }
+    if (Array.isArray(media) && media.length) {
+      for (const m of media) {
+        await db.mediaAsset.create({ data: { url: m.url, type: 'image', alt: m.alt||null, dominantColors: m.dominantColors||[], meta: m.meta||null } });
+      }
+    }
+    return res.json({ productId: p.id });
+  } catch (e:any) {
+    return res.status(500).json({ error: 'generate_failed', message: e.message });
+  }
+});
+
 // Products CRUD + bulk
 adminRest.get('/products', async (req, res) => {
   const page = Number(req.query.page ?? 1);
