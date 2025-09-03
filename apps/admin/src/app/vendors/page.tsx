@@ -39,8 +39,12 @@ export default function VendorsPage(): JSX.Element {
       };
       if (!normalized.name) { showToast('الاسم مطلوب'); return; }
       const res = await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(normalized) });
-      let errText = '';
-      if (!res.ok) { try { const j = await res.json(); errText = j?.error || ''; } catch {} showToast(errText || 'فشل حفظ المورد'); return; }
+      if (!res.ok) {
+        let err = 'فشل حفظ المورد';
+        try { const j = await res.json(); if (j?.error === 'vendor_code_or_name_exists') err = 'الاسم أو رمز المورد موجود مسبقاً'; else if (j?.message) err = j.message; } catch {}
+        showToast(err);
+        return;
+      }
       setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
       const listRes = await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
       if (!listRes.ok) { showToast('فشل تحديث القائمة'); return; }

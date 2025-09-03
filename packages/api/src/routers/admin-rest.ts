@@ -566,20 +566,28 @@ adminRest.get('/cms/pages', async (_req, res) => {
   res.json({ pages });
 });
 adminRest.post('/vendors', async (req, res) => {
-  const { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'name_required' });
-  const payload: any = {
-    name: String(name).trim(),
-    contactEmail: contactEmail || null,
-    phone: phone || null,
-    address: address || null,
-    storeName: storeName || null,
-    storeNumber: storeNumber || null,
-    vendorCode: vendorCode ? String(vendorCode).trim().toUpperCase() : null,
-  };
-  const vendor = await db.vendor.upsert({ where: { name: payload.name }, update: payload, create: payload });
-  await audit(req, 'vendors', 'upsert', { id: vendor.id });
-  res.json({ vendor });
+  try {
+    const { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'name_required' });
+    const payload: any = {
+      name: String(name).trim(),
+      contactEmail: contactEmail || null,
+      phone: phone || null,
+      address: address || null,
+      storeName: storeName || null,
+      storeNumber: storeNumber || null,
+      vendorCode: vendorCode ? String(vendorCode).trim().toUpperCase() : null,
+    };
+    const vendor = await db.vendor.upsert({ where: { name: payload.name }, update: payload, create: payload });
+    await audit(req, 'vendors', 'upsert', { id: vendor.id });
+    return res.json({ vendor });
+  } catch (e: any) {
+    const msg = String(e?.message || 'vendor_upsert_failed');
+    if (msg.includes('Unique constraint failed') || msg.includes('P2002')) {
+      return res.status(409).json({ error: 'vendor_code_or_name_exists' });
+    }
+    return res.status(500).json({ error: 'vendor_save_failed', message: msg });
+  }
 });
 adminRest.get('/vendors/:id/next-sku', async (req, res) => {
   const { id } = req.params;
