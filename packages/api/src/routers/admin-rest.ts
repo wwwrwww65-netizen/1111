@@ -560,7 +560,18 @@ adminRest.get('/cms/pages', async (_req, res) => {
 });
 adminRest.post('/vendors', async (req, res) => {
   const { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } = req.body || {};
-  const vendor = await db.vendor.upsert({ where: { name }, update: { contactEmail, phone, address, storeName, storeNumber, vendorCode }, create: { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } });
+  if (!name) return res.status(400).json({ error: 'name_required' });
+  const payload: any = {
+    name: String(name).trim(),
+    contactEmail: contactEmail || null,
+    phone: phone || null,
+    address: address || null,
+    storeName: storeName || null,
+    storeNumber: storeNumber || null,
+    vendorCode: vendorCode ? String(vendorCode).trim().toUpperCase() : null,
+  };
+  const vendor = await db.vendor.upsert({ where: { name: payload.name }, update: payload, create: payload });
+  await audit(req, 'vendors', 'upsert', { id: vendor.id });
   res.json({ vendor });
 });
 adminRest.get('/vendors/:id/next-sku', async (req, res) => {
