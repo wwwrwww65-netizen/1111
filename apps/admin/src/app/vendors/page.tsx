@@ -22,9 +22,13 @@ export default function VendorsPage(): JSX.Element {
   const [search, setSearch] = React.useState("");
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch(()=>setRows([])); },[apiBase]);
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch((e)=>{ console.error('vendors_list_failed', e); setRows([]); }); },[apiBase]);
   async function save() {
-    const normalized = {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const normalized = {
       name: name?.trim(),
       contactEmail: email?.trim() || null,
       phone: phone?.trim() || null,
@@ -32,15 +36,20 @@ export default function VendorsPage(): JSX.Element {
       storeName: storeName?.trim() || null,
       storeNumber: storeNumber?.trim() || null,
       vendorCode: vendorCode?.trim() ? vendorCode.trim().toUpperCase() : null,
-    };
-    if (!normalized.name) { showToast('الاسم مطلوب'); return; }
-    const res = await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(normalized) });
-    if (!res.ok) { showToast('فشل حفظ المورد'); return; }
-    setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
-    const listRes = await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
-    if (!listRes.ok) { showToast('فشل تحديث القائمة'); return; }
-    const j = await listRes.json(); setRows(j.vendors||[]);
-    showToast('تمت الإضافة');
+      };
+      if (!normalized.name) { showToast('الاسم مطلوب'); return; }
+      const res = await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(normalized) });
+      let errText = '';
+      if (!res.ok) { try { const j = await res.json(); errText = j?.error || ''; } catch {} showToast(errText || 'فشل حفظ المورد'); return; }
+      setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
+      const listRes = await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      if (!listRes.ok) { showToast('فشل تحديث القائمة'); return; }
+      const j = await listRes.json(); setRows(j.vendors||[]);
+      showToast('تمت الإضافة');
+    } catch (e:any) {
+      console.error('vendor_save_error', e);
+      showToast('خطأ غير متوقع');
+    } finally { setBusy(false); }
   }
   return (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
@@ -65,7 +74,7 @@ export default function VendorsPage(): JSX.Element {
             <input value={storeName} onChange={(e)=>setStoreName(e.target.value)} placeholder="اسم المتجر" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
             <input value={storeNumber} onChange={(e)=>setStoreNumber(e.target.value)} placeholder="رقم المتجر" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
             <input value={vendorCode} onChange={(e)=>setVendorCode(e.target.value)} placeholder="رمز المورد (SKU prefix)" style={{ padding:10, borderRadius:10, background:'#0f1320', border:"1px solid #1c2333", color:'#e2e8f0' }} />
-            <button onClick={save} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
+            <button onClick={save} disabled={busy} style={{ padding:'10px 14px', background: busy? '#4b5563':'#800020', color:'#fff', borderRadius:10 }}>{busy? 'جارٍ الحفظ...' : 'إضافة'}</button>
           </div>
         </div>
       </section>
