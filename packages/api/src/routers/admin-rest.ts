@@ -537,6 +537,20 @@ adminRest.post('/vendors', async (req, res) => {
   const vendor = await db.vendor.upsert({ where: { name }, update: { contactEmail, phone, address, storeName, storeNumber, vendorCode }, create: { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } });
   res.json({ vendor });
 });
+adminRest.get('/vendors/:id/next-sku', async (req, res) => {
+  const { id } = req.params;
+  const v = await db.vendor.findUnique({ where: { id } });
+  if (!v) return res.status(404).json({ error: 'vendor_not_found' });
+  const prefix = (v.vendorCode || 'SKU').toUpperCase();
+  const last = await db.product.findFirst({ where: { vendorId: id, sku: { startsWith: prefix+'-' } }, orderBy: { createdAt: 'desc' } });
+  let nextNum = 1;
+  if (last?.sku) {
+    const m = last.sku.match(/-(\d+)$/);
+    if (m) nextNum = Number(m[1] || '0') + 1;
+  }
+  const sku = `${prefix}-${nextNum}`;
+  res.json({ sku });
+});
 adminRest.get('/vendors/list', async (_req, res) => {
   const vendors = await db.vendor.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ vendors });
@@ -737,8 +751,8 @@ adminRest.get('/products/:id', async (req, res) => {
   res.json({ product: p });
 });
 adminRest.post('/products', async (req, res) => {
-  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive } = req.body || {};
-  const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
+  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId } = req.body || {};
+  const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });

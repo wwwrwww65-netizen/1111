@@ -51,7 +51,7 @@ export default function VendorsPage(): JSX.Element {
             <input value={storeName} onChange={(e)=>setStoreName(e.target.value)} placeholder="اسم المتجر" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
             <input value={storeNumber} onChange={(e)=>setStoreNumber(e.target.value)} placeholder="رقم المتجر" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
             <input value={vendorCode} onChange={(e)=>setVendorCode(e.target.value)} placeholder="رمز المورد (SKU prefix)" style={{ padding:10, borderRadius:10, background:'#0f1320', border:"1px solid #1c2333", color:'#e2e8f0' }} />
-            <button onClick={save} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>حفظ</button>
+            <button onClick={save} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
           </div>
         </div>
       </section>
