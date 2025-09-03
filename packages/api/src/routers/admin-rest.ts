@@ -339,15 +339,41 @@ adminRest.get('/users/list', async (req, res) => {
     const search = (req.query.search as string | undefined) ?? undefined;
     const skip = (page - 1) * limit;
     const where: any = {};
-    if (search) where.OR = [{ email: { contains: search, mode: 'insensitive' } }, { name: { contains: search, mode: 'insensitive' } }];
+    if (search) where.OR = [
+      { email: { contains: search, mode: 'insensitive' } },
+      { name: { contains: search, mode: 'insensitive' } },
+      { phone: { contains: search, mode: 'insensitive' } },
+    ];
     const [users, total] = await Promise.all([
-      db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, createdAt: true } }),
+      db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true } }),
       db.user.count({ where }),
     ]);
     await audit(req, 'users', 'list', { page, limit });
     res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'users_list_failed' });
+  }
+});
+// Create user (generic and vendor admin)
+adminRest.post('/users', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const { name, phone, role, email, username, address, password, vendorId } = req.body || {};
+    if (!password || !(email || username || phone)) return res.status(400).json({ error: 'required_fields' });
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(password, 10);
+    const data: any = { name: name||'', password: hash, role: role||'USER', isVerified: true };
+    if (email) data.email = email;
+    if (username && !email) data.email = username;
+    if (phone) data.phone = phone;
+    if (address) data.address = address;
+    if (vendorId) data.vendorId = vendorId;
+    const created = await db.user.create({ data });
+    await audit(req, 'users', 'create', { id: created.id, role: data.role, vendorId: data.vendorId });
+    res.json({ user: created });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'user_create_failed' });
   }
 });
 adminRest.post('/users/assign-role', async (req, res) => {
