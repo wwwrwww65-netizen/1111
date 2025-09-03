@@ -121,6 +121,8 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
   const [username, setUsername] = React.useState('');
   const [address, setAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [roleSearch, setRoleSearch] = React.useState('');
+  const roleOptions = React.useMemo(()=> [{value:'USER',label:'USER'}, {value:'ADMIN',label:'ADMIN'}].filter(r=> !roleSearch || r.label.toLowerCase().includes(roleSearch.toLowerCase())), [roleSearch]);
   async function submit(e:React.FormEvent){
     e.preventDefault();
     const res = await fetch(`${apiBase}/api/admin/users`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, phone, role, email, username, address, password }) });
@@ -134,6 +136,15 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
       <label>البريد أو اسم المستخدم<input value={email||username} onChange={(e)=>{ setEmail(e.target.value); setUsername(e.target.value); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>العنوان<input value={address} onChange={(e)=>setAddress(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>كلمة السر<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      <div>
+        <div style={{ marginBottom:6, color:'#9ca3af' }}>نوع الحساب</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 200px', gap:8 }}>
+          <select value={role} onChange={(e)=>{/* role controlled by parent via prop */}} disabled style={{ padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+            {roleOptions.map(r=> (<option key={r.value} value={r.value}>{r.label}</option>))}
+          </select>
+          <input placeholder="بحث نوع الحساب" value={roleSearch} onChange={(e)=>setRoleSearch(e.target.value)} style={{ padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+        </div>
+      </div>
       <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
         <button type="submit" style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>إضافة</button>
       </div>
