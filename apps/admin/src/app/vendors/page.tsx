@@ -20,17 +20,31 @@ export default function VendorsPage(): JSX.Element {
   const [storeNumber, setStoreNumber] = React.useState("");
   const [vendorCode, setVendorCode] = React.useState("");
   const [search, setSearch] = React.useState("");
+  const [toast, setToast] = React.useState<string>("");
+  const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
   React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch(()=>setRows([])); },[apiBase]);
   async function save() {
-    const res = await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, contactEmail: email, phone, address, storeName, storeNumber, vendorCode }) });
-    if (!res.ok) { alert('فشل حفظ المورد'); return; }
+    const normalized = {
+      name: name?.trim(),
+      contactEmail: email?.trim() || null,
+      phone: phone?.trim() || null,
+      address: address?.trim() || null,
+      storeName: storeName?.trim() || null,
+      storeNumber: storeNumber?.trim() || null,
+      vendorCode: vendorCode?.trim() ? vendorCode.trim().toUpperCase() : null,
+    };
+    if (!normalized.name) { showToast('الاسم مطلوب'); return; }
+    const res = await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(normalized) });
+    if (!res.ok) { showToast('فشل حفظ المورد'); return; }
     setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
     const listRes = await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
-    if (!listRes.ok) { alert('فشل تحديث القائمة'); return; }
+    if (!listRes.ok) { showToast('فشل تحديث القائمة'); return; }
     const j = await listRes.json(); setRows(j.vendors||[]);
+    showToast('تمت الإضافة');
   }
   return (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
+      {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
       <h1 style={{ marginBottom: 16, fontSize: 22, fontWeight: 700 }}>المورّدون</h1>
       <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
