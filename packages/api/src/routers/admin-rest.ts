@@ -542,13 +542,17 @@ adminRest.get('/vendors/:id/next-sku', async (req, res) => {
   const v = await db.vendor.findUnique({ where: { id } });
   if (!v) return res.status(404).json({ error: 'vendor_not_found' });
   const prefix = (v.vendorCode || 'SKU').toUpperCase();
-  const last = await db.product.findFirst({ where: { vendorId: id, sku: { startsWith: prefix+'-' } }, orderBy: { createdAt: 'desc' } });
-  let nextNum = 1;
-  if (last?.sku) {
-    const m = last.sku.match(/-(\d+)$/);
-    if (m) nextNum = Number(m[1] || '0') + 1;
+  const existing = await db.product.findMany({ where: { vendorId: id, sku: { startsWith: prefix + '-' } }, select: { sku: true }, take: 1000 });
+  let maxNum = 0;
+  for (const p of existing) {
+    if (!p.sku) continue;
+    const m = p.sku.match(/-(\d+)$/);
+    if (m) {
+      const n = Number(m[1] || '0');
+      if (!Number.isNaN(n) && n > maxNum) maxNum = n;
+    }
   }
-  const sku = `${prefix}-${nextNum}`;
+  const sku = `${prefix}-${maxNum + 1}`;
   res.json({ sku });
 });
 adminRest.get('/vendors/list', async (_req, res) => {

@@ -166,7 +166,13 @@ export default function AdminProductCreate(): JSX.Element {
             </select>
           </label>
           <label>SKU
-            <input value={sku} onChange={(e) => setSku(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="سيتم توليده حسب المورّد" style={{ flex:1, padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              <button type="button" onClick={async ()=>{
+                if (!vendorId) return;
+                try { const r = await fetch(`${apiBase}/api/admin/vendors/${vendorId}/next-sku`, { credentials:'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch {}
+              }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>توليد تلقائي</button>
+            </div>
           </label>
           <label style={{ gridColumn:'1 / -1' }}>اسم المنتج
             <input value={name} onChange={(e) => setName(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
