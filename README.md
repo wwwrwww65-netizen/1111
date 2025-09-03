@@ -4,7 +4,7 @@ Monorepo for a full‑stack e‑commerce platform (Web, Admin, API, Mobile) usin
 
 ## 🏗️ Architecture
 
-This monorepo contains a complete e‑commerce solution with:
+This monorepo contains a complete e‑commerce solution with: 
 
 - **🌐 Web App** (`apps/web`): Next.js 14 (App Router) with Tailwind, tRPC client
 - **🛠️ Admin App** (`apps/admin`): Next.js 14 (App Router) with tRPC client
