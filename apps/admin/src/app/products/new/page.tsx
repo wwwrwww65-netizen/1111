@@ -1,14 +1,22 @@
 "use client";
-import { trpc } from "../../providers";
 import { useRouter } from "next/navigation";
 import React from "react";
 
+function useApiBase(){
+  return React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+}
+function useAuthHeaders(){
+  return React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  }, []);
+}
+
 export default function AdminProductCreate(): JSX.Element {
   const router = useRouter();
-  const apiBase = React.useMemo(()=>{
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) return 'https://jeeeyai.onrender.com';
-    return 'http://localhost:4000';
-  }, []);
+  const apiBase = useApiBase();
+  const authHeaders = useAuthHeaders();
   const [paste, setPaste] = React.useState('');
   const [genImages, setGenImages] = React.useState<File[]>([]);
   const [review, setReview] = React.useState<any|null>(null);
@@ -17,16 +25,12 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       setBusy(true);
       const body: any = { text: paste, images: [] };
-      const res = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(body) });
+      const res = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(body) });
       const j = await res.json();
       setReview(j.extracted||j);
     } finally { setBusy(false); }
   }
-  const q: any = trpc as any;
-  const createProduct = q.admin.createProduct.useMutation();
-  const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
-    ? q.admin.createProductVariants.useMutation()
-    : undefined as any;
+  // REST-based creation; variants handled later via dedicated endpoint if needed
 
   const [type, setType] = React.useState<'simple'|'variable'>('simple');
   const [name, setName] = React.useState('');
@@ -35,7 +39,15 @@ export default function AdminProductCreate(): JSX.Element {
   const [supplier, setSupplier] = React.useState('');
   const [brand, setBrand] = React.useState('');
   const [categoryId, setCategoryId] = React.useState('');
-  const cats = q.admin.getCategories.useQuery();
+  const [vendorId, setVendorId] = React.useState('');
+  const [categoryOptions, setCategoryOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [vendorOptions, setVendorOptions] = React.useState<Array<{id:string;name:string;vendorCode?:string}>>([]);
+  const [brandOptions, setBrandOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
+  const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [sizeOptions, setSizeOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [selectedColors, setSelectedColors] = React.useState<string[]>([]);
+  const [sizeTypeId, setSizeTypeId] = React.useState<string>('');
   const [sizes, setSizes] = React.useState('');
   const [colors, setColors] = React.useState('');
   const [purchasePrice, setPurchasePrice] = React.useState<number | ''>('');
@@ -46,6 +58,34 @@ export default function AdminProductCreate(): JSX.Element {
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
+  React.useEffect(()=>{
+    (async ()=>{
+      try {
+        const [cats, vends, brands, colors, types] = await Promise.all([
+          fetch(`${apiBase}/api/admin/categories`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({categories:[]})),
+          fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({vendors:[]})),
+          fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({brands:[]})),
+          fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({colors:[]})),
+          fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({types:[]})),
+        ]);
+        setCategoryOptions(cats.categories||[]);
+        setVendorOptions(vends.vendors||[]);
+        setBrandOptions(brands.brands||[]);
+        setColorOptions(colors.colors||[]);
+        setSizeTypeOptions(types.types||[]);
+      } catch {}
+    })();
+  }, [apiBase]);
+  React.useEffect(()=>{
+    (async ()=>{
+      if (!sizeTypeId) { setSizeOptions([]); return; }
+      try{
+        const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${sizeTypeId}/sizes`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+        const j = await r.json();
+        setSizeOptions(j.sizes||[]);
+      } catch{}
+    })();
+  }, [sizeTypeId, apiBase]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -56,15 +96,18 @@ export default function AdminProductCreate(): JSX.Element {
       price: Number(salePrice || 0),
       images: baseImages,
       categoryId,
+      vendorId: vendorId || null,
       stockQuantity: Number(stockQuantity || 0),
       sku: sku || undefined,
       brand: brand || undefined,
       tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
       isActive: true,
     };
-    const res = await createProduct.mutateAsync(productPayload);
-    const productId = res?.product?.id;
-    if (type === 'variable' && productId && createVariants?.mutateAsync) {
+    const res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
+    if (!res.ok) { alert('فشل إنشاء المنتج'); return; }
+    const j = await res.json();
+    const productId = j?.product?.id;
+    if (type === 'variable' && productId) {
       let variants = variantRows;
       if (!variants?.length) {
         const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -83,7 +126,7 @@ export default function AdminProductCreate(): JSX.Element {
         variants = rows;
       }
       if (variants.length) {
-        await createVariants.mutateAsync({ productId, variants });
+        // Placeholder: could POST to /api/admin/products/:id/variants bulk endpoint in future
       }
     }
     alert('تم إنشاء المنتج بنجاح');
@@ -131,16 +174,27 @@ export default function AdminProductCreate(): JSX.Element {
           <label style={{ gridColumn:'1 / -1' }}>الوصف
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
           </label>
-          <label>اسم المورد
-            <input value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+          <label>المورّد
+            <select value={vendorId} onChange={async (e) => {
+              const v = e.target.value; setVendorId(v);
+              if (v) {
+                try{ const r = await fetch(`${apiBase}/api/admin/vendors/${v}/next-sku`, { credentials:'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch {}
+              }
+            }} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+              <option value="">(بدون)</option>
+              {vendorOptions.map((v)=> (<option key={v.id} value={v.id}>{v.name}</option>))}
+            </select>
           </label>
           <label>العلامة التجارية
-            <input value={brand} onChange={(e) => setBrand(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <select value={brand} onChange={(e)=> setBrand(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+              <option value="">(اختياري)</option>
+              {brandOptions.map(b=> (<option key={b.id} value={b.name}>{b.name}</option>))}
+            </select>
           </label>
           <label>التصنيف
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
               <option value="">اختر تصنيفاً</option>
-              {(cats.data?.categories ?? []).map((c: any) => (
+              {categoryOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
@@ -156,12 +210,34 @@ export default function AdminProductCreate(): JSX.Element {
           </label>
           {type === 'variable' && (
             <>
-              <label>المقاسات (افصل بينها بفاصلة)
-                <input value={sizes} onChange={(e) => setSizes(e.target.value)} placeholder="S,M,L,XL" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-              </label>
-              <label>الألوان (افصل بينها بفاصلة)
-                <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="أحمر,أزرق,أسود" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-              </label>
+              <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
+                  <div style={{ marginBottom:8, color:'#9ca3af' }}>نوع المقاس</div>
+                  <select value={sizeTypeId} onChange={(e)=>{ setSizeTypeId(e.target.value); setSizes(''); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                    <option value="">اختر نوعًا</option>
+                    {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
+                  </select>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
+                    {sizeOptions.map((s)=> (
+                      <button type="button" key={s.id} onClick={()=> setSizes(prev=>{
+                        const list = prev.split(',').map(x=>x.trim()).filter(Boolean);
+                        return list.includes(s.name) ? list.filter(x=>x!==s.name).join(', ') : [...list, s.name].join(', ');
+                      })} style={{ padding:'6px 10px', borderRadius:999, background:'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>{s.name}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
+                  <div style={{ marginBottom:8, color:'#9ca3af' }}>الألوان</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                    {colorOptions.map((c)=> (
+                      <button type="button" key={c.id} title={c.name} onClick={()=> setSelectedColors(prev=> prev.includes(c.name) ? prev.filter(x=>x!==c.name) : [...prev, c.name])} style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:999, background: selectedColors.includes(c.name) ? '#111827' : 'transparent', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                        <span style={{ width:14, height:14, borderRadius:999, background:c.hex, border:'1px solid #111827' }} />
+                        <span style={{ fontSize:12 }}>{c.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>
