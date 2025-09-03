@@ -11,12 +11,19 @@ const adminRest = Router();
 
 const can = async (userId: string, permKey: string): Promise<boolean> => {
   if (process.env.NODE_ENV === 'test') return true;
-  const roleLinks = await db.userRoleLink.findMany({ where: { userId }, include: { role: { include: { permissions: { include: { permission: true } } } } } });
-  for (const rl of roleLinks) {
-    for (const rp of rl.role.permissions) {
-      if (rp.permission.key === permKey) return true;
+  // Fallback: allow ADMIN role
+  try {
+    const u = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (u?.role === 'ADMIN') return true;
+  } catch {}
+  try {
+    const roleLinks = await db.userRoleLink.findMany({ where: { userId }, include: { role: { include: { permissions: { include: { permission: true } } } } } });
+    for (const rl of roleLinks) {
+      for (const rp of rl.role.permissions) {
+        if (rp.permission.key === permKey) return true;
+      }
     }
-  }
+  } catch {}
   return false;
 };
 
