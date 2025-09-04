@@ -148,7 +148,7 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
       <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>رقم الهاتف<input value={phone} onChange={(e)=>setPhone(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>البريد أو اسم المستخدم<input value={email||username} onChange={(e)=>{ setEmail(e.target.value); setUsername(e.target.value); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>العنوان<input value={address} onChange={(e)=>setAddress(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      <label>العنوان (الموقع داخل المدينة)<input value={address} onChange={(e)=>setAddress(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>كلمة السر<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <div>
         <div style={{ marginBottom:6, color:'#9ca3af' }}>نوع الحساب</div>

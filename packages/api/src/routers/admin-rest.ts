@@ -371,12 +371,33 @@ adminRest.post('/users', async (req, res) => {
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash(password, 10);
     const data: any = { name: name||'', password: hash, role: role||'USER', isVerified: true };
-    if (email) data.email = email;
-    if (username && !email) data.email = username;
-    if (phone) data.phone = phone;
-    if (address) data.address = address;
+    const providedEmail: string | undefined = email && String(email).trim() ? String(email).trim() : undefined;
+    const providedUsername: string | undefined = username && String(username).trim() ? String(username).trim() : undefined;
+    const providedPhone: string | undefined = phone && String(phone).trim() ? String(phone).trim() : undefined;
+
+    // Mandatory unique email field fallback
+    if (providedEmail) {
+      data.email = providedEmail;
+    } else if (providedUsername) {
+      data.email = /@/.test(providedUsername) ? providedUsername : `${providedUsername}@local`;
+    } else if (providedPhone) {
+      const normalized = providedPhone.replace(/\s+/g, '');
+      data.email = `phone+${normalized}@local`;
+    }
+    if (providedPhone) data.phone = providedPhone;
     if (vendorId) data.vendorId = vendorId;
+
     const created = await db.user.create({ data });
+
+    // If address text provided, persist as Address record (street=raw text, others blank)
+    if (address && String(address).trim()) {
+      const street = String(address).trim();
+      await db.address.upsert({
+        where: { userId: created.id },
+        update: { street, city: '', state: '', postalCode: '', country: '' },
+        create: { userId: created.id, street, city: '', state: '', postalCode: '', country: '' },
+      });
+    }
     await audit(req, 'users', 'create', { id: created.id, role: data.role, vendorId: data.vendorId });
     res.json({ user: created });
   } catch (e: any) {
