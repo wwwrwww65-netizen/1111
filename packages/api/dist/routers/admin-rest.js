@@ -372,7 +372,7 @@ adminRest.post('/payments/refund', async (req, res) => {
 });
 adminRest.get('/users', (_req, res) => res.json({ users: [] }));
 adminRest.get('/users/list', async (req, res) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     try {
         const user = req.user;
         if (!(await can(user.userId, 'users.manage')))
@@ -380,6 +380,7 @@ adminRest.get('/users/list', async (req, res) => {
         const page = Number((_a = req.query.page) !== null && _a !== void 0 ? _a : 1);
         const limit = Math.min(Number((_b = req.query.limit) !== null && _b !== void 0 ? _b : 20), 100);
         const search = (_c = req.query.search) !== null && _c !== void 0 ? _c : undefined;
+        const roleFilter = (_d = req.query.role) === null || _d === void 0 ? void 0 : _d.toUpperCase();
         const skip = (page - 1) * limit;
         const where = {};
         if (search)
@@ -388,10 +389,17 @@ adminRest.get('/users/list', async (req, res) => {
                 { name: { contains: search, mode: 'insensitive' } },
                 { phone: { contains: search, mode: 'insensitive' } },
             ];
-        const [users, total] = await Promise.all([
-            db_1.db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true } }),
+        if (roleFilter === 'ADMIN')
+            where.role = 'ADMIN';
+        else if (roleFilter === 'USER')
+            where.role = 'USER';
+        else if (roleFilter === 'VENDOR')
+            where.vendorId = { not: null };
+        const [raw, total] = await Promise.all([
+            db_1.db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true, vendorId: true } }),
             db_1.db.user.count({ where }),
         ]);
+        const users = raw.map(u => ({ ...u, role: u.vendorId ? 'VENDOR' : u.role }));
         await audit(req, 'users', 'list', { page, limit });
         res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }

@@ -4,8 +4,8 @@
   "/analytics/page": "app/analytics/page.js",
   "/audit-logs/page": "app/audit-logs/page.js",
   "/backups/page": "app/backups/page.js",
-  "/cms/page": "app/cms/page.js",
   "/coupons/page": "app/coupons/page.js",
+  "/cms/page": "app/cms/page.js",
   "/integrations/page": "app/integrations/page.js",
   "/inventory/page": "app/inventory/page.js",
   "/loyalty/page": "app/loyalty/page.js",
@@ -24,8 +24,8 @@
   "/attributes/page": "app/attributes/page.js",
   "/attributes/sizes/[typeId]/page": "app/attributes/sizes/[typeId]/page.js",
   "/categories/page": "app/categories/page.js",
-  "/products/page": "app/products/page.js",
   "/vendors/page": "app/vendors/page.js",
+  "/products/page": "app/products/page.js",
   "/users/page": "app/users/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js"
 }

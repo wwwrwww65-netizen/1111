@@ -55,6 +55,7 @@ model User {
   stripeCustomerId  String?   @unique
   failedLoginAttempts Int     @default(0)
   lockUntil         DateTime?
+  vendorId          String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -72,6 +73,7 @@ model User {
   loyaltyPoints     LoyaltyPoint[]
   events            Event[]
   sessions          Session[]
+  vendor            Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 }
 
 model Category {
@@ -378,6 +380,7 @@ model Vendor {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   products     Product[]
+  users        User[]
 }
 
 // Attributes
@@ -390,10 +393,12 @@ model AttributeColor {
 
 model AttributeSize {
   id        String   @id @default(cuid())
-  name      String   @unique
+  name      String
   typeId    String?
   type      AttributeSizeType? @relation(fields: [typeId], references: [id])
   createdAt DateTime @default(now())
+
+  @@unique([name, typeId])
 }
 
 model AttributeBrand {

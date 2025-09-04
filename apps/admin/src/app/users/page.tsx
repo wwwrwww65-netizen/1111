@@ -38,7 +38,7 @@ export default function UsersPage(): JSX.Element {
     const json = await res.json();
     setRows(json.users || []);
   }
-  React.useEffect(()=>{ load(); }, [page, apiBase]);
+  React.useEffect(()=>{ load(); }, [page, apiBase, tab, search]);
 
   async function assign(userId: string) {
     await fetch(`${apiBase}/api/admin/users/assign-role`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ userId, roleName }) });
@@ -150,9 +150,9 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
       {error && (<div style={{ background:'#7f1d1d', color:'#fee2e2', padding:'8px 10px', borderRadius:8 }}>{error}</div>)}
       <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>رقم الهاتف<input value={phone} onChange={(e)=>setPhone(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>البريد أو اسم المستخدم<input value={email||username} onChange={(e)=>{ setEmail(e.target.value); setUsername(e.target.value); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>العنوان (الموقع داخل المدينة)<input value={address} onChange={(e)=>setAddress(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>كلمة السر<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      <label>البريد أو اسم المستخدم<input autoComplete="username email" value={email||username} onChange={(e)=>{ setEmail(e.target.value); setUsername(e.target.value); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      <label>العنوان (الموقع داخل المدينة)<input autoComplete="street-address" value={address} onChange={(e)=>setAddress(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      <label>كلمة السر<input autoComplete="new-password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <div>
         <div style={{ marginBottom:6, color:'#9ca3af' }}>نوع الحساب</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 200px', gap:8 }}>
@@ -202,7 +202,7 @@ function VendorAccountForm({ onDone, apiBase, authHeaders }: { onDone: ()=>Promi
     <form onSubmit={submit} style={{ display:'grid', gap:10 }}>
       {error && (<div style={{ background:'#7f1d1d', color:'#fee2e2', padding:'8px 10px', borderRadius:8 }}>{error}</div>)}
       <label>المستخدم/الهاتف<input value={identifier} onChange={(e)=>setIdentifier(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>كلمة السر<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      <label>كلمة السر<input autoComplete="new-password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>المورّد
         <select value={vendorId} onChange={(e)=>setVendorId(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
           <option value="">اختر مورّداً</option>

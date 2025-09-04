@@ -344,6 +344,7 @@ adminRest.get('/users/list', async (req, res) => {
     const page = Number(req.query.page ?? 1);
     const limit = Math.min(Number(req.query.limit ?? 20), 100);
     const search = (req.query.search as string | undefined) ?? undefined;
+    const roleFilter = (req.query.role as string | undefined)?.toUpperCase();
     const skip = (page - 1) * limit;
     const where: any = {};
     if (search) where.OR = [
@@ -351,10 +352,14 @@ adminRest.get('/users/list', async (req, res) => {
       { name: { contains: search, mode: 'insensitive' } },
       { phone: { contains: search, mode: 'insensitive' } },
     ];
-    const [users, total] = await Promise.all([
-      db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true } }),
+    if (roleFilter === 'ADMIN') where.role = 'ADMIN';
+    else if (roleFilter === 'USER') where.role = 'USER';
+    else if (roleFilter === 'VENDOR') where.vendorId = { not: null };
+    const [raw, total] = await Promise.all([
+      db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true, vendorId: true } }),
       db.user.count({ where }),
     ]);
+    const users = raw.map(u => ({ ...u, role: u.vendorId ? 'VENDOR' : u.role }));
     await audit(req, 'users', 'list', { page, limit });
     res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (e: any) {
