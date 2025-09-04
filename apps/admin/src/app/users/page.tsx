@@ -122,15 +122,29 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
   const [address, setAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [roleSearch, setRoleSearch] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string>('');
   const roleOptions = React.useMemo(()=> [{value:'USER',label:'USER'}, {value:'ADMIN',label:'ADMIN'}].filter(r=> !roleSearch || r.label.toLowerCase().includes(roleSearch.toLowerCase())), [roleSearch]);
   async function submit(e:React.FormEvent){
     e.preventDefault();
-    const res = await fetch(`${apiBase}/api/admin/users`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, phone, role, email, username, address, password }) });
-    if (!res.ok) return;
-    await onDone();
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`${apiBase}/api/admin/users`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, phone, role, email, username, address, password }) });
+      if (!res.ok) {
+        let msg = 'تعذّر إنشاء الحساب';
+        try { const j = await res.json(); if (j?.error === 'required_fields') msg = 'الحقول المطلوبة مفقودة (كلمة السر + بريد/اسم مستخدم/هاتف)'; else if (j?.message) msg = j.message; } catch {}
+        setError(msg);
+        return;
+      }
+      setName(''); setPhone(''); setEmail(''); setUsername(''); setAddress(''); setPassword('');
+      await onDone();
+    } finally { setSaving(false); }
   }
   return (
     <form onSubmit={submit} style={{ display:'grid', gap:10 }}>
+      {error && (<div style={{ background:'#7f1d1d', color:'#fee2e2', padding:'8px 10px', borderRadius:8 }}>{error}</div>)}
       <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>رقم الهاتف<input value={phone} onChange={(e)=>setPhone(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>البريد أو اسم المستخدم<input value={email||username} onChange={(e)=>{ setEmail(e.target.value); setUsername(e.target.value); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
@@ -146,7 +160,7 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
         </div>
       </div>
       <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
-        <button type="submit" style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>إضافة</button>
+        <button type="submit" disabled={saving} style={{ padding:'8px 12px', background: saving ? '#4b5563' : '#800020', color:'#fff', borderRadius:8 }}>{saving ? 'جارٍ الإضافة...' : 'إضافة'}</button>
       </div>
     </form>
   );
@@ -157,17 +171,33 @@ function VendorAccountForm({ onDone, apiBase, authHeaders }: { onDone: ()=>Promi
   const [password, setPassword] = React.useState('');
   const [vendorId, setVendorId] = React.useState('');
   const [vendors, setVendors] = React.useState<Array<{id:string;name:string}>>([]);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string>('');
   React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', headers: { ...authHeaders() } })).json(); setVendors(j.vendors||[]);} catch{} })(); }, [apiBase]);
   async function submit(e:React.FormEvent){
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError('');
     const payload: any = { password, vendorId };
     if (/@/.test(identifier)) payload.email = identifier; else if (/^\+?\d/.test(identifier)) payload.phone = identifier; else payload.username = identifier;
-    const res = await fetch(`${apiBase}/api/admin/users`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
-    if (!res.ok) return;
-    await onDone();
+    try {
+      if (!payload.vendorId) { setError('اختر مورّداً'); return; }
+      if (!payload.password || !(payload.email || payload.username || payload.phone)) { setError('الحقول المطلوبة مفقودة (كلمة السر + معرف)'); return; }
+      const res = await fetch(`${apiBase}/api/admin/users`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
+      if (!res.ok) {
+        let msg = 'تعذّر إنشاء الحساب للمورّد';
+        try { const j = await res.json(); if (j?.error === 'required_fields') msg = 'الحقول المطلوبة مفقودة (كلمة السر + معرف)'; else if (j?.message) msg = j.message; } catch {}
+        setError(msg);
+        return;
+      }
+      setIdentifier(''); setPassword(''); setVendorId('');
+      await onDone();
+    } finally { setSaving(false); }
   }
   return (
     <form onSubmit={submit} style={{ display:'grid', gap:10 }}>
+      {error && (<div style={{ background:'#7f1d1d', color:'#fee2e2', padding:'8px 10px', borderRadius:8 }}>{error}</div>)}
       <label>المستخدم/الهاتف<input value={identifier} onChange={(e)=>setIdentifier(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>كلمة السر<input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
       <label>المورّد
@@ -177,7 +207,7 @@ function VendorAccountForm({ onDone, apiBase, authHeaders }: { onDone: ()=>Promi
         </select>
       </label>
       <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
-        <button type="submit" style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>إضافة</button>
+        <button type="submit" disabled={saving} style={{ padding:'8px 12px', background: saving ? '#4b5563' : '#800020', color:'#fff', borderRadius:8 }}>{saving ? 'جارٍ الإضافة...' : 'إضافة'}</button>
       </div>
     </form>
   );
