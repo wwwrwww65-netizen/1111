@@ -63,9 +63,10 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for analysis tools
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        # The version is read automatically from the package.json's "packageManager" field.
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use pnpm 8.6.10
+        run: corepack prepare pnpm@8.6.10 --activate
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -147,9 +148,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        # The version is read automatically from the package.json's "packageManager" field.
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use pnpm 8.6.10
+        run: corepack prepare pnpm@8.6.10 --activate
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
