@@ -4,17 +4,24 @@ export const dynamic = 'force-dynamic';
 
 export default function SizeTypePage({ params }: { params: { typeId: string } }): JSX.Element {
   const { typeId } = params;
+  function authHeaders(): Record<string,string> {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  }
   const apiBase = React.useMemo(()=>{
     return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
   }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [error, setError] = React.useState<string>("");
-  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', headers: { ...(typeof window !== 'undefined' && localStorage.getItem('auth_token') ? { Authorization: `Bearer ${localStorage.getItem('auth_token')}` } : {}) }, cache:'no-store' })).json(); setRows(j.sizes||[]); }
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setRows(j.sizes||[]); }
   React.useEffect(()=>{ load(); },[apiBase, typeId]);
   async function add(){
     setError("");
-    const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { method:'POST', headers:{'content-type':'application/json', ...(typeof window !== 'undefined' && localStorage.getItem('auth_token') ? { Authorization: `Bearer ${localStorage.getItem('auth_token')}` } : {})}, credentials:'include', body: JSON.stringify({ name }) });
+    const value = String(name||"").trim();
+    if (!value) { setError('الاسم مطلوب'); return; }
+    const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name: value }) });
     if(!r.ok){
       try { const j = await r.json(); setError(j?.message || 'فشل الإضافة'); } catch { setError('فشل الإضافة'); }
       return;
