@@ -378,6 +378,59 @@ adminRest.post('/orders/ship', async (req, res) => {
         res.status(500).json({ error: e.message || 'ship_failed' });
     }
 });
+// Create order
+adminRest.post('/orders', async (req, res) => {
+    var _a;
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { customer, address, items, payment } = req.body || {};
+        if (!customer)
+            return res.status(400).json({ error: 'customer_required' });
+        if (!Array.isArray(items) || !items.length)
+            return res.status(400).json({ error: 'items_required' });
+        const bcrypt = require('bcryptjs');
+        // Upsert user
+        const identifier = (customer.email || customer.username || customer.phone || '').trim();
+        let email = (_a = customer.email) === null || _a === void 0 ? void 0 : _a.trim();
+        if (!email && customer.username)
+            email = /@/.test(customer.username) ? customer.username : `${customer.username}@local`;
+        if (!email && customer.phone)
+            email = `phone+${String(customer.phone).replace(/\s+/g, '')}@local`;
+        if (!email)
+            return res.status(400).json({ error: 'customer_identifier_required' });
+        const pwd = await bcrypt.hash('Temp#12345', 10);
+        const user = await db_1.db.user.upsert({ where: { email }, update: { name: customer.name || undefined, phone: customer.phone || undefined }, create: { email, name: customer.name || identifier, phone: customer.phone || null, password: pwd, isVerified: true } });
+        // Address
+        if (address === null || address === void 0 ? void 0 : address.street) {
+            await db_1.db.address.upsert({ where: { userId: user.id }, update: { street: address.street, city: address.city || '', state: address.state || '', postalCode: address.postalCode || '', country: address.country || '' }, create: { userId: user.id, street: address.street, city: address.city || '', state: address.state || '', postalCode: address.postalCode || '', country: address.country || '' } });
+        }
+        // Compute total from products
+        let total = 0;
+        const itemsData = [];
+        for (const it of items) {
+            const prod = it.productId ? await db_1.db.product.findUnique({ where: { id: it.productId } }) : null;
+            const price = typeof it.price === 'number' ? it.price : ((prod === null || prod === void 0 ? void 0 : prod.price) || 0);
+            const quantity = Number(it.quantity || 1);
+            total += price * quantity;
+            itemsData.push({ productId: it.productId || (prod === null || prod === void 0 ? void 0 : prod.id), price, quantity });
+        }
+        const order = await db_1.db.order.create({ data: { userId: user.id, status: 'PENDING', total } });
+        for (const d of itemsData) {
+            await db_1.db.orderItem.create({ data: { orderId: order.id, productId: d.productId, quantity: d.quantity, price: d.price } });
+        }
+        if (payment === null || payment === void 0 ? void 0 : payment.amount) {
+            await db_1.db.payment.create({ data: { orderId: order.id, amount: payment.amount, method: payment.method || 'CASH_ON_DELIVERY', status: payment.status || 'PENDING' } });
+        }
+        await audit(req, 'orders', 'create', { orderId: order.id });
+        const full = await db_1.db.order.findUnique({ where: { id: order.id }, include: { user: true, items: { include: { product: true } }, payment: true } });
+        res.json({ order: full });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'order_create_failed' });
+    }
+});
 adminRest.get('/payments', (_req, res) => res.json({ payments: [] }));
 adminRest.get('/payments/list', async (req, res) => {
     var _a, _b;

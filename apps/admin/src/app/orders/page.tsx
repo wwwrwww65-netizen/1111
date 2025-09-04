@@ -17,6 +17,13 @@ export default function OrdersPage(): JSX.Element {
   const [total, setTotal] = React.useState(0);
   const [drivers, setDrivers] = React.useState<Array<{id:string;name:string}>>([]);
   const [busy, setBusy] = React.useState(false);
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
+  const [coName, setCoName] = React.useState('');
+  const [coEmail, setCoEmail] = React.useState('');
+  const [coPhone, setCoPhone] = React.useState('');
+  const [coStreet, setCoStreet] = React.useState('');
+  const [coItems, setCoItems] = React.useState<Array<{productId:string; quantity:number; price?:number}>>([{ productId:'', quantity:1 }]);
 
   const apiBase = React.useMemo(()=>{
     return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
@@ -65,8 +72,13 @@ export default function OrdersPage(): JSX.Element {
   }
 
   return (
+    <>
     <main className="panel">
       <h1 style={{ marginBottom: 16 }}>الطلبات</h1>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+        <div />
+        <button className="btn" onClick={()=>setShowCreate(true)}>إنشاء طلب</button>
+      </div>
       <div className="grid" style={{ gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:12 }}>
         <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث (المعرف/الاسم/الإيميل/الهاتف)" className="input" />
         <select value={status} onChange={(e)=>setStatus(e.target.value)} className="select">
@@ -166,6 +178,43 @@ export default function OrdersPage(): JSX.Element {
         </div>
       </div>
     </main>
+    {showCreate && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'grid', placeItems:'center', zIndex:60 }}>
+        <div className="panel" style={{ width:720 }}>
+          <h3 style={{ marginTop:0 }}>إنشاء طلب</h3>
+          <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <input className="input" placeholder="اسم العميل" value={coName} onChange={(e)=>setCoName(e.target.value)} />
+            <input className="input" placeholder="البريد" value={coEmail} onChange={(e)=>setCoEmail(e.target.value)} />
+            <input className="input" placeholder="الهاتف" value={coPhone} onChange={(e)=>setCoPhone(e.target.value)} />
+            <input className="input" placeholder="العنوان" value={coStreet} onChange={(e)=>setCoStreet(e.target.value)} />
+          </div>
+          <div style={{ marginTop:12 }}>
+            <div style={{ color:'var(--sub)', marginBottom:6 }}>الأصناف</div>
+            {coItems.map((it, idx)=> (
+              <div key={idx} className="grid" style={{ gridTemplateColumns:'1fr 1fr 1fr auto', gap:8, marginBottom:8 }}>
+                <input className="input" placeholder="Product ID" value={it.productId} onChange={(e)=>{ const v=[...coItems]; v[idx].productId=e.target.value; setCoItems(v); }} />
+                <input className="input" type="number" placeholder="الكمية" value={it.quantity} onChange={(e)=>{ const v=[...coItems]; v[idx].quantity=Number(e.target.value||1); setCoItems(v); }} />
+                <input className="input" type="number" placeholder="السعر (اختياري)" value={it.price||''} onChange={(e)=>{ const v=[...coItems]; v[idx].price=Number(e.target.value||0)||undefined; setCoItems(v); }} />
+                <button className="icon-btn" onClick={()=>{ const v = coItems.filter((_,i)=>i!==idx); setCoItems(v.length? v : [{ productId:'', quantity:1 }]); }}>حذف</button>
+              </div>
+            ))}
+            <button className="icon-btn" onClick={()=>setCoItems(v=>[...v, { productId:'', quantity:1 }])}>إضافة صنف</button>
+          </div>
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:12 }}>
+            <button className="icon-btn" onClick={()=>setShowCreate(false)}>إلغاء</button>
+            <button className="btn" disabled={creating} onClick={async ()=>{
+              setCreating(true);
+              try{
+                const payload = { customer: { name: coName, email: coEmail, phone: coPhone }, address: { street: coStreet }, items: coItems };
+                const r = await fetch(`${apiBase}/api/admin/orders`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+                if (r.ok) { setShowCreate(false); setCoName(''); setCoEmail(''); setCoPhone(''); setCoStreet(''); setCoItems([{ productId:'', quantity:1 }]); await load(); }
+              } finally { setCreating(false); }
+            }}>{creating?'جارٍ الإنشاء…':'تأكيد'}</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
