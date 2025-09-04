@@ -33,6 +33,14 @@ async function ensureSchema(): Promise<void> {
   try {
     await db.$executeRawUnsafe('ALTER TABLE "ProductVariant" ADD COLUMN IF NOT EXISTS "purchasePrice" DOUBLE PRECISION');
     await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
+    // Ensure Vendor columns exist for admin panel features
+    await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "contactEmail" TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "phone" TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "address" TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "storeName" TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "storeNumber" TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "vendorCode" TEXT');
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = "Vendor_vendorCode_key" AND n.nspname = current_schema()) THEN CREATE UNIQUE INDEX "Vendor_vendorCode_key" ON "Vendor"("vendorCode"); END IF; END $$;');
     // Ensure attribute tables exist (id TEXT primary key; Prisma will supply ids)
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeColor" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "hex" TEXT, "createdAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeBrand" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "createdAt" TIMESTAMP DEFAULT NOW())');
