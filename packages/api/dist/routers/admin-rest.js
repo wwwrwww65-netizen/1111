@@ -557,13 +557,20 @@ adminRest.get('/settings/list', async (_req, res) => {
 });
 // Tickets module
 adminRest.get('/tickets', async (req, res) => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const page = Number((_a = req.query.page) !== null && _a !== void 0 ? _a : 1);
     const limit = Math.min(Number((_b = req.query.limit) !== null && _b !== void 0 ? _b : 20), 100);
     const status = (_c = req.query.status) !== null && _c !== void 0 ? _c : undefined;
     const search = (_d = req.query.search) !== null && _d !== void 0 ? _d : undefined;
     const skip = (page - 1) * limit;
     const where = {};
+    const roleFilter = (_e = req.query.role) === null || _e === void 0 ? void 0 : _e.toUpperCase();
+    if (roleFilter === 'ADMIN')
+        where.role = 'ADMIN';
+    else if (roleFilter === 'USER')
+        where.role = 'USER';
+    else if (roleFilter === 'VENDOR')
+        where.vendorId = { not: null };
     if (status)
         where.status = status;
     if (search)
