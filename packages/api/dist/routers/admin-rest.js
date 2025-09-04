@@ -278,7 +278,7 @@ adminRest.post('/inventory/bulk/deactivate', async (req, res) => {
 });
 adminRest.get('/orders', (_req, res) => res.json({ orders: [] }));
 adminRest.get('/orders/list', async (req, res) => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f, _g;
     try {
         const user = req.user;
         if (!(await can(user.userId, 'orders.manage')))
@@ -287,20 +287,35 @@ adminRest.get('/orders/list', async (req, res) => {
         const limit = Math.min(Number((_b = req.query.limit) !== null && _b !== void 0 ? _b : 20), 100);
         const search = (_c = req.query.search) !== null && _c !== void 0 ? _c : undefined;
         const status = (_d = req.query.status) !== null && _d !== void 0 ? _d : undefined;
+        const driverId = (_e = req.query.driverId) !== null && _e !== void 0 ? _e : undefined;
+        const sortBy = (_f = req.query.sortBy) !== null && _f !== void 0 ? _f : 'createdAt';
+        const sortDir = ((_g = req.query.sortDir) !== null && _g !== void 0 ? _g : 'desc');
+        const dateFrom = req.query.dateFrom ? new Date(String(req.query.dateFrom)) : undefined;
+        const dateTo = req.query.dateTo ? new Date(String(req.query.dateTo)) : undefined;
+        const amountMin = req.query.amountMin ? Number(req.query.amountMin) : undefined;
+        const amountMax = req.query.amountMax ? Number(req.query.amountMax) : undefined;
         const skip = (page - 1) * limit;
         const where = {};
         if (status)
             where.status = status;
+        if (driverId)
+            where.assignedDriverId = driverId;
+        if (dateFrom || dateTo)
+            where.createdAt = { ...(dateFrom && { gte: dateFrom }), ...(dateTo && { lte: dateTo }) };
+        if (amountMin != null || amountMax != null)
+            where.total = { ...(amountMin != null && { gte: amountMin }), ...(amountMax != null && { lte: amountMax }) };
         if (search)
             where.OR = [
                 { id: { contains: search, mode: 'insensitive' } },
                 { user: { email: { contains: search, mode: 'insensitive' } } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { user: { phone: { contains: search, mode: 'insensitive' } } },
             ];
         const [orders, total] = await Promise.all([
             db_1.db.order.findMany({
                 where,
-                include: { user: { select: { email: true } }, items: true, payment: true },
-                orderBy: { createdAt: 'desc' },
+                include: { user: { select: { email: true, name: true, phone: true } }, items: true, payment: true },
+                orderBy: { [sortBy]: sortDir },
                 skip,
                 take: limit,
             }),
@@ -311,6 +326,40 @@ adminRest.get('/orders/list', async (req, res) => {
     }
     catch (e) {
         res.status(500).json({ error: e.message || 'orders_list_failed' });
+    }
+});
+// Order detail
+adminRest.get('/orders/:id', async (req, res) => {
+    try {
+        const user = req.user;
+        if (!(await can(user.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { id } = req.params;
+        const o = await db_1.db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true } }, payment: true, shipments: { include: { carrier: true, driver: true } }, assignedDriver: true } });
+        if (!o)
+            return res.status(404).json({ error: 'not_found' });
+        await audit(req, 'orders', 'detail', { id });
+        res.json({ order: o });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'order_detail_failed' });
+    }
+});
+// Assign driver
+adminRest.post('/orders/assign-driver', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { orderId, driverId } = req.body || {};
+        if (!orderId)
+            return res.status(400).json({ error: 'orderId_required' });
+        const updated = await db_1.db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId || null } });
+        await audit(req, 'orders', 'assign_driver', { orderId, driverId });
+        res.json({ order: updated });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'assign_driver_failed' });
     }
 });
 adminRest.post('/orders/ship', async (req, res) => {
@@ -368,6 +417,170 @@ adminRest.post('/payments/refund', async (req, res) => {
     }
     catch (e) {
         res.status(500).json({ error: e.message || 'refund_failed' });
+    }
+});
+// Drivers
+adminRest.get('/drivers', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const list = await db_1.db.driver.findMany({ orderBy: { name: 'asc' } });
+        res.json({ drivers: list });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'drivers_list_failed' });
+    }
+});
+adminRest.post('/drivers', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { name, phone, isActive, status } = req.body || {};
+        if (!name)
+            return res.status(400).json({ error: 'name_required' });
+        const d = await db_1.db.driver.create({ data: { name, phone, isActive: isActive !== null && isActive !== void 0 ? isActive : true, status: status !== null && status !== void 0 ? status : 'AVAILABLE' } });
+        await audit(req, 'drivers', 'create', { id: d.id });
+        res.json({ driver: d });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'driver_create_failed' });
+    }
+});
+adminRest.patch('/drivers/:id', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { id } = req.params;
+        const { name, phone, isActive, status } = req.body || {};
+        const d = await db_1.db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }) } });
+        await audit(req, 'drivers', 'update', { id });
+        res.json({ driver: d });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'driver_update_failed' });
+    }
+});
+// Carriers
+adminRest.get('/carriers', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const list = await db_1.db.carrier.findMany({ orderBy: { name: 'asc' } });
+        res.json({ carriers: list });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'carriers_list_failed' });
+    }
+});
+adminRest.post('/carriers', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { name, isActive, mode, credentials, pricingRules } = req.body || {};
+        if (!name)
+            return res.status(400).json({ error: 'name_required' });
+        const c = await db_1.db.carrier.create({ data: { name, isActive: isActive !== null && isActive !== void 0 ? isActive : true, mode: mode !== null && mode !== void 0 ? mode : 'TEST', credentials: credentials !== null && credentials !== void 0 ? credentials : {}, pricingRules: pricingRules !== null && pricingRules !== void 0 ? pricingRules : {} } });
+        await audit(req, 'carriers', 'create', { id: c.id });
+        res.json({ carrier: c });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'carrier_create_failed' });
+    }
+});
+adminRest.patch('/carriers/:id', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { id } = req.params;
+        const { isActive, mode, credentials, pricingRules } = req.body || {};
+        const c = await db_1.db.carrier.update({ where: { id }, data: { ...(isActive != null && { isActive }), ...(mode && { mode }), ...(credentials && { credentials }), ...(pricingRules && { pricingRules }) } });
+        await audit(req, 'carriers', 'update', { id });
+        res.json({ carrier: c });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'carrier_update_failed' });
+    }
+});
+// Shipments
+adminRest.get('/shipments', async (req, res) => {
+    var _a, _b;
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const page = Number((_a = req.query.page) !== null && _a !== void 0 ? _a : 1);
+        const limit = Math.min(Number((_b = req.query.limit) !== null && _b !== void 0 ? _b : 20), 100);
+        const skip = (page - 1) * limit;
+        const [list, total] = await Promise.all([
+            db_1.db.shipment.findMany({ include: { order: true, carrier: true, driver: true }, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+            db_1.db.shipment.count()
+        ]);
+        res.json({ shipments: list, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'shipments_list_failed' });
+    }
+});
+adminRest.post('/shipments', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { orderId, driverId, carrierId, weight, dimensions } = req.body || {};
+        if (!orderId)
+            return res.status(400).json({ error: 'orderId_required' });
+        const tracking = 'TRK-' + Math.random().toString(36).slice(2, 10).toUpperCase();
+        const cost = weight ? Math.max(5, Math.round((Number(weight) || 1) * 2)) : 10;
+        const s = await db_1.db.shipment.create({ data: { orderId, driverId: driverId || null, carrierId: carrierId || null, trackingNumber: tracking, status: 'LABEL_CREATED', weight: weight ? Number(weight) : null, dimensions: dimensions || null, cost, labelUrl: 'https://example.com/label.pdf' } });
+        await audit(req, 'shipments', 'create', { id: s.id, orderId });
+        res.json({ shipment: s });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'shipment_create_failed' });
+    }
+});
+adminRest.post('/shipments/:id/cancel', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'orders.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { id } = req.params;
+        const s = await db_1.db.shipment.update({ where: { id }, data: { status: 'CANCELLED' } });
+        await audit(req, 'shipments', 'cancel', { id });
+        res.json({ shipment: s });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'shipment_cancel_failed' });
+    }
+});
+adminRest.get('/shipments/:id/label', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const s = await db_1.db.shipment.findUnique({ where: { id } });
+        if (!s)
+            return res.status(404).json({ error: 'not_found' });
+        res.json({ labelUrl: s.labelUrl });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'label_failed' });
+    }
+});
+adminRest.get('/shipments/:id/track', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const s = await db_1.db.shipment.findUnique({ where: { id } });
+        if (!s)
+            return res.status(404).json({ error: 'not_found' });
+        res.json({ status: s.status, trackingNumber: s.trackingNumber });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'track_failed' });
     }
 });
 adminRest.get('/users', (_req, res) => res.json({ users: [] }));
