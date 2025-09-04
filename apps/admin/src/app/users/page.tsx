@@ -31,6 +31,9 @@ export default function UsersPage(): JSX.Element {
     url.searchParams.set("page", String(page));
     url.searchParams.set("limit", "20");
     if (search) url.searchParams.set("search", search);
+    if (tab==='admins') url.searchParams.set('role','ADMIN');
+    else if (tab==='users') url.searchParams.set('role','USER');
+    else if (tab==='vendors') url.searchParams.set('role','VENDOR');
     const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
     const json = await res.json();
     setRows(json.users || []);

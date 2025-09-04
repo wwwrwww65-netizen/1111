@@ -506,6 +506,10 @@ adminRest.get('/tickets', async (req, res) => {
   const search = (req.query.search as string | undefined) ?? undefined;
   const skip = (page - 1) * limit;
   const where: any = {};
+  const roleFilter = (req.query.role as string | undefined)?.toUpperCase();
+  if (roleFilter === 'ADMIN') where.role = 'ADMIN';
+  else if (roleFilter === 'USER') where.role = 'USER';
+  else if (roleFilter === 'VENDOR') where.vendorId = { not: null };
   if (status) where.status = status;
   if (search) where.OR = [ { subject: { contains: search, mode: 'insensitive' } } ];
   const [tickets, total] = await Promise.all([
