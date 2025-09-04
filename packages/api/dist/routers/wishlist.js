@@ -2,11 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.wishlistRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
+const auth_1 = require("../middleware/auth");
 const db_1 = require("@repo/db");
-exports.wishlistRouter = (0, trpc_1.router)({
+exports.wishlistRouter = (0, trpc_setup_1.router)({
     // Get user's wishlist
-    getWishlist: trpc_1.protectedProcedure
+    getWishlist: auth_1.protectedProcedure
         .query(async ({ ctx }) => {
         var _a;
         const userId = (_a = ctx.user) === null || _a === void 0 ? void 0 : _a.userId;
@@ -28,7 +29,7 @@ exports.wishlistRouter = (0, trpc_1.router)({
         return { wishlistItems };
     }),
     // Add product to wishlist
-    addToWishlist: trpc_1.protectedProcedure
+    addToWishlist: auth_1.protectedProcedure
         .input(zod_1.z.object({ productId: zod_1.z.string() }))
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -72,7 +73,7 @@ exports.wishlistRouter = (0, trpc_1.router)({
         return { wishlistItem };
     }),
     // Remove product from wishlist
-    removeFromWishlist: trpc_1.protectedProcedure
+    removeFromWishlist: auth_1.protectedProcedure
         .input(zod_1.z.object({ productId: zod_1.z.string() }))
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -92,7 +93,7 @@ exports.wishlistRouter = (0, trpc_1.router)({
         return { success: true };
     }),
     // Clear wishlist
-    clearWishlist: trpc_1.protectedProcedure
+    clearWishlist: auth_1.protectedProcedure
         .mutation(async ({ ctx }) => {
         var _a;
         const userId = (_a = ctx.user) === null || _a === void 0 ? void 0 : _a.userId;
@@ -105,7 +106,7 @@ exports.wishlistRouter = (0, trpc_1.router)({
         return { success: true };
     }),
     // Move wishlist item to cart
-    moveToCart: trpc_1.protectedProcedure
+    moveToCart: auth_1.protectedProcedure
         .input(zod_1.z.object({ productId: zod_1.z.string(), quantity: zod_1.z.number().min(1).default(1) }))
         .mutation(async ({ input, ctx }) => {
         var _a;

@@ -2,11 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.couponsRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
+const auth_1 = require("../middleware/auth");
 const db_1 = require("@repo/db");
-exports.couponsRouter = (0, trpc_1.router)({
+exports.couponsRouter = (0, trpc_setup_1.router)({
     // Validate coupon code
-    validateCoupon: trpc_1.publicProcedure
+    validateCoupon: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({ code: zod_1.z.string() }))
         .mutation(async ({ input }) => {
         const { code } = input;
@@ -35,7 +36,7 @@ exports.couponsRouter = (0, trpc_1.router)({
         };
     }),
     // Apply coupon to order
-    applyCoupon: trpc_1.protectedProcedure
+    applyCoupon: auth_1.protectedProcedure
         .input(zod_1.z.object({ couponCode: zod_1.z.string(), orderTotal: zod_1.z.number(), orderId: zod_1.z.string() }))
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -89,7 +90,7 @@ exports.couponsRouter = (0, trpc_1.router)({
         };
     }),
     // Remove coupon from order
-    removeCoupon: trpc_1.protectedProcedure
+    removeCoupon: auth_1.protectedProcedure
         .input(zod_1.z.object({ orderId: zod_1.z.string() }))
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -113,7 +114,7 @@ exports.couponsRouter = (0, trpc_1.router)({
         return { success: true };
     }),
     // Get user's coupon usage history
-    getCouponHistory: trpc_1.protectedProcedure
+    getCouponHistory: auth_1.protectedProcedure
         .query(async ({ ctx }) => {
         var _a;
         const userId = (_a = ctx.user) === null || _a === void 0 ? void 0 : _a.userId;
@@ -121,21 +122,20 @@ exports.couponsRouter = (0, trpc_1.router)({
             throw new Error('User not authenticated');
         const couponUsage = await db_1.db.couponUsage.findMany({
             where: { userId },
-            include: {
-                coupon: true,
-            },
+            include: { coupon: true },
             orderBy: { usedAt: 'desc' },
         });
         return { couponUsage };
     }),
     // Get available coupons for user
-    getAvailableCoupons: trpc_1.protectedProcedure
+    getAvailableCoupons: auth_1.protectedProcedure
         .query(async ({ ctx }) => {
         var _a;
         const userId = (_a = ctx.user) === null || _a === void 0 ? void 0 : _a.userId;
         if (!userId)
             throw new Error('User not authenticated');
         const now = new Date();
+        // Fetch active and currently valid coupons
         const coupons = await db_1.db.coupon.findMany({
             where: {
                 isActive: true,
@@ -148,10 +148,10 @@ exports.couponsRouter = (0, trpc_1.router)({
             where: { userId },
             select: { couponId: true },
         });
-        const usedCouponIds = new Set(userCouponUsage.map((u) => u.couponId));
+        const usedIds = userCouponUsage.map((u) => u.couponId);
         const availableCoupons = coupons
-            .filter((c) => (!c.maxUses || c.currentUses < c.maxUses))
-            .filter((c) => !usedCouponIds.has(c.id));
+            .filter((c) => !usedIds.includes(c.id))
+            .filter((c) => c.maxUses == null || c.currentUses < c.maxUses);
         return { coupons: availableCoupons };
     }),
 });

@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.appRouter = void 0;
-const trpc_1 = require("./trpc");
+const trpc_setup_1 = require("./trpc-setup");
 const products_1 = require("./routers/products");
 const auth_1 = require("./routers/auth");
 const payments_1 = require("./routers/payments");
@@ -12,7 +12,7 @@ const wishlist_1 = require("./routers/wishlist");
 const coupons_1 = require("./routers/coupons");
 const cart_1 = require("./routers/cart");
 const orders_1 = require("./routers/orders");
-exports.appRouter = (0, trpc_1.router)({
+exports.appRouter = (0, trpc_setup_1.router)({
     // All sub-routers will be merged here
     auth: auth_1.authRouter,
     products: products_1.productsRouter,

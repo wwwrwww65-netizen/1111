@@ -2,10 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cartRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
+const auth_1 = require("../middleware/auth");
 const db_1 = require("@repo/db");
-exports.cartRouter = (0, trpc_1.router)({
-    getCart: trpc_1.protectedProcedure
+exports.cartRouter = (0, trpc_setup_1.router)({
+    getCart: auth_1.protectedProcedure
         .query(async ({ ctx }) => {
         var _a;
         const userId = ctx.user.userId;
@@ -39,7 +40,7 @@ exports.cartRouter = (0, trpc_1.router)({
         const subtotal = ((_a = cart === null || cart === void 0 ? void 0 : cart.items) !== null && _a !== void 0 ? _a : []).reduce((sum, item) => sum + item.quantity * item.product.price, 0);
         return { cart, subtotal };
     }),
-    addItem: trpc_1.protectedProcedure
+    addItem: auth_1.protectedProcedure
         .input(zod_1.z.object({ productId: zod_1.z.string(), quantity: zod_1.z.number().min(1).default(1) }))
         .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.userId;
@@ -62,7 +63,7 @@ exports.cartRouter = (0, trpc_1.router)({
         }
         return { success: true };
     }),
-    updateItem: trpc_1.protectedProcedure
+    updateItem: auth_1.protectedProcedure
         .input(zod_1.z.object({ productId: zod_1.z.string(), quantity: zod_1.z.number().min(0) }))
         .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.userId;
@@ -83,7 +84,7 @@ exports.cartRouter = (0, trpc_1.router)({
         }
         return { success: true };
     }),
-    removeItem: trpc_1.protectedProcedure
+    removeItem: auth_1.protectedProcedure
         .input(zod_1.z.object({ productId: zod_1.z.string() }))
         .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.userId;
@@ -99,7 +100,7 @@ exports.cartRouter = (0, trpc_1.router)({
         }
         return { success: true };
     }),
-    clear: trpc_1.protectedProcedure
+    clear: auth_1.protectedProcedure
         .mutation(async ({ ctx }) => {
         const userId = ctx.user.userId;
         const cart = await db_1.db.cart.findUnique({ where: { userId } });

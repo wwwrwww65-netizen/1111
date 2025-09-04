@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.searchRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
 const db_1 = require("@repo/db");
 // Search and filter schemas
 const searchProductsSchema = zod_1.z.object({
@@ -40,9 +40,9 @@ const searchOrdersSchema = zod_1.z.object({
     page: zod_1.z.number().min(1).default(1),
     limit: zod_1.z.number().min(1).max(100).default(20),
 });
-exports.searchRouter = (0, trpc_1.router)({
+exports.searchRouter = (0, trpc_setup_1.router)({
     // Search products with advanced filtering
-    searchProducts: trpc_1.publicProcedure
+    searchProducts: trpc_setup_1.publicProcedure
         .input(searchProductsSchema)
         .query(async ({ input }) => {
         const { query, categoryId, minPrice, maxPrice, inStock, sortBy = 'createdAt', sortOrder = 'desc', page, limit, tags, brand, } = input;
@@ -102,7 +102,7 @@ exports.searchRouter = (0, trpc_1.router)({
             db_1.db.product.count({ where }),
         ]);
         // Calculate average rating for each product
-        const productsWithRating = products.map(product => {
+        const productsWithRating = products.map((product) => {
             const avgRating = product.reviews.length > 0
                 ? product.reviews.reduce((sum, review) => sum + review.rating, 0) / product.reviews.length
                 : 0;
@@ -125,7 +125,7 @@ exports.searchRouter = (0, trpc_1.router)({
         };
     }),
     // Search categories
-    searchCategories: trpc_1.publicProcedure
+    searchCategories: trpc_setup_1.publicProcedure
         .input(searchCategoriesSchema)
         .query(async ({ input }) => {
         const { query, parentId, includeProducts } = input;
@@ -159,7 +159,7 @@ exports.searchRouter = (0, trpc_1.router)({
         return { categories };
     }),
     // Search users (admin only)
-    searchUsers: trpc_1.publicProcedure
+    searchUsers: trpc_setup_1.publicProcedure
         .input(searchUsersSchema)
         .query(async ({ input }) => {
         const { query, role, isVerified, page, limit } = input;
@@ -213,7 +213,7 @@ exports.searchRouter = (0, trpc_1.router)({
         };
     }),
     // Search orders (admin only)
-    searchOrders: trpc_1.publicProcedure
+    searchOrders: trpc_setup_1.publicProcedure
         .input(searchOrdersSchema)
         .query(async ({ input }) => {
         const { query, status, minTotal, maxTotal, startDate, endDate, page, limit } = input;
@@ -280,7 +280,7 @@ exports.searchRouter = (0, trpc_1.router)({
         };
     }),
     // Get search suggestions
-    getSearchSuggestions: trpc_1.publicProcedure
+    getSearchSuggestions: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({ query: zod_1.z.string().min(2) }))
         .query(async ({ input }) => {
         const { query } = input;
@@ -310,7 +310,7 @@ exports.searchRouter = (0, trpc_1.router)({
         };
     }),
     // Get popular searches
-    getPopularSearches: trpc_1.publicProcedure
+    getPopularSearches: trpc_setup_1.publicProcedure
         .query(async () => {
         // This would typically come from a search analytics table
         // For now, we'll return some common searches
@@ -328,7 +328,7 @@ exports.searchRouter = (0, trpc_1.router)({
         };
     }),
     // Get search filters
-    getSearchFilters: trpc_1.publicProcedure
+    getSearchFilters: trpc_setup_1.publicProcedure
         .query(async () => {
         const [categories, priceRanges, brands] = await Promise.all([
             db_1.db.category.findMany({
@@ -346,12 +346,12 @@ exports.searchRouter = (0, trpc_1.router)({
             }),
         ]);
         return {
-            categories: categories.filter(cat => cat._count.products > 0),
+            categories: categories.filter((cat) => cat._count.products > 0),
             priceRange: {
                 min: priceRanges._min.price || 0,
                 max: priceRanges._max.price || 1000,
             },
-            brands: brands.map(b => b.brand).filter(Boolean),
+            brands: brands.map((b) => b.brand).filter(Boolean),
         };
     }),
 });

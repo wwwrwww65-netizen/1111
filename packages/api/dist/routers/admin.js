@@ -2,9 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
-const db_1 = require("@repo/db");
+const trpc_setup_1 = require("../trpc-setup");
 const auth_1 = require("../middleware/auth");
+const db_1 = require("@repo/db");
 // Admin schemas
 const createProductSchema = zod_1.z.object({
     name: zod_1.z.string().min(1),
@@ -12,6 +12,7 @@ const createProductSchema = zod_1.z.object({
     price: zod_1.z.number().positive(),
     images: zod_1.z.array(zod_1.z.string()),
     categoryId: zod_1.z.string(),
+    vendorId: zod_1.z.string().optional(),
     stockQuantity: zod_1.z.number().int().min(0),
     sku: zod_1.z.string().optional(),
     weight: zod_1.z.number().optional(),
@@ -53,9 +54,9 @@ const updateUserSchema = zod_1.z.object({
     isVerified: zod_1.z.boolean().optional(),
     isActive: zod_1.z.boolean().optional(),
 });
-exports.adminRouter = (0, trpc_1.router)({
+exports.adminRouter = (0, trpc_setup_1.router)({
     // Dashboard statistics
-    getDashboardStats: trpc_1.protectedProcedure
+    getDashboardStats: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .query(async () => {
         const [totalUsers, totalProducts, totalOrders, totalRevenue, recentOrders, lowStockProducts, topSellingProducts, monthlyRevenue,] = await Promise.all([
@@ -108,13 +109,13 @@ exports.adminRouter = (0, trpc_1.router)({
             }),
         ]);
         // Get product details for top selling
-        const topSellingProductIds = topSellingProducts.map(item => item.productId);
+        const topSellingProductIds = topSellingProducts.map((item) => item.productId);
         const topSellingProductDetails = await db_1.db.product.findMany({
             where: { id: { in: topSellingProductIds } },
             select: { id: true, name: true, price: true, images: true },
         });
-        const topSellingWithDetails = topSellingProducts.map(item => {
-            const product = topSellingProductDetails.find(p => p.id === item.productId);
+        const topSellingWithDetails = topSellingProducts.map((item) => {
+            const product = topSellingProductDetails.find((p) => p.id === item.productId);
             return {
                 product,
                 totalSold: item._sum.quantity || 0,
@@ -134,17 +135,34 @@ exports.adminRouter = (0, trpc_1.router)({
         };
     }),
     // Product management
-    createProduct: trpc_1.protectedProcedure
+    createProduct: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(createProductSchema)
         .mutation(async ({ input }) => {
+        var _a;
+        let nextSku = input.sku;
+        if (!nextSku && input.vendorId) {
+            const vendor = await db_1.db.vendor.findUnique({ where: { id: input.vendorId } });
+            if (vendor === null || vendor === void 0 ? void 0 : vendor.vendorCode) {
+                const prefix = vendor.vendorCode + '-';
+                const last = await db_1.db.product.findFirst({ where: { vendorId: input.vendorId, sku: { startsWith: prefix } }, orderBy: { createdAt: 'desc' } });
+                let n = 0;
+                if ((last === null || last === void 0 ? void 0 : last.sku) && last.sku.startsWith(prefix)) {
+                    const tail = last.sku.substring(prefix.length);
+                    const parsed = parseInt(tail, 10);
+                    if (!isNaN(parsed))
+                        n = parsed;
+                }
+                nextSku = `${prefix}${n + 1}`;
+            }
+        }
         const product = await db_1.db.product.create({
-            data: input,
+            data: { ...input, sku: (_a = nextSku !== null && nextSku !== void 0 ? nextSku : input.sku) !== null && _a !== void 0 ? _a : null },
             include: { category: true },
         });
         return { product };
     }),
-    updateProduct: trpc_1.protectedProcedure
+    updateProduct: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(updateProductSchema)
         .mutation(async ({ input }) => {
@@ -156,7 +174,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { product };
     }),
-    deleteProduct: trpc_1.protectedProcedure
+    deleteProduct: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(zod_1.z.object({ id: zod_1.z.string() }))
         .mutation(async ({ input }) => {
@@ -165,7 +183,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { success: true };
     }),
-    getProducts: trpc_1.protectedProcedure
+    getProducts: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(zod_1.z.object({
         page: zod_1.z.number().min(1).default(1),
@@ -196,6 +214,7 @@ exports.adminRouter = (0, trpc_1.router)({
                 where,
                 include: {
                     category: true,
+                    variants: true,
                     _count: { select: { reviews: true, orderItems: true } },
                 },
                 orderBy: { createdAt: 'desc' },
@@ -214,8 +233,40 @@ exports.adminRouter = (0, trpc_1.router)({
             },
         };
     }),
+    // Create variants (sizes/colors)
+    createProductVariants: auth_1.protectedProcedure
+        .use(auth_1.adminMiddleware)
+        .input(zod_1.z.object({
+        productId: zod_1.z.string(),
+        variants: zod_1.z.array(zod_1.z.object({
+            name: zod_1.z.string(),
+            value: zod_1.z.string(),
+            price: zod_1.z.number().optional(),
+            purchasePrice: zod_1.z.number().optional(),
+            sku: zod_1.z.string().optional(),
+            stockQuantity: zod_1.z.number().int().min(0),
+        })),
+    }))
+        .mutation(async ({ input }) => {
+        const { productId, variants } = input;
+        const created = await Promise.all(variants.map((v) => {
+            var _a, _b, _c;
+            return db_1.db.productVariant.create({
+                data: {
+                    productId,
+                    name: v.name,
+                    value: v.value,
+                    price: (_a = v.price) !== null && _a !== void 0 ? _a : null,
+                    purchasePrice: (_b = v.purchasePrice) !== null && _b !== void 0 ? _b : null,
+                    sku: (_c = v.sku) !== null && _c !== void 0 ? _c : null,
+                    stockQuantity: v.stockQuantity,
+                },
+            });
+        }));
+        return { variants: created };
+    }),
     // Category management
-    createCategory: trpc_1.protectedProcedure
+    createCategory: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(createCategorySchema)
         .mutation(async ({ input }) => {
@@ -224,7 +275,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { category };
     }),
-    updateCategory: trpc_1.protectedProcedure
+    updateCategory: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(updateCategorySchema)
         .mutation(async ({ input }) => {
@@ -235,7 +286,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { category };
     }),
-    deleteCategory: trpc_1.protectedProcedure
+    deleteCategory: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(zod_1.z.object({ id: zod_1.z.string() }))
         .mutation(async ({ input }) => {
@@ -251,7 +302,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { success: true };
     }),
-    getCategories: trpc_1.protectedProcedure
+    getCategories: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .query(async () => {
         const categories = await db_1.db.category.findMany({
@@ -265,7 +316,7 @@ exports.adminRouter = (0, trpc_1.router)({
         return { categories };
     }),
     // Order management
-    getOrders: trpc_1.protectedProcedure
+    getOrders: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(zod_1.z.object({
         page: zod_1.z.number().min(1).default(1),
@@ -316,7 +367,7 @@ exports.adminRouter = (0, trpc_1.router)({
             },
         };
     }),
-    updateOrderStatus: trpc_1.protectedProcedure
+    updateOrderStatus: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(updateOrderStatusSchema)
         .mutation(async ({ input }) => {
@@ -339,7 +390,7 @@ exports.adminRouter = (0, trpc_1.router)({
         return { order };
     }),
     // User management
-    getUsers: trpc_1.protectedProcedure
+    getUsers: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(zod_1.z.object({
         page: zod_1.z.number().min(1).default(1),
@@ -393,7 +444,7 @@ exports.adminRouter = (0, trpc_1.router)({
             },
         };
     }),
-    updateUser: trpc_1.protectedProcedure
+    updateUser: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(updateUserSchema)
         .mutation(async ({ input }) => {
@@ -413,7 +464,7 @@ exports.adminRouter = (0, trpc_1.router)({
         return { user };
     }),
     // Coupon management
-    createCoupon: trpc_1.protectedProcedure
+    createCoupon: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(createCouponSchema)
         .mutation(async ({ input }) => {
@@ -422,7 +473,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { coupon };
     }),
-    getCoupons: trpc_1.protectedProcedure
+    getCoupons: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .query(async () => {
         const coupons = await db_1.db.coupon.findMany({
@@ -430,7 +481,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { coupons };
     }),
-    updateCoupon: trpc_1.protectedProcedure
+    updateCoupon: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(createCouponSchema.extend({ id: zod_1.z.string() }))
         .mutation(async ({ input }) => {
@@ -441,7 +492,7 @@ exports.adminRouter = (0, trpc_1.router)({
         });
         return { coupon };
     }),
-    deleteCoupon: trpc_1.protectedProcedure
+    deleteCoupon: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(zod_1.z.object({ id: zod_1.z.string() }))
         .mutation(async ({ input }) => {
@@ -451,7 +502,7 @@ exports.adminRouter = (0, trpc_1.router)({
         return { success: true };
     }),
     // Analytics
-    getAnalytics: trpc_1.protectedProcedure
+    getAnalytics: auth_1.protectedProcedure
         .use(auth_1.adminMiddleware)
         .input(zod_1.z.object({
         period: zod_1.z.enum(['day', 'week', 'month', 'year']).default('month'),
@@ -506,13 +557,13 @@ exports.adminRouter = (0, trpc_1.router)({
             }),
         ]);
         // Get product details for top products
-        const topProductIds = topProducts.map(item => item.productId);
+        const topProductIds = topProducts.map((item) => item.productId);
         const topProductDetails = await db_1.db.product.findMany({
             where: { id: { in: topProductIds } },
             select: { id: true, name: true, price: true },
         });
-        const topProductsWithDetails = topProducts.map(item => {
-            const product = topProductDetails.find(p => p.id === item.productId);
+        const topProductsWithDetails = topProducts.map((item) => {
+            const product = topProductDetails.find((p) => p.id === item.productId);
             return {
                 product,
                 totalSold: item._sum.quantity || 0,

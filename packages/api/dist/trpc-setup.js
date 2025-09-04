@@ -3,16 +3,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.protectedProcedure = exports.adminMiddleware = exports.optionalAuthMiddleware = exports.authMiddleware = exports.readTokenFromRequest = exports.verifyToken = exports.createToken = void 0;
+exports.protectedProcedure = exports.adminMiddleware = exports.optionalAuthMiddleware = exports.authMiddleware = exports.verifyToken = exports.createToken = exports.middleware = exports.publicProcedure = exports.router = exports.t = void 0;
 const server_1 = require("@trpc/server");
-const trpc_setup_1 = require("../trpc-setup");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const zod_1 = require("zod");
-const getJwtSecret = () => {
-    // Fallback to a safe default to keep prod working if env is missing
-    return process.env.JWT_SECRET || 'secret_for_tests';
-};
-// Schema for JWT payload
+exports.t = server_1.initTRPC.context().create();
+exports.router = exports.t.router;
+exports.publicProcedure = exports.t.procedure;
+exports.middleware = exports.t.middleware;
 const JWTPayloadSchema = zod_1.z.object({
     userId: zod_1.z.string(),
     email: zod_1.z.string().email(),
@@ -20,15 +18,19 @@ const JWTPayloadSchema = zod_1.z.object({
     iat: zod_1.z.number(),
     exp: zod_1.z.number(),
 });
-// Create JWT token
 const createToken = (payload) => {
-    return jsonwebtoken_1.default.sign(payload, getJwtSecret(), { expiresIn: '7d' });
+    const secret = process.env.JWT_SECRET;
+    if (!secret)
+        throw new Error('JWT_SECRET is not set');
+    return jsonwebtoken_1.default.sign(payload, secret, { expiresIn: '7d' });
 };
 exports.createToken = createToken;
-// Verify JWT token
 const verifyToken = (token) => {
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, getJwtSecret());
+        const secret = process.env.JWT_SECRET;
+        if (!secret)
+            throw new Error('JWT_SECRET is not set');
+        const decoded = jsonwebtoken_1.default.verify(token, secret);
         return JWTPayloadSchema.parse(decoded);
     }
     catch {
@@ -46,19 +48,16 @@ const readTokenFromRequest = (req) => {
         return header.replace('Bearer ', '');
     return null;
 };
-exports.readTokenFromRequest = readTokenFromRequest;
-// Auth middleware
-exports.authMiddleware = trpc_setup_1.t.middleware(async ({ ctx, next }) => {
-    const token = (0, exports.readTokenFromRequest)(ctx.req);
+exports.authMiddleware = exports.t.middleware(async ({ ctx, next }) => {
+    const token = readTokenFromRequest(ctx.req);
     if (!token) {
         throw new server_1.TRPCError({ code: 'UNAUTHORIZED', message: 'No token provided' });
     }
     const payload = (0, exports.verifyToken)(token);
     return next({ ctx: { ...ctx, user: payload } });
 });
-// Optional auth middleware
-exports.optionalAuthMiddleware = trpc_setup_1.t.middleware(async ({ ctx, next }) => {
-    const token = (0, exports.readTokenFromRequest)(ctx.req);
+exports.optionalAuthMiddleware = exports.t.middleware(async ({ ctx, next }) => {
+    const token = readTokenFromRequest(ctx.req);
     if (token) {
         try {
             const payload = (0, exports.verifyToken)(token);
@@ -68,13 +67,11 @@ exports.optionalAuthMiddleware = trpc_setup_1.t.middleware(async ({ ctx, next })
     }
     return next({ ctx: { ...ctx, user: null } });
 });
-// Admin middleware
-exports.adminMiddleware = trpc_setup_1.t.middleware(async ({ ctx, next }) => {
+exports.adminMiddleware = exports.t.middleware(async ({ ctx, next }) => {
     if (!ctx.user || ctx.user.role !== 'ADMIN') {
         throw new server_1.TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
     }
     return next({ ctx });
 });
-// Protected procedure composed here
-exports.protectedProcedure = trpc_setup_1.t.procedure.use(exports.authMiddleware);
-//# sourceMappingURL=auth.js.map
+exports.protectedProcedure = exports.t.procedure.use(exports.authMiddleware);
+//# sourceMappingURL=trpc-setup.js.map

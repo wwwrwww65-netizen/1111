@@ -578,7 +578,42 @@ adminRest.post('/vendors', async (req, res) => {
       storeNumber: storeNumber || null,
       vendorCode: vendorCode ? String(vendorCode).trim().toUpperCase() : null,
     };
-    const vendor = await db.vendor.upsert({ where: { name: payload.name }, update: payload, create: payload });
+    let vendor;
+    try {
+      vendor = await db.vendor.upsert({ where: { name: payload.name }, update: payload, create: payload });
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      // Fallback bootstrap: create Vendor table/indexes/FK if missing, then retry once
+      if (msg.includes('does not exist') || msg.includes('relation') && msg.includes('Vendor')) {
+        try {
+          await db.$executeRawUnsafe(
+            'CREATE TABLE IF NOT EXISTS "Vendor" ('+
+            '"id" TEXT PRIMARY KEY,'+
+            '"name" TEXT UNIQUE NOT NULL,'+
+            '"contactEmail" TEXT NULL,'+
+            '"phone" TEXT NULL,'+
+            '"address" TEXT NULL,'+
+            '"storeName" TEXT NULL,'+
+            '"storeNumber" TEXT NULL,'+
+            '"vendorCode" TEXT NULL,'+
+            '"isActive" BOOLEAN DEFAULT TRUE,'+
+            '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+            '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+            ')'
+          );
+          await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Vendor_name_key" ON "Vendor"("name")');
+          await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Vendor_vendorCode_key" ON "Vendor"("vendorCode")');
+          await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
+          await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Product_vendorId_fkey') THEN ALTER TABLE \"Product\" ADD CONSTRAINT \"Product_vendorId_fkey\" FOREIGN KEY (\"vendorId\") REFERENCES \"Vendor\"(\"id\") ON DELETE SET NULL; END IF; END $$;");
+          // Retry once after bootstrap
+          vendor = await db.vendor.upsert({ where: { name: payload.name }, update: payload, create: payload });
+        } catch (ee) {
+          return res.status(500).json({ error: 'vendor_save_failed', message: String((ee as any)?.message || ee) });
+        }
+      } else {
+        return res.status(500).json({ error: 'vendor_save_failed', message: msg });
+      }
+    }
     await audit(req, 'vendors', 'upsert', { id: vendor.id });
     return res.json({ vendor });
   } catch (e: any) {

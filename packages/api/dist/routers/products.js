@@ -2,10 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.productsRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
 const db_1 = require("@repo/db");
-exports.productsRouter = (0, trpc_1.router)({
-    list: trpc_1.publicProcedure
+exports.productsRouter = (0, trpc_setup_1.router)({
+    list: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({
         limit: zod_1.z.number().min(1).max(100).nullish(),
         cursor: zod_1.z.string().nullish(),
@@ -26,7 +26,7 @@ exports.productsRouter = (0, trpc_1.router)({
         }
         return { items, nextCursor };
     }),
-    getById: trpc_1.publicProcedure
+    getById: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({ id: zod_1.z.string() }))
         .query(async ({ input }) => {
         const product = await db_1.db.product.findUnique({

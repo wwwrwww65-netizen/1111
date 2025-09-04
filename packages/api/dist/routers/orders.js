@@ -2,10 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ordersRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
+const auth_1 = require("../middleware/auth");
 const db_1 = require("@repo/db");
-exports.ordersRouter = (0, trpc_1.router)({
-    createOrder: trpc_1.protectedProcedure
+exports.ordersRouter = (0, trpc_setup_1.router)({
+    createOrder: auth_1.protectedProcedure
         .input(zod_1.z.object({ shippingAddressId: zod_1.z.string().optional() }))
         .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.userId;
@@ -39,7 +40,7 @@ exports.ordersRouter = (0, trpc_1.router)({
         await db_1.db.cartItem.deleteMany({ where: { cartId: cart.id } });
         return { order };
     }),
-    listOrders: trpc_1.protectedProcedure
+    listOrders: auth_1.protectedProcedure
         .query(async ({ ctx }) => {
         const userId = ctx.user.userId;
         const orders = await db_1.db.order.findMany({

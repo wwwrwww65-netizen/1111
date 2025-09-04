@@ -5,7 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.emailRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
+const auth_1 = require("../middleware/auth");
 const db_1 = require("@repo/db");
 const nodemailer_1 = __importDefault(require("nodemailer"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
@@ -124,9 +125,9 @@ const emailTemplates = {
     `,
     }),
 };
-exports.emailRouter = (0, trpc_1.router)({
+exports.emailRouter = (0, trpc_setup_1.router)({
     // Send welcome email
-    sendWelcomeEmail: trpc_1.publicProcedure
+    sendWelcomeEmail: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({ email: zod_1.z.string().email(), name: zod_1.z.string() }))
         .mutation(async ({ input }) => {
         const { email, name } = input;
@@ -148,7 +149,7 @@ exports.emailRouter = (0, trpc_1.router)({
         }
     }),
     // Send password reset email
-    sendPasswordResetEmail: trpc_1.publicProcedure
+    sendPasswordResetEmail: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({ email: zod_1.z.string().email() }))
         .mutation(async ({ input }) => {
         const { email } = input;
@@ -177,7 +178,7 @@ exports.emailRouter = (0, trpc_1.router)({
         }
     }),
     // Send order confirmation email
-    sendOrderConfirmation: trpc_1.protectedProcedure
+    sendOrderConfirmation: auth_1.protectedProcedure
         .input(zod_1.z.object({ orderId: zod_1.z.string() }))
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -209,7 +210,7 @@ exports.emailRouter = (0, trpc_1.router)({
         }
     }),
     // Send order shipped email
-    sendOrderShipped: trpc_1.protectedProcedure
+    sendOrderShipped: auth_1.protectedProcedure
         .input(zod_1.z.object({ orderId: zod_1.z.string(), trackingNumber: zod_1.z.string().optional() }))
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -241,7 +242,7 @@ exports.emailRouter = (0, trpc_1.router)({
         }
     }),
     // Send order delivered email
-    sendOrderDelivered: trpc_1.protectedProcedure
+    sendOrderDelivered: auth_1.protectedProcedure
         .input(zod_1.z.object({ orderId: zod_1.z.string() }))
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -273,7 +274,7 @@ exports.emailRouter = (0, trpc_1.router)({
         }
     }),
     // Verify email token
-    verifyEmailToken: trpc_1.publicProcedure
+    verifyEmailToken: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({ token: zod_1.z.string() }))
         .mutation(async ({ input }) => {
         const { token } = input;
@@ -299,7 +300,7 @@ exports.emailRouter = (0, trpc_1.router)({
         }
     }),
     // Verify password reset token
-    verifyPasswordResetToken: trpc_1.publicProcedure
+    verifyPasswordResetToken: trpc_setup_1.publicProcedure
         .input(zod_1.z.object({ token: zod_1.z.string() }))
         .mutation(async ({ input }) => {
         const { token } = input;

@@ -5,12 +5,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.paymentsRouter = void 0;
 const zod_1 = require("zod");
-const trpc_1 = require("../trpc");
+const trpc_setup_1 = require("../trpc-setup");
+const auth_1 = require("../middleware/auth");
 const db_1 = require("@repo/db");
 const stripe_1 = __importDefault(require("stripe"));
-const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: '2023-10-16',
-});
+const isMockPayments = !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_MOCK === 'true';
+const stripe = !isMockPayments
+    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
+    : null;
 // Payment method schemas
 const createPaymentIntentSchema = zod_1.z.object({
     amount: zod_1.z.number().positive(),
@@ -34,9 +36,9 @@ const attachPaymentMethodSchema = zod_1.z.object({
     customerId: zod_1.z.string(),
     paymentMethodId: zod_1.z.string(),
 });
-exports.paymentsRouter = (0, trpc_1.router)({
+exports.paymentsRouter = (0, trpc_setup_1.router)({
     // Create payment intent
-    createPaymentIntent: trpc_1.protectedProcedure
+    createPaymentIntent: auth_1.protectedProcedure
         .input(createPaymentIntentSchema)
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -52,6 +54,24 @@ exports.paymentsRouter = (0, trpc_1.router)({
         });
         if (!order) {
             throw new Error('Order not found');
+        }
+        if (isMockPayments) {
+            const mockId = `pi_mock_${Date.now()}`;
+            await db_1.db.payment.create({
+                data: {
+                    orderId,
+                    amount,
+                    currency,
+                    method: 'STRIPE',
+                    status: 'PENDING',
+                    stripeId: mockId,
+                },
+            });
+            return {
+                clientSecret: null,
+                paymentIntentId: mockId,
+                customerId: null,
+            };
         }
         // Create or get customer
         let customer;
@@ -101,10 +121,18 @@ exports.paymentsRouter = (0, trpc_1.router)({
         };
     }),
     // Confirm payment
-    confirmPayment: trpc_1.protectedProcedure
+    confirmPayment: auth_1.protectedProcedure
         .input(confirmPaymentSchema)
         .mutation(async ({ input }) => {
         const { paymentIntentId, paymentMethodId } = input;
+        if (isMockPayments) {
+            await db_1.db.payment.update({ where: { stripeId: paymentIntentId }, data: { status: 'COMPLETED' } });
+            const payment = await db_1.db.payment.findUnique({ where: { stripeId: paymentIntentId } });
+            if (payment) {
+                await db_1.db.order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } });
+            }
+            return { status: 'succeeded', paymentIntent: { id: paymentIntentId } };
+        }
         const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
             payment_method: paymentMethodId,
         });
@@ -133,7 +161,7 @@ exports.paymentsRouter = (0, trpc_1.router)({
         };
     }),
     // Create customer
-    createCustomer: trpc_1.protectedProcedure
+    createCustomer: auth_1.protectedProcedure
         .input(createCustomerSchema)
         .mutation(async ({ input, ctx }) => {
         var _a;
@@ -156,7 +184,7 @@ exports.paymentsRouter = (0, trpc_1.router)({
         return { customerId: customer.id };
     }),
     // Create setup intent for saving payment methods
-    createSetupIntent: trpc_1.protectedProcedure
+    createSetupIntent: auth_1.protectedProcedure
         .input(createSetupIntentSchema)
         .mutation(async ({ input }) => {
         const { customerId } = input;
@@ -171,7 +199,7 @@ exports.paymentsRouter = (0, trpc_1.router)({
         };
     }),
     // Attach payment method to customer
-    attachPaymentMethod: trpc_1.protectedProcedure
+    attachPaymentMethod: auth_1.protectedProcedure
         .input(attachPaymentMethodSchema)
         .mutation(async ({ input }) => {
         const { customerId, paymentMethodId } = input;
@@ -181,7 +209,7 @@ exports.paymentsRouter = (0, trpc_1.router)({
         return { success: true };
     }),
     // Get customer payment methods
-    getPaymentMethods: trpc_1.protectedProcedure
+    getPaymentMethods: auth_1.protectedProcedure
         .query(async ({ ctx }) => {
         var _a;
         const userId = (_a = ctx.user) === null || _a === void 0 ? void 0 : _a.userId;
@@ -213,7 +241,7 @@ exports.paymentsRouter = (0, trpc_1.router)({
         };
     }),
     // Get payment history
-    getPaymentHistory: trpc_1.protectedProcedure
+    getPaymentHistory: auth_1.protectedProcedure
         .query(async ({ ctx }) => {
         var _a;
         const userId = (_a = ctx.user) === null || _a === void 0 ? void 0 : _a.userId;
@@ -232,7 +260,7 @@ exports.paymentsRouter = (0, trpc_1.router)({
         return { payments };
     }),
     // Refund payment
-    refundPayment: trpc_1.protectedProcedure
+    refundPayment: auth_1.protectedProcedure
         .input(zod_1.z.object({ paymentIntentId: zod_1.z.string(), amount: zod_1.z.number().optional() }))
         .mutation(async ({ input }) => {
         const { paymentIntentId, amount } = input;
