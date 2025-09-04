@@ -31,8 +31,31 @@ const app = express();
 // Ensure critical DB schema tweaks are applied (idempotent)
 async function ensureSchema(): Promise<void> {
   try {
+    // Ensure Vendor table exists for admin vendor operations
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "Vendor" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"name" TEXT UNIQUE NOT NULL,'+
+      '"contactEmail" TEXT NULL,'+
+      '"phone" TEXT NULL,'+
+      '"address" TEXT NULL,'+
+      '"storeName" TEXT NULL,'+
+      '"storeNumber" TEXT NULL,'+
+      '"vendorCode" TEXT NULL,'+
+      '"isActive" BOOLEAN DEFAULT TRUE,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    // Ensure unique indexes for name and vendorCode
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Vendor_name_key" ON "Vendor"("name")');
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Vendor_vendorCode_key" ON "Vendor"("vendorCode")');
     await db.$executeRawUnsafe('ALTER TABLE "ProductVariant" ADD COLUMN IF NOT EXISTS "purchasePrice" DOUBLE PRECISION');
     await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
+    // Ensure FK from Product.vendorId -> Vendor.id
+    await db.$executeRawUnsafe(
+      "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Product_vendorId_fkey') THEN ALTER TABLE \"Product\" ADD CONSTRAINT \"Product_vendorId_fkey\" FOREIGN KEY (\"vendorId\") REFERENCES \"Vendor\"(\"id\") ON DELETE SET NULL; END IF; END $$;"
+    );
     // Ensure Vendor columns exist for admin panel features
     await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "contactEmail" TEXT');
     await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "phone" TEXT');

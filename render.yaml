@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     buildCommand: pnpm install --frozen-lockfile=false && pnpm --filter @repo/db db:generate && pnpm --filter @repo/api build
-    startCommand: node packages/api/dist/index.js
+    startCommand: node -e "process.env.DATABASE_URL?console.log('DB_URL set'):console.log('DB_URL missing');" && npx prisma migrate deploy || npx prisma db push && node packages/api/dist/index.js
     healthCheckPath: /health
     autoDeploy: true
   - type: web
