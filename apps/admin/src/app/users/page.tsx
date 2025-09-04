@@ -59,20 +59,25 @@ export default function UsersPage(): JSX.Element {
         <button onClick={()=>{ setTab('admins'); setPage(1); load(); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='admins' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>الإدارة</button>
         <button onClick={()=>{ setTab('permissions'); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='permissions' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>الصلاحيات</button>
       </div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <div style={{ display:'flex', gap:8 }}>
-          <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-          <button onClick={()=>{ setPage(1); load(); }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>بحث</button>
+      {tab !== 'permissions' && (
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <div style={{ display:'flex', gap:8 }}>
+            <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <button onClick={()=>{ setPage(1); load(); }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>بحث</button>
+          </div>
+          <button onClick={()=> setModalOpen(true)} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>إضافة حساب</button>
         </div>
-        <button onClick={()=> setModalOpen(true)} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>إضافة حساب</button>
-      </div>
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-        <select value={roleName} onChange={(e)=>setRoleName(e.target.value)} style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
-          <option value="MANAGER">MANAGER</option>
-          <option value="OPERATOR">OPERATOR</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
-      </div>
+      )}
+      {tab !== 'permissions' && (
+        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+          <select value={roleName} onChange={(e)=>setRoleName(e.target.value)} style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+            <option value="MANAGER">MANAGER</option>
+            <option value="OPERATOR">OPERATOR</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </div>
+      )}
+      {tab !== 'permissions' && (
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead>
           <tr>
@@ -99,9 +104,12 @@ export default function UsersPage(): JSX.Element {
           ))}
         </tbody>
       </table>
-      <div style={{ marginTop:12 }}>
-        <button onClick={bulkAssign} style={{ padding:'8px 12px', background:'#064e3b', color:'#e5e7eb', borderRadius:8 }}>إسناد جماعي</button>
-      </div>
+      )}
+      {tab !== 'permissions' && (
+        <div style={{ marginTop:12 }}>
+          <button onClick={bulkAssign} style={{ padding:'8px 12px', background:'#064e3b', color:'#e5e7eb', borderRadius:8 }}>إسناد جماعي</button>
+        </div>
+      )}
       {tab==='permissions' && <PermissionsTab apiBase={apiBase} authHeaders={authHeaders} />}
       {modalOpen && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'grid', placeItems:'center', zIndex:50 }}>

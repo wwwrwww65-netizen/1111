@@ -1,1 +1,1 @@
-{"/account/page":"/account","/cart/page":"/cart","/_not-found/page":"/_not-found","/categories/page":"/categories","/checkout/page":"/checkout","/page":"/","/products/[id]/page":"/products/[id]","/search/page":"/search","/wishlist/page":"/wishlist","/api/products/route":"/api/products"}
+{"/account/page":"/account","/_not-found/page":"/_not-found","/cart/page":"/cart","/checkout/page":"/checkout","/categories/page":"/categories","/page":"/","/products/[id]/page":"/products/[id]","/search/page":"/search","/wishlist/page":"/wishlist","/api/products/route":"/api/products"}
