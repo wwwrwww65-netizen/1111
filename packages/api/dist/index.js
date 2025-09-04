@@ -106,6 +106,8 @@ async function ensureSchema() {
         await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeSize" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "typeId" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
         // FK if not exists
         await db_1.db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AttributeSize_typeId_fkey') THEN ALTER TABLE \"AttributeSize\" ADD CONSTRAINT \"AttributeSize_typeId_fkey\" FOREIGN KEY (\"typeId\") REFERENCES \"AttributeSizeType\"(\"id\") ON DELETE SET NULL; END IF; END $$;");
+        // Ensure composite uniqueness per type: (typeId, lower(name))
+        await db_1.db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "AttributeSize_type_name_key" ON "AttributeSize"((LOWER("name")), COALESCE("typeId", \'__NONE__\'))');
         // Auth/session/audit tables & columns (idempotent bootstraps)
         await db_1.db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "failedLoginAttempts" INTEGER DEFAULT 0');
         await db_1.db.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lockUntil" TIMESTAMP NULL');

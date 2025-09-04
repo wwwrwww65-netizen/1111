@@ -1058,8 +1058,17 @@ adminRest.post('/attributes/size-types/:id/sizes', async (req, res) => {
     const { name } = req.body || {};
     if (!name)
         return res.status(400).json({ error: 'name_required' });
-    const s = await db_1.db.attributeSize.create({ data: { name, typeId: id } });
-    res.json({ size: s });
+    try {
+        const s = await db_1.db.attributeSize.create({ data: { name: String(name).trim(), typeId: id } });
+        return res.json({ size: s });
+    }
+    catch (e) {
+        const msg = String((e === null || e === void 0 ? void 0 : e.message) || '').toLowerCase();
+        if (msg.includes('unique') || msg.includes('duplicate')) {
+            return res.status(409).json({ error: 'duplicate', message: 'المقاس موجود لهذا النوع' });
+        }
+        return res.status(500).json({ error: 'create_failed', message: (e === null || e === void 0 ? void 0 : e.message) || 'failed' });
+    }
 });
 adminRest.patch('/attributes/sizes/:id', async (req, res) => {
     const { id } = req.params;
