@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import PermissionsTab from './PermissionsTab';
 export const dynamic = 'force-dynamic';
 
 function useApiBase(){
@@ -21,7 +22,7 @@ export default function UsersPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [roleName, setRoleName] = React.useState("MANAGER");
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
-  const [tab, setTab] = React.useState<'users'|'vendors'|'admins'>('users');
+  const [tab, setTab] = React.useState<'users'|'vendors'|'admins'|'permissions'>('users');
   const [modalOpen, setModalOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m:string)=>{ setToast(m); setTimeout(()=>setToast(""), 1800); };
@@ -56,6 +57,7 @@ export default function UsersPage(): JSX.Element {
         <button onClick={()=>{ setTab('users'); setPage(1); load(); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='users' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>المستخدمون</button>
         <button onClick={()=>{ setTab('vendors'); setPage(1); load(); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='vendors' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>المورّدون</button>
         <button onClick={()=>{ setTab('admins'); setPage(1); load(); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='admins' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>الإدارة</button>
+        <button onClick={()=>{ setTab('permissions'); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='permissions' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>الصلاحيات</button>
       </div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <div style={{ display:'flex', gap:8 }}>
@@ -100,6 +102,7 @@ export default function UsersPage(): JSX.Element {
       <div style={{ marginTop:12 }}>
         <button onClick={bulkAssign} style={{ padding:'8px 12px', background:'#064e3b', color:'#e5e7eb', borderRadius:8 }}>إسناد جماعي</button>
       </div>
+      {tab==='permissions' && <PermissionsTab apiBase={apiBase} authHeaders={authHeaders} />}
       {modalOpen && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'grid', placeItems:'center', zIndex:50 }}>
           <div style={{ width:520, background:'#0f1420', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>

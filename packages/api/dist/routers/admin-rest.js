@@ -72,6 +72,107 @@ adminRest.use((req, res, next) => {
         return res.status(401).json({ error: e.message || 'Unauthorized' });
     }
 });
+// Roles & Permissions
+adminRest.get('/roles', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'settings.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const list = await db_1.db.role.findMany({ include: { permissions: { include: { permission: true } } }, orderBy: { name: 'asc' } });
+        res.json({ roles: list.map(r => ({ id: r.id, name: r.name, permissions: r.permissions.map(p => ({ id: p.permission.id, key: p.permission.key, description: p.permission.description })) })) });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'roles_list_failed' });
+    }
+});
+adminRest.post('/roles', async (req, res) => {
+    var _a;
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'settings.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const name = String((((_a = req.body) === null || _a === void 0 ? void 0 : _a.name) || '')).trim();
+        if (!name)
+            return res.status(400).json({ error: 'name_required' });
+        const r = await db_1.db.role.create({ data: { name } });
+        await audit(req, 'roles', 'create', { id: r.id });
+        res.json({ role: r });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'role_create_failed' });
+    }
+});
+adminRest.get('/permissions', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'settings.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const list = await db_1.db.permission.findMany({ orderBy: { key: 'asc' } });
+        res.json({ permissions: list });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'perms_list_failed' });
+    }
+});
+adminRest.post('/permissions', async (req, res) => {
+    var _a, _b;
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'settings.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const key = String((((_a = req.body) === null || _a === void 0 ? void 0 : _a.key) || '')).trim();
+        if (!key)
+            return res.status(400).json({ error: 'key_required' });
+        const p = await db_1.db.permission.create({ data: { key, description: ((_b = req.body) === null || _b === void 0 ? void 0 : _b.description) || null } });
+        await audit(req, 'permissions', 'create', { id: p.id });
+        res.json({ permission: p });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'perm_create_failed' });
+    }
+});
+adminRest.post('/roles/:id/permissions', async (req, res) => {
+    var _a;
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'settings.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { id } = req.params;
+        const permIds = Array.isArray((_a = req.body) === null || _a === void 0 ? void 0 : _a.permissionIds) ? req.body.permissionIds : [];
+        const role = await db_1.db.role.findUnique({ where: { id } });
+        if (!role)
+            return res.status(404).json({ error: 'role_not_found' });
+        // Reset and set
+        await db_1.db.rolePermission.deleteMany({ where: { roleId: id } });
+        for (const pid of permIds) {
+            await db_1.db.rolePermission.create({ data: { roleId: id, permissionId: pid } });
+        }
+        await audit(req, 'roles', 'set_permissions', { id, count: permIds.length });
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'role_set_perms_failed' });
+    }
+});
+adminRest.post('/users/:id/assign-roles', async (req, res) => {
+    var _a;
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'users.manage')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { id } = req.params;
+        const roleIds = Array.isArray((_a = req.body) === null || _a === void 0 ? void 0 : _a.roleIds) ? req.body.roleIds : [];
+        await db_1.db.userRoleLink.deleteMany({ where: { userId: id } });
+        for (const rid of roleIds) {
+            await db_1.db.userRoleLink.create({ data: { userId: id, roleId: rid } });
+        }
+        await audit(req, 'users', 'assign_roles', { id, count: roleIds.length });
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'user_assign_roles_failed' });
+    }
+});
 // Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
 adminRest.use(async (req, res, next) => {
     const p = req.path || '';
