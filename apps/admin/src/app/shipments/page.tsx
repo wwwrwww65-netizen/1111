@@ -17,35 +17,40 @@ export default function ShipmentsPage(): JSX.Element {
 
   React.useEffect(()=>{ (async ()=>{ setBusy(true); const j = await (await fetch(`${apiBase}/api/admin/shipments?page=${page}&limit=20`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setBusy(false); setRows(j.shipments||[]); setTotal(j.pagination?.total||0); })(); },[apiBase, page]);
 
+  const totalPages = Math.max(1, Math.ceil(total / 20));
+
   return (
     <main className="panel">
-      <h1>الشحنات</h1>
-      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
-        <a className="btn" href={`${apiBase}/api/admin/shipments/export/csv`}>تصدير CSV</a>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+        <h1 style={{ margin:0 }}>الشحنات</h1>
+        <div style={{ display:'flex', gap:8 }}>
+          <a className="btn" href={`${apiBase}/api/admin/shipments/export/csv`}>تصدير CSV</a>
+        </div>
       </div>
+
       <div style={{ overflowX:'auto' }}>
-        <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
+        <table className="table">
           <thead><tr>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Shipment ID</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Order ID</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Carrier/Driver</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Tracking</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Status</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Weight</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Cost</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>Actions</th>
+            <th>Shipment ID</th>
+            <th>Order ID</th>
+            <th>Carrier/Driver</th>
+            <th>Tracking</th>
+            <th>Status</th>
+            <th>Weight</th>
+            <th>Cost</th>
+            <th>Actions</th>
           </tr></thead>
           <tbody>
-            {rows.map((s:any, idx:number)=> (
-              <tr key={s.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{s.id}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}><a href={`/orders/${s.orderId}`}>{s.orderId}</a></td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{s.carrier?.name||s.driver?.name||'-'}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{s.trackingNumber||'-'}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{s.status}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{s.weight||'-'}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{s.cost||'-'}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>
+            {rows.map((s:any)=> (
+              <tr key={s.id}>
+                <td>{s.id}</td>
+                <td><a href={`/orders/${s.orderId}`}>{s.orderId}</a></td>
+                <td>{s.carrier?.name||s.driver?.name||'-'}</td>
+                <td>{s.trackingNumber||'-'}</td>
+                <td><span className="badge">{s.status}</span></td>
+                <td>{s.weight||'-'}</td>
+                <td>{s.cost||'-'}</td>
+                <td>
                   <a className="btn" href={`${apiBase}/api/admin/shipments/${s.id}/track`}>Track</a>
                   <a className="btn" href={`${apiBase}/api/admin/shipments/${s.id}/label`} style={{ marginInlineStart:6 }}>Label</a>
                 </td>
@@ -54,6 +59,12 @@ export default function ShipmentsPage(): JSX.Element {
             {!rows.length && (<tr><td colSpan={8} style={{ padding:12, color:'var(--sub)' }}>{busy?'جارٍ التحميل…':'لا توجد نتائج'}</td></tr>)}
           </tbody>
         </table>
+      </div>
+
+      <div className="pagination" style={{ marginTop:12 }}>
+        <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1,p-1))} className="icon-btn">السابق</button>
+        <span style={{ color:'var(--sub)' }}>{page} / {totalPages}</span>
+        <button disabled={page>=totalPages} onClick={()=> setPage(p=> Math.min(totalPages,p+1))} className="icon-btn">التالي</button>
       </div>
     </main>
   );

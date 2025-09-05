@@ -21,25 +21,29 @@ export default function DriversPage(): JSX.Element {
 
   return (
     <main className="panel">
-      <h1>السائقون</h1>
-      <div className="grid" style={{ gridTemplateColumns:'2fr 2fr auto', gap:8, marginBottom:12 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+        <h1 style={{ margin:0 }}>السائقون</h1>
+      </div>
+
+      <div className="toolbar" style={{ marginBottom:12 }}>
         <input className="input" placeholder="اسم السائق" value={name} onChange={(e)=>setName(e.target.value)} />
         <input className="input" placeholder="رقم الهاتف" value={phone} onChange={(e)=>setPhone(e.target.value)} />
         <button className="btn" onClick={add}>إضافة</button>
       </div>
+
       <div style={{ overflowX:'auto' }}>
-        <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
+        <table className="table">
           <thead><tr>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>الاسم</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>الهاتف</th>
-            <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>الحالة</th>
+            <th>الاسم</th>
+            <th>الهاتف</th>
+            <th>الحالة</th>
           </tr></thead>
           <tbody>
-            {rows.map((d:any, idx:number)=> (
-              <tr key={d.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{d.name}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{d.phone||'-'}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{d.status}</td>
+            {rows.map((d:any)=> (
+              <tr key={d.id}>
+                <td>{d.name}</td>
+                <td>{d.phone||'-'}</td>
+                <td><span className="badge">{d.status}</span></td>
               </tr>
             ))}
           </tbody>

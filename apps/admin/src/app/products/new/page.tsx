@@ -51,7 +51,6 @@ export default function AdminProductCreate(): JSX.Element {
 
   async function getImageDominant(file: File): Promise<{url:string;hex:string}> {
     const url = URL.createObjectURL(file);
-    // Compute simple average color via canvas
     const img = await new Promise<HTMLImageElement>((resolve, reject)=>{ const i = new Image(); i.onload=()=>resolve(i); i.onerror=reject; i.src=url; });
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -128,15 +127,12 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       setBusy(true);
       const extracted = extractFromText(paste);
-      // palettes per image
       const palettes: Array<{url:string;hex:string;name:string}> = [];
       for (const f of filesForPalette.slice(0,8)) {
-        // eslint-disable-next-line no-await-in-loop
         const p = await getImageDominant(f);
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
       }
-      // mapping color -> best image (by nearest color name)
       const mapping: Record<string, string|undefined> = {};
       for (const c of extracted.colors as string[]) {
         const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(c.toLowerCase()) ? 0 : 1 }));
@@ -148,7 +144,6 @@ export default function AdminProductCreate(): JSX.Element {
       setError('فشل التحليل. حاول مجدداً.');
     } finally { setBusy(false); }
   }
-  // REST-based creation; variants handled later via dedicated endpoint if needed
 
   const [type, setType] = React.useState<'simple'|'variable'>('simple');
   const [name, setName] = React.useState('');
@@ -176,6 +171,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
+
   React.useEffect(()=>{
     (async ()=>{
       try {
@@ -244,7 +240,7 @@ export default function AdminProductCreate(): JSX.Element {
         variants = rows;
       }
       if (variants.length) {
-        // Placeholder: could POST to /api/admin/products/:id/variants bulk endpoint in future
+        // Future: POST variants in bulk when endpoint is ready
       }
     }
     alert('تم إنشاء المنتج بنجاح');
@@ -252,80 +248,81 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 16 }}>إنشاء منتج</h1>
-      <section style={{ border:'1px solid #1c2333', borderRadius:12, padding:16, background:'#0f1420', marginBottom:16 }}>
-        <h2 style={{ margin:0, marginBottom:8 }}>Paste & Generate</h2>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:12 }}>
-          <div style={{ display:'grid', gap:12 }}>
-            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={8} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
-              <button type="button" onClick={()=>{
-                if (!review) return;
-                // Fill main form without saving
-                const limitedName = String(review.name||'').slice(0,60);
-                setName(limitedName);
-                setDescription([review.shortDesc, review.longDesc].filter(Boolean).join('\n\n'));
-                if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
-                if (review.stock!==undefined) setStockQuantity(review.stock);
-                if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
-                if (Array.isArray(review.sizes) && review.sizes.length) setSizes((review.sizes as string[]).join(', '));
-                if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
-                // Placeholders for images from mapping
-                const mappedUrls = Object.values(review.mapping||{}).filter(Boolean) as string[];
-                if (mappedUrls.length) setImages(mappedUrls.join(', '));
-                // Build variants matrix with placeholders and image mapping
-                const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
-                const cList: string[] = Array.isArray(review.colors)? review.colors : [];
-                const rows: typeof variantRows = [];
-                const baseSale = review.salePrice!==undefined ? Number(review.salePrice) : Number(salePrice||0);
-                const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-                if (sList.length && cList.length) {
-                  for (const sz of sList) {
-                    for (const col of cList) {
-                      const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}-${col}`;
-                      rows.push({ name: sz, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
-                    }
-                  }
-                } else if (sList.length) {
-                  for (const sz of sList) {
-                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}`;
-                    rows.push({ name: sz, value: sz, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
-                  }
-                } else if (cList.length) {
+    <main className="panel">
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
+        <h1 style={{ margin:0 }}>إنشاء منتج</h1>
+        <a href="/products" className="btn btn-outline">رجوع</a>
+      </div>
+
+      <section className="panel" style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+          <h2 style={{ margin:0 }}>Paste & Generate</h2>
+          <div className="toolbar" style={{ gap:8 }}>
+            <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
+            <button type="button" onClick={()=>{
+              if (!review) return;
+              const limitedName = String(review.name||'').slice(0,60);
+              setName(limitedName);
+              setDescription([review.shortDesc, review.longDesc].filter(Boolean).join('\n\n'));
+              if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
+              if (review.stock!==undefined) setStockQuantity(review.stock);
+              if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
+              if (Array.isArray(review.sizes) && review.sizes.length) setSizes((review.sizes as string[]).join(', '));
+              if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
+              const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
+              const cList: string[] = Array.isArray(review.colors)? review.colors : [];
+              const rows: typeof variantRows = [];
+              const baseSale = review.salePrice!==undefined ? Number(review.salePrice) : Number(salePrice||0);
+              const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+              if (sList.length && cList.length) {
+                for (const sz of sList) {
                   for (const col of cList) {
-                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${col}`;
-                    rows.push({ name: col, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}-${col}`;
+                    rows.push({ name: sz, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
                   }
                 }
-                setVariantRows(rows);
-              }} disabled={busy || !review} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>توليد</button>
-              {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            </div>
+              } else if (sList.length) {
+                for (const sz of sList) {
+                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}`;
+                  rows.push({ name: sz, value: sz, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                }
+              } else if (cList.length) {
+                for (const col of cList) {
+                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${col}`;
+                  rows.push({ name: col, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                }
+              }
+              setVariantRows(rows);
+            }} disabled={busy || !review} className="btn">توليد</button>
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:12 }}>
+          <div style={{ display:'grid', gap:12 }}>
+            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={8} className="input" />
+            {error && <span style={{ color:'#ef4444' }}>{error}</span>}
             {review && (
-              <div style={{ border:'1px solid #1c2333', borderRadius:8, padding:12, background:'#0b0e14' }}>
+              <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                  <label>سعر البيع (ثقة {Math.round((review.confidence?.salePrice||0)*100)}%)<input type="number" value={review.salePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, salePrice: e.target.value===''? undefined : Number(e.target.value)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                  <label>سعر الشراء (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                  <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%)<textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%)<textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" /></label>
+                  <label>سعر البيع (ثقة {Math.round((review.confidence?.salePrice||0)*100)}%)<input type="number" value={review.salePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, salePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
+                  <label>سعر الشراء (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
+                  <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
+                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%)<textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} className="input" /></label>
+                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%)<textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
                   <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%)</div>
-                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)}))} className="input" />
                     </div>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%)</div>
-                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)}))} className="input" />
                     </div>
                   </div>
                   <div style={{ gridColumn:'1 / -1' }}>
                     <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO)</div>
-                    <input value={(review.keywords||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, keywords: e.target.value.split(',').map((k:string)=>k.trim()).filter(Boolean)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                    <input value={(review.keywords||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, keywords: e.target.value.split(',').map((k:string)=>k.trim()).filter(Boolean)}))} className="input" />
                   </div>
                 </div>
                 <div style={{ marginTop:12, borderTop:'1px solid #1c2333', paddingTop:12 }}>
@@ -334,8 +331,8 @@ export default function AdminProductCreate(): JSX.Element {
                     <div>
                       <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
                         {(review.palettes||[]).map((p:any, idx:number)=> (
-                          <div key={idx} style={{ border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
-                            <img src={p.url} alt={String(idx)} style={{ width:'100%', height:100, objectFit:'cover' }} />
+                          <div key={idx} className="panel" style={{ padding:0 }}>
+                            <img src={p.url} alt={String(idx)} style={{ width:'100%', height:100, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
                             <div style={{ padding:6, display:'flex', alignItems:'center', gap:8 }}>
                               <span style={{ width:14, height:14, borderRadius:999, background:p.hex, border:'1px solid #111' }} />
                               <span style={{ fontSize:12 }}>{p.name}</span>
@@ -352,7 +349,7 @@ export default function AdminProductCreate(): JSX.Element {
                               <span style={{ width:14, height:14, borderRadius:999, background:(KNOWN_COLORS.find(k=>k.name.toLowerCase()===c.toLowerCase())?.hex||'#666'), border:'1px solid #111' }} />
                               <span>{c}</span>
                             </div>
-                            <select value={review.mapping?.[c]||''} onChange={(e)=> setReview((r:any)=> ({...r, mapping: { ...(r.mapping||{}), [c]: e.target.value || undefined }}))} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                            <select value={review.mapping?.[c]||''} onChange={(e)=> setReview((r:any)=> ({...r, mapping: { ...(r.mapping||{}), [c]: e.target.value || undefined }}))} className="select">
                               <option value="">(بدون صورة)</option>
                               {(review.palettes||[]).map((p:any, idx:number)=> (<option key={idx} value={p.url}>صورة {idx+1}</option>))}
                             </select>
@@ -375,18 +372,12 @@ export default function AdminProductCreate(): JSX.Element {
                 const dropped = Array.from(e.dataTransfer.files || []);
                 if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
               }}
-              style={{
-                border: `2px dashed ${dragOver ? '#60a5fa' : '#1c2333'}`,
-                borderRadius: 12,
-                padding: 16,
-                background: '#0b0e14',
-                color:'#94a3b8',
-                textAlign:'center'
-              }}
+              className="dropzone"
+              style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
             >
               اسحب وأفلت الصور هنا أو
               <br />
-              <label style={{ display:'inline-block', marginTop: 8, padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8, cursor:'pointer' }}>
+              <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
                 اختر من جهازك
                 <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
                   const selected = Array.from(e.target.files || []);
@@ -398,10 +389,10 @@ export default function AdminProductCreate(): JSX.Element {
             {files.length > 0 && (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:8, marginTop:10 }}>
                 {files.map((f, idx) => (
-                  <div key={idx} style={{ position:'relative', border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
-                    <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover' }} />
-                    <div style={{ position:'absolute', right:6, top:6 }}>
-                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} style={{ background:'#111', color:'#fff', borderRadius:6, padding:'2px 6px', fontSize:12 }}>إزالة</button>
+                  <div key={idx} className="panel" style={{ padding:0 }}>
+                    <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                    <div style={{ padding:8, textAlign:'right' }}>
+                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
                     </div>
                   </div>
                 ))}
@@ -410,28 +401,29 @@ export default function AdminProductCreate(): JSX.Element {
           </div>
         </div>
       </section>
+
       <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, alignItems:'start' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <label>نوع المنتج
-            <select value={type} onChange={(e) => setType(e.target.value as any)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+            <select value={type} onChange={(e) => setType(e.target.value as any)} className="select">
               <option value="simple">منتج بسيط</option>
               <option value="variable">منتج متعدد (مقاسات/ألوان)</option>
             </select>
           </label>
           <label>SKU
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="سيتم توليده حسب المورّد" style={{ flex:1, padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              <input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="سيتم توليده حسب المورّد" className="input" />
               <button type="button" onClick={async ()=>{
                 if (!vendorId) return;
                 try { const r = await fetch(`${apiBase}/api/admin/vendors/${vendorId}/next-sku`, { credentials:'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch {}
-              }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>توليد تلقائي</button>
+              }} className="btn btn-outline">توليد تلقائي</button>
             </div>
           </label>
           <label style={{ gridColumn:'1 / -1' }}>اسم المنتج
-            <input value={name} onChange={(e) => setName(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
           </label>
           <label style={{ gridColumn:'1 / -1' }}>الوصف
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="input" />
           </label>
           <label>المورّد
             <select value={vendorId} onChange={async (e) => {
@@ -439,19 +431,19 @@ export default function AdminProductCreate(): JSX.Element {
               if (v) {
                 try{ const r = await fetch(`${apiBase}/api/admin/vendors/${v}/next-sku`, { credentials:'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch {}
               }
-            }} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+            }} className="select">
               <option value="">(بدون)</option>
               {vendorOptions.map((v)=> (<option key={v.id} value={v.id}>{v.name}</option>))}
             </select>
           </label>
           <label>العلامة التجارية
-            <select value={brand} onChange={(e)=> setBrand(e.target.value)} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+            <select value={brand} onChange={(e)=> setBrand(e.target.value)} className="select">
               <option value="">(اختياري)</option>
               {brandOptions.map(b=> (<option key={b.id} value={b.name}>{b.name}</option>))}
             </select>
           </label>
           <label>التصنيف
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required className="select">
               <option value="">اختر تصنيفاً</option>
               {categoryOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -459,20 +451,20 @@ export default function AdminProductCreate(): JSX.Element {
             </select>
           </label>
           <label>المخزون
-            <input type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <input type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value === '' ? '' : Number(e.target.value))} className="input" />
           </label>
           <label>سعر الشراء
-            <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))} className="input" />
           </label>
           <label>سعر البيع
-            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))} required style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))} required className="input" />
           </label>
           {type === 'variable' && (
             <>
               <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
+                <div className="panel" style={{ padding:10 }}>
                   <div style={{ marginBottom:8, color:'#9ca3af' }}>نوع المقاس</div>
-                  <select value={sizeTypeId} onChange={(e)=>{ setSizeTypeId(e.target.value); setSizes(''); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                  <select value={sizeTypeId} onChange={(e)=>{ setSizeTypeId(e.target.value); setSizes(''); }} className="select">
                     <option value="">اختر نوعًا</option>
                     {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
                   </select>
@@ -481,15 +473,15 @@ export default function AdminProductCreate(): JSX.Element {
                       <button type="button" key={s.id} onClick={()=> setSizes(prev=>{
                         const list = prev.split(',').map(x=>x.trim()).filter(Boolean);
                         return list.includes(s.name) ? list.filter(x=>x!==s.name).join(', ') : [...list, s.name].join(', ');
-                      })} style={{ padding:'6px 10px', borderRadius:999, background:'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>{s.name}</button>
+                      })} className="chip">{s.name}</button>
                     ))}
                   </div>
                 </div>
-                <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
+                <div className="panel" style={{ padding:10 }}>
                   <div style={{ marginBottom:8, color:'#9ca3af' }}>الألوان</div>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
                     {colorOptions.map((c)=> (
-                      <button type="button" key={c.id} title={c.name} onClick={()=> setSelectedColors(prev=> prev.includes(c.name) ? prev.filter(x=>x!==c.name) : [...prev, c.name])} style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:999, background: selectedColors.includes(c.name) ? '#111827' : 'transparent', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                      <button type="button" key={c.id} title={c.name} onClick={()=> setSelectedColors(prev=> prev.includes(c.name) ? prev.filter(x=>x!==c.name) : [...prev, c.name])} className="chip">
                         <span style={{ width:14, height:14, borderRadius:999, background:c.hex, border:'1px solid #111827' }} />
                         <span style={{ fontSize:12 }}>{c.name}</span>
                       </button>
@@ -503,7 +495,7 @@ export default function AdminProductCreate(): JSX.Element {
 
         <div style={{ display:'grid', gap:12 }}>
           <label>الصور (روابط مفصولة بفواصل)
-            <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" style={{ width: '100%', padding: 10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
           </label>
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -514,18 +506,12 @@ export default function AdminProductCreate(): JSX.Element {
               const dropped = Array.from(e.dataTransfer.files || []);
               if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
             }}
-            style={{
-              border: `2px dashed ${dragOver ? '#60a5fa' : '#1c2333'}`,
-              borderRadius: 12,
-              padding: 16,
-              background: '#0b0e14',
-              color:'#94a3b8',
-              textAlign:'center'
-            }}
+            className="dropzone"
+            style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
           >
             اسحب وأفلت الصور هنا أو
             <br />
-            <label style={{ display:'inline-block', marginTop: 8, padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8, cursor:'pointer' }}>
+            <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
               اختر من جهازك
               <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
                 const selected = Array.from(e.target.files || []);
@@ -537,10 +523,10 @@ export default function AdminProductCreate(): JSX.Element {
           {files.length > 0 && (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
               {files.map((f, idx) => (
-                <div key={idx} style={{ position:'relative', border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
-                  <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover' }} />
-                  <div style={{ position:'absolute', right:6, top:6 }}>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} style={{ background:'#111', color:'#fff', borderRadius:6, padding:'2px 6px', fontSize:12 }}>إزالة</button>
+                <div key={idx} className="panel" style={{ padding:0 }}>
+                  <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                  <div style={{ padding:8, textAlign:'right' }}>
+                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
                   </div>
                 </div>
               ))}
@@ -552,13 +538,14 @@ export default function AdminProductCreate(): JSX.Element {
               const current = (images || '').split(',').map(s=>s.trim()).filter(Boolean);
               const next = Array.from(new Set([...current, ...fileNames]));
               setImages(next.join(', '));
-            }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>إضافة الملفات إلى قائمة الصور</button>
+            }} className="btn btn-outline">إضافة الملفات إلى قائمة الصور</button>
           )}
+
           {type === 'variable' && (
-            <div style={{ borderTop:'1px solid #1c2333', paddingTop:12 }}>
-              <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
-                <span style={{ color:'#94a3b8' }}>إنشاء التباينات:</span>
-                <select value={variantMatrix} onChange={(e)=>setVariantMatrix(e.target.value as any)} style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+            <div className="panel" style={{ paddingTop:12 }}>
+              <div className="toolbar" style={{ gap:8 }}>
+                <span style={{ color:'var(--sub)' }}>إنشاء التباينات:</span>
+                <select value={variantMatrix} onChange={(e)=>setVariantMatrix(e.target.value as any)} className="select">
                   <option value="sizes_x_colors">لكل مقاس كل الألوان</option>
                   <option value="colors_x_sizes">لكل لون كل المقاسات</option>
                 </select>
@@ -574,69 +561,63 @@ export default function AdminProductCreate(): JSX.Element {
                     }
                   }
                   setVariantRows(rows);
-                }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>توليد التباينات</button>
+                }} className="btn btn-outline">توليد التباينات</button>
               </div>
               {variantRows.length > 0 && (
                 <div style={{ overflowX:'auto' }}>
-                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <table className="table">
                     <thead>
                       <tr>
-                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>المجموعة</th>
-                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>القيمة</th>
-                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>سعر الشراء</th>
-                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>سعر البيع</th>
-                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>المخزون</th>
-                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>SKU</th>
-                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>صورة</th>
-                        <th style={{ borderBottom:'1px solid #1c2333' }}></th>
+                        <th>المجموعة</th>
+                        <th>القيمة</th>
+                        <th>سعر الشراء</th>
+                        <th>سعر البيع</th>
+                        <th>المخزون</th>
+                        <th>SKU</th>
+                        <th>صورة</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
                       {variantRows.map((row, idx) => (
                         <tr key={idx}>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{row.name}</td>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{row.value}</td>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                          <td>{row.name}</td>
+                          <td>{row.value}</td>
+                          <td>
                             <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
                               const val = e.target.value === '' ? undefined : Number(e.target.value);
                               setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, purchasePrice: val } : r));
-                            }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            }} className="input" />
                           </td>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                          <td>
                             <input type="number" value={row.price ?? ''} onChange={(e)=>{
                               const val = e.target.value === '' ? undefined : Number(e.target.value);
                               setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, price: val } : r));
-                            }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            }} className="input" />
                           </td>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                          <td>
                             <input type="number" value={row.stockQuantity} onChange={(e)=>{
                               const val = e.target.value === '' ? 0 : Number(e.target.value);
                               setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, stockQuantity: val } : r));
-                            }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            }} className="input" />
                           </td>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                          <td>
                             <input value={row.sku ?? ''} onChange={(e)=>{
                               const val = e.target.value || undefined;
                               setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, sku: val } : r));
-                            }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                            }} className="input" />
                           </td>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
-                            <select value={(()=>{
-                              // choose mapped url by color if exists
-                              const mapped = (review?.mapping||{})[row.value];
-                              return mapped || '';
-                            })()} onChange={(e)=>{
+                          <td>
+                            <select value={(()=>{ const mapped = (review?.mapping||{})[row.value]; return mapped || ''; })()} onChange={(e)=>{
                               const url = e.target.value || undefined;
-                              // store temporary in row.sku field would be wrong; better not store in row, mapping lives in review
-                              // update review.mapping for this color
                               setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [row.value]: url }}));
-                            }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                            }} className="select">
                               <option value="">(بدون)</option>
                               {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
                             </select>
                           </td>
-                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
-                            <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>حذف</button>
+                          <td>
+                            <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
                           </td>
                         </tr>
                       ))}
@@ -649,7 +630,7 @@ export default function AdminProductCreate(): JSX.Element {
         </div>
 
         <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-          <button type="submit" style={{ padding: '10px 18px', background: '#7c2d12', color: '#fff', borderRadius: 8 }}>حفظ المنتج</button>
+          <button type="submit" className="btn">حفظ المنتج</button>
         </div>
       </form>
     </main>

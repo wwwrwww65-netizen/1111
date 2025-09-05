@@ -39,7 +39,7 @@ export default function UsersPage(): JSX.Element {
     const json = await res.json();
     setRows(json.users || []);
   }
-  React.useEffect(()=>{ load(); }, [page, apiBase, tab, search]);
+  React.useEffect(()=>{ if (tab!=='permissions') load(); }, [page, apiBase, tab, search]);
 
   async function assign(userId: string) {
     await fetch(`${apiBase}/api/admin/users/assign-role`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ userId, roleName }) });
@@ -51,72 +51,76 @@ export default function UsersPage(): JSX.Element {
   }
 
   return (
-    <main style={{ padding: 16 }}>
-      {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
-      <div style={{ display:'flex', justifyContent:'center', gap:8, marginBottom:12 }}>
-        <button onClick={()=>{ setTab('users'); setPage(1); load(); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='users' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>المستخدمون</button>
-        <button onClick={()=>{ setTab('vendors'); setPage(1); load(); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='vendors' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>المورّدون</button>
-        <button onClick={()=>{ setTab('admins'); setPage(1); load(); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='admins' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>الإدارة</button>
-        <button onClick={()=>{ setTab('permissions'); }} style={{ padding:'8px 14px', borderRadius:999, background: tab==='permissions' ? '#800020':'#111827', color:'#e5e7eb', border:'1px solid #1c2333' }}>الصلاحيات</button>
+    <main className="panel">
+      {toast && (<div className="toast">{toast}</div>)}
+
+      <div className="toolbar" style={{ justifyContent:'center' }}>
+        <button onClick={()=>{ setTab('users'); setPage(1); }} className={`btn ${tab==='users'?'':'btn-outline'}`}>المستخدمون</button>
+        <button onClick={()=>{ setTab('vendors'); setPage(1); }} className={`btn ${tab==='vendors'?'':'btn-outline'}`}>المورّدون</button>
+        <button onClick={()=>{ setTab('admins'); setPage(1); }} className={`btn ${tab==='admins'?'':'btn-outline'}`}>الإدارة</button>
+        <button onClick={()=>{ setTab('permissions'); }} className={`btn ${tab==='permissions'?'':'btn-outline'}`}>الصلاحيات</button>
       </div>
+
       {tab !== 'permissions' && (
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-          <div style={{ display:'flex', gap:8 }}>
-            <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-            <button onClick={()=>{ setPage(1); load(); }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>بحث</button>
+        <div className="toolbar" style={{ justifyContent:'space-between', marginBottom:12 }}>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" className="input" /></div>
+            <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
           </div>
-          <button onClick={()=> setModalOpen(true)} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>إضافة حساب</button>
+          <button onClick={()=> setModalOpen(true)} className="btn">إضافة حساب</button>
         </div>
       )}
+
       {tab !== 'permissions' && (
-        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-          <select value={roleName} onChange={(e)=>setRoleName(e.target.value)} style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
-            <option value="MANAGER">MANAGER</option>
-            <option value="OPERATOR">OPERATOR</option>
-            <option value="ADMIN">ADMIN</option>
-          </select>
-        </div>
-      )}
-      {tab !== 'permissions' && (
-      <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
+      <table className="table">
         <thead>
           <tr>
-            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}></th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>البريد</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>الاسم</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>الهاتف</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>الدور</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>إجراءات</th>
+            <th></th>
+            <th>البريد</th>
+            <th>الاسم</th>
+            <th>الهاتف</th>
+            <th>الدور</th>
+            <th>إجراءات</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((u)=> (
             <tr key={u.id}>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}><input type="checkbox" checked={!!selected[u.id]} onChange={()=>setSelected(s=>({...s,[u.id]:!s[u.id]}))} /></td>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{u.email}</td>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{u.name}</td>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{u.phone||'-'}</td>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{u.role}</td>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
-                <button onClick={()=>assign(u.id)} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>إسناد {roleName}</button>
+              <td><input type="checkbox" checked={!!selected[u.id]} onChange={()=>setSelected(s=>({...s,[u.id]:!s[u.id]}))} /></td>
+              <td>{u.email}</td>
+              <td>{u.name}</td>
+              <td>{u.phone||'-'}</td>
+              <td>{u.role}</td>
+              <td>
+                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                  <select value={roleName} onChange={(e)=>setRoleName(e.target.value)} className="select">
+                    <option value="MANAGER">MANAGER</option>
+                    <option value="OPERATOR">OPERATOR</option>
+                    <option value="ADMIN">ADMIN</option>
+                  </select>
+                  <button onClick={()=>assign(u.id)} className="btn btn-outline">إسناد</button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
       )}
+
       {tab !== 'permissions' && (
-        <div style={{ marginTop:12 }}>
-          <button onClick={bulkAssign} style={{ padding:'8px 12px', background:'#064e3b', color:'#e5e7eb', borderRadius:8 }}>إسناد جماعي</button>
+        <div className="pagination" style={{ marginTop:12 }}>
+          <button onClick={bulkAssign} className="btn">إسناد جماعي</button>
         </div>
       )}
+
       {tab==='permissions' && <PermissionsTab apiBase={apiBase} authHeaders={authHeaders} />}
-      {modalOpen && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'grid', placeItems:'center', zIndex:50 }}>
-          <div style={{ width:520, background:'#0f1420', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
+
+      {modalOpen && tab!=='permissions' && (
+        <div className="modal">
+          <div className="dialog">
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-              <h3 style={{ margin:0 }}>إضافة حساب</h3>
-              <button onClick={()=> setModalOpen(false)} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>إغلاق</button>
+              <h3 className="title">إضافة حساب</h3>
+              <button onClick={()=> setModalOpen(false)} className="icon-btn">إغلاق</button>
             </div>
             {tab==='vendors' ? <VendorAccountForm onDone={async ()=>{ setModalOpen(false); showToast('تمت الإضافة'); await load(); }} apiBase={apiBase} authHeaders={authHeaders} /> : <GenericAccountForm role={tab==='admins' ? 'ADMIN' : 'USER'} onDone={async ()=>{ setModalOpen(false); showToast('تمت الإضافة'); await load(); }} apiBase={apiBase} authHeaders={authHeaders} />}
           </div>
@@ -125,8 +129,6 @@ export default function UsersPage(): JSX.Element {
     </main>
   );
 }
-
-// legacy placeholder removed
 
 function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER'|'ADMIN'; onDone: ()=>Promise<void>|void; apiBase:string; authHeaders:()=>Record<string,string> }){
   const [name, setName] = React.useState('');
@@ -158,23 +160,23 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
   }
   return (
     <form onSubmit={submit} style={{ display:'grid', gap:10 }}>
-      {error && (<div style={{ background:'#7f1d1d', color:'#fee2e2', padding:'8px 10px', borderRadius:8 }}>{error}</div>)}
-      <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>رقم الهاتف<input value={phone} onChange={(e)=>setPhone(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>البريد أو اسم المستخدم<input autoComplete="username email" value={email||username} onChange={(e)=>{ setEmail(e.target.value); setUsername(e.target.value); }} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>العنوان (الموقع داخل المدينة)<input autoComplete="street-address" value={address} onChange={(e)=>setAddress(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>كلمة السر<input autoComplete="new-password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      {error && (<div className="alert-error">{error}</div>)}
+      <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} className="input" /></label>
+      <label>رقم الهاتف<input value={phone} onChange={(e)=>setPhone(e.target.value)} className="input" /></label>
+      <label>البريد أو اسم المستخدم<input autoComplete="username email" value={email||username} onChange={(e)=>{ setEmail(e.target.value); setUsername(e.target.value); }} className="input" /></label>
+      <label>العنوان (الموقع داخل المدينة)<input autoComplete="street-address" value={address} onChange={(e)=>setAddress(e.target.value)} className="input" /></label>
+      <label>كلمة السر<input autoComplete="new-password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} className="input" /></label>
       <div>
         <div style={{ marginBottom:6, color:'#9ca3af' }}>نوع الحساب</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 200px', gap:8 }}>
-          <select value={role} onChange={(e)=>{/* role controlled by parent via prop */}} disabled style={{ padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+          <select value={role} onChange={(e)=>{/* role controlled by parent via prop */}} disabled className="select">
             {roleOptions.map(r=> (<option key={r.value} value={r.value}>{r.label}</option>))}
           </select>
-          <input placeholder="بحث نوع الحساب" value={roleSearch} onChange={(e)=>setRoleSearch(e.target.value)} style={{ padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+          <input placeholder="بحث نوع الحساب" value={roleSearch} onChange={(e)=>setRoleSearch(e.target.value)} className="input" />
         </div>
       </div>
       <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
-        <button type="submit" disabled={saving} style={{ padding:'8px 12px', background: saving ? '#4b5563' : '#800020', color:'#fff', borderRadius:8 }}>{saving ? 'جارٍ الإضافة...' : 'إضافة'}</button>
+        <button type="submit" disabled={saving} className="btn">{saving ? 'جارٍ الإضافة...' : 'إضافة'}</button>
       </div>
     </form>
   );
@@ -211,17 +213,17 @@ function VendorAccountForm({ onDone, apiBase, authHeaders }: { onDone: ()=>Promi
   }
   return (
     <form onSubmit={submit} style={{ display:'grid', gap:10 }}>
-      {error && (<div style={{ background:'#7f1d1d', color:'#fee2e2', padding:'8px 10px', borderRadius:8 }}>{error}</div>)}
-      <label>المستخدم/الهاتف<input value={identifier} onChange={(e)=>setIdentifier(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-      <label>كلمة السر<input autoComplete="new-password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+      {error && (<div className="alert-error">{error}</div>)}
+      <label>المستخدم/الهاتف<input value={identifier} onChange={(e)=>setIdentifier(e.target.value)} className="input" /></label>
+      <label>كلمة السر<input autoComplete="new-password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} className="input" /></label>
       <label>المورّد
-        <select value={vendorId} onChange={(e)=>setVendorId(e.target.value)} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+        <select value={vendorId} onChange={(e)=>setVendorId(e.target.value)} className="select">
           <option value="">اختر مورّداً</option>
           {vendors.map(v=> (<option key={v.id} value={v.id}>{v.name}</option>))}
         </select>
       </label>
       <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
-        <button type="submit" disabled={saving} style={{ padding:'8px 12px', background: saving ? '#4b5563' : '#800020', color:'#fff', borderRadius:8 }}>{saving ? 'جارٍ الإضافة...' : 'إضافة'}</button>
+        <button type="submit" disabled={saving} className="btn">{saving ? 'جارٍ الإضافة...' : 'إضافة'}</button>
       </div>
     </form>
   );
