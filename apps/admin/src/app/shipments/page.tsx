@@ -20,6 +20,9 @@ export default function ShipmentsPage(): JSX.Element {
   return (
     <main className="panel">
       <h1>الشحنات</h1>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <a className="btn" href={`${apiBase}/api/admin/shipments/export/csv`}>تصدير CSV</a>
+      </div>
       <div style={{ overflowX:'auto' }}>
         <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
           <thead><tr>

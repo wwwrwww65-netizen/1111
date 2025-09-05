@@ -77,7 +77,10 @@ adminRest.post('/roles', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'role_create_failed' }); }
 });
 adminRest.get('/permissions', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+  try {
+    const u = (req as any).user;
+    const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage'));
+    if (!allowed) return res.status(403).json({ error:'forbidden' });
     // Seed standard permissions if missing (idempotent)
     const groups: Record<string, Array<{ key: string; description?: string }>> = {
       users: [
@@ -227,6 +230,7 @@ adminRest.get('/audit-logs', async (req, res) => {
 adminRest.get('/inventory', (_req, res) => res.json({ items: [] }));
 adminRest.get('/inventory/list', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
     const user = (req as any).user;
     if (!(await can(user.userId, 'inventory.read'))) return res.status(403).json({ error: 'forbidden' });
     const page = Number(req.query.page ?? 1);
@@ -267,6 +271,7 @@ adminRest.get('/inventory/list', async (req, res) => {
 
 adminRest.post('/inventory/adjust', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.adjust'))) return res.status(403).json({ error:'forbidden' });
     const user = (req as any).user;
     if (!(await can(user.userId, 'inventory.write'))) return res.status(403).json({ error: 'forbidden' });
     const { productId, delta, variantId } = req.body || {};
@@ -295,6 +300,7 @@ adminRest.post('/inventory/adjust', async (req, res) => {
 
 adminRest.get('/inventory/export/csv', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
     const items = await db.product.findMany({ include: { variants: true, category: true } });
     const flat = items.flatMap((p) => {
       if (!p.variants.length) {
@@ -329,7 +335,8 @@ adminRest.get('/inventory/export/csv', async (req, res) => {
     res.status(500).json({ error: e.message || 'inventory_export_failed' });
   }
 });
-adminRest.get('/inventory/export/pdf', async (_req, res) => {
+adminRest.get('/inventory/export/pdf', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
   const items = await db.product.findMany({ include: { variants: true, category: true } });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="inventory.pdf"');
@@ -350,6 +357,7 @@ adminRest.get('/inventory/export/pdf', async (_req, res) => {
 // Bulk actions: deactivate products
 adminRest.post('/inventory/bulk/deactivate', async (req, res) => {
   const ids = (req.body?.ids as string[]) || [];
+  const u = (req as any).user; if (!(await can(u.userId, 'inventory.update'))) return res.status(403).json({ error:'forbidden' });
   if (!ids.length) return res.json({ updated: 0 });
   const result = await db.product.updateMany({ where: { id: { in: ids } }, data: { isActive: false } });
   await audit(req, 'inventory', 'bulk_deactivate', { ids });
@@ -398,6 +406,20 @@ adminRest.get('/orders/list', async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'orders_list_failed' });
   }
+});
+
+// Orders export CSV
+adminRest.get('/orders/export/csv', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const items = await db.order.findMany({ include: { user: true, items: true, shipments: true, payment: true } });
+    const flat = items.map(o => ({ id:o.id, date:o.createdAt.toISOString(), user:o.user?.email||'', items:o.items.length, total:o.total||0, status:o.status, payment:o.payment?.status||'', shipments:o.shipments.length }));
+    const parser = new CsvParser({ fields: ['id','date','user','items','total','status','payment','shipments'] });
+    const csv = parser.parse(flat);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
+    res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'orders_export_failed' }); }
 });
 
 // Order detail
@@ -577,6 +599,18 @@ adminRest.get('/shipments', async (req, res) => {
     res.json({ shipments: list, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
   } catch (e:any) { res.status(500).json({ error: e.message || 'shipments_list_failed' }); }
 });
+// Shipments export CSV
+adminRest.get('/shipments/export/csv', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'shipments.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.shipment.findMany({ include: { order: true, carrier: true, driver: true } });
+    const flat = rows.map(s => ({ id:s.id, orderId:s.orderId, carrier:s.carrier?.name||'', driver:s.driver?.name||'', tracking:s.trackingNumber||'', status:s.status, weight:s.weight||'', cost:s.cost||'' }));
+    const parser = new CsvParser({ fields: ['id','orderId','carrier','driver','tracking','status','weight','cost'] });
+    const csv = parser.parse(flat);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="shipments.csv"');
+    res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'shipments_export_failed' }); }
+});
 adminRest.post('/shipments', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
     const { orderId, driverId, carrierId, weight, dimensions } = req.body || {}; if (!orderId) return res.status(400).json({ error: 'orderId_required' });
@@ -684,9 +718,13 @@ adminRest.post('/users/assign-role', async (req, res) => {
     res.status(500).json({ error: e.message || 'assign_role_failed' });
   }
 });
-adminRest.get('/coupons', (_req, res) => res.json({ coupons: [] }));
+adminRest.get('/coupons', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+  res.json({ coupons: [] });
+});
 adminRest.get('/coupons/list', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
     const user = (req as any).user;
     if (!(await can(user.userId, 'coupons.manage'))) return res.status(403).json({ error: 'forbidden' });
     const page = Number(req.query.page ?? 1);
@@ -704,6 +742,7 @@ adminRest.get('/coupons/list', async (req, res) => {
 });
 adminRest.post('/coupons', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.create'))) return res.status(403).json({ error:'forbidden' });
     const user = (req as any).user;
     if (!(await can(user.userId, 'coupons.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { code, discountType, discountValue, validFrom, validUntil } = req.body || {};
@@ -729,11 +768,13 @@ adminRest.get('/analytics', async (req, res) => {
     res.status(500).json({ error: e.message || 'analytics_failed' });
   }
 });
-adminRest.get('/media/list', async (_req, res) => {
+adminRest.get('/media/list', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'media.read'))) return res.status(403).json({ error:'forbidden' });
   const assets = await db.mediaAsset.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ assets });
 });
 adminRest.post('/media', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
   const { url, type, alt, base64 } = req.body || {};
   let finalUrl = url as string | undefined;
   if (!finalUrl && base64) {
@@ -746,9 +787,13 @@ adminRest.post('/media', async (req, res) => {
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
 });
-adminRest.get('/settings', (_req, res) => res.json({ settings: {} }));
+adminRest.get('/settings', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+  res.json({ settings: {} });
+});
 adminRest.post('/settings', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
     const user = (req as any).user;
     if (!(await can(user.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { key, value } = req.body || {};
@@ -760,22 +805,20 @@ adminRest.post('/settings', async (req, res) => {
     res.status(500).json({ error: e.message || 'settings_failed' });
   }
 });
-adminRest.get('/settings/list', async (_req, res) => {
+adminRest.get('/settings/list', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
   const items = await db.setting.findMany({ orderBy: { updatedAt: 'desc' } });
   res.json({ settings: items });
 });
 // Tickets module
 adminRest.get('/tickets', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tickets.read'))) return res.status(403).json({ error:'forbidden' });
   const page = Number(req.query.page ?? 1);
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
   const status = (req.query.status as string | undefined) ?? undefined;
   const search = (req.query.search as string | undefined) ?? undefined;
   const skip = (page - 1) * limit;
   const where: any = {};
-  const roleFilter = (req.query.role as string | undefined)?.toUpperCase();
-  if (roleFilter === 'ADMIN') where.role = 'ADMIN';
-  else if (roleFilter === 'USER') where.role = 'USER';
-  else if (roleFilter === 'VENDOR') where.vendorId = { not: null };
   if (status) where.status = status;
   if (search) where.OR = [ { subject: { contains: search, mode: 'insensitive' } } ];
   const [tickets, total] = await Promise.all([
@@ -785,18 +828,21 @@ adminRest.get('/tickets', async (req, res) => {
   res.json({ tickets, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
 });
 adminRest.get('/tickets/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tickets.read'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   const t = await db.supportTicket.findUnique({ where: { id }, include: { user: { select: { email: true } }, assignee: { select: { email: true } } } });
   if (!t) return res.status(404).json({ error: 'ticket_not_found' });
   res.json({ ticket: t });
 });
 adminRest.post('/tickets', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tickets.create'))) return res.status(403).json({ error:'forbidden' });
   const { subject, userId, priority, orderId } = req.body || {};
   const t = await db.supportTicket.create({ data: { subject, userId, priority, orderId, messages: [] } });
   await audit(req, 'tickets', 'create', { id: t.id });
   res.json({ ticket: t });
 });
 adminRest.post('/tickets/:id/assign', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tickets.assign'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'userId_required' });
@@ -807,6 +853,7 @@ adminRest.post('/tickets/:id/assign', async (req, res) => {
   res.json({ ticket: t });
 });
 adminRest.post('/tickets/:id/comment', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tickets.comment'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   const { message } = req.body || {};
   const t0 = await db.supportTicket.findUnique({ where: { id } });
@@ -818,6 +865,7 @@ adminRest.post('/tickets/:id/comment', async (req, res) => {
   res.json({ ticket: t });
 });
 adminRest.post('/tickets/:id/close', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tickets.close'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   const t = await db.supportTicket.update({ where: { id }, data: { status: 'CLOSED' } });
   await audit(req, 'tickets', 'close', { id });
@@ -1106,6 +1154,7 @@ adminRest.post('/products/generate', async (req, res) => {
 
 // Products CRUD + bulk
 adminRest.get('/products', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error:'forbidden' });
   const page = Number(req.query.page ?? 1);
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
   const search = (req.query.search as string | undefined) ?? undefined;
@@ -1127,18 +1176,21 @@ adminRest.get('/products', async (req, res) => {
   res.json({ products, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
 });
 adminRest.get('/products/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   const p = await db.product.findUnique({ where: { id }, include: { variants: true } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
   res.json({ product: p });
 });
 adminRest.post('/products', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'products.create'))) return res.status(403).json({ error:'forbidden' });
   const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId } = req.body || {};
   const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
 adminRest.patch('/products/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   const data = req.body || {};
   const p = await db.product.update({ where: { id }, data });
@@ -1146,6 +1198,7 @@ adminRest.patch('/products/:id', async (req, res) => {
   res.json({ product: p });
 });
 adminRest.delete('/products/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'products.delete'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   await db.product.delete({ where: { id } });
   await audit(req, 'products', 'delete', { id });
@@ -1266,12 +1319,14 @@ adminRest.delete('/attributes/brands/:id', async (req, res) => {
 
 // Categories
 adminRest.get('/categories', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
   const search = (req.query.search as string | undefined)?.trim();
   const where: any = search ? { name: { contains: search, mode: 'insensitive' } } : {};
   const cats = await db.category.findMany({ where, orderBy: { createdAt: 'desc' } });
   res.json({ categories: cats });
 });
-adminRest.get('/categories/tree', async (_req, res) => {
+adminRest.get('/categories/tree', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
   const cats = await db.category.findMany({ orderBy: { createdAt: 'desc' } });
   const byParent: Record<string, any[]> = {};
   for (const c of cats) {
@@ -1285,6 +1340,7 @@ adminRest.get('/categories/tree', async (_req, res) => {
   res.json({ tree: build(null) });
 });
 adminRest.post('/categories', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) return res.status(403).json({ error:'forbidden' });
   const { name, description, image, parentId } = req.body || {};
   if (!name) return res.status(400).json({ error: 'name_required' });
   const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null } });
@@ -1292,6 +1348,7 @@ adminRest.post('/categories', async (req, res) => {
   res.json({ category: c });
 });
 adminRest.patch('/categories/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   const { name, description, image, parentId } = req.body || {};
   const c = await db.category.update({ where: { id }, data: { ...(name && { name }), ...(description !== undefined && { description }), ...(image !== undefined && { image }), ...(parentId !== undefined && { parentId }) } });
@@ -1299,6 +1356,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
   res.json({ category: c });
 });
 adminRest.delete('/categories/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   // Optional: re-parent children to null
   await db.category.updateMany({ where: { parentId: id }, data: { parentId: null } });

@@ -24,12 +24,12 @@
   "/tickets/[id]/page": "app/tickets/[id]/page.js",
   "/tickets/page": "app/tickets/page.js",
   "/vendors/[id]/page": "app/vendors/[id]/page.js",
-  "/attributes/page": "app/attributes/page.js",
-  "/products/page": "app/products/page.js",
-  "/users/page": "app/users/page.js",
-  "/vendors/page": "app/vendors/page.js",
-  "/page": "app/page.js",
   "/attributes/sizes/[typeId]/page": "app/attributes/sizes/[typeId]/page.js",
+  "/attributes/page": "app/attributes/page.js",
   "/categories/page": "app/categories/page.js",
+  "/page": "app/page.js",
+  "/products/page": "app/products/page.js",
+  "/vendors/page": "app/vendors/page.js",
+  "/users/page": "app/users/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js"
 }

@@ -77,7 +77,10 @@ export default function OrdersPage(): JSX.Element {
       <h1 style={{ marginBottom: 16 }}>الطلبات</h1>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <div />
-        <button className="btn" onClick={()=>setShowCreate(true)}>إنشاء طلب</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <a className="btn" href={`${apiBase}/api/admin/orders/export/csv`}>تصدير CSV</a>
+          <button className="btn" onClick={()=>setShowCreate(true)}>إنشاء طلب</button>
+        </div>
       </div>
       <div className="grid" style={{ gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:12 }}>
         <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث (المعرف/الاسم/الإيميل/الهاتف)" className="input" />

@@ -7,18 +7,24 @@ export default function TicketsPage(): JSX.Element {
   const [status, setStatus] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
+  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const authHeaders = React.useCallback(()=>{
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  },[]);
   async function load(){
-    const url = new URL(window.location.origin + '/api/admin/tickets');
+    const url = new URL(`${apiBase}/api/admin/tickets`);
     url.searchParams.set('page', String(page));
     url.searchParams.set('limit', '20');
     if (status) url.searchParams.set('status', status);
     if (search) url.searchParams.set('search', search);
-    const j = await (await fetch(url.toString())).json();
+    const j = await (await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() } })).json();
     setRows(j.tickets||[]);
   }
-  React.useEffect(()=>{ load(); },[page]);
+  React.useEffect(()=>{ load(); },[page, apiBase]);
   async function create() {
-    await fetch('/api/admin/tickets', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ subject }) });
+    await fetch(`${apiBase}/api/admin/tickets`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ subject }) });
     setSubject("");
     await load();
   }

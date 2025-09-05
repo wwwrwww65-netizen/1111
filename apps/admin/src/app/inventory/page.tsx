@@ -4,6 +4,12 @@ import { trpc } from "../providers";
 
 export default function InventoryPage(): JSX.Element {
   const q: any = trpc as any;
+  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const authHeaders = React.useCallback(()=>{
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  },[]);
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
   const { data, isLoading, refetch } = q.admin.getProducts.useQuery({ page, limit: 20, search });
@@ -16,9 +22,10 @@ export default function InventoryPage(): JSX.Element {
 
   async function bulkAdjust(delta: number) {
     for (const id of selectedIds) {
-      await fetch("/api/admin/inventory/adjust", {
+      await fetch(`${apiBase}/api/admin/inventory/adjust`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
+        credentials:'include',
         body: JSON.stringify({ productId: id, delta })
       });
     }
@@ -26,10 +33,10 @@ export default function InventoryPage(): JSX.Element {
   }
 
   function exportCSV() {
-    window.open("/api/admin/inventory/export/csv", "_blank");
+    window.open(`${apiBase}/api/admin/inventory/export/csv`, "_blank");
   }
   function exportPDF() {
-    window.open("/api/admin/inventory/export/pdf", "_blank");
+    window.open(`${apiBase}/api/admin/inventory/export/pdf`, "_blank");
   }
 
   if (isLoading) return <main>Loading…</main>;
@@ -78,8 +85,14 @@ export default function InventoryPage(): JSX.Element {
 function InlineAdjust({ productId, onDone }: { productId: string; onDone: ()=>void }): JSX.Element {
   const [delta, setDelta] = React.useState<string>("1");
   const [undo, setUndo] = React.useState<number | null>(null);
+  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const authHeaders = React.useCallback(()=>{
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  },[]);
   async function apply(d: number) {
-    await fetch("/api/admin/inventory/adjust", { method: "POST", headers: { "content-type":"application/json" }, body: JSON.stringify({ productId, delta: d }) });
+    await fetch(`${apiBase}/api/admin/inventory/adjust`, { method: "POST", headers: { "content-type":"application/json", ...authHeaders() }, credentials:'include', body: JSON.stringify({ productId, delta: d }) });
     setUndo(-d);
     onDone();
   }
