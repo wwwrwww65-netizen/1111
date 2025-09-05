@@ -1,1 +1,1 @@
-{"version":1,"functions":{"/categories":{},"/products":{},"/attributes":{},"/vendors":{},"/":{},"/attributes/sizes/[typeId]":{},"/users":{}}}
+{"version":1,"functions":{"/attributes/sizes/[typeId]":{},"/attributes":{},"/categories":{},"/products":{},"/vendors":{},"/":{},"/users":{}}}
