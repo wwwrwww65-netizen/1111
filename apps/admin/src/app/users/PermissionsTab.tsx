@@ -14,7 +14,7 @@ export default function PermissionsTab({ apiBase, authHeaders }: { apiBase:strin
   async function load(){
     const [r, p] = await Promise.all([
       fetch(`${apiBase}/api/admin/roles`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({roles:[]})),
-      fetch(`${apiBase}/api/admin/permissions`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({permissions:[]})),
+      fetch(`${apiBase}/api/admin/permissions`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({permissions:[],groups:{}})),
     ]);
     setRoles(r.roles||[]); setPerms(p.permissions||[]);
   }
@@ -50,19 +50,21 @@ export default function PermissionsTab({ apiBase, authHeaders }: { apiBase:strin
             <button className="icon-btn" onClick={()=>setSearch('')}>مسح</button>
           </div>
           <div style={{ maxHeight:320, overflow:'auto', border:'1px solid var(--muted)', borderRadius:8, padding:8 }}>
-            {filteredPerms.map((p:any)=> {
-              const checked = rolePermIds.has(p.id);
-              return (
-                <label key={p.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 4px' }}>
-                  <input type="checkbox" checked={checked} onChange={(e)=>{
-                    const next = new Set(rolePermIds);
-                    if (e.target.checked) next.add(p.id); else next.delete(p.id);
-                    setRolePerms(selectedRoleId, Array.from(next));
-                  }} />
-                  <span>{p.key}</span>
-                </label>
-              );
-            })}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+              {filteredPerms.map((p:any)=> {
+                const checked = rolePermIds.has(p.id);
+                return (
+                  <label key={p.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 4px' }}>
+                    <input type="checkbox" checked={checked} onChange={(e)=>{
+                      const next = new Set(rolePermIds);
+                      if (e.target.checked) next.add(p.id); else next.delete(p.id);
+                      setRolePerms(selectedRoleId, Array.from(next));
+                    }} />
+                    <span>{p.key}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
           <div style={{ marginTop:12 }}>
             <div style={{ color:'var(--sub)', marginBottom:6 }}>إسناد الدور للمستخدمين</div>

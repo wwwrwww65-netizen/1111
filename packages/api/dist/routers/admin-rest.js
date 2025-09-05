@@ -107,8 +107,60 @@ adminRest.get('/permissions', async (req, res) => {
         const u = req.user;
         if (!(await can(u.userId, 'settings.manage')))
             return res.status(403).json({ error: 'forbidden' });
+        // Seed standard permissions if missing (idempotent)
+        const groups = {
+            users: [
+                { key: 'users.read' }, { key: 'users.create' }, { key: 'users.update' }, { key: 'users.delete' }, { key: 'users.assign_roles' }
+            ],
+            orders: [
+                { key: 'orders.read' }, { key: 'orders.create' }, { key: 'orders.update' }, { key: 'orders.delete' }, { key: 'orders.assign_driver' }, { key: 'orders.ship' }, { key: 'orders.refund' }
+            ],
+            shipments: [
+                { key: 'shipments.read' }, { key: 'shipments.create' }, { key: 'shipments.cancel' }, { key: 'shipments.label' }, { key: 'shipments.track' }, { key: 'shipments.batch_print' }
+            ],
+            drivers: [
+                { key: 'drivers.read' }, { key: 'drivers.create' }, { key: 'drivers.update' }, { key: 'drivers.disable' }, { key: 'drivers.assign' }
+            ],
+            carriers: [
+                { key: 'carriers.read' }, { key: 'carriers.create' }, { key: 'carriers.update' }, { key: 'carriers.toggle' }
+            ],
+            products: [
+                { key: 'products.read' }, { key: 'products.create' }, { key: 'products.update' }, { key: 'products.delete' }
+            ],
+            categories: [
+                { key: 'categories.read' }, { key: 'categories.create' }, { key: 'categories.update' }, { key: 'categories.delete' }
+            ],
+            coupons: [
+                { key: 'coupons.read' }, { key: 'coupons.create' }, { key: 'coupons.update' }, { key: 'coupons.delete' }
+            ],
+            inventory: [
+                { key: 'inventory.read' }, { key: 'inventory.update' }, { key: 'inventory.adjust' }
+            ],
+            reviews: [
+                { key: 'reviews.read' }, { key: 'reviews.moderate' }, { key: 'reviews.delete' }
+            ],
+            media: [
+                { key: 'media.read' }, { key: 'media.upload' }, { key: 'media.delete' }
+            ],
+            cms: [
+                { key: 'cms.read' }, { key: 'cms.create' }, { key: 'cms.update' }, { key: 'cms.delete' }
+            ],
+            analytics: [{ key: 'analytics.read' }],
+            settings: [{ key: 'settings.manage' }],
+            backups: [{ key: 'backups.run' }, { key: 'backups.list' }, { key: 'backups.restore' }, { key: 'backups.schedule' }],
+            audit: [{ key: 'audit.read' }],
+            tickets: [{ key: 'tickets.read' }, { key: 'tickets.create' }, { key: 'tickets.assign' }, { key: 'tickets.comment' }, { key: 'tickets.close' }],
+        };
+        const required = Object.values(groups).flat();
+        for (const p of required) {
+            const key = p.key;
+            const existing = await db_1.db.permission.findUnique({ where: { key } });
+            if (!existing) {
+                await db_1.db.permission.create({ data: { key, description: p.description || null } });
+            }
+        }
         const list = await db_1.db.permission.findMany({ orderBy: { key: 'asc' } });
-        res.json({ permissions: list });
+        res.json({ permissions: list, groups });
     }
     catch (e) {
         res.status(500).json({ error: e.message || 'perms_list_failed' });
