@@ -25,11 +25,11 @@
   "/tickets/page": "app/tickets/page.js",
   "/vendors/[id]/page": "app/vendors/[id]/page.js",
   "/attributes/page": "app/attributes/page.js",
-  "/products/page": "app/products/page.js",
+  "/attributes/sizes/[typeId]/page": "app/attributes/sizes/[typeId]/page.js",
   "/categories/page": "app/categories/page.js",
+  "/page": "app/page.js",
+  "/products/page": "app/products/page.js",
   "/vendors/page": "app/vendors/page.js",
   "/users/page": "app/users/page.js",
-  "/attributes/sizes/[typeId]/page": "app/attributes/sizes/[typeId]/page.js",
-  "/page": "app/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js"
 }

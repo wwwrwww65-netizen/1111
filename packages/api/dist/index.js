@@ -99,6 +99,18 @@ async function ensureSchema() {
         await db_1.db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "storeNumber" TEXT');
         await db_1.db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "vendorCode" TEXT');
         await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = "Vendor_vendorCode_key" AND n.nspname = current_schema()) THEN CREATE UNIQUE INDEX "Vendor_vendorCode_key" ON "Vendor"("vendorCode"); END IF; END $$;');
+        // RBAC core tables if not exist
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Role" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Permission" ("id" TEXT PRIMARY KEY, "key" TEXT UNIQUE NOT NULL, "description" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "RolePermission" ("id" TEXT PRIMARY KEY, "roleId" TEXT NOT NULL, "permissionId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission"("roleId", "permissionId")');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserRoleLink" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "roleId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "UserRoleLink_user_role_key" ON "UserRoleLink"("userId", "roleId")');
+        // FKs (ignore errors if already exist)
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "RolePermission_roleId_fkey") THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "RolePermission_permissionId_fkey") THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "UserRoleLink_userId_fkey") THEN ALTER TABLE "UserRoleLink" ADD CONSTRAINT "UserRoleLink_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "UserRoleLink_roleId_fkey") THEN ALTER TABLE "UserRoleLink" ADD CONSTRAINT "UserRoleLink_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE; END IF; END $$;');
         // Ensure attribute tables exist (id TEXT primary key; Prisma will supply ids)
         await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeColor" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "hex" TEXT, "createdAt" TIMESTAMP DEFAULT NOW())');
         await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AttributeBrand" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE, "createdAt" TIMESTAMP DEFAULT NOW())');
