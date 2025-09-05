@@ -38,7 +38,7 @@ const audit = async (req: Request, module: string, action: string, details?: any
 adminRest.use((req: Request, res: Response, next) => {
   // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin')) {
     return next();
   }
   try {
@@ -200,6 +200,29 @@ adminRest.post('/maintenance/fix-auth-columns', async (_req, res) => {
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e?.message || 'failed' });
   }
+});
+
+// Maintenance: grant ADMIN role to email with secret
+adminRest.post('/maintenance/grant-admin', async (req, res) => {
+  try {
+    const secret = (req.headers['x-maintenance-secret'] as string | undefined) || (req.query.secret as string | undefined);
+    if (!secret || secret !== (process.env.MAINTENANCE_SECRET || '')) return res.status(403).json({ error:'forbidden' });
+    const email = String((req.body?.email || req.query.email || '')).trim().toLowerCase();
+    if (!email) return res.status(400).json({ error:'email_required' });
+    const user = await db.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error:'user_not_found' });
+    if (user.role !== 'ADMIN') await db.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+    let role = await db.role.findUnique({ where: { name: 'SUPERADMIN' } });
+    if (!role) role = await db.role.create({ data: { name: 'SUPERADMIN' } });
+    const perms = await db.permission.findMany();
+    const existing = await db.rolePermission.findMany({ where: { roleId: role.id } });
+    const existingSet = new Set(existing.map(rp=> rp.permissionId));
+    const toCreate = perms.filter(p=> !existingSet.has(p.id)).map(p=> ({ roleId: role!.id, permissionId: p.id }));
+    if (toCreate.length) await db.rolePermission.createMany({ data: toCreate, skipDuplicates: true });
+    const link = await db.userRoleLink.findFirst({ where: { userId: user.id, roleId: role.id } });
+    if (!link) await db.userRoleLink.create({ data: { userId: user.id, roleId: role.id } });
+    res.json({ success: true, userId: user.id, granted: ['ADMIN','SUPERADMIN'] });
+  } catch (e:any) { res.status(500).json({ error: e.message||'grant_admin_failed' }); }
 });
 // 2FA endpoints
 adminRest.post('/2fa/enable', async (req, res) => {
