@@ -4,8 +4,10 @@ import React from 'react';
 export default function PermissionsTab({ apiBase, authHeaders }: { apiBase:string; authHeaders:()=>Record<string,string> }): JSX.Element {
   const [roles, setRoles] = React.useState<any[]>([]);
   const [perms, setPerms] = React.useState<any[]>([]);
+  const [groups, setGroups] = React.useState<Record<string, Array<{key:string;description?:string}>>>({});
   const [roleName, setRoleName] = React.useState('');
   const [search, setSearch] = React.useState('');
+  const [activeGroup, setActiveGroup] = React.useState<string>('users');
   const [selectedRoleId, setSelectedRoleId] = React.useState<string>('');
   const [assignUserSearch, setAssignUserSearch] = React.useState('');
   const [users, setUsers] = React.useState<any[]>([]);
@@ -16,7 +18,10 @@ export default function PermissionsTab({ apiBase, authHeaders }: { apiBase:strin
       fetch(`${apiBase}/api/admin/roles`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({roles:[]})),
       fetch(`${apiBase}/api/admin/permissions`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({permissions:[],groups:{}})),
     ]);
-    setRoles(r.roles||[]); setPerms(p.permissions||[]);
+    setRoles(r.roles||[]); setPerms(p.permissions||[]); setGroups(p.groups||{});
+    if (p.groups && !Object.keys(p.groups).includes(activeGroup)) {
+      const first = Object.keys(p.groups)[0]; if (first) setActiveGroup(first);
+    }
   }
   React.useEffect(()=>{ load(); },[apiBase]);
 
@@ -25,13 +30,48 @@ export default function PermissionsTab({ apiBase, authHeaders }: { apiBase:strin
   async function searchUsers(){ const url = new URL(`${apiBase}/api/admin/users/list`); url.searchParams.set('page','1'); url.searchParams.set('limit','50'); if (assignUserSearch) url.searchParams.set('search', assignUserSearch); const j = await (await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setUsers(j.users||[]); setSelectedUsers({}); }
   async function assignRolesToUsers(){ if (!selectedRoleId) return; const ids = Object.entries(selectedUsers).filter(([,v])=>v).map(([k])=>k); for (const id of ids) { await fetch(`${apiBase}/api/admin/users/${id}/assign-roles`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ roleIds: [selectedRoleId] }) }); } }
 
-  const filteredPerms = React.useMemo(()=> perms.filter((p:any)=> !search || p.key.toLowerCase().includes(search.toLowerCase())), [perms, search]);
+  const groupLabels: Record<string,string> = {
+    users: 'صلاحيات المستخدمين',
+    orders: 'صلاحيات الطلبات',
+    shipments: 'صلاحيات الشحنات',
+    drivers: 'صلاحيات السائقين',
+    carriers: 'صلاحيات المزودين',
+    products: 'صلاحيات المنتجات',
+    categories: 'صلاحيات التصنيفات',
+    coupons: 'صلاحيات الكوبونات',
+    inventory: 'صلاحيات المخزون',
+    reviews: 'صلاحيات المراجعات',
+    media: 'صلاحيات الوسائط',
+    cms: 'صلاحيات CMS',
+    analytics: 'صلاحيات الإحصاءات',
+    settings: 'صلاحيات الإعدادات',
+    backups: 'صلاحيات النسخ الاحتياطي',
+    audit: 'صلاحيات سجل التدقيق',
+    tickets: 'صلاحيات التذاكر',
+  };
+
+  const groupKeySet = React.useMemo(()=>{
+    const s = new Set<string>();
+    const list = groups[activeGroup] || [];
+    for (const g of list) s.add(g.key);
+    return s;
+  }, [groups, activeGroup]);
+
+  const filteredPerms = React.useMemo(()=> perms.filter((p:any)=> {
+    if (groupKeySet.size && !groupKeySet.has(p.key)) return false;
+    return !search || p.key.toLowerCase().includes(search.toLowerCase());
+  }), [perms, search, groupKeySet]);
   const currentRole = React.useMemo(()=> roles.find((r:any)=> r.id===selectedRoleId), [roles, selectedRoleId]);
   const rolePermIds = new Set((currentRole?.permissions||[]).map((p:any)=>p.id));
 
   return (
     <section className="panel" style={{ marginTop:16 }}>
       <h3 style={{ marginTop:0 }}>إدارة الصلاحيات</h3>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        {Object.keys(groups).map((g)=> (
+          <button key={g} className="icon-btn" aria-pressed={activeGroup===g} onClick={()=>setActiveGroup(g)} style={{ background: activeGroup===g? '#101828':'var(--muted2)' }}>{groupLabels[g] || g}</button>
+        ))}
+      </div>
       <div className="grid" style={{ gridTemplateColumns:'1fr 2fr', gap:16 }}>
         <div>
           <div className="grid" style={{ gridTemplateColumns:'1fr auto', gap:8, marginBottom:8 }}>
@@ -49,6 +89,17 @@ export default function PermissionsTab({ apiBase, authHeaders }: { apiBase:strin
             <input className="input" placeholder="بحث صلاحيات" value={search} onChange={(e)=>setSearch(e.target.value)} />
             <button className="icon-btn" onClick={()=>setSearch('')}>مسح</button>
           </div>
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            <button className="icon-btn" onClick={()=>{
+              if (!selectedRoleId) return;
+              const ids = filteredPerms.map((p:any)=> p.id);
+              setRolePerms(selectedRoleId, ids);
+            }}>تحديد الكل في القسم</button>
+            <button className="icon-btn" onClick={()=>{
+              if (!selectedRoleId) return;
+              setRolePerms(selectedRoleId, []);
+            }}>إلغاء تحديد الكل</button>
+          </div>
           <div style={{ maxHeight:320, overflow:'auto', border:'1px solid var(--muted)', borderRadius:8, padding:8 }}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
               {filteredPerms.map((p:any)=> {
@@ -60,7 +111,7 @@ export default function PermissionsTab({ apiBase, authHeaders }: { apiBase:strin
                       if (e.target.checked) next.add(p.id); else next.delete(p.id);
                       setRolePerms(selectedRoleId, Array.from(next));
                     }} />
-                    <span>{p.key}</span>
+                    <span>{(groupLabels[p.key.split('.')[0]] || p.key.split('.')[0]) + ' — ' + p.key.split('.')[1]}</span>
                   </label>
                 );
               })}
