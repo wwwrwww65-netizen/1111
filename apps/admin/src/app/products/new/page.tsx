@@ -21,6 +21,9 @@ export default function AdminProductCreate(): JSX.Element {
   const [review, setReview] = React.useState<any|null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string>('');
+  const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
+  const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
+  const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
 
   const stopwords = React.useMemo(()=> new Set<string>([
     'مجاني','عرض','تخفيض','مميز','حصري','اصلي','اصلية','ضمان','شحن','سريع','رائع','جديد','new','sale','offer','best','free','original','premium','amazing','awesome','great'
@@ -132,6 +135,7 @@ export default function AdminProductCreate(): JSX.Element {
         const p = await getImageDominant(f);
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
+        setReview((prev:any)=> ({ ...(prev||extracted), palettes: [...palettes] }));
       }
       const mapping: Record<string, string|undefined> = {};
       for (const c of extracted.colors as string[]) {
@@ -140,8 +144,11 @@ export default function AdminProductCreate(): JSX.Element {
         mapping[c] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
       setReview({ ...extracted, palettes, mapping });
+      setActiveMobileTab('review');
+      showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
       setError('فشل التحليل. حاول مجدداً.');
+      showToast('فشل التحليل', 'err');
     } finally { setBusy(false); }
   }
 
@@ -168,9 +175,12 @@ export default function AdminProductCreate(): JSX.Element {
   const [stockQuantity, setStockQuantity] = React.useState<number | ''>('');
   const [images, setImages] = React.useState<string>('');
   const [files, setFiles] = React.useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
+  const formRef = React.useRef<HTMLFormElement>(null);
+  const [autoFilled, setAutoFilled] = React.useState(false);
 
   React.useEffect(()=>{
     (async ()=>{
@@ -248,6 +258,7 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   return (
+    <div className="container">
     <main className="panel">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
         <h1 style={{ margin:0 }}>إنشاء منتج</h1>
@@ -633,7 +644,9 @@ export default function AdminProductCreate(): JSX.Element {
           <button type="submit" className="btn">حفظ المنتج</button>
         </div>
       </form>
+      {toast && (<div className={`toast ${toast.type==='ok'?'ok':'err'}`}>{toast.text}</div>)}
     </main>
+    </div>
   );
 }
 
