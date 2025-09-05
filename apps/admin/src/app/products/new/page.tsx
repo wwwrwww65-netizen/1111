@@ -18,16 +18,134 @@ export default function AdminProductCreate(): JSX.Element {
   const apiBase = useApiBase();
   const authHeaders = useAuthHeaders();
   const [paste, setPaste] = React.useState('');
-  const [genImages, setGenImages] = React.useState<File[]>([]);
   const [review, setReview] = React.useState<any|null>(null);
   const [busy, setBusy] = React.useState(false);
-  async function handleParse(){
+  const [error, setError] = React.useState<string>('');
+
+  const stopwords = React.useMemo(()=> new Set<string>([
+    'مجاني','عرض','تخفيض','مميز','حصري','اصلي','اصلية','ضمان','شحن','سريع','رائع','جديد','new','sale','offer','best','free','original','premium','amazing','awesome','great'
+  ]), []);
+
+  function cleanText(raw: string): string {
+    const noHtml = (raw||'').replace(/<[^>]*>/g, ' ');
+    const noEmoji = noHtml.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}]/gu, '');
+    const noMarketing = noEmoji.replace(/(?:عرض|تخفيض|خصم|افضل|الأفضل|best|amazing|great|awesome|premium|original|حصري|شحن\s*مجاني)/gi, ' ');
+    return noMarketing.replace(/\s+/g,' ').trim();
+  }
+
+  const KNOWN_COLORS: Array<{name:string;hex:string}> = React.useMemo(()=>[
+    {name:'Black',hex:'#000000'},{name:'White',hex:'#FFFFFF'},{name:'Red',hex:'#FF0000'},{name:'Blue',hex:'#0000FF'},{name:'Green',hex:'#008000'},{name:'Yellow',hex:'#FFFF00'},{name:'Brown',hex:'#8B4513'},{name:'Beige',hex:'#F5F5DC'},{name:'Gray',hex:'#808080'},{name:'Pink',hex:'#FFC0CB'},{name:'Purple',hex:'#800080'},
+    {name:'أسود',hex:'#000000'},{name:'أبيض',hex:'#FFFFFF'},{name:'أحمر',hex:'#FF0000'},{name:'أزرق',hex:'#0000FF'},{name:'أخضر',hex:'#008000'},{name:'أصفر',hex:'#FFFF00'},{name:'بني',hex:'#8B4513'},{name:'بيج',hex:'#F5F5DC'},{name:'رمادي',hex:'#808080'},{name:'وردي',hex:'#FFC0CB'},{name:'بنفسجي',hex:'#800080'}
+  ],[]);
+
+  function hexToRgb(hex: string): {r:number;g:number;b:number} {
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16);
+    const g = parseInt(h.substring(2,4),16);
+    const b = parseInt(h.substring(4,6),16);
+    return { r,g,b };
+  }
+  function rgbDistance(a:{r:number;g:number;b:number}, b:{r:number;g:number;b:number}): number {
+    const dr = a.r-b.r, dg = a.g-b.g, db = a.b-b.b; return Math.sqrt(dr*dr+dg*dg+db*db);
+  }
+
+  async function getImageDominant(file: File): Promise<{url:string;hex:string}> {
+    const url = URL.createObjectURL(file);
+    // Compute simple average color via canvas
+    const img = await new Promise<HTMLImageElement>((resolve, reject)=>{ const i = new Image(); i.onload=()=>resolve(i); i.onerror=reject; i.src=url; });
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { url, hex: '#cccccc' };
+    const w = 64, h = 64; canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0,0,w,h).data;
+    let r=0,g=0,b=0,count=0; for (let i=0;i<data.length;i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; count++; }
+    r=Math.round(r/count); g=Math.round(g/count); b=Math.round(b/count);
+    const hex = '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+    return { url, hex };
+  }
+
+  function nearestColorName(hex: string): {name:string;hex:string} {
+    const target = hexToRgb(hex);
+    let best = KNOWN_COLORS[0]; let bestD = Number.POSITIVE_INFINITY;
+    for (const c of KNOWN_COLORS) { const d = rgbDistance(target, hexToRgb(c.hex)); if (d<bestD) { bestD=d; best=c; } }
+    return best;
+  }
+
+  function extractKeywords(t: string): string[] {
+    const words = t.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(Boolean);
+    const freq = new Map<string,number>();
+    for (const w of words) {
+      if (w.length<3) continue; if (stopwords.has(w)) continue;
+      freq.set(w, (freq.get(w)||0)+1);
+    }
+    const sorted = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]).map(([w])=>w);
+    return sorted.slice(0,10);
+  }
+
+  function extractFromText(raw: string): any {
+    const clean = cleanText(raw);
+    const nameMatch = clean.match(/(?:اسم\s*المنتج|product\s*name|name|اسم)[:\s]+(.{5,80})/i);
+    const currency = '(?:ر?ي?ال|sar|aed|usd|rs|qr|egp|kwd)?';
+    const priceMatch = clean.match(new RegExp(`(?:سعر\s*البيع|price|سعر)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
+    const costMatch = clean.match(new RegExp(`(?:سعر\s*الشراء|التكلفة|cost)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
+    const stockMatch = clean.match(/(?:المخزون|الكمية|stock|qty)[^\n]*?(\d{1,5})/i);
+    const sizesList = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=>s.toUpperCase())));
+    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','Red','Blue','Green','Black','White','Yellow','Brown','Beige','Gray','Pink','Purple'];
+    const colorsList = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
+    const shortDesc = clean.slice(0, 160);
+    const longDesc = clean.length<80 ? clean : clean.slice(0, 300);
+    const keywords = extractKeywords(clean);
+    const sale = priceMatch ? Number(String(priceMatch[1]).replace(',','.')) : undefined;
+    const cost = costMatch ? Number(String(costMatch[1]).replace(',','.')) : undefined;
+    const stock = stockMatch ? Number(stockMatch[1]) : undefined;
+    const confidence = {
+      name: nameMatch? 0.9 : (clean.length>20? 0.5 : 0.2),
+      shortDesc: shortDesc? 0.8 : 0.2,
+      longDesc: longDesc? 0.8 : 0.2,
+      salePrice: sale!==undefined ? 0.8 : 0.2,
+      purchasePrice: cost!==undefined ? 0.7 : 0.2,
+      sizes: sizesList.length? 0.7 : 0.2,
+      colors: colorsList.length? 0.7 : 0.2,
+      stock: stock!==undefined ? 0.6 : 0.2,
+      keywords: keywords.length? 0.6 : 0.2,
+    };
+    return {
+      name: (nameMatch?.[1]||'').trim(),
+      shortDesc,
+      longDesc,
+      salePrice: sale,
+      purchasePrice: cost,
+      sizes: sizesList,
+      colors: colorsList,
+      stock,
+      keywords,
+      confidence
+    };
+  }
+
+  async function handleAnalyze(filesForPalette: File[]): Promise<void> {
+    setError('');
     try {
       setBusy(true);
-      const body: any = { text: paste, images: [] };
-      const res = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(body) });
-      const j = await res.json();
-      setReview(j.extracted||j);
+      const extracted = extractFromText(paste);
+      // palettes per image
+      const palettes: Array<{url:string;hex:string;name:string}> = [];
+      for (const f of filesForPalette.slice(0,8)) {
+        // eslint-disable-next-line no-await-in-loop
+        const p = await getImageDominant(f);
+        const near = nearestColorName(p.hex);
+        palettes.push({ url: p.url, hex: p.hex, name: near.name });
+      }
+      // mapping color -> best image (by nearest color name)
+      const mapping: Record<string, string|undefined> = {};
+      for (const c of extracted.colors as string[]) {
+        const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(c.toLowerCase()) ? 0 : 1 }));
+        candidates.sort((a,b)=> a.score-b.score);
+        mapping[c] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
+      }
+      setReview({ ...extracted, palettes, mapping });
+    } catch (e:any) {
+      setError('فشل التحليل. حاول مجدداً.');
     } finally { setBusy(false); }
   }
   // REST-based creation; variants handled later via dedicated endpoint if needed
@@ -138,23 +256,132 @@ export default function AdminProductCreate(): JSX.Element {
       <h1 style={{ marginBottom: 16 }}>إنشاء منتج</h1>
       <section style={{ border:'1px solid #1c2333', borderRadius:12, padding:16, background:'#0f1420', marginBottom:16 }}>
         <h2 style={{ margin:0, marginBottom:8 }}>Paste & Generate</h2>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
-          <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={6} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <button type="button" onClick={handleParse} disabled={busy} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>{busy? 'جار التحليل...' : 'تحليل معاينة'}</button>
-            <button type="button" onClick={handleParse} disabled={busy} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>توليد</button>
-          </div>
-          {review && (
-            <div style={{ border:'1px solid #1c2333', borderRadius:8, padding:12, background:'#0b0e14' }}>
-              <h3 style={{ marginTop:0 }}>Review</h3>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                <label>الاسم<input defaultValue={review.name||''} onChange={(e)=> review.name = e.target.value } style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                <label>سعر البيع<input type="number" defaultValue={review.salePrice||''} onChange={(e)=> review.salePrice = Number(e.target.value)} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                <label style={{ gridColumn:'1 / -1' }}>وصف قصير<textarea defaultValue={review.shortDesc||''} onChange={(e)=> review.shortDesc = e.target.value } rows={3} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-                <label style={{ gridColumn:'1 / -1' }}>وصف طويل<textarea defaultValue={review.longDesc||''} onChange={(e)=> review.longDesc = e.target.value } rows={4} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-              </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:12 }}>
+          <div style={{ display:'grid', gap:12 }}>
+            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={8} style={{ width:'100%', padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
+              <button type="button" onClick={()=>{
+                if (!review) return;
+                // Fill main form without saving
+                setName(review.name || '');
+                setDescription([review.shortDesc, review.longDesc].filter(Boolean).join('\n\n'));
+                if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
+                if (review.stock!==undefined) setStockQuantity(review.stock);
+                if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
+                if (Array.isArray(review.sizes) && review.sizes.length) setSizes((review.sizes as string[]).join(', '));
+                if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
+                // Placeholders for images from mapping
+                const mappedUrls = Object.values(review.mapping||{}).filter(Boolean) as string[];
+                if (mappedUrls.length) setImages(mappedUrls.join(', '));
+              }} disabled={busy || !review} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>توليد</button>
+              {error && <span style={{ color:'#ef4444' }}>{error}</span>}
             </div>
-          )}
+            {review && (
+              <div style={{ border:'1px solid #1c2333', borderRadius:8, padding:12, background:'#0b0e14' }}>
+                <h3 style={{ marginTop:0 }}>Review</h3>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                  <label>سعر البيع (ثقة {Math.round((review.confidence?.salePrice||0)*100)}%)<input type="number" value={review.salePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, salePrice: e.target.value===''? undefined : Number(e.target.value)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                  <label>سعر الشراء (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                  <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%)<textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%)<textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                  <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <div>
+                      <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%)</div>
+                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                    </div>
+                    <div>
+                      <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%)</div>
+                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                    </div>
+                  </div>
+                  <div style={{ gridColumn:'1 / -1' }}>
+                    <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO)</div>
+                    <input value={(review.keywords||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, keywords: e.target.value.split(',').map((k:string)=>k.trim()).filter(Boolean)}))} style={{ width:'100%', padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                  </div>
+                </div>
+                <div style={{ marginTop:12, borderTop:'1px solid #1c2333', paddingTop:12 }}>
+                  <div style={{ marginBottom:8, color:'#9ca3af' }}>Images → Colors mapping</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+                        {(review.palettes||[]).map((p:any, idx:number)=> (
+                          <div key={idx} style={{ border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
+                            <img src={p.url} alt={String(idx)} style={{ width:'100%', height:100, objectFit:'cover' }} />
+                            <div style={{ padding:6, display:'flex', alignItems:'center', gap:8 }}>
+                              <span style={{ width:14, height:14, borderRadius:999, background:p.hex, border:'1px solid #111' }} />
+                              <span style={{ fontSize:12 }}>{p.name}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display:'grid', gap:8 }}>
+                        {(review.colors||[]).map((c:string, i:number)=> (
+                          <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignItems:'center' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <span style={{ width:14, height:14, borderRadius:999, background:(KNOWN_COLORS.find(k=>k.name.toLowerCase()===c.toLowerCase())?.hex||'#666'), border:'1px solid #111' }} />
+                              <span>{c}</span>
+                            </div>
+                            <select value={review.mapping?.[c]||''} onChange={(e)=> setReview((r:any)=> ({...r, mapping: { ...(r.mapping||{}), [c]: e.target.value || undefined }}))} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                              <option value="">(بدون صورة)</option>
+                              {(review.palettes||[]).map((p:any, idx:number)=> (<option key={idx} value={p.url}>صورة {idx+1}</option>))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const dropped = Array.from(e.dataTransfer.files || []);
+                if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
+              }}
+              style={{
+                border: `2px dashed ${dragOver ? '#60a5fa' : '#1c2333'}`,
+                borderRadius: 12,
+                padding: 16,
+                background: '#0b0e14',
+                color:'#94a3b8',
+                textAlign:'center'
+              }}
+            >
+              اسحب وأفلت الصور هنا أو
+              <br />
+              <label style={{ display:'inline-block', marginTop: 8, padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8, cursor:'pointer' }}>
+                اختر من جهازك
+                <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
+                  const selected = Array.from(e.target.files || []);
+                  if (selected.length) setFiles((prev) => [...prev, ...selected]);
+                }} />
+              </label>
+              <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
+            </div>
+            {files.length > 0 && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:8, marginTop:10 }}>
+                {files.map((f, idx) => (
+                  <div key={idx} style={{ position:'relative', border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
+                    <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover' }} />
+                    <div style={{ position:'absolute', right:6, top:6 }}>
+                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} style={{ background:'#111', color:'#fff', borderRadius:6, padding:'2px 6px', fontSize:12 }}>إزالة</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </section>
       <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, alignItems:'start' }}>
