@@ -5,11 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
-const db_1 = require("@repo/db");
 const json2csv_1 = require("json2csv");
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const cloudinary_1 = require("cloudinary");
+const db_1 = require("@repo/db");
 const adminRest = (0, express_1.Router)();
 const can = async (userId, permKey) => {
     if (process.env.NODE_ENV === 'test')
@@ -43,7 +43,7 @@ const audit = async (req, module, action, details) => {
 adminRest.use((req, res, next) => {
     // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
     const p = req.path || '';
-    if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin')) {
+    if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac')) {
         return next();
     }
     try {
@@ -102,6 +102,56 @@ adminRest.post('/roles', async (req, res) => {
     }
     catch (e) {
         res.status(500).json({ error: e.message || 'role_create_failed' });
+    }
+});
+// Maintenance: Ensure RBAC tables and seed permissions (idempotent)
+adminRest.post('/maintenance/ensure-rbac', async (req, res) => {
+    try {
+        const secret = req.headers['x-maintenance-secret'];
+        if (!secret || secret !== (process.env.MAINTENANCE_SECRET || '')) {
+            return res.status(401).json({ error: 'unauthorized' });
+        }
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Role" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Permission" ("id" TEXT PRIMARY KEY, "key" TEXT UNIQUE NOT NULL, "description" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "RolePermission" ("id" TEXT PRIMARY KEY, "roleId" TEXT NOT NULL, "permissionId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission"("roleId", "permissionId")');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserRoleLink" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "roleId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "UserRoleLink_user_role_key" ON "UserRoleLink"("userId", "roleId")');
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "RolePermission_roleId_fkey") THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "RolePermission_permissionId_fkey") THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "UserRoleLink_userId_fkey") THEN ALTER TABLE "UserRoleLink" ADD CONSTRAINT "UserRoleLink_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db_1.db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "UserRoleLink_roleId_fkey") THEN ALTER TABLE "UserRoleLink" ADD CONSTRAINT "UserRoleLink_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE; END IF; END $$;');
+        const groups = {
+            users: [{ key: 'users.read' }, { key: 'users.create' }, { key: 'users.update' }, { key: 'users.delete' }, { key: 'users.assign_roles' }],
+            orders: [{ key: 'orders.read' }, { key: 'orders.create' }, { key: 'orders.update' }, { key: 'orders.delete' }, { key: 'orders.assign_driver' }, { key: 'orders.ship' }, { key: 'orders.refund' }],
+            shipments: [{ key: 'shipments.read' }, { key: 'shipments.create' }, { key: 'shipments.cancel' }, { key: 'shipments.label' }, { key: 'shipments.track' }, { key: 'shipments.batch_print' }],
+            drivers: [{ key: 'drivers.read' }, { key: 'drivers.create' }, { key: 'drivers.update' }, { key: 'drivers.disable' }, { key: 'drivers.assign' }],
+            carriers: [{ key: 'carriers.read' }, { key: 'carriers.create' }, { key: 'carriers.update' }, { key: 'carriers.toggle' }],
+            products: [{ key: 'products.read' }, { key: 'products.create' }, { key: 'products.update' }, { key: 'products.delete' }],
+            categories: [{ key: 'categories.read' }, { key: 'categories.create' }, { key: 'categories.update' }, { key: 'categories.delete' }],
+            coupons: [{ key: 'coupons.read' }, { key: 'coupons.create' }, { key: 'coupons.update' }, { key: 'coupons.delete' }],
+            inventory: [{ key: 'inventory.read' }, { key: 'inventory.update' }, { key: 'inventory.adjust' }],
+            reviews: [{ key: 'reviews.read' }, { key: 'reviews.moderate' }, { key: 'reviews.delete' }],
+            media: [{ key: 'media.read' }, { key: 'media.upload' }, { key: 'media.delete' }],
+            cms: [{ key: 'cms.read' }, { key: 'cms.create' }, { key: 'cms.update' }, { key: 'cms.delete' }],
+            analytics: [{ key: 'analytics.read' }],
+            settings: [{ key: 'settings.manage' }],
+            backups: [{ key: 'backups.run' }, { key: 'backups.list' }, { key: 'backups.restore' }, { key: 'backups.schedule' }],
+            audit: [{ key: 'audit.read' }],
+            tickets: [{ key: 'tickets.read' }, { key: 'tickets.create' }, { key: 'tickets.assign' }, { key: 'tickets.comment' }, { key: 'tickets.close' }],
+        };
+        const required = Object.values(groups).flat();
+        for (const p of required) {
+            const key = p.key;
+            const existing = await db_1.db.permission.findUnique({ where: { key } });
+            if (!existing) {
+                await db_1.db.permission.create({ data: { key, description: p.description || null } });
+            }
+        }
+        return res.json({ ok: true });
+    }
+    catch (e) {
+        return res.status(500).json({ error: (e === null || e === void 0 ? void 0 : e.message) || 'ensure_rbac_failed' });
     }
 });
 adminRest.get('/permissions', async (req, res) => {
@@ -232,7 +282,7 @@ adminRest.post('/users/:id/assign-roles', async (req, res) => {
 // Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
 adminRest.use(async (req, res, next) => {
     const p = req.path || '';
-    if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin')) {
+    if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac')) {
         return next();
     }
     try {
