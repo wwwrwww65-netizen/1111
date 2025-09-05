@@ -90,11 +90,11 @@ adminRest.post('/maintenance/ensure-rbac', async (req, res) => {
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission"("roleId", "permissionId")');
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserRoleLink" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "roleId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "UserRoleLink_user_role_key" ON "UserRoleLink"("userId", "roleId")');
-    // Add foreign keys if they do not already exist
-    await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'RolePermission_roleId_fkey') THEN ALTER TABLE \"RolePermission\" ADD CONSTRAINT \"RolePermission_roleId_fkey\" FOREIGN KEY (\"roleId\") REFERENCES \"Role\"(\"id\") ON DELETE CASCADE; END IF; END $$;");
-    await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'RolePermission_permissionId_fkey') THEN ALTER TABLE \"RolePermission\" ADD CONSTRAINT \"RolePermission_permissionId_fkey\" FOREIGN KEY (\"permissionId\") REFERENCES \"Permission\"(\"id\") ON DELETE CASCADE; END IF; END $$;");
-    await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'UserRoleLink_userId_fkey') THEN ALTER TABLE \"UserRoleLink\" ADD CONSTRAINT \"UserRoleLink_userId_fkey\" FOREIGN KEY (\"userId\") REFERENCES \"User\"(\"id\") ON DELETE CASCADE; END IF; END $$;");
-    await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'UserRoleLink_roleId_fkey') THEN ALTER TABLE \"UserRoleLink\" ADD CONSTRAINT \"UserRoleLink_roleId_fkey\" FOREIGN KEY (\"roleId\") REFERENCES \"Role\"(\"id\") ON DELETE CASCADE; END IF; END $$;");
+    // Add foreign keys; ignore if they already exist
+    await db.$executeRawUnsafe("DO $$ BEGIN ALTER TABLE \"RolePermission\" ADD CONSTRAINT \"RolePermission_roleId_fkey\" FOREIGN KEY (\"roleId\") REFERENCES \"Role\"(\"id\") ON DELETE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;");
+    await db.$executeRawUnsafe("DO $$ BEGIN ALTER TABLE \"RolePermission\" ADD CONSTRAINT \"RolePermission_permissionId_fkey\" FOREIGN KEY (\"permissionId\") REFERENCES \"Permission\"(\"id\") ON DELETE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;");
+    await db.$executeRawUnsafe("DO $$ BEGIN ALTER TABLE \"UserRoleLink\" ADD CONSTRAINT \"UserRoleLink_userId_fkey\" FOREIGN KEY (\"userId\") REFERENCES \"User\"(\"id\") ON DELETE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;");
+    await db.$executeRawUnsafe("DO $$ BEGIN ALTER TABLE \"UserRoleLink\" ADD CONSTRAINT \"UserRoleLink_roleId_fkey\" FOREIGN KEY (\"roleId\") REFERENCES \"Role\"(\"id\") ON DELETE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;");
 
     const groups: Record<string, Array<{ key: string; description?: string }>> = {
       users: [ { key: 'users.read' }, { key: 'users.create' }, { key: 'users.update' }, { key: 'users.delete' }, { key: 'users.assign_roles' } ],
