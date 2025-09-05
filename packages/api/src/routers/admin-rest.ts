@@ -38,7 +38,7 @@ const audit = async (req: Request, module: string, action: string, details?: any
 adminRest.use((req: Request, res: Response, next) => {
   // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin')) {
     return next();
   }
   try {
@@ -166,7 +166,7 @@ adminRest.post('/users/:id/assign-roles', async (req, res) => {
 // Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
 adminRest.use(async (req: Request, res: Response, next) => {
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin')) {
     return next();
   }
   try {
@@ -199,6 +199,29 @@ adminRest.post('/maintenance/fix-auth-columns', async (_req, res) => {
     return res.json({ ok: true });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e?.message || 'failed' });
+  }
+});
+
+// Maintenance: create admin user with given credentials
+adminRest.post('/maintenance/create-admin', async (req, res) => {
+  try {
+    const secret = (req.headers['x-maintenance-secret'] as string | undefined) || (req.query.secret as string | undefined);
+    if (!secret || secret !== (process.env.MAINTENANCE_SECRET || '')) return res.status(403).json({ error:'forbidden' });
+    const email = String((req.body?.email || req.query.email || '')).trim().toLowerCase();
+    const password = String((req.body?.password || req.query.password || '')).trim();
+    const name = String((req.body?.name || 'Admin User')).trim();
+    if (!email || !password) return res.status(400).json({ error:'email_and_password_required' });
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(password, 10);
+    let user = await db.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await db.user.create({ data: { email, password: hash, name, role: 'ADMIN', isVerified: true, failedLoginAttempts: 0 } });
+    } else {
+      user = await db.user.update({ where: { id: user.id }, data: { password: hash, role: 'ADMIN', isVerified: true } });
+    }
+    return res.json({ success: true, userId: user.id, email });
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message || 'create_admin_failed' });
   }
 });
 
