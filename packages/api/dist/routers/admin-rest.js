@@ -76,7 +76,8 @@ adminRest.use((req, res, next) => {
 adminRest.get('/roles', async (req, res) => {
     try {
         const u = req.user;
-        if (!(await can(u.userId, 'settings.manage')))
+        const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage'));
+        if (!allowed)
             return res.status(403).json({ error: 'forbidden' });
         const list = await db_1.db.role.findMany({ include: { permissions: { include: { permission: true } } }, orderBy: { name: 'asc' } });
         res.json({ roles: list.map(r => ({ id: r.id, name: r.name, permissions: r.permissions.map(p => ({ id: p.permission.id, key: p.permission.key, description: p.permission.description })) })) });
@@ -89,7 +90,8 @@ adminRest.post('/roles', async (req, res) => {
     var _a;
     try {
         const u = req.user;
-        if (!(await can(u.userId, 'settings.manage')))
+        const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage'));
+        if (!allowed)
             return res.status(403).json({ error: 'forbidden' });
         const name = String((((_a = req.body) === null || _a === void 0 ? void 0 : _a.name) || '')).trim();
         if (!name)
@@ -188,7 +190,8 @@ adminRest.post('/roles/:id/permissions', async (req, res) => {
     var _a;
     try {
         const u = req.user;
-        if (!(await can(u.userId, 'settings.manage')))
+        const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage'));
+        if (!allowed)
             return res.status(403).json({ error: 'forbidden' });
         const { id } = req.params;
         const permIds = Array.isArray((_a = req.body) === null || _a === void 0 ? void 0 : _a.permissionIds) ? req.body.permissionIds : [];

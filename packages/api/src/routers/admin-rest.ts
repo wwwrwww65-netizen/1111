@@ -65,13 +65,13 @@ adminRest.use((req: Request, res: Response, next) => {
 
 // Roles & Permissions
 adminRest.get('/roles', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error:'forbidden' });
     const list = await db.role.findMany({ include: { permissions: { include: { permission: true } } }, orderBy: { name: 'asc' } });
     res.json({ roles: list.map(r=> ({ id:r.id, name:r.name, permissions: r.permissions.map(p=> ({ id:p.permission.id, key:p.permission.key, description:p.permission.description })) })) });
   } catch (e:any) { res.status(500).json({ error: e.message||'roles_list_failed' }); }
 });
 adminRest.post('/roles', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error:'forbidden' });
     const name = String((req.body?.name||'')).trim(); if (!name) return res.status(400).json({ error:'name_required' });
     const r = await db.role.create({ data: { name } }); await audit(req, 'roles', 'create', { id:r.id }); res.json({ role: r });
   } catch (e:any) { res.status(500).json({ error: e.message||'role_create_failed' }); }
@@ -144,7 +144,7 @@ adminRest.post('/permissions', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'perm_create_failed' }); }
 });
 adminRest.post('/roles/:id/permissions', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params; const permIds: string[] = Array.isArray(req.body?.permissionIds) ? req.body.permissionIds : [];
     const role = await db.role.findUnique({ where: { id } }); if (!role) return res.status(404).json({ error:'role_not_found' });
     // Reset and set
