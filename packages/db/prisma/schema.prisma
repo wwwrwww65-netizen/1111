@@ -411,6 +411,13 @@ model Driver {
   isActive      Boolean       @default(true)
   status        DriverStatus  @default(AVAILABLE)
   location      String?
+  address       String?
+  nationalId    String?
+  vehicleType   String?       // "دراجة نارية" | "دباب نقل"
+  ownership     String?       // "company" | "driver"
+  notes         String?
+  lat           Float?
+  lng           Float?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   orders        Order[]
