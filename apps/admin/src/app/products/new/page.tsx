@@ -264,7 +264,8 @@ export default function AdminProductCreate(): JSX.Element {
               <button type="button" onClick={()=>{
                 if (!review) return;
                 // Fill main form without saving
-                setName(review.name || '');
+                const limitedName = String(review.name||'').slice(0,60);
+                setName(limitedName);
                 setDescription([review.shortDesc, review.longDesc].filter(Boolean).join('\n\n'));
                 if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
                 if (review.stock!==undefined) setStockQuantity(review.stock);
@@ -274,6 +275,31 @@ export default function AdminProductCreate(): JSX.Element {
                 // Placeholders for images from mapping
                 const mappedUrls = Object.values(review.mapping||{}).filter(Boolean) as string[];
                 if (mappedUrls.length) setImages(mappedUrls.join(', '));
+                // Build variants matrix with placeholders and image mapping
+                const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
+                const cList: string[] = Array.isArray(review.colors)? review.colors : [];
+                const rows: typeof variantRows = [];
+                const baseSale = review.salePrice!==undefined ? Number(review.salePrice) : Number(salePrice||0);
+                const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+                if (sList.length && cList.length) {
+                  for (const sz of sList) {
+                    for (const col of cList) {
+                      const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}-${col}`;
+                      rows.push({ name: sz, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                    }
+                  }
+                } else if (sList.length) {
+                  for (const sz of sList) {
+                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}`;
+                    rows.push({ name: sz, value: sz, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                  }
+                } else if (cList.length) {
+                  for (const col of cList) {
+                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${col}`;
+                    rows.push({ name: col, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                  }
+                }
+                setVariantRows(rows);
               }} disabled={busy || !review} style={{ padding:'8px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>توليد</button>
               {error && <span style={{ color:'#ef4444' }}>{error}</span>}
             </div>
@@ -561,6 +587,7 @@ export default function AdminProductCreate(): JSX.Element {
                         <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>سعر البيع</th>
                         <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>المخزون</th>
                         <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>SKU</th>
+                        <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>صورة</th>
                         <th style={{ borderBottom:'1px solid #1c2333' }}></th>
                       </tr>
                     </thead>
@@ -592,6 +619,21 @@ export default function AdminProductCreate(): JSX.Element {
                               const val = e.target.value || undefined;
                               setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, sku: val } : r));
                             }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                          </td>
+                          <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                            <select value={(()=>{
+                              // choose mapped url by color if exists
+                              const mapped = (review?.mapping||{})[row.value];
+                              return mapped || '';
+                            })()} onChange={(e)=>{
+                              const url = e.target.value || undefined;
+                              // store temporary in row.sku field would be wrong; better not store in row, mapping lives in review
+                              // update review.mapping for this color
+                              setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [row.value]: url }}));
+                            }} style={{ width:'100%', padding:8, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                              <option value="">(بدون)</option>
+                              {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
+                            </select>
                           </td>
                           <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
                             <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>حذف</button>
