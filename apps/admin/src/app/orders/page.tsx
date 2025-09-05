@@ -74,61 +74,63 @@ export default function OrdersPage(): JSX.Element {
   return (
     <>
     <main className="panel">
-      <h1 style={{ marginBottom: 16 }}>الطلبات</h1>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <div />
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+        <h1 style={{ margin:0 }}>الطلبات</h1>
         <div style={{ display:'flex', gap:8 }}>
           <a className="btn" href={`${apiBase}/api/admin/orders/export/csv`}>تصدير CSV</a>
           <button className="btn" onClick={()=>setShowCreate(true)}>إنشاء طلب</button>
         </div>
       </div>
-      <div className="grid" style={{ gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:12 }}>
-        <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث (المعرف/الاسم/الإيميل/الهاتف)" className="input" />
-        <select value={status} onChange={(e)=>setStatus(e.target.value)} className="select">
-          <option value="">كل الحالات</option>
-          <option value="PENDING">قيد الانتظار</option>
-          <option value="PAID">مدفوع</option>
-          <option value="SHIPPED">تم الشحن</option>
-          <option value="DELIVERED">تم التسليم</option>
-          <option value="CANCELLED">ملغي</option>
-        </select>
-        <select value={driverId} onChange={(e)=>setDriverId(e.target.value)} className="select">
-          <option value="">كل السائقين</option>
-          {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
-        </select>
-        <input type="date" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} className="input" />
-        <input type="date" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} className="input" />
-        <div style={{ display:'flex', gap:8 }}>
-          <input type="number" placeholder="المبلغ من" value={amountMin} onChange={(e)=>setAmountMin(e.target.value)} className="input" />
-          <input type="number" placeholder="إلى" value={amountMax} onChange={(e)=>setAmountMax(e.target.value)} className="input" />
+
+      <div className="toolbar" style={{ justifyContent:'space-between', marginBottom:12 }}>
+        <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+          <div className="search"><input className="input" value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث (المعرف/الاسم/الإيميل/الهاتف)" /></div>
+          <select value={status} onChange={(e)=>setStatus(e.target.value)} className="select filter">
+            <option value="">كل الحالات</option>
+            <option value="PENDING">قيد الانتظار</option>
+            <option value="PAID">مدفوع</option>
+            <option value="SHIPPED">تم الشحن</option>
+            <option value="DELIVERED">تم التسليم</option>
+            <option value="CANCELLED">ملغي</option>
+          </select>
+          <select value={driverId} onChange={(e)=>setDriverId(e.target.value)} className="select filter">
+            <option value="">كل السائقين</option>
+            {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
+          </select>
+          <input type="date" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} className="input" />
+          <input type="date" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} className="input" />
+          <div style={{ display:'flex', gap:8 }}>
+            <input type="number" placeholder="المبلغ من" value={amountMin} onChange={(e)=>setAmountMin(e.target.value)} className="input" />
+            <input type="number" placeholder="إلى" value={amountMax} onChange={(e)=>setAmountMax(e.target.value)} className="input" />
+          </div>
+          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="select filter">
+            <option value="createdAt">الأحدث</option>
+            <option value="total">الإجمالي</option>
+            <option value="status">الحالة</option>
+          </select>
+          <select value={sortDir} onChange={(e)=>setSortDir(e.target.value as any)} className="select filter">
+            <option value="desc">تنازلي</option>
+            <option value="asc">تصاعدي</option>
+          </select>
+          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">تطبيق</button>
         </div>
-        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="select">
-          <option value="createdAt">الأحدث</option>
-          <option value="total">الإجمالي</option>
-          <option value="status">الحالة</option>
-        </select>
-        <select value={sortDir} onChange={(e)=>setSortDir(e.target.value as any)} className="select">
-          <option value="desc">تنازلي</option>
-          <option value="asc">تصاعدي</option>
-        </select>
-        <button onClick={()=>{ setPage(1); load(); }} className="btn">تطبيق</button>
-        <div />
       </div>
+
       <div style={{ overflowX:'auto' }}>
-      <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
+      <table className="table">
         <thead>
           <tr>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>رقم الطلب</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>تاريخ</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>العميل</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>العنوان</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>عدد الأصناف</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>الإجمالي</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>حالة الطلب</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>حالة الدفع</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>حالة الشحن</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>السائق</th>
-            <th style={{ textAlign:'right', borderBottom:'1px solid var(--muted)', padding:10 }}>إجراءات</th>
+            <th>رقم الطلب</th>
+            <th>تاريخ</th>
+            <th>العميل</th>
+            <th>العنوان</th>
+            <th>عدد الأصناف</th>
+            <th>الإجمالي</th>
+            <th>حالة الطلب</th>
+            <th>حالة الدفع</th>
+            <th>حالة الشحن</th>
+            <th>السائق</th>
+            <th>إجراءات</th>
           </tr>
         </thead>
         <tbody>
@@ -136,17 +138,17 @@ export default function OrdersPage(): JSX.Element {
             const shippingState = o.shipments?.[0]?.status || (o.status==='SHIPPED'?'IN_TRANSIT':o.status==='DELIVERED'?'DELIVERED':'-');
             return (
             <tr key={o.id}>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{o.id}</a></td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{new Date(o.createdAt).toLocaleString()}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{o.shippingAddress?.street||'-'}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{o.items?.length||0}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{o.total}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{o.status}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{o.payment?.status||'-'}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{shippingState}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{o.assignedDriver?.name||'-'}</td>
-              <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>
+              <td><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{o.id}</a></td>
+              <td>{new Date(o.createdAt).toLocaleString()}</td>
+              <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
+              <td>{o.shippingAddress?.street||'-'}</td>
+              <td>{o.items?.length||0}</td>
+              <td>{o.total}</td>
+              <td><span className="badge">{o.status}</span></td>
+              <td><span className="badge">{o.payment?.status||'-'}</span></td>
+              <td><span className="badge">{shippingState}</span></td>
+              <td>{o.assignedDriver?.name||'-'}</td>
+              <td>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                   <a href={`/orders/${o.id}`} className="btn" aria-label="عرض">عرض</a>
                   <button onClick={()=>ship(o.id)} className="btn" aria-label="شحن">شحن</button>
@@ -168,23 +170,20 @@ export default function OrdersPage(): JSX.Element {
         </tbody>
       </table>
       </div>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:12 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="icon-btn">السابق</button>
-          <div style={{ color:'var(--sub)' }}>صفحة {page} من {Math.max(1, Math.ceil(total / pageSize))}</div>
-          <button disabled={(page*pageSize)>=total} onClick={()=>setPage(p=>p+1)} className="icon-btn">التالي</button>
-        </div>
-        <div>
-          <select value={pageSize} onChange={(e)=>{ setPageSize(Number(e.target.value)); setPage(1); }} className="select">
-            {[10,20,50,100].map(n=> (<option key={n} value={n}>{n} / صفحة</option>))}
-          </select>
-        </div>
+
+      <div className="pagination" style={{ marginTop:12 }}>
+        <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="icon-btn">السابق</button>
+        <div style={{ color:'var(--sub)' }}>صفحة {page} من {Math.max(1, Math.ceil(total / pageSize))}</div>
+        <button disabled={(page*pageSize)>=total} onClick={()=>setPage(p=>p+1)} className="icon-btn">التالي</button>
+        <select value={pageSize} onChange={(e)=>{ setPageSize(Number(e.target.value)); setPage(1); }} className="select per-page">
+          {[10,20,50,100].map(n=> (<option key={n} value={n}>{n} / صفحة</option>))}
+        </select>
       </div>
     </main>
     {showCreate && (
-      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'grid', placeItems:'center', zIndex:60 }}>
-        <div className="panel" style={{ width:720 }}>
-          <h3 style={{ marginTop:0 }}>إنشاء طلب</h3>
+      <div className="modal">
+        <div className="dialog">
+          <h3 className="title">إنشاء طلب</h3>
           <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <input className="input" placeholder="اسم العميل" value={coName} onChange={(e)=>setCoName(e.target.value)} />
             <input className="input" placeholder="البريد" value={coEmail} onChange={(e)=>setCoEmail(e.target.value)} />
@@ -220,6 +219,4 @@ export default function OrdersPage(): JSX.Element {
     </>
   );
 }
-
-// legacy placeholder removed
 
