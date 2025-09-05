@@ -161,6 +161,11 @@ adminRest.get('/permissions', async (req, res) => {
         const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage'));
         if (!allowed)
             return res.status(403).json({ error: 'forbidden' });
+        // Ensure Permission table exists to avoid crashes on fresh databases
+        try {
+            await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Permission" ("id" TEXT PRIMARY KEY, "key" TEXT UNIQUE NOT NULL, "description" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        }
+        catch { }
         // Seed standard permissions if missing (idempotent)
         const groups = {
             users: [
