@@ -222,7 +222,27 @@ adminRest.post('/maintenance/grant-admin', async (req, res) => {
     const link = await db.userRoleLink.findFirst({ where: { userId: user.id, roleId: role.id } });
     if (!link) await db.userRoleLink.create({ data: { userId: user.id, roleId: role.id } });
     res.json({ success: true, userId: user.id, granted: ['ADMIN','SUPERADMIN'] });
-  } catch (e:any) { res.status(500).json({ error: e.message||'grant_admin_failed' }); }
+  } catch (e:any) {
+    const msg = String(e?.message||'').toLowerCase();
+    if (msg.includes('does not exist') || msg.includes('undefined_table') || (msg.includes('relation') && msg.includes('does not exist'))) {
+      try {
+        await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Role" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Permission" ("id" TEXT PRIMARY KEY, "key" TEXT UNIQUE NOT NULL, "description" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "RolePermission" ("id" TEXT PRIMARY KEY, "roleId" TEXT NOT NULL, "permissionId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission"("roleId", "permissionId")');
+        await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserRoleLink" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "roleId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "UserRoleLink_user_role_key" ON "UserRoleLink"("userId", "roleId")');
+        await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "RolePermission_roleId_fkey") THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "RolePermission_permissionId_fkey") THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "UserRoleLink_userId_fkey") THEN ALTER TABLE "UserRoleLink" ADD CONSTRAINT "UserRoleLink_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE; END IF; END $$;');
+        await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "UserRoleLink_roleId_fkey") THEN ALTER TABLE "UserRoleLink" ADD CONSTRAINT "UserRoleLink_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE; END IF; END $$;');
+        return res.status(503).json({ error: 'rbac_bootstrapped_retry' });
+      } catch (e2:any) {
+        return res.status(500).json({ error: e2.message||'grant_admin_failed_bootstrap' });
+      }
+    }
+    res.status(500).json({ error: e.message||'grant_admin_failed' });
+  }
 });
 // 2FA endpoints
 adminRest.post('/2fa/enable', async (req, res) => {

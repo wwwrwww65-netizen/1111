@@ -130,6 +130,13 @@ async function ensureSchema() {
         await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Session" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "userAgent" TEXT NULL, "ip" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "expiresAt" TIMESTAMP NOT NULL)');
         await db_1.db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId")');
         await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AuditLog" ("id" TEXT PRIMARY KEY, "userId" TEXT NULL, "action" TEXT NOT NULL, "module" TEXT NOT NULL, "details" JSONB NULL, "ip" TEXT NULL, "userAgent" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        // RBAC core tables (idempotent, minimal columns to satisfy Prisma usage)
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Role" ("id" TEXT PRIMARY KEY, "name" TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Permission" ("id" TEXT PRIMARY KEY, "key" TEXT UNIQUE NOT NULL, "description" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "RolePermission" ("id" TEXT PRIMARY KEY, "roleId" TEXT NOT NULL, "permissionId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_perm_key" ON "RolePermission"("roleId", "permissionId")');
+        await db_1.db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserRoleLink" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "roleId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+        await db_1.db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "UserRoleLink_user_role_key" ON "UserRoleLink"("userId", "roleId")');
     }
     catch (e) {
         console.warn('Schema ensure warning:', e.message);
