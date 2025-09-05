@@ -503,8 +503,8 @@ adminRest.get('/orders/export/csv', async (req, res) => {
         const u = req.user;
         if (!(await can(u.userId, 'orders.manage')))
             return res.status(403).json({ error: 'forbidden' });
-        const items = await db_1.db.order.findMany({ include: { user: true, items: true, shipments: true } });
-        const flat = items.map(o => { var _a; return ({ id: o.id, date: o.createdAt.toISOString(), user: ((_a = o.user) === null || _a === void 0 ? void 0 : _a.email) || '', items: o.items.length, total: o.total || 0, status: o.status, payment: o.paymentStatus, shipments: o.shipments.length }); });
+        const items = await db_1.db.order.findMany({ include: { user: true, items: true, shipments: true, payment: true } });
+        const flat = items.map(o => { var _a, _b; return ({ id: o.id, date: o.createdAt.toISOString(), user: ((_a = o.user) === null || _a === void 0 ? void 0 : _a.email) || '', items: o.items.length, total: o.total || 0, status: o.status, payment: ((_b = o.payment) === null || _b === void 0 ? void 0 : _b.status) || '', shipments: o.shipments.length }); });
         const parser = new json2csv_1.Parser({ fields: ['id', 'date', 'user', 'items', 'total', 'status', 'payment', 'shipments'] });
         const csv = parser.parse(flat);
         res.setHeader('Content-Type', 'text/csv');
@@ -1064,7 +1064,7 @@ adminRest.get('/settings/list', async (req, res) => {
 });
 // Tickets module
 adminRest.get('/tickets', async (req, res) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     const u = req.user;
     if (!(await can(u.userId, 'tickets.read')))
         return res.status(403).json({ error: 'forbidden' });
@@ -1074,13 +1074,6 @@ adminRest.get('/tickets', async (req, res) => {
     const search = (_d = req.query.search) !== null && _d !== void 0 ? _d : undefined;
     const skip = (page - 1) * limit;
     const where = {};
-    const roleFilter = (_e = req.query.role) === null || _e === void 0 ? void 0 : _e.toUpperCase();
-    if (roleFilter === 'ADMIN')
-        where.role = 'ADMIN';
-    else if (roleFilter === 'USER')
-        where.role = 'USER';
-    else if (roleFilter === 'VENDOR')
-        where.vendorId = { not: null };
     if (status)
         where.status = status;
     if (search)
@@ -1295,6 +1288,57 @@ adminRest.post('/events', async (req, res) => {
     const { name, userId, properties } = req.body || {};
     const ev = await db_1.db.event.create({ data: { name, userId, properties } });
     res.json({ event: ev });
+});
+// Reviews module
+adminRest.get('/reviews/list', async (req, res) => {
+    var _a, _b, _c, _d;
+    const u = req.user;
+    if (!(await can(u.userId, 'reviews.read')))
+        return res.status(403).json({ error: 'forbidden' });
+    const page = Number((_a = req.query.page) !== null && _a !== void 0 ? _a : 1);
+    const limit = Math.min(Number((_b = req.query.limit) !== null && _b !== void 0 ? _b : 20), 100);
+    const status = (_c = req.query.status) !== null && _c !== void 0 ? _c : undefined; // approved/pending
+    const search = (_d = req.query.search) !== null && _d !== void 0 ? _d : undefined;
+    const skip = (page - 1) * limit;
+    const where = {};
+    if (status === 'approved')
+        where.isApproved = true;
+    if (status === 'pending')
+        where.isApproved = false;
+    if (search)
+        where.OR = [{ comment: { contains: search, mode: 'insensitive' } }];
+    const [rows, total] = await Promise.all([
+        db_1.db.review.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true, name: true } }, product: { select: { name: true } } } }),
+        db_1.db.review.count({ where })
+    ]);
+    res.json({ reviews: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+});
+adminRest.post('/reviews/:id/approve', async (req, res) => {
+    const u = req.user;
+    if (!(await can(u.userId, 'reviews.moderate')))
+        return res.status(403).json({ error: 'forbidden' });
+    const { id } = req.params;
+    const r = await db_1.db.review.update({ where: { id }, data: { isApproved: true } });
+    await audit(req, 'reviews', 'approve', { id });
+    res.json({ review: r });
+});
+adminRest.post('/reviews/:id/reject', async (req, res) => {
+    const u = req.user;
+    if (!(await can(u.userId, 'reviews.moderate')))
+        return res.status(403).json({ error: 'forbidden' });
+    const { id } = req.params;
+    const r = await db_1.db.review.update({ where: { id }, data: { isApproved: false } });
+    await audit(req, 'reviews', 'reject', { id });
+    res.json({ review: r });
+});
+adminRest.delete('/reviews/:id', async (req, res) => {
+    const u = req.user;
+    if (!(await can(u.userId, 'reviews.delete')))
+        return res.status(403).json({ error: 'forbidden' });
+    const { id } = req.params;
+    await db_1.db.review.delete({ where: { id } });
+    await audit(req, 'reviews', 'delete', { id });
+    res.json({ success: true });
 });
 // Auth: login/logout + sessions
 adminRest.post('/auth/login', (0, express_rate_limit_1.default)({ windowMs: 60000, max: 10 }), async (req, res) => {

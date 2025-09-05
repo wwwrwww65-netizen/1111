@@ -1011,6 +1011,40 @@ adminRest.post('/events', async (req, res) => {
   res.json({ event: ev });
 });
 
+// Reviews module
+adminRest.get('/reviews/list', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'reviews.read'))) return res.status(403).json({ error:'forbidden' });
+  const page = Number(req.query.page ?? 1);
+  const limit = Math.min(Number(req.query.limit ?? 20), 100);
+  const status = (req.query.status as string | undefined) ?? undefined; // approved/pending
+  const search = (req.query.search as string | undefined) ?? undefined;
+  const skip = (page - 1) * limit;
+  const where: any = {};
+  if (status === 'approved') where.isApproved = true;
+  if (status === 'pending') where.isApproved = false;
+  if (search) where.OR = [ { comment: { contains: search, mode: 'insensitive' } } ];
+  const [rows, total] = await Promise.all([
+    db.review.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true, name: true } }, product: { select: { name: true } } } }),
+    db.review.count({ where })
+  ]);
+  res.json({ reviews: rows, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+});
+adminRest.post('/reviews/:id/approve', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'reviews.moderate'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params; const r = await db.review.update({ where: { id }, data: { isApproved: true } });
+  await audit(req, 'reviews', 'approve', { id }); res.json({ review: r });
+});
+adminRest.post('/reviews/:id/reject', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'reviews.moderate'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params; const r = await db.review.update({ where: { id }, data: { isApproved: false } });
+  await audit(req, 'reviews', 'reject', { id }); res.json({ review: r });
+});
+adminRest.delete('/reviews/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'reviews.delete'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params; await db.review.delete({ where: { id } }); await audit(req, 'reviews', 'delete', { id });
+  res.json({ success: true });
+});
+
 // Auth: login/logout + sessions
 adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (req, res) => {
   try {

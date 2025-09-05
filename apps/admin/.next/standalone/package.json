@@ -1,0 +1,29 @@
+{
+  "name": "ecom-platform",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter @repo/db build && turbo build",
+    "dev": "turbo dev --parallel",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "test": "turbo test",
+    "test:coverage": "turbo test:coverage",
+    "web": "pnpm --filter web dev",
+    "mobile": "pnpm --filter mobile start",
+    "api": "pnpm --filter api dev",
+    "db:migrate": "pnpm --filter @repo/db db:migrate",
+    "db:studio": "pnpm --filter @repo/db db:studio",
+    "db:seed": "pnpm --filter @repo/db db:seed",
+    "db:reset": "pnpm --filter @repo/db db:reset"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.14",
+    "@trpc/client": "^10.45.2",
+    "prettier": "^3.2.5",
+    "turbo": "latest"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@8.6.10"
+}
