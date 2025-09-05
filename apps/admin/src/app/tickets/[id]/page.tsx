@@ -6,11 +6,17 @@ export default function TicketDetailsPage({ params }: { params: { id: string } }
   const [ticket, setTicket] = React.useState<any>(null);
   const [assignee, setAssignee] = React.useState("");
   const [comment, setComment] = React.useState("");
-  async function load(){ const j = await (await fetch(`/api/admin/tickets/${id}`)).json(); setTicket(j.ticket); }
-  React.useEffect(()=>{ load(); },[id]);
-  async function assign(){ await fetch(`/api/admin/tickets/${id}/assign`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ userId: assignee }) }); setAssignee(""); await load(); }
-  async function addComment(){ await fetch(`/api/admin/tickets/${id}/comment`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ message: comment }) }); setComment(""); await load(); }
-  async function close(){ await fetch(`/api/admin/tickets/${id}/close`, { method:'POST' }); await load(); }
+  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const authHeaders = React.useCallback(()=>{
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  },[]);
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/tickets/${id}`, { credentials:'include', headers:{ ...authHeaders() } })).json(); setTicket(j.ticket); }
+  React.useEffect(()=>{ load(); },[id, apiBase]);
+  async function assign(){ await fetch(`${apiBase}/api/admin/tickets/${id}/assign`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ userId: assignee }) }); setAssignee(""); await load(); }
+  async function addComment(){ await fetch(`${apiBase}/api/admin/tickets/${id}/comment`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ message: comment }) }); setComment(""); await load(); }
+  async function close(){ await fetch(`${apiBase}/api/admin/tickets/${id}/close`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
   if (!ticket) return <main>Loading…</main>;
   return (
     <main>

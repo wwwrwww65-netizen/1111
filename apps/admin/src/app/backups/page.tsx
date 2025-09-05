@@ -4,11 +4,17 @@ import React from "react";
 export default function BackupsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [schedule, setSchedule] = React.useState<string>("daily");
-  async function load(){ const j = await (await fetch('/api/admin/backups/list')).json(); setRows(j.backups||[]); }
-  React.useEffect(()=>{ load(); },[]);
-  async function run(){ await fetch('/api/admin/backups/run', { method:'POST' }); await load(); }
-  async function restore(id: string){ await fetch(`/api/admin/backups/${id}/restore`, { method:'POST' }); await load(); }
-  async function saveSchedule(){ await fetch('/api/admin/backups/schedule', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ schedule }) }); }
+  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const authHeaders = React.useCallback(()=>{
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  },[]);
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/backups/list`, { credentials:'include', headers:{ ...authHeaders() } })).json(); setRows(j.backups||[]); }
+  React.useEffect(()=>{ load(); },[apiBase]);
+  async function run(){ await fetch(`${apiBase}/api/admin/backups/run`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
+  async function restore(id: string){ await fetch(`${apiBase}/api/admin/backups/${id}/restore`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
+  async function saveSchedule(){ await fetch(`${apiBase}/api/admin/backups/schedule`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ schedule }) }); }
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>النسخ الاحتياطي</h1>

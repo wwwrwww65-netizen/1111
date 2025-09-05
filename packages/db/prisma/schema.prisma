@@ -37,6 +37,22 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum DriverStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+enum ShipmentStatus {
+  LABEL_CREATED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  CANCELLED
+}
+
 enum CouponType {
   PERCENTAGE
   FIXED
@@ -55,6 +71,7 @@ model User {
   stripeCustomerId  String?   @unique
   failedLoginAttempts Int     @default(0)
   lockUntil         DateTime?
+  vendorId          String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -72,6 +89,7 @@ model User {
   loyaltyPoints     LoyaltyPoint[]
   events            Event[]
   sessions          Session[]
+  vendor            Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 }
 
 model Category {
@@ -212,6 +230,7 @@ model Order {
   shippingAddressId String?
   shippingAddress   Address?    @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
   trackingNumber    String?
+  assignedDriverId  String?
   couponId          String?
   discountAmount    Float       @default(0)
   createdAt         DateTime    @default(now())
@@ -222,6 +241,8 @@ model Order {
   items             OrderItem[]
   coupon            Coupon?     @relation(fields: [couponId], references: [id])
   tickets           SupportTicket[]
+  assignedDriver    Driver?     @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  shipments         Shipment[]
 }
 
 model OrderItem {
@@ -257,6 +278,7 @@ model Review {
   userId    String
   rating    Int
   comment   String?
+  isApproved Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -378,6 +400,54 @@ model Vendor {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   products     Product[]
+  users        User[]
+}
+
+// Logistics: Drivers
+model Driver {
+  id            String        @id @default(cuid())
+  name          String
+  phone         String?
+  isActive      Boolean       @default(true)
+  status        DriverStatus  @default(AVAILABLE)
+  location      String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  orders        Order[]
+  shipments     Shipment[]
+}
+
+// Logistics: Carriers
+model Carrier {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  isActive      Boolean  @default(true)
+  mode          String   @default("TEST")
+  credentials   Json?
+  pricingRules  Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  shipments     Shipment[]
+}
+
+// Logistics: Shipments
+model Shipment {
+  id            String         @id @default(cuid())
+  orderId       String
+  carrierId     String?
+  driverId      String?
+  trackingNumber String?
+  status        ShipmentStatus @default(LABEL_CREATED)
+  weight        Float?
+  dimensions    String?
+  cost          Float?
+  labelUrl      String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier       Carrier?       @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  driver        Driver?        @relation(fields: [driverId], references: [id], onDelete: SetNull)
 }
 
 // Attributes
@@ -390,10 +460,12 @@ model AttributeColor {
 
 model AttributeSize {
   id        String   @id @default(cuid())
-  name      String   @unique
+  name      String
   typeId    String?
   type      AttributeSizeType? @relation(fields: [typeId], references: [id])
   createdAt DateTime @default(now())
+
+  @@unique([name, typeId])
 }
 
 model AttributeBrand {

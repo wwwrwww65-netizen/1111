@@ -5,9 +5,15 @@ export default function SettingsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [keyName, setKeyName] = React.useState("");
   const [value, setValue] = React.useState("{}");
-  async function load(){ const j = await (await fetch('/api/admin/settings/list')).json(); setRows(j.settings||[]); }
-  React.useEffect(()=>{ load(); },[]);
-  async function upsert(){ await fetch('/api/admin/settings', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ key: keyName, value: JSON.parse(value||"{}") }) }); setKeyName(""); setValue("{}"); await load(); }
+  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const authHeaders = React.useCallback(()=>{
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+  },[]);
+  async function load(){ const j = await (await fetch(`${apiBase}/api/admin/settings/list`, { credentials:'include', headers:{ ...authHeaders() } })).json(); setRows(j.settings||[]); }
+  React.useEffect(()=>{ load(); },[apiBase]);
+  async function upsert(){ await fetch(`${apiBase}/api/admin/settings`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ key: keyName, value: JSON.parse(value||"{}") }) }); setKeyName(""); setValue("{}"); await load(); }
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>الإعدادات</h1>
