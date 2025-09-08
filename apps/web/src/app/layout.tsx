@@ -20,6 +20,10 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+// Disable HTML caching to ensure fresh design/styles are served
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default function RootLayout({
   children,
 }: {
