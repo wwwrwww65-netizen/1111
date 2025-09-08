@@ -12,27 +12,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Write SSH key file
         run: |
           echo "${{ secrets.VPS_SSH_KEY }}" > key.pem
           chmod 600 key.pem
 
-      - name: Upload repository to VPS (excluding build artifacts)
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key_path: key.pem
-          port: ${{ secrets.VPS_PORT }}
-          source: ./**
-          target: ${{ secrets.PROJECT_DIR }}
-          overwrite: true
-          strip_components: 0
-          debug: false
-          rm: false
-          tar_dereference: true
-          tar_tmp_path: /tmp
+      - name: Upload repository via git archive over SSH
+        run: |
+          rm -f repo.tar.gz
+          git archive --format=tar.gz -o repo.tar.gz HEAD
+          ssh -i key.pem -p "${{ secrets.VPS_PORT }}" -o StrictHostKeyChecking=no "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.PROJECT_DIR }}'"
+          scp -i key.pem -P "${{ secrets.VPS_PORT }}" -o StrictHostKeyChecking=no repo.tar.gz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.PROJECT_DIR }}/repo.tar.gz"
+          ssh -i key.pem -p "${{ secrets.VPS_PORT }}" -o StrictHostKeyChecking=no "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.PROJECT_DIR }}' && tar -xzf repo.tar.gz && rm -f repo.tar.gz"
 
       - name: Remote setup (install Node/pnpm/PM2/Nginx/Certbot)
         uses: appleboy/ssh-action@v0.1.10
