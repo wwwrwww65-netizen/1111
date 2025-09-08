@@ -2,12 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Arabic-friendly display font similar to design */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
+
 @layer base {
   :root {
     --brand: 17 17 17;
-    --brand-accent: 128 0 32; /* maroon */
+    /* Official maroon accent */
+    --brand-accent: 128 0 32; /* #800020 */
     --text: 17 17 17;
   }
-  html { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  html {
+    font-family: 'Tajawal', system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   body { color: rgb(var(--text)); background-color: #fff; }
 }

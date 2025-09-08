@@ -14,11 +14,11 @@ const config: Config = {
         brand: {
           DEFAULT: "#111111",
           muted: "#6b7280",
-          accent: "#800020",
+          accent: "#800020", // official maroon
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+        sans: ["Tajawal", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
       },
       container: { center: true, padding: "1rem" },
     },
