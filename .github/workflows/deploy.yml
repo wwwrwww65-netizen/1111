@@ -20,16 +20,6 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Write SSH private key from secret
-        if: ${{ env.DEPLOY_HOST != '127.0.0.1' }}
-        shell: bash
-        env:
-          PRIVKEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          printf "%s" "$PRIVKEY" > key.pem
-          chmod 644 key.pem
-
       - name: Create source archive
         run: |
           rm -f repo.tar.gz
@@ -40,29 +30,12 @@ jobs:
           echo "HOST=$DEPLOY_HOST PROJECT_DIR=$PROJECT_DIR RUNNER_OS=$RUNNER_OS"
 
       - name: Upload archive locally (self-hosted)
-        if: ${{ env.DEPLOY_HOST == '127.0.0.1' }}
         run: |
           set -euo pipefail
           mkdir -p "$PROJECT_DIR"
           cp -f repo.tar.gz "$PROJECT_DIR/"
 
-      - name: Upload archive to VPS (SSH)
-        if: ${{ env.DEPLOY_HOST != '127.0.0.1' }}
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key_path: key.pem
-          port: ${{ env.DEPLOY_PORT }}
-          source: repo.tar.gz
-          target: ${{ env.PROJECT_DIR }}
-          overwrite: true
-          strip_components: 0
-          debug: false
-          rm: false
-
       - name: Extract archive locally (self-hosted)
-        if: ${{ env.DEPLOY_HOST == '127.0.0.1' }}
         run: |
           set -euo pipefail
           mkdir -p "$PROJECT_DIR"
@@ -70,24 +43,7 @@ jobs:
           tar -xzf repo.tar.gz
           rm -f repo.tar.gz
 
-      - name: Extract archive on VPS (SSH)
-        if: ${{ env.DEPLOY_HOST != '127.0.0.1' }}
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key_path: key.pem
-          port: ${{ env.DEPLOY_PORT }}
-          script_stop: true
-          command_timeout: 10m
-          script: |
-            mkdir -p ${{ env.PROJECT_DIR }}
-            cd ${{ env.PROJECT_DIR }}
-            tar -xzf repo.tar.gz
-            rm -f repo.tar.gz
-
       - name: Remote setup locally (self-hosted)
-        if: ${{ env.DEPLOY_HOST == '127.0.0.1' }}
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -100,29 +56,7 @@ jobs:
           PROJECT_DIR="$PROJECT_DIR" \
           bash "$PROJECT_DIR/infra/deploy/remote-setup.sh"
 
-      - name: Remote setup (SSH)
-        if: ${{ env.DEPLOY_HOST != '127.0.0.1' }}
-        continue-on-error: true
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key_path: key.pem
-          port: ${{ env.DEPLOY_PORT }}
-          script_stop: true
-          command_timeout: 30m
-          script: |
-            chmod +x ${{ env.PROJECT_DIR }}/infra/deploy/remote-setup.sh || true
-            INSTALL_POSTGRES=${{ secrets.INSTALL_POSTGRES || '0' }} \
-            CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL || '' }} \
-            DOMAIN_WEB=${{ secrets.DOMAIN_WEB || 'jeeey.com' }} \
-            DOMAIN_ADMIN=${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }} \
-            DOMAIN_API=${{ secrets.DOMAIN_API || 'api.jeeey.com' }} \
-            PROJECT_DIR=${{ env.PROJECT_DIR }} \
-            bash ${{ env.PROJECT_DIR }}/infra/deploy/remote-setup.sh
-
       - name: Remote deploy locally (self-hosted)
-        if: ${{ env.DEPLOY_HOST == '127.0.0.1' }}
         run: |
           set -euo pipefail
           chmod +x "$PROJECT_DIR/infra/deploy/remote-deploy.sh" || true
@@ -131,22 +65,4 @@ jobs:
           GIT_RUN_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
           NODE_ENV=production \
           bash "$PROJECT_DIR/infra/deploy/remote-deploy.sh"
-
-      - name: Remote deploy (SSH)
-        if: ${{ env.DEPLOY_HOST != '127.0.0.1' }}
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key_path: key.pem
-          port: ${{ env.DEPLOY_PORT }}
-          script_stop: true
-          command_timeout: 60m
-          script: |
-            chmod +x ${{ env.PROJECT_DIR }}/infra/deploy/remote-deploy.sh || true
-            PROJECT_DIR=${{ env.PROJECT_DIR }} \
-            GIT_SHA=${{ github.sha }} \
-            GIT_RUN_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
-            NODE_ENV=production \
-            bash ${{ env.PROJECT_DIR }}/infra/deploy/remote-deploy.sh
 
