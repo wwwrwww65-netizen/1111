@@ -26,7 +26,8 @@ echo "[deploy] Running Prisma migrations (deploy)..."
 export DATABASE_URL=${DATABASE_URL:-$(grep -s '^DATABASE_URL=' packages/api/.env | cut -d'=' -f2-)}
 export DIRECT_URL=${DIRECT_URL:-$(grep -s '^DIRECT_URL=' packages/api/.env | cut -d'=' -f2-)}
 if [[ -n "${DATABASE_URL:-}" ]]; then
-  npx prisma migrate deploy --schema packages/db/prisma/schema.prisma || npx prisma db push --schema packages/db/prisma/schema.prisma
+  # Use package scripts to ensure correct prisma CLI version from @repo/db
+  pnpm --filter @repo/db db:deploy || pnpm --filter @repo/db db:push
 else
   echo "[deploy] DATABASE_URL not set; skipping migrate"
 fi
