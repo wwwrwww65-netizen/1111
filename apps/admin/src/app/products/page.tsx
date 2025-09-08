@@ -39,6 +39,10 @@ export default function AdminProducts(): JSX.Element {
 
   const totalPages = Math.max(1, Math.ceil(total/limit));
 
+  function activeBadge(isActive: boolean): string {
+    return isActive ? 'badge ok' : 'badge err';
+  }
+
   return (
     <main className="panel">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
@@ -48,7 +52,7 @@ export default function AdminProducts(): JSX.Element {
 
       <div className="toolbar" style={{ marginBottom:12 }}>
         <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/sku" className="input" /></div>
-        <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
+        <button onClick={()=>{ setPage(1); load(); }} className="btn btn-md btn-outline">بحث</button>
         <select value={status} onChange={(e)=>{ setStatus(e.target.value); setPage(1); }} className="select">
           <option value="">الكل</option>
           <option value="active">نشط</option>
@@ -61,33 +65,33 @@ export default function AdminProducts(): JSX.Element {
           <thead>
             <tr>
               <th></th>
-              <th>ID</th>
-              <th>صورة</th>
-              <th>الاسم</th>
-              <th>SKU/التباينات</th>
-              <th>سعر البيع</th>
-              <th>إجمالي المخزون</th>
-              <th>الحالة</th>
-              <th>إجراءات</th>
+              <th style={{minWidth:160}}>ID</th>
+              <th style={{minWidth:120}}>صورة</th>
+              <th style={{minWidth:220}}>الاسم</th>
+              <th style={{minWidth:160}}>SKU/التباينات</th>
+              <th style={{minWidth:120}}>سعر البيع</th>
+              <th style={{minWidth:120}}>المخزون</th>
+              <th style={{minWidth:140}}>الحالة</th>
+              <th style={{minWidth:180}}>إجراءات</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((p: any) => {
               const totalStock = (p.variants||[]).reduce((acc:number,v:any)=> acc + (v.stockQuantity||0), 0) + (p.stockQuantity||0);
               return (
-                <tr key={p.id}>
+                <tr key={p.id} style={{ height:72 }}>
                   <td><input type="checkbox" checked={!!selected[p.id]} onChange={()=> setSelected(s=> ({...s, [p.id]: !s[p.id]}))} /></td>
                   <td>{p.id.slice(0,6)}</td>
-                  <td>{p.images?.[0] ? <img src={p.images[0]} alt={p.name} style={{ width:40, height:40, objectFit:'cover', borderRadius:6 }} /> : '-'}</td>
+                  <td>{p.images?.[0] ? <img src={p.images[0]} alt={p.name} style={{ width:80, height:80, objectFit:'cover', borderRadius:6 }} /> : '-'}</td>
                   <td>{p.name}</td>
                   <td>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
                   <td>{p.price}</td>
                   <td>{totalStock}</td>
-                  <td><span className="badge">{p.isActive ? 'active' : 'archived'}</span></td>
+                  <td><span className={activeBadge(!!p.isActive)}>{p.isActive ? 'active' : 'archived'}</span></td>
                   <td>
-                    <a href={`/products/${p.id}`} className="btn" style={{ marginInlineEnd:6 }}>عرض</a>
-                    <a href={`/products/new?id=${p.id}`} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
-                    <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); await load(); }} className="btn">حذف</button>
+                    <a href={`/products/${p.id}`} className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
+                    <a href={`/products/new?id=${p.id}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
+                    <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); await load(); }} className="btn btn-md">حذف</button>
                   </td>
                 </tr>
               );
