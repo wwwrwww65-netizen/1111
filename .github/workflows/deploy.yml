@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           printf "%s" "$PRIVKEY" > key.pem
-          chmod 600 key.pem
+          chmod 644 key.pem
 
       - name: Create source archive
         run: |
