@@ -1223,8 +1223,8 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
     if (process.env.COOKIE_DOMAIN) {
       cookieOpts.domain = process.env.COOKIE_DOMAIN;
-    } else if (host.endsWith('onrender.com')) {
-      cookieOpts.domain = '.onrender.com';
+    } else if (host.endsWith('jeeey.com')) {
+      cookieOpts.domain = '.jeeey.com';
     }
     res.cookie('auth_token', token, cookieOpts);
     return res.json({ success: true, token, sessionId });

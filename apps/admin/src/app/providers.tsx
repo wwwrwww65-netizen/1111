@@ -14,11 +14,9 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
     const isBrowser = typeof window !== 'undefined';
     let resolvedUrl = envUrl;
     if (!resolvedUrl) {
-      if (isBrowser && window.location.hostname.endsWith('onrender.com')) {
-        resolvedUrl = 'https://jeeeyai.onrender.com/trpc';
-      } else {
-        resolvedUrl = 'http://localhost:4000/trpc';
-      }
+      resolvedUrl = isBrowser && window.location.hostname.endsWith('jeeey.com')
+        ? 'https://api.jeeey.com/trpc'
+        : 'http://localhost:4000/trpc';
     }
     return trpc.createClient({
       links: [

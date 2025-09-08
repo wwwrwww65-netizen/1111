@@ -198,7 +198,7 @@ try {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
 } catch {}
 
-// Root endpoint for Render root URL
+// Root endpoint
 app.get('/', (req, res) => {
   res.json({
     name: 'E-commerce API',

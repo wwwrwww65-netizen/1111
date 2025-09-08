@@ -10,10 +10,8 @@ export default function AdminLogin(): JSX.Element {
   const apiBase = React.useMemo(()=>{
     const env = process.env.NEXT_PUBLIC_API_BASE_URL;
     if (env) return env;
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('onrender.com')) {
-      const origin = window.location.origin.replace(/\/$/, '');
-      // Assume API is deployed as separate service; allow override via env; fallback to same-origin
-      return origin.replace('jeeey-manger', 'jeeeyai');
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('jeeey.com')) {
+      return 'https://api.jeeey.com';
     }
     return 'http://localhost:4000';
   }, []);
