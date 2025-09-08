@@ -89,6 +89,8 @@ jobs:
           script: |
             chmod +x ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-deploy.sh || true
             PROJECT_DIR=${{ secrets.PROJECT_DIR }} \
+            GIT_SHA=${{ github.sha }} \
+            GIT_RUN_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
             NODE_ENV=production \
             bash ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-deploy.sh
 

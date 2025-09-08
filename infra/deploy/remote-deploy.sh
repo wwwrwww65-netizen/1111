@@ -93,5 +93,13 @@ echo "[deploy] Reloading processes with PM2..."
 pm2 start /etc/pm2.ecosystem.config.js --update-env || pm2 reload all || pm2 restart all || true
 pm2 save || true
 
+if [[ -n "${GIT_SHA:-}" ]]; then
+  echo "[deploy] Deployment metadata: GIT_SHA=$GIT_SHA"
+  echo "[deploy] Workflow run: ${GIT_RUN_URL:-N/A}"
+  # Expose to runtime env for inspection
+  pm2 set ecom:git_sha "$GIT_SHA" >/dev/null 2>&1 || true
+  pm2 set ecom:run_url "${GIT_RUN_URL:-}" >/dev/null 2>&1 || true
+fi
+
 echo "[deploy] Done."
 
