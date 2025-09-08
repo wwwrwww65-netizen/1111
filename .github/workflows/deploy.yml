@@ -56,16 +56,14 @@ jobs:
       - name: Upload archive locally (self-hosted)
         run: |
           set -euo pipefail
-          mkdir -p "$PROJECT_DIR"
-          cp -f repo.tar.gz "$PROJECT_DIR/"
+          sudo mkdir -p "$PROJECT_DIR"
+          sudo chown -R deploy:deploy "$PROJECT_DIR"
+          sudo -u deploy cp -f repo.tar.gz "$PROJECT_DIR/"
 
       - name: Extract archive locally (self-hosted)
         run: |
           set -euo pipefail
-          mkdir -p "$PROJECT_DIR"
-          cd "$PROJECT_DIR"
-          tar -xzf repo.tar.gz
-          rm -f repo.tar.gz
+          sudo -u deploy bash -lc "set -euo pipefail; mkdir -p \"$PROJECT_DIR\"; cd \"$PROJECT_DIR\"; tar -xzf repo.tar.gz; rm -f repo.tar.gz"
 
       - name: Remote setup locally (self-hosted)
         continue-on-error: true
