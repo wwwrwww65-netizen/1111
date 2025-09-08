@@ -48,6 +48,27 @@ BEGIN
 END
 $$;
 SQL
+  echo "[deploy] Dropping legacy unique constraints/indexes that conflict with new schema..."
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -d ecom_db <<'SQL'
+-- Legacy unique on AttributeSize(name) conflicts with new composite unique (name,typeId)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    WHERE c.conname = 'AttributeSize_name_key' AND t.relname = 'AttributeSize'
+  ) THEN
+    ALTER TABLE "AttributeSize" DROP CONSTRAINT "AttributeSize_name_key";
+  END IF;
+END $$;
+-- Drop index if it exists separately
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_class WHERE relname = 'AttributeSize_name_key'
+  ) THEN
+    DROP INDEX IF EXISTS "AttributeSize_name_key";
+  END IF;
+END $$;
+SQL
   echo "[deploy] Determining migration strategy..."
   if compgen -G "packages/db/prisma/migrations/*" > /dev/null; then
     echo "[deploy] Found migrations: running db:deploy"
