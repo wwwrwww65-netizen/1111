@@ -1,6 +1,9 @@
 name: CI / CD (pnpm & Turborepo)
 
 on:
+  push:
+    branches:
+      - '**'
   pull_request:
     branches:
       - main
@@ -33,7 +36,29 @@ env:
   SMTP_PASS: ''
 
 jobs:
+  light_ci:
+    name: CI (light, self-hosted)
+    runs-on: [self-hosted, linux, x64, jeeey]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enable corepack & pnpm
+        run: |
+          corepack enable || true
+          corepack prepare pnpm@8.6.10 --activate || true
+      - name: Install deps (no frozen)
+        run: pnpm install --no-frozen-lockfile
+      - name: Build Web/Admin/API
+        run: |
+          pnpm --filter @repo/db build
+          pnpm --filter web build
+          pnpm --filter admin build
+          pnpm --filter @repo/api build
+
   build_and_test:
+    if: github.event_name == 'pull_request'
     name: Build / Test
     runs-on: ubuntu-latest
     services:
