@@ -51,10 +51,10 @@ SQL
   echo "[deploy] Determining migration strategy..."
   if compgen -G "packages/db/prisma/migrations/*" > /dev/null; then
     echo "[deploy] Found migrations: running db:deploy"
-    pnpm --filter @repo/db db:deploy || pnpm --filter @repo/db db:push
+    pnpm --filter @repo/db db:deploy || npx prisma db push --accept-data-loss --schema packages/db/prisma/schema.prisma
   else
     echo "[deploy] No migrations found: running db:push"
-    pnpm --filter @repo/db db:push
+    pnpm --filter @repo/db db:push || npx prisma db push --accept-data-loss --schema packages/db/prisma/schema.prisma
   fi
 else
   echo "[deploy] DATABASE_URL not set; skipping migrate"
