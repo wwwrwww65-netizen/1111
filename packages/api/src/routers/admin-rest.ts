@@ -1221,7 +1221,11 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
     const host = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || '';
     const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
-    if (host.endsWith('onrender.com')) cookieOpts.domain = '.onrender.com';
+    if (process.env.COOKIE_DOMAIN) {
+      cookieOpts.domain = process.env.COOKIE_DOMAIN;
+    } else if (host.endsWith('onrender.com')) {
+      cookieOpts.domain = '.onrender.com';
+    }
     res.cookie('auth_token', token, cookieOpts);
     return res.json({ success: true, token, sessionId });
   } catch (e: any) {
