@@ -4,6 +4,9 @@ import { AppProviders } from "./providers";
 import { Header } from "../components/Header";
 import { FooterCompact } from "../components/FooterCompact";
 import { MobileBottomNav } from "../components/MobileBottomNav";
+import { Tajawal } from "next/font/google";
+
+const tajawal = Tajawal({ subsets: ["arabic"], weight: ["400","500","700","800"] });
 
 export const metadata: Metadata = {
   title: "Jeeey | موضة نساء على الإنترنت | تسوق الفساتين والأحذية والحقائب",
@@ -24,7 +27,7 @@ export default function RootLayout({
 }): JSX.Element {
   return (
     <html lang="ar" dir="rtl">
-      <body>
+      <body className={tajawal.className}>
         <AppProviders>
           <Header />
           <div className="pb-16 md:pb-0">{children}</div>
