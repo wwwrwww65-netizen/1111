@@ -413,8 +413,9 @@ export default function AdminProductCreate(): JSX.Element {
         </div>
       </section>
 
-      <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, alignItems:'start' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 16, alignItems:'start' }}>
+        {/* Left main column span 8 */}
+        <div style={{ gridColumn: 'span 8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <label>نوع المنتج
             <select value={type} onChange={(e) => setType(e.target.value as any)} className="select">
               <option value="simple">منتج بسيط</option>
@@ -504,7 +505,8 @@ export default function AdminProductCreate(): JSX.Element {
           )}
         </div>
 
-        <div style={{ display:'grid', gap:12 }}>
+        {/* Right meta column span 4 */}
+        <div style={{ gridColumn: 'span 4', display:'grid', gap:12 }}>
           <label>الصور (روابط مفصولة بفواصل)
             <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
           </label>
@@ -535,7 +537,7 @@ export default function AdminProductCreate(): JSX.Element {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
               {files.map((f, idx) => (
                 <div key={idx} className="panel" style={{ padding:0 }}>
-                  <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                  <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
                   <div style={{ padding:8, textAlign:'right' }}>
                     <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
                   </div>
