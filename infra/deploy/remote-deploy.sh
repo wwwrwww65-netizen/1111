@@ -10,10 +10,14 @@ echo "[deploy] Ensuring correct Node/pnpm versions..."
 corepack enable || true
 corepack prepare pnpm@8.15.4 --activate
 
-echo "[deploy] Installing dependencies..."
-pnpm install --frozen-lockfile=false | cat
+echo "[deploy] Installing dependencies (including devDependencies)..."
+# Force install devDependencies regardless of outer NODE_ENV
+ORIG_NODE_ENV="${NODE_ENV:-}"
+NODE_ENV=development pnpm install --frozen-lockfile=false | cat
 
 echo "[deploy] Building database client and packages..."
+# Switch back to production for builds
+export NODE_ENV=production
 pnpm --filter @repo/db build | cat
 pnpm build | cat
 
