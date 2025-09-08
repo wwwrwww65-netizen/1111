@@ -1,0 +1,68 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload repository to VPS (excluding build artifacts)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          source: |
+            ./*
+          target: ${{ secrets.PROJECT_DIR }}
+          overwrite: true
+          strip_components: 0
+          proxy: false
+          debug: false
+          rm: false
+          exclude: |
+            **/.git/**
+            **/node_modules/**
+            **/.next/**
+            **/dist/**
+
+      - name: Remote setup (install Node/pnpm/PM2/Nginx/Certbot)
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script_stop: true
+          script: |
+            chmod +x ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-setup.sh || true
+            INSTALL_POSTGRES=${{ secrets.INSTALL_POSTGRES || '0' }} \
+            CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL || '' }} \
+            DOMAIN_WEB=${{ secrets.DOMAIN_WEB || 'jeeey.com' }} \
+            DOMAIN_ADMIN=${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }} \
+            DOMAIN_API=${{ secrets.DOMAIN_API || 'api.jeeey.com' }} \
+            PROJECT_DIR=${{ secrets.PROJECT_DIR }} \
+            bash ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-setup.sh
+
+      - name: Remote deploy (install deps, migrate, build, restart)
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script_stop: true
+          script: |
+            chmod +x ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-deploy.sh || true
+            PROJECT_DIR=${{ secrets.PROJECT_DIR }} \
+            NODE_ENV=production \
+            bash ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-deploy.sh
+
