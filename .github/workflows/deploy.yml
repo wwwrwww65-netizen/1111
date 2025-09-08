@@ -14,27 +14,45 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Prepare SSH key (base64) and agent
-        shell: bash
+      
+      - name: Decode SSH key (base64) to file
         run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY_B64 }}" | base64 -d > key.pem
           chmod 600 key.pem
-          eval "$(ssh-agent -s)"
-          ssh-add key.pem
-          PORT="${{ secrets.VPS_PORT }}"; [ -z "$PORT" ] && PORT=22
-          ssh-keyscan -p "$PORT" -T 15 "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Upload repository via git archive over SSH
+      
+      - name: Create source archive
         run: |
           rm -f repo.tar.gz
           git archive --format=tar.gz -o repo.tar.gz HEAD
-          PORT="${{ secrets.VPS_PORT }}"; [ -z "$PORT" ] && PORT=22; \
-          ssh -p "$PORT" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.PROJECT_DIR }}'" && \
-          scp -P "$PORT" repo.tar.gz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.PROJECT_DIR }}/repo.tar.gz" && \
-          ssh -p "$PORT" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.PROJECT_DIR }}' && tar -xzf repo.tar.gz && rm -f repo.tar.gz"
+
+      - name: Upload archive to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key_path: key.pem
+          port: ${{ secrets.VPS_PORT || '22' }}
+          source: repo.tar.gz
+          target: ${{ secrets.PROJECT_DIR }}
+          overwrite: true
+          strip_components: 0
+          debug: false
+          rm: false
+
+      - name: Extract archive on VPS
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key_path: key.pem
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            mkdir -p ${{ secrets.PROJECT_DIR }}
+            cd ${{ secrets.PROJECT_DIR }}
+            tar -xzf repo.tar.gz
+            rm -f repo.tar.gz
 
       - name: Remote setup (install Node/pnpm/PM2/Nginx/Certbot)
         uses: appleboy/ssh-action@v0.1.10
