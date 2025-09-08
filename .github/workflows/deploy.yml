@@ -12,36 +12,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
+      - name: Write SSH key file
+        run: |
+          echo "${{ secrets.VPS_SSH_KEY }}" > key.pem
+          chmod 600 key.pem
 
       - name: Upload repository to VPS (excluding build artifacts)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
-          source: |
-            ./*
+          key_path: key.pem
+          port: ${{ secrets.VPS_PORT }}
+          source: ./**
           target: ${{ secrets.PROJECT_DIR }}
           overwrite: true
           strip_components: 0
-          proxy: false
           debug: false
           rm: false
-          exclude: |
-            **/.git/**
-            **/node_modules/**
-            **/.next/**
-            **/dist/**
+          tar_dereference: true
+          tar_tmp_path: /tmp
 
       - name: Remote setup (install Node/pnpm/PM2/Nginx/Certbot)
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          key_path: key.pem
+          port: ${{ secrets.VPS_PORT }}
           script_stop: true
+          command_timeout: 30m
           script: |
             chmod +x ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-setup.sh || true
             INSTALL_POSTGRES=${{ secrets.INSTALL_POSTGRES || '0' }} \
@@ -57,9 +58,10 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          key_path: key.pem
+          port: ${{ secrets.VPS_PORT }}
           script_stop: true
+          command_timeout: 60m
           script: |
             chmod +x ${{ secrets.PROJECT_DIR }}/infra/deploy/remote-deploy.sh || true
             PROJECT_DIR=${{ secrets.PROJECT_DIR }} \
