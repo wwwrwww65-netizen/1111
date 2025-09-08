@@ -83,12 +83,14 @@ jobs:
       - name: Remote deploy locally (self-hosted)
         run: |
           set -euo pipefail
-          chmod +x "$PROJECT_DIR/infra/deploy/remote-deploy.sh" || true
-          PROJECT_DIR="$PROJECT_DIR" \
-          GIT_SHA=${{ github.sha }} \
-          GIT_RUN_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
-          NODE_ENV=production \
-          bash "$PROJECT_DIR/infra/deploy/remote-deploy.sh" 2>&1 | sed -u 's/::error/::notice/g'
+          sudo chown -R deploy:deploy "$PROJECT_DIR" || true
+          sudo chmod -R u+rwX,go-r "$PROJECT_DIR" || true
+          sudo chmod +x "$PROJECT_DIR/infra/deploy/remote-deploy.sh" || true
+          sudo -u deploy PROJECT_DIR="$PROJECT_DIR" \
+               GIT_SHA=${{ github.sha }} \
+               GIT_RUN_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
+               NODE_ENV=production \
+               bash "$PROJECT_DIR/infra/deploy/remote-deploy.sh" 2>&1 | sed -u 's/::error/::notice/g'
 
       - name: Verify services health
         run: |
