@@ -669,20 +669,20 @@ adminRest.post('/payments/refund', async (req, res) => {
 // Drivers
 adminRest.get('/drivers', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
     const list = await db.driver.findMany({ orderBy: { name: 'asc' } });
     res.json({ drivers: list });
   } catch (e:any) { res.status(500).json({ error: e.message || 'drivers_list_failed' }); }
 });
 adminRest.post('/drivers', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.create'))) return res.status(403).json({ error:'forbidden' });
     const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {}; if (!name) return res.status(400).json({ error: 'name_required' });
     const d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
     await audit(req, 'drivers', 'create', { id: d.id }); res.json({ driver: d });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_create_failed' }); }
 });
 adminRest.patch('/drivers/:id', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params; const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {};
     const d = await db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }), ...(address !== undefined && { address }), ...(nationalId !== undefined && { nationalId }), ...(vehicleType !== undefined && { vehicleType }), ...(ownership !== undefined && { ownership }), ...(notes !== undefined && { notes }), ...(lat !== undefined && { lat }), ...(lng !== undefined && { lng }) } });
     await audit(req, 'drivers', 'update', { id }); res.json({ driver: d });
@@ -690,7 +690,7 @@ adminRest.patch('/drivers/:id', async (req, res) => {
 });
 adminRest.get('/drivers/:id/overview', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
     const d = await db.driver.findUnique({ where: { id } });
     if (!d) return res.status(404).json({ error:'driver_not_found' });
