@@ -6,7 +6,6 @@ on:
       - main
       - 'feature/**'
       - 'feat/**'
-      - '**'
   pull_request:
     branches:
       - main
