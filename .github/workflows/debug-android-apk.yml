@@ -2,9 +2,6 @@ name: Build Android Debug APK (Standalone)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build_debug_apk:

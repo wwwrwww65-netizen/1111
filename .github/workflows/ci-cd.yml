@@ -1,11 +1,6 @@
 name: CI / CD (pnpm & Turborepo)
 
 on:
-  push:
-    branches:
-      - main
-      - 'feature/**'
-      - 'feat/**'
   pull_request:
     branches:
       - main
