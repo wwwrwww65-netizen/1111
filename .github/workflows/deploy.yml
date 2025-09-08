@@ -72,13 +72,13 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x "$PROJECT_DIR/infra/deploy/remote-setup.sh" || true
-          INSTALL_POSTGRES=${{ secrets.INSTALL_POSTGRES || '0' }} \
-          CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL || '' }} \
-          DOMAIN_WEB=${{ secrets.DOMAIN_WEB || 'jeeey.com' }} \
-          DOMAIN_ADMIN=${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }} \
-          DOMAIN_API=${{ secrets.DOMAIN_API || 'api.jeeey.com' }} \
-          PROJECT_DIR="$PROJECT_DIR" \
-          bash "$PROJECT_DIR/infra/deploy/remote-setup.sh" 2>&1 | sed -u 's/::error/::notice/g'
+          sudo INSTALL_POSTGRES=${{ secrets.INSTALL_POSTGRES || '0' }} \
+               CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL || '' }} \
+               DOMAIN_WEB=${{ secrets.DOMAIN_WEB || 'jeeey.com' }} \
+               DOMAIN_ADMIN=${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }} \
+               DOMAIN_API=${{ secrets.DOMAIN_API || 'api.jeeey.com' }} \
+               PROJECT_DIR="$PROJECT_DIR" \
+               bash "$PROJECT_DIR/infra/deploy/remote-setup.sh" 2>&1 | sed -u 's/::error/::notice/g'
 
       - name: Remote deploy locally (self-hosted)
         run: |
@@ -96,6 +96,9 @@ jobs:
           echo "Checking API on 4000..."
           curl -fsS http://127.0.0.1:4000/health | sed -n '1,2p' | cat
           echo "Checking web port 3000..."
+          for i in $(seq 1 10); do
+            if curl -fsSI http://127.0.0.1:3000/ >/dev/null; then echo OK; break; fi; echo retry $i; sleep 2;
+          done
           curl -fsSI http://127.0.0.1:3000/ | sed -n '1,5p' | cat
           echo "Checking https jeeey.com..."
           curl -fsSI https://jeeey.com | sed -n '1,5p' | cat
