@@ -13,7 +13,8 @@ corepack prepare pnpm@8.15.4 --activate
 echo "[deploy] Installing dependencies (including devDependencies)..."
 # Force install devDependencies regardless of outer NODE_ENV
 ORIG_NODE_ENV="${NODE_ENV:-}"
-NODE_ENV=development pnpm install --frozen-lockfile=false | cat
+export CI=1
+NODE_ENV=development pnpm install --frozen-lockfile=false --prod=false --force | cat
 
 echo "[deploy] Building database client and packages..."
 # Switch back to production for builds
