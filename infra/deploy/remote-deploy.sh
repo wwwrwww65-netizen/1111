@@ -22,13 +22,12 @@ export NODE_ENV=production
 pnpm --filter @repo/db build | cat
 pnpm build | cat
 
-echo "[deploy] Running Prisma migrations (deploy)..."
+echo "[deploy] Running Prisma migrations (deploy/push)..."
 export DATABASE_URL=${DATABASE_URL:-$(grep -s '^DATABASE_URL=' packages/api/.env | cut -d'=' -f2-)}
 export DIRECT_URL=${DIRECT_URL:-$(grep -s '^DIRECT_URL=' packages/api/.env | cut -d'=' -f2-)}
 if [[ -n "${DATABASE_URL:-}" ]]; then
-  echo "[deploy] Ensuring DB ownership and privileges for ecom_user..."
-  sudo -u postgres psql -v ON_ERROR_STOP=1 <<'SQL'
-ALTER DATABASE ecom_db OWNER TO ecom_user;
+  echo "[deploy] Ensuring DB ownership and privileges for ecom_user on ecom_db..."
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -d ecom_db <<'SQL'
 ALTER SCHEMA public OWNER TO ecom_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ecom_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ecom_user;
@@ -49,8 +48,14 @@ BEGIN
 END
 $$;
 SQL
-  # Use package scripts to ensure correct prisma CLI version from @repo/db
-  pnpm --filter @repo/db db:deploy || pnpm --filter @repo/db db:push
+  echo "[deploy] Determining migration strategy..."
+  if compgen -G "packages/db/prisma/migrations/*" > /dev/null; then
+    echo "[deploy] Found migrations: running db:deploy"
+    pnpm --filter @repo/db db:deploy || pnpm --filter @repo/db db:push
+  else
+    echo "[deploy] No migrations found: running db:push"
+    pnpm --filter @repo/db db:push
+  fi
 else
   echo "[deploy] DATABASE_URL not set; skipping migrate"
 fi
