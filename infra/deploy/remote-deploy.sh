@@ -10,11 +10,7 @@ echo "[deploy] Ensuring correct Node/pnpm versions..."
 corepack enable || true
 corepack prepare pnpm@8.15.4 --activate
 
-# Avoid Prisma env conflict in CI (move prisma/.env into packages/db/.env or ignore)
-if [[ -f packages/db/prisma/.env ]]; then
-  echo "[deploy] Removing packages/db/prisma/.env to avoid env conflict"
-  rm -f packages/db/prisma/.env || true
-fi
+# Avoid Prisma env conflicts but ensure required vars exist
 export PRISMA_IGNORE_ENV_CONFLICT=1
 
 echo "[deploy] Installing dependencies (including devDependencies)..."
@@ -30,8 +26,17 @@ pnpm --filter @repo/db build | cat
 pnpm build | cat
 
 echo "[deploy] Running Prisma migrations (deploy/push)..."
+# Source DB URLs from API env if not present
 export DATABASE_URL=${DATABASE_URL:-$(grep -s '^DATABASE_URL=' packages/api/.env | cut -d'=' -f2-)}
 export DIRECT_URL=${DIRECT_URL:-$(grep -s '^DIRECT_URL=' packages/api/.env | cut -d'=' -f2-)}
+# Fallback: DIRECT_URL defaults to DATABASE_URL if empty
+if [[ -z "${DIRECT_URL:-}" && -n "${DATABASE_URL:-}" ]]; then
+  export DIRECT_URL="$DATABASE_URL"
+fi
+# Ensure prisma/.env contains both variables for schema resolution
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "${DIRECT_URL:-$DATABASE_URL}" > packages/db/prisma/.env
+fi
 if [[ -n "${DATABASE_URL:-}" ]]; then
   echo "[deploy] Ensuring DB ownership and privileges for ecom_user on ecom_db..."
   sudo -u postgres psql -v ON_ERROR_STOP=1 -d ecom_db <<'SQL'
