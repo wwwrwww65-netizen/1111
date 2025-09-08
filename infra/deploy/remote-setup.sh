@@ -62,5 +62,13 @@ echo "[setup] Placing PM2 ecosystem config..."
 mkdir -p "$PROJECT_DIR/infra/deploy"
 cp -f "$PROJECT_DIR/infra/deploy/ecosystem.config.js" /etc/pm2.ecosystem.config.js || true
 
+echo "[setup] Disabling legacy systemd web service if present..."
+if systemctl list-unit-files | grep -q '^ecom-web.service'; then
+  systemctl stop ecom-web || true
+  systemctl disable ecom-web || true
+  systemctl daemon-reload || true
+  echo "[setup] Disabled legacy ecom-web.service"
+fi
+
 echo "[setup] Done."
 

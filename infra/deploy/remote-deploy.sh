@@ -103,6 +103,7 @@ if [[ -d apps/admin/.next/standalone ]]; then
 fi
 
 echo "[deploy] Reloading processes with PM2..."
+pm2 delete ecom-web || true
 pm2 start /etc/pm2.ecosystem.config.js --update-env || pm2 reload all || pm2 restart all || true
 pm2 save || true
 
