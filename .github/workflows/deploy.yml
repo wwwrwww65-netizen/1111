@@ -10,10 +10,10 @@ jobs:
   deploy:
     runs-on: [self-hosted, linux, x64, jeeey]
     env:
-      DEPLOY_HOST: ${{ secrets.VPS_HOST || '127.0.0.1' }}
-      DEPLOY_USER: ${{ secrets.VPS_USER || 'deploy' }}
-      DEPLOY_PORT: ${{ secrets.VPS_PORT || '22' }}
-      PROJECT_DIR: ${{ secrets.PROJECT_DIR || '/var/www/ecom' }}
+      DEPLOY_HOST: '127.0.0.1'
+      DEPLOY_USER: 'deploy'
+      DEPLOY_PORT: '22'
+      PROJECT_DIR: '/var/www/ecom'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +34,10 @@ jobs:
         run: |
           rm -f repo.tar.gz
           git archive --format=tar.gz -o repo.tar.gz HEAD
+
+      - name: Debug env (self-hosted)
+        run: |
+          echo "HOST=$DEPLOY_HOST PROJECT_DIR=$PROJECT_DIR RUNNER_OS=$RUNNER_OS"
 
       - name: Upload archive locally (self-hosted)
         if: ${{ env.DEPLOY_HOST == '127.0.0.1' }}
