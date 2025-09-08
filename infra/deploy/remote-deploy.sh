@@ -26,6 +26,29 @@ echo "[deploy] Running Prisma migrations (deploy)..."
 export DATABASE_URL=${DATABASE_URL:-$(grep -s '^DATABASE_URL=' packages/api/.env | cut -d'=' -f2-)}
 export DIRECT_URL=${DIRECT_URL:-$(grep -s '^DIRECT_URL=' packages/api/.env | cut -d'=' -f2-)}
 if [[ -n "${DATABASE_URL:-}" ]]; then
+  echo "[deploy] Ensuring DB ownership and privileges for ecom_user..."
+  sudo -u postgres psql -v ON_ERROR_STOP=1 <<'SQL'
+ALTER DATABASE ecom_db OWNER TO ecom_user;
+ALTER SCHEMA public OWNER TO ecom_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ecom_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ecom_user;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO ecom_user;
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT format('%I.%I', schemaname, tablename) AS f FROM pg_tables WHERE schemaname='public' LOOP
+    EXECUTE 'ALTER TABLE ' || r.f || ' OWNER TO ecom_user';
+  END LOOP;
+  FOR r IN SELECT format('%I.%I', sequence_schema, sequence_name) AS f FROM information_schema.sequences WHERE sequence_schema='public' LOOP
+    EXECUTE 'ALTER SEQUENCE ' || r.f || ' OWNER TO ecom_user';
+  END LOOP;
+  FOR r IN SELECT format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid)) AS f
+           FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname='public' LOOP
+    EXECUTE 'ALTER FUNCTION ' || r.f || ' OWNER TO ecom_user';
+  END LOOP;
+END
+$$;
+SQL
   # Use package scripts to ensure correct prisma CLI version from @repo/db
   pnpm --filter @repo/db db:deploy || pnpm --filter @repo/db db:push
 else
