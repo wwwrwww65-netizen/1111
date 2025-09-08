@@ -71,6 +71,17 @@ export default function OrdersPage(): JSX.Element {
     await load();
   }
 
+  function statusClass(s: string): string {
+    switch (s) {
+      case 'DELIVERED': return 'ok';
+      case 'PAID': return 'ok';
+      case 'PENDING': return 'warn';
+      case 'SHIPPED': return 'warn';
+      case 'CANCELLED': return 'err';
+      default: return '';
+    }
+  }
+
   return (
     <>
     <main className="panel">
@@ -120,17 +131,17 @@ export default function OrdersPage(): JSX.Element {
       <table className="table">
         <thead>
           <tr>
-            <th>رقم الطلب</th>
-            <th>تاريخ</th>
-            <th>العميل</th>
-            <th>العنوان</th>
-            <th>عدد الأصناف</th>
-            <th>الإجمالي</th>
-            <th>حالة الطلب</th>
-            <th>حالة الدفع</th>
-            <th>حالة الشحن</th>
-            <th>السائق</th>
-            <th>إجراءات</th>
+            <th style={{minWidth:160}}>رقم الطلب</th>
+            <th style={{minWidth:120}}>تاريخ</th>
+            <th style={{minWidth:220}}>العميل</th>
+            <th style={{minWidth:200}}>العنوان</th>
+            <th style={{minWidth:80}}>الأصناف</th>
+            <th style={{minWidth:120}}>الإجمالي</th>
+            <th style={{minWidth:140}}>حالة الطلب</th>
+            <th style={{minWidth:140}}>حالة الدفع</th>
+            <th style={{minWidth:140}}>الشحن</th>
+            <th style={{minWidth:160}}>السائق</th>
+            <th style={{minWidth:180}}>إجراءات</th>
           </tr>
         </thead>
         <tbody>
@@ -144,16 +155,16 @@ export default function OrdersPage(): JSX.Element {
               <td>{o.shippingAddress?.street||'-'}</td>
               <td>{o.items?.length||0}</td>
               <td>{o.total}</td>
-              <td><span className="badge">{o.status}</span></td>
-              <td><span className="badge">{o.payment?.status||'-'}</span></td>
-              <td><span className="badge">{shippingState}</span></td>
+              <td><span className={`badge ${statusClass(o.status)}`}>{o.status}</span></td>
+              <td><span className={`badge ${statusClass(o.payment?.status||'')}`}>{o.payment?.status||'-'}</span></td>
+              <td><span className={`badge ${statusClass(shippingState)}`}>{shippingState}</span></td>
               <td>{o.assignedDriver?.name||'-'}</td>
               <td>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  <a href={`/orders/${o.id}`} className="btn" aria-label="عرض">عرض</a>
-                  <button onClick={()=>ship(o.id)} className="btn" aria-label="شحن">شحن</button>
-                  <button onClick={()=>refund(o.id)} className="btn" aria-label="استرداد">استرداد</button>
-                  <a href={`${apiBase}/api/admin/shipments/${o.shipments?.[0]?.id||''}/label`} className="btn" aria-label="فاتورة">فاتورة</a>
+                  <a href={`/orders/${o.id}`} className="btn btn-md" aria-label="عرض">عرض</a>
+                  <button onClick={()=>ship(o.id)} className="btn btn-md" aria-label="شحن">شحن</button>
+                  <button onClick={()=>refund(o.id)} className="btn btn-md" aria-label="استرداد">استرداد</button>
+                  <a href={`${apiBase}/api/admin/shipments/${o.shipments?.[0]?.id||''}/label`} className="btn btn-md" aria-label="فاتورة">فاتورة</a>
                 </div>
                 <div style={{ marginTop:6 }}>
                   <select onChange={(e)=>assign(o.id, e.target.value)} className="select" aria-label="تعيين سائق">
