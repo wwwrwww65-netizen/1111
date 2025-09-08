@@ -6,6 +6,7 @@ import { LoadingOverlay } from "../components/LoadingOverlay";
 import { PromoBar } from "../components/PromoBar";
 import { HeroBanner } from "../components/HeroBanner";
 import { CategoryGrid } from "../components/CategoryGrid";
+import { CategoryScroller } from "../components/CategoryScroller";
 import { SectionGrid } from "../components/SectionGrid";
 import { PromoBanners } from "../components/PromoBanners";
 import { TabsSection } from "../components/TabsSection";
@@ -53,7 +54,10 @@ export default function Page(): JSX.Element {
       <HtmlLangDir />
       <PromoBar />
       <HeroBanner />
-      <CategoryGrid />
+      <CategoryScroller />
+      <div className="hidden md:block">
+        <CategoryGrid />
+      </div>
 
       <section className="mt-6">
         <div className="flex items-center justify-between">
@@ -62,7 +66,7 @@ export default function Page(): JSX.Element {
             <button onClick={() => fetchNextPage()} className="text-sm underline">المزيد</button>
           )}
         </div>
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-4">
           {(!products?.length ? Array.from({ length: 10 }) : products).map((p: any, idx: number) => (
             !products?.length ? (
               <SkeletonCard key={idx} />

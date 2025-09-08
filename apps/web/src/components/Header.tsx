@@ -23,6 +23,25 @@ export function Header(): JSX.Element {
             </a>
           </div>
         </div>
+        {/* Mobile search bar */}
+        <form
+          className="md:hidden pb-3"
+          onSubmit={(e) => { e.preventDefault(); window.location.href = `/search?q=${encodeURIComponent(q)}`; }}
+        >
+          <div className="flex items-center gap-2 rounded-full px-3 py-2 border bg-white">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="11" cy="11" r="7"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="ابحث عن منتجات..."
+              className="w-full outline-none text-sm bg-transparent"
+            />
+            <button type="submit" className="text-sm px-3 py-1.5 bg-brand-accent text-white rounded-full">بحث</button>
+          </div>
+        </form>
         {/* Desktop row */}
         <div className="hidden md:grid grid-cols-12 items-center py-3 gap-4">
           <nav className="col-span-4 flex items-center gap-4 text-sm">
