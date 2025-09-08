@@ -59,7 +59,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
             <input placeholder="بحث سريع…" value={query} onChange={(e)=>setQuery(e.target.value)} />
           </div>
           <div className="user">
-            <a href="/login" className="user-pill">الحساب</a>
+            <a href="/login" className="btn btn-sm btn-outline">الحساب</a>
           </div>
         </div>
       </header>

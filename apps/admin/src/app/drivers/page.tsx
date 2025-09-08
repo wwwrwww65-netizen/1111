@@ -36,7 +36,7 @@ export default function DriversPage(): JSX.Element {
         <h1 style={{ margin:0 }}>السائقون</h1>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:12 }}>
+      <div className="grid" style={{ gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:12 }}>
         <input className="input" placeholder="اسم السائق" value={name} onChange={(e)=>setName(e.target.value)} />
         <input className="input" placeholder="رقم الهاتف" value={phone} onChange={(e)=>setPhone(e.target.value)} />
         <input className="input" placeholder="عنوان السكن" value={address} onChange={(e)=>setAddress(e.target.value)} />
@@ -52,7 +52,7 @@ export default function DriversPage(): JSX.Element {
           <option value="driver">ملك السائق</option>
         </select>
         <input className="input" placeholder="ملاحظات" value={notes} onChange={(e)=>setNotes(e.target.value)} />
-        <button className="btn" onClick={add}>إضافة</button>
+        <button className="btn btn-md" onClick={add}>إضافة</button>
       </div>
 
       <div style={{ overflowX:'auto' }}>
