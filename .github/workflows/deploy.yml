@@ -15,11 +15,6 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Decode SSH key (base64) to file
-        run: |
-          echo "${{ secrets.VPS_SSH_KEY_B64 }}" | base64 -d > key.pem
-          chmod 600 key.pem
-      
       - name: Create source archive
         run: |
           rm -f repo.tar.gz
@@ -30,7 +25,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key_path: key.pem
+          key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
           source: repo.tar.gz
           target: ${{ secrets.PROJECT_DIR }}
@@ -44,7 +39,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key_path: key.pem
+          key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
           script_stop: true
           command_timeout: 10m
@@ -59,7 +54,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key_path: key.pem
+          key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
           script_stop: true
           command_timeout: 30m
@@ -78,7 +73,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key_path: key.pem
+          key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
           script_stop: true
           command_timeout: 60m
