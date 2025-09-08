@@ -10,6 +10,13 @@ echo "[deploy] Ensuring correct Node/pnpm versions..."
 corepack enable || true
 corepack prepare pnpm@8.15.4 --activate
 
+# Avoid Prisma env conflict in CI (move prisma/.env into packages/db/.env or ignore)
+if [[ -f packages/db/prisma/.env ]]; then
+  echo "[deploy] Removing packages/db/prisma/.env to avoid env conflict"
+  rm -f packages/db/prisma/.env || true
+fi
+export PRISMA_IGNORE_ENV_CONFLICT=1
+
 echo "[deploy] Installing dependencies (including devDependencies)..."
 # Force install devDependencies regardless of outer NODE_ENV
 ORIG_NODE_ENV="${NODE_ENV:-}"
