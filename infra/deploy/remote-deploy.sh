@@ -104,8 +104,22 @@ fi
 
 echo "[deploy] Reloading processes with PM2..."
 pm2 delete ecom-web || true
-pm2 start /etc/pm2.ecosystem.config.js --update-env || pm2 reload all || pm2 restart all || true
+pm2 start /etc/pm2.ecosystem.config.js --only ecom-web --update-env || true
+pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
+pm2 start /etc/pm2.ecosystem.config.js --only ecom-api --update-env || true
 pm2 save || true
+
+echo "[deploy] Verifying ports (3000 web, 3001 admin, 4000 api)..."
+sleep 1
+if ! ss -ltn 2>/dev/null | grep -q ':3000'; then
+  echo "[deploy] WARN: web port 3000 not listening yet; attempting one more restart"
+  pm2 restart ecom-web --update-env || true
+  sleep 2
+fi
+if ! ss -ltn 2>/dev/null | grep -q ':3000'; then
+  echo "[deploy] ERROR: web still not listening on 3000; showing pm2 logs (last 100 lines)"
+  pm2 logs ecom-web --lines 100 --nostream || true
+fi
 
 if [[ -n "${GIT_SHA:-}" ]]; then
   echo "[deploy] Deployment metadata: GIT_SHA=$GIT_SHA"
