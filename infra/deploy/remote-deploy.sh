@@ -10,8 +10,9 @@ echo "[deploy] Ensuring correct Node/pnpm versions..."
 corepack enable || true
 corepack prepare pnpm@8.15.4 --activate
 
-# Avoid Prisma env conflicts but ensure required vars exist
+# Avoid Prisma env conflicts; consolidate to packages/db/.env only
 export PRISMA_IGNORE_ENV_CONFLICT=1
+rm -f packages/db/prisma/.env || true
 
 echo "[deploy] Installing dependencies (including devDependencies)..."
 # Force install devDependencies regardless of outer NODE_ENV
@@ -33,9 +34,9 @@ export DIRECT_URL=${DIRECT_URL:-$(grep -s '^DIRECT_URL=' packages/api/.env | cut
 if [[ -z "${DIRECT_URL:-}" && -n "${DATABASE_URL:-}" ]]; then
   export DIRECT_URL="$DATABASE_URL"
 fi
-# Ensure prisma/.env contains both variables for schema resolution
+# Ensure packages/db/.env contains both variables for schema resolution
 if [[ -n "${DATABASE_URL:-}" ]]; then
-  printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "${DIRECT_URL:-$DATABASE_URL}" > packages/db/prisma/.env
+  printf "DATABASE_URL=%s\nDIRECT_URL=%s\n" "$DATABASE_URL" "${DIRECT_URL:-$DATABASE_URL}" > packages/db/.env
 fi
 if [[ -n "${DATABASE_URL:-}" ]]; then
   echo "[deploy] Ensuring DB ownership and privileges for ecom_user on ecom_db..."
