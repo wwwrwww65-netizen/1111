@@ -31,14 +31,14 @@ export function CategoryScroller({
             <li key={c.id}>
               <a
                 href={`/search?cat=${c.id}`}
-                className="inline-flex items-center gap-2 rounded-full border px-3 py-2 bg-white text-[13px]"
+                className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1.5 bg-white text-[13px] shadow-sm"
               >
                 {c.image ? (
                   <img src={c.image} alt="" className="w-6 h-6 rounded-full object-cover" />
                 ) : (
                   <span className="w-2 h-2 rounded-full bg-brand-accent inline-block" />
                 )}
-                <span className="whitespace-nowrap">{c.name}</span>
+                <span className="whitespace-nowrap text-gray-800">{c.name}</span>
               </a>
             </li>
           ))}
@@ -55,7 +55,7 @@ export function CategoryScroller({
                   <div className="grid place-items-center w-full h-full text-brand-accent/60">{c.name.slice(0,2)}</div>
                 )}
               </div>
-              <div className="mt-2">{c.name}</div>
+              <div className="mt-2 text-gray-800">{c.name}</div>
             </a>
           ))}
         </div>

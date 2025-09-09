@@ -21,13 +21,16 @@ export function TabsSection({ newArrivals, bestSellers, recommended }: TabsSecti
 
   return (
     <section className="mt-10">
-      <div className="flex gap-4 border-b">
+      <div className="flex gap-2 border-b">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActive(t.id)}
             className={
-              "py-2 text-sm md:text-base" + (active === t.id ? " font-bold border-b-2 border-black" : " text-gray-600")
+              "px-3 py-2 text-sm md:text-base rounded-t-md transition-colors " +
+              (active === t.id
+                ? " font-bold border-b-2 border-[#800020] text-[#800020]"
+                : " text-gray-600 hover:text-gray-800")
             }
           >
             {t.label}
