@@ -19,8 +19,10 @@ const buildAllowedOrigins = () => {
         origins.push(adminUrl);
     if (extra)
         origins.push(...extra.split(',').map((s) => s.trim()).filter(Boolean));
-    // Known deployment fallbacks for current project
-    origins.push('https://jeeey1.onrender.com', 'https://jeeey-manger.onrender.com');
+    // Allow only jeeey domains by default in production
+    if (process.env.NODE_ENV === 'production') {
+        origins.push('https://jeeey.com', 'https://admin.jeeey.com');
+    }
     // In non-prod, include local defaults as well
     if (process.env.NODE_ENV !== 'production') {
         origins.push('http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081');

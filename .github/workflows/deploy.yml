@@ -3,13 +3,19 @@ name: Deploy to VPS (CI/CD)
 on:
   push:
     branches:
-      - '**'
+      - main
   workflow_dispatch:
+
+concurrency:
+  group: deploy-vps-main
+  cancel-in-progress: true
 
 jobs:
   ci:
     name: ci
     runs-on: [self-hosted, linux, x64, jeeey]
+    environment:
+      name: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,6 +39,8 @@ jobs:
     name: cd
     needs: ci
     runs-on: [self-hosted, linux, x64, jeeey]
+    environment:
+      name: production
     env:
       DEPLOY_HOST: '127.0.0.1'
       DEPLOY_USER: 'deploy'

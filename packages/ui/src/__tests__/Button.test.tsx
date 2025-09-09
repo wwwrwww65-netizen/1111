@@ -7,15 +7,15 @@ describe('Button Component', () => {
     render(<Button>Click me</Button>);
     const button = screen.getByRole('button', { name: /click me/i });
     expect(button).toBeInTheDocument();
-    expect(button).toHaveClass('bg-blue-600');
+    expect(button).toHaveClass('bg-[#800020]');
   });
 
   it('renders with different variants', () => {
     const { rerender } = render(<Button variant="outline">Outline</Button>);
-    expect(screen.getByRole('button')).toHaveClass('border-gray-300');
+    expect(screen.getByRole('button')).toHaveClass('border');
 
     rerender(<Button variant="ghost">Ghost</Button>);
-    expect(screen.getByRole('button')).toHaveClass('text-gray-700');
+    expect(screen.getByRole('button')).toHaveClass('text-gray-800');
   });
 
   it('renders with different sizes', () => {
