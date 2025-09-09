@@ -34,10 +34,21 @@ NODE_ENV=development pnpm install --frozen-lockfile=false --prod=false --force |
 echo "[deploy] Building database client and packages..."
 # Switch back to production for builds
 export NODE_ENV=production
+export NEXT_CACHE_DISABLED=1
+export TURBO_FORCE=1
 pnpm --filter @repo/db build | cat
-# Clean admin/web builds to avoid stale artifacts, then build
-rm -rf apps/admin/.next apps/web/.next || true
-pnpm build | cat
+# Clean admin/web caches to avoid stale artifacts, then build explicitly
+(
+  cd apps/admin 2>/dev/null || true
+  rm -rf .next node_modules/.cache || true
+) || true
+(
+  cd apps/web 2>/dev/null || true
+  rm -rf .next node_modules/.cache || true
+) || true
+pnpm --filter admin build | cat
+pnpm --filter web build | cat
+pnpm --filter @repo/api build | cat
 
 echo "[deploy] Running Prisma migrations (deploy/push)..."
 # Source DB URLs from API env if not present
@@ -136,6 +147,17 @@ fi
 if ! curl -fsS http://127.0.0.1:3000 >/dev/null 2>&1; then
   echo "[deploy] ERROR: web still not responding on 3000; showing pm2 logs (last 100 lines)"
   pm2 logs ecom-web --lines 100 --nostream || true
+fi
+
+# Check admin 3001
+if ! curl -fsS http://127.0.0.1:3001 >/dev/null 2>&1; then
+  echo "[deploy] WARN: admin port 3001 not responding; restarting admin"
+  pm2 restart ecom-admin --update-env || true
+  sleep 3
+fi
+if ! curl -fsS http://127.0.0.1:3001 >/dev/null 2>&1; then
+  echo "[deploy] ERROR: admin still not responding on 3001; showing pm2 logs (last 100 lines)"
+  pm2 logs ecom-admin --lines 100 --nostream || true
 fi
 
 if [[ -n "${GIT_SHA:-}" ]]; then
