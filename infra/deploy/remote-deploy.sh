@@ -10,6 +10,17 @@ echo "[deploy] Ensuring correct Node/pnpm versions..."
 corepack enable || true
 corepack prepare pnpm@8.15.4 --activate
 
+echo "[deploy] Ensuring PM2 is installed and available..."
+export PATH="$PATH:/usr/local/bin:/usr/bin"
+if ! command -v pm2 >/dev/null 2>&1; then
+  echo "[deploy] pm2 not found; installing globally..."
+  sudo npm i -g pm2@5 >/dev/null 2>&1 || sudo -E npm i -g pm2@5 || true
+fi
+if ! command -v pm2 >/dev/null 2>&1; then
+  echo "[deploy] WARNING: pm2 still not found after install attempt; will try via npx"
+  alias pm2='npx pm2'
+fi
+
 # Avoid Prisma env conflicts; consolidate to packages/db/.env only
 export PRISMA_IGNORE_ENV_CONFLICT=1
 rm -f packages/db/prisma/.env || true
@@ -111,13 +122,13 @@ pm2 save || true
 
 echo "[deploy] Verifying ports (3000 web, 3001 admin, 4000 api)..."
 sleep 1
-if ! ss -ltn 2>/dev/null | grep -q ':3000'; then
+if ! (command -v ss >/dev/null 2>&1 && ss -ltn | grep -q ':3000') && ! curl -fsS http://127.0.0.1:3000 >/dev/null 2>&1; then
   echo "[deploy] WARN: web port 3000 not listening yet; attempting one more restart"
   pm2 restart ecom-web --update-env || true
-  sleep 2
+  sleep 3
 fi
-if ! ss -ltn 2>/dev/null | grep -q ':3000'; then
-  echo "[deploy] ERROR: web still not listening on 3000; showing pm2 logs (last 100 lines)"
+if ! curl -fsS http://127.0.0.1:3000 >/dev/null 2>&1; then
+  echo "[deploy] ERROR: web still not responding on 3000; showing pm2 logs (last 100 lines)"
   pm2 logs ecom-web --lines 100 --nostream || true
 fi
 
