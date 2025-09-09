@@ -43,10 +43,7 @@ ufw allow 80/tcp || true
 ufw allow 443/tcp || true
 yes | ufw enable || true
 
-echo "[setup] Installing SSL certificates if email provided..."
-if [[ -n "$CERTBOT_EMAIL" ]]; then
-  certbot --nginx -n --agree-tos -m "$CERTBOT_EMAIL" -d "$DOMAIN_WEB" -d "$DOMAIN_ADMIN" -d "$DOMAIN_API" || true
-fi
+echo "[setup] Skipping SSL issuance during setup (handled later in enable-https.sh)"
 
 echo "[setup] Installing Nginx vhost for jeeey domains..."
 mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled || true

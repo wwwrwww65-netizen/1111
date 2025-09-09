@@ -112,3 +112,16 @@ jobs:
             echo "::notice :: Port 443 is not listening; skipping HTTPS check"
           fi
 
+      - name: Enable HTTPS (Let's Encrypt) [non-blocking]
+        continue-on-error: true
+        env:
+          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL || 'admin@jeeey.com' }}
+          DOMAIN_WEB: ${{ secrets.DOMAIN_WEB || 'jeeey.com' }}
+          DOMAIN_ADMIN: ${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}
+          DOMAIN_API: ${{ secrets.DOMAIN_API || 'api.jeeey.com' }}
+        run: |
+          set -euo pipefail
+          sudo chmod +x "$PROJECT_DIR/infra/deploy/enable-https.sh" || true
+          sudo CERTBOT_EMAIL="$CERTBOT_EMAIL" DOMAIN_WEB="$DOMAIN_WEB" DOMAIN_ADMIN="$DOMAIN_ADMIN" DOMAIN_API="$DOMAIN_API" \
+               bash "$PROJECT_DIR/infra/deploy/enable-https.sh" 2>&1 | sed -u 's/::error/::notice/g'
+
