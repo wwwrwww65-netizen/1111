@@ -59,8 +59,12 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">{product.name}</h1>
           <div className="text-[#800020] text-xl md:text-2xl font-semibold mt-3">${product.price}</div>
-          <div className="text-sm text-gray-500 mt-1">
-            {product.stockQuantity > 0 ? `${product.stockQuantity} متوفر` : "غير متوفر"}
+          <div className="mt-2">
+            {product.stockQuantity > 0 ? (
+              <span className="inline-flex items-center text-xs px-2 py-1 rounded-full border border-green-600 text-green-700">متوفر • {product.stockQuantity}</span>
+            ) : (
+              <span className="inline-flex items-center text-xs px-2 py-1 rounded-full border border-red-600 text-red-700">غير متوفر</span>
+            )}
           </div>
           {/* Tabs */}
           <div className="mt-5 border-b flex items-center gap-6 text-sm">
@@ -192,6 +196,12 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
               className="px-5 py-3 bg-[#800020] text-white rounded disabled:opacity-50"
             >
               {t('addToCart')}
+            </button>
+            <button
+              className="px-4 py-3 border rounded"
+              onClick={() => window.location.href = `/wishlist`}
+            >
+              إضافة للمفضلة
             </button>
           </div>
           {/* Accordions: Shipping & Returns */}

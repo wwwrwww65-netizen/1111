@@ -20,9 +20,12 @@ export default function AccountPage(): JSX.Element {
       <div className="space-y-3">
         {(orders.data?.orders ?? []).map((o: any) => (
           <div key={o.id} className="border p-4 rounded">
-            <div>رقم الطلب: {o.id}</div>
-            <div>الإجمالي: <b className="text-[#800020]">${o.total}</b></div>
-            <div>الحالة: {o.status}</div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm">رقم الطلب: <b>{o.id}</b></div>
+              <span className="text-xs px-2 py-1 rounded-full border text-gray-700">{o.status}</span>
+            </div>
+            <div className="mt-1 text-sm">الإجمالي: <b className="text-[#800020]">${o.total}</b></div>
+            <div className="mt-2 text-xs text-gray-500">تاريخ: {new Date(o.createdAt).toLocaleDateString('ar')}</div>
           </div>
         ))}
       </div>
