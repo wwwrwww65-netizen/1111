@@ -20,6 +20,8 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   const [rating, setRating] = React.useState(5);
   const [comment, setComment] = React.useState("");
   const isAuth = useAuthStore((s) => s.isAuthenticated);
+  const [reviewSort, setReviewSort] = React.useState<'newest'|'highest'|'lowest'>('newest');
+  const [reviewStarFilter, setReviewStarFilter] = React.useState<number | null>(null);
 
   if (isLoading) return <main className="p-8">Loading product...</main>;
   if (error) return <main className="p-8">Error: {error.message}</main>;
@@ -97,9 +99,52 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           )}
           {tab === 'reviews' && (
             <div className="mt-4">
+              {/* Rating summary */}
               <div className="text-sm text-gray-700 mb-3">التقييم العام: {product.averageRating} ({product.reviewCount} تقييم)</div>
+              {(() => {
+                const rows = (product.reviews || []).filter((r:any)=> r.isApproved !== false);
+                const total = rows.length || 1;
+                const counts = [1,2,3,4,5].reduce((acc:number[], n)=>{ acc[n]=rows.filter((r:any)=> r.rating===n).length; return acc; }, [] as any);
+                return (
+                  <div className="mb-4 space-y-1">
+                    {[5,4,3,2,1].map((n)=>{
+                      const c = counts[n] || 0;
+                      const pct = Math.round((c/total)*100);
+                      return (
+                        <div key={n} className="flex items-center gap-2 text-xs">
+                          <span className="w-10">{n}⭐</span>
+                          <div className="flex-1 h-2 bg-gray-200 rounded">
+                            <div className="h-2 bg-[#800020] rounded" style={{ width: pct+"%" }} />
+                          </div>
+                          <span className="w-10 text-right">{c}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              {/* Filters & sort */}
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                  <button onClick={()=> setReviewStarFilter(null)} className={`px-3 py-1.5 rounded-full border ${reviewStarFilter==null? 'border-[#800020] text-[#800020]':'border-gray-200 text-gray-800'}`}>الكل</button>
+                  {[5,4,3,2,1].map(n => (
+                    <button key={n} onClick={()=> setReviewStarFilter(n)} className={`px-3 py-1.5 rounded-full border ${reviewStarFilter===n? 'border-[#800020] text-[#800020]':'border-gray-200 text-gray-800'}`}>{n}⭐</button>
+                  ))}
+                </div>
+                <select value={reviewSort} onChange={(e)=> setReviewSort(e.target.value as any)} className="px-3 py-1.5 rounded-full border border-gray-200 text-sm">
+                  <option value="newest">الأحدث</option>
+                  <option value="highest">الأعلى تقييماً</option>
+                  <option value="lowest">الأدنى تقييماً</option>
+                </select>
+              </div>
               <ul className="space-y-3">
-                {(product.reviews || []).filter((r:any)=> r.isApproved !== false).slice(0, 10).map((r:any) => (
+                {(() => {
+                  let list = (product.reviews || []).filter((r:any)=> r.isApproved !== false);
+                  if (reviewStarFilter) list = list.filter((r:any)=> r.rating === reviewStarFilter);
+                  if (reviewSort === 'newest') list = list.sort((a:any,b:any)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                  if (reviewSort === 'highest') list = list.sort((a:any,b:any)=> (b.rating||0) - (a.rating||0));
+                  if (reviewSort === 'lowest') list = list.sort((a:any,b:any)=> (a.rating||0) - (b.rating||0));
+                  return list.slice(0, 20).map((r:any) => (
                   <li key={r.id} className="border rounded p-3">
                     <div className="flex items-center justify-between mb-1">
                       <div className="text-sm font-semibold">{r.user?.name || 'مستخدم'}</div>
@@ -108,7 +153,8 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
                     <div className="text-[#800020] text-sm">{'⭐'.repeat(Math.max(1, Math.min(5, r.rating||0)))}</div>
                     {r.comment && <p className="mt-1 text-sm text-gray-700 leading-relaxed">{r.comment}</p>}
                   </li>
-                ))}
+                  ));
+                })()}
               </ul>
               {/* Add review */}
               <div className="mt-4 border-t pt-4">
