@@ -60,13 +60,18 @@ export default function Page(): JSX.Element {
       </div>
 
       <section className="mt-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl md:text-2xl font-bold">وصل حديثاً</h2>
+        <div className="flex items-center justify-between px-4 md:px-0">
+          <h2 className="text-xl md:text-2xl font-bold relative after:content-[''] after:block after:w-10 after:h-0.5 after:bg-[#800020] after:mt-1">وصل حديثاً</h2>
           {hasNextPage && (
-            <button onClick={() => fetchNextPage()} className="text-sm underline">المزيد</button>
+            <button
+              onClick={() => fetchNextPage()}
+              className="text-sm px-3 py-1.5 rounded-full border border-[#800020] text-[#800020] hover:bg-[#800020] hover:text-white transition-colors"
+            >
+              المزيد
+            </button>
           )}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-4">
+        <div className="mt-4 px-4 md:px-0 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-4">
           {(!products?.length ? Array.from({ length: 10 }) : products).map((p: any, idx: number) => (
             !products?.length ? (
               <SkeletonCard key={idx} />

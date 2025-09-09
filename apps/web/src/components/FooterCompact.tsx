@@ -8,24 +8,24 @@ export function FooterCompact(): JSX.Element {
         <div>
           <div className="font-bold mb-2">خدمة العملاء</div>
           <ul className="space-y-1">
-            <li><a href="#">مساعدة</a></li>
-            <li><a href="#">الإرجاع والاستبدال</a></li>
-            <li><a href="#">الشحن والتسليم</a></li>
+            <li><a href="#" className="hover:text-[#800020]">مساعدة</a></li>
+            <li><a href="#" className="hover:text-[#800020]">الإرجاع والاستبدال</a></li>
+            <li><a href="#" className="hover:text-[#800020]">الشحن والتسليم</a></li>
           </ul>
         </div>
         <div>
           <div className="font-bold mb-2">عن المتجر</div>
           <ul className="space-y-1">
-            <li><a href="#">من نحن</a></li>
-            <li><a href="#">سياسة الخصوصية</a></li>
-            <li><a href="#">الشروط والأحكام</a></li>
+            <li><a href="#" className="hover:text-[#800020]">من نحن</a></li>
+            <li><a href="#" className="hover:text-[#800020]">سياسة الخصوصية</a></li>
+            <li><a href="#" className="hover:text-[#800020]">الشروط والأحكام</a></li>
           </ul>
         </div>
         <div>
           <div className="font-bold mb-2">تواصل</div>
           <ul className="space-y-1">
-            <li><a href="#">اتصل بنا</a></li>
-            <li><a href="#">البريد</a></li>
+            <li><a href="#" className="hover:text-[#800020]">اتصل بنا</a></li>
+            <li><a href="#" className="hover:text-[#800020]">البريد</a></li>
           </ul>
         </div>
         <div>
