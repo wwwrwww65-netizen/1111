@@ -35,6 +35,8 @@ echo "[deploy] Building database client and packages..."
 # Switch back to production for builds
 export NODE_ENV=production
 pnpm --filter @repo/db build | cat
+# Clean admin/web builds to avoid stale artifacts, then build
+rm -rf apps/admin/.next apps/web/.next || true
 pnpm build | cat
 
 echo "[deploy] Running Prisma migrations (deploy/push)..."
