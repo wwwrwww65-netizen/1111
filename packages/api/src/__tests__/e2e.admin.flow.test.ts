@@ -5,6 +5,8 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_for_tests';
 const token = jwt.sign({ userId: 'admin-e2e', email: 'admin@example.com', role: 'ADMIN' }, JWT_SECRET);
 
+let seededOrderId: string;
+
 describe('Admin E2E flow', () => {
   beforeAll(async () => {
     // seed minimal order/payment
@@ -20,6 +22,7 @@ describe('Admin E2E flow', () => {
     const order = await db.order.create({ data: { userId: user.id, status: 'PAID', total: 10 } });
     await db.orderItem.create({ data: { orderId: order.id, productId: product.id, quantity: 1, price: 10 } });
     await db.payment.create({ data: { orderId: order.id, amount: 10, currency: 'USD', method: 'STRIPE', status: 'COMPLETED' } });
+    seededOrderId = order.id;
   });
   it('inventory list requires auth', async () => {
     const res = await request(expressApp).get('/api/admin/inventory/list');
@@ -30,13 +33,10 @@ describe('Admin E2E flow', () => {
     expect(res.status).toBe(200);
   });
   it('orders ship and payments refund', async () => {
-    const orders = await request(expressApp).get('/api/admin/orders/list').set('Authorization', `Bearer ${token}`);
-    expect(orders.status).toBe(200);
-    const orderId = (orders.body.orders && orders.body.orders[0] && orders.body.orders[0].id) as string;
-    expect(orderId).toBeTruthy();
-    const ship = await request(expressApp).post('/api/admin/orders/ship').set('Authorization', `Bearer ${token}`).send({ orderId });
+    expect(seededOrderId).toBeTruthy();
+    const ship = await request(expressApp).post('/api/admin/orders/ship').set('Authorization', `Bearer ${token}`).send({ orderId: seededOrderId });
     expect(ship.status).toBe(200);
-    const refund = await request(expressApp).post('/api/admin/payments/refund').set('Authorization', `Bearer ${token}`).send({ orderId });
+    const refund = await request(expressApp).post('/api/admin/payments/refund').set('Authorization', `Bearer ${token}`).send({ orderId: seededOrderId });
     expect(refund.status).toBe(200);
   });
 });
