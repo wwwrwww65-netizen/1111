@@ -59,7 +59,7 @@ export default function Page(): JSX.Element {
         <CategoryGrid />
       </div>
 
-      <section className="mt-6">
+      <section className="mt-6" id="new-arrivals">
         <div className="flex items-center justify-between px-4 md:px-0">
           <h2 className="text-xl md:text-2xl font-bold relative after:content-[''] after:block after:w-10 after:h-0.5 after:bg-[#800020] after:mt-1">وصل حديثاً</h2>
           {hasNextPage && (
