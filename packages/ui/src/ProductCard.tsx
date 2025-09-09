@@ -10,12 +10,16 @@ interface Product {
   stock: number;
   rating?: number;
   reviewCount?: number;
+  oldPrice?: number;
+  discountPct?: number;
+  isWishlisted?: boolean;
 }
 
 interface ProductCardProps {
   product: Product;
   onAddToCart?: (productId: string) => void;
   onViewDetails?: (productId: string) => void;
+  onToggleWishlist?: (productId: string) => void;
   className?: string;
 }
 
@@ -23,49 +27,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onAddToCart,
   onViewDetails,
+  onToggleWishlist,
   className = '',
 }) => {
   const {
     id,
     name,
-    description,
     price,
     images,
     stock,
-    rating = 0,
-    reviewCount = 0,
+    oldPrice,
+    discountPct,
+    isWishlisted,
   } = product;
 
   const mainImage = images[0] || '/placeholder-product.jpg';
   const isOutOfStock = stock <= 0;
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(price);
-  };
-
-  const renderStars = (rating: number) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<span key={i}>⭐</span>);
-    }
-
-    if (hasHalfStar) {
-      stars.push(<span key="half">⭐</span>);
-    }
-
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(<span key={`empty-${i}`} className="text-gray-300">⭐</span>);
-    }
-
-    return stars;
-  };
+  const formatPrice = (value: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
   return (
     <div className={`bg-white rounded-xl border overflow-hidden transition-colors ${className}`}>
@@ -80,8 +60,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             target.src = '/placeholder-product.jpg';
           }}
         />
+        {!!discountPct && (
+          <div className="absolute left-2 top-2 text-[11px] px-2 py-1 rounded-full bg-[#800020] text-white">-{discountPct}%</div>
+        )}
+        <button
+          aria-label="wishlist"
+          className={`absolute right-2 top-2 text-[18px] ${isWishlisted ? 'text-[#800020]' : 'text-white'} drop-shadow`}
+          onClick={(e)=>{ e.preventDefault(); onToggleWishlist?.(id); }}
+        >
+          {isWishlisted ? '❤' : '♡'}
+        </button>
         {isOutOfStock && (
-          <div className="absolute right-2 top-2 text-[11px] px-2 py-1 rounded-full bg-black/70 text-white">غير متوفر</div>
+          <div className="absolute right-2 bottom-2 text-[11px] px-2 py-1 rounded-full bg-black/70 text-white">غير متوفر</div>
         )}
       </div>
       {/* Info */}
@@ -92,7 +82,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           aria-label={`view-${id}`}
         >
           <div className="text-[12px] text-gray-700 line-clamp-2 leading-snug">{name}</div>
-          <div className="mt-1 text-[13px] font-bold text-[#800020]">{formatPrice(price)}</div>
+          <div className="mt-1 flex items-center gap-2">
+            <div className="text-[13px] font-bold text-[#800020]">{formatPrice(price)}</div>
+            {!!oldPrice && oldPrice > price && (
+              <div className="text-[11px] text-gray-400 line-through">{formatPrice(oldPrice)}</div>
+            )}
+          </div>
         </button>
       </div>
     </div>
