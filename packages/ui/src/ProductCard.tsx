@@ -68,78 +68,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 ${className}`}>
-      {/* Product Image */}
-      <div className="relative h-48 bg-gray-200">
+    <div className={`bg-white rounded-xl border overflow-hidden transition-colors ${className}`}>
+      {/* Image */}
+      <div className="relative w-full aspect-[3/4] bg-gray-100">
         <img
           src={mainImage}
           alt={name}
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.src = '/placeholder-product.jpg';
           }}
         />
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <span className="text-white font-semibold text-lg">Out of Stock</span>
-          </div>
+          <div className="absolute right-2 top-2 text-[11px] px-2 py-1 rounded-full bg-black/70 text-white">غير متوفر</div>
         )}
       </div>
-
-      {/* Product Info */}
-      <div className="p-4">
-        {/* Product Name */}
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-          {name}
-        </h3>
-
-        {/* Description */}
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-          {description}
-        </p>
-
-        {/* Rating */}
-        {rating > 0 && (
-          <div className="flex items-center mb-3">
-            <div className="flex mr-2">
-              {renderStars(rating)}
-            </div>
-            <span className="text-sm text-gray-600">
-              ({reviewCount} reviews)
-            </span>
-          </div>
-        )}
-
-        {/* Price */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xl font-bold text-gray-900">
-            {formatPrice(price)}
-          </span>
-          <span className="text-sm text-gray-500">
-            {stock > 0 ? `${stock} in stock` : 'Out of stock'}
-          </span>
-        </div>
-
-        {/* Actions */}
-        <div className="flex space-x-2">
-          <Button
-            onClick={() => onViewDetails?.(id)}
-            variant="outline"
-            className="flex-1"
-            size="sm"
-          >
-            View Details
-          </Button>
-          <Button
-            onClick={() => onAddToCart?.(id)}
-            disabled={isOutOfStock}
-            className="flex-1"
-            size="sm"
-          >
-            {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
-          </Button>
-        </div>
+      {/* Info */}
+      <div className="p-2">
+        <button
+          className="block text-right w-full"
+          onClick={() => onViewDetails?.(id)}
+          aria-label={`view-${id}`}
+        >
+          <div className="text-[12px] text-gray-700 line-clamp-2 leading-snug">{name}</div>
+          <div className="mt-1 text-[13px] font-bold text-[#800020]">{formatPrice(price)}</div>
+        </button>
       </div>
     </div>
   );
