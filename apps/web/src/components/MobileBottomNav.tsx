@@ -68,26 +68,18 @@ export function MobileBottomNav(): JSX.Element {
   ];
 
   return (
-    <nav className="fixed bottom-3 inset-x-3 z-40 md:hidden">
-      <div className="rounded-2xl border shadow-lg bg-white/90 backdrop-blur px-2 py-1.5">
+    <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden">
+      <div className="border-t bg-white px-1">
         <ul className="grid grid-cols-5 text-center text-[11px] leading-tight">
           {items.map((it) => (
             <li key={it.href}>
               <a
                 href={it.href}
                 aria-current={it.isActive ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                  it.isActive ? "text-white" : "text-gray-700"
-                }`}
+                className={`flex flex-col items-center gap-0.5 py-2 transition-colors ${it.isActive ? "text-[#800020]" : "text-gray-700"}`}
               >
-                <span
-                  className={`grid place-items-center w-9 h-9 rounded-full mb-0.5 ${
-                    it.isActive ? "bg-brand-accent" : "bg-transparent"
-                  }`}
-                >
-                  <span className={`${it.isActive ? "text-white" : "text-gray-800"}`}>{it.icon}</span>
-                </span>
-                <span className={`${it.isActive ? "text-brand-accent" : ""} whitespace-nowrap`}>{it.label}</span>
+                <span className={`grid place-items-center w-6 h-6 mb-0.5`}>{it.icon}</span>
+                <span className={`whitespace-nowrap`}>{it.label}</span>
               </a>
             </li>
           ))}

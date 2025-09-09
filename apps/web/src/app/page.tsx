@@ -71,7 +71,7 @@ export default function Page(): JSX.Element {
             </button>
           )}
         </div>
-        <div className="mt-4 px-4 md:px-0 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-4">
+        <div className="mt-4 px-4 md:px-0 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-4">
           {(!products?.length ? Array.from({ length: 10 }) : products).map((p: any, idx: number) => (
             !products?.length ? (
               <SkeletonCard key={idx} />
