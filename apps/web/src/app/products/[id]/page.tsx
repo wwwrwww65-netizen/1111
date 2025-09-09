@@ -4,10 +4,12 @@ import Image from "next/image";
 import React from "react";
 import { ProductCard } from "@repo/ui";
 import { useI18n } from "../../../lib/i18n";
+import { useAuthStore } from "@repo/ui/src/store/auth";
 
 export default function ProductDetail({ params }: { params: { id: string } }): JSX.Element {
   const { t } = useI18n();
   const { data, isLoading, error } = trpc.products.getById.useQuery({ id: params.id });
+  const rpc: any = trpc as any;
   const addItem = trpc.cart.addItem.useMutation();
   const [activeIdx, setActiveIdx] = React.useState(0);
   const [qty, setQty] = React.useState(1);
@@ -15,6 +17,9 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   const [selectedSize, setSelectedSize] = React.useState<string | null>(null);
   const [showShip, setShowShip] = React.useState(false);
   const [showReturn, setShowReturn] = React.useState(false);
+  const [rating, setRating] = React.useState(5);
+  const [comment, setComment] = React.useState("");
+  const isAuth = useAuthStore((s) => s.isAuthenticated);
 
   if (isLoading) return <main className="p-8">Loading product...</main>;
   if (error) return <main className="p-8">Error: {error.message}</main>;
@@ -91,7 +96,40 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
             </div>
           )}
           {tab === 'reviews' && (
-            <div className="mt-4 text-sm text-gray-700">التقييم العام: {product.averageRating} ({product.reviewCount} تقييم)</div>
+            <div className="mt-4">
+              <div className="text-sm text-gray-700 mb-3">التقييم العام: {product.averageRating} ({product.reviewCount} تقييم)</div>
+              <ul className="space-y-3">
+                {(product.reviews || []).filter((r:any)=> r.isApproved !== false).slice(0, 10).map((r:any) => (
+                  <li key={r.id} className="border rounded p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-sm font-semibold">{r.user?.name || 'مستخدم'}</div>
+                      <div className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleDateString('ar')}</div>
+                    </div>
+                    <div className="text-[#800020] text-sm">{'⭐'.repeat(Math.max(1, Math.min(5, r.rating||0)))}</div>
+                    {r.comment && <p className="mt-1 text-sm text-gray-700 leading-relaxed">{r.comment}</p>}
+                  </li>
+                ))}
+              </ul>
+              {/* Add review */}
+              <div className="mt-4 border-t pt-4">
+                {!isAuth ? (
+                  <div className="text-sm text-gray-600">سجّل الدخول لإضافة تقييم.</div>
+                ) : (
+                  <form
+                    className="space-y-2"
+                    onSubmit={async (e)=>{e.preventDefault(); try { await rpc.reviews.create.mutateAsync({ productId: product.id, rating, comment }); setComment(''); } catch {} }}
+                  >
+                    <div className="flex items-center gap-2">
+                      {[1,2,3,4,5].map(n => (
+                        <button type="button" key={n} onClick={()=> setRating(n)} aria-label={`rate-${n}`}>{n <= rating ? '⭐' : '☆'}</button>
+                      ))}
+                    </div>
+                    <textarea value={comment} onChange={(e)=> setComment(e.target.value)} placeholder="اكتب تعليقك" className="w-full border rounded px-3 py-2 min-h-[84px]" />
+                    <button type="submit" className="px-4 py-2 bg-[#800020] text-white rounded">إرسال التقييم</button>
+                  </form>
+                )}
+              </div>
+            </div>
           )}
           <div className="mt-6 flex items-center gap-3">
             <div className="flex items-center border rounded">

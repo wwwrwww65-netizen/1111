@@ -9,6 +9,7 @@ import { wishlistRouter } from './routers/wishlist';
 import { couponsRouter } from './routers/coupons';
 import { cartRouter } from './routers/cart';
 import { ordersRouter } from './routers/orders';
+import { reviewsRouter } from './routers/reviews';
 
 export const appRouter = router({
   // All sub-routers will be merged here
@@ -22,6 +23,7 @@ export const appRouter = router({
   coupons: couponsRouter,
   cart: cartRouter,
   orders: ordersRouter,
+  reviews: reviewsRouter,
 });
 
 export type AppRouter = typeof appRouter;
