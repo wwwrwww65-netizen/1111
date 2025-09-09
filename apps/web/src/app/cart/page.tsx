@@ -68,15 +68,15 @@ export default function CartPage(): JSX.Element {
               <span>الإجمالي</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
-            <a href="/checkout" className="mt-4 block text-center px-4 py-2 bg-black text-white rounded">إتمام الشراء</a>
+            <a href="/checkout" className="mt-4 block text-center px-4 py-2 bg-[#800020] text-white rounded">إتمام الشراء</a>
           </aside>
         </div>
       )}
       {/* Mobile sticky checkout */}
       {cart && cart.items.length > 0 && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-white p-3 flex items-center justify-between">
-          <div className="text-sm">الإجمالي: <b>${subtotal.toFixed(2)}</b></div>
-          <a href="/checkout" className="px-4 py-2 bg-black text-white rounded">إتمام</a>
+          <div className="text-sm">الإجمالي: <b className="text-[#800020]">${subtotal.toFixed(2)}</b></div>
+          <a href="/checkout" className="px-4 py-2 bg-[#800020] text-white rounded">إتمام</a>
         </div>
       )}
     </main>

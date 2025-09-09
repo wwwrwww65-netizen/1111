@@ -37,11 +37,32 @@ export default function SearchPage(): JSX.Element {
   const products = data?.products ?? [];
 
   return (
-    <main className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">البحث</h1>
+    <main className="min-h-screen p-0 md:p-8 max-w-7xl mx-auto">
+      {/* Sticky mobile filter bar */}
+      <div className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur border-b">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="text-base font-bold">البحث</div>
+          <div className="text-xs text-gray-500">{products.length} منتج</div>
+        </div>
+        <div className="px-4 pb-3">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button className={`px-3 py-1.5 rounded-full border ${inStock ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setInStock(inStock ? undefined : true)}>متوفر</button>
+            <button className={`px-3 py-1.5 rounded-full border ${inStock===false ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setInStock(inStock===false ? undefined : false)}>غير متوفر</button>
+            <button className={`px-3 py-1.5 rounded-full border ${sortBy==='price' ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setSortBy(sortBy==='price'? undefined : 'price')}>السعر</button>
+            <select className="px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-800" onChange={(e) => setSortBy((e.target.value as any) || undefined)}>
+              <option value="">الترتيب</option>
+              <option value="createdAt">الأحدث</option>
+              <option value="price">السعر</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div className="hidden md:block">
+        <h1 className="text-2xl font-bold mb-4 px-1">البحث</h1>
+      </div>
       {/* Filters */}
-      <div className="mb-6">
-        <div className="hidden md:grid grid-cols-1 md:grid-cols-6 gap-3">
+      <div className="mb-6 hidden md:block px-1">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <input className="border rounded px-3 py-2" placeholder="ابحث..." value={query || ''} onChange={(e) => setQuery(e.target.value || undefined)} />
           <input className="border rounded px-3 py-2" placeholder="السعر الأدنى" type="number" onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : undefined)} />
           <input className="border rounded px-3 py-2" placeholder="السعر الأعلى" type="number" onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : undefined)} />
@@ -62,25 +83,12 @@ export default function SearchPage(): JSX.Element {
             <option value="asc">تصاعدي</option>
             <option value="desc">تنازلي</option>
           </select>
-          <button className="md:col-span-6 px-4 py-2 bg-black text-white rounded" onClick={() => refetch()}>تطبيق</button>
-        </div>
-        {/* Mobile filters: chips + simple dropdown */}
-        <div className="md:hidden flex justify-between items-center">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <button className={`px-3 py-1.5 rounded-full border ${inStock ? 'bg-black text-white' : 'bg-white'}`} onClick={() => setInStock(inStock ? undefined : true)}>متوفر</button>
-            <button className={`px-3 py-1.5 rounded-full border ${inStock===false ? 'bg-black text-white' : 'bg-white'}`} onClick={() => setInStock(inStock===false ? undefined : false)}>غير متوفر</button>
-            <button className={`px-3 py-1.5 rounded-full border ${sortBy==='price' ? 'bg-black text-white' : 'bg-white'}`} onClick={() => setSortBy(sortBy==='price'? undefined : 'price')}>السعر</button>
-          </div>
-          <select className="border rounded px-3 py-2" onChange={(e) => setSortBy((e.target.value as any) || undefined)}>
-            <option value="">الترتيب</option>
-            <option value="createdAt">الأحدث</option>
-            <option value="price">السعر</option>
-          </select>
+          <button className="md:col-span-6 px-4 py-2 bg-[#800020] text-white rounded" onClick={() => refetch()}>تطبيق</button>
         </div>
       </div>
 
       {/* Results */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="px-4 md:px-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4 mt-4">
         {products.map((p: any) => (
           <ProductCard
             key={p.id}

@@ -51,15 +51,15 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
         </div>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">{product.name}</h1>
-          <div className="text-rose-600 text-xl md:text-2xl font-semibold mt-3">${product.price}</div>
+          <div className="text-[#800020] text-xl md:text-2xl font-semibold mt-3">${product.price}</div>
           <div className="text-sm text-gray-500 mt-1">
             {product.stockQuantity > 0 ? `${product.stockQuantity} متوفر` : "غير متوفر"}
           </div>
           {/* Tabs */}
           <div className="mt-5 border-b flex items-center gap-6 text-sm">
-            <button className={`pb-2 ${tab==='desc'?'border-b-2 border-black':''}`} onClick={()=>setTab('desc')}>{t('description')}</button>
-            <button className={`pb-2 ${tab==='specs'?'border-b-2 border-black':''}`} onClick={()=>setTab('specs')}>{t('specs')}</button>
-            <button className={`pb-2 ${tab==='reviews'?'border-b-2 border-black':''}`} onClick={()=>setTab('reviews')}>{t('reviews')}</button>
+            <button className={`pb-2 ${tab==='desc'?'border-b-2 border-[#800020] text-[#800020]':''}`} onClick={()=>setTab('desc')}>{t('description')}</button>
+            <button className={`pb-2 ${tab==='specs'?'border-b-2 border-[#800020] text-[#800020]':''}`} onClick={()=>setTab('specs')}>{t('specs')}</button>
+            <button className={`pb-2 ${tab==='reviews'?'border-b-2 border-[#800020] text-[#800020]':''}`} onClick={()=>setTab('reviews')}>{t('reviews')}</button>
           </div>
           {tab === 'desc' && (
             <p className="text-gray-700 mt-4 leading-relaxed">{product.description}</p>
@@ -105,7 +105,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
                 await addItem.mutateAsync({ productId: product.id, quantity: qty });
                 window.location.href = '/cart';
               }}
-              className="px-5 py-3 bg-black text-white rounded disabled:opacity-50"
+              className="px-5 py-3 bg-[#800020] text-white rounded disabled:opacity-50"
             >
               {t('addToCart')}
             </button>
@@ -135,9 +135,9 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
       </div>
       {/* Sticky ATC on mobile */}
       <div className="md:hidden fixed bottom-0 inset-x-0 border-t bg-white p-3 flex items-center justify-between z-40">
-        <div className="text-sm">${product.price}</div>
+        <div className="text-sm font-semibold text-[#800020]">${product.price}</div>
         <button
-          className="px-4 py-2 bg-black text-white rounded"
+          className="px-4 py-2 bg-[#800020] text-white rounded"
           onClick={async () => { await addItem.mutateAsync({ productId: product.id, quantity: 1 }); window.location.href = '/cart'; }}
         >
           {t('addToCart')}

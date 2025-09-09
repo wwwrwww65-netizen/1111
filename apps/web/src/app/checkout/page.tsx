@@ -22,11 +22,11 @@ export default function CheckoutPage(): JSX.Element {
           <div className="border rounded p-4">
             <div className="font-semibold mb-2">بيانات الشحن</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input placeholder="الاسم الكامل" className="border rounded px-3 py-2" />
-              <input placeholder="الهاتف" className="border rounded px-3 py-2" />
-              <input placeholder="المدينة" className="border rounded px-3 py-2" />
-              <input placeholder="الحي" className="border rounded px-3 py-2" />
-              <input placeholder="الشارع" className="border rounded px-3 py-2 md:col-span-2" />
+              <input placeholder="الاسم الكامل" className="border rounded px-3 py-2 focus:border-[#800020]" />
+              <input placeholder="الهاتف" className="border rounded px-3 py-2 focus:border-[#800020]" />
+              <input placeholder="المدينة" className="border rounded px-3 py-2 focus:border-[#800020]" />
+              <input placeholder="الحي" className="border rounded px-3 py-2 focus:border-[#800020]" />
+              <input placeholder="الشارع" className="border rounded px-3 py-2 md:col-span-2 focus:border-[#800020]" />
             </div>
           </div>
           <div className="border rounded p-4">
@@ -45,8 +45,8 @@ export default function CheckoutPage(): JSX.Element {
             <span>${subtotal.toFixed(2)}</span>
           </div>
           <div className="mt-2 flex gap-2">
-            <input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="كوبون" className="border rounded px-3 py-2 flex-1" />
-            <button className="px-3 py-2 border rounded" onClick={async () => { if (coupon) await applyCoupon.mutateAsync({ code: coupon }); }}>
+            <input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="كوبون" className="border rounded px-3 py-2 flex-1 focus:border-[#800020]" />
+            <button className="px-3 py-2 border rounded border-[#800020] text-[#800020] hover:bg-[#800020] hover:text-white" onClick={async () => { if (coupon) await applyCoupon.mutateAsync({ code: coupon }); }}>
               تطبيق
             </button>
           </div>
@@ -59,7 +59,7 @@ export default function CheckoutPage(): JSX.Element {
             <span>${subtotal.toFixed(2)}</span>
           </div>
           <button
-            className="mt-4 w-full px-4 py-2 bg-black text-white rounded"
+            className="mt-4 w-full px-4 py-2 bg-[#800020] text-white rounded"
             onClick={async () => {
               await createOrder.mutateAsync({});
               window.location.href = "/account";
@@ -71,9 +71,9 @@ export default function CheckoutPage(): JSX.Element {
       </div>
       {/* Mobile sticky confirm */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-white p-3 flex items-center justify-between">
-        <div className="text-sm">الإجمالي: <b>${subtotal.toFixed(2)}</b></div>
+        <div className="text-sm">الإجمالي: <b className="text-[#800020]">${subtotal.toFixed(2)}</b></div>
         <button
-          className="px-4 py-2 bg-black text-white rounded"
+          className="px-4 py-2 bg-[#800020] text-white rounded"
           onClick={async () => {
             await createOrder.mutateAsync({});
             window.location.href = "/account";

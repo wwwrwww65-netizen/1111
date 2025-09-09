@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "main": "./index.tsx",
-  "types": "./index.tsx",
   "scripts": {
     "lint": "echo \"Linting disabled for now\"",
     "test": "jest",
@@ -18,6 +17,7 @@
     "@repo/typescript-config": "workspace:*",
     "typescript": "^5",
     "@types/react": "^18",
+    "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-custom": "workspace:*",
     "@testing-library/react": "^14.1.2",
