@@ -58,4 +58,5 @@ Thumbs.db
 
 # Test outputs
 /coverage
-nrepo.tar.gzn*.tar.gzn
+nrepo.tar.gzn*.tar.gznrepo.tar.gz
+*.tar.gz
