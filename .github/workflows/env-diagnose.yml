@@ -1,0 +1,91 @@
+name: Env Diagnose (Server Audit)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    name: diagnose
+    runs-on: [self-hosted, linux, x64, jeeey]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect environment info
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPORT=/tmp/env_report.md
+          : > "$REPORT"
+          {
+            echo "# Server Environment Report"
+            echo
+            echo "## Host"
+            echo '- date:' $(date -Is)
+            echo '- uname:' $(uname -a)
+            echo '```'
+            cat /etc/os-release || true
+            echo '```'
+            echo
+            echo "## Network & Ports"
+            echo '```'
+            ss -ltn || true
+            echo '```'
+            echo
+            echo "## Disk & Memory"
+            echo '```'
+            df -h || true
+            echo
+            free -h || true
+            echo '```'
+            echo
+            echo "## Package & Tools"
+            echo '```'
+            which node || true; node -v || true
+            which pnpm || true; pnpm -v || true
+            which npm || true; npm -v || true
+            which pm2 || true; pm2 -v || true
+            which docker || true; docker --version || true
+            which docker-compose || true; docker-compose --version || true
+            which nginx || true; nginx -v || true
+            which certbot || true; certbot --version || true
+            which psql || true; psql --version || true
+            echo '```'
+            echo
+            echo "## PM2"
+            echo '```'
+            pm2 list || true
+            echo '```'
+            echo
+            echo "## Nginx"
+            echo '```'
+            nginx -t || true
+            systemctl status nginx --no-pager || true
+            echo '```'
+            echo
+            echo "## UFW"
+            echo '```'
+            ufw status || true
+            echo '```'
+            echo
+            echo "## Project Layout"
+            echo '```'
+            PROJECT_DIR="/var/www/ecom"
+            echo "PROJECT_DIR=$PROJECT_DIR"
+            ls -la "$PROJECT_DIR" || true
+            echo
+            echo "packages/api/.env (exists?):"; [ -f "$PROJECT_DIR/packages/api/.env" ] && echo yes || echo no
+            echo "packages/db/.env (exists?):"; [ -f "$PROJECT_DIR/packages/db/.env" ] && echo yes || echo no
+            echo '```'
+          } >> "$REPORT"
+          echo "Report at $REPORT"
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: env-diagnose-report
+          path: /tmp/env_report.md
+          retention-days: 7
+
