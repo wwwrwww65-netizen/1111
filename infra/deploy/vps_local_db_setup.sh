@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DB_NAME="ecom_db"
-DB_USER="ecom_user"
-DB_PASS="jeeey_db_pass_2025"
+DB_NAME="${DB_NAME:-ecom_db}"
+DB_USER="${DB_USER:-ecom_user}"
+# Require DB_PASS via environment instead of hardcoding
+DB_PASS="${DB_PASS:?DB_PASS environment variable is required}"
 PROJECT_DIR="/var/www/ecom"
 API_ENV="$PROJECT_DIR/packages/api/.env"
 ADMIN_ENV="$PROJECT_DIR/apps/admin/.env"
@@ -72,13 +73,16 @@ sudo sed -i "/^RENDER_/d" "$API_ENV" || true
 sudo sed -i "/^RENDER_/d" "$ADMIN_ENV" || true
 
 # Core API env
+JWT_SECRET="${JWT_SECRET:?JWT_SECRET environment variable is required}"
+MAINTENANCE_SECRET="${MAINTENANCE_SECRET:?MAINTENANCE_SECRET environment variable is required}"
+
 for kv in \
   COOKIE_DOMAIN=.jeeey.com \
   CORS_ALLOW_ORIGINS=https://admin.jeeey.com,https://jeeey.com \
   NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com \
   NEXT_PUBLIC_APP_URL=https://jeeey.com \
-  JWT_SECRET=5d6f5945e3a82d1df5df874f9f6463f932f9ec9a3131984114df07bcaf6f1f8f4c69e047168a5159542d476df9415a7dfe9f7a523bd1981f113cac1ec6e043a0 \
-  MAINTENANCE_SECRET=jeeey_maint_7f3c0b5e1fd542a9
+  JWT_SECRET=${JWT_SECRET} \
+  MAINTENANCE_SECRET=${MAINTENANCE_SECRET}
 do
   key=${kv%%=*}
   sudo sed -i "/^${key}=*/d" "$API_ENV"
@@ -98,7 +102,7 @@ fi
 echo "[6/6] Bootstrap admin and test login"
 echo "--- create admin"
 curl -fsS -X POST \
-  -H "x-maintenance-secret: jeeey_maint_7f3c0b5e1fd542a9" \
+  -H "x-maintenance-secret: ${MAINTENANCE_SECRET}" \
   -H "content-type: application/json" \
   -d '{"email":"admin@example.com","password":"admin123","name":"Admin"}' \
   https://api.jeeey.com/api/admin/maintenance/create-admin | cat || true
