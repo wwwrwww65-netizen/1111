@@ -801,7 +801,7 @@ adminRest.post('/payments/refund', async (req, res) => {
 adminRest.get('/drivers', async (req, res) => {
     try {
         const u = req.user;
-        if (!(await can(u.userId, 'orders.manage')))
+        if (!(await can(u.userId, 'drivers.read')))
             return res.status(403).json({ error: 'forbidden' });
         const list = await db_1.db.driver.findMany({ orderBy: { name: 'asc' } });
         res.json({ drivers: list });
@@ -813,12 +813,12 @@ adminRest.get('/drivers', async (req, res) => {
 adminRest.post('/drivers', async (req, res) => {
     try {
         const u = req.user;
-        if (!(await can(u.userId, 'orders.manage')))
+        if (!(await can(u.userId, 'drivers.create')))
             return res.status(403).json({ error: 'forbidden' });
-        const { name, phone, isActive, status } = req.body || {};
+        const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {};
         if (!name)
             return res.status(400).json({ error: 'name_required' });
-        const d = await db_1.db.driver.create({ data: { name, phone, isActive: isActive !== null && isActive !== void 0 ? isActive : true, status: status !== null && status !== void 0 ? status : 'AVAILABLE' } });
+        const d = await db_1.db.driver.create({ data: { name, phone, isActive: isActive !== null && isActive !== void 0 ? isActive : true, status: status !== null && status !== void 0 ? status : 'AVAILABLE', address: address || null, nationalId: nationalId || null, vehicleType: vehicleType || null, ownership: ownership || null, notes: notes || null, lat: lat !== null && lat !== void 0 ? lat : null, lng: lng !== null && lng !== void 0 ? lng : null } });
         await audit(req, 'drivers', 'create', { id: d.id });
         res.json({ driver: d });
     }
@@ -829,16 +829,38 @@ adminRest.post('/drivers', async (req, res) => {
 adminRest.patch('/drivers/:id', async (req, res) => {
     try {
         const u = req.user;
-        if (!(await can(u.userId, 'orders.manage')))
+        if (!(await can(u.userId, 'drivers.update')))
             return res.status(403).json({ error: 'forbidden' });
         const { id } = req.params;
-        const { name, phone, isActive, status } = req.body || {};
-        const d = await db_1.db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }) } });
+        const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {};
+        const d = await db_1.db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }), ...(address !== undefined && { address }), ...(nationalId !== undefined && { nationalId }), ...(vehicleType !== undefined && { vehicleType }), ...(ownership !== undefined && { ownership }), ...(notes !== undefined && { notes }), ...(lat !== undefined && { lat }), ...(lng !== undefined && { lng }) } });
         await audit(req, 'drivers', 'update', { id });
         res.json({ driver: d });
     }
     catch (e) {
         res.status(500).json({ error: e.message || 'driver_update_failed' });
+    }
+});
+adminRest.get('/drivers/:id/overview', async (req, res) => {
+    try {
+        const u = req.user;
+        if (!(await can(u.userId, 'drivers.read')))
+            return res.status(403).json({ error: 'forbidden' });
+        const { id } = req.params;
+        const d = await db_1.db.driver.findUnique({ where: { id } });
+        if (!d)
+            return res.status(404).json({ error: 'driver_not_found' });
+        const [assigned, delivered, pending, totalEarned, totalDue] = await Promise.all([
+            db_1.db.order.count({ where: { assignedDriverId: id, status: { in: ['PENDING', 'PAID', 'SHIPPED'] } } }),
+            db_1.db.order.count({ where: { assignedDriverId: id, status: 'DELIVERED' } }),
+            db_1.db.order.count({ where: { assignedDriverId: id, status: 'PENDING' } }),
+            db_1.db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED', 'PAID'] } } } }).then(r => r._sum.amount || 0),
+            db_1.db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING', 'SHIPPED'] } } } }).then(r => r._sum.amount || 0),
+        ]);
+        res.json({ driver: d, kpis: { assigned, delivered, pending, totalEarned, totalDue } });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message || 'driver_overview_failed' });
     }
 });
 // Carriers
@@ -1530,8 +1552,12 @@ adminRest.post('/auth/login', (0, express_rate_limit_1.default)({ windowMs: 6000
         catch { }
         const host = req.headers['x-forwarded-host'] || req.headers.host || '';
         const cookieOpts = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30 * 24 * 60 * 60 * 1000 : undefined, path: '/' };
-        if (host.endsWith('onrender.com'))
-            cookieOpts.domain = '.onrender.com';
+        if (process.env.COOKIE_DOMAIN) {
+            cookieOpts.domain = process.env.COOKIE_DOMAIN;
+        }
+        else if (host.endsWith('jeeey.com')) {
+            cookieOpts.domain = '.jeeey.com';
+        }
         res.cookie('auth_token', token, cookieOpts);
         return res.json({ success: true, token, sessionId });
     }

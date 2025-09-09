@@ -227,7 +227,7 @@ try {
     app.use('/docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(openapi));
 }
 catch { }
-// Root endpoint for Render root URL
+// Root endpoint
 app.get('/', (req, res) => {
     res.json({
         name: 'E-commerce API',

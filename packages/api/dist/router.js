@@ -12,6 +12,7 @@ const wishlist_1 = require("./routers/wishlist");
 const coupons_1 = require("./routers/coupons");
 const cart_1 = require("./routers/cart");
 const orders_1 = require("./routers/orders");
+const reviews_1 = require("./routers/reviews");
 exports.appRouter = (0, trpc_setup_1.router)({
     // All sub-routers will be merged here
     auth: auth_1.authRouter,
@@ -24,5 +25,6 @@ exports.appRouter = (0, trpc_setup_1.router)({
     coupons: coupons_1.couponsRouter,
     cart: cart_1.cartRouter,
     orders: orders_1.ordersRouter,
+    reviews: reviews_1.reviewsRouter,
 });
 //# sourceMappingURL=router.js.map
