@@ -114,6 +114,10 @@ if [[ -d apps/admin/.next/standalone ]]; then
 fi
 
 echo "[deploy] Reloading processes with PM2..."
+# Ensure PM2 ecosystem config is up-to-date
+if [[ -f "$PROJECT_DIR/infra/deploy/ecosystem.config.js" ]]; then
+  sudo cp -f "$PROJECT_DIR/infra/deploy/ecosystem.config.js" /etc/pm2.ecosystem.config.js || true
+fi
 pm2 delete ecom-web || true
 pm2 start /etc/pm2.ecosystem.config.js --only ecom-web --update-env || true
 pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
