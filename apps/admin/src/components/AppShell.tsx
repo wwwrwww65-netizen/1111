@@ -88,6 +88,8 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'الترندات', children: [{ href: '/trends/management', label: 'إدارة الترندات' }] },
   { label: 'المراجعات', children: [{ href: '/reviews/moderation', label: 'إدارة التعليقات' }] },
   { label: 'المرتجعات RMA', children: [{ href: '/rma/management', label: 'إدارة المرتجعات' }] },
+  { label: 'المستودعات', href: '/warehouses' },
+  { label: 'أوامر الشراء (POs)', href: '/pos' },
 ];
 
 export function AppShell({ children }: AppShellProps): JSX.Element {
