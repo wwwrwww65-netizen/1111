@@ -1,5 +1,7 @@
 ssh_key_jeeey_ci
 ssh_key_jeeey_ci.pub
+jeeey_deploy_key
+jeeey_deploy_key.pub
 **/.env
 **/.env.*
 node_modules
