@@ -90,15 +90,18 @@ async function run() {
   }
 
   // 3) Finance revenues
-  await page.goto(`${adminBase}/finance/revenues`, { waitUntil: 'networkidle2' });
+  await page.goto(`${adminBase}/finance/revenues`, { waitUntil: 'domcontentloaded' });
+  await sleep(800);
   await page.screenshot({ path: path.join(baseOut, 'finance-revenues.png'), fullPage: true });
 
   // 4) Notifications
-  await page.goto(`${adminBase}/notifications`, { waitUntil: 'networkidle2' });
+  await page.goto(`${adminBase}/notifications`, { waitUntil: 'domcontentloaded' });
+  await sleep(800);
   await page.screenshot({ path: path.join(baseOut, 'notifications.png'), fullPage: true });
 
   // 5) Loyalty points
-  await page.goto(`${adminBase}/loyalty/points`, { waitUntil: 'networkidle2' });
+  await page.goto(`${adminBase}/loyalty/points`, { waitUntil: 'domcontentloaded' });
+  await sleep(800);
   await page.screenshot({ path: path.join(baseOut, 'loyalty-points.png'), fullPage: true });
 
   await browser.close();
