@@ -25,19 +25,22 @@ export default function AdminLogin(): JSX.Element {
         method: 'POST', headers: { 'content-type':'application/json' }, credentials: 'include',
         body: JSON.stringify({ email, password, remember })
       });
-      const j = await res.json().catch(()=>({success:false,error:'login_failed'}));
-      if (!res.ok || !j?.success) { setError(j.error||'فشل تسجيل الدخول'); return; }
+      if (!res.ok) {
+        const jerr = await res.json().catch(()=>({error:'login_failed'}));
+        setError(jerr.error||'فشل تسجيل الدخول');
+        return;
+      }
+      // Optional: if API returned a token, bridge it; otherwise rely on Set-Cookie from server
       try {
-        // Bridge cookie on admin domain so Next middleware sees it immediately
-        const maxAge = remember ? 30*24*60*60 : undefined;
-        const parts = [
-          `auth_token=${j.token}`,
-          'Path=/',
-          'SameSite=Lax',
-        ];
-        if (maxAge) parts.push(`Max-Age=${maxAge}`);
-        if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
-        document.cookie = parts.join('; ');
+        const j = await res.clone().json().catch(()=>null) as any;
+        if (j && j.token) {
+          const maxAge = remember ? 30*24*60*60 : undefined;
+          const parts = [ 'Path=/', 'SameSite=Lax' ];
+          parts.unshift(`auth_token=${j.token}`);
+          if (maxAge) parts.push(`Max-Age=${maxAge}`);
+          if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
+          document.cookie = parts.join('; ');
+        }
       } catch {}
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
