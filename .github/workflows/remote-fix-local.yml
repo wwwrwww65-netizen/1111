@@ -116,6 +116,16 @@ jobs:
           fi
           sudo systemctl reload sshd || sudo systemctl restart sshd
           echo "--- Listening ports (22/80/443) ---" && ss -ltnp | egrep ":22 |:80 |:443 " | cat || true
+
+      - name: Enable temporary SSH password for cursor (support session)
+        run: |
+          set -euo pipefail
+          TMP_PASS="TempPass#947"
+          echo "[ssh] enabling PasswordAuthentication and setting cursor password"
+          sudo sed -i "s/^#\?PasswordAuthentication .*/PasswordAuthentication yes/" /etc/ssh/sshd_config
+          echo "cursor:${TMP_PASS}" | sudo chpasswd
+          sudo systemctl reload sshd || sudo systemctl restart sshd
+          echo "[ssh] You can connect: ssh -p 22 cursor@72.60.92.17 (password: ${TMP_PASS})"
       - name: Run fix-admin locally (no SSH)
         env:
           CERTBOT_EMAIL: ${{ secrets.OPTIONAL_CERTBOT_EMAIL }}
