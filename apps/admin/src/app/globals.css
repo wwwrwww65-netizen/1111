@@ -23,7 +23,7 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
 .shell{display:grid;grid-template-columns:auto 1fr;min-height:calc(100vh - 64px)}
 .sidebar{background:var(--panel);border-inline-end:1px solid var(--muted);padding:16px;transition:width .2s ease;overflow:auto;width:260px}
 .sidebar.open{width:260px}
-.sidebar:not(.open){width:72px}
+.sidebar:not(.open){width:260px}
 .sidebar nav{display:grid;gap:6px}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid transparent;border-radius:10px;color:var(--text);text-decoration:none;background:transparent}
 .nav-item:hover{background:#101828;border-color:#1f2937}
@@ -111,6 +111,6 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
   .content{padding:16px}
 }
 @media (max-width:767px){
-  .shell{grid-template-columns:72px 1fr}
+  .shell{grid-template-columns:260px 1fr}
   .content{padding:12px}
 }

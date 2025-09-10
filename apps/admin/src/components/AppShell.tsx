@@ -127,7 +127,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
         </div>
       </header>
       <div className="shell">
-        <aside className={sidebarOpen ? 'sidebar open' : 'sidebar'}>
+        <aside className={'sidebar open'}>
           <nav>
             {NAV_GROUPS.map((g, idx) => {
               const hasChildren = Array.isArray(g.children) && g.children.length > 0;
