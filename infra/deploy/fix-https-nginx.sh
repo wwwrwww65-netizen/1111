@@ -25,6 +25,12 @@ CONF_DIR="/etc/nginx/sites-available"; ENABLED_DIR="/etc/nginx/sites-enabled"
 if [ ! -d "$CONF_DIR" ]; then CONF_DIR="/etc/nginx/conf.d"; ENABLED_DIR="$CONF_DIR"; fi
 log "Using nginx conf dir: $CONF_DIR (enabled: $ENABLED_DIR)"
 
+# Clean up conflicting default/legacy configs to avoid duplicate server_name
+log "Removing conflicting nginx configs if present"
+$SUDO rm -f /etc/nginx/sites-enabled/default || true
+$SUDO rm -f /etc/nginx/conf.d/default.conf || true
+$SUDO rm -f /etc/nginx/conf.d/jeeey.conf || true
+
 HTTP_CONF="$CONF_DIR/jeeey.conf"
 log "Writing HTTP config: $HTTP_CONF"
 $SUDO tee "$HTTP_CONF" >/dev/null <<'CFG'
@@ -61,6 +67,9 @@ CFG
 $SUDO sed -i "s/DOMAIN_WEB_PLACEHOLDER/$DOMAIN_WEB/g; s/DOMAIN_ADMIN_PLACEHOLDER/$DOMAIN_ADMIN/g; s/DOMAIN_API_PLACEHOLDER/$DOMAIN_API/g; s#WEB_CERT_DIR_PLACEHOLDER#$WEB_CERT_DIR#g; s#ADMIN_CERT_DIR_PLACEHOLDER#$ADMIN_CERT_DIR#g; s#API_CERT_DIR_PLACEHOLDER#$API_CERT_DIR#g" "$SSL_CONF"
 
 if [ "$ENABLED_DIR" != "$CONF_DIR" ]; then $SUDO ln -sf "$SSL_CONF" "$ENABLED_DIR/jeeey-ssl.conf"; fi
+
+# Ensure no conflicting conf remains that could override SSL mapping
+$SUDO rm -f /etc/nginx/conf.d/jeeey.conf || true
 
 log "Reloading nginx with SSL blocks..."
 $SUDO nginx -t
