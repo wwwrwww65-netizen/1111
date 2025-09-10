@@ -84,6 +84,21 @@ ss -ltnp 2>/dev/null | egrep ':80|:443' | cat || true
 log "Cert dirs:"
 ls -1 /etc/letsencrypt/live/ 2>/dev/null | cat || true
 
+# Proactive validations: ensure upstreams are listening and admin serves content
+log "Proactive: verify PM2 services and ports"
+pm2 list || true
+ss -ltnp | egrep ':3000|:3001|:4000' | cat || true
+
+# Retry curl with local resolve to avoid DNS issues
+ADMIN_DOMAIN="$DOMAIN_ADMIN"
+log "Proactive: curl admin over HTTPS (local resolve to 127.0.0.1)"
+for i in 1 2 3; do
+  curl -Is --max-time 10 --resolve "$ADMIN_DOMAIN:443:127.0.0.1" "https://$ADMIN_DOMAIN/" | sed -n '1,3p' | cat && break || sleep 2;
+done
+for i in 1 2 3; do
+  curl -Is --max-time 10 --resolve "$ADMIN_DOMAIN:443:127.0.0.1" "https://$ADMIN_DOMAIN/finance/revenues" | sed -n '1,3p' | cat && break || sleep 2;
+done
+
 log "Quick curl checks:"
 ( curl -Is http://$DOMAIN_WEB | head -n 1 || true ) | cat
 ( curl -Is https://$DOMAIN_WEB | head -n 1 || true ) | cat

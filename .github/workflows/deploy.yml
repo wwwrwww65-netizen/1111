@@ -164,6 +164,11 @@ jobs:
           else
             echo "Skipping HTTPS check (ENABLE_HTTPS_CHECK!=1)"
           fi
+          # Strict admin checks (fail if 404)
+          echo "Strict check: admin root over HTTPS (local resolve)"
+          curl -fsSI --resolve "${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}:443:127.0.0.1" "https://${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}/" | sed -n '1,3p' | cat
+          echo "Strict check: admin Finance over HTTPS (local resolve)"
+          curl -fsSI --resolve "${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}:443:127.0.0.1" "https://${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}/finance/revenues" | sed -n '1,3p' | cat
 
       - name: Enable HTTPS (Let's Encrypt) [non-blocking]
         continue-on-error: true
