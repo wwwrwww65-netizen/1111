@@ -11,6 +11,22 @@ echo "[https] ensure-https: starting"
 
 export DEBIAN_FRONTEND=noninteractive
 
+echo "[https] Opening firewall ports 80/443 (HTTP/HTTPS) if needed..."
+if command -v ufw >/dev/null 2>&1; then
+  ufw allow OpenSSH >/dev/null 2>&1 || true
+  # Prefer nginx profile if available, else open ports directly
+  ufw allow 'Nginx Full' >/dev/null 2>&1 || { ufw allow 80/tcp >/dev/null 2>&1; ufw allow 443/tcp >/dev/null 2>&1; }
+  ufw --force enable >/dev/null 2>&1 || true
+elif command -v apt-get >/dev/null 2>&1; then
+  # Ubuntu/Debian without ufw installed
+  apt-get update -y && apt-get install -y ufw || true
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow OpenSSH >/dev/null 2>&1 || true
+    ufw allow 'Nginx Full' >/dev/null 2>&1 || { ufw allow 80/tcp >/dev/null 2>&1; ufw allow 443/tcp >/dev/null 2>&1; }
+    ufw --force enable >/dev/null 2>&1 || true
+  fi
+fi
+
 echo "[https] Installing nginx if missing..."
 if ! command -v nginx >/dev/null 2>&1; then
   apt-get update -y && apt-get install -y nginx
@@ -61,6 +77,12 @@ issue_cert "$DOMAIN_API"
 
 echo "[https] Reloading nginx"
 nginx -t && systemctl reload nginx || systemctl restart nginx || true
+
+# Show quick diagnostics
+echo "[https] Firewall (ufw) status (if available):"
+ufw status verbose 2>/dev/null | sed -n '1,200p' | cat || true
+echo "[https] Listening sockets for :80 and :443:"
+ss -ltnp 2>/dev/null | egrep ':80|:443' | cat || true
 
 echo "[https] ensure-https: done"
 
