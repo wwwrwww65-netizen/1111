@@ -79,6 +79,18 @@ jobs:
           set -euo pipefail
           sudo -u deploy bash -lc "set -euo pipefail; mkdir -p \"$PROJECT_DIR\"; cd \"$PROJECT_DIR\"; tar -xzf repo.tar.gz; rm -f repo.tar.gz"
 
+      - name: Ensure HTTPS (nginx + certbot) [idempotent]
+        env:
+          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL || '' }}
+          DOMAIN_WEB: ${{ secrets.DOMAIN_WEB || 'jeeey.com' }}
+          DOMAIN_ADMIN: ${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}
+          DOMAIN_API: ${{ secrets.DOMAIN_API || 'api.jeeey.com' }}
+        run: |
+          set -euo pipefail
+          sudo chmod +x "$PROJECT_DIR/infra/deploy/ensure-https.sh" || true
+          sudo PROJECT_DIR="$PROJECT_DIR" CERTBOT_EMAIL="$CERTBOT_EMAIL" DOMAIN_WEB="$DOMAIN_WEB" DOMAIN_ADMIN="$DOMAIN_ADMIN" DOMAIN_API="$DOMAIN_API" \
+            bash "$PROJECT_DIR/infra/deploy/ensure-https.sh" 2>&1 | sed -u 's/::error/::notice/g'
+
       - name: Remote setup locally (self-hosted)
         continue-on-error: true
         run: |
