@@ -327,3 +327,16 @@ jobs:
             test "$CODE" = "200"
           done
           rm -rf "$TMP_DIR" || true
+
+      - name: Capture admin screenshots and upload artifact
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          npm i puppeteer@22 --no-audit --no-fund || true
+          node scripts/capture-admin-screens.js || true
+        shell: bash
+      - name: Upload screenshots artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-screenshots
+          path: /tmp/admin-snap/screenshots/*.png
