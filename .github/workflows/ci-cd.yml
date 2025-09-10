@@ -25,6 +25,7 @@ env:
   NODE_VERSION: '20'
   NEXT_DISABLE_ESLINT: '1'
   NEXT_TELEMETRY_DISABLED: '1'
+  PNPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.pnpm-store
   # Test-only defaults; DB will be provided by services
   NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
   NEXT_PUBLIC_TRPC_URL: 'http://localhost:4000/trpc'
@@ -48,6 +49,8 @@ jobs:
         run: |
           corepack enable || true
           corepack prepare pnpm@8.6.10 --activate || true
+      - name: Ensure pnpm store dir exists
+        run: mkdir -p "$PNPM_CONFIG_STORE_DIR"
       - name: Install deps (no frozen)
         run: pnpm install --no-frozen-lockfile
       - name: Build Web/Admin/API
