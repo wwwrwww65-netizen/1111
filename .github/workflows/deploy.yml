@@ -35,7 +35,8 @@ jobs:
         run: |
           corepack enable || true
           corepack prepare pnpm@9 --activate || true
-          pnpm install --no-frozen-lockfile --ignore-scripts
+          pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
+          pnpm install --no-frozen-lockfile --ignore-scripts --store-dir="$PNPM_CONFIG_STORE_DIR"
       - name: CI check
         run: |
           echo "CI basic checks completed"

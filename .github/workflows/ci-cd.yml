@@ -49,10 +49,12 @@ jobs:
         run: |
           corepack enable || true
           corepack prepare pnpm@8.6.10 --activate || true
+      - name: Configure pnpm store dir (project)
+        run: pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
       - name: Ensure pnpm store dir exists
         run: mkdir -p "$PNPM_CONFIG_STORE_DIR"
       - name: Install deps (no frozen)
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --store-dir="$PNPM_CONFIG_STORE_DIR"
       - name: Build Web/Admin/API
         run: |
           pnpm --filter @repo/db build
@@ -89,6 +91,10 @@ jobs:
         run: corepack enable
       - name: Use pnpm 8.6.10
         run: corepack prepare pnpm@8.6.10 --activate
+      - name: Configure pnpm store dir (project)
+        run: pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
+      - name: Ensure pnpm store dir exists
+        run: mkdir -p "$PNPM_CONFIG_STORE_DIR"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -97,7 +103,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --store-dir="$PNPM_CONFIG_STORE_DIR"
 
       - name: Set DATABASE URLs
         run: |
@@ -174,6 +180,10 @@ jobs:
         run: corepack enable
       - name: Use pnpm 8.6.10
         run: corepack prepare pnpm@8.6.10 --activate
+      - name: Configure pnpm store dir (project)
+        run: pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
+      - name: Ensure pnpm store dir exists
+        run: mkdir -p "$PNPM_CONFIG_STORE_DIR"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -182,7 +192,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --store-dir="$PNPM_CONFIG_STORE_DIR"
 
       - name: Build project for deployment
         # This build is redundant if artifacts were used, but is kept for simplicity.
