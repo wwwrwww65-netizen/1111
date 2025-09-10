@@ -16,12 +16,19 @@ if ! command -v nginx >/dev/null 2>&1; then
   apt-get update -y && apt-get install -y nginx
 fi
 
+echo "[https] Determine nginx config directory..."
+CONF_DIR="/etc/nginx/sites-available"
+ENABLED_DIR="/etc/nginx/sites-enabled"
+if [ ! -d "$CONF_DIR" ]; then
+  CONF_DIR="/etc/nginx/conf.d"; ENABLED_DIR="$CONF_DIR"
+fi
+
 echo "[https] Writing nginx config (HTTP reverse proxies)..."
-NGINX_CONF="/etc/nginx/sites-available/jeeey.conf"
+NGINX_CONF="$CONF_DIR/jeeey.conf"
 if [ -f "$PROJECT_DIR/infra/deploy/nginx/jeeey.conf" ]; then
   cp -f "$PROJECT_DIR/infra/deploy/nginx/jeeey.conf" "$NGINX_CONF"
 fi
-ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/jeeey.conf
+ln -sf "$NGINX_CONF" "$ENABLED_DIR/jeeey.conf"
 nginx -t && systemctl enable nginx && systemctl restart nginx || true
 
 # If no certbot email provided, skip HTTPS automation.
@@ -35,15 +42,22 @@ if ! command -v certbot >/dev/null 2>&1; then
   apt-get update -y && apt-get install -y certbot python3-certbot-nginx
 fi
 
-echo "[https] Attempting certificate issue/renewal via certbot for: $DOMAIN_WEB, $DOMAIN_ADMIN, $DOMAIN_API"
-set +e
-certbot --nginx -n --agree-tos -m "$CERTBOT_EMAIL" \
-  -d "$DOMAIN_WEB" -d "www.$DOMAIN_WEB" -d "$DOMAIN_ADMIN" -d "$DOMAIN_API"
-rc=$?
-set -e
-if [ $rc -ne 0 ]; then
-  echo "[https] certbot returned non-zero ($rc); continuing (non-blocking)"
-fi
+issue_cert() {
+  local domain="$1"; shift
+  echo "[https] Issuing/renewing certificate for $domain"
+  set +e
+  certbot --nginx -n --redirect --agree-tos -m "$CERTBOT_EMAIL" -d "$domain" "$@"
+  local rc=$?
+  set -e
+  if [ $rc -ne 0 ]; then
+    echo "[https] certbot for $domain returned non-zero ($rc); continuing (non-blocking)"
+  fi
+}
+
+# Obtain/renew per-domain so plugin maps the right server blocks
+issue_cert "$DOMAIN_WEB" -d "www.$DOMAIN_WEB"
+issue_cert "$DOMAIN_ADMIN"
+issue_cert "$DOMAIN_API"
 
 echo "[https] Reloading nginx"
 nginx -t && systemctl reload nginx || systemctl restart nginx || true
