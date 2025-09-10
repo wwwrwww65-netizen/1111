@@ -32,6 +32,8 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'التكاملات', href: '/integrations' },
   { label: 'سجلّ التدقيق', href: '/audit-logs' },
   { label: 'الإشعارات', href: '/notifications' },
+  { label: 'المالية', href: '/finance/revenues' },
+  { label: 'الولاء', href: '/loyalty/points' },
   { label: 'الإعدادات', href: '/settings' },
   { label: 'النسخ الاحتياطي', href: '/backups' },
   {
@@ -66,9 +68,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/affiliates/dashboard', label: 'لوحة المسوّق' },
       { href: '/affiliates/payouts', label: 'تقارير المدفوعات' },
     ],
-  },
-  {
-    label: 'التنبيهات (Notifications)'
   },
   {
     label: 'العروض والحملات',
