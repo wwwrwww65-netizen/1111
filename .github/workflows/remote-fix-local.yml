@@ -57,6 +57,36 @@ jobs:
           ( cd "$DEST" && pnpm --filter admin build )
           pm2 restart ecom-admin --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
           pm2 save || true
+
+      - name: Enforce UFW (80/443/22) and harden SSH
+        run: |
+          set -euo pipefail
+          # UFW rules
+          sudo ufw allow OpenSSH || true
+          sudo ufw allow 80/tcp || true
+          sudo ufw allow 443/tcp || true
+          sudo ufw --force enable || true
+          sudo ufw status verbose | sed -n '1,120p' | cat
+          # SSH hardening (keys only)
+          SSHD="/etc/ssh/sshd_config"
+          sudo cp -a "$SSHD" "$SSHD.bak.$(date +%s)" || true
+          if grep -qE "^\s*PasswordAuthentication" "$SSHD"; then
+            sudo sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication no/" "$SSHD"
+          else
+            echo "PasswordAuthentication no" | sudo tee -a "$SSHD" >/dev/null
+          fi
+          if grep -qE "^\s*PubkeyAuthentication" "$SSHD"; then
+            sudo sed -i "s/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/" "$SSHD"
+          else
+            echo "PubkeyAuthentication yes" | sudo tee -a "$SSHD" >/dev/null
+          fi
+          if grep -qE "^\s*PermitRootLogin" "$SSHD"; then
+            sudo sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/" "$SSHD"
+          else
+            echo "PermitRootLogin prohibit-password" | sudo tee -a "$SSHD" >/dev/null
+          fi
+          sudo systemctl reload sshd || sudo systemctl restart sshd
+          echo "--- Listening ports (22/80/443) ---" && ss -ltnp | egrep ":22 |:80 |:443 " | cat || true
       - name: Run fix-admin locally (no SSH)
         env:
           CERTBOT_EMAIL: ${{ secrets.OPTIONAL_CERTBOT_EMAIL }}
