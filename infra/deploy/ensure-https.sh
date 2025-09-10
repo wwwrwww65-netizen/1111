@@ -78,6 +78,72 @@ issue_cert "$DOMAIN_API"
 echo "[https] Reloading nginx"
 nginx -t && systemctl reload nginx || systemctl restart nginx || true
 
+# Ensure explicit SSL server blocks proxy to correct upstreams
+echo "[https] Writing explicit SSL server blocks for web/admin/api"
+SSL_CONF="$CONF_DIR/jeeey-ssl.conf"
+WEB_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_WEB"
+ADMIN_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_ADMIN"
+API_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_API"
+
+cat > "$SSL_CONF" <<EOF
+# Auto-generated SSL upstream mapping
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name $DOMAIN_WEB www.$DOMAIN_WEB;
+    ssl_certificate $WEB_CERT_DIR/fullchain.pem;
+    ssl_certificate_key $WEB_CERT_DIR/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name $DOMAIN_ADMIN;
+    ssl_certificate $ADMIN_CERT_DIR/fullchain.pem;
+    ssl_certificate_key $ADMIN_CERT_DIR/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name $DOMAIN_API;
+    ssl_certificate $API_CERT_DIR/fullchain.pem;
+    ssl_certificate_key $API_CERT_DIR/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    location / {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
+ln -sf "$SSL_CONF" "$ENABLED_DIR/jeeey-ssl.conf"
+
+echo "[https] Testing and reloading nginx after SSL blocks"
+nginx -t && systemctl reload nginx || systemctl restart nginx || true
+
 # Show quick diagnostics
 echo "[https] Firewall (ufw) status (if available):"
 ufw status verbose 2>/dev/null | sed -n '1,200p' | cat || true
