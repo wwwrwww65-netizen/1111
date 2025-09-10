@@ -12,6 +12,24 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 30
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync code to /var/www/ecom and rebuild Admin
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE"
+          DEST="/var/www/ecom"
+          sudo install -d -m 755 "$DEST"
+          sudo rsync -a --delete --exclude .git --exclude "**/node_modules" "$SRC/" "$DEST/"
+          if command -v corepack >/dev/null 2>&1; then corepack enable || true; corepack prepare pnpm@9 --activate || true; fi
+          command -v pnpm >/dev/null 2>&1 || sudo npm i -g pnpm@9 || true
+          PNPM_STORE="$DEST/.pnpm-store"
+          ( cd "$DEST" && pnpm config set store-dir "$PNPM_STORE" --location project || true )
+          ( cd "$DEST" && pnpm install --force --no-frozen-lockfile --store-dir "$PNPM_STORE" )
+          ( cd "$DEST" && pnpm --filter admin build )
+          pm2 restart ecom-admin --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
+          pm2 save || true
       - name: Run fix-admin locally (no SSH)
         env:
           CERTBOT_EMAIL: ${{ secrets.OPTIONAL_CERTBOT_EMAIL }}
