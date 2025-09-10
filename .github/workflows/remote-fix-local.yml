@@ -42,6 +42,22 @@ jobs:
 
           echo "[env] wrote API/Admin/Web env files"
 
+      - name: Ensure admin RBAC and admin account
+        env:
+          MAINT_SECRET: ${{ secrets.API_MAINTENANCE_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "--- ensure RBAC ---"
+          curl -fsS -X POST -H "X-Maintenance-Secret: $MAINT_SECRET" \
+            https://api.jeeey.com/api/admin/maintenance/ensure-rbac | cat || true
+          echo "--- fix auth columns ---"
+          curl -fsS -X POST -H "X-Maintenance-Secret: $MAINT_SECRET" \
+            https://api.jeeey.com/api/admin/maintenance/fix-auth-columns | cat || true
+          echo "--- create admin ---"
+          curl -fsS -X POST -H "Content-Type: application/json" -H "X-Maintenance-Secret: $MAINT_SECRET" \
+            https://api.jeeey.com/api/admin/maintenance/create-admin \
+            --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' | cat || true
+
       - name: Sync code to /var/www/ecom and rebuild Admin
         run: |
           set -euo pipefail
