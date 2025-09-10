@@ -334,10 +334,20 @@ jobs:
           OUTDIR="/tmp/admin-snap/screenshots"
           mkdir -p "$OUTDIR"
           cd "$GITHUB_WORKSPACE"
+          echo "[screens] installing chromium dependencies"
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            chromium \
+            libnss3 libxss1 libasound2 fonts-liberation \
+            libatk-bridge2.0-0 libgtk-3-0 libdrm2 libgbm1 \
+            libxdamage1 libxfixes3 libxcomposite1 libxrandr2 libxcb1 \
+            libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
+            ca-certificates fonts-noto-color-emoji || true
           echo "[screens] installing puppeteer"
           npm i puppeteer@22 node-fetch@3 --no-audit --no-fund || true
           echo "[screens] running puppeteer capture"
-          if ! node scripts/capture-admin-screens.js; then
+          export PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"
+          if ! xvfb-run -a node scripts/capture-admin-screens.js; then
             echo "[screens] Puppeteer failed; falling back to HTML snapshots"
             TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
             # Login via API to get cookie
