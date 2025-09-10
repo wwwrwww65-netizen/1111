@@ -31,6 +31,7 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'السمات', href: '/attributes' },
   { label: 'التكاملات', href: '/integrations' },
   { label: 'سجلّ التدقيق', href: '/audit-logs' },
+  { label: 'الإشعارات', href: '/notifications' },
   { label: 'الإعدادات', href: '/settings' },
   { label: 'النسخ الاحتياطي', href: '/backups' },
   {
