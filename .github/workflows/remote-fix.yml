@@ -1,14 +1,12 @@
-name: Remote Fix and Diagnose VPS
+name: Remote Fix and Diagnose VPS (SSH - disabled by default)
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
   remote_fix:
     name: SSH Fix & Diagnose
+    if: false # disabled; use Local on Runner workflow instead
     runs-on: [self-hosted, linux, x64, jeeey]
     timeout-minutes: 30
     steps:
