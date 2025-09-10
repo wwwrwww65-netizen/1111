@@ -58,8 +58,28 @@ async function run() {
       sameSite: 'None',
     });
   }
-  await apiLogin();
-  await sleep(300);
+  async function uiLogin() {
+    await page.goto(`${adminBase}/login`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('form button[type="submit"]', { timeout: 15000 });
+    const inputs = await page.$$('input');
+    if (inputs.length === 0) throw new Error('No inputs found on login page');
+    await inputs[0].click({ clickCount: 3 });
+    await inputs[0].type(email, { delay: 10 });
+    const pw = await page.$('input[type="password"]');
+    if (!pw) throw new Error('Password input not found');
+    await pw.click({ clickCount: 3 });
+    await pw.type(password, { delay: 10 });
+    const submit = await page.$('button[type="submit"]');
+    await submit.click();
+    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }).catch(() => {});
+  }
+
+  // Try cookie login first; if still on login, fallback to UI login
+  try { await apiLogin(); } catch {}
+  await page.goto(`${adminBase}/`, { waitUntil: 'networkidle2' });
+  if (page.url().includes('/login')) {
+    await uiLogin();
+  }
 
   // 2) Screenshot dashboard (full) and sidebar
   await page.goto(`${adminBase}/`, { waitUntil: 'networkidle2' });
