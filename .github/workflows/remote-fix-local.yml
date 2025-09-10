@@ -180,7 +180,7 @@ jobs:
           if command -v corepack >/dev/null 2>&1; then corepack enable || true; corepack prepare pnpm@9 --activate || true; fi
           command -v pnpm >/dev/null 2>&1 || npm i -g pnpm@9 || true
           pnpm config set store-dir "$PNPM_STORE" --location project || true
-          export CI=1 NODE_ENV=production COOKIE_DOMAIN=.jeeey.com
+          export CI=1 COOKIE_DOMAIN=.jeeey.com
 
           # Load API env if present (for DATABASE_URL, JWT_SECRET); skip step if missing
           if [ -f packages/api/.env ]; then set -a; . packages/api/.env; set +a; fi
@@ -190,17 +190,19 @@ jobs:
           fi
 
           # Install deps (force, non-interactive)
-          if ! pnpm install --force --no-frozen-lockfile --store-dir "$PNPM_STORE"; then
+          NODE_ENV=development
+          if ! NODE_ENV=development pnpm install --force --no-frozen-lockfile --store-dir "$PNPM_STORE"; then
             find "$PROJ" -type d -name node_modules -prune -exec rm -rf {} + || true
-            pnpm install --force --no-frozen-lockfile --store-dir "$PNPM_STORE"
+            NODE_ENV=development pnpm install --force --no-frozen-lockfile --store-dir "$PNPM_STORE"
           fi
 
           # DB (best-effort) and build API
-          pnpm --filter @repo/db db:generate || true
-          pnpm --filter @repo/db db:push || true
-          pnpm --filter @repo/api build || true
+          NODE_ENV=development pnpm --filter @repo/db db:generate || true
+          NODE_ENV=development pnpm --filter @repo/db db:push || true
+          NODE_ENV=development pnpm --filter @repo/api build || true
 
           # Restart API
+          export NODE_ENV=production
           pm2 restart ecom-api --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-api --update-env || true
           sleep 4
 
