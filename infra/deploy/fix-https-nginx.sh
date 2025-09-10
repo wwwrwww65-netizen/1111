@@ -47,7 +47,7 @@ $SUDO nginx -t
 $SUDO systemctl enable nginx || true
 $SUDO systemctl restart nginx
 
-issue_cert(){ local domain="$1"; shift; log "Issuing/renewing certificate for: $domain $*"; set +e; certbot --nginx -n --redirect --agree-tos -m "$CERTBOT_EMAIL" -d "$domain" "$@"; local rc=$?; set -e; if [ $rc -ne 0 ]; then log "certbot for $domain returned non-zero ($rc), continuing"; fi; }
+issue_cert(){ local domain="$1"; shift; log "Issuing/renewing certificate (certonly) for: $domain $*"; set +e; certbot certonly --nginx -n --agree-tos -m "$CERTBOT_EMAIL" -d "$domain" "$@"; local rc=$?; set -e; if [ $rc -ne 0 ]; then log "certbot for $domain returned non-zero ($rc), continuing"; fi; }
 
 issue_cert "$DOMAIN_WEB" -d "www.$DOMAIN_WEB"
 issue_cert "$DOMAIN_ADMIN"

@@ -52,7 +52,7 @@ jobs:
       DEPLOY_USER: 'deploy'
       DEPLOY_PORT: '22'
       PROJECT_DIR: '/var/www/ecom'
-      ENABLE_HTTPS_CHECK: ${{ secrets.ENABLE_HTTPS_CHECK || '0' }}
+      ENABLE_HTTPS_CHECK: ${{ secrets.ENABLE_HTTPS_CHECK || '1' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -147,6 +147,8 @@ jobs:
           sed -n '1,120p' /etc/hosts | cat || true
           echo "--- DNS resolve admin domain ---"
           getent hosts "${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}" | cat || true
+          echo "--- PM2 list (if available) ---"
+          pm2 list || true
           if [ "${ENABLE_HTTPS_CHECK:-0}" = "1" ]; then
             echo "Checking https jeeey.com (enabled)..."
             if ss -ltn | grep -q ':443'; then
