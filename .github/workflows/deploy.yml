@@ -172,6 +172,29 @@ jobs:
           echo "Strict check: admin Finance over HTTPS (local resolve)"
           curl -fsSI --resolve "${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}:443:127.0.0.1" "https://${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}/finance/revenues" | sed -n '1,3p' | cat
 
+      - name: Authenticated admin page check (simulate login)
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        run: |
+          set -euo pipefail
+          echo "--- Simulate admin login against API (local) ---"
+          LOGIN_RES=$(curl -is -X POST http://127.0.0.1:4000/api/admin/auth/login \
+            -H 'content-type: application/json' \
+            --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" | sed -n '1,20p')
+          echo "$LOGIN_RES" | sed -n '1,10p' | cat
+          AUTH_COOKIE=$(printf "%s" "$LOGIN_RES" | tr -d '\r' | awk '/^set-cookie:/I{print $0}' | head -1 | sed -E 's/^set-cookie: ([^;]+);.*/\1/I')
+          if [ -z "${AUTH_COOKIE:-}" ]; then echo "::warning :: No Set-Cookie returned from API login"; fi
+          echo "Using cookie: ${AUTH_COOKIE:-<none>}"
+          echo "--- Request admin finance with cookie over HTTPS (local resolve) ---"
+          set +e
+          curl -is --resolve "${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}:443:127.0.0.1" \
+            -H "Cookie: ${AUTH_COOKIE:-}" \
+            "https://${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}/finance/revenues" | sed -n '1,15p' | cat
+          RC=$?
+          set -e
+          if [ $RC -ne 0 ]; then echo "::warning :: Authenticated request failed"; fi
+
       - name: Enable HTTPS (Let's Encrypt) [non-blocking]
         continue-on-error: true
         env:
