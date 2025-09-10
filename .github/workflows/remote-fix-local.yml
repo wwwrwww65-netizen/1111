@@ -58,6 +58,19 @@ jobs:
           pm2 restart ecom-admin --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
           pm2 save || true
 
+      - name: DNS sanity for admin/api (A/AAAA via public resolvers)
+        run: |
+          set -euo pipefail
+          for host in admin.jeeey.com api.jeeey.com; do
+            echo "=== $host ==="
+            echo "@local A:"; dig +short "$host" A | cat || true
+            echo "@local AAAA:"; dig +short "$host" AAAA | cat || true
+            echo "@1.1.1.1 A:"; dig +short @1.1.1.1 "$host" A | cat || true
+            echo "@1.1.1.1 AAAA:"; dig +short @1.1.1.1 "$host" AAAA | cat || true
+            echo "@8.8.8.8 A:"; dig +short @8.8.8.8 "$host" A | cat || true
+            echo "@8.8.8.8 AAAA:"; dig +short @8.8.8.8 "$host" AAAA | cat || true
+          done
+
       - name: Enforce UFW (80/443/22) and harden SSH
         run: |
           set -euo pipefail
