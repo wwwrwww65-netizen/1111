@@ -68,13 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'التنبيهات (Notifications)',
-    children: [
-      { href: '/notifications/rules', label: 'قواعد التنبيهات التلقائية' },
-      { href: '/notifications/manual', label: 'التنبيهات اليدوية' },
-      { href: '/notifications/targeted', label: 'التنبيهات المخصّصة' },
-      { href: '/notifications/reports', label: 'تقارير التنبيهات' },
-    ],
+    label: 'التنبيهات (Notifications)'
   },
   {
     label: 'العروض والحملات',
