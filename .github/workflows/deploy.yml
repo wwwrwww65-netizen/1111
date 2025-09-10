@@ -52,6 +52,7 @@ jobs:
       DEPLOY_USER: 'deploy'
       DEPLOY_PORT: '22'
       PROJECT_DIR: '/var/www/ecom'
+      ENABLE_HTTPS_CHECK: ${{ secrets.ENABLE_HTTPS_CHECK || '0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -126,16 +127,20 @@ jobs:
             if curl -fsSI http://127.0.0.1:3000/ >/dev/null; then echo OK; break; fi; echo retry $i; sleep 2;
           done
           curl -fsSI http://127.0.0.1:3000/ | sed -n '1,5p' | cat
-          echo "Checking https jeeey.com (optional)..."
-          if ss -ltn | grep -q ':443'; then
-            set +e
-            for i in $(seq 1 10); do
-              curl -fsSI https://jeeey.com >/tmp/https_head.$$ 2>/dev/null && { cat /tmp/https_head.$$ | sed -n '1,5p'; ok=1; break; } || { echo retry https $i; sleep 2; };
-            done
-            if [ "${ok:-0}" != "1" ]; then echo "::notice :: HTTPS not ready; continuing (non-blocking)"; fi
-            set -e
+          if [ "${ENABLE_HTTPS_CHECK:-0}" = "1" ]; then
+            echo "Checking https jeeey.com (enabled)..."
+            if ss -ltn | grep -q ':443'; then
+              set +e
+              for i in $(seq 1 10); do
+                curl -fsSI https://jeeey.com >/tmp/https_head.$$ 2>/dev/null && { cat /tmp/https_head.$$ | sed -n '1,5p'; ok=1; break; } || { echo retry https $i; sleep 2; };
+              done
+              if [ "${ok:-0}" != "1" ]; then echo "::notice :: HTTPS not ready; continuing (non-blocking)"; fi
+              set -e
+            else
+              echo "::notice :: Port 443 is not listening; skipping HTTPS check"
+            fi
           else
-            echo "::notice :: Port 443 is not listening; skipping HTTPS check"
+            echo "Skipping HTTPS check (ENABLE_HTTPS_CHECK!=1)"
           fi
 
       - name: Enable HTTPS (Let's Encrypt) [non-blocking]
