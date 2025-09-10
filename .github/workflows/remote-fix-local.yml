@@ -15,6 +15,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Write .env files on VPS from secrets
+        run: |
+          set -euo pipefail
+          sudo install -d -m 755 /var/www/ecom/packages/api /var/www/ecom/apps/admin /var/www/ecom/apps/web
+
+          sudo tee /var/www/ecom/packages/api/.env >/dev/null <<'EOF'
+          DATABASE_URL=${{ secrets.API_DATABASE_URL }}
+          JWT_SECRET=${{ secrets.API_JWT_SECRET }}
+          COOKIE_DOMAIN=${{ secrets.API_COOKIE_DOMAIN }}
+          CORS_ALLOW_ORIGINS=${{ secrets.API_CORS_ALLOW_ORIGINS }}
+          NEXT_PUBLIC_ADMIN_URL=${{ secrets.API_NEXT_PUBLIC_ADMIN_URL }}
+          NEXT_PUBLIC_APP_URL=${{ secrets.API_NEXT_PUBLIC_APP_URL }}
+          MAINTENANCE_SECRET=${{ secrets.API_MAINTENANCE_SECRET }}
+          EOF
+
+          sudo tee /var/www/ecom/apps/admin/.env >/dev/null <<'EOF'
+          NEXT_PUBLIC_API_BASE_URL=${{ secrets.ADMIN_NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_APP_URL=${{ secrets.ADMIN_NEXT_PUBLIC_APP_URL }}
+          EOF
+
+          sudo tee /var/www/ecom/apps/web/.env >/dev/null <<'EOF'
+          NEXT_PUBLIC_API_BASE_URL=${{ secrets.WEB_NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_APP_URL=${{ secrets.WEB_NEXT_PUBLIC_APP_URL }}
+          EOF
+
+          echo "[env] wrote API/Admin/Web env files"
+
       - name: Sync code to /var/www/ecom and rebuild Admin
         run: |
           set -euo pipefail
