@@ -14,6 +14,7 @@ const COOKIE_OPTS = {
   path: '/',
   maxAge: 7 * 24 * 60 * 60, // 7 days (seconds)
 };
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '';
 
 // Input schemas
 const registerSchema = z.object({
@@ -73,7 +74,7 @@ export const authRouter = router({
 
       // Generate JWT token and set cookie
       const token = createToken({ userId: user.id, email: user.email, role: user.role });
-      ctx.res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+      ctx.res.cookie(COOKIE_NAME, token, COOKIE_DOMAIN ? { ...COOKIE_OPTS, domain: COOKIE_DOMAIN } : COOKIE_OPTS);
 
       return { user };
     }),
@@ -111,7 +112,7 @@ export const authRouter = router({
   // Logout user
   logout: publicProcedure
     .mutation(async ({ ctx }) => {
-      ctx.res.clearCookie(COOKIE_NAME, { path: '/' });
+      ctx.res.clearCookie(COOKIE_NAME, COOKIE_DOMAIN ? { path: '/', domain: COOKIE_DOMAIN } : { path: '/' });
       return { success: true };
     }),
 
