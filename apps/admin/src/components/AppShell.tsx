@@ -131,7 +131,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
           <nav>
             {NAV_GROUPS.map((g, idx) => {
               const hasChildren = Array.isArray(g.children) && g.children.length > 0;
-              const [open, setOpen] = React.useState<boolean>(false);
+              const [open, setOpen] = React.useState<boolean>(true);
               if (!hasChildren && g.href) {
                 return (
                   <a key={g.label+idx} href={g.href} className={isActive(g.href) ? 'nav-item active' : 'nav-item'}>
