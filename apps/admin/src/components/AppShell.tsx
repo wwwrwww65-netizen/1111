@@ -131,7 +131,6 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
           <nav>
             {NAV_GROUPS.map((g, idx) => {
               const hasChildren = Array.isArray(g.children) && g.children.length > 0;
-              const [open, setOpen] = React.useState<boolean>(true);
               if (!hasChildren && g.href) {
                 return (
                   <a key={g.label+idx} href={g.href} className={isActive(g.href) ? 'nav-item active' : 'nav-item'}>
@@ -140,11 +139,11 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
                 );
               }
               return (
-                <div key={g.label+idx} className={open ? 'nav-item active' : 'nav-item'}>
-                  <button onClick={()=> setOpen(v=>!v)} className="w-full text-right">
+                <div key={g.label+idx} className={'nav-item'}>
+                  <div className="w-full text-right" style={{fontWeight:700,opacity:.9,marginBottom:6}}>
                     {g.label}
-                  </button>
-                  <div className={open ? 'collapsible open mt-2' : 'collapsible closed mt-2'}>
+                  </div>
+                  <div className={'mt-2'}>
                     <div className="grid gap-1">
                       {(g.children||[]).map(ch => (
                         <a key={ch.href} href={ch.href} className={isActive(ch.href) ? 'nav-item active' : 'nav-item'}>
