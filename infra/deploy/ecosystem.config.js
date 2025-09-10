@@ -4,9 +4,10 @@ module.exports = {
       name: 'ecom-api',
       cwd: process.env.PROJECT_DIR || '/var/www/ecom',
       script: 'node',
-      args: 'packages/api/dist/index.js',
+      args: '-r dotenv/config packages/api/dist/index.js',
       env: {
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.jeeey.com'
       }
     },
     {
