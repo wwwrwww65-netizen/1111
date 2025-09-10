@@ -335,7 +335,7 @@ jobs:
           mkdir -p "$OUTDIR"
           cd "$GITHUB_WORKSPACE"
           echo "[screens] installing puppeteer"
-          npm i puppeteer@22 --no-audit --no-fund || true
+          npm i puppeteer@22 node-fetch@3 --no-audit --no-fund || true
           echo "[screens] running puppeteer capture"
           if ! node scripts/capture-admin-screens.js; then
             echo "[screens] Puppeteer failed; falling back to HTML snapshots"

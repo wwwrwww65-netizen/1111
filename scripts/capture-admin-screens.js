@@ -2,6 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const { setTimeout: sleep } = require('node:timers/promises');
+const fetch = (...args) => import('node-fetch').then(({default: f}) => f(...args));
 
 async function ensureDir(p) {
   await fs.promises.mkdir(p, { recursive: true });
@@ -23,25 +25,44 @@ async function run() {
   const email = 'admin@example.com';
   const password = 'admin123';
 
-  // 1) Login
-  await page.goto(`${adminBase}/login`, { waitUntil: 'networkidle2' });
-  // Type email in first text input
-  const inputs = await page.$$('input');
-  if (inputs.length === 0) throw new Error('No inputs found on login page');
-  await inputs[0].type(email, { delay: 10 });
-  // Type password
-  const pw = await page.$('input[type="password"]');
-  if (!pw) throw new Error('Password input not found');
-  await pw.type(password, { delay: 10 });
-  // Submit
-  const submit = await page.$('button[type="submit"]');
-  if (!submit) throw new Error('Submit button not found');
-  await submit.click();
-  try {
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 });
-  } catch {}
+  // 1) Programmatic login: call API and set auth_token cookie explicitly
+  async function apiLogin() {
+    const res = await fetch('https://api.jeeey.com/api/admin/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'origin': adminBase },
+      body: JSON.stringify({ email, password, remember: true }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`Login failed: ${res.status} ${txt}`);
+    }
+    let setCookies = [];
+    if (typeof res.headers.getSetCookie === 'function') {
+      setCookies = res.headers.getSetCookie();
+    } else {
+      const v = res.headers.get('set-cookie');
+      if (v) setCookies = Array.isArray(v) ? v : [v];
+    }
+    const cookieStr = setCookies.find((c) => c && c.startsWith('auth_token='));
+    if (!cookieStr) throw new Error('auth_token cookie not found in Set-Cookie');
+    const m = cookieStr.match(/^auth_token=([^;]+)/);
+    if (!m) throw new Error('Cannot parse auth_token value');
+    const token = m[1];
+    await page.setCookie({
+      name: 'auth_token',
+      value: token,
+      domain: '.jeeey.com',
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+    });
+  }
+  await apiLogin();
+  await sleep(300);
 
   // 2) Screenshot dashboard (full) and sidebar
+  await page.goto(`${adminBase}/`, { waitUntil: 'networkidle2' });
   await page.screenshot({ path: path.join(baseOut, 'dashboard-full.png'), fullPage: true });
   const sidebar = await page.$('.sidebar');
   if (sidebar) {
