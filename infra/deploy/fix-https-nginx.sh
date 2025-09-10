@@ -27,11 +27,13 @@ log "Using nginx conf dir: $CONF_DIR (enabled: $ENABLED_DIR)"
 
 HTTP_CONF="$CONF_DIR/jeeey.conf"
 log "Writing HTTP config: $HTTP_CONF"
-$SUDO tee "$HTTP_CONF" >/dev/null <<CFG
-server { listen 80; listen [::]:80; server_name $DOMAIN_WEB www.$DOMAIN_WEB; location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
-server { listen 80; listen [::]:80; server_name $DOMAIN_ADMIN; location / { proxy_pass http://127.0.0.1:3001; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
-server { listen 80; listen [::]:80; server_name $DOMAIN_API; location / { proxy_pass http://127.0.0.1:4000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+$SUDO tee "$HTTP_CONF" >/dev/null <<'CFG'
+server { listen 80; listen [::]:80; server_name DOMAIN_WEB_PLACEHOLDER www.DOMAIN_WEB_PLACEHOLDER; location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+server { listen 80; listen [::]:80; server_name DOMAIN_ADMIN_PLACEHOLDER; location / { proxy_pass http://127.0.0.1:3001; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+server { listen 80; listen [::]:80; server_name DOMAIN_API_PLACEHOLDER; location / { proxy_pass http://127.0.0.1:4000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
 CFG
+# Replace placeholders with actual env values safely
+$SUDO sed -i "s/DOMAIN_WEB_PLACEHOLDER/$DOMAIN_WEB/g; s/DOMAIN_ADMIN_PLACEHOLDER/$DOMAIN_ADMIN/g; s/DOMAIN_API_PLACEHOLDER/$DOMAIN_API/g" "$HTTP_CONF"
 
 if [ "$ENABLED_DIR" != "$CONF_DIR" ]; then $SUDO ln -sf "$HTTP_CONF" "$ENABLED_DIR/jeeey.conf"; fi
 
@@ -51,11 +53,12 @@ ADMIN_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_ADMIN"
 API_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_API"
 
 log "Writing explicit SSL server blocks: $SSL_CONF"
-$SUDO bash -lc "cat > '$SSL_CONF' <<CFG
-server { listen 443 ssl; listen [::]:443 ssl; server_name $DOMAIN_WEB www.$DOMAIN_WEB; ssl_certificate $WEB_CERT_DIR/fullchain.pem; ssl_certificate_key $WEB_CERT_DIR/privkey.pem; include /etc/letsencrypt/options-ssl-nginx.conf; ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; } }
-server { listen 443 ssl; listen [::]:443 ssl; server_name $DOMAIN_ADMIN; ssl_certificate $ADMIN_CERT_DIR/fullchain.pem; ssl_certificate_key $ADMIN_CERT_DIR/privkey.pem; include /etc/letsencrypt/options-ssl-nginx.conf; ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; location / { proxy_pass http://127.0.0.1:3001; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; } }
-server { listen 443 ssl; listen [::]:443 ssl; server_name $DOMAIN_API; ssl_certificate $API_CERT_DIR/fullchain.pem; ssl_certificate_key $API_CERT_DIR/privkey.pem; include /etc/letsencrypt/options-ssl-nginx.conf; ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; location / { proxy_pass http://127.0.0.1:4000; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; } }
+$SUDO bash -lc "cat > '$SSL_CONF' <<'CFG'
+server { listen 443 ssl; listen [::]:443 ssl; server_name DOMAIN_WEB_PLACEHOLDER www.DOMAIN_WEB_PLACEHOLDER; ssl_certificate WEB_CERT_DIR_PLACEHOLDER/fullchain.pem; ssl_certificate_key WEB_CERT_DIR_PLACEHOLDER/privkey.pem; include /etc/letsencrypt/options-ssl-nginx.conf; ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+server { listen 443 ssl; listen [::]:443 ssl; server_name DOMAIN_ADMIN_PLACEHOLDER; ssl_certificate ADMIN_CERT_DIR_PLACEHOLDER/fullchain.pem; ssl_certificate_key ADMIN_CERT_DIR_PLACEHOLDER/privkey.pem; include /etc/letsencrypt/options-ssl-nginx.conf; ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; location / { proxy_pass http://127.0.0.1:3001; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+server { listen 443 ssl; listen [::]:443 ssl; server_name DOMAIN_API_PLACEHOLDER; ssl_certificate API_CERT_DIR_PLACEHOLDER/fullchain.pem; ssl_certificate_key API_CERT_DIR_PLACEHOLDER/privkey.pem; include /etc/letsencrypt/options-ssl-nginx.conf; ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; location / { proxy_pass http://127.0.0.1:4000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
 CFG"
+$SUDO sed -i "s/DOMAIN_WEB_PLACEHOLDER/$DOMAIN_WEB/g; s/DOMAIN_ADMIN_PLACEHOLDER/$DOMAIN_ADMIN/g; s/DOMAIN_API_PLACEHOLDER/$DOMAIN_API/g; s#WEB_CERT_DIR_PLACEHOLDER#$WEB_CERT_DIR#g; s#ADMIN_CERT_DIR_PLACEHOLDER#$ADMIN_CERT_DIR#g; s#API_CERT_DIR_PLACEHOLDER#$API_CERT_DIR#g" "$SSL_CONF"
 
 if [ "$ENABLED_DIR" != "$CONF_DIR" ]; then $SUDO ln -sf "$SSL_CONF" "$ENABLED_DIR/jeeey-ssl.conf"; fi
 
