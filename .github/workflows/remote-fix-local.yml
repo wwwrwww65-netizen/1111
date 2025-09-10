@@ -246,3 +246,25 @@ jobs:
           echo "status: $CODE"
           rm -rf "$TMP_DIR" || true
           test "$CODE" = "200"
+
+      - name: Verify Finance & Loyalty pages (must be 200)
+        run: |
+          set -euo pipefail
+          TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
+          curl -fsS -i \
+            -H "Content-Type: application/json" \
+            -H "Origin: https://admin.jeeey.com" \
+            -c "$CJ" \
+            --data '{"email":"admin@example.com","password":"admin123"}' \
+            "https://api.jeeey.com/api/admin/auth/login" >/dev/null
+          for path in \
+            "/finance/revenues" \
+            "/finance/expenses" \
+            "/loyalty/points" \
+            "/loyalty/points-log" \
+          ; do
+            CODE=$(curl -fsS -L -b "$CJ" -o /dev/null -w "%{http_code}" "https://admin.jeeey.com${path}")
+            echo "${path}: $CODE"
+            test "$CODE" = "200"
+          done
+          rm -rf "$TMP_DIR" || true
