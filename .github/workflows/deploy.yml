@@ -88,9 +88,9 @@ jobs:
           DOMAIN_API: ${{ secrets.DOMAIN_API || 'api.jeeey.com' }}
         run: |
           set -euo pipefail
-          sudo chmod +x "$PROJECT_DIR/infra/deploy/ensure-https.sh" || true
-          sudo PROJECT_DIR="$PROJECT_DIR" CERTBOT_EMAIL="$CERTBOT_EMAIL" DOMAIN_WEB="$DOMAIN_WEB" DOMAIN_ADMIN="$DOMAIN_ADMIN" DOMAIN_API="$DOMAIN_API" \
-            bash "$PROJECT_DIR/infra/deploy/ensure-https.sh" 2>&1 | sed -u 's/::error/::notice/g'
+          sudo chmod +x "$PROJECT_DIR/infra/deploy/fix-https-nginx.sh" || true
+          sudo CERTBOT_EMAIL="$CERTBOT_EMAIL" DOMAIN_WEB="$DOMAIN_WEB" DOMAIN_ADMIN="$DOMAIN_ADMIN" DOMAIN_API="$DOMAIN_API" \
+            bash "$PROJECT_DIR/infra/deploy/fix-https-nginx.sh" 2>&1 | sed -u 's/::error/::notice/g'
 
       - name: Remote setup locally (self-hosted)
         continue-on-error: true
