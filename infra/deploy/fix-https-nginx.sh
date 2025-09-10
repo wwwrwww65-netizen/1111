@@ -10,11 +10,13 @@ need CERTBOT_EMAIL
 : "${DOMAIN_API:=api.jeeey.com}"
 
 if [ "${EUID:-$(id -u)}" -ne 0 ]; then SUDO="sudo"; else SUDO=""; fi
+WEBROOT_DIR="/var/www/letsencrypt"
 export DEBIAN_FRONTEND=noninteractive
 
 log "Installing nginx, ufw, certbot..."
 $SUDO apt-get update -y
 $SUDO apt-get install -y nginx ufw certbot python3-certbot-nginx
+$SUDO mkdir -p "$WEBROOT_DIR" && $SUDO chown -R www-data:www-data "$WEBROOT_DIR" || true
 
 log "Opening firewall ports 80/443 via UFW..."
 $SUDO ufw allow OpenSSH >/dev/null 2>&1 || true
@@ -32,11 +34,11 @@ $SUDO rm -f /etc/nginx/conf.d/default.conf || true
 $SUDO rm -f /etc/nginx/conf.d/jeeey.conf || true
 
 HTTP_CONF="$CONF_DIR/jeeey.conf"
-log "Writing HTTP config: $HTTP_CONF"
+log "Writing HTTP config with ACME webroot: $HTTP_CONF"
 $SUDO tee "$HTTP_CONF" >/dev/null <<'CFG'
-server { listen 80; listen [::]:80; server_name DOMAIN_WEB_PLACEHOLDER www.DOMAIN_WEB_PLACEHOLDER; location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
-server { listen 80; listen [::]:80; server_name DOMAIN_ADMIN_PLACEHOLDER; location / { proxy_pass http://127.0.0.1:3001; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
-server { listen 80; listen [::]:80; server_name DOMAIN_API_PLACEHOLDER; location / { proxy_pass http://127.0.0.1:4000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+server { listen 80; listen [::]:80; server_name DOMAIN_WEB_PLACEHOLDER www.DOMAIN_WEB_PLACEHOLDER; location ^~ /.well-known/acme-challenge/ { root /var/www/letsencrypt; default_type text/plain; allow all; } location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+server { listen 80; listen [::]:80; server_name DOMAIN_ADMIN_PLACEHOLDER; location ^~ /.well-known/acme-challenge/ { root /var/www/letsencrypt; default_type text/plain; allow all; } location / { proxy_pass http://127.0.0.1:3001; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
+server { listen 80; listen [::]:80; server_name DOMAIN_API_PLACEHOLDER; location ^~ /.well-known/acme-challenge/ { root /var/www/letsencrypt; default_type text/plain; allow all; } location / { proxy_pass http://127.0.0.1:4000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; } }
 CFG
 # Replace placeholders with actual env values safely
 $SUDO sed -i "s/DOMAIN_WEB_PLACEHOLDER/$DOMAIN_WEB/g; s/DOMAIN_ADMIN_PLACEHOLDER/$DOMAIN_ADMIN/g; s/DOMAIN_API_PLACEHOLDER/$DOMAIN_API/g" "$HTTP_CONF"
@@ -47,7 +49,7 @@ $SUDO nginx -t
 $SUDO systemctl enable nginx || true
 $SUDO systemctl restart nginx
 
-issue_cert(){ local domain="$1"; shift; log "Issuing/renewing certificate (certonly) for: $domain $*"; set +e; certbot certonly --nginx -n --agree-tos -m "$CERTBOT_EMAIL" -d "$domain" "$@"; local rc=$?; set -e; if [ $rc -ne 0 ]; then log "certbot for $domain returned non-zero ($rc), continuing"; fi; }
+issue_cert(){ local domain="$1"; shift; log "Issuing/renewing certificate (webroot) for: $domain $*"; set +e; certbot certonly --webroot -w "$WEBROOT_DIR" -n --agree-tos -m "$CERTBOT_EMAIL" -d "$domain" "$@"; local rc=$?; set -e; if [ $rc -ne 0 ]; then log "certbot for $domain returned non-zero ($rc), continuing"; fi; }
 
 issue_cert "$DOMAIN_WEB" -d "www.$DOMAIN_WEB"
 issue_cert "$DOMAIN_ADMIN"
