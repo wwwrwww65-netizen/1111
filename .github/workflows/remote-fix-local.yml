@@ -331,12 +331,32 @@ jobs:
       - name: Capture admin screenshots and upload artifact
         run: |
           set -euo pipefail
+          OUTDIR="/tmp/admin-snap/screenshots"
+          mkdir -p "$OUTDIR"
           cd "$GITHUB_WORKSPACE"
+          echo "[screens] installing puppeteer"
           npm i puppeteer@22 --no-audit --no-fund || true
-          node scripts/capture-admin-screens.js || true
+          echo "[screens] running puppeteer capture"
+          if ! node scripts/capture-admin-screens.js; then
+            echo "[screens] Puppeteer failed; falling back to HTML snapshots"
+            TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
+            # Login via API to get cookie
+            curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+              --data '{"email":"admin@example.com","password":"admin123"}' \
+              "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,20p' | cat
+            # Fetch HTML pages
+            for p in / /notifications /finance/revenues /loyalty/points; do
+              safe=$(echo "$p" | sed 's#/#-#g' | sed 's/^-//')
+              curl -fsS -L -b "$CJ" "https://admin.jeeey.com$p" -o "$OUTDIR/${safe}.html" || true
+            done
+            rm -rf "$TMP_DIR" || true
+          fi
+          echo "[screens] listing output dir" && ls -la "$OUTDIR" || true
         shell: bash
       - name: Upload screenshots artifact
         uses: actions/upload-artifact@v4
         with:
           name: admin-screenshots
-          path: /tmp/admin-snap/screenshots/*.png
+          path: |
+            /tmp/admin-snap/screenshots/*.png
+            /tmp/admin-snap/screenshots/*.html
