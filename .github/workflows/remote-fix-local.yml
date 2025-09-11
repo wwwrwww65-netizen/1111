@@ -400,6 +400,18 @@ jobs:
           echo "=== Done diagnostics ==="
 
       - name: Full sync from origin/main, clean build, restart, verify (final)
+        env:
+          API_DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
+          API_JWT_SECRET: ${{ secrets.API_JWT_SECRET }}
+          API_COOKIE_DOMAIN: ${{ secrets.API_COOKIE_DOMAIN }}
+          API_CORS_ALLOW_ORIGINS: ${{ secrets.API_CORS_ALLOW_ORIGINS }}
+          API_NEXT_PUBLIC_ADMIN_URL: ${{ secrets.API_NEXT_PUBLIC_ADMIN_URL }}
+          API_NEXT_PUBLIC_APP_URL: ${{ secrets.API_NEXT_PUBLIC_APP_URL }}
+          API_MAINTENANCE_SECRET: ${{ secrets.API_MAINTENANCE_SECRET }}
+          ADMIN_NEXT_PUBLIC_API_BASE_URL: ${{ secrets.ADMIN_NEXT_PUBLIC_API_BASE_URL }}
+          ADMIN_NEXT_PUBLIC_APP_URL: ${{ secrets.ADMIN_NEXT_PUBLIC_APP_URL }}
+          WEB_NEXT_PUBLIC_API_BASE_URL: ${{ secrets.WEB_NEXT_PUBLIC_API_BASE_URL }}
+          WEB_NEXT_PUBLIC_APP_URL: ${{ secrets.WEB_NEXT_PUBLIC_APP_URL }}
         run: |
           set -euxo pipefail
           PROJ="/var/www/ecom"
@@ -421,6 +433,26 @@ jobs:
           fi
           # Ensure writable by runner user
           sudo chown -R "$(whoami)":"$(id -gn)" "$PROJ"
+
+          echo "[env] re-write .env files after sync"
+          sudo install -d -m 755 "$PROJ/packages/api" "$PROJ/apps/admin" "$PROJ/apps/web"
+          sudo tee "$PROJ/packages/api/.env" >/dev/null <<EOF
+          DATABASE_URL=${API_DATABASE_URL}
+          JWT_SECRET=${API_JWT_SECRET}
+          COOKIE_DOMAIN=${API_COOKIE_DOMAIN}
+          CORS_ALLOW_ORIGINS=${API_CORS_ALLOW_ORIGINS}
+          NEXT_PUBLIC_ADMIN_URL=${API_NEXT_PUBLIC_ADMIN_URL}
+          NEXT_PUBLIC_APP_URL=${API_NEXT_PUBLIC_APP_URL}
+          MAINTENANCE_SECRET=${API_MAINTENANCE_SECRET}
+          EOF
+          sudo tee "$PROJ/apps/admin/.env" >/dev/null <<EOF
+          NEXT_PUBLIC_API_BASE_URL=${ADMIN_NEXT_PUBLIC_API_BASE_URL}
+          NEXT_PUBLIC_APP_URL=${ADMIN_NEXT_PUBLIC_APP_URL}
+          EOF
+          sudo tee "$PROJ/apps/web/.env" >/dev/null <<EOF
+          NEXT_PUBLIC_API_BASE_URL=${WEB_NEXT_PUBLIC_API_BASE_URL}
+          NEXT_PUBLIC_APP_URL=${WEB_NEXT_PUBLIC_APP_URL}
+          EOF
 
           echo "[deps] installing"
           if command -v corepack >/dev/null 2>&1; then corepack enable || true; corepack prepare pnpm@9 --activate || true; fi
