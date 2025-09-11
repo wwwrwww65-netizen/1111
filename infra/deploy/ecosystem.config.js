@@ -13,8 +13,8 @@ module.exports = {
     {
       name: 'ecom-web',
       cwd: (process.env.PROJECT_DIR ? `${process.env.PROJECT_DIR}/apps/web` : '/var/www/ecom/apps/web'),
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 3000',
+      script: 'node',
+      args: '.next/standalone/apps/web/server.js',
       env: {
         NODE_ENV: 'production',
         PORT: '3000'
@@ -23,8 +23,8 @@ module.exports = {
     {
       name: 'ecom-admin',
       cwd: (process.env.PROJECT_DIR ? `${process.env.PROJECT_DIR}/apps/admin` : '/var/www/ecom/apps/admin'),
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 3001',
+      script: 'node',
+      args: '.next/standalone/apps/admin/server.js',
       env: {
         NODE_ENV: 'production',
         PORT: '3001'

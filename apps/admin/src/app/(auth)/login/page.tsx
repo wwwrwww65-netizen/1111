@@ -22,8 +22,10 @@ export default function AdminLogin(): JSX.Element {
     try {
       setBusy(true);
       const res = await fetch(`${apiBase}/api/admin/auth/login`, {
-        method: 'POST', headers: { 'content-type':'application/json' }, credentials: 'include',
-        body: JSON.stringify({ email, password, remember })
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        credentials: 'include',
+        body: new URLSearchParams({ email, password, remember: String(remember) }).toString()
       });
       if (!res.ok) {
         const jerr = await res.json().catch(()=>({error:'login_failed'}));
