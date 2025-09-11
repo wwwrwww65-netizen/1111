@@ -122,16 +122,18 @@ jobs:
                  bash "$PROJECT_DIR/infra/deploy/remote-deploy.sh" 2>&1 | sed -u 's/::error/::notice/g'
           else
             echo "[deploy] remote-deploy.sh not found; performing manual install/build/restart"
-            sudo -u deploy bash -lc 'set -euo pipefail; cd "$PROJECT_DIR"; \
+            sudo -u deploy bash -lc "set -euo pipefail; \
+              PROJECT_DIR='${PROJECT_DIR}'; \
+              cd \"$PROJECT_DIR\"; \
               corepack enable || true; corepack prepare pnpm@9 --activate || true; \
-              pnpm config set store-dir "$PROJECT_DIR/.pnpm-store" --location project; \
-              pnpm install --force --no-frozen-lockfile --store-dir="$PROJECT_DIR/.pnpm-store"; \
+              pnpm config set store-dir \"$PROJECT_DIR/.pnpm-store\" --location project; \
+              PNPM_CONFIG_STORE_DIR=\"$PROJECT_DIR/.pnpm-store\" pnpm install --force --no-frozen-lockfile --store-dir=\"$PROJECT_DIR/.pnpm-store\"; \
               pnpm -C apps/admin build; \
               pnpm -C apps/web build; \
               pm2 delete ecom-web || true; pm2 delete ecom-admin || true; \
-              pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-web || true; \
-              pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-admin || true; \
-              pm2 save || true'
+              pm2 start \"$PROJECT_DIR/infra/deploy/ecosystem.config.js\" --only ecom-web || true; \
+              pm2 start \"$PROJECT_DIR/infra/deploy/ecosystem.config.js\" --only ecom-admin || true; \
+              pm2 save || true"
           fi
 
       - name: Verify services health
