@@ -11,6 +11,14 @@ type NavGroup = {
 };
 
 const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'روابط سريعة',
+    children: [
+      { href: '/notifications', label: 'الإشعارات' },
+      { href: '/finance/revenues', label: 'المالية' },
+      { href: '/loyalty/points', label: 'الولاء' },
+    ],
+  },
   { label: 'لوحة', href: '/' },
   { label: 'المنتجات', href: '/products' },
   { label: 'التصنيفات', href: '/categories' },
