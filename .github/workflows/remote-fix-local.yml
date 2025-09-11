@@ -69,6 +69,8 @@ jobs:
           command -v pnpm >/dev/null 2>&1 || sudo npm i -g pnpm@9 || true
           PNPM_STORE="$DEST/.pnpm-store"
           ( cd "$DEST" && pnpm config set store-dir "$PNPM_STORE" --location project || true )
+          # Clean build cache
+          sudo rm -rf "$DEST/apps/admin/.next" || true
           ( cd "$DEST" && pnpm install --force --no-frozen-lockfile --store-dir "$PNPM_STORE" )
           ( cd "$DEST" && pnpm --filter admin build )
           pm2 restart ecom-admin --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
