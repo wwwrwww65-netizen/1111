@@ -32,6 +32,17 @@ export default function AdminHome(): JSX.Element {
   },[apiBase]);
   return (
     <div className="grid" style={{gap:16}}>
+      <div style={{
+        padding:'14px 16px',
+        border:'1px solid #1c2333',
+        borderRadius:12,
+        background:'linear-gradient(90deg,#0f1420 0%, #101939 100%)',
+        color:'#e2e8f0',
+        boxShadow:'0 2px 12px rgba(0,0,0,0.25)'
+      }}>
+        <div style={{fontSize:20,fontWeight:800,marginBottom:4}}>مرحباً بك أيها المدير 👋</div>
+        <div style={{opacity:0.85}}>نتمنى لك يوماً مليئاً بالإنجاز. يمكنك البدء من الإجراءات السريعة أو استعراض آخر الأنشطة أدناه.</div>
+      </div>
       <div className="grid cols-3">
         <div className="card"><div style={{color:'var(--sub)'}}>المستخدمون</div><div style={{fontSize:28,fontWeight:800}}>{kpis.users ?? (busy?'…':'-')}</div></div>
         <div className="card"><div style={{color:'var(--sub)'}}>الطلبات</div><div style={{fontSize:28,fontWeight:800}}>{kpis.orders ?? (busy?'…':'-')}</div></div>
