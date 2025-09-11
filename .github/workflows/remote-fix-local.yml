@@ -340,6 +340,35 @@ jobs:
           done
           rm -rf "$TMP_DIR" || true
 
+      - name: Check built admin routes exist in .next (notifications/finance/loyalty)
+        run: |
+          set -euo pipefail
+          ROOT="/var/www/ecom/apps/admin/.next/server/app"
+          echo "[tree head] $ROOT" && ls -la "$ROOT" | sed -n '1,80p' | cat || true
+          for r in notifications finance/revenues loyalty/points; do
+            echo "-- route: $r"
+            if ls "$ROOT/$r"/page.* 1>/dev/null 2>&1; then ls -la "$ROOT/$r"/page.* | cat; else echo "MISSING: $ROOT/$r/page.*"; fi
+          done
+
+      - name: Verify sidebar HTML contains links (notifications/finance/loyalty)
+        run: |
+          set -euo pipefail
+          TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
+          # Login to get cookie
+          curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+            --data '{"email":"admin@example.com","password":"admin123"}' \
+            "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,20p' | cat
+          # Fetch admin root HTML and grep for sidebar links
+          HTML="$TMP_DIR/root.html"
+          curl -fsS -L -b "$CJ" "https://admin.jeeey.com/" -o "$HTML"
+          echo "[grep links]"
+          for href in 'href="/notifications"' 'href="/finance/revenues"' 'href="/loyalty/points"'; do
+            echo -n "$href -> ";
+            if grep -q "$href" "$HTML"; then echo "FOUND"; else echo "NOT FOUND"; fi
+          done
+          echo "[first 40 lines of HTML]" && sed -n '1,40p' "$HTML" | cat || true
+          rm -rf "$TMP_DIR" || true
+
       - name: Live verbose diagnostics (admin build, nginx, pm2, curls)
         run: |
           set -euxo pipefail
