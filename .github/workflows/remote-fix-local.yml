@@ -459,6 +459,27 @@ jobs:
           done
           rm -rf "$TMP_DIR" || true
 
+      - name: Verify repo->server sync (commit and checksums)
+        run: |
+          set -euo pipefail
+          WS="$GITHUB_WORKSPACE"
+          PROJ="/var/www/ecom"
+          echo "[commit] workspace (GITHUB_SHA)" && echo "$GITHUB_SHA" | cat
+          echo "[commit] workspace HEAD" && (cd "$WS" && git rev-parse HEAD) | cat
+          echo "[commit] server HEAD" && (cd "$PROJ" && git rev-parse HEAD) | cat
+          WSH=$(cd "$WS" && git rev-parse HEAD)
+          SVH=$(cd "$PROJ" && git rev-parse HEAD)
+          if [ "$WSH" != "$SVH" ]; then echo "MISMATCH: server not on same commit"; fi
+          # Compare a few key files checksums
+          for f in apps/admin/src/components/AppShell.tsx apps/admin/src/app/notifications/page.tsx apps/admin/src/app/finance/revenues/page.tsx; do
+            if [ -f "$WS/$f" ] && [ -f "$PROJ/$f" ]; then
+              echo "[sha256] $f"; sha256sum "$WS/$f" | awk '{print "WS:",$1}'; sha256sum "$PROJ/$f" | awk '{print "SV:",$1}';
+            else
+              echo "[missing] $f (on WS or SV)";
+            fi
+          done
+          # Ensure built routes exist
+          echo "[built routes exist]" && ls -la "$PROJ/apps/admin/.next/server/app/finance" | sed -n '1,40p' | cat || true
       - name: Capture admin screenshots and upload artifact
         run: |
           set -euo pipefail
