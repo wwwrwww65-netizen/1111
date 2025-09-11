@@ -413,11 +413,14 @@ jobs:
             git fetch --all --prune
             git reset --hard origin/main
           else
-            mkdir -p "$PROJ.tmp"
-            git clone --depth=1 "$REPO" "$PROJ.tmp"
-            sudo rsync -a --delete "$PROJ.tmp"/ "$PROJ"/
-            rm -rf "$PROJ.tmp"
+            TMP_DIR="$(mktemp -d)"
+            git clone --depth=1 "$REPO" "$TMP_DIR"
+            sudo install -d -m 755 "$PROJ"
+            sudo rsync -a --delete "$TMP_DIR"/ "$PROJ"/
+            rm -rf "$TMP_DIR"
           fi
+          # Ensure writable by runner user
+          sudo chown -R "$(whoami)":"$(id -gn)" "$PROJ"
 
           echo "[deps] installing"
           if command -v corepack >/dev/null 2>&1; then corepack enable || true; corepack prepare pnpm@9 --activate || true; fi
