@@ -399,6 +399,66 @@ jobs:
           rm -rf "$TMP_DIR" || true
           echo "=== Done diagnostics ==="
 
+      - name: Full sync from origin/main, clean build, restart, verify (final)
+        run: |
+          set -euxo pipefail
+          PROJ="/var/www/ecom"
+          REPO="https://github.com/wwwrwww65-netizen/1111.git"
+          PNPM_STORE="$PROJ/.pnpm-store"
+
+          echo "[sync] fetching latest origin/main into $PROJ"
+          if [ -d "$PROJ/.git" ]; then
+            cd "$PROJ"
+            git remote set-url origin "$REPO"
+            git fetch --all --prune
+            git reset --hard origin/main
+          else
+            mkdir -p "$PROJ.tmp"
+            git clone --depth=1 "$REPO" "$PROJ.tmp"
+            sudo rsync -a --delete "$PROJ.tmp"/ "$PROJ"/
+            rm -rf "$PROJ.tmp"
+          fi
+
+          echo "[deps] installing"
+          if command -v corepack >/dev/null 2>&1; then corepack enable || true; corepack prepare pnpm@9 --activate || true; fi
+          command -v pnpm >/dev/null 2>&1 || sudo npm i -g pnpm@9 || true
+          cd "$PROJ"
+          pnpm config set store-dir "$PNPM_STORE" --location project || true
+          pnpm install --force --no-frozen-lockfile --store-dir "$PNPM_STORE"
+
+          echo "[api] env check & build"
+          test -f packages/api/.env
+          set -a; . packages/api/.env; set +a
+          : "${DATABASE_URL:?missing}"
+          : "${JWT_SECRET:?missing}"
+          pnpm --filter @repo/db db:generate || true
+          pnpm --filter @repo/db db:push || true
+          pnpm --filter @repo/api build || true
+
+          echo "[admin] clean build"
+          rm -rf "$PROJ/apps/admin/.next" || true
+          pnpm --filter admin build
+
+          echo "[pm2] restart apps"
+          pm2 restart ecom-admin --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
+          pm2 restart ecom-api   --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-api --update-env   || true
+          pm2 restart ecom-web   --update-env || pm2 start /etc/pm2.ecosystem.config.js --only ecom-web --update-env   || true
+          pm2 save || true
+          sleep 3
+
+          echo "[verify] API health" && curl -fsSI http://127.0.0.1:4000/health | head -n1 | cat
+          echo "[verify] built routes present" && ls -la "$PROJ/apps/admin/.next/server/app/finance" | sed -n '1,40p' | cat || true
+
+          echo "[verify] login and GET 200"
+          TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
+          curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+            --data '{"email":"admin@example.com","password":"admin123"}' \
+            "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,20p' | cat
+          for P in /notifications /finance/revenues /loyalty/points; do
+            printf "[GET %s] " "$P"; curl -fsS -L -b "$CJ" -o /dev/null -w "%{http_code}\n" "https://admin.jeeey.com$P" || true
+          done
+          rm -rf "$TMP_DIR" || true
+
       - name: Capture admin screenshots and upload artifact
         run: |
           set -euo pipefail
