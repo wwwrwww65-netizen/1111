@@ -110,12 +110,29 @@ jobs:
           set -euo pipefail
           sudo chown -R deploy:deploy "$PROJECT_DIR" || true
           sudo chmod -R u+rwX,go-r "$PROJECT_DIR" || true
-          sudo chmod +x "$PROJECT_DIR/infra/deploy/remote-deploy.sh" || true
-          sudo -u deploy PROJECT_DIR="$PROJECT_DIR" \
-               GIT_SHA=${{ github.sha }} \
-               GIT_RUN_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
-               NODE_ENV=production \
-               bash "$PROJECT_DIR/infra/deploy/remote-deploy.sh" 2>&1 | sed -u 's/::error/::notice/g'
+          # Clean previous Next.js builds (avoid rmdir failures)
+          sudo -u deploy bash -lc 'rm -rf "$PROJECT_DIR"/apps/admin/.next "$PROJECT_DIR"/apps/web/.next || true'
+          # If a custom remote-deploy script exists, use it; otherwise do install/build/restart here
+          if [ -x "$PROJECT_DIR/infra/deploy/remote-deploy.sh" ]; then
+            sudo chmod +x "$PROJECT_DIR/infra/deploy/remote-deploy.sh" || true
+            sudo -u deploy PROJECT_DIR="$PROJECT_DIR" \
+                 GIT_SHA=${{ github.sha }} \
+                 GIT_RUN_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
+                 NODE_ENV=production \
+                 bash "$PROJECT_DIR/infra/deploy/remote-deploy.sh" 2>&1 | sed -u 's/::error/::notice/g'
+          else
+            echo "[deploy] remote-deploy.sh not found; performing manual install/build/restart"
+            sudo -u deploy bash -lc 'set -euo pipefail; cd "$PROJECT_DIR"; \
+              corepack enable || true; corepack prepare pnpm@9 --activate || true; \
+              pnpm config set store-dir "$PROJECT_DIR/.pnpm-store" --location project; \
+              pnpm install --force --no-frozen-lockfile --store-dir="$PROJECT_DIR/.pnpm-store"; \
+              pnpm -C apps/admin build; \
+              pnpm -C apps/web build; \
+              pm2 delete ecom-web || true; pm2 delete ecom-admin || true; \
+              pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-web || true; \
+              pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-admin || true; \
+              pm2 save || true'
+          fi
 
       - name: Verify services health
         run: |
