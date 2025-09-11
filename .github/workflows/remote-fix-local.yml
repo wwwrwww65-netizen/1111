@@ -338,6 +338,36 @@ jobs:
           done
           rm -rf "$TMP_DIR" || true
 
+      - name: Live verbose diagnostics (admin build, nginx, pm2, curls)
+        run: |
+          set -euxo pipefail
+          echo "=== Whoami & Host ===" && whoami && uname -a && date -u
+          echo "=== Admin build tree (.next/server/app) ==="
+          ADMIN_DIR="/var/www/ecom/apps/admin"
+          if [ -d "$ADMIN_DIR/.next/server/app" ]; then
+            (cd "$ADMIN_DIR/.next/server/app" && find . -maxdepth 3 -type f | sort | sed -n '1,400p' ) | cat || true
+          else
+            echo ".next/server/app not found"; fi
+          echo "=== Nginx admin server block (443) ==="
+          sudo nginx -T 2>/dev/null | awk '/server_name admin\.jeeey\.com/{flag=1} /server_name/{if(flag && !/admin\\.jeeey\\.com/) flag=0} flag' | sed -n '1,200p' | cat || true
+          echo "=== PM2 status ===" && pm2 status | sed -n '1,200p' | cat || true
+          echo "=== PM2 logs ecom-admin (tail) ===" && pm2 logs ecom-admin --lines 60 --nostream | tail -n 60 | cat || true
+          echo "=== API login & curls (HEAD then GET) ==="
+          TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
+          curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+            --data '{"email":"admin@example.com","password":"admin123"}' "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,25p' | cat
+          for m in HEAD GET; do
+            for p in / /notifications /finance/revenues /loyalty/points; do
+              if [ "$m" = HEAD ]; then
+                echo "--- HEAD $p ---"; curl -fsS -I -b "$CJ" -L "https://admin.jeeey.com$p" | sed -n '1,10p' | cat || true
+              else
+                echo "--- GET $p (status only) ---"; curl -fsS -L -b "$CJ" -o /dev/null -w "%{http_code}\n" "https://admin.jeeey.com$p" || true
+              fi
+            done
+          done
+          rm -rf "$TMP_DIR" || true
+          echo "=== Done diagnostics ==="
+
       - name: Capture admin screenshots and upload artifact
         run: |
           set -euo pipefail
