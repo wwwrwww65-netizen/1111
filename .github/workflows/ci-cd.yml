@@ -87,6 +87,9 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for analysis tools
 
+      - name: Ensure pnpm cache dir (~/.pnpm-store) exists
+        run: mkdir -p "$HOME/.pnpm-store"
+
       - name: Enable corepack
         run: corepack enable
       - name: Use pnpm 8.6.10
@@ -175,6 +178,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Ensure pnpm cache dir (~/.pnpm-store) exists
+        run: mkdir -p "$HOME/.pnpm-store"
 
       - name: Enable corepack
         run: corepack enable
