@@ -128,9 +128,11 @@ jobs:
               corepack enable || true; corepack prepare pnpm@9 --activate || true; \
               pnpm config set store-dir \"$PROJECT_DIR/.pnpm-store\" --location project; \
               PNPM_CONFIG_STORE_DIR=\"$PROJECT_DIR/.pnpm-store\" pnpm install --force --no-frozen-lockfile --store-dir=\"$PROJECT_DIR/.pnpm-store\"; \
+              pnpm -C packages/api build; \
               pnpm -C apps/admin build; \
               pnpm -C apps/web build; \
-              pm2 delete ecom-web || true; pm2 delete ecom-admin || true; \
+              pm2 delete ecom-api || true; pm2 delete ecom-web || true; pm2 delete ecom-admin || true; \
+              pm2 start \"$PROJECT_DIR/infra/deploy/ecosystem.config.js\" --only ecom-api || true; \
               pm2 start \"$PROJECT_DIR/infra/deploy/ecosystem.config.js\" --only ecom-web || true; \
               pm2 start \"$PROJECT_DIR/infra/deploy/ecosystem.config.js\" --only ecom-admin || true; \
               pm2 save || true"
