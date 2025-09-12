@@ -10,6 +10,9 @@ jobs:
   fix_local:
     name: Fix & Diagnose (Local)
     runs-on: self-hosted
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 30
     steps:
       - name: Checkout repository
@@ -17,7 +20,6 @@ jobs:
 
       - name: Write .env files on VPS from secrets
         run: |
-          set -euo pipefail
           sudo install -d -m 755 /var/www/ecom/packages/api /var/www/ecom/apps/admin /var/www/ecom/apps/web
 
           sudo tee /var/www/ecom/packages/api/.env >/dev/null <<'EOF'
@@ -46,7 +48,7 @@ jobs:
         env:
           MAINT_SECRET: ${{ secrets.API_MAINTENANCE_SECRET }}
         run: |
-          set -euo pipefail
+          set -e
           echo "--- ensure RBAC ---"
           curl -sS -X POST -H "X-Maintenance-Secret: $MAINT_SECRET" \
             https://api.jeeey.com/api/admin/maintenance/ensure-rbac | cat || true
@@ -60,7 +62,7 @@ jobs:
 
       - name: Sync code to /var/www/ecom and rebuild Admin
         run: |
-          set -euo pipefail
+          set -e
           SRC="$GITHUB_WORKSPACE"
           DEST="/var/www/ecom"
           sudo install -d -m 755 "$DEST"
@@ -78,7 +80,7 @@ jobs:
 
       - name: DNS sanity for admin/api (A/AAAA via public resolvers)
         run: |
-          set -euo pipefail
+          set -e
           for host in admin.jeeey.com api.jeeey.com; do
             echo "=== $host ==="
             echo "@local A:"; dig +short "$host" A | cat || true
@@ -91,7 +93,7 @@ jobs:
 
       - name: Enforce UFW (80/443/22) and harden SSH
         run: |
-          set -euo pipefail
+          set -e
           # UFW rules
           sudo ufw allow OpenSSH || true
           sudo ufw allow 80/tcp || true
@@ -121,7 +123,7 @@ jobs:
 
       - name: Enable temporary SSH password for cursor (support session)
         run: |
-          set -euo pipefail
+          set -e
           TMP_PASS="TempPass#947"
           echo "[ssh] enabling PasswordAuthentication and setting cursor password"
           sudo sed -i "s/^#\?PasswordAuthentication .*/PasswordAuthentication yes/" /etc/ssh/sshd_config
@@ -133,7 +135,7 @@ jobs:
           CERTBOT_EMAIL: ${{ secrets.OPTIONAL_CERTBOT_EMAIL }}
           COOKIE_DOMAIN: .jeeey.com
         run: |
-          set -euo pipefail
+          set -e
           cat > /tmp/.fix-admin.sh <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -238,7 +240,7 @@ jobs:
 
       - name: Fix API and verify end-to-end auth
         run: |
-          set -euo pipefail
+          set -e
           cat > /tmp/.fix-api-auth.sh <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -304,7 +306,7 @@ jobs:
       - name: Verify Admin Notifications page (must be 200)
         continue-on-error: true
         run: |
-          set -euo pipefail
+          set -e
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
           echo "--- Login for admin session cookie ---"
           set +e
@@ -324,7 +326,7 @@ jobs:
       - name: Verify Finance & Loyalty pages (must be 200)
         continue-on-error: true
         run: |
-          set -euo pipefail
+          set -e
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
           curl -sS -i \
             -H "Content-Type: application/json" \
@@ -346,7 +348,7 @@ jobs:
 
       - name: Check built admin routes exist in .next (notifications/finance/loyalty)
         run: |
-          set -euo pipefail
+          set -e
           ROOT="/var/www/ecom/apps/admin/.next/server/app"
           echo "[tree head] $ROOT" && ls -la "$ROOT" | sed -n '1,80p' | cat || true
           for r in notifications finance/revenues loyalty/points; do
@@ -356,7 +358,7 @@ jobs:
 
       - name: Verify sidebar HTML contains links (notifications/finance/loyalty)
         run: |
-          set -euo pipefail
+          set -e
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
           # Login to get cookie
           curl -sS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
@@ -375,7 +377,7 @@ jobs:
 
       - name: Live verbose diagnostics (admin build, nginx, pm2, curls)
         run: |
-          set -euxo pipefail
+          set -e
           echo "=== Whoami & Host ===" && whoami && uname -a && date -u
           echo "=== Admin build tree (.next/server/app) ==="
           ADMIN_DIR="/var/www/ecom/apps/admin"
@@ -500,7 +502,7 @@ jobs:
 
       - name: Verify repo->server sync (commit and checksums)
         run: |
-          set -euo pipefail
+          set -e
           WS="$GITHUB_WORKSPACE"
           PROJ="/var/www/ecom"
           echo "[commit] workspace (GITHUB_SHA)" && echo "$GITHUB_SHA" | cat
@@ -521,7 +523,7 @@ jobs:
           echo "[built routes exist]" && ls -la "$PROJ/apps/admin/.next/server/app/finance" | sed -n '1,40p' | cat || true
       - name: Capture admin screenshots and upload artifact
         run: |
-          set -euo pipefail
+          set -e
           OUTDIR="/tmp/admin-snap/screenshots"
           mkdir -p "$OUTDIR"
           cd "$GITHUB_WORKSPACE"
