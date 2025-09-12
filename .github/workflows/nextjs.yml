@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PNPM_CONFIG_FROZEN_LOCKFILE: 'false'
+      PNPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.pnpm-store
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,8 +44,14 @@ jobs:
           node-version: "20"
           cache: pnpm
 
+      - name: Configure pnpm store dir (project)
+        run: pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
+
+      - name: Ensure pnpm store dir exists
+        run: mkdir -p "$PNPM_CONFIG_STORE_DIR"
+
       - name: Install dependencies (workspace)
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --store-dir="$PNPM_CONFIG_STORE_DIR"
         working-directory: .
 
       - name: Build web (Next.js)

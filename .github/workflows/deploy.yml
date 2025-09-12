@@ -35,7 +35,8 @@ jobs:
         run: |
           corepack enable || true
           corepack prepare pnpm@9 --activate || true
-          pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
+          pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project || true
+          mkdir -p "$PNPM_CONFIG_STORE_DIR"
           pnpm install --no-frozen-lockfile --ignore-scripts --store-dir="$PNPM_CONFIG_STORE_DIR"
       - name: CI check
         run: |
@@ -52,6 +53,7 @@ jobs:
       DEPLOY_USER: 'deploy'
       DEPLOY_PORT: '22'
       PROJECT_DIR: '/var/www/ecom'
+      PNPM_CONFIG_STORE_DIR: '/var/www/ecom/.pnpm-store'
       ENABLE_HTTPS_CHECK: ${{ secrets.ENABLE_HTTPS_CHECK || '1' }}
     steps:
       - name: Checkout
@@ -126,7 +128,8 @@ jobs:
               PROJECT_DIR='${PROJECT_DIR}'; \
               cd \"$PROJECT_DIR\"; \
               corepack enable || true; corepack prepare pnpm@9 --activate || true; \
-              pnpm config set store-dir \"$PROJECT_DIR/.pnpm-store\" --location project; \
+              pnpm config set store-dir \"$PROJECT_DIR/.pnpm-store\" --location project || true; \
+              mkdir -p \"$PROJECT_DIR/.pnpm-store\"; \
               PNPM_CONFIG_STORE_DIR=\"$PROJECT_DIR/.pnpm-store\" pnpm install --force --no-frozen-lockfile --store-dir=\"$PROJECT_DIR/.pnpm-store\"; \
               pnpm -C packages/api build; \
               pnpm -C apps/admin build; \
