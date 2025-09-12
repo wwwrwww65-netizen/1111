@@ -78,15 +78,13 @@ jobs:
 
       - name: Upload archive locally (self-hosted)
         run: |
-          set -euo pipefail
           sudo mkdir -p "$PROJECT_DIR"
           sudo chown -R deploy:deploy "$PROJECT_DIR"
           sudo -u deploy cp -f repo.tar.gz "$PROJECT_DIR/"
 
       - name: Extract archive locally (self-hosted)
         run: |
-          set -euo pipefail
-          sudo -u deploy bash -lc "set -euo pipefail; mkdir -p \"$PROJECT_DIR\"; cd \"$PROJECT_DIR\"; tar -xzf repo.tar.gz; rm -f repo.tar.gz"
+          sudo -u deploy bash -lc "mkdir -p \"$PROJECT_DIR\"; cd \"$PROJECT_DIR\"; tar -xzf repo.tar.gz; rm -f repo.tar.gz"
 
       - name: Materialize env files (best-effort)
         env:
@@ -132,7 +130,6 @@ jobs:
           DOMAIN_ADMIN: ${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}
           DOMAIN_API: ${{ secrets.DOMAIN_API || 'api.jeeey.com' }}
         run: |
-          set -euo pipefail
           sudo chmod +x "$PROJECT_DIR/infra/deploy/fix-https-nginx.sh" || true
           sudo CERTBOT_EMAIL="$CERTBOT_EMAIL" DOMAIN_WEB="$DOMAIN_WEB" DOMAIN_ADMIN="$DOMAIN_ADMIN" DOMAIN_API="$DOMAIN_API" \
             bash "$PROJECT_DIR/infra/deploy/fix-https-nginx.sh" 2>&1 | sed -u 's/::error/::notice/g'
@@ -140,7 +137,6 @@ jobs:
       - name: Remote setup locally (self-hosted)
         continue-on-error: true
         run: |
-          set -euo pipefail
           chmod +x "$PROJECT_DIR/infra/deploy/remote-setup.sh" || true
           sudo INSTALL_POSTGRES=${{ secrets.INSTALL_POSTGRES || '0' }} \
                CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL || '' }} \
@@ -152,7 +148,6 @@ jobs:
 
       - name: Remote deploy locally (self-hosted)
         run: |
-          set -euo pipefail
           sudo chown -R deploy:deploy "$PROJECT_DIR" || true
           sudo chmod -R u+rwX,go-r "$PROJECT_DIR" || true
           # Clean previous Next.js builds (avoid rmdir failures)
@@ -167,7 +162,7 @@ jobs:
                  bash "$PROJECT_DIR/infra/deploy/remote-deploy.sh" 2>&1 | sed -u 's/::error/::notice/g'
           else
             echo "[deploy] remote-deploy.sh not found; performing manual install/build/restart"
-            sudo -u deploy bash -lc "set -euo pipefail; \
+            sudo -u deploy bash -lc "\
               PROJECT_DIR='${PROJECT_DIR}'; \
               cd \"$PROJECT_DIR\"; \
               corepack enable || true; corepack prepare pnpm@9 --activate || true; \
@@ -217,7 +212,6 @@ jobs:
 
       - name: Collect Nginx and network diagnostics
         run: |
-          set -euo pipefail
           echo "--- nginx -T (first 200 lines) ---"
           sudo nginx -T 2>&1 | sed -n '1,200p' | cat || true
           echo "--- Listening ports (80/443/3000/3001) ---"
@@ -255,7 +249,6 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
         run: |
-          set -euo pipefail
           echo "--- Simulate admin login against API (local) ---"
           LOGIN_RES=$(curl -is -X POST http://127.0.0.1:4000/api/admin/auth/login \
             -H 'content-type: application/json' \
@@ -281,7 +274,6 @@ jobs:
           DOMAIN_ADMIN: ${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}
           DOMAIN_API: ${{ secrets.DOMAIN_API || 'api.jeeey.com' }}
         run: |
-          set -euo pipefail
           sudo chmod +x "$PROJECT_DIR/infra/deploy/enable-https.sh" || true
           sudo CERTBOT_EMAIL="$CERTBOT_EMAIL" DOMAIN_WEB="$DOMAIN_WEB" DOMAIN_ADMIN="$DOMAIN_ADMIN" DOMAIN_API="$DOMAIN_API" \
                bash "$PROJECT_DIR/infra/deploy/enable-https.sh" 2>&1 | sed -u 's/::error/::notice/g'
