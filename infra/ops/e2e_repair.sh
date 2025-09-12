@@ -154,8 +154,12 @@ run "sudo -u deploy pm2 start '$ECOS' --only ecom-api || sudo -u deploy pm2 relo
 run "sudo -u deploy pm2 save || true"
 
 section "Health checks"
-run "curl -sS --max-time 5 --retry 10 --retry-delay 2 http://127.0.0.1:4000/health | head -c 400 | sed 's/.*/HEALTH: &/' | sudo tee -a '$LOG_FILE' >/dev/null" || log "Local health failed"
-run "curl -sS --max-time 10 --retry 10 --retry-delay 2 https://api.jeeey.com/health | head -c 400 | sed 's/.*/HEALTH_PUBLIC: &/' | sudo tee -a '$LOG_FILE' >/dev/null" || log "Public health failed"
+run "curl -sS --max-time 5 --retry 15 --retry-delay 2 http://127.0.0.1:4000/health | head -c 400 | sed 's/.*/HEALTH: &/' | sudo tee -a '$LOG_FILE' >/dev/null" || log "Local health failed"
+run "curl -sS --max-time 10 --retry 15 --retry-delay 2 https://api.jeeey.com/health | head -c 400 | sed 's/.*/HEALTH_PUBLIC: &/' | sudo tee -a '$LOG_FILE' >/dev/null" || log "Public health failed"
+run "pm2 describe ecom-api | sed -n '1,120p' | sudo tee -a '$LOG_FILE' >/dev/null" || true
+run "ss -ltnp | grep ':4000' | sudo tee -a '$LOG_FILE' >/dev/null" || log "port 4000 not listening"
+run "sudo -u deploy pm2 restart ecom-api || true" || true
+run "sleep 2 && curl -sS --max-time 5 --retry 10 --retry-delay 1 http://127.0.0.1:4000/health | head -c 200 | sed 's/.*/HEALTH_AFTER_RESTART: &/' | sudo tee -a '$LOG_FILE' >/dev/null" || true
 
 section "Admin login and crawl"
 ADMIN_EMAIL_SAN="${ADMIN_EMAIL:-admin@jeeey.com}"

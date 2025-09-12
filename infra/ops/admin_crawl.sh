@@ -26,16 +26,31 @@ fi
 rm -f "$COOKIE_JAR" "$OUT_FILE" || true
 touch "$OUT_FILE" || true
 
-# Login via API and capture cookies
+# Optionally ensure an admin exists
+if [ -n "${MAINTENANCE_SECRET:-}" ]; then
+  log "+ POST /api/admin/maintenance/create-admin (idempotent)"
+  curl -sS -X POST \
+    -H 'content-type: application/x-www-form-urlencoded' \
+    -H "x-maintenance-secret: ${MAINTENANCE_SECRET}" \
+    --data-urlencode email="$ADMIN_EMAIL" \
+    --data-urlencode password="$ADMIN_PASSWORD" \
+    https://api.jeeey.com/api/admin/maintenance/create-admin | sed -n '1,80p' | sudo tee -a "$LOG_FILE" >/dev/null || true
+fi
+
+# Login via API and capture cookies (with retries)
 log "+ POST /api/admin/auth/login"
-set +e
-curl -i -sS -c "$COOKIE_JAR" -X POST \
-  -H 'content-type: application/x-www-form-urlencoded' \
-  --data-urlencode email="$ADMIN_EMAIL" \
-  --data-urlencode password="$ADMIN_PASSWORD" \
-  https://api.jeeey.com/api/admin/auth/login | sed -n '1,60p' | sudo tee -a "$LOG_FILE" >/dev/null
-EC=$?
-set -e
+for i in $(seq 1 10); do
+  set +e
+  curl -i -sS -c "$COOKIE_JAR" -X POST \
+    -H 'content-type: application/x-www-form-urlencoded' \
+    --data-urlencode email="$ADMIN_EMAIL" \
+    --data-urlencode password="$ADMIN_PASSWORD" \
+    https://api.jeeey.com/api/admin/auth/login | sed -n '1,60p' | sudo tee -a "$LOG_FILE" >/dev/null
+  EC=$?
+  set -e
+  if grep -qi "auth_token" "$COOKIE_JAR" 2>/dev/null; then break; fi
+  sleep 2
+done
 if ! grep -qi "auth_token" "$COOKIE_JAR" 2>/dev/null; then
   log "Login failed or cookie not set; aborting"
   exit 3
