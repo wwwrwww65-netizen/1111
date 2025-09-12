@@ -99,6 +99,8 @@ jobs:
           DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.API_DIRECT_URL || '' }}
           NEXT_PUBLIC_TRPC_URL: ${{ secrets.NEXT_PUBLIC_TRPC_URL || 'http://127.0.0.1:4000/trpc' }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000' }}
+          COOKIE_DOMAIN: ${{ secrets.COOKIE_DOMAIN || '.jeeey.com' }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jeeey.com' }}
         run: |
           sudo -E -u deploy bash -s <<'BASH'
           set -euo pipefail
@@ -113,6 +115,8 @@ jobs:
           [ -n "${SMTP_PORT:-}" ] && echo "SMTP_PORT=${SMTP_PORT}" >> packages/api/.env
           [ -n "${SMTP_USER:-}" ] && echo "SMTP_USER=${SMTP_USER}" >> packages/api/.env
           [ -n "${SMTP_PASS:-}" ] && echo "SMTP_PASS=${SMTP_PASS}" >> packages/api/.env
+          [ -n "${COOKIE_DOMAIN:-}" ] && echo "COOKIE_DOMAIN=${COOKIE_DOMAIN}" >> packages/api/.env
+          [ -n "${NEXT_PUBLIC_ADMIN_URL:-}" ] && echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL}" >> packages/api/.env
           # DB env
           [ -n "${DATABASE_URL:-}" ] && echo "DATABASE_URL=${DATABASE_URL}" >> packages/db/.env
           [ -n "${DIRECT_URL:-}" ] && echo "DIRECT_URL=${DIRECT_URL}" >> packages/db/.env
