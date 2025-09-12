@@ -19,6 +19,7 @@ jobs:
       PNPM_CONFIG_STORE_DIR: /var/www/ecom/.pnpm-store
       ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || '' }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '' }}
+      MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +41,13 @@ jobs:
         run: |
           sudo bash infra/ops/e2e_repair.sh || true
 
+      - name: Admin crawl after deploy
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || '' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '' }}
+        run: |
+          sudo bash infra/ops/admin_crawl.sh || true
+
       - name: Upload ops log
         if: always()
         uses: actions/upload-artifact@v4
@@ -56,4 +64,12 @@ jobs:
           name: backups-${{ github.run_id }}
           path: /var/backups/ecom
           if-no-files-found: ignore
+
+      - name: Upload admin sidebar list
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-sidebar
+          path: /var/www/ecom/.ops-admin-sidebar.txt
+          if-no-files-found: warn
 
