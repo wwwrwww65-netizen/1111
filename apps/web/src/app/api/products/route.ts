@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(): Promise<Response> {
   try {
-    const apiUrl = 'https://api.jeeey.com/trpc/products.list?input=' + encodeURIComponent(JSON.stringify({ limit: 12 }));
+    const base = process.env.NEXT_PUBLIC_TRPC_URL || 'http://localhost:4000/trpc';
+    const apiUrl = `${base.replace(/\/$/, '')}/products.list?input=` + encodeURIComponent(JSON.stringify({ limit: 12 }));
     const res = await fetch(apiUrl, { cache: 'no-store', headers: { 'accept': 'application/json' } });
     if (!res.ok) return NextResponse.json({ items: [] }, { status: 200 });
     const json = await res.json();

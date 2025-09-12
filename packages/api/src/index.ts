@@ -252,7 +252,11 @@ app.use(
 export const expressApp = app;
 const port = process.env.PORT || 4000;
 (async () => {
-  await ensureSchema();
+  // Run ensureSchema only when explicitly allowed or in development
+  const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
+  if (allowEnsure) {
+    await ensureSchema();
+  }
   // Skip bootstrap seeding during tests unless explicitly forced
   if (process.env.NODE_ENV !== 'test' || process.env.API_BOOTSTRAP_IN_TEST === '1') {
     await ensureBootstrap();

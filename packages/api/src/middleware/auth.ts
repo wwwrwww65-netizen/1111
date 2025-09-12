@@ -4,8 +4,14 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
 const getJwtSecret = (): string => {
-  // Fallback to a safe default to keep prod working if env is missing
-  return process.env.JWT_SECRET || 'secret_for_tests';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET is required in production');
+    }
+    return 'secret_for_tests';
+  }
+  return secret;
 };
 
 // Schema for JWT payload
