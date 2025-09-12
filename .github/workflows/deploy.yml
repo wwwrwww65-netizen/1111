@@ -32,6 +32,7 @@ jobs:
           node -v
           pnpm -v || true
           git rev-parse --short HEAD
+          mkdir -p "$HOME/.pnpm-store" || true
       - name: Ensure pnpm store dir exists
         run: |
           mkdir -p "$PNPM_CONFIG_STORE_DIR"
