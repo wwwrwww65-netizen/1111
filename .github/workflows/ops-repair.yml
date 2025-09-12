@@ -39,14 +39,14 @@ jobs:
 
       - name: Run ops repair script (as root to write logs)
         run: |
-          sudo bash infra/ops/e2e_repair.sh || true
+          sudo -E bash infra/ops/e2e_repair.sh || true
 
       - name: Admin crawl after deploy
         env:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || '' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '' }}
         run: |
-          sudo bash infra/ops/admin_crawl.sh || true
+          sudo -E bash infra/ops/admin_crawl.sh || true
 
       - name: Upload ops log
         if: always()

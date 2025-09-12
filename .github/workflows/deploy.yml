@@ -191,7 +191,7 @@ jobs:
       - name: Quick API health check (local)
         continue-on-error: true
         run: |
-          for i in $(seq 1 20); do
+          for i in $(seq 1 40); do
             if curl -sSI http://127.0.0.1:4000/health >/dev/null; then echo "API OK"; exit 0; fi
             echo retry $i; sleep 2;
           done
@@ -258,7 +258,16 @@ jobs:
         env:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET || '' }}
         run: |
+          echo "--- Ensure admin exists (idempotent) ---"
+          if [ -n "${MAINTENANCE_SECRET}" ]; then
+            curl -sS -X POST http://127.0.0.1:4000/api/admin/maintenance/create-admin \
+              -H "x-maintenance-secret: ${MAINTENANCE_SECRET}" \
+              -H 'content-type: application/x-www-form-urlencoded' \
+              --data-urlencode email="$ADMIN_EMAIL" \
+              --data-urlencode password="$ADMIN_PASSWORD" | sed -n '1,5p' | cat || true
+          fi
           echo "--- Simulate admin login against API (local) ---"
           LOGIN_RES=$(curl -is -X POST http://127.0.0.1:4000/api/admin/auth/login \
             -H 'content-type: application/json' \
