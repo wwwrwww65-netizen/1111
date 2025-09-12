@@ -7,6 +7,8 @@ module.exports = {
       args: '-r dotenv/config packages/api/dist/index.js',
       env: {
         NODE_ENV: 'production',
+        PORT: '4000',
+        API_FORCE_LISTEN: '1',
         COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.jeeey.com',
         DOTENV_CONFIG_PATH: 'packages/api/.env'
       }
