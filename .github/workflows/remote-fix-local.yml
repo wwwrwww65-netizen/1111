@@ -48,13 +48,13 @@ jobs:
         run: |
           set -euo pipefail
           echo "--- ensure RBAC ---"
-          curl -fsS -X POST -H "X-Maintenance-Secret: $MAINT_SECRET" \
+          curl -sS -X POST -H "X-Maintenance-Secret: $MAINT_SECRET" \
             https://api.jeeey.com/api/admin/maintenance/ensure-rbac | cat || true
           echo "--- fix auth columns ---"
-          curl -fsS -X POST -H "X-Maintenance-Secret: $MAINT_SECRET" \
+          curl -sS -X POST -H "X-Maintenance-Secret: $MAINT_SECRET" \
             https://api.jeeey.com/api/admin/maintenance/fix-auth-columns | cat || true
           echo "--- create admin ---"
-          curl -fsS -X POST -H "Content-Type: application/json" -H "X-Maintenance-Secret: $MAINT_SECRET" \
+          curl -sS -X POST -H "Content-Type: application/json" -H "X-Maintenance-Secret: $MAINT_SECRET" \
             https://api.jeeey.com/api/admin/maintenance/create-admin \
             --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' | cat || true
 
@@ -287,7 +287,7 @@ jobs:
           # Login and finance request with cookie
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
           echo "--- Set-Cookie after login ---"
-          curl -fsS -i \
+          curl -sS -i \
             -H "Content-Type: application/json" \
             -H "Origin: https://admin.jeeey.com" \
             -c "$CJ" \
@@ -389,7 +389,7 @@ jobs:
           echo "=== PM2 logs ecom-admin (tail) ===" && pm2 logs ecom-admin --lines 60 --nostream | tail -n 60 | cat || true
           echo "=== API login & curls (HEAD then GET) ==="
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
-          curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+          curl -sS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
             --data '{"email":"admin@example.com","password":"admin123"}' "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,25p' | cat
           for m in HEAD GET; do
             for p in / /notifications /finance/revenues /loyalty/points; do
