@@ -10,6 +10,10 @@ concurrency:
   group: deploy-vps-main
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   ci:
     name: ci
@@ -85,7 +89,6 @@ jobs:
 
       - name: Materialize env files (best-effort)
         run: |
-          set -eo pipefail
           sudo -u deploy bash -lc "set -eo pipefail; \
             cd \"$PROJECT_DIR\"; \
             mkdir -p packages/api packages/db apps/admin apps/web; \
@@ -177,7 +180,6 @@ jobs:
       - name: Quick API health check (local)
         continue-on-error: true
         run: |
-          set -euo pipefail
           for i in $(seq 1 20); do
             if curl -sSI http://127.0.0.1:4000/health >/dev/null; then echo "API OK"; exit 0; fi
             echo retry $i; sleep 2;
@@ -187,7 +189,6 @@ jobs:
       - name: Verify services health
         continue-on-error: true
         run: |
-          set -euo pipefail
           echo "Setting COOKIE_DOMAIN for cross-subdomain auth"
           echo "COOKIE_DOMAIN=.jeeey.com" >> $GITHUB_ENV
           echo "Checking API on 4000..."
