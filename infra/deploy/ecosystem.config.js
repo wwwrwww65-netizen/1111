@@ -7,7 +7,8 @@ module.exports = {
       args: '-r dotenv/config packages/api/dist/index.js',
       env: {
         NODE_ENV: 'production',
-        COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.jeeey.com'
+        COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.jeeey.com',
+        DOTENV_CONFIG_PATH: 'packages/api/.env'
       }
     },
     {
