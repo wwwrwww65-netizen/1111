@@ -84,8 +84,8 @@ jobs:
 
       - name: Materialize env files (best-effort)
         run: |
-          set -euo pipefail
-          sudo -u deploy bash -lc "set -euo pipefail; \
+          set -eo pipefail
+          sudo -u deploy bash -lc "set -eo pipefail; \
             cd \"$PROJECT_DIR\"; \
             mkdir -p packages/api packages/db apps/admin apps/web; \
             : > packages/api/.env; : > packages/db/.env; \
@@ -182,7 +182,6 @@ jobs:
             echo retry $i; sleep 2;
           done
           echo "::warning :: API /health not responding on port 4000 (non-blocking)"
-          fi
 
       - name: Verify services health
         continue-on-error: true
