@@ -278,7 +278,7 @@ jobs:
           sleep 4
 
           echo "--- API health ---"
-          if ! curl -fsSI http://127.0.0.1:4000/health | head -n 1 | cat; then
+          if ! curl -sSI http://127.0.0.1:4000/health | head -n 1 | cat; then
             echo "[logs] ecom-api last 120"
             pm2 logs ecom-api --lines 120 --nostream | tail -n 120 | cat || true
             exit 1
@@ -295,7 +295,7 @@ jobs:
             "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,25p' | cat
 
           echo "--- Finance with cookie (expect 200 OK) ---"
-          curl -fsS -I -b "$CJ" -L "https://admin.jeeey.com/finance/revenues" | sed -n '1,12p' | cat
+          curl -sS -I -b "$CJ" -L "https://admin.jeeey.com/finance/revenues" | sed -n '1,12p' | cat
           rm -rf "$TMP_DIR" || true
           EOF
           chmod +x /tmp/.fix-api-auth.sh
@@ -359,12 +359,12 @@ jobs:
           set -euo pipefail
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
           # Login to get cookie
-          curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+          curl -sS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
             --data '{"email":"admin@example.com","password":"admin123"}' \
             "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,20p' | cat
           # Fetch admin root HTML and grep for sidebar links
           HTML="$TMP_DIR/root.html"
-          curl -fsS -L -b "$CJ" "https://admin.jeeey.com/" -o "$HTML"
+          curl -sS -L -b "$CJ" "https://admin.jeeey.com/" -o "$HTML"
           echo "[grep links]"
           for href in 'href="/notifications"' 'href="/finance/revenues"' 'href="/loyalty/points"'; do
             echo -n "$href -> ";
@@ -394,9 +394,9 @@ jobs:
           for m in HEAD GET; do
             for p in / /notifications /finance/revenues /loyalty/points; do
               if [ "$m" = HEAD ]; then
-                echo "--- HEAD $p ---"; curl -fsS -I -b "$CJ" -L "https://admin.jeeey.com$p" | sed -n '1,10p' | cat || true
+                echo "--- HEAD $p ---"; curl -sS -I -b "$CJ" -L "https://admin.jeeey.com$p" | sed -n '1,10p' | cat || true
               else
-                echo "--- GET $p (status only) ---"; curl -fsS -L -b "$CJ" -o /dev/null -w "%{http_code}\n" "https://admin.jeeey.com$p" || true
+                echo "--- GET $p (status only) ---"; curl -sS -L -b "$CJ" -o /dev/null -w "%{http_code}\n" "https://admin.jeeey.com$p" || true
               fi
             done
           done
@@ -485,16 +485,16 @@ jobs:
           pm2 save || true
           sleep 3
 
-          echo "[verify] API health" && curl -fsSI http://127.0.0.1:4000/health | head -n1 | cat
+          echo "[verify] API health" && curl -sSI http://127.0.0.1:4000/health | head -n1 | cat
           echo "[verify] built routes present" && ls -la "$PROJ/apps/admin/.next/server/app/finance" | sed -n '1,40p' | cat || true
 
           echo "[verify] login and GET 200"
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
-          curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+          curl -sS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
             --data '{"email":"admin@example.com","password":"admin123"}' \
             "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,20p' | cat
           for P in /notifications /finance/revenues /loyalty/points; do
-            printf "[GET %s] " "$P"; curl -fsS -L -b "$CJ" -o /dev/null -w "%{http_code}\n" "https://admin.jeeey.com$P" || true
+            printf "[GET %s] " "$P"; curl -sS -L -b "$CJ" -o /dev/null -w "%{http_code}\n" "https://admin.jeeey.com$P" || true
           done
           rm -rf "$TMP_DIR" || true
 
@@ -543,13 +543,13 @@ jobs:
             echo "[screens] Puppeteer failed; falling back to HTML snapshots"
             TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
             # Login via API to get cookie
-            curl -fsS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
+            curl -sS -i -H "Content-Type: application/json" -H "Origin: https://admin.jeeey.com" -c "$CJ" \
               --data '{"email":"admin@example.com","password":"admin123"}' \
               "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,20p' | cat
             # Fetch HTML pages
             for p in / /notifications /finance/revenues /loyalty/points; do
               safe=$(echo "$p" | sed 's#/#-#g' | sed 's/^-//')
-              curl -fsS -L -b "$CJ" "https://admin.jeeey.com$p" -o "$OUTDIR/${safe}.html" || true
+              curl -sS -L -b "$CJ" "https://admin.jeeey.com$p" -o "$OUTDIR/${safe}.html" || true
             done
             rm -rf "$TMP_DIR" || true
           fi

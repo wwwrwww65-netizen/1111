@@ -173,7 +173,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 10); do
-            if curl -fsSI http://127.0.0.1:4000/health >/dev/null; then echo "API OK"; exit 0; fi
+            if curl -sSI http://127.0.0.1:4000/health >/dev/null; then echo "API OK"; exit 0; fi
             echo retry $i; sleep 2;
           done
           echo "::error :: API /health not responding on port 4000"
@@ -192,9 +192,9 @@ jobs:
           set -e
           echo "Checking web port 3000..."
           for i in $(seq 1 10); do
-            if curl -fsSI http://127.0.0.1:3000/ >/dev/null; then echo OK; break; fi; echo retry $i; sleep 2;
+            if curl -sSI http://127.0.0.1:3000/ >/dev/null; then echo OK; break; fi; echo retry $i; sleep 2;
           done
-          curl -fsSI http://127.0.0.1:3000/ | sed -n '1,5p' | cat
+          curl -sSI http://127.0.0.1:3000/ | sed -n '1,5p' | cat
           echo "Checking admin domain over HTTP (external hostname) ..."
           curl -Is "http://${{ secrets.DOMAIN_ADMIN || 'admin.jeeey.com' }}" | sed -n '1,5p' | cat || true
           echo "Checking admin domain over HTTPS (force local resolve to 127.0.0.1) ..."
@@ -222,7 +222,7 @@ jobs:
             if ss -ltn | grep -q ':443'; then
               set +e
               for i in $(seq 1 10); do
-                curl -fsSI https://jeeey.com >/tmp/https_head.$$ 2>/dev/null && { cat /tmp/https_head.$$ | sed -n '1,5p'; ok=1; break; } || { echo retry https $i; sleep 2; };
+                curl -sSI https://jeeey.com >/tmp/https_head.$$ 2>/dev/null && { cat /tmp/https_head.$$ | sed -n '1,5p'; ok=1; break; } || { echo retry https $i; sleep 2; };
               done
               if [ "${ok:-0}" != "1" ]; then echo "::notice :: HTTPS not ready; continuing (non-blocking)"; fi
               set -e
