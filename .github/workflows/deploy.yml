@@ -179,7 +179,7 @@ jobs:
             pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-web || true
             pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-admin || true
             pm2 save || true
-BASH
+            BASH
           fi
 
       - name: Quick API health check (local)
