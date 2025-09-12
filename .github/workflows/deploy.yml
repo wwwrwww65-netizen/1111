@@ -89,36 +89,41 @@ jobs:
           sudo -u deploy bash -lc "set -euo pipefail; mkdir -p \"$PROJECT_DIR\"; cd \"$PROJECT_DIR\"; tar -xzf repo.tar.gz; rm -f repo.tar.gz"
 
       - name: Materialize env files (best-effort)
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET || secrets.API_JWT_SECRET || '' }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || '' }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET || '' }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST || '' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '' }}
+          SMTP_USER: ${{ secrets.SMTP_USER || '' }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS || '' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.API_DATABASE_URL || '' }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.API_DIRECT_URL || '' }}
+          NEXT_PUBLIC_TRPC_URL: ${{ secrets.NEXT_PUBLIC_TRPC_URL || 'http://127.0.0.1:4000/trpc' }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000' }}
         run: |
-          sudo -u deploy bash -lc "set -eo pipefail; \
-            cd \"$PROJECT_DIR\"; \
-            mkdir -p packages/api packages/db apps/admin apps/web; \
-            : > packages/api/.env; : > packages/db/.env; \
-            # API env
-            if [ -n \"${{ secrets.JWT_SECRET }}\" ]; then echo \"JWT_SECRET=${{ secrets.JWT_SECRET }}\" >> packages/api/.env; fi; \
-            if [ -n \"${{ secrets.API_JWT_SECRET }}\" ]; then echo \"JWT_SECRET=${{ secrets.API_JWT_SECRET }}\" >> packages/api/.env; fi; \
-            if [ -n \"${{ secrets.STRIPE_SECRET_KEY }}\" ]; then echo \"STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\" >> packages/api/.env; fi; \
-            if [ -n \"${{ secrets.STRIPE_WEBHOOK_SECRET }}\" ]; then echo \"STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}\" >> packages/api/.env; fi; \
-            if [ -n \"${{ secrets.SMTP_HOST }}\" ]; then echo \"SMTP_HOST=${{ secrets.SMTP_HOST }}\" >> packages/api/.env; fi; \
-            if [ -n \"${{ secrets.SMTP_PORT }}\" ]; then echo \"SMTP_PORT=${{ secrets.SMTP_PORT }}\" >> packages/api/.env; fi; \
-            if [ -n \"${{ secrets.SMTP_USER }}\" ]; then echo \"SMTP_USER=${{ secrets.SMTP_USER }}\" >> packages/api/.env; fi; \
-            if [ -n \"${{ secrets.SMTP_PASS }}\" ]; then echo \"SMTP_PASS=${{ secrets.SMTP_PASS }}\" >> packages/api/.env; fi; \
-            # DB env
-            if [ -n \"${{ secrets.DATABASE_URL }}\" ]; then echo \"DATABASE_URL=${{ secrets.DATABASE_URL }}\" >> packages/db/.env; fi; \
-            if [ -n \"${{ secrets.API_DATABASE_URL }}\" ]; then echo \"DATABASE_URL=${{ secrets.API_DATABASE_URL }}\" >> packages/db/.env; fi; \
-            if [ -n \"${{ secrets.DIRECT_URL }}\" ]; then echo \"DIRECT_URL=${{ secrets.DIRECT_URL }}\" >> packages/db/.env; fi; \
-            if [ -n \"${{ secrets.API_DIRECT_URL }}\" ]; then echo \"DIRECT_URL=${{ secrets.API_DIRECT_URL }}\" >> packages/db/.env; fi; \
-            { \
-              echo \"NEXT_PUBLIC_TRPC_URL=${{ secrets.NEXT_PUBLIC_TRPC_URL || 'http://127.0.0.1:4000/trpc' }}\"; \
-              echo \"NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000' }}\"; \
-            } > apps/admin/.env; \
-            { \
-              echo \"NEXT_PUBLIC_TRPC_URL=${{ secrets.NEXT_PUBLIC_TRPC_URL || 'http://127.0.0.1:4000/trpc' }}\"; \
-              echo \"NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000' }}\"; \
-            } > apps/web/.env; \
-            echo \"[env] api=.env keys:\"; awk -F= '/^[A-Za-z0-9_]+=/{print $1"=<set>"}' packages/api/.env | sed -n '1,50p' | cat || true; \
-            echo \"[env] db=.env keys:\"; awk -F= '/^[A-Za-z0-9_]+=/{print $1"=<set>"}' packages/db/.env | sed -n '1,50p' | cat || true; \
-            true"
+          sudo -E -u deploy bash -s <<'BASH'
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          mkdir -p packages/api packages/db apps/admin apps/web
+          : > packages/api/.env; : > packages/db/.env
+          # API env
+          [ -n "${JWT_SECRET:-}" ] && echo "JWT_SECRET=${JWT_SECRET}" >> packages/api/.env
+          [ -n "${STRIPE_SECRET_KEY:-}" ] && echo "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}" >> packages/api/.env
+          [ -n "${STRIPE_WEBHOOK_SECRET:-}" ] && echo "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}" >> packages/api/.env
+          [ -n "${SMTP_HOST:-}" ] && echo "SMTP_HOST=${SMTP_HOST}" >> packages/api/.env
+          [ -n "${SMTP_PORT:-}" ] && echo "SMTP_PORT=${SMTP_PORT}" >> packages/api/.env
+          [ -n "${SMTP_USER:-}" ] && echo "SMTP_USER=${SMTP_USER}" >> packages/api/.env
+          [ -n "${SMTP_PASS:-}" ] && echo "SMTP_PASS=${SMTP_PASS}" >> packages/api/.env
+          # DB env
+          [ -n "${DATABASE_URL:-}" ] && echo "DATABASE_URL=${DATABASE_URL}" >> packages/db/.env
+          [ -n "${DIRECT_URL:-}" ] && echo "DIRECT_URL=${DIRECT_URL}" >> packages/db/.env
+          # Web/Admin public env
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "${NEXT_PUBLIC_TRPC_URL}" "${NEXT_PUBLIC_APP_URL}" > apps/admin/.env
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "${NEXT_PUBLIC_TRPC_URL}" "${NEXT_PUBLIC_APP_URL}" > apps/web/.env
+          echo "[env] api=.env keys:"; awk -F= '/^[A-Za-z0-9_]+=/{print $1"=<set>"}' packages/api/.env | sed -n '1,50p' | cat || true
+          echo "[env] db=.env keys:"; awk -F= '/^[A-Za-z0-9_]+=/{print $1"=<set>"}' packages/db/.env | sed -n '1,50p' | cat || true
+          BASH
 
       - name: Ensure HTTPS (nginx + certbot) [idempotent]
         env:
