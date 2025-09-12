@@ -44,6 +44,9 @@ jobs:
           node-version: "20"
           cache: pnpm
 
+      - name: Ensure default pnpm cache path exists (~/.pnpm-store)
+        run: mkdir -p "$HOME/.pnpm-store"
+
       - name: Configure pnpm store dir (project)
         run: pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
 
