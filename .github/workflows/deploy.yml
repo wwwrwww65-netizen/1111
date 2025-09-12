@@ -88,22 +88,21 @@ jobs:
           sudo -u deploy bash -lc "set -euo pipefail; \
             cd \"$PROJECT_DIR\"; \
             mkdir -p packages/api packages/db apps/admin apps/web; \
-            DB_MAIN=\"${{ secrets.DATABASE_URL || secrets.API_DATABASE_URL || '' }}\"; \
-            DB_DIRECT=\"${{ secrets.DIRECT_URL || secrets.API_DIRECT_URL || '' }}\"; \
-            JWT=\"${{ secrets.JWT_SECRET || secrets.API_JWT_SECRET || '' }}\"; \
-            { \
-              [ -n \"$JWT\" ] && echo \"JWT_SECRET=$JWT\"; \
-              [ -n \"${{ secrets.STRIPE_SECRET_KEY || '' }}\" ] && echo \"STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\"; \
-              [ -n \"${{ secrets.STRIPE_WEBHOOK_SECRET || '' }}\" ] && echo \"STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}\"; \
-              [ -n \"${{ secrets.SMTP_HOST || '' }}\" ] && echo \"SMTP_HOST=${{ secrets.SMTP_HOST }}\"; \
-              [ -n \"${{ secrets.SMTP_PORT || '' }}\" ] && echo \"SMTP_PORT=${{ secrets.SMTP_PORT }}\"; \
-              [ -n \"${{ secrets.SMTP_USER || '' }}\" ] && echo \"SMTP_USER=${{ secrets.SMTP_USER }}\"; \
-              [ -n \"${{ secrets.SMTP_PASS || '' }}\" ] && echo \"SMTP_PASS=${{ secrets.SMTP_PASS }}\"; \
-            } > packages/api/.env || true; \
-            { \
-              [ -n \"$DB_MAIN\" ] && echo \"DATABASE_URL=$DB_MAIN\"; \
-              [ -n \"$DB_DIRECT\" ] && echo \"DIRECT_URL=$DB_DIRECT\"; \
-            } > packages/db/.env || true; \
+            : > packages/api/.env; : > packages/db/.env; \
+            # API env
+            if [ -n \"${{ secrets.JWT_SECRET }}\" ]; then echo \"JWT_SECRET=${{ secrets.JWT_SECRET }}\" >> packages/api/.env; fi; \
+            if [ -n \"${{ secrets.API_JWT_SECRET }}\" ]; then echo \"JWT_SECRET=${{ secrets.API_JWT_SECRET }}\" >> packages/api/.env; fi; \
+            if [ -n \"${{ secrets.STRIPE_SECRET_KEY }}\" ]; then echo \"STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}\" >> packages/api/.env; fi; \
+            if [ -n \"${{ secrets.STRIPE_WEBHOOK_SECRET }}\" ]; then echo \"STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}\" >> packages/api/.env; fi; \
+            if [ -n \"${{ secrets.SMTP_HOST }}\" ]; then echo \"SMTP_HOST=${{ secrets.SMTP_HOST }}\" >> packages/api/.env; fi; \
+            if [ -n \"${{ secrets.SMTP_PORT }}\" ]; then echo \"SMTP_PORT=${{ secrets.SMTP_PORT }}\" >> packages/api/.env; fi; \
+            if [ -n \"${{ secrets.SMTP_USER }}\" ]; then echo \"SMTP_USER=${{ secrets.SMTP_USER }}\" >> packages/api/.env; fi; \
+            if [ -n \"${{ secrets.SMTP_PASS }}\" ]; then echo \"SMTP_PASS=${{ secrets.SMTP_PASS }}\" >> packages/api/.env; fi; \
+            # DB env
+            if [ -n \"${{ secrets.DATABASE_URL }}\" ]; then echo \"DATABASE_URL=${{ secrets.DATABASE_URL }}\" >> packages/db/.env; fi; \
+            if [ -n \"${{ secrets.API_DATABASE_URL }}\" ]; then echo \"DATABASE_URL=${{ secrets.API_DATABASE_URL }}\" >> packages/db/.env; fi; \
+            if [ -n \"${{ secrets.DIRECT_URL }}\" ]; then echo \"DIRECT_URL=${{ secrets.DIRECT_URL }}\" >> packages/db/.env; fi; \
+            if [ -n \"${{ secrets.API_DIRECT_URL }}\" ]; then echo \"DIRECT_URL=${{ secrets.API_DIRECT_URL }}\" >> packages/db/.env; fi; \
             { \
               echo \"NEXT_PUBLIC_TRPC_URL=${{ secrets.NEXT_PUBLIC_TRPC_URL || 'http://127.0.0.1:4000/trpc' }}\"; \
               echo \"NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000' }}\"; \
