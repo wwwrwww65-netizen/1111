@@ -1,0 +1,59 @@
+name: Ops Repair Sync Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ops/run-now
+
+jobs:
+  ops:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: bash
+    env:
+      PROJECT_DIR: /var/www/ecom
+      BACKUP_DIR: /var/backups/ecom
+      NODE_ENV: production
+      PNPM_CONFIG_STORE_DIR: /var/www/ecom/.pnpm-store
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || '' }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: ''
+
+      - name: Ensure pnpm store dir
+        run: |
+          mkdir -p "$PNPM_CONFIG_STORE_DIR" || true
+          mkdir -p "$HOME/.pnpm-store" || true
+
+      - name: Run ops repair script (as root to write logs)
+        run: |
+          sudo bash infra/ops/e2e_repair.sh || true
+
+      - name: Upload ops log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cursor-ops-log
+          path: |
+            /var/log/cursor-ops.log
+            ${{ env.PROJECT_DIR }}/cursor-ops.log
+
+      - name: Upload backups
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backups-${{ github.run_id }}
+          path: /var/backups/ecom
+          if-no-files-found: ignore
+
