@@ -307,12 +307,14 @@ jobs:
           set -euo pipefail
           TMP_DIR="$(mktemp -d)"; CJ="$TMP_DIR/c.jar"
           echo "--- Login for admin session cookie ---"
+          set +e
           curl -sS -i \
             -H "Content-Type: application/json" \
             -H "Origin: https://admin.jeeey.com" \
             -c "$CJ" \
             --data '{"email":"admin@example.com","password":"admin123"}' \
             "https://api.jeeey.com/api/admin/auth/login" | sed -n '1,20p' | cat
+          set -e
           echo "--- GET /notifications (expect 200) ---"
           CODE=$(curl -sS -L -b "$CJ" -o /dev/null -w "%{http_code}" "https://admin.jeeey.com/notifications")
           echo "status: $CODE"
