@@ -19,6 +19,7 @@ const COOKIE_OPTS = {
     path: '/',
     maxAge: 7 * 24 * 60 * 60, // 7 days (seconds)
 };
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '';
 // Input schemas
 const registerSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
@@ -68,7 +69,7 @@ exports.authRouter = (0, trpc_setup_1.router)({
         await db_1.db.cart.create({ data: { userId: user.id } });
         // Generate JWT token and set cookie
         const token = (0, auth_1.createToken)({ userId: user.id, email: user.email, role: user.role });
-        ctx.res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+        ctx.res.cookie(COOKIE_NAME, token, COOKIE_DOMAIN ? { ...COOKIE_OPTS, domain: COOKIE_DOMAIN } : COOKIE_OPTS);
         return { user };
     }),
     // Login user
@@ -98,7 +99,7 @@ exports.authRouter = (0, trpc_setup_1.router)({
     // Logout user
     logout: trpc_setup_1.publicProcedure
         .mutation(async ({ ctx }) => {
-        ctx.res.clearCookie(COOKIE_NAME, { path: '/' });
+        ctx.res.clearCookie(COOKIE_NAME, COOKIE_DOMAIN ? { path: '/', domain: COOKIE_DOMAIN } : { path: '/' });
         return { success: true };
     }),
     // Get current user profile
