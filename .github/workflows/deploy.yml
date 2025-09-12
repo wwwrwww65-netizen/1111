@@ -101,6 +101,7 @@ jobs:
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000' }}
           COOKIE_DOMAIN: ${{ secrets.COOKIE_DOMAIN || '.jeeey.com' }}
           NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jeeey.com' }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL || 'https://api.jeeey.com' }}
         run: |
           sudo -E -u deploy bash -s <<'BASH'
           set -euo pipefail
@@ -117,12 +118,13 @@ jobs:
           [ -n "${SMTP_PASS:-}" ] && echo "SMTP_PASS=${SMTP_PASS}" >> packages/api/.env
           [ -n "${COOKIE_DOMAIN:-}" ] && echo "COOKIE_DOMAIN=${COOKIE_DOMAIN}" >> packages/api/.env
           [ -n "${NEXT_PUBLIC_ADMIN_URL:-}" ] && echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL}" >> packages/api/.env
+          [ -n "${NEXT_PUBLIC_API_BASE_URL:-}" ] && echo "NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}" >> packages/api/.env
           # DB env
           [ -n "${DATABASE_URL:-}" ] && echo "DATABASE_URL=${DATABASE_URL}" >> packages/db/.env
           [ -n "${DIRECT_URL:-}" ] && echo "DIRECT_URL=${DIRECT_URL}" >> packages/db/.env
           # Web/Admin public env
-          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "${NEXT_PUBLIC_TRPC_URL}" "${NEXT_PUBLIC_APP_URL}" > apps/admin/.env
-          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\n" "${NEXT_PUBLIC_TRPC_URL}" "${NEXT_PUBLIC_APP_URL}" > apps/web/.env
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\nNEXT_PUBLIC_API_BASE_URL=%s\n" "${NEXT_PUBLIC_TRPC_URL}" "${NEXT_PUBLIC_APP_URL}" "${NEXT_PUBLIC_API_BASE_URL}" > apps/admin/.env
+          printf "NEXT_PUBLIC_TRPC_URL=%s\nNEXT_PUBLIC_APP_URL=%s\nNEXT_PUBLIC_API_BASE_URL=%s\n" "${NEXT_PUBLIC_TRPC_URL}" "${NEXT_PUBLIC_APP_URL}" "${NEXT_PUBLIC_API_BASE_URL}" > apps/web/.env
           echo "[env] api=.env keys:"; awk -F= '/^[A-Za-z0-9_]+=/{print $1"=<set>"}' packages/api/.env | sed -n '1,50p' | cat || true
           echo "[env] db=.env keys:"; awk -F= '/^[A-Za-z0-9_]+=/{print $1"=<set>"}' packages/db/.env | sed -n '1,50p' | cat || true
           BASH

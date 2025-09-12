@@ -1226,7 +1226,12 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     } else if (host.endsWith('jeeey.com')) {
       cookieOpts.domain = '.jeeey.com';
     }
+    // Set cross-domain cookie for subdomains
     res.cookie('auth_token', token, cookieOpts);
+    // Also set host-only cookie as a fallback to satisfy admin.jeeey.com middleware
+    const hostOnlyOpts: any = { ...cookieOpts };
+    delete hostOnlyOpts.domain;
+    res.cookie('auth_token', token, hostOnlyOpts);
     return res.json({ success: true, token, sessionId });
   } catch (e: any) {
     console.error('auth_login_error', e?.message || e);
@@ -1236,7 +1241,10 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
 
 adminRest.post('/auth/logout', async (req, res) => {
   try {
+    // Clear both host-only and cross-domain variants
     res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
+    const domain = process.env.COOKIE_DOMAIN || '.jeeey.com';
+    res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', domain });
     await db.auditLog.create({ data: { module: 'auth', action: 'logout', userId: (req as any).user?.userId } });
     res.json({ success: true });
   } catch { res.json({ success: true }); }
