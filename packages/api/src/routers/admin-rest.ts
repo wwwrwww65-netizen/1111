@@ -1229,6 +1229,8 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     // Also set host-only cookie as a fallback
     const hostOnlyOpts: any = { ...cookieOpts };
     delete hostOnlyOpts.domain;
+    // Use Lax for host-only cookie to maximize compatibility on top-level navigations
+    hostOnlyOpts.sameSite = 'lax';
     res.cookie('auth_token', token, hostOnlyOpts);
     return res.json({ success: true, token, sessionId });
   } catch (e: any) {
