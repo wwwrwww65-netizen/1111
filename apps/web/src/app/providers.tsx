@@ -13,11 +13,18 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
   const [trpcClient] = React.useState(() => {
     const envUrl = process.env.NEXT_PUBLIC_TRPC_URL;
     const isBrowser = typeof window !== 'undefined';
-    let resolvedUrl = envUrl;
+    // In production, require env to avoid hardcoded domains
+    const isProd = process.env.NODE_ENV === 'production';
+    let resolvedUrl = envUrl || '';
     if (!resolvedUrl) {
-      resolvedUrl = isBrowser && window.location.hostname.endsWith('jeeey.com')
-        ? 'https://api.jeeey.com/trpc'
-        : 'http://localhost:4000/trpc';
+      resolvedUrl = isProd
+        ? ''
+        : (isBrowser ? 'http://localhost:4000/trpc' : 'http://localhost:4000/trpc');
+    }
+
+    if (!resolvedUrl) {
+      // Prevent silent misconfig; developers will see error early
+      throw new Error('NEXT_PUBLIC_TRPC_URL is required in production for web app');
     }
 
     return trpc.createClient({

@@ -1209,7 +1209,7 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     // 2FA requirement disabled for login UI (kept endpoints for later enablement)
     const jwt = require('jsonwebtoken');
     const role = (user as any).role || 'ADMIN';
-    const secret = process.env.JWT_SECRET || 'secret_for_tests';
+    const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('JWT_SECRET is required in production'); })() : 'secret_for_tests');
     const token = jwt.sign({ userId: user.id, email: user.email, role }, secret, { expiresIn: remember ? '30d' : '1d' });
     let sessionId: string | undefined;
     try {
@@ -1223,14 +1223,14 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
     if (process.env.COOKIE_DOMAIN) {
       cookieOpts.domain = process.env.COOKIE_DOMAIN;
-    } else if (host.endsWith('jeeey.com')) {
-      cookieOpts.domain = '.jeeey.com';
     }
     // Set cross-domain cookie for subdomains
     res.cookie('auth_token', token, cookieOpts);
-    // Also set host-only cookie as a fallback to satisfy admin.jeeey.com middleware
+    // Also set host-only cookie as a fallback
     const hostOnlyOpts: any = { ...cookieOpts };
     delete hostOnlyOpts.domain;
+    // Use Lax for host-only cookie to maximize compatibility on top-level navigations
+    hostOnlyOpts.sameSite = 'lax';
     res.cookie('auth_token', token, hostOnlyOpts);
     return res.json({ success: true, token, sessionId });
   } catch (e: any) {
