@@ -1,0 +1,18 @@
+[Unit]
+Description=Ecom Web (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/ecom/apps/web/.next/standalone
+ExecStart=/usr/bin/node apps/web/server.js
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Restart=always
+RestartSec=2
+User=deploy
+Group=deploy
+
+[Install]
+WantedBy=multi-user.target
+

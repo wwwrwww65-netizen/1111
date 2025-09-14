@@ -180,6 +180,22 @@ jobs:
               pnpm -C packages/api build
               pnpm -C apps/admin build
               pnpm -C apps/web build
+              # Install systemd units (idempotent)
+              sudo install -m 644 -o root -g root "$PROJECT_DIR/infra/systemd/ecom-api.service" /etc/systemd/system/ecom-api.service
+              sudo install -m 644 -o root -g root "$PROJECT_DIR/infra/systemd/ecom-web.service" /etc/systemd/system/ecom-web.service
+              sudo install -m 644 -o root -g root "$PROJECT_DIR/infra/systemd/ecom-admin.service" /etc/systemd/system/ecom-admin.service || true
+              sudo systemctl daemon-reload
+              sudo systemctl enable --now ecom-api || true
+              sudo systemctl enable --now ecom-web || true
+              sudo systemctl enable --now ecom-admin || true
+              # Nginx placeholder snippet (idempotent include)
+              sudo install -m 644 -o root -g root "$PROJECT_DIR/infra/nginx/snippets/admin-placeholder.conf" /etc/nginx/snippets/admin-placeholder.conf || true
+              if grep -q "server_name admin\.jeeey\.com" /etc/nginx/sites-enabled/jeeey-ssl.conf 2>/dev/null; then
+                if ! grep -q "/etc/nginx/snippets/admin-placeholder.conf" /etc/nginx/sites-enabled/jeeey-ssl.conf; then
+                  sudo sed -i "/server_name admin\.jeeey\.com;/a\    include /etc/nginx/snippets/admin-placeholder.conf;" /etc/nginx/sites-enabled/jeeey-ssl.conf || true
+                fi
+              fi
+              sudo nginx -t && sudo systemctl reload nginx || true
               pm2 delete ecom-api || true; pm2 delete ecom-web || true; pm2 delete ecom-admin || true
               pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-api || true
               pm2 start "$PROJECT_DIR/infra/deploy/ecosystem.config.js" --only ecom-web || true
