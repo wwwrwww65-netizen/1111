@@ -1,0 +1,94 @@
+name: Deploy on self-hosted runner (server)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy locally on server (no SSH)
+        shell: bash
+        run: |
+          set -e
+          ROOT=/var/www/ecom
+          DOMAIN_ROOT=jeeey.com
+          ADMIN_SUB=admin.jeeey.com
+          API_SUB=api.jeeey.com
+          EMAIL=admin@jeeey.com
+
+          # Ensure git and sync repository on server
+          if ! command -v git >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y git
+          fi
+          if [ -d "$ROOT/.git" ]; then
+            cd "$ROOT"
+            sudo git fetch --all --prune
+            sudo git reset --hard origin/main
+          else
+            sudo rm -rf "$ROOT"
+            sudo git clone --depth=1 https://github.com/${{ github.repository }} "$ROOT"
+          fi
+
+          # Server setup
+          sudo bash "$ROOT/infra/scripts/setup-server.sh"
+
+          # Secrets and Postgres (idempotent)
+          JWT_SECRET=$(openssl rand -hex 32)
+          MAINT_SECRET=$(openssl rand -hex 32)
+          DB_USER=jeeey
+          DB_NAME=jeeey
+          DB_PASS=$(openssl rand -hex 16)
+          if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1; then :; else sudo -u postgres psql -c "CREATE USER \"${DB_USER}\" WITH PASSWORD '${DB_PASS}';"; fi
+          if sudo -u postgres psql -lqt | cut -d '|' -f 1 | grep -qw "${DB_NAME}"; then :; else sudo -u postgres psql -c "CREATE DATABASE \"${DB_NAME}\" OWNER \"${DB_USER}\";"; fi
+          DB_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}"
+
+          sudo tee "$ROOT/.env.api" >/dev/null <<EOF
+          NODE_ENV=production
+          PORT=4000
+          JWT_SECRET=${JWT_SECRET}
+          DATABASE_URL=${DB_URL}
+          DIRECT_URL=${DB_URL}
+          COOKIE_DOMAIN=.${DOMAIN_ROOT}
+          MAINTENANCE_SECRET=${MAINT_SECRET}
+          API_RUN_ENSURE_SCHEMA=1
+          EOF
+
+          sudo tee "$ROOT/.env.web" >/dev/null <<EOF
+          NODE_ENV=production
+          NEXT_PUBLIC_APP_URL=https://${DOMAIN_ROOT}
+          NEXT_PUBLIC_ADMIN_URL=https://${ADMIN_SUB}
+          NEXT_PUBLIC_API_BASE_URL=https://${API_SUB}
+          NEXT_PUBLIC_TRPC_URL=https://${API_SUB}/trpc
+          EOF
+
+          # Systemd units
+          sudo cp "$ROOT/infra/systemd/ecom-api.service" /etc/systemd/system/ecom-api.service
+          sudo cp "$ROOT/infra/systemd/ecom-web.service" /etc/systemd/system/ecom-web.service
+          sudo cp "$ROOT/infra/systemd/ecom-admin.service" /etc/systemd/system/ecom-admin.service
+          sudo systemctl daemon-reload
+
+          # Build & restart services
+          corepack enable || true
+          corepack prepare pnpm@9 --activate || true
+          sudo bash "$ROOT/infra/scripts/deploy.sh" "$ROOT"
+          sudo systemctl enable --now ecom-api ecom-web ecom-admin || true
+
+          # Nginx + TLS
+          sudo sed "s/jeeey.com/${DOMAIN_ROOT}/g" "$ROOT/infra/nginx/jeeey.conf.tpl" > /etc/nginx/sites-available/jeeey.conf
+          sudo ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
+          sudo nginx -t && sudo systemctl reload nginx || true
+          sudo certbot --nginx -d "${DOMAIN_ROOT}" -d "www.${DOMAIN_ROOT}" -d "${ADMIN_SUB}" -d "${API_SUB}" -m "${EMAIL}" --agree-tos -n || true
+
+          # Firewall
+          sudo ufw allow OpenSSH || true
+          sudo ufw allow 80 || true
+          sudo ufw allow 443 || true
+          yes | sudo ufw enable || true
+
+          echo "Deployed: https://${DOMAIN_ROOT} https://${ADMIN_SUB} https://${API_SUB}"
