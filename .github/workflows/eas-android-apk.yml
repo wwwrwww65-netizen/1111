@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       TRPC_URL:
-        description: "tRPC API URL (e.g., https://jeeeyai.onrender.com/trpc)"
+        description: "tRPC API URL (e.g., https://api.jeeey.com/trpc)"
         required: false
-        default: "https://jeeeyai.onrender.com/trpc"
+        default: "https://api.jeeey.com/trpc"
 
 jobs:
   build_android_apk:
     runs-on: ubuntu-latest
     env:
-      TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://jeeeyai.onrender.com/trpc' }}
+      TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://api.jeeey.com/trpc' }}
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     defaults:
       run:

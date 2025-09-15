@@ -35,7 +35,7 @@ jobs:
 
       - name: Set EXPO_PUBLIC_TRPC_URL (debug)
         run: |
-          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL || 'https://jeeeyai.onrender.com/trpc';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL || 'https://api.jeeey.com/trpc';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
