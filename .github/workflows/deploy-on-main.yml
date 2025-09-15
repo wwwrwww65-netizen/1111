@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Archive project
-        run: tar --exclude=node_modules --exclude=.git -czf app.tar.gz .
+        run: git archive --format=tar.gz -o app.tar.gz HEAD
 
       - name: Copy to server (scp)
         uses: appleboy/scp-action@v0.1.7
