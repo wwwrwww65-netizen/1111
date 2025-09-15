@@ -52,7 +52,34 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
           set -e
           cd /var/www/ecom/packages/db
+          # Load env
           set -a; . /var/www/ecom/.env.api; set +a
+          # Extract DB credentials from DATABASE_URL and ensure Postgres user password matches .env
+          parse() {
+            node -e '
+              const url = process.env.DATABASE_URL || "";
+              try {
+                const u = new URL(url);
+                const out = {
+                  user: decodeURIComponent(u.username),
+                  password: decodeURIComponent(u.password),
+                  host: u.hostname || "127.0.0.1",
+                  port: u.port || "5432",
+                  db: u.pathname.replace(/^\//, "") || "postgres",
+                };
+                console.log(JSON.stringify(out));
+              } catch (e) { console.error("Bad DATABASE_URL"); process.exit(2); }
+            '
+          }
+          CREDS=$(parse)
+          DB_USER=$(echo "$CREDS" | node -e 'process.stdin.on("data",d=>{const j=JSON.parse(d);process.stdout.write(j.user)})')
+          DB_PASS=$(echo "$CREDS" | node -e 'process.stdin.on("data",d=>{const j=JSON.parse(d);process.stdout.write(j.password)})')
+          DB_NAME=$(echo "$CREDS" | node -e 'process.stdin.on("data",d=>{const j=JSON.parse(d);process.stdout.write(j.db)})')
+          # Test connection with decoded password; if fails, align Postgres user password to env
+          if ! PGPASSWORD="$DB_PASS" psql -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c 'select 1' >/dev/null 2>&1; then
+            echo "Syncing Postgres password for user $DB_USER to match .env.api"
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER USER \"$DB_USER\" WITH PASSWORD $$${DB_PASS}$$;"
+          fi
           npx -y prisma migrate deploy
           REMOTE
 
