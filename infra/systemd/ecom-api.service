@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/var/www/ecom
-ExecStart=/usr/bin/node -r dotenv/config packages/api/dist/index.js
+WorkingDirectory=/var/www/ecom/packages/api
+ExecStart=/usr/bin/node -r dotenv/config dist/index.js
 Environment=NODE_ENV=production
 Environment=PORT=4000
 Environment=API_FORCE_LISTEN=1
