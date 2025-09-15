@@ -9,11 +9,11 @@ ExecStart=/usr/bin/node -r dotenv/config packages/api/dist/index.js
 Environment=NODE_ENV=production
 Environment=PORT=4000
 Environment=API_FORCE_LISTEN=1
-Environment=DOTENV_CONFIG_PATH=packages/api/.env
+Environment=DOTENV_CONFIG_PATH=/var/www/ecom/.env.api
 Restart=always
 RestartSec=2
-User=deploy
-Group=deploy
+User=root
+Group=root
 
 [Install]
 WantedBy=multi-user.target
