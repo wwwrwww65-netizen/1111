@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { resolveApiBase } from "../../lib/apiBase";
+import { resolveApiBase } from "../../../lib/apiBase";
 export const dynamic = 'force-dynamic';
 
 export default function SizeTypePage({ params }: { params: { typeId: string } }): JSX.Element {
