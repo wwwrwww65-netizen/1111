@@ -71,6 +71,35 @@ async function ensureSchema(): Promise<void> {
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission"("roleId", "permissionId")');
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserRoleLink" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "roleId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "UserRoleLink_user_role_key" ON "UserRoleLink"("userId", "roleId")');
+
+    // Purchase Orders (PO) minimal schema for admin POS module
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "PurchaseOrder" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"vendorId" TEXT NULL,'+
+      '"status" TEXT NOT NULL DEFAULT "DRAFT",'+
+      '"total" DOUBLE PRECISION DEFAULT 0,'+
+      '"notes" TEXT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "PurchaseOrderItem" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"poId" TEXT NOT NULL,'+
+      '"productId" TEXT NULL,'+
+      '"variantId" TEXT NULL,'+
+      '"quantity" INTEGER NOT NULL,'+
+      '"unitCost" DOUBLE PRECISION NOT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    // FKs (ignore if already exist)
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "PurchaseOrder_vendorId_fkey") THEN ALTER TABLE "PurchaseOrder" ADD CONSTRAINT "PurchaseOrder_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE SET NULL; END IF; END $$;');
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "PurchaseOrderItem_poId_fkey") THEN ALTER TABLE "PurchaseOrderItem" ADD CONSTRAINT "PurchaseOrderItem_poId_fkey" FOREIGN KEY ("poId") REFERENCES "PurchaseOrder"("id") ON DELETE CASCADE; END IF; END $$;');
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "PurchaseOrderItem_productId_fkey") THEN ALTER TABLE "PurchaseOrderItem" ADD CONSTRAINT "PurchaseOrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL; END IF; END $$;');
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = "PurchaseOrderItem_variantId_fkey") THEN ALTER TABLE "PurchaseOrderItem" ADD CONSTRAINT "PurchaseOrderItem_variantId_fkey" FOREIGN KEY ("variantId") REFERENCES "ProductVariant"("id") ON DELETE SET NULL; END IF; END $$;');
     // FKs (ignore errors if already exist)
     await db.$executeRawUnsafe(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'RolePermission_roleId_fkey') THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE; END IF; END $$;`);
     await db.$executeRawUnsafe(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'RolePermission_permissionId_fkey') THEN ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE CASCADE; END IF; END $$;`);
