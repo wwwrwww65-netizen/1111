@@ -27,9 +27,10 @@ jobs:
           node-version: 20
       - name: Install pnpm
         run: corepack enable && corepack prepare pnpm@9 --activate
-      - name: Archive project
+      - name: Archive project (use git archive to avoid file change warnings)
         run: |
-          tar --exclude=node_modules --exclude=.git -czf app.tar.gz .
+          git config --global core.autocrlf false
+          git archive --format=tar.gz -o app.tar.gz HEAD
       - name: Copy to server
         uses: appleboy/scp-action@v0.1.7
         with:

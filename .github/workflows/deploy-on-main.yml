@@ -40,7 +40,7 @@ jobs:
             EMAIL=admin@jeeey.com
 
             # Pull code on server via git instead of SCP
-            apt-get update -y >/dev/null 2>&1 || true
+            apt-get update >/dev/null 2>&1 || true
             apt-get install -y git >/dev/null 2>&1 || true
             if [ -d "$ROOT/.git" ]; then
               cd "$ROOT"
