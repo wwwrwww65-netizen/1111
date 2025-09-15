@@ -1,0 +1,52 @@
+name: Deploy to VPS (SSH)
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "VPS host"
+        required: true
+        default: "srv995016.hstgr.cloud"
+      user:
+        description: "SSH user"
+        required: true
+        default: "root"
+      path:
+        description: "Remote path"
+        required: true
+        default: "/var/www/ecom"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@9 --activate
+      - name: Archive project
+        run: |
+          tar --exclude=node_modules --exclude=.git -czf app.tar.gz .
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ github.event.inputs.host }}
+          username: ${{ github.event.inputs.user }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "app.tar.gz"
+          target: "/root/"
+      - name: Remote deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ github.event.inputs.host }}
+          username: ${{ github.event.inputs.user }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            mkdir -p ${{ github.event.inputs.path }}
+            tar -xzf /root/app.tar.gz -C ${{ github.event.inputs.path }}
+            cd ${{ github.event.inputs.path }}
+            bash infra/scripts/deploy.sh ${{ github.event.inputs.path }}

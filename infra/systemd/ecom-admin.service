@@ -10,8 +10,8 @@ Environment=NODE_ENV=production
 Environment=PORT=3001
 Restart=always
 RestartSec=2
-User=deploy
-Group=deploy
+User=root
+Group=root
 
 [Install]
 WantedBy=multi-user.target
