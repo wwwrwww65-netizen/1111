@@ -34,16 +34,16 @@ jobs:
           for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet "$s" && echo "$s: active" || (echo "$s: not active"; journalctl -u "$s" -n 120 --no-pager || true); done
           curl -fsS http://127.0.0.1:4000/health || true
           nginx -t && systemctl reload nginx || true
-          '\''' 
+          '\'' 
 
       - name: Run Prisma migrations
         if: inputs.run_migrations == true
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud 'bash -lc '\''set -e
           cd /var/www/ecom/packages/db
-          export $(grep -v '^#' /var/www/ecom/.env.api | xargs)
+          set -a; . /var/www/ecom/.env.api; set +a
           npx -y prisma migrate deploy
-          '\''' 
+          '\'' 
 
       - name: Restart services
         if: inputs.restart_services == true
@@ -52,5 +52,5 @@ jobs:
           for s in ecom-api ecom-admin ecom-web; do systemctl restart "$s"; done
           sleep 2
           for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet "$s" && echo "$s: active" || (echo "$s: not active"; journalctl -u "$s" -n 120 --no-pager || true); done
-          '\''' 
+          '\'' 
 

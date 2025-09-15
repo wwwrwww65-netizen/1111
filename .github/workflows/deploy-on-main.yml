@@ -53,7 +53,7 @@ jobs:
 
             bash "$ROOT/infra/scripts/setup-server.sh"
 
-            # Generate secrets and Postgres
+            # Generate secrets and Postgres (idempotent - don't overwrite existing .env.api)
             JWT_SECRET=$(openssl rand -hex 32)
             MAINT_SECRET=$(openssl rand -hex 32)
             DB_USER=jeeey
@@ -61,9 +61,9 @@ jobs:
             DB_PASS=$(openssl rand -hex 16)
             sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1 || sudo -u postgres psql -c "CREATE USER \"${DB_USER}\" WITH PASSWORD '${DB_PASS}';"
             sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "${DB_NAME}" || sudo -u postgres psql -c "CREATE DATABASE \"${DB_NAME}\" OWNER \"${DB_USER}\";"
-            DB_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}"
-
-            cat > "$ROOT/.env.api" <<EOF
+            if [ ! -f "$ROOT/.env.api" ]; then
+              DB_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}"
+              cat > "$ROOT/.env.api" <<EOF
             NODE_ENV=production
             PORT=4000
             JWT_SECRET=${JWT_SECRET}
@@ -73,6 +73,7 @@ jobs:
             MAINTENANCE_SECRET=${MAINT_SECRET}
             API_RUN_ENSURE_SCHEMA=1
             EOF
+            fi
 
             cat > "$ROOT/.env.web" <<EOF
             NODE_ENV=production

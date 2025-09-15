@@ -27,6 +27,10 @@ if [ -f "$ROOT_DIR/.env.web" ]; then
 fi
 
 export NODE_ENV=production
+# Load API env for Prisma if present
+if [ -f "$ROOT_DIR/.env.api" ]; then
+  set -a; . "$ROOT_DIR/.env.api"; set +a
+fi
 pnpm --filter @repo/db db:deploy || true
 pnpm --filter @repo/api build
 pnpm --filter web build
