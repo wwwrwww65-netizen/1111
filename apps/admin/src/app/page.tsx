@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { resolveApiBase } from "./lib/apiBase";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,9 +9,7 @@ export default function AdminHome(): JSX.Element {
   const [recentOrders, setRecentOrders] = React.useState<any[]>([]);
   const [recentTickets, setRecentTickets] = React.useState<any[]>([]);
   const [busy, setBusy] = React.useState(false);
-  const apiBase = React.useMemo(()=>{
-    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
-  }, []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);

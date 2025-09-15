@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function DriversPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
@@ -10,9 +11,7 @@ export default function DriversPage(): JSX.Element {
   const [vehicleType, setVehicleType] = React.useState<'دراجة نارية'|'دباب نقل'|''>('');
   const [ownership, setOwnership] = React.useState<'company'|'driver'|''>('');
   const [notes, setNotes] = React.useState('');
-  const apiBase = React.useMemo(()=>{
-    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
-  }, []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);

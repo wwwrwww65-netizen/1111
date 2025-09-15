@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function OrdersPage(): JSX.Element {
   const [page, setPage] = React.useState(1);
@@ -25,9 +26,7 @@ export default function OrdersPage(): JSX.Element {
   const [coStreet, setCoStreet] = React.useState('');
   const [coItems, setCoItems] = React.useState<Array<{productId:string; quantity:number; price?:number}>>([{ productId:'', quantity:1 }]);
 
-  const apiBase = React.useMemo(()=>{
-    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
-  }, []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);

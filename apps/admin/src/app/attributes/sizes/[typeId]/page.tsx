@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../../lib/apiBase";
 export const dynamic = 'force-dynamic';
 
 export default function SizeTypePage({ params }: { params: { typeId: string } }): JSX.Element {
@@ -9,9 +10,7 @@ export default function SizeTypePage({ params }: { params: { typeId: string } })
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
     return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
   }
-  const apiBase = React.useMemo(()=>{
-    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
-  }, []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [error, setError] = React.useState<string>("");

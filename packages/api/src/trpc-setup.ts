@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { createContext, Context } from './context';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { signJwt, verifyJwt, readTokenFromRequest as readFromReq } from './utils/jwt';
 
 export const t = initTRPC.context<Context>().create();
 
@@ -18,30 +18,11 @@ const JWTPayloadSchema = z.object({
 });
 export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
 
-export const createToken = (payload: Omit<JWTPayload, 'iat' | 'exp'>): string => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET is not set');
-  return jwt.sign(payload, secret, { expiresIn: '7d' });
-};
+export const createToken = (payload: Omit<JWTPayload, 'iat' | 'exp'>): string => signJwt(payload);
 
-export const verifyToken = (token: string): JWTPayload => {
-  try {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error('JWT_SECRET is not set');
-    const decoded = jwt.verify(token, secret);
-    return JWTPayloadSchema.parse(decoded);
-  } catch {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
-  }
-};
+export const verifyToken = (token: string): JWTPayload => verifyJwt(token);
 
-const readTokenFromRequest = (req: any): string | null => {
-	const cookieToken = req?.cookies?.auth_token as string | undefined;
-	if (cookieToken) return cookieToken;
-	const header = req?.headers?.authorization as string | undefined;
-	if (header?.startsWith('Bearer ')) return header.replace('Bearer ', '');
-	return null;
-};
+const readTokenFromRequest = (req: any): string | null => readFromReq(req);
 
 export const authMiddleware = t.middleware(async ({ ctx, next }) => {
 	const token = readTokenFromRequest(ctx.req);

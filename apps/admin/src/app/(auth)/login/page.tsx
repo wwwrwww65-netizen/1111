@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../../lib/apiBase";
 
 export default function AdminLogin(): JSX.Element {
   const [email, setEmail] = React.useState("");
@@ -7,14 +8,7 @@ export default function AdminLogin(): JSX.Element {
   const [remember, setRemember] = React.useState(true);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const apiBase = React.useMemo(()=>{
-    const env = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (env) return env;
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('jeeey.com')) {
-      return 'https://api.jeeey.com';
-    }
-    return 'http://localhost:4000';
-  }, []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

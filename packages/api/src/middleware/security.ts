@@ -12,9 +12,14 @@ const buildAllowedOrigins = (): string[] => {
   if (appUrl) origins.push(appUrl);
   if (adminUrl) origins.push(adminUrl);
   if (extra) origins.push(...extra.split(',').map((s) => s.trim()).filter(Boolean));
-  // Allow only jeeey domains by default in production
-  if (process.env.NODE_ENV === 'production') {
-    origins.push('https://jeeey.com', 'https://admin.jeeey.com');
+  // Allow subdomains of COOKIE_DOMAIN if provided
+  const cookieDomain = process.env.COOKIE_DOMAIN;
+  if (cookieDomain && cookieDomain.startsWith('.')) {
+    const root = cookieDomain.slice(1);
+    origins.push(`https://${root}`);
+    origins.push(`https://admin.${root}`);
+    origins.push(`https://api.${root}`);
+    origins.push(`https://*.${root}`);
   }
   // In non-prod, include local defaults as well
   if (process.env.NODE_ENV !== 'production') {
