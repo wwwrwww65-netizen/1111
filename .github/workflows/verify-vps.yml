@@ -1,0 +1,56 @@
+name: Verify and Manage VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      restart_services:
+        description: "Restart ecom services"
+        required: false
+        type: boolean
+        default: false
+      run_migrations:
+        description: "Run Prisma migrate deploy"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H srv995016.hstgr.cloud >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Verify services and health
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud 'bash -lc '\''set -e
+          for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet "$s" && echo "$s: active" || (echo "$s: not active"; journalctl -u "$s" -n 120 --no-pager || true); done
+          curl -fsS http://127.0.0.1:4000/health || true
+          nginx -t && systemctl reload nginx || true
+          '\''' 
+
+      - name: Run Prisma migrations
+        if: inputs.run_migrations == true
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud 'bash -lc '\''set -e
+          cd /var/www/ecom/packages/db
+          export $(grep -v '^#' /var/www/ecom/.env.api | xargs)
+          npx -y prisma migrate deploy
+          '\''' 
+
+      - name: Restart services
+        if: inputs.restart_services == true
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud 'bash -lc '\''set -e
+          for s in ecom-api ecom-admin ecom-web; do systemctl restart "$s"; done
+          sleep 2
+          for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet "$s" && echo "$s: active" || (echo "$s: not active"; journalctl -u "$s" -n 120 --no-pager || true); done
+          '\''' 
+
