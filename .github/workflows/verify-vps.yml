@@ -32,28 +32,67 @@ jobs:
 
       - name: Verify services and health
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"set -e; for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet \\\"$s\\\" && echo \\\"$s: active\\\" || (echo \\\"$s: not active\\\"; journalctl -u \\\"$s\\\" -n 120 --no-pager || true); done; curl -fsS http://127.0.0.1:4000/health || true; nginx -t && systemctl reload nginx || true\""
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
+          set -e
+          for s in ecom-api ecom-admin ecom-web; do
+            if systemctl is-active --quiet "$s"; then
+              echo "$s: active"
+            else
+              echo "$s: not active"
+              journalctl -u "$s" -n 120 --no-pager || true
+            fi
+          done
+          curl -fsS http://127.0.0.1:4000/health || true
+          nginx -t && systemctl reload nginx || true
+          REMOTE
 
       - name: Run Prisma migrations
         if: inputs.run_migrations == true || github.event_name == 'push'
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"set -e; cd /var/www/ecom/packages/db; set -a; . /var/www/ecom/.env.api; set +a; npx -y prisma migrate deploy\""
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
+          set -e
+          cd /var/www/ecom/packages/db
+          set -a; . /var/www/ecom/.env.api; set +a
+          npx -y prisma migrate deploy
+          REMOTE
 
       - name: Restart services
         if: inputs.restart_services == true || github.event_name == 'push'
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"set -e; for s in ecom-api ecom-admin ecom-web; do systemctl restart \\\"$s\\\"; done; sleep 2; for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet \\\"$s\\\" && echo \\\"$s: active\\\" || (echo \\\"$s: not active\\\"; journalctl -u \\\"$s\\\" -n 120 --no-pager || true); done\""
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
+          set -e
+          for s in ecom-api ecom-admin ecom-web; do systemctl restart "$s"; done
+          sleep 2
+          for s in ecom-api ecom-admin ecom-web; do
+            if systemctl is-active --quiet "$s"; then
+              echo "$s: active"
+            else
+              echo "$s: not active"
+              journalctl -u "$s" -n 120 --no-pager || true
+            fi
+          done
+          REMOTE
 
       - name: Collect service logs and health
         if: always()
         run: |
           set -e
           mkdir -p logs
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"journalctl -u ecom-api -n 300 --no-pager || true\"" | tee logs/ecom-api.log
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"journalctl -u ecom-admin -n 300 --no-pager || true\"" | tee logs/ecom-admin.log
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"journalctl -u ecom-web -n 300 --no-pager || true\"" | tee logs/ecom-web.log
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"nginx -t || true\"" | tee logs/nginx-test.txt
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc \"curl -fsS http://127.0.0.1:4000/health || true\"" | tee logs/api-health.txt
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/ecom-api.log
+          journalctl -u ecom-api -n 300 --no-pager || true
+          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/ecom-admin.log
+          journalctl -u ecom-admin -n 300 --no-pager || true
+          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/ecom-web.log
+          journalctl -u ecom-web -n 300 --no-pager || true
+          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/nginx-test.txt
+          nginx -t || true
+          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/api-health.txt
+          curl -fsS http://127.0.0.1:4000/health || true
+          REMOTE
 
       - name: Upload logs artifact
         if: always()
