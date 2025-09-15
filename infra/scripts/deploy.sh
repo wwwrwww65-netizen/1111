@@ -16,8 +16,8 @@ pnpm install -r --no-frozen-lockfile
 export NODE_ENV=production
 pnpm --filter @repo/db db:deploy || true
 pnpm --filter @repo/api build
-pnpm --filter @repo/web build
-pnpm --filter @repo/admin build
+pnpm --filter web build
+pnpm --filter admin build
 
 systemctl daemon-reload || true
 systemctl restart ecom-api || true
