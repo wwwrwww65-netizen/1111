@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { verifyToken, readTokenFromRequest } from '../middleware/auth';
+import { verifyToken } from '../middleware/auth';
+import { readTokenFromRequest } from '../utils/jwt';
+import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import { Parser as CsvParser } from 'json2csv';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
@@ -1219,19 +1221,7 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
       console.warn('session_create_failed', (e as any)?.message || e);
     }
     try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
-    const host = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || '';
-    const cookieOpts: any = { httpOnly: true, secure: true, sameSite: 'none', maxAge: remember ? 30*24*60*60*1000 : undefined, path: '/' };
-    if (process.env.COOKIE_DOMAIN) {
-      cookieOpts.domain = process.env.COOKIE_DOMAIN;
-    }
-    // Set cross-domain cookie for subdomains
-    res.cookie('auth_token', token, cookieOpts);
-    // Also set host-only cookie as a fallback
-    const hostOnlyOpts: any = { ...cookieOpts };
-    delete hostOnlyOpts.domain;
-    // Use Lax for host-only cookie to maximize compatibility on top-level navigations
-    hostOnlyOpts.sameSite = 'lax';
-    res.cookie('auth_token', token, hostOnlyOpts);
+    setAuthCookies(res, token, !!remember);
     return res.json({ success: true, token, sessionId });
   } catch (e: any) {
     console.error('auth_login_error', e?.message || e);
@@ -1241,10 +1231,7 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
 
 adminRest.post('/auth/logout', async (req, res) => {
   try {
-    // Clear both host-only and cross-domain variants
-    res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
-    const domain = process.env.COOKIE_DOMAIN || '.jeeey.com';
-    res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', domain });
+    clearAuthCookies(res);
     await db.auditLog.create({ data: { module: 'auth', action: 'logout', userId: (req as any).user?.userId } });
     res.json({ success: true });
   } catch { res.json({ success: true }); }

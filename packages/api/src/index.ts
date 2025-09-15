@@ -139,7 +139,8 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (r
 		const stripeSecret = process.env.STRIPE_SECRET_KEY;
 		const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 		if (!stripeSecret || !webhookSecret) {
-			return res.status(500).json({ error: 'Stripe secrets not configured' });
+			// If not configured, acknowledge to avoid noisy 500s in non-configured envs
+			return res.status(204).end();
 		}
 		const Stripe = require('stripe');
 		const stripe = new Stripe(stripeSecret, { apiVersion: '2023-10-16' });
@@ -258,7 +259,8 @@ const port = process.env.PORT || 4000;
     await ensureSchema();
   }
   // Skip bootstrap seeding during tests unless explicitly forced
-  if (process.env.NODE_ENV !== 'test' || process.env.API_BOOTSTRAP_IN_TEST === '1') {
+  const allowBootstrap = (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') || process.env.API_ALLOW_BOOTSTRAP === '1';
+  if (allowBootstrap) {
     await ensureBootstrap();
   }
   const forceListen = process.env.API_FORCE_LISTEN === '1';

@@ -1,10 +1,11 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 import { trpc } from "../providers";
 
 export default function InventoryPage(): JSX.Element {
   const q: any = trpc as any;
-  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
@@ -85,7 +86,7 @@ export default function InventoryPage(): JSX.Element {
 function InlineAdjust({ productId, onDone }: { productId: string; onDone: ()=>void }): JSX.Element {
   const [delta, setDelta] = React.useState<string>("1");
   const [undo, setUndo] = React.useState<number | null>(null);
-  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);

@@ -1,10 +1,11 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 import PermissionsTab from './PermissionsTab';
 export const dynamic = 'force-dynamic';
 
 function useApiBase(){
-  return React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  return React.useMemo(()=> resolveApiBase(), []);
 }
 function useAuthHeaders(){
   return React.useCallback(() => {

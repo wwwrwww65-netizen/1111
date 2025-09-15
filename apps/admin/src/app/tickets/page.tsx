@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function TicketsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
@@ -7,7 +8,7 @@ export default function TicketsPage(): JSX.Element {
   const [status, setStatus] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
-  const apiBase = React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);

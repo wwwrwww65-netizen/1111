@@ -1,14 +1,13 @@
 "use client";
 import React from 'react';
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function ShipmentsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [page, setPage] = React.useState(1);
   const [total, setTotal] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
-  const apiBase = React.useMemo(()=>{
-    return (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window !== 'undefined' ? (window.location.origin.replace('jeeey-manger','jeeeyai')) : 'http://localhost:4000');
-  }, []);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);

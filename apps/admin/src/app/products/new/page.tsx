@@ -1,9 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
 import React from "react";
+import { resolveApiBase } from "../../lib/apiBase";
 
 function useApiBase(){
-  return React.useMemo(()=> (process.env.NEXT_PUBLIC_API_BASE_URL as string) || (typeof window!=="undefined" ? window.location.origin.replace('jeeey-manger','jeeeyai') : 'http://localhost:4000'), []);
+  return React.useMemo(()=> resolveApiBase(), []);
 }
 function useAuthHeaders(){
   return React.useCallback(() => {

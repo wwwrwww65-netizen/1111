@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { publicProcedure, router } from '../trpc-setup';
 import { authMiddleware, createToken } from '../middleware/auth';
+import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import bcrypt from 'bcryptjs';
 import { db } from '@repo/db';
 
@@ -74,7 +75,7 @@ export const authRouter = router({
 
       // Generate JWT token and set cookie
       const token = createToken({ userId: user.id, email: user.email, role: user.role });
-      ctx.res.cookie(COOKIE_NAME, token, COOKIE_DOMAIN ? { ...COOKIE_OPTS, domain: COOKIE_DOMAIN } : COOKIE_OPTS);
+      setAuthCookies(ctx.res as any, token, true);
 
       return { user };
     }),
@@ -103,7 +104,7 @@ export const authRouter = router({
 
       // Generate JWT token and set cookie
       const token = createToken({ userId: user.id, email: user.email, role: user.role });
-      ctx.res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+      setAuthCookies(ctx.res as any, token);
 
       const { password: _, ...userWithoutPassword } = user;
       return { user: userWithoutPassword };
@@ -112,7 +113,7 @@ export const authRouter = router({
   // Logout user
   logout: publicProcedure
     .mutation(async ({ ctx }) => {
-      ctx.res.clearCookie(COOKIE_NAME, COOKIE_DOMAIN ? { path: '/', domain: COOKIE_DOMAIN } : { path: '/' });
+      clearAuthCookies(ctx.res as any);
       return { success: true };
     }),
 
