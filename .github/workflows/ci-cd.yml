@@ -39,6 +39,7 @@ env:
 jobs:
   light_ci:
     name: CI (light, self-hosted)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, linux, x64, jeeey]
     steps:
       - name: Checkout repository
