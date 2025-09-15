@@ -17,7 +17,7 @@ defaults:
 jobs:
   ci:
     name: ci
-    runs-on: [self-hosted, linux, x64, jeeey]
+    runs-on: ubuntu-latest
     environment:
       name: production
     env:
@@ -51,7 +51,7 @@ jobs:
   cd:
     name: cd
     needs: ci
-    runs-on: [self-hosted, linux, x64, jeeey]
+    runs-on: ubuntu-latest
     environment:
       name: production
     env:
