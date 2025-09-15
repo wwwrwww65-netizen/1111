@@ -11,7 +11,7 @@ rsync -a --delete --exclude node_modules --exclude .git ./ "$ROOT_DIR"/
 cd "$ROOT_DIR"
 corepack enable || true
 corepack prepare pnpm@9 --activate || true
-pnpm install -r --frozen-lockfile
+pnpm install -r --no-frozen-lockfile
 
 export NODE_ENV=production
 pnpm --filter @repo/db db:deploy || true
