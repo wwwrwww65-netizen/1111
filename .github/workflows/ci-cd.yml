@@ -63,7 +63,7 @@ jobs:
           pnpm --filter @repo/api build
 
   build_and_test:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     name: Build / Test
     runs-on: ubuntu-latest
     services:
