@@ -1,0 +1,129 @@
+name: Bootstrap Server and Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "VPS host"
+        required: true
+        default: "srv995016.hstgr.cloud"
+      user:
+        description: "SSH user"
+        required: true
+        default: "root"
+      path:
+        description: "Remote path"
+        required: true
+        default: "/var/www/ecom"
+      domain_root:
+        description: "Root domain"
+        required: true
+        default: "jeeey.com"
+      admin_sub:
+        description: "Admin subdomain"
+        required: true
+        default: "admin.jeeey.com"
+      api_sub:
+        description: "API subdomain"
+        required: true
+        default: "api.jeeey.com"
+      issue_tls:
+        description: "Issue TLS via certbot (true/false)"
+        required: true
+        default: "false"
+      db_name:
+        description: "Postgres DB name"
+        required: true
+        default: "jeeey"
+      db_user:
+        description: "Postgres DB user"
+        required: true
+        default: "jeeey"
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive project
+        run: tar --exclude=node_modules --exclude=.git -czf app.tar.gz .
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ github.event.inputs.host }}
+          username: ${{ github.event.inputs.user }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "app.tar.gz"
+          target: "/root/"
+      - name: Bootstrap and deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ github.event.inputs.host }}
+          username: ${{ github.event.inputs.user }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path }}
+            DOMAIN_ROOT=${{ github.event.inputs.domain_root }}
+            ADMIN_SUB=${{ github.event.inputs.admin_sub }}
+            API_SUB=${{ github.event.inputs.api_sub }}
+            ISSUE_TLS=${{ github.event.inputs.issue_tls }}
+            DB_NAME=${{ github.event.inputs.db_name }}
+            DB_USER=${{ github.event.inputs.db_user }}
+            
+            mkdir -p "$ROOT"
+            tar -xzf /root/app.tar.gz -C "$ROOT"
+            cd "$ROOT"
+            bash infra/scripts/setup-server.sh
+            
+            # Generate secrets
+            JWT_SECRET=$(openssl rand -hex 32)
+            MAINT_SECRET=$(openssl rand -hex 32)
+            DB_PASS=$(openssl rand -hex 16)
+            
+            # Create Postgres db/user if not exists
+            sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1 || sudo -u postgres psql -c "CREATE USER \"${DB_USER}\" WITH PASSWORD '${DB_PASS}';"
+            sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "${DB_NAME}" || sudo -u postgres psql -c "CREATE DATABASE \"${DB_NAME}\" OWNER \"${DB_USER}\";"
+            
+            DB_URL="postgresql://${DB_USER}:${DB_PASS}@127.0.0.1:5432/${DB_NAME}"
+            
+            # Write env files
+            cat > "$ROOT/.env.api" <<EOF
+            NODE_ENV=production
+            PORT=4000
+            JWT_SECRET=${JWT_SECRET}
+            DATABASE_URL=${DB_URL}
+            DIRECT_URL=${DB_URL}
+            COOKIE_DOMAIN=.${DOMAIN_ROOT}
+            MAINTENANCE_SECRET=${MAINT_SECRET}
+            API_RUN_ENSURE_SCHEMA=1
+            EOF
+            
+            cat > "$ROOT/.env.web" <<EOF
+            NODE_ENV=production
+            NEXT_PUBLIC_APP_URL=https://${DOMAIN_ROOT}
+            NEXT_PUBLIC_ADMIN_URL=https://${ADMIN_SUB}
+            NEXT_PUBLIC_API_BASE_URL=https://${API_SUB}
+            NEXT_PUBLIC_TRPC_URL=https://${API_SUB}/trpc
+            EOF
+            
+            # Place nginx config
+            if [ -f infra/nginx/jeeey.conf.tpl ]; then
+              TPL=$(cat infra/nginx/jeeey.conf.tpl)
+              echo "$TPL" | sed "s/jeeey.com/${DOMAIN_ROOT}/g" > /etc/nginx/sites-available/jeeey.conf
+              ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
+              systemctl reload nginx || true
+            fi
+            
+            # Build & deploy
+            bash infra/scripts/deploy.sh "$ROOT"
+            
+            # Enable services
+            systemctl enable --now ecom-api || true
+            systemctl enable --now ecom-web || true
+            systemctl enable --now ecom-admin || true
+            
+            # Optional TLS issuance
+            if [ "$ISSUE_TLS" = "true" ]; then
+              certbot --nginx -d ${DOMAIN_ROOT} -d www.${DOMAIN_ROOT} -d ${ADMIN_SUB} -d ${API_SUB} --non-interactive --agree-tos -m admin@${DOMAIN_ROOT} || true
+            fi
