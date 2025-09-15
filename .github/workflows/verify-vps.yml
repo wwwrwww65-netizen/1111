@@ -78,7 +78,8 @@ jobs:
           # Test connection with decoded password; if fails, align Postgres user password to env
           if ! PGPASSWORD="$DB_PASS" psql -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c 'select 1' >/dev/null 2>&1; then
             echo "Syncing Postgres password for user $DB_USER to match .env.api"
-            sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER USER \"$DB_USER\" WITH PASSWORD $$${DB_PASS}$$;"
+            ESC_PW=$(printf '%s' "$DB_PASS" | sed "s/'/''/g")
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER USER \"$DB_USER\" WITH PASSWORD '$ESC_PW';"
           fi
           npx -y prisma migrate deploy
           REMOTE
