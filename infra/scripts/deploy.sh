@@ -13,6 +13,19 @@ corepack enable || true
 corepack prepare pnpm@9 --activate || true
 pnpm install -r --no-frozen-lockfile
 
+# Load public env (for Next build) if present and materialize per-app .env.production
+if [ -f "$ROOT_DIR/.env.web" ]; then
+  set -a; . "$ROOT_DIR/.env.web"; set +a
+  mkdir -p "$ROOT_DIR/apps/admin" "$ROOT_DIR/apps/web"
+  {
+    echo "NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-}"
+    echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL:-}"
+    echo "NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-}"
+    echo "NEXT_PUBLIC_TRPC_URL=${NEXT_PUBLIC_TRPC_URL:-}"
+  } > "$ROOT_DIR/apps/admin/.env.production"
+  cp "$ROOT_DIR/apps/admin/.env.production" "$ROOT_DIR/apps/web/.env.production"
+fi
+
 export NODE_ENV=production
 pnpm --filter @repo/db db:deploy || true
 pnpm --filter @repo/api build
