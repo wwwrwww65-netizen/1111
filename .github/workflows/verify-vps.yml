@@ -1,6 +1,8 @@
 name: Verify and Manage VPS
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       restart_services:
@@ -37,7 +39,7 @@ jobs:
           '\'' 
 
       - name: Run Prisma migrations
-        if: inputs.run_migrations == true
+        if: inputs.run_migrations == true || github.event_name == 'push'
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud 'bash -lc '\''set -e
           cd /var/www/ecom/packages/db
@@ -46,7 +48,7 @@ jobs:
           '\'' 
 
       - name: Restart services
-        if: inputs.restart_services == true
+        if: inputs.restart_services == true || github.event_name == 'push'
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud 'bash -lc '\''set -e
           for s in ecom-api ecom-admin ecom-web; do systemctl restart "$s"; done
