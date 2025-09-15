@@ -1582,3 +1582,84 @@ adminRest.post('/backups/schedule', async (req, res) => {
 });
 
 export default adminRest;
+// ---------------------------
+// Purchase Orders (POS) module
+// ---------------------------
+adminRest.get('/pos/list', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, Number(req.query.page ?? 1));
+    const limit = Math.min(Number(req.query.limit ?? 20), 100);
+    const skip = (page - 1) * limit;
+    const rows: any[] = await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName", (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount" FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id = p."vendorId" ORDER BY p."createdAt" DESC OFFSET ${skip} LIMIT ${limit}`;
+    const totalRows = await db.$queryRaw<Array<{count: bigint}>>`SELECT COUNT(1)::bigint as count FROM "PurchaseOrder"`;
+    const total = Number(totalRows?.[0]?.count || 0);
+    return res.json({ pos: rows, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total/limit)) } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pos_list_failed' }); }
+});
+
+adminRest.get('/pos/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const po: any[] = await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName" FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId" WHERE p.id=${id} LIMIT 1`;
+    if (!po.length) return res.status(404).json({ error:'not_found' });
+    const items: any[] = await db.$queryRaw<any[]>`SELECT i.*, pr.name as "productName", pv."sku" as "variantSku" FROM "PurchaseOrderItem" i LEFT JOIN "Product" pr ON pr.id=i."productId" LEFT JOIN "ProductVariant" pv ON pv.id=i."variantId" WHERE i."poId"=${id} ORDER BY i."createdAt" ASC`;
+    return res.json({ po: po[0], items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pos_detail_failed' }); }
+});
+
+adminRest.post('/pos', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.update'))) return res.status(403).json({ error:'forbidden' });
+    const { vendorId, notes } = req.body || {};
+    const id = (require('crypto').randomUUID as () => string)();
+    await db.$executeRaw`INSERT INTO "PurchaseOrder" (id, "vendorId", status, total, notes) VALUES (${id}, ${vendorId||null}, ${'DRAFT'}, ${0}, ${notes||null})`;
+    const po: any[] = await db.$queryRaw<any[]>`SELECT * FROM "PurchaseOrder" WHERE id=${id}`;
+    return res.json({ po: po[0] });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pos_create_failed' }); }
+});
+
+adminRest.post('/pos/:id/items', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const { productId, variantId, quantity, unitCost } = req.body || {};
+    if (!quantity || !unitCost) return res.status(400).json({ error:'quantity_and_unitCost_required' });
+    const itemId = (require('crypto').randomUUID as () => string)();
+    await db.$executeRaw`INSERT INTO "PurchaseOrderItem" (id, "poId", "productId", "variantId", quantity, "unitCost") VALUES (${itemId}, ${id}, ${productId||null}, ${variantId||null}, ${Number(quantity)}, ${Number(unitCost)})`;
+    // Recompute total
+    const sumRows: any[] = await db.$queryRaw<any[]>`SELECT COALESCE(SUM(quantity * "unitCost"),0) as total FROM "PurchaseOrderItem" WHERE "poId"=${id}`;
+    const total = Number(sumRows?.[0]?.total || 0);
+    await db.$executeRaw`UPDATE "PurchaseOrder" SET total=${total}, "updatedAt"=NOW() WHERE id=${id}`;
+    return res.json({ success: true, total });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pos_add_item_failed' }); }
+});
+
+adminRest.post('/pos/:id/submit', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await db.$executeRaw`UPDATE "PurchaseOrder" SET status=${'SUBMITTED'}, "updatedAt"=NOW() WHERE id=${id}`;
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pos_submit_failed' }); }
+});
+
+adminRest.post('/pos/:id/receive', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'inventory.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    // Fetch items
+    const items: Array<{variantId: string|null; productId: string|null; quantity: number; unitCost: number}> = await db.$queryRaw<any[]>`SELECT "variantId", "productId", quantity, "unitCost" FROM "PurchaseOrderItem" WHERE "poId"=${id}`;
+    // Apply stock increments in transaction-like fashion
+    for (const it of items) {
+      if (it.variantId) {
+        await db.productVariant.update({ where: { id: it.variantId }, data: { stockQuantity: { increment: it.quantity }, purchasePrice: it.unitCost } });
+      } else if (it.productId) {
+        await db.product.update({ where: { id: it.productId }, data: { stockQuantity: { increment: it.quantity } } });
+      }
+    }
+    await db.$executeRaw`UPDATE "PurchaseOrder" SET status=${'RECEIVED'}, "updatedAt"=NOW() WHERE id=${id}`;
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pos_receive_failed' }); }
+});
