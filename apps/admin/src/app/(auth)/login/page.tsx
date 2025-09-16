@@ -50,7 +50,12 @@ export default function AdminLogin(): JSX.Element {
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
       window.location.href = redirectTo;
-    } catch { setError('خطأ غير متوقع'); } finally { setBusy(false); }
+    } catch {
+      const msg = 'خطأ غير متوقع';
+      setError(msg);
+      setToast(msg);
+      setTimeout(()=> setToast(""), 4000);
+    } finally { setBusy(false); }
   }
 
   return (
@@ -70,7 +75,7 @@ export default function AdminLogin(): JSX.Element {
         <button type="submit" disabled={busy} style={{ width:'100%', padding:'10px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>{busy? 'جارٍ الدخول...' : 'دخول'}</button>
       </form>
       {toast && (
-        <div className="toast err" style={{ position:'fixed', right:16, bottom:16 }}>
+        <div className="toast err" role="status" aria-live="polite" style={{ position:'fixed', right:16, bottom:16, zIndex:9999, background:'#2a0f0f', border:'1px solid #7f1d1d', color:'#fff', padding:'10px 14px', borderRadius:10 }}>
           {toast}
         </div>
       )}
