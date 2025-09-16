@@ -130,7 +130,7 @@ jobs:
           echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
       - name: (Optional) Mirror production DB into CI Postgres
-        if: github.ref == 'refs/heads/main' && (vars.CLONE_PROD_DB == '1' || secrets.CLONE_PROD_DB == '1')
+        if: github.ref == 'refs/heads/main'
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -139,7 +139,9 @@ jobs:
           PROD_DB_USER: ${{ secrets.PROD_DB_USER }}
           PROD_DB_PASS: ${{ secrets.PROD_DB_PASS }}
           PROD_DB_NAME: ${{ secrets.PROD_DB_NAME }}
+          CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
         run: |
+          if [ "${CLONE_PROD_DB}" != "1" ]; then echo "Skip prod DB clone (CLONE_PROD_DB!=1)"; exit 0; fi
           sudo apt-get update -y && sudo apt-get install -y postgresql-client openssh-client
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
@@ -149,12 +151,20 @@ jobs:
           PGPASSWORD=password pg_restore -U user -h localhost -p 5432 -d ecom_db --clean --if-exists prod.dump
 
       - name: Prisma push schema (non-destructive)
-        if: vars.CLONE_PROD_DB != '1'
-        run: pnpm --filter @repo/db db:push
+        if: github.ref == 'refs/heads/main'
+        env:
+          CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
+        run: |
+          if [ "${CLONE_PROD_DB}" = "1" ]; then echo "Skip db:push (prod DB mirrored)"; exit 0; fi
+          pnpm --filter @repo/db db:push
 
       - name: Prisma seed
-        if: vars.CLONE_PROD_DB != '1'
-        run: pnpm --filter @repo/db db:seed
+        if: github.ref == 'refs/heads/main'
+        env:
+          CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
+        run: |
+          if [ "${CLONE_PROD_DB}" = "1" ]; then echo "Skip seed (prod DB mirrored)"; exit 0; fi
+          pnpm --filter @repo/db db:seed
 
       - name: Build API
         run: pnpm --filter @repo/api build
