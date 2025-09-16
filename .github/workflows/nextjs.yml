@@ -5,11 +5,6 @@
 name: Build Next.js (smoke only)
 
 on:
-  # Runs on pushes targeting the default branch
-  push:
-    branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # Minimal permissions
