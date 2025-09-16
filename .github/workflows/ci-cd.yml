@@ -112,12 +112,14 @@ jobs:
       - name: Load prod-like env from repo Variables/Secrets (main only)
         if: github.ref == 'refs/heads/main'
         run: |
-          echo "COOKIE_DOMAIN=${{ vars.COOKIE_DOMAIN }}" >> $GITHUB_ENV
-          echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS }}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL }}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_TRPC_URL=${{ vars.NEXT_PUBLIC_TRPC_URL }}" >> $GITHUB_ENV
+          echo "COOKIE_DOMAIN=${{ vars.COOKIE_DOMAIN || secrets.COOKIE_DOMAIN }}" >> $GITHUB_ENV
+          echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS || secrets.CORS_ALLOW_ORIGINS }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL || secrets.NEXT_PUBLIC_ADMIN_URL }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || secrets.NEXT_PUBLIC_APP_URL }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || secrets.NEXT_PUBLIC_API_BASE_URL }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_TRPC_URL=${{ vars.NEXT_PUBLIC_TRPC_URL || secrets.NEXT_PUBLIC_TRPC_URL }}" >> $GITHUB_ENV
+          echo "EXPO_PUBLIC_TRPC_URL=${{ vars.EXPO_PUBLIC_TRPC_URL || secrets.EXPO_PUBLIC_TRPC_URL }}" >> $GITHUB_ENV
+          echo "EXPO_PUBLIC_API_BASE_URL=${{ vars.EXPO_PUBLIC_API_BASE_URL || secrets.EXPO_PUBLIC_API_BASE_URL }}" >> $GITHUB_ENV
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> $GITHUB_ENV
           echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET }}" >> $GITHUB_ENV
 
@@ -128,7 +130,7 @@ jobs:
           echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
       - name: (Optional) Mirror production DB into CI Postgres
-        if: github.ref == 'refs/heads/main' && vars.CLONE_PROD_DB == '1'
+        if: github.ref == 'refs/heads/main' && (vars.CLONE_PROD_DB == '1' || secrets.CLONE_PROD_DB == '1')
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
