@@ -32,82 +32,28 @@ jobs:
 
       - name: Verify services and health
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
-          set -e
-          for s in ecom-api ecom-admin ecom-web; do
-            if systemctl is-active --quiet "$s"; then
-              echo "$s: active"
-            else
-              echo "$s: not active"
-              journalctl -u "$s" -n 120 --no-pager || true
-            fi
-          done
-          curl -fsS http://127.0.0.1:4000/health || true
-          nginx -t && systemctl reload nginx || true
-          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'set -e; for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet \"$s\" && echo \"$s: active\" || (echo \"$s: not active\"; journalctl -u \"$s\" -n 120 --no-pager || true); done; curl -fsS http://127.0.0.1:4000/health || true; nginx -t && systemctl reload nginx || true'"
 
-      - name: Run Prisma migrations
+      - name: Run Prisma db push (non-destructive)
         if: inputs.run_migrations == true || github.event_name == 'push'
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
-          set -e
-          cd /var/www/ecom/packages/db
-          # 1) Sync DB password in Postgres to match .env.api (robust parsing + SQL here-doc to avoid quoting issues)
-          set -a; . /var/www/ecom/.env.api; set +a
-          node -e '
-            const url = process.env.DATABASE_URL || "";
-            const U = new URL(url);
-            const user = decodeURIComponent(U.username||"jeeey");
-            let pw = decodeURIComponent(U.password||"");
-            pw = pw.replace(/'/g, "''");
-            console.log(JSON.stringify({user, pw}));
-          ' > /tmp/db_creds.json
-          DB_USER=$(node -e "const j=require('/tmp/db_creds.json');process.stdout.write(j.user)")
-          DB_PW=$(node -e "const j=require('/tmp/db_creds.json');process.stdout.write(j.pw)")
-          sudo -u postgres bash -lc "psql -v ON_ERROR_STOP=1 <<SQL
-          ALTER ROLE \"$DB_USER\" WITH PASSWORD '$DB_PW';
-          SQL"
-          # 2) Run migrations using env DATABASE_URL (now valid)
-          npx -y prisma migrate deploy --schema prisma/schema.prisma
-          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'cd /var/www/ecom/packages/db && set -a; . /var/www/ecom/.env.api; set +a; npx -y prisma db push'"
 
       - name: Restart services
         if: inputs.restart_services == true || github.event_name == 'push'
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
-          set -e
-          for s in ecom-api ecom-admin ecom-web; do systemctl restart "$s"; done
-          sleep 2
-          for s in ecom-api ecom-admin ecom-web; do
-            if systemctl is-active --quiet "$s"; then
-              echo "$s: active"
-            else
-              echo "$s: not active"
-              journalctl -u "$s" -n 120 --no-pager || true
-            fi
-          done
-          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'set -e; for s in ecom-api ecom-admin ecom-web; do systemctl restart \"$s\"; done; sleep 2; for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet \"$s\" && echo \"$s: active\" || (echo \"$s: not active\"; journalctl -u \"$s\" -n 120 --no-pager || true); done'"
 
       - name: Collect service logs and health
         if: always()
         run: |
           set -e
           mkdir -p logs
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/ecom-api.log
-          journalctl -u ecom-api -n 300 --no-pager || true
-          REMOTE
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/ecom-admin.log
-          journalctl -u ecom-admin -n 300 --no-pager || true
-          REMOTE
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/ecom-web.log
-          journalctl -u ecom-web -n 300 --no-pager || true
-          REMOTE
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/nginx-test.txt
-          nginx -t || true
-          REMOTE
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE' | tee logs/api-health.txt
-          curl -fsS http://127.0.0.1:4000/health || true
-          REMOTE
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "journalctl -u ecom-api -n 300 --no-pager || true" | tee logs/ecom-api.log
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "journalctl -u ecom-admin -n 300 --no-pager || true" | tee logs/ecom-admin.log
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "journalctl -u ecom-web -n 300 --no-pager || true" | tee logs/ecom-web.log
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "nginx -t || true" | tee logs/nginx-test.txt
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "curl -fsS http://127.0.0.1:4000/health || true" | tee logs/api-health.txt
 
       - name: Upload logs artifact
         if: always()
