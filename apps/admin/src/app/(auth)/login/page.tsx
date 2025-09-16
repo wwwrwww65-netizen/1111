@@ -21,28 +21,25 @@ export default function AdminLogin(): JSX.Element {
         credentials: 'include',
         body: JSON.stringify({ email, password, remember })
       });
+      const j = await res.json().catch(()=>null) as any;
       if (!res.ok) {
-        const jerr = await res.json().catch(()=>({error:'login_failed'}));
-        setError(jerr.error||'فشل تسجيل الدخول');
+        setError((j && j.error) || 'فشل تسجيل الدخول');
         return;
       }
-      // Optional: if API returned a token, bridge it; otherwise rely on Set-Cookie from server
-      try {
-        const j = await res.clone().json().catch(()=>null) as any;
-        if (j && j.token) {
-          // Bridge token to Host-only cookie to ensure visibility on this subdomain
-          await fetch('/api/auth/set', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ token: j.token, remember })
-          }).catch(()=>{});
-          // Also set a JS-readable cookie for pages that rely on document.cookie
-          const parts = [ `auth_token=${j.token}`, 'Path=/', 'SameSite=Lax' ];
-          if (remember) parts.push(`Max-Age=${30*24*60*60}`);
-          if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
-          document.cookie = parts.join('; ');
-        }
-      } catch {}
+      if (!j || !j.token) {
+        setError('فشل تسجيل الدخول');
+        return;
+      }
+      // Bridge token to Host-only cookie + JS cookie for stability
+      await fetch('/api/auth/set', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: j.token, remember })
+      }).catch(()=>{});
+      const parts = [ `auth_token=${j.token}`, 'Path=/', 'SameSite=Lax' ];
+      if (remember) parts.push(`Max-Age=${30*24*60*60}`);
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
+      document.cookie = parts.join('; ');
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
       window.location.href = redirectTo;
