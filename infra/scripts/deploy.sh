@@ -36,6 +36,11 @@ pnpm --filter @repo/api build
 pnpm --filter web build
 pnpm --filter admin build
 
+# Optional: seed admin if creds provided via environment
+if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
+  (cd "$ROOT_DIR/packages/api" && ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" node scripts/upsert-admin.js) || true
+fi
+
 # Ensure systemd ExecStart points to actual server.js paths for Next.js apps
 ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
 WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)

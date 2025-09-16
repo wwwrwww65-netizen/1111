@@ -83,6 +83,10 @@ jobs:
             NEXT_PUBLIC_TRPC_URL=https://${API_SUB}/trpc
             EOF
 
+            # Optionally set admin seed creds for deploy script
+            export ADMIN_EMAIL="admin@example.com"
+            export ADMIN_PASSWORD="admin123"
+
             # Systemd units
             cp "$ROOT/infra/systemd/ecom-api.service" /etc/systemd/system/ecom-api.service
             cp "$ROOT/infra/systemd/ecom-web.service" /etc/systemd/system/ecom-web.service
