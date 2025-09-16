@@ -36,6 +36,16 @@ pnpm --filter @repo/api build
 pnpm --filter web build
 pnpm --filter admin build
 
+# Ensure systemd ExecStart points to actual server.js paths for Next.js apps
+ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
+WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
+if [ -n "$ADMIN_JS" ] && [ -f /etc/systemd/system/ecom-admin.service ]; then
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
+fi
+if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $WEB_JS|" /etc/systemd/system/ecom-web.service || true
+fi
+
 systemctl daemon-reload || true
 systemctl restart ecom-api || true
 systemctl restart ecom-web || true
