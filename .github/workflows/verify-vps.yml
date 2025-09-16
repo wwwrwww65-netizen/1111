@@ -52,8 +52,10 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
           set -e
           cd /var/www/ecom/packages/db
-          # Run migrations as postgres over Unix socket (peer auth), avoiding passwords entirely
-          sudo -u postgres env DATABASE_URL='postgresql://postgres@/jeeey?host=/var/run/postgresql' npx -y prisma migrate deploy
+          # Use unix socket DSN via temporary .env to override any existing URLs
+          echo "DATABASE_URL=postgresql://postgres@/jeeey?host=/var/run/postgresql" > .env
+          sudo -u postgres npx -y prisma migrate deploy --schema prisma/schema.prisma
+          rm -f .env || true
           REMOTE
 
       - name: Restart services
