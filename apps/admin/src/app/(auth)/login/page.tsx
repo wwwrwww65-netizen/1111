@@ -30,12 +30,12 @@ export default function AdminLogin(): JSX.Element {
       try {
         const j = await res.clone().json().catch(()=>null) as any;
         if (j && j.token) {
-          const maxAge = remember ? 30*24*60*60 : undefined;
-          const parts = [ 'Path=/', 'SameSite=Lax' ];
-          parts.unshift(`auth_token=${j.token}`);
-          if (maxAge) parts.push(`Max-Age=${maxAge}`);
-          if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
-          document.cookie = parts.join('; ');
+          // Bridge token to Host-only cookie to ensure visibility on this subdomain
+          await fetch('/api/auth/set', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: j.token, remember })
+          }).catch(()=>{});
         }
       } catch {}
       const params = new URLSearchParams(window.location.search);
