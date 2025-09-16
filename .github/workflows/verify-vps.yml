@@ -42,7 +42,7 @@ jobs:
       - name: Restart services
         if: inputs.restart_services == true || github.event_name == 'push'
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'set -e; for s in ecom-api ecom-admin ecom-web; do systemctl restart \"$s\"; done; sleep 2; for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet \"$s\" && echo \"$s: active\" || (echo \"$s: not active\"; journalctl -u \"$s\" -n 120 --no-pager || true); done'"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'set -e; systemctl restart ecom-api || true; systemctl restart ecom-admin || true; systemctl restart ecom-web || true; sleep 2; systemctl is-active --quiet ecom-api && echo ecom-api:active || (echo ecom-api:not active; journalctl -u ecom-api -n 120 --no-pager || true); systemctl is-active --quiet ecom-admin && echo ecom-admin:active || (echo ecom-admin:not active; journalctl -u ecom-admin -n 120 --no-pager || true); systemctl is-active --quiet ecom-web && echo ecom-web:active || (echo ecom-web:not active; journalctl -u ecom-web -n 120 --no-pager || true);'"
 
       - name: Collect service logs and health
         if: always()
