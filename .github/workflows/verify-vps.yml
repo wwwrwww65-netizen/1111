@@ -52,10 +52,23 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud bash -s <<'REMOTE'
           set -e
           cd /var/www/ecom/packages/db
-          # Use unix socket DSN via temporary .env to override any existing URLs
-          echo "DATABASE_URL=postgresql://postgres@/jeeey?host=/var/run/postgresql" > .env
-          sudo -u postgres npx -y prisma migrate deploy --schema prisma/schema.prisma
-          rm -f .env || true
+          # 1) Sync DB password in Postgres to match .env.api (robust parsing + SQL here-doc to avoid quoting issues)
+          set -a; . /var/www/ecom/.env.api; set +a
+          node -e '
+            const url = process.env.DATABASE_URL || "";
+            const U = new URL(url);
+            const user = decodeURIComponent(U.username||"jeeey");
+            let pw = decodeURIComponent(U.password||"");
+            pw = pw.replace(/'/g, "''");
+            console.log(JSON.stringify({user, pw}));
+          ' > /tmp/db_creds.json
+          DB_USER=$(node -e "const j=require('/tmp/db_creds.json');process.stdout.write(j.user)")
+          DB_PW=$(node -e "const j=require('/tmp/db_creds.json');process.stdout.write(j.pw)")
+          sudo -u postgres bash -lc "psql -v ON_ERROR_STOP=1 <<SQL
+          ALTER ROLE \"$DB_USER\" WITH PASSWORD '$DB_PW';
+          SQL"
+          # 2) Run migrations using env DATABASE_URL (now valid)
+          npx -y prisma migrate deploy --schema prisma/schema.prisma
           REMOTE
 
       - name: Restart services
