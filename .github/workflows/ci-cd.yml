@@ -127,10 +127,31 @@ jobs:
           echo "DIRECT_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
           echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
+      - name: (Optional) Mirror production DB into CI Postgres
+        if: github.ref == 'refs/heads/main' && vars.CLONE_PROD_DB == '1'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          PROD_DB_USER: ${{ secrets.PROD_DB_USER }}
+          PROD_DB_PASS: ${{ secrets.PROD_DB_PASS }}
+          PROD_DB_NAME: ${{ secrets.PROD_DB_NAME }}
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y postgresql-client openssh-client
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p "${VPS_PORT:-22}" ${VPS_USER:-root}@${VPS_HOST} \
+            "PGPASSWORD='${PROD_DB_PASS}' pg_dump -U '${PROD_DB_USER}' -h 127.0.0.1 -p 5432 -d '${PROD_DB_NAME}' -Fc" > prod.dump
+          PGPASSWORD=password pg_restore -U user -h localhost -p 5432 -d ecom_db --clean --if-exists prod.dump
+
       - name: Prisma push schema (non-destructive)
+        if: vars.CLONE_PROD_DB != '1'
         run: pnpm --filter @repo/db db:push
 
       - name: Prisma seed
+        if: vars.CLONE_PROD_DB != '1'
         run: pnpm --filter @repo/db db:seed
 
       - name: Build API
