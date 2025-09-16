@@ -109,6 +109,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile --store-dir="$PNPM_CONFIG_STORE_DIR"
 
+      - name: Load prod-like env from repo Variables/Secrets (main only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "COOKIE_DOMAIN=${{ vars.COOKIE_DOMAIN }}" >> $GITHUB_ENV
+          echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_TRPC_URL=${{ vars.NEXT_PUBLIC_TRPC_URL }}" >> $GITHUB_ENV
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> $GITHUB_ENV
+          echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET }}" >> $GITHUB_ENV
+
       - name: Set DATABASE URLs
         run: |
           echo "DATABASE_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
