@@ -1,16 +1,11 @@
 name: Deploy to VPS (SSH)
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
-      host:
-        description: "VPS host"
-        required: true
-        default: "srv995016.hstgr.cloud"
-      user:
-        description: "SSH user"
-        required: true
-        default: "root"
       path:
         description: "Remote path"
         required: true
@@ -34,20 +29,21 @@ jobs:
       - name: Copy to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ github.event.inputs.host }}
-          username: ${{ github.event.inputs.user }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "app.tar.gz"
           target: "/root/"
       - name: Remote deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ github.event.inputs.host }}
-          username: ${{ github.event.inputs.user }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            mkdir -p ${{ github.event.inputs.path }}
-            tar -xzf /root/app.tar.gz -C ${{ github.event.inputs.path }}
-            cd ${{ github.event.inputs.path }}
-            bash infra/scripts/deploy.sh ${{ github.event.inputs.path }}
+            PATH_ON_HOST=${{ github.event.inputs.path || '/var/www/ecom' }}
+            mkdir -p "$PATH_ON_HOST"
+            tar -xzf /root/app.tar.gz -C "$PATH_ON_HOST"
+            cd "$PATH_ON_HOST"
+            bash infra/scripts/deploy.sh "$PATH_ON_HOST"
