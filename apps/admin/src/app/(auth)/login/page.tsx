@@ -36,6 +36,11 @@ export default function AdminLogin(): JSX.Element {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ token: j.token, remember })
           }).catch(()=>{});
+          // Also set a JS-readable cookie for pages that rely on document.cookie
+          const parts = [ `auth_token=${j.token}`, 'Path=/', 'SameSite=Lax' ];
+          if (remember) parts.push(`Max-Age=${30*24*60*60}`);
+          if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
+          document.cookie = parts.join('; ');
         }
       } catch {}
       const params = new URLSearchParams(window.location.search);
