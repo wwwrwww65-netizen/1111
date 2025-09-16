@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function CouponsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
@@ -8,15 +9,16 @@ export default function CouponsPage(): JSX.Element {
   const [discountValue, setDiscountValue] = React.useState<string>("10");
   const [edit, setEdit] = React.useState<Record<string, number>>({});
 
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
   async function load() {
-    const res = await fetch("/api/admin/coupons/list");
+    const res = await fetch(`${apiBase}/api/admin/coupons/list`, { credentials:'include' });
     const json = await res.json();
     setRows(json.coupons || []);
   }
-  React.useEffect(()=>{ load(); }, []);
+  React.useEffect(()=>{ load(); }, [apiBase]);
 
   async function create() {
-    await fetch('/api/admin/coupons', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ code, discountType, discountValue: Number(discountValue), validFrom: new Date().toISOString(), validUntil: new Date(Date.now()+7*86400000).toISOString() }) });
+    await fetch(`${apiBase}/api/admin/coupons`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ code, discountType, discountValue: Number(discountValue), validFrom: new Date().toISOString(), validUntil: new Date(Date.now()+7*86400000).toISOString() }) });
     setCode("");
     await load();
   }
@@ -52,7 +54,7 @@ export default function CouponsPage(): JSX.Element {
               ) : c.discountValue}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
                 {edit[c.id]!==undefined ? (
-                  <button onClick={async ()=>{ await fetch('/api/admin/coupons', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ code: c.code, discountType: c.discountType, discountValue: edit[c.id], validFrom: c.validFrom, validUntil: c.validUntil }) }); setEdit(s=>{ const x={...s}; delete x[c.id]; return x; }); await load(); }} style={{ padding:'6px 10px', background:'#064e3b', color:'#e5e7eb', borderRadius:6 }}>حفظ</button>
+                  <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/coupons`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ code: c.code, discountType: c.discountType, discountValue: edit[c.id], validFrom: c.validFrom, validUntil: c.validUntil }) }); setEdit(s=>{ const x={...s}; delete x[c.id]; return x; }); await load(); }} style={{ padding:'6px 10px', background:'#064e3b', color:'#e5e7eb', borderRadius:6 }}>حفظ</button>
                 ) : (
                   <button onClick={()=>setEdit(s=>({...s,[c.id]:c.discountValue}))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>تحرير</button>
                 )}

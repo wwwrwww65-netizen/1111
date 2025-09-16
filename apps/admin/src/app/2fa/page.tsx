@@ -1,12 +1,14 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function TwoFAPage(): JSX.Element {
   const [otpauth, setOtpauth] = React.useState<string>("");
   const [code, setCode] = React.useState("");
-  async function enable(){ const j = await (await fetch('/api/admin/2fa/enable',{method:'POST'})).json(); setOtpauth(j.otpauth); }
-  async function verify(){ await fetch('/api/admin/2fa/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code})}); alert('تم التفعيل'); }
-  async function disable(){ await fetch('/api/admin/2fa/disable',{method:'POST'}); alert('تم التعطيل'); }
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  async function enable(){ const j = await (await fetch(`${apiBase}/api/admin/2fa/enable`,{method:'POST', credentials:'include'})).json(); setOtpauth(j.otpauth); }
+  async function verify(){ await fetch(`${apiBase}/api/admin/2fa/verify`,{method:'POST',headers:{'content-type':'application/json'}, credentials:'include', body:JSON.stringify({code})}); alert('تم التفعيل'); }
+  async function disable(){ await fetch(`${apiBase}/api/admin/2fa/disable`,{method:'POST', credentials:'include'}); alert('تم التعطيل'); }
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>التحقق بخطوتين (2FA)</h1>

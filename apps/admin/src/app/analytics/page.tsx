@@ -1,9 +1,11 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function AnalyticsPage(): JSX.Element {
   const [kpis, setKpis] = React.useState<any>({});
-  React.useEffect(()=>{ fetch('/api/admin/analytics').then(r=>r.json()).then(j=>setKpis(j.kpis||{})); },[]);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/analytics`, { credentials:'include' }).then(r=>r.json()).then(j=>setKpis(j.kpis||{})); },[apiBase]);
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>الإحصاءات</h1>

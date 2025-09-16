@@ -1,21 +1,23 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function MediaPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [url, setUrl] = React.useState("");
   const [file, setFile] = React.useState<File|null>(null);
-  React.useEffect(()=>{ fetch('/api/admin/media/list').then(r=>r.json()).then(j=>setRows(j.assets||[])); },[]);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/media/list`, { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.assets||[])); },[apiBase]);
   async function add() {
     let body: any = { url, type:'image' };
     if (file) {
       const b64 = await toBase64(file);
       body = { base64: b64, type:'image' };
     }
-    await fetch('/api/admin/media', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
+    await fetch(`${apiBase}/api/admin/media`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(body) });
     setUrl("");
     setFile(null);
-    const j = await (await fetch('/api/admin/media/list')).json(); setRows(j.assets||[]);
+    const j = await (await fetch(`${apiBase}/api/admin/media/list`, { credentials:'include' })).json(); setRows(j.assets||[]);
   }
   function toBase64(f: File): Promise<string> { return new Promise((resolve,reject)=>{ const r = new FileReader(); r.onload=()=>resolve(String(r.result)); r.onerror=reject; r.readAsDataURL(f); }); }
   return (

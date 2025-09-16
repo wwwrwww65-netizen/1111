@@ -1,9 +1,11 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function ReturnsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
-  React.useEffect(()=>{ fetch('/api/admin/returns/list').then(r=>r.json()).then(j=>setRows(j.returns||[])); },[]);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/returns/list`, { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.returns||[])); },[apiBase]);
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>المرتجعات</h1>

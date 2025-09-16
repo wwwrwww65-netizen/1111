@@ -1,9 +1,11 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function LoyaltyPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
-  React.useEffect(()=>{ fetch('/api/admin/loyalty/list').then(r=>r.json()).then(j=>setRows(j.points||[])); },[]);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/loyalty/list`, { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.points||[])); },[apiBase]);
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>الولاء</h1>

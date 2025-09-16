@@ -1,16 +1,18 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../lib/apiBase";
 
 export default function CMSPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [slug, setSlug] = React.useState("");
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
-  React.useEffect(()=>{ fetch('/api/admin/cms/pages').then(r=>r.json()).then(j=>setRows(j.pages||[])); },[]);
+  const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/cms/pages`, { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.pages||[])); },[apiBase]);
   async function save() {
-    await fetch('/api/admin/cms/pages', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, title, content, published: false }) });
+    await fetch(`${apiBase}/api/admin/cms/pages`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ slug, title, content, published: false }) });
     setSlug(""); setTitle(""); setContent("");
-    const j = await (await fetch('/api/admin/cms/pages')).json(); setRows(j.pages||[]);
+    const j = await (await fetch(`${apiBase}/api/admin/cms/pages`, { credentials:'include' })).json(); setRows(j.pages||[]);
   }
   return (
     <main>
