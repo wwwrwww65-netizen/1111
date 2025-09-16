@@ -46,4 +46,43 @@ jobs:
             mkdir -p "$PATH_ON_HOST"
             tar -xzf /root/app.tar.gz -C "$PATH_ON_HOST"
             cd "$PATH_ON_HOST"
+            export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
+            export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
             bash infra/scripts/deploy.sh "$PATH_ON_HOST"
+
+      - name: Post-deploy smoke (health, login, static, services)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -Eeuo pipefail
+            ROOT="${{ github.event.inputs.path || '/var/www/ecom' }}"
+            echo '--- Nginx config test ---'
+            nginx -t
+            echo '--- Services status ---'
+            for s in ecom-api ecom-admin ecom-web; do systemctl is-active --quiet "$s" && echo "$s: active" || (echo "$s: inactive"; exit 1); done
+            echo '--- Health checks ---'
+            curl -fsS https://api.jeeey.com/health | head -n1
+            code=$(curl -ksSI https://admin.jeeey.com/ | sed -n '1p' | awk '{print $2}')
+            case "$code" in 200|301|302) echo "admin status ok: $code";; *) echo "admin bad status: $code"; exit 1;; esac
+            echo '--- Ensure admin exists & JSON login ---'
+            set +e
+            JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
+            set -e
+            if [ "$JSON_STATUS" != "200" ]; then
+              echo 'Admin login failed, attempting maintenance create-admin...'
+              . "$ROOT/.env.api" || true
+              curl -ksS -X POST https://api.jeeey.com/api/admin/maintenance/create-admin \
+                -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' \
+                --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' || true
+              sleep 1
+              JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
+              [ "$JSON_STATUS" = "200" ] || (echo "JSON login still failing ($JSON_STATUS)"; exit 1)
+            fi
+            echo '--- Static / Next.js symlinks check ---'
+            A="$ROOT/apps/admin/.next"
+            if [ ! -e "$A/standalone/apps/admin/static" ]; then ln -sfn "$A/static" "$A/standalone/apps/admin/static"; systemctl restart ecom-admin; fi
+            if [ ! -e "$A/standalone/public" ]; then ln -sfn "$ROOT/apps/admin/public" "$A/standalone/public"; systemctl restart ecom-admin; fi
+            echo 'Smoke checks passed.'
