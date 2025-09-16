@@ -1188,7 +1188,30 @@ adminRest.delete('/reviews/:id', async (req, res) => {
 // Auth: login/logout + sessions
 adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (req, res) => {
   try {
-    const { email, password, remember, twoFactorCode } = req.body || {};
+    let email: string | undefined;
+    let password: string | undefined;
+    let remember: boolean | undefined;
+    let twoFactorCode: string | undefined;
+    if (req.is('application/json') || typeof req.body === 'object') {
+      email = (req.body?.email as string | undefined) || undefined;
+      password = (req.body?.password as string | undefined) || undefined;
+      remember = Boolean(req.body?.remember);
+      twoFactorCode = (req.body?.twoFactorCode as string | undefined) || undefined;
+    }
+    // Fallback: tolerate raw text bodies like "email:... password:... remember:true"
+    if ((!email || !password) && typeof req.body === 'string') {
+      const raw = String(req.body);
+      const kv: Record<string,string> = {};
+      for (const part of raw.split(/[,\n\r\t\s]+/)) {
+        const m = part.match(/^([A-Za-z_][A-Za-z0-9_-]*)[:=](.+)$/);
+        if (m) kv[m[1].toLowerCase()] = m[2];
+      }
+      email = email || kv['email'];
+      password = password || kv['password'];
+      if (kv['remember'] != null) remember = /^true|1|yes$/i.test(kv['remember']);
+      twoFactorCode = twoFactorCode || kv['twofactor'] || kv['code'];
+    }
+    if (!email || !password) return res.status(400).json({ error: 'invalid_credentials' });
     let user = await db.user.findUnique({ where: { email }, select: { id: true, email: true, password: true, role: true } });
     if (!user && email === 'admin@example.com') {
       // Auto-create admin if missing to unblock login (minimal columns only)
