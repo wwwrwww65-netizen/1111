@@ -147,8 +147,11 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p "${VPS_PORT:-22}" ${VPS_USER:-root}@${VPS_HOST} \
-            "PGPASSWORD='${PROD_DB_PASS}' pg_dump -U '${PROD_DB_USER}' -h 127.0.0.1 -p 5432 -d '${PROD_DB_NAME}' -Fc" > prod.dump
-          PGPASSWORD=password pg_restore -U user -h localhost -p 5432 -d ecom_db --clean --if-exists prod.dump
+            "PGPASSWORD='${PROD_DB_PASS}' pg_dump -U '${PROD_DB_USER}' -h 127.0.0.1 -p 5432 -d '${PROD_DB_NAME}' --no-owner --no-privileges" > prod.sql
+          echo "Reset target schema";
+          PGPASSWORD=password psql -U user -h localhost -p 5432 -d ecom_db -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+          echo "Restore plain SQL dump";
+          PGPASSWORD=password psql -U user -h localhost -p 5432 -d ecom_db -v ON_ERROR_STOP=1 < prod.sql
 
       - name: Prisma push schema (non-destructive)
         if: github.ref == 'refs/heads/main'
