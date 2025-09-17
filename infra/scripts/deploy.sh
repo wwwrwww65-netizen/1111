@@ -53,6 +53,7 @@ pnpm --filter web build
 pnpm --filter admin build
 # Build mobile web (m.jeeey.com) if present (Vite)
 if [ -d "$ROOT_DIR/apps/mweb" ]; then
+  rm -rf "$ROOT_DIR/apps/mweb/dist" || true
   (cd "$ROOT_DIR/apps/mweb" && pnpm install --silent && pnpm build) || true
 fi
 
