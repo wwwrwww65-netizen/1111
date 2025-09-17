@@ -21,6 +21,14 @@ const buildAllowedOrigins = (): string[] => {
     origins.push(`https://api.${root}`);
     origins.push(`https://*.${root}`);
   }
+  // Production fallback: allow known domain if COOKIE_DOMAIN is not set
+  if (!cookieDomain && process.env.NODE_ENV === 'production') {
+    const root = 'jeeey.com';
+    origins.push(`https://${root}`);
+    origins.push(`https://www.${root}`);
+    origins.push(`https://admin.${root}`);
+    origins.push(`https://api.${root}`);
+  }
   // In non-prod, include local defaults as well
   if (process.env.NODE_ENV !== 'production') {
     origins.push('http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081');
