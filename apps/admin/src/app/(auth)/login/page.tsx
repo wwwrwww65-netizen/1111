@@ -30,23 +30,35 @@ export default function AdminLogin(): JSX.Element {
         setTimeout(()=> setToast(""), 4000);
         return;
       }
-      if (!j || !j.token) {
-        const msg = 'فشل تسجيل الدخول';
-        setError(msg);
-        setToast(msg);
-        setTimeout(()=> setToast(""), 4000);
-        return;
+      // Prefer token from response, else try read from cookie, else validate session
+      let token: string | undefined = j?.token;
+      if (!token && typeof document !== 'undefined') {
+        const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+        if (m) token = decodeURIComponent(m[1]);
       }
-      // Bridge token to Host-only cookie + JS cookie for stability
-      await fetch('/api/auth/set', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token: j.token, remember })
-      }).catch(()=>{});
-      const parts = [ `auth_token=${j.token}`, 'Path=/', 'SameSite=Lax' ];
-      if (remember) parts.push(`Max-Age=${30*24*60*60}`);
-      if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
-      document.cookie = parts.join('; ');
+      if (!token) {
+        // Some browsers block reading cookie immediately; verify session server-side
+        const sess = await fetch(`${apiBase}/api/admin/auth/sessions`, { credentials:'include', cache:'no-store' });
+        if (!sess.ok) {
+          const msg = 'فشل تسجيل الدخول';
+          setError(msg);
+          setToast(msg);
+          setTimeout(()=> setToast(""), 4000);
+          return;
+        }
+      }
+      if (token) {
+        // Bridge token to Host-only cookie + JS cookie for stability
+        await fetch('/api/auth/set', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token, remember })
+        }).catch(()=>{});
+        const parts = [ `auth_token=${token}`, 'Path=/', 'SameSite=Lax' ];
+        if (remember) parts.push(`Max-Age=${30*24*60*60}`);
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
+        document.cookie = parts.join('; ');
+      }
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
       window.location.href = redirectTo;
