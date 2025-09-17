@@ -56,6 +56,9 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/cms', label: 'المحتوى (CMS)' },
       { href: '/media', label: 'الوسائط' },
       { href: '/notifications', label: 'الإشعارات' },
+      { href: '/notifications/rules', label: 'قواعد الإشعارات' },
+      { href: '/notifications/targeted', label: 'الإشعارات الموجهة' },
+      { href: '/notifications/manual', label: 'إرسال يدوي' },
     ],
   },
   {
@@ -83,6 +86,14 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/trends/management', label: 'الاتجاهات' },
       { href: '/integrations', label: 'التكاملات' },
       { href: '/settings', label: 'الإعدادات' },
+    ],
+  },
+  {
+    title: 'النظام',
+    items: [
+      { href: '/backups', label: 'النسخ الاحتياطية' },
+      { href: '/audit-logs', label: 'سجلات التدقيق' },
+      { href: '/2fa', label: 'التحقق بخطوتين (2FA)' },
     ],
   },
 ];
