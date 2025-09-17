@@ -109,4 +109,10 @@ jobs:
             A="$ROOT/apps/admin/.next"
             if [ ! -e "$A/standalone/apps/admin/static" ]; then ln -sfn "$A/static" "$A/standalone/apps/admin/static"; systemctl restart ecom-admin; fi
             if [ ! -e "$A/standalone/public" ]; then ln -sfn "$ROOT/apps/admin/public" "$A/standalone/public"; systemctl restart ecom-admin; fi
+            # Web app symlinks (fix broken styles/assets on jeeey.com)
+            W="$ROOT/apps/web/.next"
+            if [ -d "$W" ]; then
+              if [ ! -e "$W/standalone/apps/web/static" ] && [ -e "$W/static" ]; then ln -sfn "$W/static" "$W/standalone/apps/web/static"; systemctl restart ecom-web; fi
+              if [ ! -e "$W/standalone/public" ]; then ln -sfn "$ROOT/apps/web/public" "$W/standalone/public"; systemctl restart ecom-web; fi
+            fi
             echo 'Smoke checks passed.'
