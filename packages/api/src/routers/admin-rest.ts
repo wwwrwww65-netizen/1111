@@ -1192,15 +1192,15 @@ adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (r
     let password: string | undefined;
     let remember: boolean | undefined;
     let twoFactorCode: string | undefined;
-    if (req.is('application/json') || typeof req.body === 'object') {
+    if (req.is('application/json') || req.is('application/x-www-form-urlencoded') || typeof req.body === 'object') {
       email = (req.body?.email as string | undefined) || undefined;
       password = (req.body?.password as string | undefined) || undefined;
       remember = Boolean(req.body?.remember);
       twoFactorCode = (req.body?.twoFactorCode as string | undefined) || undefined;
     }
     // Fallback: tolerate raw text bodies like "email:... password:... remember:true"
-    if ((!email || !password) && typeof req.body === 'string') {
-      const raw = String(req.body);
+    if ((!email || !password) && typeof (req as any).body === 'string') {
+      const raw = String((req as any).body);
       const kv: Record<string,string> = {};
       for (const part of raw.split(/[,\n\r\t\s]+/)) {
         const m = part.match(/^([A-Za-z_][A-Za-z0-9_-]*)[:=](.+)$/);

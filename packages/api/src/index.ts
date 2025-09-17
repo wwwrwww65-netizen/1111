@@ -220,7 +220,7 @@ app.use('/webhooks', shippingWebhooks);
 // Tolerant text parser for admin login to avoid JSON parse failures from bad clients
 try {
   const expressPkg = require('express');
-  app.use('/api/admin/auth/login', expressPkg.text({ type: '*/*', limit: '1mb' }));
+  app.use('/api/admin/auth/login', expressPkg.text({ type: 'text/plain', limit: '1mb' }));
 } catch {}
 
 // Apply security middleware AFTER webhook so JSON parser doesn't consume raw body
