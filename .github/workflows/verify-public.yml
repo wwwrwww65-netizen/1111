@@ -40,6 +40,12 @@ jobs:
           echo "=== admin.jeeey.com HEAD ==="
           curl -ksS -I https://admin.jeeey.com | sed -n '1,12p'
           echo
+          echo "=== m.jeeey.com HEAD ==="
+          curl -ksS -I https://m.jeeey.com | sed -n '1,12p'
+          echo
+          echo "=== m.jeeey.com HTML snippet ==="
+          curl -ksS https://m.jeeey.com | sed -n '1,40p' | sed 's/<[^>]*>//g' | tr -s ' ' | head -n 5
+          echo
           echo "=== api.jeeey.com /health ==="
           curl -ksS -i https://api.jeeey.com/health | sed -n '1,20p'
           echo

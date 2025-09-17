@@ -11,7 +11,7 @@ const nextConfig = {
   },
   generateEtags: false,
   trailingSlash: false,
-  outputFileTracing: false,
+  experimental: { forceSwcTransforms: true },
 };
 
 module.exports = nextConfig;
