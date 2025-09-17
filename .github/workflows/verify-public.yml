@@ -12,31 +12,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: HTTPS heads (jeeey.com, admin.jeeey.com)
-        run: |
-          set -e
-          echo '=== jeeey.com HEAD ==='
-          curl -s -I https://jeeey.com | sed -n '1,12p'
-          echo
-          echo '=== admin.jeeey.com HEAD ==='
-          curl -s -I https://admin.jeeey.com | sed -n '1,12p'
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: API health (https://api.jeeey.com/health)
+      - name: Prime known_hosts
         run: |
-          set -e
-          echo '=== api.jeeey.com /health ==='
-          curl -s -i https://api.jeeey.com/health | sed -n '1,20p'
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 72.60.92.17 >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H srv995016.hstgr.cloud >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Admin login attempt (prints headers)
+      - name: Run HTTPS/API checks from VPS (avoids runner egress issues)
         env:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
         run: |
           set -e
-          echo '=== api.jeeey.com admin login response headers ==='
-          curl -s -D - -o /dev/null \
-            -X POST -H 'content-type: application/x-www-form-urlencoded' \
-            --data-urlencode email="$ADMIN_EMAIL" \
-            --data-urlencode password="$ADMIN_PASSWORD" \
-            https://api.jeeey.com/api/admin/auth/login | sed -n '1,60p' || true
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; \
+            echo === jeeey.com HEAD ===; curl -ksS -I https://jeeey.com | sed -n 1,12p; \
+            echo; echo === admin.jeeey.com HEAD ===; curl -ksS -I https://admin.jeeey.com | sed -n 1,12p; \
+            echo; echo === api.jeeey.com /health ===; curl -ksS -i https://api.jeeey.com/health | sed -n 1,20p; \
+            echo; echo === admin login (form) headers ===; \
+            curl -ksSI -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/x-www-form-urlencoded\" --data \"email=${ADMIN_EMAIL:-admin@example.com}&password=${ADMIN_PASSWORD:-admin123}\" | sed -n 1,60p; \
+            echo; echo === admin login (json) status ===; \
+            curl -ksS -o /dev/null -w \"%{http_code}\n\" -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/json\" --data '{\"email\":\"'\"'\"'"${ADMIN_EMAIL:-admin@example.com}"'\"'\"'\",\"password\":\"'\"'\"'"${ADMIN_PASSWORD:-admin123}"'\"'\"'\",\"remember\":true}';'"
 
