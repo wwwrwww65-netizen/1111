@@ -1,0 +1,6 @@
+:root{--bg:#ffffff;--text:#0f172a;--primary:#0B5FFF;--radius:12px}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif}
+.container{max-width:480px;margin:0 auto;padding:16px}
+.btn{height:44px;border-radius:var(--radius);border:0;background:var(--primary);color:#fff;padding:0 14px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:var(--radius);padding:12px}
+img{max-width:100%;height:auto;display:block}
