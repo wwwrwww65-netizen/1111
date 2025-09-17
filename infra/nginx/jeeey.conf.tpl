@@ -1,9 +1,14 @@
 map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+map $http_user_agent $is_mobile {
+  default 0;
+  ~*(iphone|android|mobile|ipad|ipod) 1;
+}
 
 # Redirect HTTP to HTTPS for all hosts
 server { listen 80; server_name jeeey.com www.jeeey.com; return 301 https://$host$request_uri; }
 server { listen 80; server_name admin.jeeey.com; return 301 https://$host$request_uri; }
 server { listen 80; server_name api.jeeey.com; return 301 https://$host$request_uri; }
+server { listen 80; server_name m.jeeey.com; return 301 https://$host$request_uri; }
 
 # API over HTTPS
 server {
@@ -50,6 +55,11 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
   http2 on;
 
+  # Redirect mobile devices to m.jeeey.com
+  if ($is_mobile) {
+    return 302 https://m.jeeey.com$request_uri;
+  }
+
   location / {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -59,5 +69,21 @@ server {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
     proxy_pass http://127.0.0.1:3000;
+  }
+}
+
+# Mobile Web over HTTPS (static build via Vite)
+server {
+  listen 443 ssl;
+  server_name m.jeeey.com;
+  ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  http2 on;
+
+  root /var/www/ecom/apps/mweb/dist;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ /index.html;
   }
 }
