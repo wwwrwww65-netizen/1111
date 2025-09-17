@@ -20,8 +20,8 @@ jobs:
           node-version: 20
       - name: Run extractor
         env:
-          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
-          FIGMA_FILE_KEY: rG0wiVHE4IfFHksHtfUPv7
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN || secrets.FIGMA_API }}
+          FIGMA_FILE_KEY: ${{ secrets.FIGMA_FILE_ID }}
         run: |
           node scripts/figma-extract.mjs | cat
       - name: Commit mapping
