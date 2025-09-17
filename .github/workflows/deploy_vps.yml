@@ -50,25 +50,18 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<EOF
           set -e
-          mkdir -p /var/www/ecom
-          f=/var/www/ecom/.env.api
-          : > "$f"
-          if [ -n "${DATABASE_URL}" ]; then printf "DATABASE_URL=%s\n" "${DATABASE_URL}" >> "$f"; fi
-          if [ -n "${DIRECT_URL}" ]; then printf "DIRECT_URL=%s\n" "${DIRECT_URL}" >> "$f"; fi
-          if [ -n "${JWT_SECRET}" ]; then
-            printf "JWT_SECRET=%s\n" "${JWT_SECRET}" >> "$f"
-          else
-            printf "JWT_SECRET=%s\n" "$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)" >> "$f"
-          fi
-          if [ -n "${MAINTENANCE_SECRET}" ]; then
-            printf "MAINTENANCE_SECRET=%s\n" "${MAINTENANCE_SECRET}" >> "$f"
-          else
-            printf "MAINTENANCE_SECRET=%s\n" "deploy-$(date +%s)" >> "$f"
-          fi
-          chown root:root "$f"; chmod 600 "$f"
-          EOF
+          tmpfile=$(mktemp)
+          : > "$tmpfile"
+          [ -n "${DATABASE_URL}" ] && echo "DATABASE_URL=${DATABASE_URL}" >> "$tmpfile"
+          [ -n "${DIRECT_URL}" ] && echo "DIRECT_URL=${DIRECT_URL}" >> "$tmpfile"
+          if [ -n "${JWT_SECRET}" ]; then JS="${JWT_SECRET}"; else JS=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid); fi
+          echo "JWT_SECRET=$JS" >> "$tmpfile"
+          if [ -n "${MAINTENANCE_SECRET}" ]; then MS="${MAINTENANCE_SECRET}"; else MS="deploy-$(date +%s)"; fi
+          echo "MAINTENANCE_SECRET=$MS" >> "$tmpfile"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "mkdir -p /var/www/ecom"
+          scp -o StrictHostKeyChecking=no "$tmpfile" root@72.60.92.17:/var/www/ecom/.env.api
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "chown root:root /var/www/ecom/.env.api; chmod 600 /var/www/ecom/.env.api"
 
       - name: Build and restart services on VPS
         run: |
