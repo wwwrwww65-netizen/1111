@@ -14,7 +14,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
   return (
     <div className="app-root">
       <header className="topbar" style={{background:'linear-gradient(90deg,#0f1420,#101939)',color:'#e2e8f0',borderBottom:'1px solid #1c2333'}}>
-        <button className="icon-btn" aria-label="Open menu" onClick={()=> setOpen(true)} style={{display:'inline-flex'}}>
+        <button className="icon-btn" aria-label="Toggle menu" onClick={()=> setOpen(o=>!o)}>
           ☰
         </button>
         <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
@@ -24,12 +24,12 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
         </div>
       </header>
       <div className="shell">
-        {/* Desktop sidebar */}
-        <aside className="sidebar open" style={{ display: 'none' }} aria-hidden>
+        {/* Desktop static sidebar */}
+        <aside className="sidebar desktop">
           <Sidebar />
         </aside>
         {/* Mobile drawer sidebar */}
-        <aside className="sidebar drawer" style={{ display: 'block', transform: open ? 'translateX(0)' : 'translateX(100%)' }}>
+        <aside className={`sidebar drawer ${open ? 'is-open' : ''}`} aria-hidden={!open}>
           <Sidebar />
         </aside>
         {open && <div className="overlay" onClick={()=> setOpen(false)} />}
@@ -37,13 +37,6 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
           {children}
         </main>
       </div>
-      <style>{`
-        @media (min-width: 1024px) {
-          .sidebar.drawer { display:none !important; }
-          .shell { grid-template-columns: 260px 1fr; }
-          .sidebar.open { display:block !important; position:relative; transform:none !important; }
-        }
-      `}</style>
     </div>
   );
 }
