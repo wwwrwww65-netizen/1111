@@ -16,7 +16,13 @@ fs.mkdirSync(outPages, { recursive: true });
 
 const routes = [];
 for (const [name, info] of entries) {
-  if (!info.route) continue;
+  // Build a route for every frame. Heuristic: 'Home' => '/', otherwise kebab-case of name
+  let route = info.route;
+  if (!route) {
+    const n = String(name).trim().toLowerCase();
+    if (n === 'home' || n === 'الرئيسية') route = '/';
+    else route = '/' + n.replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+  }
   const compName = (info.component || name).replace(/[^A-Za-z0-9_]/g, '');
   const fileName = compName + '.vue';
   const filePath = path.join(outPages, fileName);
@@ -24,7 +30,7 @@ for (const [name, info] of entries) {
     const tpl = `<template>\n  <div class=\"container\">\n    <div class=\"card\" style=\"margin-top:16px\">\n      <h1 style=\"margin:0 0 8px 0\">${name}</h1>\n      <p>Figma: ${info.figmaPath} (id: ${info.figmaId})</p>\n    </div>\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
     fs.writeFileSync(filePath, tpl, 'utf8');
   }
-  routes.push({ path: info.route, component: `() => import('./pages/${fileName}')` });
+  routes.push({ path: route, component: `() => import('./pages/${fileName}')` });
 }
 
 // Always ensure core routes exist
