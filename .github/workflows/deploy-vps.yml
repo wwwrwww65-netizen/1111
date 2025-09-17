@@ -97,6 +97,16 @@ jobs:
               JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
               [ "$JSON_STATUS" = "200" ] || (echo "JSON login still failing ($JSON_STATUS)"; exit 1)
             fi
+            echo '--- Form-URLENCODED login check & Set-Cookie ---'
+            FORM_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
+            echo "form status: $FORM_STATUS"
+            HEADERS=$(curl -ksSI -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true' | tr -d '\r')
+            echo "$HEADERS" | sed -n '1,12p'
+            if echo "$HEADERS" | awk 'tolower($0) ~ /^set-cookie:/ {print}' | grep -qi 'auth_token='; then
+              echo 'auth_token cookie issued (form)'
+            else
+              echo 'warning: no auth_token Set-Cookie observed (form)'
+            fi
             echo '--- Static / Next.js symlinks check ---'
             A="$ROOT/apps/admin/.next"
             if [ ! -e "$A/standalone/apps/admin/static" ]; then ln -sfn "$A/static" "$A/standalone/apps/admin/static"; systemctl restart ecom-admin; fi
