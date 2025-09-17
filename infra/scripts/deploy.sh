@@ -37,6 +37,10 @@ rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 pnpm --filter @repo/api build
 pnpm --filter web build
 pnpm --filter admin build
+# Build mobile web (m.jeeey.com) if present (Vite)
+if [ -d "$ROOT_DIR/apps/mweb" ]; then
+  (cd "$ROOT_DIR/apps/mweb" && pnpm install --silent && pnpm build) || true
+fi
 
 # Optional: seed admin if creds provided via environment
 if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
