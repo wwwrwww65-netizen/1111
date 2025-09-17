@@ -31,8 +31,20 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/finance/revenues', label: 'الإيرادات' },
       { href: '/finance/expenses', label: 'المصروفات' },
       { href: '/finance/cashflow', label: 'التدفقات' },
+      { href: '/finance/gateways', label: 'بوابات الدفع' },
+      { href: '/finance/invoices', label: 'الفواتير' },
+      { href: '/finance/returns-impact', label: 'أثر المرتجعات' },
+      { href: '/finance/suppliers-ledger', label: 'دفتر الموردين' },
       { href: '/payments', label: 'المدفوعات' },
       { href: '/pos', label: 'مشتريات (PO)' },
+    ],
+  },
+  {
+    title: 'الولاء و JEEEY Club',
+    items: [
+      { href: '/loyalty/points', label: 'النقاط' },
+      { href: '/loyalty/points-log', label: 'سجل النقاط' },
+      { href: '/loyalty', label: 'JEEEY Club' },
     ],
   },
   {
@@ -44,6 +56,15 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/cms', label: 'المحتوى (CMS)' },
       { href: '/media', label: 'الوسائط' },
       { href: '/notifications', label: 'الإشعارات' },
+    ],
+  },
+  {
+    title: 'الشركاء (Affiliates)',
+    items: [
+      { href: '/affiliates/dashboard', label: 'لوحة الشركاء' },
+      { href: '/affiliates/list', label: 'قائمة الشركاء' },
+      { href: '/affiliates/payouts', label: 'الدفعات' },
+      { href: '/affiliates/settings', label: 'إعدادات الشركاء' },
     ],
   },
   {
