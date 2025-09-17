@@ -3,6 +3,7 @@ const nextConfig = {
   transpilePackages: ["@repo/ui"],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
+  output: 'standalone',
   images: {
     unoptimized: true,
     remotePatterns: [
