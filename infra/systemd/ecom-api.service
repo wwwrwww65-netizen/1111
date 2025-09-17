@@ -14,6 +14,8 @@ Environment=COOKIE_DOMAIN=.jeeey.com
 Environment=NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com
 Environment=NEXT_PUBLIC_APP_URL=https://jeeey.com
 Environment=CORS_ALLOW_ORIGINS=https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://api.jeeey.com
+Environment=API_RUN_ENSURE_SCHEMA=1
+Environment=API_ALLOW_BOOTSTRAP=1
 Restart=always
 RestartSec=2
 User=root
