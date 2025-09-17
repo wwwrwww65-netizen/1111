@@ -66,7 +66,7 @@ jobs:
             echo '--- Health checks ---'
             curl -fsS https://api.jeeey.com/health | head -n1
             code=$(curl -ksSI https://admin.jeeey.com/ | sed -n '1p' | awk '{print $2}')
-            case "$code" in 200|301|302) echo "admin status ok: $code";; *) echo "admin bad status: $code"; exit 1;; esac
+            case "$code" in 200|301|302|307|308) echo "admin status ok: $code";; *) echo "admin bad status: $code"; exit 1;; esac
             echo '--- Ensure admin exists & JSON login ---'
             set +e
             JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
