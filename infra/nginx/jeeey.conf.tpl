@@ -7,10 +7,11 @@ server { listen 80; server_name api.jeeey.com; return 301 https://$host$request_
 
 # API over HTTPS
 server {
-  listen 443 ssl http2;
+  listen 443 ssl;
   server_name api.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  http2 on;
 
   location / {
     proxy_set_header Host $host;
@@ -23,10 +24,11 @@ server {
 
 # Admin over HTTPS (Next.js 3001)
 server {
-  listen 443 ssl http2;
+  listen 443 ssl;
   server_name admin.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  http2 on;
 
   location / {
     proxy_set_header Host $host;
@@ -42,10 +44,11 @@ server {
 
 # Web over HTTPS (Next.js 3000)
 server {
-  listen 443 ssl http2;
+  listen 443 ssl;
   server_name jeeey.com www.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  http2 on;
 
   location / {
     proxy_set_header Host $host;
