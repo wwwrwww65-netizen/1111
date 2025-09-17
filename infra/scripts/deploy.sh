@@ -31,7 +31,8 @@ export NODE_ENV=production
 if [ -f "$ROOT_DIR/.env.api" ]; then
   set -a; . "$ROOT_DIR/.env.api"; set +a
 fi
-pnpm --filter @repo/db db:deploy || true
+# Skip Prisma migrate deploy in production (database already initialized)
+# pnpm --filter @repo/db db:deploy || true
 # Force fresh Next.js builds for web/admin
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 pnpm --filter @repo/api build
