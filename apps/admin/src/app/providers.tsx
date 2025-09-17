@@ -14,11 +14,16 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
     const isProd = process.env.NODE_ENV === 'production';
     let resolvedUrl = envUrl || '';
     if (!resolvedUrl) {
-      resolvedUrl = isProd ? '' : 'http://localhost:4000/trpc';
-    }
-
-    if (!resolvedUrl) {
-      throw new Error('NEXT_PUBLIC_TRPC_URL is required in production for admin app');
+      if (typeof window !== 'undefined') {
+        const host = window.location.host; // admin.jeeey.com
+        const root = host.startsWith('admin.') ? host.slice('admin.'.length) : host;
+        resolvedUrl = `${window.location.protocol}//api.${root}/trpc`;
+      } else if (!isProd) {
+        resolvedUrl = 'http://localhost:4000/trpc';
+      } else {
+        // Safe production fallback
+        resolvedUrl = 'https://api.jeeey.com/trpc';
+      }
     }
 
     return trpc.createClient({
