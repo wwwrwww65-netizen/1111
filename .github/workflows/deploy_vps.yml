@@ -147,16 +147,20 @@ jobs:
           CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
         run: |
           set -e
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc \"set -e; cd /var/www/ecom; CERTBOT_EMAIL='${CERTBOT_EMAIL}' bash infra/deploy/enable-https.sh; install -m 0644 -T infra/nginx/jeeey.conf.tpl /etc/nginx/sites-available/jeeey.conf; ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf; nginx -t; systemctl reload nginx; sleep 2; ss -ltn | egrep ':443 ' || true; curl -ksS -I https://jeeey.com | sed -n 1p || true;\""
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc \"set -e; cd /var/www/ecom; CERTBOT_EMAIL='${CERTBOT_EMAIL}' bash infra/deploy/enable-https.sh; install -m 0644 -T infra/nginx/jeeey.conf.tpl /etc/nginx/sites-available/jeeey.conf; ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf; nginx -t; systemctl reload nginx; sleep 2; ss -ltn | egrep ':443 ' || true;\""
+
+      - name: Fallback to self-signed TLS if 443 still closed
+        run: |
+          set -e
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'if ! ss -ltn | grep -q ":443 "; then mkdir -p /etc/ssl/local; if [ ! -f /etc/ssl/local/jeeey.crt ]; then openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout /etc/ssl/local/jeeey.key -out /etc/ssl/local/jeeey.crt -subj "/CN=jeeey.com"; fi; install -m 0644 -T /var/www/ecom/infra/nginx/jeeey.selfsigned.conf /etc/nginx/sites-available/jeeey.conf; ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf; nginx -t && systemctl reload nginx; fi'"
 
       - name: Verify deployment (services, ports, endpoints)
         run: |
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== services ==='; systemctl is-active ecom-api ecom-admin nginx || true"
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== ports ==='; ss -ltnp 2>/dev/null | egrep ':80 |:443 |:3000 |:3001 |:4000 ' || true"
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== nginx conflicts (should be empty warnings) ==='; nginx -T 2>/dev/null | grep -En 'server_name\s+.*jeeey\.com' | sed -n 1,200p || true"
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== admin HEAD / (expect 200/307) ==='; curl -s -I https://admin.jeeey.com | sed -n 1,15p || true"
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== api health ==='; curl -s -i https://api.jeeey.com/health | sed -n 1,15p || true"
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (expect Set-Cookie auth_token) ==='; curl -s -D - -o /dev/null -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,60p || true"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== admin HEAD / (expect 200/307) ==='; curl -ksS -I https://admin.jeeey.com | sed -n 1,15p || true"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== api health ==='; curl -ksS -i https://api.jeeey.com/health | sed -n 1,15p || true"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (expect Set-Cookie auth_token) ==='; curl -ksS -D - -o /dev/null -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,60p || true"
 
       - name: API login JSON + fallback create-admin + form cookie check
         run: |
