@@ -6,7 +6,10 @@ import { AccountMenu } from "./AccountMenu";
 
 export function AppShell({ children }: { children: React.ReactNode }): JSX.Element {
   const [open, setOpen] = React.useState(false);
-  const [isDesktop, setIsDesktop] = React.useState(false);
+  const [isDesktop, setIsDesktop] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return true; // default SSR: desktop to avoid overlay
+    try { return window.matchMedia('(min-width: 1024px)').matches; } catch { return true; }
+  });
   React.useEffect(()=>{
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('keydown', onEsc);
@@ -22,7 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
   return (
     <div className="app-root">
       <header className="topbar" style={{background:'linear-gradient(90deg,#0f1420,#101939)',color:'#e2e8f0',borderBottom:'1px solid #1c2333'}}>
-        <button className="icon-btn" aria-label="Toggle menu" onClick={()=> { if (!isDesktop) setOpen(o=>!o); }}>
+        <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!isDesktop) setOpen(o=>!o); }}>
           ☰
         </button>
         <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
