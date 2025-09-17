@@ -68,7 +68,8 @@ jobs:
             set -Eeuo pipefail
             ROOT="${{ github.event.inputs.path || '/var/www/ecom' }}"
             echo '--- Restart admin service to load latest build ---'
-            systemctl restart ecom-admin || true
+            systemctl reset-failed ecom-admin || true
+            systemctl try-restart ecom-admin || true
             echo '--- Wait for admin to listen on 3001 (local) ---'
             ok=0
             for i in $(seq 1 40); do
@@ -122,8 +123,8 @@ jobs:
             set +e
             FORM_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
             echo "form status: $FORM_STATUS"
-            HEADERS=$(curl -ksSI -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
-            printf '%s\n' "$HEADERS" | sed -n '1,12p'
+            HEADERS=$(curl -ksS -D - -o /dev/null -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
+            printf '%s\n' "$HEADERS" | sed -n '1,20p'
             printf '%s\n' "$HEADERS" | grep -iq '^set-cookie: .*auth_token=' && echo 'auth_token cookie issued (form)' || echo 'warning: no auth_token Set-Cookie observed (form)'
             set -e
             echo '--- Static / Next.js symlinks check ---'
@@ -132,18 +133,20 @@ jobs:
             if [ ! -e "$A/standalone/apps/admin/.next/static" ] && [ -e "$A/static" ]; then
               mkdir -p "$A/standalone/apps/admin/.next"
               ln -sfn "$A/static" "$A/standalone/apps/admin/.next/static"
-              systemctl restart ecom-admin
+              systemctl reset-failed ecom-admin || true
+              systemctl try-restart ecom-admin || true
             fi
-            if [ ! -e "$A/standalone/public" ]; then ln -sfn "$ROOT/apps/admin/public" "$A/standalone/public"; systemctl restart ecom-admin; fi
+            if [ ! -e "$A/standalone/public" ]; then ln -sfn "$ROOT/apps/admin/public" "$A/standalone/public"; systemctl reset-failed ecom-admin || true; systemctl try-restart ecom-admin || true; fi
             # Web app symlinks (fix broken styles/assets on jeeey.com)
             W="$ROOT/apps/web/.next"
             if [ -d "$W" ]; then
               if [ ! -e "$W/standalone/apps/web/.next/static" ] && [ -e "$W/static" ]; then
                 mkdir -p "$W/standalone/apps/web/.next"
                 ln -sfn "$W/static" "$W/standalone/apps/web/.next/static"
-                systemctl restart ecom-web
+                systemctl reset-failed ecom-web || true
+                systemctl try-restart ecom-web || true
               fi
-              if [ ! -e "$W/standalone/public" ]; then ln -sfn "$ROOT/apps/web/public" "$W/standalone/public"; systemctl restart ecom-web; fi
+              if [ ! -e "$W/standalone/public" ]; then ln -sfn "$ROOT/apps/web/public" "$W/standalone/public"; systemctl reset-failed ecom-web || true; systemctl try-restart ecom-web || true; fi
             fi
             echo 'Smoke checks passed.'
 
