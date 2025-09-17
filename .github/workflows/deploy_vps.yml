@@ -78,15 +78,15 @@ jobs:
 
       - name: Verify deployment (services, ports, endpoints)
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 'bash -lc '\''
-            set -e
-            echo "=== services ==="; systemctl is-active ecom-api ecom-admin nginx || true
-            echo "=== ports ==="; ss -ltnp 2>/dev/null | egrep ":80 |:443 |:3000 |:3001 |:4000 " || true
-            echo "=== nginx conflicts (should be empty warnings) ==="; nginx -T 2>/dev/null | grep -En "server_name\s+.*jeeey\.com" | sed -n '1,200p' || true
-            echo "=== admin HEAD / (expect 200/307) ==="; curl -s -I https://admin.jeeey.com | sed -n '1,15p'
-            echo "=== api health ==="; curl -s -i https://api.jeeey.com/health | sed -n '1,15p'
-            echo "=== login attempt to API (may 200/401) ==="; curl -s -i -X POST -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123"}' https://api.jeeey.com/api/admin/auth/login | sed -n '1,20p'
-          '\'''
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'REMOTE'
+          set -e
+          echo "=== services ==="; systemctl is-active ecom-api ecom-admin nginx || true
+          echo "=== ports ==="; ss -ltnp 2>/dev/null | egrep ":80 |:443 |:3000 |:3001 |:4000 " || true
+          echo "=== nginx conflicts (should be empty warnings) ==="; nginx -T 2>/dev/null | grep -En "server_name\\s+.*jeeey\\.com" | sed -n 1,200p || true
+          echo "=== admin HEAD / (expect 200/307) ==="; curl -s -I https://admin.jeeey.com | sed -n 1,15p || true
+          echo "=== api health ==="; curl -s -i https://api.jeeey.com/health | sed -n 1,15p || true
+          echo "=== login attempt to API (may 200/401) ==="; curl -s -i -X POST -H content-type:application/json --data '{"email":"admin@example.com","password":"admin123"}' https://api.jeeey.com/api/admin/auth/login | sed -n 1,20p || true
+REMOTE
 
       - name: Upload deployment logs (debug)
         if: always()
