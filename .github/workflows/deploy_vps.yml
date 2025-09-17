@@ -62,6 +62,8 @@ jobs:
           touch "$F"; touch "$T"
           J=$(grep -s '^JWT_SECRET=' "$F" | head -n1)
           M=$(grep -s '^MAINTENANCE_SECRET=' "$F" | head -n1)
+          if [ -z "$J" ]; then J="JWT_SECRET=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)"; fi
+          if [ -z "$M" ]; then M="MAINTENANCE_SECRET=deploy-$(date +%s)"; fi
           {
             [ -n "$J" ] && echo "$J"
             [ -n "$M" ] && echo "$M"
