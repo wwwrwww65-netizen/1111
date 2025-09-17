@@ -1,10 +1,15 @@
 [Unit]
 Description=Ecom API (Node)
 After=network.target
+ConditionPathExists=/var/www/ecom/packages/api
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 WorkingDirectory=/var/www/ecom/packages/api
+ExecStartPre=/usr/bin/test -x /usr/bin/node
+ExecStartPre=/usr/bin/test -f /var/www/ecom/.env.api
 ExecStart=/usr/bin/node -r dotenv/config dist/index.js
 Environment=NODE_ENV=production
 Environment=PORT=4000

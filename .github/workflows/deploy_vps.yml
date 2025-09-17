@@ -112,6 +112,15 @@ jobs:
             install -m 0644 -T infra/systemd/ecom-admin.service /etc/systemd/system/ecom-admin.service
             install -m 0644 -T infra/systemd/ecom-api.service /etc/systemd/system/ecom-api.service
             install -m 0644 -T infra/systemd/ecom-web.service /etc/systemd/system/ecom-web.service
+            # Prefer Next.js standalone server.js paths for robustness
+            ADMIN_JS=$(find /var/www/ecom/apps/admin/.next/standalone -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
+            WEB_JS=$(find /var/www/ecom/apps/web/.next/standalone -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
+            if [ -n "$ADMIN_JS" ] && [ -f /etc/systemd/system/ecom-admin.service ]; then
+              sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
+            fi
+            if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
+              sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $WEB_JS|" /etc/systemd/system/ecom-web.service || true
+            fi
             systemctl daemon-reload
             systemctl restart ecom-api || (systemctl reset-failed ecom-api && systemctl start ecom-api) || true
             systemctl restart ecom-admin || (systemctl reset-failed ecom-admin && systemctl start ecom-admin) || true
