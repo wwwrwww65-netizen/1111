@@ -1,0 +1,27 @@
+name: Figma Extract Mapping
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run extractor
+        env:
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+          FIGMA_FILE_KEY: rG0wiVHE4IfFHksHtfUPv7
+        run: |
+          node scripts/figma-extract.mjs | cat
+      - name: Commit mapping
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add infra/figma/mapping.json
+          git commit -m "chore(figma): update mapping.json" || echo "no changes"
+          git push || true
+
