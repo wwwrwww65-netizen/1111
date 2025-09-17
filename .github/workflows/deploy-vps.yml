@@ -61,6 +61,20 @@ jobs:
             ROOT="${{ github.event.inputs.path || '/var/www/ecom' }}"
             echo '--- Restart admin service to load latest build ---'
             systemctl restart ecom-admin || true
+            echo '--- Wait for admin to listen on 3001 (local) ---'
+            ok=0
+            for i in $(seq 1 40); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/ || true)
+              if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then
+                echo "admin local ok: $code"; ok=1; break
+              fi
+              sleep 1
+            done
+            if [ "$ok" != "1" ]; then
+              echo 'Admin did not become ready locally. Recent logs:'
+              journalctl -u ecom-admin --no-pager -n 200 || true
+              exit 1
+            fi
             echo '--- Nginx config test ---'
             nginx -t
             echo '--- Services status ---'
