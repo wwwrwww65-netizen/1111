@@ -39,9 +39,10 @@ export default function AdminHome(): JSX.Element {
         color:'#e2e8f0',
         boxShadow:'0 2px 12px rgba(0,0,0,0.25)'
       }}>
-        <div style={{fontSize:20,fontWeight:800,marginBottom:4}}>هذا من فضل ربي</div>
-        <div style={{opacity:0.85,marginTop:8}}>هذه جهودات رجال الأعمال تحية خاصة لهم</div>
-        <div style={{opacity:0.85,marginTop:4}}>هاشم الجائفي ( هـــَـش ) - هشام الجائفي ( مستر ) - عمر عبيد ( غوبر )</div>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:6}}>هـــــَـذا من فـــْـــضل ربــّــــي ...</div>
+        <div style={{opacity:0.9,fontSize:16,marginTop:4}}>مرحباً بك يامدير 👋🏻😉</div>
+        <div style={{opacity:0.85,fontSize:14,marginTop:8}}>هذه جهودات رجال الأعمال تحية خاصة لهم 🫡</div>
+        <div style={{opacity:0.8,fontSize:13,marginTop:4}}>هاشم الجائفي ( هـــَـش ) - هشام الجائفي ( مستر ) - عمر عبيد ( غوبر )</div>
       </div>
       <div className="grid cols-3">
         <div className="card"><div style={{color:'var(--sub)'}}>المستخدمون</div><div style={{fontSize:28,fontWeight:800}}>{kpis.users ?? (busy?'…':'-')}</div></div>
