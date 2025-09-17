@@ -34,21 +34,21 @@ jobs:
           set -e
           : "${ADMIN_EMAIL:=admin@example.com}"
           : "${ADMIN_PASSWORD:=admin123}"
-          echo === jeeey.com HEAD ===
+          echo "=== jeeey.com HEAD ==="
           curl -ksS -I https://jeeey.com | sed -n '1,12p'
           echo
-          echo === admin.jeeey.com HEAD ===
+          echo "=== admin.jeeey.com HEAD ==="
           curl -ksS -I https://admin.jeeey.com | sed -n '1,12p'
           echo
-          echo === api.jeeey.com /health ===
+          echo "=== api.jeeey.com /health ==="
           curl -ksS -i https://api.jeeey.com/health | sed -n '1,20p'
           echo
-          echo === admin login (form) headers ===
+          echo "=== admin login (form) headers ==="
           curl -ksSI -X POST https://api.jeeey.com/api/admin/auth/login \
             -H 'content-type: application/x-www-form-urlencoded' \
             --data "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}" | sed -n '1,60p'
           echo
-          echo === admin login (json) status ===
+          echo "=== admin login (json) status ==="
           curl -ksS -o /dev/null -w '%{http_code}\n' -X POST https://api.jeeey.com/api/admin/auth/login \
             -H 'content-type: application/json' \
             --data "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\",\"remember\":true}"
