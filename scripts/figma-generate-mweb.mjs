@@ -51,7 +51,17 @@ const genPath = path.join(root, 'apps', 'mweb', 'src', 'routes.generated.ts');
 const genBody = finalRoutes
   .map((r) => "  { path: '" + r.path + "', component: " + r.component + " }")
   .join(',\n');
-const gen = "// AUTO-GENERATED FROM Figma mapping.json\nexport const routes = [\n" + genBody + "\n];\n";
+let homePath = '/';
+const hasRoot = finalRoutes.some(r => r.path === '/');
+if (!hasRoot) {
+  const homeCandidate = finalRoutes.find(r => /(^|\/)home(\/|$)/i.test(r.path))
+    || finalRoutes.find(r => r.path.includes('الرئيسية'))
+    || finalRoutes[0];
+  if (homeCandidate) homePath = homeCandidate.path;
+}
+const gen = "// AUTO-GENERATED FROM Figma mapping.json\n"
+  + "export const routes = [\n" + genBody + "\n];\n"
+  + "export const homePath = '" + homePath + "';\n";
 fs.writeFileSync(genPath, gen, 'utf8');
 console.log(`Generated ${finalRoutes.length} routes to apps/mweb/src/routes.generated.ts`);
 
