@@ -120,12 +120,21 @@ jobs:
             set -e
             echo '--- Static / Next.js symlinks check ---'
             A="$ROOT/apps/admin/.next"
-            if [ ! -e "$A/standalone/apps/admin/static" ]; then ln -sfn "$A/static" "$A/standalone/apps/admin/static"; systemctl restart ecom-admin; fi
+            # Ensure .next/static is available next to server.js in standalone
+            if [ ! -e "$A/standalone/apps/admin/.next/static" ] && [ -e "$A/static" ]; then
+              mkdir -p "$A/standalone/apps/admin/.next"
+              ln -sfn "$A/static" "$A/standalone/apps/admin/.next/static"
+              systemctl restart ecom-admin
+            fi
             if [ ! -e "$A/standalone/public" ]; then ln -sfn "$ROOT/apps/admin/public" "$A/standalone/public"; systemctl restart ecom-admin; fi
             # Web app symlinks (fix broken styles/assets on jeeey.com)
             W="$ROOT/apps/web/.next"
             if [ -d "$W" ]; then
-              if [ ! -e "$W/standalone/apps/web/static" ] && [ -e "$W/static" ]; then ln -sfn "$W/static" "$W/standalone/apps/web/static"; systemctl restart ecom-web; fi
+              if [ ! -e "$W/standalone/apps/web/.next/static" ] && [ -e "$W/static" ]; then
+                mkdir -p "$W/standalone/apps/web/.next"
+                ln -sfn "$W/static" "$W/standalone/apps/web/.next/static"
+                systemctl restart ecom-web
+              fi
               if [ ! -e "$W/standalone/public" ]; then ln -sfn "$ROOT/apps/web/public" "$W/standalone/public"; systemctl restart ecom-web; fi
             fi
             echo 'Smoke checks passed.'
