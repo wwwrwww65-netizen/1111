@@ -50,12 +50,25 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; mkdir -p /var/www/ecom; f=/var/www/ecom/.env.api; : > "$f"; \
-            [ -n "${DATABASE_URL}" ] && printf "DATABASE_URL=%s\n" "${DATABASE_URL}" >> "$f"; \
-            [ -n "${DIRECT_URL}" ] && printf "DIRECT_URL=%s\n" "${DIRECT_URL}" >> "$f"; \
-            if [ -n "${JWT_SECRET}" ]; then printf "JWT_SECRET=%s\n" "${JWT_SECRET}" >> "$f"; else printf "JWT_SECRET=%s\n" "$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)" >> "$f"; fi; \
-            if [ -n "${MAINTENANCE_SECRET}" ]; then printf "MAINTENANCE_SECRET=%s\n" "${MAINTENANCE_SECRET}" >> "$f"; else printf "MAINTENANCE_SECRET=%s\n" "deploy-$(date +%s)" >> "$f"; fi; \
-            chown root:root "$f"; chmod 600 "$f"'"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<EOF
+          set -e
+          mkdir -p /var/www/ecom
+          f=/var/www/ecom/.env.api
+          : > "$f"
+          if [ -n "${DATABASE_URL}" ]; then printf "DATABASE_URL=%s\n" "${DATABASE_URL}" >> "$f"; fi
+          if [ -n "${DIRECT_URL}" ]; then printf "DIRECT_URL=%s\n" "${DIRECT_URL}" >> "$f"; fi
+          if [ -n "${JWT_SECRET}" ]; then
+            printf "JWT_SECRET=%s\n" "${JWT_SECRET}" >> "$f"
+          else
+            printf "JWT_SECRET=%s\n" "$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)" >> "$f"
+          fi
+          if [ -n "${MAINTENANCE_SECRET}" ]; then
+            printf "MAINTENANCE_SECRET=%s\n" "${MAINTENANCE_SECRET}" >> "$f"
+          else
+            printf "MAINTENANCE_SECRET=%s\n" "deploy-$(date +%s)" >> "$f"
+          fi
+          chown root:root "$f"; chmod 600 "$f"
+          EOF
 
       - name: Build and restart services on VPS
         run: |
@@ -97,10 +110,13 @@ jobs:
 
       - name: Bootstrap RBAC and Admin user
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; \
-            MSEC=$(grep -s '^MAINTENANCE_SECRET=' /var/www/ecom/.env.api | cut -d= -f2-); \
-            curl -s -i -X POST -H \"x-maintenance-secret: ${MSEC}\" https://api.jeeey.com/api/admin/maintenance/ensure-rbac | sed -n 1,10p || true; \
-            curl -s -i -X POST -H \"x-maintenance-secret: ${MSEC}\" -H \"content-type: application/json\" --data '{\"email\":\"admin@example.com\",\"password\":\"admin123\",\"name\":\"Admin\"}' https://api.jeeey.com/api/admin/maintenance/create-admin | sed -n 1,12p || true'"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'EOF'
+          set -e
+          MSEC=$(grep -s '^MAINTENANCE_SECRET=' /var/www/ecom/.env.api | cut -d= -f2- || true)
+          [ -z "$MSEC" ] && MSEC="deploy-$(date +%s)" && echo "MAINTENANCE_SECRET=$MSEC" >> /var/www/ecom/.env.api
+          curl -s -i -X POST -H "x-maintenance-secret: ${MSEC}" https://api.jeeey.com/api/admin/maintenance/ensure-rbac | sed -n 1,10p || true
+          curl -s -i -X POST -H "x-maintenance-secret: ${MSEC}" -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' https://api.jeeey.com/api/admin/maintenance/create-admin | sed -n 1,12p || true
+          EOF
 
       - name: Verify deployment (services, ports, endpoints)
         run: |
