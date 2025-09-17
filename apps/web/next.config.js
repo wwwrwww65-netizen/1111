@@ -11,6 +11,7 @@ const nextConfig = {
   },
   generateEtags: false,
   trailingSlash: false,
+  outputFileTracing: false,
 };
 
 module.exports = nextConfig;
