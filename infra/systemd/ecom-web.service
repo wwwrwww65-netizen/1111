@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/var/www/ecom/apps/web/.next/standalone
-ExecStart=/usr/bin/node server.js
+WorkingDirectory=/var/www/ecom/apps/web
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Restart=always
