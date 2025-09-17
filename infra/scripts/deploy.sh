@@ -6,7 +6,20 @@ ROOT_DIR=${1:-/var/www/ecom}
 
 echo "Deploying to $ROOT_DIR"
 mkdir -p "$ROOT_DIR"
-rsync -a --delete --exclude node_modules --exclude .git ./ "$ROOT_DIR"/
+# Sync workspace to ROOT_DIR but ignore ephemeral caches and tolerate rsync code 24 (vanished files)
+set +e
+rsync -a --delete \
+  --exclude node_modules \
+  --exclude .git \
+  --exclude .next \
+  --exclude dist \
+  ./ "$ROOT_DIR"/
+rc=$?
+set -e
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 24 ]; then
+  echo "[deploy] rsync failed with code $rc" >&2
+  exit "$rc"
+fi
 
 cd "$ROOT_DIR"
 corepack enable || true
