@@ -148,16 +148,7 @@ jobs:
         run: |
           set -e
           if [ -n "${CERTBOT_EMAIL}" ]; then
-            ssh -o StrictHostKeyChecking=no root@72.60.92.17 "CERTBOT_EMAIL='${CERTBOT_EMAIL}' bash -s" <<'EOF'
-            set -e
-            cd /var/www/ecom
-            CERTBOT_EMAIL="${CERTBOT_EMAIL}" bash infra/deploy/enable-https.sh
-            # Switch to HTTPS-enabled nginx config and reload
-            install -m 0644 -T infra/nginx/jeeey.conf.tpl /etc/nginx/sites-available/jeeey.conf
-            ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
-            nginx -t
-            systemctl reload nginx
-            EOF
+            ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc \"set -e; cd /var/www/ecom; CERTBOT_EMAIL='${CERTBOT_EMAIL}' bash infra/deploy/enable-https.sh; install -m 0644 -T infra/nginx/jeeey.conf.tpl /etc/nginx/sites-available/jeeey.conf; ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf; nginx -t; systemctl reload nginx;\""
           else
             echo "CERTBOT_EMAIL not set; skipping HTTPS enablement"
           fi
@@ -200,7 +191,7 @@ jobs:
           set +e
           FORM_STATUS=$(ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'curl -ksS -o /dev/null -w \"%{http_code}\" -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/x-www-form-urlencoded\" --data \"email=admin@example.com&password=admin123\"'")
           echo "form status: $FORM_STATUS"
-          HEADERS=$(ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'curl -ksSI -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/x-www-form-urlencoded\" --data \"email=admin@example.com&password=admin123\"'")
+          HEADERS=$(ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'curl -ksS -D - -o /dev/null -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/x-www-form-urlencoded\" --data \"email=admin@example.com&password=admin123\"'")
           printf '%s\n' "$HEADERS" | sed -n '1,12p'
           printf '%s\n' "$HEADERS" | grep -iq '^set-cookie: .*auth_token=' && echo 'auth_token cookie issued (form)' || echo 'warning: no auth_token Set-Cookie observed (form)'
           set -e
