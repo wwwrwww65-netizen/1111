@@ -31,4 +31,10 @@ jobs:
           git add infra/figma/mapping.json
           git commit -m "chore(figma): update mapping.json" || echo "no changes"
           git push || true
+      - name: Generate mweb routes from mapping
+        run: |
+          node scripts/figma-generate-mweb.mjs | cat
+          git add apps/mweb/src/routes.generated.ts apps/mweb/src/pages
+          git commit -m "feat(mweb): generate routes and pages from Figma mapping" || echo "no changes"
+          git push || true
 
