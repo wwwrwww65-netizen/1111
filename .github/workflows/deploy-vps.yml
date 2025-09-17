@@ -22,31 +22,27 @@ jobs:
           node-version: 20
       - name: Install pnpm
         run: corepack enable && corepack prepare pnpm@9 --activate
-      - name: Archive project (metadata only)
+      - name: Archive project (use git archive to avoid file change warnings)
         run: |
           git config --global core.autocrlf false
-          echo "will fetch tarball directly on server; skipping local upload"
+          git archive --format=tar.gz -o app.tar.gz HEAD
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "app.tar.gz"
+          target: "/root/"
       - name: Remote deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GH_TOKEN
-          env:
-            GH_TOKEN: ${{ secrets.GH_TOKEN }}
           script: |
             set -e
             PATH_ON_HOST=${{ github.event.inputs.path || '/var/www/ecom' }}
-            REPO=${{ github.repository }}
-            SHA=${{ github.sha }}
-            URL="https://api.github.com/repos/$REPO/tarball/$SHA"
-            echo "--- Fetching source tarball: $URL"
-            if [ -n "${GH_TOKEN:-}" ]; then
-              curl -fsSL -H "Authorization: token ${GH_TOKEN}" -o /root/app.tar.gz "$URL" || curl -fsSL -o /root/app.tar.gz "$URL"
-            else
-              curl -fsSL -o /root/app.tar.gz "$URL"
-            fi
             mkdir -p "$PATH_ON_HOST"
             tar -xzf /root/app.tar.gz -C "$PATH_ON_HOST"
             cd "$PATH_ON_HOST"
