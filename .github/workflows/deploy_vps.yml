@@ -43,25 +43,41 @@ jobs:
           rc=$?
           if [ $rc -ne 0 ] && [ $rc -ne 24 ]; then exit $rc; fi
 
-      - name: Prepare API env file on VPS
+      - name: Prepare API env file on VPS (preserve JWT/MAINTENANCE)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         run: |
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 'bash -lc '
+          '
           set -e
-          tmpfile=$(mktemp)
-          : > "$tmpfile"
-          [ -n "${DATABASE_URL}" ] && echo "DATABASE_URL=${DATABASE_URL}" >> "$tmpfile"
-          [ -n "${DIRECT_URL}" ] && echo "DIRECT_URL=${DIRECT_URL}" >> "$tmpfile"
-          if [ -n "${JWT_SECRET}" ]; then JS="${JWT_SECRET}"; else JS=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid); fi
-          echo "JWT_SECRET=$JS" >> "$tmpfile"
-          if [ -n "${MAINTENANCE_SECRET}" ]; then MS="${MAINTENANCE_SECRET}"; else MS="deploy-$(date +%s)"; fi
-          echo "MAINTENANCE_SECRET=$MS" >> "$tmpfile"
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "mkdir -p /var/www/ecom"
-          scp -o StrictHostKeyChecking=no "$tmpfile" root@72.60.92.17:/var/www/ecom/.env.api
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "chown root:root /var/www/ecom/.env.api; chmod 600 /var/www/ecom/.env.api"
+          mkdir -p /var/www/ecom
+          F=/var/www/ecom/.env.api
+          touch "$F"
+          upsert_var(){
+            local key="$1" val="$2"
+            if grep -q "^${key}=" "$F"; then
+              if [ -n "$val" ]; then sed -i "s#^${key}=.*#${key}=${val//#/\\#}#" "$F"; fi
+            else
+              if [ -n "$val" ]; then echo "${key}=${val}" >> "$F"; fi
+            fi
+          }
+          # Pull existing values
+          EXIST_JWT=$(grep -s '^JWT_SECRET=' "$F" | cut -d= -f2- || true)
+          EXIST_MSEC=$(grep -s '^MAINTENANCE_SECRET=' "$F" | cut -d= -f2- || true)
+          # Apply from Secrets when provided
+          [ -n "${DATABASE_URL}" ] && upsert_var DATABASE_URL "${DATABASE_URL}"
+          [ -n "${DIRECT_URL}" ] && upsert_var DIRECT_URL "${DIRECT_URL}"
+          if [ -n "${JWT_SECRET}" ]; then NEW_JWT="${JWT_SECRET}"; else NEW_JWT="${EXIST_JWT}"; fi
+          if [ -z "$NEW_JWT" ]; then NEW_JWT=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid); fi
+          upsert_var JWT_SECRET "$NEW_JWT"
+          if [ -n "${MAINTENANCE_SECRET}" ]; then NEW_MSEC="${MAINTENANCE_SECRET}"; else NEW_MSEC="${EXIST_MSEC}"; fi
+          if [ -z "$NEW_MSEC" ]; then NEW_MSEC="deploy-$(date +%s)"; fi
+          upsert_var MAINTENANCE_SECRET "$NEW_MSEC"
+          chown root:root "$F"; chmod 600 "$F"
+          '
 
       - name: Build and restart services on VPS
         run: |
