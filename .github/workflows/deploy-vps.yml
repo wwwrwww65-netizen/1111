@@ -59,6 +59,8 @@ jobs:
           script: |
             set -Eeuo pipefail
             ROOT="${{ github.event.inputs.path || '/var/www/ecom' }}"
+            echo '--- Restart admin service to load latest build ---'
+            systemctl restart ecom-admin || true
             echo '--- Nginx config test ---'
             nginx -t
             echo '--- Services status ---'
