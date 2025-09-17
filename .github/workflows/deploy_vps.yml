@@ -111,9 +111,11 @@ jobs:
             # Update systemd units
             install -m 0644 -T infra/systemd/ecom-admin.service /etc/systemd/system/ecom-admin.service
             install -m 0644 -T infra/systemd/ecom-api.service /etc/systemd/system/ecom-api.service
+            install -m 0644 -T infra/systemd/ecom-web.service /etc/systemd/system/ecom-web.service
             systemctl daemon-reload
             systemctl restart ecom-api || (systemctl reset-failed ecom-api && systemctl start ecom-api) || true
             systemctl restart ecom-admin || (systemctl reset-failed ecom-admin && systemctl start ecom-admin) || true
+            systemctl restart ecom-web || (systemctl reset-failed ecom-web && systemctl start ecom-web) || true
             # Nginx canonical HTTP->HTTPS redirects
             install -m 0644 -T infra/deploy/nginx/jeeey.conf /etc/nginx/sites-available/jeeey.conf
             ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
@@ -139,7 +141,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== nginx conflicts (should be empty warnings) ==='; nginx -T 2>/dev/null | grep -En 'server_name\s+.*jeeey\.com' | sed -n 1,200p || true"
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== admin HEAD / (expect 200/307) ==='; curl -s -I https://admin.jeeey.com | sed -n 1,15p || true"
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== api health ==='; curl -s -i https://api.jeeey.com/health | sed -n 1,15p || true"
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (expect Set-Cookie auth_token) ==='; curl -s -i -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,40p || true"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (expect Set-Cookie auth_token) ==='; curl -s -D - -o /dev/null -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,60p || true"
 
       - name: Upload deployment logs (debug)
         if: always()
