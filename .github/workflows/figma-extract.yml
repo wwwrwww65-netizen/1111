@@ -2,6 +2,13 @@ name: Figma Extract Mapping
 
 on:
   workflow_dispatch: {}
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/figma-extract.mjs'
+      - 'infra/figma/**'
+      - '.github/workflows/figma-extract.yml'
+      - 'infra/ops/trigger-figma.txt'
 
 jobs:
   extract:
