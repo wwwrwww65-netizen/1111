@@ -34,6 +34,9 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
 .sidebar.drawer{display:none;position:fixed;inset:64px 0 0 auto;z-index:60;max-width:80%;width:260px;box-shadow:0 10px 30px rgba(0,0,0,.4);transform:translateX(100%);transition:transform .2s ease}
 .sidebar.drawer.is-open{transform:translateX(0)}
 .overlay{position:fixed;inset:64px 0 0 0;background:rgba(0,0,0,.45);backdrop-filter:saturate(140%) blur(4px);z-index:50}
+@media (min-width:992px){
+  .overlay{display:none}
+}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid transparent;border-radius:10px;color:var(--text);text-decoration:none;background:transparent}
 .nav-item:hover{background:#101828;border-color:#1f2937}
 .nav-item.active{background:linear-gradient(180deg,#0c1220,#0a0f1a);border-color:#233046}
