@@ -7,6 +7,9 @@ Type=simple
 WorkingDirectory=/var/www/ecom/apps/admin/.next/standalone
 ExecStart=/usr/bin/node server.js
 Environment=NODE_ENV=production
+Environment=NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.com
+Environment=NEXTAUTH_URL=https://admin.jeeey.com
+Environment=NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
 Environment=PORT=3001
 Restart=always
 RestartSec=2
