@@ -83,6 +83,19 @@ jobs:
             curl -fsS https://api.jeeey.com/health | head -n1
             code=$(curl -ksSI https://admin.jeeey.com/ | sed -n '1p' | awk '{print $2}')
             case "$code" in 200|301|302|307|308) echo "admin status ok: $code";; *) echo "admin bad status: $code"; exit 1;; esac
+            echo '--- Wait for web to listen on 3000 (local) ---'
+            ok=0
+            for i in $(seq 1 40); do
+              wcode=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || true)
+              if [ "$wcode" = "200" ] || [ "$wcode" = "301" ] || [ "$wcode" = "302" ] || [ "$wcode" = "307" ] || [ "$wcode" = "308" ]; then
+                echo "web local ok: $wcode"; ok=1; break
+              fi
+              sleep 1
+            done
+            if [ "$ok" != "1" ]; then
+              echo 'Web did not become ready locally. Recent logs:'
+              journalctl -u ecom-web --no-pager -n 200 || true
+            fi
             echo '--- Ensure admin exists & JSON login ---'
             set +e
             JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
@@ -116,3 +129,17 @@ jobs:
               if [ ! -e "$W/standalone/public" ]; then ln -sfn "$ROOT/apps/web/public" "$W/standalone/public"; systemctl restart ecom-web; fi
             fi
             echo 'Smoke checks passed.'
+
+      - name: Print service logs (admin & web)
+        if: always()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            echo '=== ecom-admin logs (tail) ==='
+            journalctl -u ecom-admin --no-pager -n 200 || true
+            echo '=== ecom-web logs (tail) ==='
+            journalctl -u ecom-web --no-pager -n 200 || true
