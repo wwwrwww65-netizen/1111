@@ -42,8 +42,10 @@ for (const r of routes) byPath.set(r.path, r);
 
 const finalRoutes = Array.from(byPath.values());
 const genPath = path.join(root, 'apps', 'mweb', 'src', 'routes.generated.ts');
-const gen = `// AUTO-GENERATED FROM Figma mapping.json\nexport const routes = [\n${finalRoutes
-  .map((r) => `  { path: '${r.path}', component: ${r.component} }`)\n  .join(',\n')}\n];\n`;
+const genBody = finalRoutes
+  .map((r) => "  { path: '" + r.path + "', component: " + r.component + " }")
+  .join(',\n');
+const gen = "// AUTO-GENERATED FROM Figma mapping.json\nexport const routes = [\n" + genBody + "\n];\n";
 fs.writeFileSync(genPath, gen, 'utf8');
 console.log(`Generated ${finalRoutes.length} routes to apps/mweb/src/routes.generated.ts`);
 
