@@ -52,6 +52,17 @@ if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
 fi
 
 systemctl daemon-reload || true
+# Ensure correct PORTs via systemd drop-in overrides (admin:3001, web:3000)
+mkdir -p /etc/systemd/system/ecom-admin.service.d /etc/systemd/system/ecom-web.service.d || true
+cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<'EOF'
+[Service]
+Environment=PORT=3001
+EOF
+cat > /etc/systemd/system/ecom-web.service.d/override.conf <<'EOF'
+[Service]
+Environment=PORT=3000
+EOF
+systemctl daemon-reload || true
 # Ensure API process sees COOKIE_DOMAIN (and other vars) via dotenv/config
 if [ -d "$ROOT_DIR/packages/api" ]; then
   if [ -f "$ROOT_DIR/.env.api" ]; then
