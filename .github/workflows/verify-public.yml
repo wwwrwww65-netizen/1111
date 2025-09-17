@@ -1,0 +1,42 @@
+name: verify_public_endpoints
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: HTTPS heads (jeeey.com, admin.jeeey.com)
+        run: |
+          set -e
+          echo '=== jeeey.com HEAD ==='
+          curl -s -I https://jeeey.com | sed -n '1,12p'
+          echo
+          echo '=== admin.jeeey.com HEAD ==='
+          curl -s -I https://admin.jeeey.com | sed -n '1,12p'
+
+      - name: API health (https://api.jeeey.com/health)
+        run: |
+          set -e
+          echo '=== api.jeeey.com /health ==='
+          curl -s -i https://api.jeeey.com/health | sed -n '1,20p'
+
+      - name: Admin login attempt (prints headers)
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        run: |
+          set -e
+          echo '=== api.jeeey.com admin login response headers ==='
+          curl -s -D - -o /dev/null \
+            -X POST -H 'content-type: application/x-www-form-urlencoded' \
+            --data-urlencode email="$ADMIN_EMAIL" \
+            --data-urlencode password="$ADMIN_PASSWORD" \
+            https://api.jeeey.com/api/admin/auth/login | sed -n '1,60p' || true
+
