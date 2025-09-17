@@ -1,58 +1,32 @@
 <template>
-  <div class="container">
-    <section class="hero">
-      <div class="hero-text">
-        <h1>مرحبا بك في jeeey</h1>
-        <p>تسوق أحدث المنتجات والعروض اليومية</p>
-        <button class="btn">تسوق الآن</button>
-      </div>
-      <img class="hero-img" src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1080&auto=format&fit=crop" alt="Hero" />
-    </section>
-
-    <section class="categories">
-      <h2>التصنيفات</h2>
-      <div class="cat-grid">
-        <a class="cat" href="#">ملابس</a>
-        <a class="cat" href="#">أحذية</a>
-        <a class="cat" href="#">اكسسوارات</a>
-        <a class="cat" href="#">أجهزة</a>
-        <a class="cat" href="#">تخفيضات</a>
-      </div>
-    </section>
-
-    <section class="products">
-      <h2>الأكثر رواجًا</h2>
-      <div class="prod-grid">
-        <article class="prod">
-          <img src="https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop" alt="p1" />
-          <div class="info">
-            <div class="title">منتج 1</div>
-            <div class="price">89 ر.س</div>
-          </div>
-          <button class="btn btn-add">إضافة للسلة</button>
-        </article>
-        <article class="prod">
-          <img src="https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop" alt="p2" />
-          <div class="info">
-            <div class="title">منتج 2</div>
-            <div class="price">129 ر.س</div>
-          </div>
-          <button class="btn btn-add">إضافة للسلة</button>
-        </article>
-        <article class="prod">
-          <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop" alt="p3" />
-          <div class="info">
-            <div class="title">منتج 3</div>
-            <div class="price">59 ر.س</div>
-          </div>
-          <button class="btn btn-add">إضافة للسلة</button>
-        </article>
-      </div>
-    </section>
+  <div>
+    <HeaderBar />
+    <div class="container">
+      <HeroBanner />
+      <CategoryScroller class="space-y-16" />
+      <section class="space-y-12">
+        <h2 style="margin:0">الأكثر رواجًا</h2>
+        <div class="prod-grid">
+          <ProductCard v-for="p in products" :key="p.title" :img="p.img" :title="p.title" :price="p.price" />
+        </div>
+      </section>
+    </div>
+    <BottomNav />
   </div>
 </template>
 
 <script setup lang="ts">
+import HeaderBar from '@/components/HeaderBar.vue'
+import BottomNav from '@/components/BottomNav.vue'
+import HeroBanner from '@/components/HeroBanner.vue'
+import CategoryScroller from '@/components/CategoryScroller.vue'
+import ProductCard from '@/components/ProductCard.vue'
+
+const products = [
+  { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', title: 'منتج 1', price: '89 ر.س' },
+  { img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', title: 'منتج 2', price: '129 ر.س' },
+  { img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop', title: 'منتج 3', price: '59 ر.س' },
+];
 </script>
 
 <style scoped>
