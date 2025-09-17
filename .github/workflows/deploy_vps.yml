@@ -141,21 +141,25 @@ jobs:
             systemctl reload nginx
           '\''
 
-      - name: Enable HTTPS with certbot (if email provided)
-        if: ${{ secrets.CERTBOT_EMAIL }}
+      - name: Enable HTTPS with certbot (guarded inside script)
         env:
           CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "CERTBOT_EMAIL='${CERTBOT_EMAIL}' bash -s" <<'EOF'
           set -e
-          cd /var/www/ecom
-          CERTBOT_EMAIL="${CERTBOT_EMAIL}" bash infra/deploy/enable-https.sh
-          # Switch to HTTPS-enabled nginx config and reload
-          install -m 0644 -T infra/nginx/jeeey.conf.tpl /etc/nginx/sites-available/jeeey.conf
-          ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
-          nginx -t
-          systemctl reload nginx
-          EOF
+          if [ -n "${CERTBOT_EMAIL}" ]; then
+            ssh -o StrictHostKeyChecking=no root@72.60.92.17 "CERTBOT_EMAIL='${CERTBOT_EMAIL}' bash -s" <<'EOF'
+            set -e
+            cd /var/www/ecom
+            CERTBOT_EMAIL="${CERTBOT_EMAIL}" bash infra/deploy/enable-https.sh
+            # Switch to HTTPS-enabled nginx config and reload
+            install -m 0644 -T infra/nginx/jeeey.conf.tpl /etc/nginx/sites-available/jeeey.conf
+            ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
+            nginx -t
+            systemctl reload nginx
+            EOF
+          else
+            echo "CERTBOT_EMAIL not set; skipping HTTPS enablement"
+          fi
 
       - name: Bootstrap RBAC and Admin user
         run: |
