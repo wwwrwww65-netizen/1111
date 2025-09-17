@@ -49,6 +49,14 @@ jobs:
             export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
             export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
             bash infra/scripts/deploy.sh "$PATH_ON_HOST"
+            echo '--- Install Nginx config (jeeey.conf) ---'
+            if [ -f infra/nginx/jeeey.conf.tpl ]; then
+              DOMAIN_ROOT="jeeey.com"
+              TPL=$(cat infra/nginx/jeeey.conf.tpl)
+              echo "$TPL" | sed "s/jeeey.com/${DOMAIN_ROOT}/g" > /etc/nginx/sites-available/jeeey.conf
+              ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
+              nginx -t && systemctl reload nginx || true
+            fi
 
       - name: Post-deploy smoke (health, login, static, services)
         uses: appleboy/ssh-action@v1.0.3
