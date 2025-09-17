@@ -153,16 +153,6 @@ jobs:
             echo "CERTBOT_EMAIL not set; skipping HTTPS enablement"
           fi
 
-      - name: Bootstrap RBAC and Admin user
-        run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'EOF'
-          set -e
-          MSEC=$(grep -s '^MAINTENANCE_SECRET=' /var/www/ecom/.env.api | cut -d= -f2- || true)
-          [ -z "$MSEC" ] && MSEC="deploy-$(date +%s)" && echo "MAINTENANCE_SECRET=$MSEC" >> /var/www/ecom/.env.api
-          curl -s -i -X POST -H "x-maintenance-secret: ${MSEC}" https://api.jeeey.com/api/admin/maintenance/ensure-rbac | sed -n 1,10p || true
-          curl -s -i -X POST -H "x-maintenance-secret: ${MSEC}" -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' https://api.jeeey.com/api/admin/maintenance/create-admin | sed -n 1,12p || true
-          EOF
-
       - name: Verify deployment (services, ports, endpoints)
         run: |
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== services ==='; systemctl is-active ecom-api ecom-admin nginx || true"
@@ -175,26 +165,30 @@ jobs:
       - name: API login JSON + fallback create-admin + form cookie check
         run: |
           set -e
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'CHECK'
+          set -e
           ROOT=/var/www/ecom
-          # JSON login
-          JSON_STATUS=$(ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'curl -ksS -o /dev/null -w \"%{http_code}\" -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/json\" --data '{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"admin123\\",\\"remember\\":true}''")
+          echo '--- JSON login ---'
+          JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
           echo "json status: $JSON_STATUS"
           if [ "$JSON_STATUS" != "200" ]; then
             echo 'Admin login failed, attempting maintenance create-admin...'
-            ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; . \"$ROOT/.env.api\" 2>/dev/null || true; curl -ksS -X POST https://api.jeeey.com/api/admin/maintenance/create-admin -H \"x-maintenance-secret: \${MAINTENANCE_SECRET:-}\" -H \"content-type: application/json\" --data '{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"admin123\\",\\"name\\":\\"Admin\\"}' | sed -n 1,5p || true'"
+            . "$ROOT/.env.api" || true
+            curl -ksS -X POST https://api.jeeey.com/api/admin/maintenance/create-admin -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' || true
             sleep 1
-            JSON_STATUS=$(ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'curl -ksS -o /dev/null -w \"%{http_code}\" -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/json\" --data '{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"admin123\\",\\"remember\\":true}''")
+            JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
             echo "json status (retry): $JSON_STATUS"
             [ "$JSON_STATUS" = "200" ] || (echo "JSON login still failing ($JSON_STATUS)"; exit 1)
           fi
           echo '--- Form-URLENCODED login check & Set-Cookie ---'
           set +e
-          FORM_STATUS=$(ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'curl -ksS -o /dev/null -w \"%{http_code}\" -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/x-www-form-urlencoded\" --data \"email=admin@example.com&password=admin123\"'")
+          FORM_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
           echo "form status: $FORM_STATUS"
-          HEADERS=$(ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'curl -ksS -D - -o /dev/null -X POST https://api.jeeey.com/api/admin/auth/login -H \"content-type: application/x-www-form-urlencoded\" --data \"email=admin@example.com&password=admin123\"'")
-          printf '%s\n' "$HEADERS" | sed -n '1,12p'
+          HEADERS=$(curl -ksS -D - -o /dev/null -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
+          printf '%s\n' "$HEADERS" | sed -n '1,20p'
           printf '%s\n' "$HEADERS" | grep -iq '^set-cookie: .*auth_token=' && echo 'auth_token cookie issued (form)' || echo 'warning: no auth_token Set-Cookie observed (form)'
           set -e
+          CHECK
 
       - name: Upload deployment logs (debug)
         if: always()
