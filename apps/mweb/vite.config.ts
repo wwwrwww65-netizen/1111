@@ -3,6 +3,11 @@ import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
   plugins: [vue()],
-  server: { port: 3002 },
+  server: { host: true },
+  build: {
+    sourcemap: false
+  },
+  preview: { host: true },
+  // Set response headers in preview (dev) only; Nginx will handle prod headers
 });
 

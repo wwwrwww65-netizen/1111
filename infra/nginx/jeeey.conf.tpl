@@ -83,7 +83,12 @@ server {
   root /var/www/ecom/apps/mweb/dist;
   index index.html;
 
+  # No-store for HTML, short cache for assets
+  location = /index.html { add_header Cache-Control "no-store" always; try_files $uri /index.html; }
+  location /assets/ { add_header Cache-Control "public, max-age=60, must-revalidate" always; try_files $uri $uri/ =404; }
+
   location / {
+    add_header Cache-Control "no-store" always;
     try_files $uri $uri/ /index.html;
   }
 }
