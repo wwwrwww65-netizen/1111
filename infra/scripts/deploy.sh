@@ -52,6 +52,20 @@ if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
 fi
 
 systemctl daemon-reload || true
+# Ensure API process sees COOKIE_DOMAIN (and other vars) via dotenv/config
+if [ -d "$ROOT_DIR/packages/api" ]; then
+  if [ -f "$ROOT_DIR/.env.api" ]; then
+    cp "$ROOT_DIR/.env.api" "$ROOT_DIR/packages/api/.env" || true
+    if ! grep -q '^COOKIE_DOMAIN=' "$ROOT_DIR/packages/api/.env"; then
+      echo 'COOKIE_DOMAIN=.jeeey.com' >> "$ROOT_DIR/packages/api/.env"
+    fi
+  else
+    printf '%s\n' \
+      'NODE_ENV=production' \
+      'COOKIE_DOMAIN=.jeeey.com' \
+      > "$ROOT_DIR/packages/api/.env"
+  fi
+fi
 systemctl restart ecom-api || true
 systemctl restart ecom-web || true
 systemctl restart ecom-admin || true
