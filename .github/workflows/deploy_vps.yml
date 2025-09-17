@@ -84,15 +84,25 @@ jobs:
             pnpm --filter admin build | cat
             pnpm --filter web build | cat
             pnpm --filter @repo/api build | cat
-            # Prepare standalone
-            if [ -d apps/admin/.next/standalone ]; then cp -r apps/admin/public apps/admin/.next/standalone/ 2>/dev/null || true; fi
-            if [ -d apps/web/.next/standalone ]; then cp -r apps/web/public apps/web/.next/standalone/ 2>/dev/null || true; fi
+            # Prepare standalone: ensure Next.js static/public symlinks exist before restart
+            if [ -d apps/admin/.next ]; then 
+              A=apps/admin/.next; S=apps/admin/.next/standalone/apps/admin/.next; 
+              mkdir -p "$S"; 
+              if [ -d "$A/static" ]; then ln -sfn "$(readlink -f "$A/static")" "$S/static"; fi
+              ln -sfn "$(readlink -f apps/admin/public)" apps/admin/.next/standalone/public || true
+            fi
+            if [ -d apps/web/.next ]; then 
+              W=apps/web/.next; SW=apps/web/.next/standalone/apps/web/.next; 
+              mkdir -p "$SW"; 
+              if [ -d "$W/static" ]; then ln -sfn "$(readlink -f "$W/static")" "$SW/static"; fi
+              ln -sfn "$(readlink -f apps/web/public)" apps/web/.next/standalone/public || true
+            fi
             # Update systemd units
             install -m 0644 -T infra/systemd/ecom-admin.service /etc/systemd/system/ecom-admin.service
             install -m 0644 -T infra/systemd/ecom-api.service /etc/systemd/system/ecom-api.service
             systemctl daemon-reload
-            systemctl restart ecom-api || true
-            systemctl restart ecom-admin || true
+            systemctl restart ecom-api || (systemctl reset-failed ecom-api && systemctl start ecom-api) || true
+            systemctl restart ecom-admin || (systemctl reset-failed ecom-admin && systemctl start ecom-admin) || true
             # Nginx canonical HTTP->HTTPS redirects
             install -m 0644 -T infra/deploy/nginx/jeeey.conf /etc/nginx/sites-available/jeeey.conf
             ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
@@ -118,7 +128,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== nginx conflicts (should be empty warnings) ==='; nginx -T 2>/dev/null | grep -En 'server_name\s+.*jeeey\.com' | sed -n 1,200p || true"
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== admin HEAD / (expect 200/307) ==='; curl -s -I https://admin.jeeey.com | sed -n 1,15p || true"
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== api health ==='; curl -s -i https://api.jeeey.com/health | sed -n 1,15p || true"
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (may 200/401) ==='; curl -s -i -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,20p || true"
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (expect Set-Cookie auth_token) ==='; curl -s -i -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,40p || true"
 
       - name: Upload deployment logs (debug)
         if: always()
