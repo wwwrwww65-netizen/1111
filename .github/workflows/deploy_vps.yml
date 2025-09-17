@@ -43,6 +43,20 @@ jobs:
           rc=$?
           if [ $rc -ne 0 ] && [ $rc -ne 24 ]; then exit $rc; fi
 
+      - name: Prepare API env file on VPS
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+        run: |
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; f=/var/www/ecom/.env.api; : > "$f"; \
+            [ -n "${DATABASE_URL}" ] && printf "DATABASE_URL=%s\n" "${DATABASE_URL}" >> "$f"; \
+            [ -n "${DIRECT_URL}" ] && printf "DIRECT_URL=%s\n" "${DIRECT_URL}" >> "$f"; \
+            [ -n "${JWT_SECRET}" ] && printf "JWT_SECRET=%s\n" "${JWT_SECRET}" >> "$f"; \
+            [ -n "${MAINTENANCE_SECRET}" ] && printf "MAINTENANCE_SECRET=%s\n" "${MAINTENANCE_SECRET}" >> "$f"; \
+            chown root:root "$f"; chmod 600 "$f"'"
+
       - name: Build and restart services on VPS
         run: |
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 'bash -lc '\''
@@ -80,6 +94,15 @@ jobs:
             nginx -t
             systemctl reload nginx
           '\'''
+
+      - name: Bootstrap RBAC and Admin user (optional)
+        if: ${{ secrets.MAINTENANCE_SECRET != '' }}
+        env:
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+        run: |
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; \
+            curl -s -i -X POST -H "x-maintenance-secret: ${MAINTENANCE_SECRET}" https://api.jeeey.com/api/admin/maintenance/ensure-rbac | sed -n 1,10p; \
+            curl -s -i -X POST -H "x-maintenance-secret: ${MAINTENANCE_SECRET}" -H "content-type: application/json" --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' https://api.jeeey.com/api/admin/maintenance/create-admin | sed -n 1,12p'"
 
       - name: Verify deployment (services, ports, endpoints)
         run: |
