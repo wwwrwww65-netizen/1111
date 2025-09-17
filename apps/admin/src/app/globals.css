@@ -15,6 +15,8 @@
 }
 html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;font-size:var(--fz-body);line-height:var(--lh-body)}
 .app-root{min-height:100vh}
+.theme-light{--bg:#ffffff; --panel:#f9fafb; --muted:#e5e7eb; --muted2:#f3f4f6; --text:#0f172a; --sub:#475569}
+.theme-dark{--bg:#0b0e14; --panel:#0f1420; --muted:#1c2333; --muted2:#101828; --text:#e2e8f0; --sub:#9ca3af}
 .topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;height:64px;padding:0 24px;background:#fff;color:#0f172a;border-bottom:1px solid #e5e7eb}
 .topbar .brand{font-weight:800;letter-spacing:.5px}
 .top-actions{margin-inline-start:auto;display:flex;align-items:center;gap:12px}
