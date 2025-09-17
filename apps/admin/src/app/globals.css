@@ -13,7 +13,7 @@
 }
 html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;font-size:var(--fz-body);line-height:var(--lh-body)}
 .app-root{min-height:100vh}
-.topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;height:64px;padding:0 24px;background:#ffffff;color:#0f172a;border-bottom:1px solid #e5e7eb}
+.topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;height:64px;padding:0 24px;background:linear-gradient(90deg,#111827,#0b0e14);color:#e2e8f0;border-bottom:1px solid #1c2333}
 .topbar .brand{font-weight:800;letter-spacing:.5px}
 .top-actions{margin-inline-start:auto;display:flex;align-items:center;gap:12px}
 .top-actions .search{max-width:520px;width:100%}
@@ -27,7 +27,7 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
 .sidebar nav{display:grid;gap:6px}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid transparent;border-radius:10px;color:var(--text);text-decoration:none;background:transparent}
 .nav-item:hover{background:#101828;border-color:#1f2937}
-.nav-item.active{background:linear-gradient(180deg,#111a2b,transparent);border-color:#233046}
+.nav-item.active{background:linear-gradient(180deg,#0c1220,#0a0f1a);border-color:#233046}
 .content{padding:20px}
 .container{max-width:var(--container-max);margin:0 auto}
 .panel{background:var(--panel);border:1px solid var(--muted);border-radius:var(--radius-card);padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.2)}
