@@ -230,6 +230,19 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
   }
 
+  async function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // result is a data URL: data:<mime>;base64,<data>
+        resolve(result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   function allProductImageUrls(): string[] {
     const urlFiles = files.map(f => URL.createObjectURL(f));
     const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -303,7 +316,28 @@ export default function AdminProductCreate(): JSX.Element {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const baseImages: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean);
+    const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean);
+    let uploadedUrls: string[] = [];
+    try {
+      if (files.length > 0) {
+        const base64List = await Promise.all(files.map(f => fileToBase64(f)));
+        const results = await Promise.all(base64List.map(async (b64, idx) => {
+          try {
+            const r = await fetch(`${apiBase}/api/admin/media`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', ...authHeaders() },
+              credentials: 'include',
+              body: JSON.stringify({ base64: b64, type: files[idx]?.type, alt: name || files[idx]?.name })
+            });
+            const j = await r.json();
+            if (r.ok && j?.asset?.url) return j.asset.url as string;
+            return undefined;
+          } catch { return undefined; }
+        }));
+        uploadedUrls = results.filter((u): u is string => Boolean(u));
+      }
+    } catch {}
+    const baseImages: string[] = [...existingImageUrls, ...uploadedUrls];
     const productPayload: any = {
       name,
       description,
@@ -327,6 +361,10 @@ export default function AdminProductCreate(): JSX.Element {
       if (variants.length) {
         // Future: POST variants in bulk when endpoint is ready
       }
+    }
+    if (uploadedUrls.length) {
+      setImages(baseImages.join(', '));
+      setFiles([]);
     }
     alert('تم إنشاء المنتج بنجاح');
     router.push('/products');
