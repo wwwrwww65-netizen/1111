@@ -35,15 +35,19 @@ jobs:
           JRAND=$(openssl rand -hex 32 || echo 000)
           MRAND="deploy-$(date +%s)"
           {
-            echo NODE_ENV=production
-            echo COOKIE_DOMAIN=.jeeey.com
-            echo NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com
-            echo NEXT_PUBLIC_APP_URL=https://jeeey.com
-            echo JWT_SECRET=$JRAND
-            echo MAINTENANCE_SECRET=$MRAND
+            echo "NODE_ENV=production"
+            echo "COOKIE_DOMAIN=.jeeey.com"
+            echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com"
+            echo "NEXT_PUBLIC_APP_URL=https://jeeey.com"
+            echo "JWT_SECRET=$JRAND"
+            echo "MAINTENANCE_SECRET=$MRAND"
           } > "$TMP"
-          if [ -n "${{ secrets.DATABASE_URL }}" ]; then echo DATABASE_URL=${{ secrets.DATABASE_URL }} >> "$TMP"; fi
-          if [ -n "${{ secrets.DIRECT_URL }}" ]; then echo DIRECT_URL=${{ secrets.DIRECT_URL }} >> "$TMP"; fi
+          if [ -n "${{ secrets.DATABASE_URL }}" ]; then
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> "$TMP"
+          fi
+          if [ -n "${{ secrets.DIRECT_URL }}" ]; then
+            echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> "$TMP"
+          fi
           scp -o StrictHostKeyChecking=no "$TMP" root@72.60.92.17:/var/www/ecom/.env.api
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "chmod 600 /var/www/ecom/.env.api && ls -l /var/www/ecom/.env.api | cat"
 
