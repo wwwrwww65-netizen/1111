@@ -1,7 +1,3 @@
-export default function NotFoundPage() {
-  return null;
-}
-
 export default function NotFound(): JSX.Element {
   return (
     <main className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
