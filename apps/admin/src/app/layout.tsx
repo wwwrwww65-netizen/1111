@@ -1,4 +1,5 @@
 import { AppProviders } from "./providers";
+export const dynamic = 'force-dynamic';
 import { AppShell } from "./components/AppShell";
 import '../app/globals.css';
 
