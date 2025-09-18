@@ -9,4 +9,4 @@ ErrorPage.getInitialProps = ({ res, err }: NextPageContext) => {
   return { statusCode }
 }
 
-export default ErrorPage
+export default function Removed(): null { return null }
