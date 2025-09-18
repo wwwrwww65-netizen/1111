@@ -148,6 +148,29 @@ jobs:
               echo '.env.api missing; skipping login.'
             fi
             set -e
+      - name: External HTTPS smoke tests (retry)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            doms=("https://jeeey.com" "https://admin.jeeey.com" "https://m.jeeey.com" "https://api.jeeey.com/health")
+            for url in "${doms[@]}"; do
+              echo "-- Smoke: $url"
+              ok=0
+              for i in $(seq 1 12); do
+                code=$(curl -k -s -o /dev/null -w '%{http_code}' "$url" || true)
+                if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ]; then ok=1; break; fi
+                sleep 5
+              done
+              if [ "$ok" != "1" ]; then
+                echo "Smoke failed for $url. Recent nginx errors:"
+                journalctl -u nginx --no-pager -n 120 || true
+                exit 1
+              fi
+            done
 
       - name: Print service logs (admin & web)
         if: always()
