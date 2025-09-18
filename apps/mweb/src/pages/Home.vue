@@ -3,13 +3,11 @@
     <HeaderBar />
     <div class="container">
       <HeroBanner />
+      <PromoBanners />
+      <SectionHeading title="الفئات" href="/categories" />
       <CategoryScroller class="space-y-16" />
-      <section class="space-y-12">
-        <h2 style="margin:0">الأكثر رواجًا</h2>
-        <div class="prod-grid">
-          <ProductCard v-for="p in products" :key="p.title" :img="p.img" :title="p.title" :price="p.price" />
-        </div>
-      </section>
+      <SectionHeading title="الأكثر رواجًا" href="/products?sort=trending" />
+      <HorizontalProducts />
     </div>
     <BottomNav />
   </div>
@@ -20,13 +18,11 @@ import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import HeroBanner from '@/components/HeroBanner.vue'
 import CategoryScroller from '@/components/CategoryScroller.vue'
-import ProductCard from '@/components/ProductCard.vue'
+import PromoBanners from '@/components/PromoBanners.vue'
+import SectionHeading from '@/components/SectionHeading.vue'
+import HorizontalProducts from '@/components/HorizontalProducts.vue'
 
-const products = [
-  { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', title: 'منتج 1', price: '89 ر.س' },
-  { img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', title: 'منتج 2', price: '129 ر.س' },
-  { img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop', title: 'منتج 3', price: '59 ر.س' },
-];
+// placeholder data is now inside components
 </script>
 
 <style scoped>
