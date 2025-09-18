@@ -537,15 +537,20 @@ export default function AdminProductCreate(): JSX.Element {
                   <button type="button" onClick={() => {
                   const sizeList = aggregatedSizeList();
                   const colorList = selectedColors;
-                    const rows: typeof variantRows = [];
-                    if (sizeList.length && colorList.length) {
-                      if (variantMatrix === 'sizes_x_colors') {
-                        for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                      } else {
-                        for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                      }
+                  const rows: typeof variantRows = [];
+                  // حالات شاملة: مقاسات فقط، ألوان فقط، أو كلاهما
+                  if (sizeList.length && colorList.length) {
+                    if (variantMatrix === 'sizes_x_colors') {
+                      for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+                    } else {
+                      for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
                     }
-                    setVariantRows(rows);
+                  } else if (sizeList.length) {
+                    for (const s of sizeList) rows.push({ name: s, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+                  } else if (colorList.length) {
+                    for (const c of colorList) rows.push({ name: c, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+                  }
+                  setVariantRows(rows);
                   }} className="btn btn-outline">توليد التباينات</button>
                 </div>
                 {variantRows.length > 0 ? (
