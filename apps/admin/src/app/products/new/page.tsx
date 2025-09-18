@@ -167,6 +167,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
   const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [selectedColors, setSelectedColors] = React.useState<string[]>([]);
+  const [colorCards, setColorCards] = React.useState<Array<{ key:string; color?: string; primaryEnabled: boolean; selectedImageIdxs: number[]; primaryImageIdx?: number }>>([]);
   const [selectedSizeTypes, setSelectedSizeTypes] = React.useState<Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }>>([]);
   const [colors, setColors] = React.useState('');
   const [purchasePrice, setPurchasePrice] = React.useState<number | ''>('');
@@ -226,6 +227,17 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
   }
 
+  function allProductImageUrls(): string[] {
+    const urlFiles = files.map(f => URL.createObjectURL(f));
+    const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
+    return [...urlStrings, ...urlFiles];
+  }
+
+  React.useEffect(()=>{
+    const unique = Array.from(new Set(colorCards.map(c => (c.color||'')).filter(Boolean)));
+    setSelectedColors(unique as string[]);
+  }, [colorCards]);
+
   function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> {
     const priceValue = Number(salePrice || 0);
     const purchaseValue = purchasePrice === '' ? undefined : Number(purchasePrice || 0);
@@ -276,7 +288,7 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (colorList.length) {
       for (const c of colorList) {
-        rows.push({ name: c, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+        rows.push({ name: c, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
       }
       return rows;
     }
@@ -557,14 +569,71 @@ export default function AdminProductCreate(): JSX.Element {
                   </div>
                 </div>
                 <div className="panel" style={{ padding:10 }}>
-                  <div style={{ marginBottom:8, color:'#9ca3af' }}>الألوان</div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:12 }}>
-                    {colorOptions.map((c)=> (
-                      <label key={c.id} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                        <input type="checkbox" checked={selectedColors.includes(c.name)} onChange={()=> setSelectedColors(prev=> prev.includes(c.name) ? prev.filter(x=>x!==c.name) : [...prev, c.name])} />
-                        <span style={{ width:14, height:14, borderRadius:999, background:c.hex, border:'1px solid #111827' }} />
-                        <span style={{ fontSize:12 }}>{c.name}</span>
-                      </label>
+                  <div style={{ marginBottom:8, color:'#9ca3af', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>الألوان</span>
+                    <button type="button" className="btn btn-outline" onClick={()=>{
+                      const key = String(Date.now())+'-'+Math.random().toString(36).slice(2);
+                      setColorCards(prev => [...prev, { key, primaryEnabled: false, selectedImageIdxs: [] }]);
+                    }}>إضافة لون</button>
+                  </div>
+                  <div style={{ display:'grid', gap:10 }}>
+                    {colorCards.map((card, idx) => (
+                      <div key={card.key} className="panel" style={{ padding:10 }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, alignItems:'center' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <select value={card.color||''} onChange={(e)=>{
+                              const val = e.target.value || undefined;
+                              setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, color: val } : c));
+                            }} className="select" style={{ minWidth:220 }}>
+                              <option value="">اختر لونًا</option>
+                              {colorOptions.map(opt => (<option key={opt.id} value={opt.name}>{opt.name}</option>))}
+                            </select>
+                            {(() => { const opt = colorOptions.find(o=>o.name===card.color); return opt ? (<span style={{ width:14, height:14, borderRadius:999, background:opt.hex, border:'1px solid #111827' }} />) : null; })()}
+                          </div>
+                          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                            <input type="checkbox" checked={card.primaryEnabled} onChange={()=>{
+                              setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, primaryEnabled: !c.primaryEnabled, primaryImageIdx: !c.primaryEnabled ? c.primaryImageIdx : undefined } : c));
+                            }} />
+                            <span>تحديد اللون الرئيسي</span>
+                          </label>
+                        </div>
+                        <div style={{ marginTop:10 }}>
+                          <div style={{ marginBottom:6, color:'#9ca3af' }}>اختر صور هذا اللون</div>
+                          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:10 }}>
+                            {allProductImageUrls().map((u, imgIdx) => (
+                              <div key={imgIdx} className="panel" style={{ padding:0 }}>
+                                <img src={u} alt={String(imgIdx)} style={{ width:'100%', height:90, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                                <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                    <input type="checkbox" checked={card.selectedImageIdxs.includes(imgIdx)} onChange={()=>{
+                                      setColorCards(prev => prev.map((c,i)=>{
+                                        if (i!==idx) return c;
+                                        const have = c.selectedImageIdxs.includes(imgIdx);
+                                        const sel = have ? c.selectedImageIdxs.filter(x=>x!==imgIdx) : [...c.selectedImageIdxs, imgIdx];
+                                        let primaryImageIdx = c.primaryImageIdx;
+                                        if (primaryImageIdx!==undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
+                                        return { ...c, selectedImageIdxs: sel, primaryImageIdx };
+                                      }));
+                                    }} />
+                                    <span style={{ fontSize:12 }}>اختيار</span>
+                                  </label>
+                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6, opacity: card.primaryEnabled ? 1 : 0.5 }}>
+                                    <input type="radio" name={`primary-${card.key}`} disabled={!card.primaryEnabled} checked={card.primaryImageIdx===imgIdx} onChange={()=>{
+                                      setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, primaryImageIdx: imgIdx } : c));
+                                      const colorName = card.color;
+                                      if (colorName) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: u } }));
+                                    }} />
+                                    <span style={{ fontSize:12 }}>رئيسية</span>
+                                  </label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ marginTop:10, display:'flex', justifyContent:'flex-end' }}>
+                          <button type="button" className="icon-btn" onClick={()=> setColorCards(prev => prev.filter((_,i)=> i!==idx))}>إزالة اللون</button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
