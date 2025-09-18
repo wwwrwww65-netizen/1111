@@ -260,7 +260,7 @@ export default function AdminProductCreate(): JSX.Element {
 
   return (
     <div className="container">
-    <main className="panel" style={{ display:'grid', gap:16 }}>
+    <main className="panel">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
         <h1 style={{ margin:0 }}>إنشاء منتج</h1>
         <a href="/products" className="btn btn-outline">رجوع</a>
