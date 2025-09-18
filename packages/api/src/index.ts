@@ -9,6 +9,7 @@ import { appRouter } from './router';
 import { createContext } from './context';
 import { applySecurityMiddleware } from './middleware/security';
 import { db } from '@repo/db';
+import { ensureSchemaSafe } from './db/ensure';
 import cookieParser from 'cookie-parser';
 import adminRest from './routers/admin-rest';
 import shippingWebhooks from './routers/webhooks';
@@ -291,6 +292,7 @@ const port = process.env.PORT || 4000;
   // Run ensureSchema only when explicitly allowed or in development
   const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
   if (allowEnsure) {
+    await ensureSchemaSafe();
     await ensureSchema();
   }
   // Skip bootstrap seeding during tests unless explicitly forced
