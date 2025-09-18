@@ -11,7 +11,7 @@ const nextConfig = {
   },
   generateEtags: false,
   trailingSlash: false,
-  outputFileTracing: true,
+  outputFileTracing: false,
   experimental: { serverComponentsExternalPackages: [] },
 };
 
