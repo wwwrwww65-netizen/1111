@@ -19,7 +19,7 @@ jobs:
       - name: Deploy over SSH to Hostinger VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: srv995016.hstgr.cloud
+          host: 72.60.92.17
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
@@ -41,11 +41,24 @@ jobs:
             corepack enable || true
             corepack prepare pnpm@9 --activate
 
-            # Install deps and build
-            pnpm install -r --prod=false
-            pnpm --filter @repo/api build || true
-            pnpm --filter web build
-            pnpm --filter admin build
+            # pnpm config hardening for monorepo
+            pnpm config set store-dir /var/www/ecom/.pnpm-store
+            pnpm config set node-linker hoisted
+            pnpm config set package-import-method copy
+
+            # Install deps without running postinstall scripts to avoid native failures
+            CI=1 NODE_ENV=development pnpm install -w --frozen-lockfile=false --prod=false --force --ignore-scripts | cat
+
+            # Manually rebuild native deps as needed
+            pnpm rebuild @prisma/client prisma esbuild puppeteer || true
+            npx prisma --version || true
+
+            # Build apps/packages (clean .next first)
+            rm -rf apps/web/.next apps/admin/.next || true
+            pnpm --filter @repo/db build | cat
+            pnpm --filter @repo/api build | cat || true
+            pnpm --filter web build | cat
+            pnpm --filter admin build | cat
 
             # Install/refresh systemd units
             install -m 0644 infra/systemd/ecom-api.service /etc/systemd/system/ecom-api.service
