@@ -42,17 +42,31 @@ jobs:
           KEY="$RUNNER_TEMP/vps_key"
           printf "%s" "$IN_KEY" > "$KEY"
           chmod 600 "$KEY"
+          echo "DNS resolution:"
+          getent hosts "$IN_HOST" || true
+          getent hosts srv995016.hstgr.cloud || true
+          echo "---"
           hosts=( )
           if [ -n "$IN_HOST" ]; then hosts+=("$IN_HOST"); fi
           hosts+=("72.60.92.17" "srv995016.hstgr.cloud")
-          ok=0; picked=""
+          ports=("$PORT" 22 2222 8022)
+          users=("$IN_USER" root)
+          ok=0; picked=""; picked_port=""; picked_user=""
           for h in "${hosts[@]}"; do
-            echo "Testing SSH to $h:$PORT ..."
-            for i in $(seq 1 6); do
-              if ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 -p "$PORT" -i "$KEY" "$IN_USER@$h" "echo ok" >/dev/null 2>&1; then
-                ok=1; picked="$h"; break
-              fi
-              sleep 5
+            for p in "${ports[@]}"; do
+              echo "TCP probe $h:$p ..."
+              (echo > /dev/tcp/"$h"/"$p") >/dev/null 2>&1 || true
+              for u in "${users[@]}"; do
+                echo "Testing SSH to $u@$h:$p ..."
+                for i in $(seq 1 6); do
+                  if ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 -p "$p" -i "$KEY" "$u@$h" "echo ok" >/dev/null 2>&1; then
+                    ok=1; picked="$h"; picked_port="$p"; picked_user="$u"; break
+                  fi
+                  sleep 5
+                done
+                [ "$ok" = "1" ] && break
+              done
+              [ "$ok" = "1" ] && break
             done
             [ "$ok" = "1" ] && break
           done
@@ -60,14 +74,16 @@ jobs:
             echo "SSH preflight failed. Ensure port $PORT is open and host reachable." >&2
             exit 255
           fi
+          echo "Using $picked_user@$picked:$picked_port"
           echo "host=$picked" >> "$GITHUB_OUTPUT"
-          echo "port=$PORT" >> "$GITHUB_OUTPUT"
+          echo "port=$picked_port" >> "$GITHUB_OUTPUT"
+          echo "user=$picked_user" >> "$GITHUB_OUTPUT"
 
       - name: Prepare API env file on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ steps.preflight.outputs.host }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ steps.preflight.outputs.user || secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ steps.preflight.outputs.port }}
           timeout: 60s
@@ -96,7 +112,7 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ steps.preflight.outputs.host }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ steps.preflight.outputs.user || secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ steps.preflight.outputs.port }}
           timeout: 60s
@@ -107,7 +123,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ steps.preflight.outputs.host }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ steps.preflight.outputs.user || secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ steps.preflight.outputs.port }}
           timeout: 60s
@@ -143,7 +159,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ steps.preflight.outputs.host }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ steps.preflight.outputs.user || secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ steps.preflight.outputs.port }}
           timeout: 60s
