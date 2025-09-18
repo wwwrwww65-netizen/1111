@@ -54,12 +54,10 @@ jobs:
           ok=0; picked=""; picked_port=""; picked_user=""
           for h in "${hosts[@]}"; do
             for p in "${ports[@]}"; do
-              echo "TCP probe $h:$p ..."
-              (echo > /dev/tcp/"$h"/"$p") >/dev/null 2>&1 || true
               for u in "${users[@]}"; do
                 echo "Testing SSH to $u@$h:$p ..."
                 for i in $(seq 1 6); do
-                  if ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 -p "$p" -i "$KEY" "$u@$h" "echo ok" >/dev/null 2>&1; then
+                  if ssh -4 -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 -p "$p" -i "$KEY" "$u@$h" "echo ok" >/dev/null 2>&1; then
                     ok=1; picked="$h"; picked_port="$p"; picked_user="$u"; break
                   fi
                   sleep 5
