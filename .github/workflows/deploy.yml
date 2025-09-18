@@ -1,0 +1,65 @@
+name: deploy_to_vps
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure repo context
+        uses: actions/checkout@v4
+
+      - name: Deploy over SSH to Hostinger VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: srv995016.hstgr.cloud
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+            if [ ! -d /var/www/ecom ]; then
+              echo "/var/www/ecom not found. Please clone repo to this path first." >&2
+              exit 1
+            fi
+
+            cd /var/www/ecom
+            git fetch --all --prune
+            git reset --hard origin/main
+
+            # Node & pnpm
+            command -v corepack >/dev/null 2>&1 || (npm i -g corepack || true)
+            corepack enable || true
+            corepack prepare pnpm@9 --activate
+
+            # Install deps and build
+            pnpm install -r --prod=false
+            pnpm --filter @repo/api build || true
+            pnpm --filter web build
+            pnpm --filter admin build
+
+            # Install/refresh systemd units
+            install -m 0644 infra/systemd/ecom-api.service /etc/systemd/system/ecom-api.service
+            install -m 0644 infra/systemd/ecom-web.service /etc/systemd/system/ecom-web.service
+            install -m 0644 infra/systemd/ecom-admin.service /etc/systemd/system/ecom-admin.service
+            systemctl daemon-reload
+
+            # Restart services (ignore failure to keep pipeline moving)
+            systemctl restart ecom-api || true
+            systemctl restart ecom-web || true
+            systemctl restart ecom-admin || true
+
+            # Show listeners for quick diagnostics
+            ss -ltnp | egrep ":3000|:3001|:4000" || true
+
+            # Reload nginx if config is valid
+            nginx -t && systemctl reload nginx || true
