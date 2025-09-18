@@ -148,29 +148,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<CHECK
           set -e
           ROOT=/var/www/ecom
-          echo '--- Ensure .env.api exists ---'
-          if [ ! -f "$ROOT/.env.api" ]; then
-            echo '.env.api missing; creating and restarting API'
-            JRAND=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)
-            MRAND="deploy-$(date +%s)"
-            {
-              echo "NODE_ENV=production"
-              echo "COOKIE_DOMAIN=.jeeey.com"
-              echo "JWT_SECRET=$JRAND"
-              echo "MAINTENANCE_SECRET=$MRAND"
-              [ -n "$GHA_DB_URL" ] && echo "DATABASE_URL=$GHA_DB_URL" || true
-              [ -n "$GHA_DIRECT_URL" ] && echo "DIRECT_URL=$GHA_DIRECT_URL" || true
-            } > "$ROOT/.env.api"
-            chmod 600 "$ROOT/.env.api"
-            mkdir -p "$ROOT/packages/api"
-            cp "$ROOT/.env.api" "$ROOT/packages/api/.env" || true
-            systemctl restart ecom-api || (systemctl reset-failed ecom-api && systemctl start ecom-api) || true
-            for i in $(seq 1 40); do
-              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health || true)
-              [ "$code" = "200" ] && break; sleep 1
-            done
-            echo 'API restarted with new env.'
-          fi
+          # Ensure .env.api exists - created earlier in workflow; if still missing, fail with clear message
+          if [ ! -f "$ROOT/.env.api" ]; then echo '.env.api missing; ensure DATABASE_URL/VPS secrets are set and rerun.'; exit 1; fi
           echo '--- JSON login (local API) ---'
           JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
           echo "json status: $JSON_STATUS"
