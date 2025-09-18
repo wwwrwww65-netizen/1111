@@ -1,0 +1,11 @@
+<template>
+  <div class="container">
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">path</h1>
+      <p>Figma: Document / ICON / Icon/General / Design, Tools / path / Property 1=twotone / vuesax/twotone/path / path (id: 1823:29263)</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+</script>

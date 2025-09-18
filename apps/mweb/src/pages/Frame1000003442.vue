@@ -1,0 +1,11 @@
+<template>
+  <div class="container">
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003442</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات_احصائيات / Frame 1000003485 / Frame 1000003484 / Frame 1000003482 / Frame 1000003442 (id: 2199:7320)</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+</script>

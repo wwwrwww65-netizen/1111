@@ -1,0 +1,11 @@
+<template>
+  <div class="container">
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319560</h1>
+      <p>Figma: Document / ui / بطاقة هدية / Frame 427319560 (id: 210:6146)</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+</script>

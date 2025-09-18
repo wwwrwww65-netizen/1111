@@ -1,0 +1,11 @@
+<template>
+  <div class="container">
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 87</h1>
+      <p>Figma: Document / Dashboard / بيانات المنتج/Variant6 / Frame 84 / Frame 87 (id: 1309:2916)</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+</script>

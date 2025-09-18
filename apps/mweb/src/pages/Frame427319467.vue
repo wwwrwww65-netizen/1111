@@ -1,0 +1,11 @@
+<template>
+  <div class="container">
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319467</h1>
+      <p>Figma: Document / APP_DELEVRY / تفاصيل طلباتي / Frame 427319474 / Frame 427319467 (id: 2928:1156)</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+</script>
