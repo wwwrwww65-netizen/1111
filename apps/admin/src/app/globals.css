@@ -9,7 +9,7 @@
   /* typography */
   --fz-h1:22px; --fz-h2:18px; --fz-h3:16px; --fz-body:14px; --fz-small:12px; --lh-body:20px;
   /* layout */
-  --container-max:1280px; --grid-gutter:24px;
+  --container-max:1440px; --grid-gutter:24px;
   /* inputs/buttons */
   --input-h:40px; --input-px:12px; --btn-sm-h:32px; --btn-md-h:40px; --btn-lg-h:48px; --btn-sm-px:8px; --btn-md-px:12px; --btn-lg-px:16px;
 }

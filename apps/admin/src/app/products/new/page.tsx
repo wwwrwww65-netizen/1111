@@ -474,7 +474,7 @@ export default function AdminProductCreate(): JSX.Element {
           </label>
           {type === 'variable' && (
             <>
-              <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
                 <div className="panel" style={{ padding:10 }}>
                   <div style={{ marginBottom:8, color:'#9ca3af' }}>نوع المقاس</div>
                   <select value={sizeTypeId} onChange={(e)=>{ setSizeTypeId(e.target.value); setSizes(''); }} className="select">
@@ -501,6 +501,90 @@ export default function AdminProductCreate(): JSX.Element {
                     ))}
                   </div>
                 </div>
+              </div>
+              <div className="panel" style={{ paddingTop:12 }}>
+                <div className="toolbar" style={{ gap:8 }}>
+                  <span style={{ color:'var(--sub)' }}>إنشاء التباينات:</span>
+                  <select value={variantMatrix} onChange={(e)=>setVariantMatrix(e.target.value as any)} className="select">
+                    <option value="sizes_x_colors">لكل مقاس كل الألوان</option>
+                    <option value="colors_x_sizes">لكل لون كل المقاسات</option>
+                  </select>
+                  <button type="button" onClick={() => {
+                    const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
+                    const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
+                    const rows: typeof variantRows = [];
+                    if (sizeList.length && colorList.length) {
+                      if (variantMatrix === 'sizes_x_colors') {
+                        for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+                      } else {
+                        for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
+                      }
+                    }
+                    setVariantRows(rows);
+                  }} className="btn btn-outline">توليد التباينات</button>
+                </div>
+                {variantRows.length > 0 && (
+                  <div style={{ overflowX:'auto' }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>المجموعة</th>
+                          <th>القيمة</th>
+                          <th>سعر الشراء</th>
+                          <th>سعر البيع</th>
+                          <th>المخزون</th>
+                          <th>SKU</th>
+                          <th>صورة</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {variantRows.map((row, idx) => (
+                          <tr key={idx}>
+                            <td>{row.name}</td>
+                            <td>{row.value}</td>
+                            <td>
+                              <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
+                                const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, purchasePrice: val } : r));
+                              }} className="input" />
+                            </td>
+                            <td>
+                              <input type="number" value={row.price ?? ''} onChange={(e)=>{
+                                const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, price: val } : r));
+                              }} className="input" />
+                            </td>
+                            <td>
+                              <input type="number" value={row.stockQuantity} onChange={(e)=>{
+                                const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, stockQuantity: val } : r));
+                              }} className="input" />
+                            </td>
+                            <td>
+                              <input value={row.sku ?? ''} onChange={(e)=>{
+                                const val = e.target.value || undefined;
+                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, sku: val } : r));
+                              }} className="input" />
+                            </td>
+                            <td>
+                              <select value={(()=>{ const mapped = (review?.mapping||{})[row.value]; return mapped || ''; })()} onChange={(e)=>{
+                                const url = e.target.value || undefined;
+                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [row.value]: url }}));
+                              }} className="select">
+                                <option value="">(بدون)</option>
+                                {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
+                              </select>
+                            </td>
+                            <td>
+                              <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </>
           )}
