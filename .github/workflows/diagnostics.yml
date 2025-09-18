@@ -1,0 +1,123 @@
+name: diagnostics
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: diag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable || true
+          corepack prepare pnpm@9 --activate
+          pnpm -v | cat
+
+      - name: Environment info
+        run: |
+          echo "--- sys ---"
+          uname -a
+          echo "--- node ---"
+          node -v
+          which node
+          echo "--- pnpm ---"
+          pnpm -v
+          which pnpm || true
+          echo "--- disk/mem ---"
+          df -h || true
+          free -h || true
+
+      - name: Configure pnpm (hoisted, copy) and ignore postinstall
+        run: |
+          pnpm config set store-dir "$HOME/.pnpm-store"
+          pnpm config set node-linker hoisted
+          pnpm config set package-import-method copy
+          echo "npm_config_ignore_scripts=true" >> $GITHUB_ENV
+          echo "NPM_CONFIG_IGNORE_SCRIPTS=true" >> $GITHUB_ENV
+          echo "PUPPETEER_SKIP_DOWNLOAD=true" >> $GITHUB_ENV
+          echo "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true" >> $GITHUB_ENV
+
+      - name: Install workspace deps (no scripts)
+        run: |
+          pnpm install -w --no-frozen-lockfile --ignore-scripts
+
+      - name: Investigate unrs-resolver & napi-postinstall
+        run: |
+          pnpm why unrs-resolver || true
+          pnpm why napi-postinstall || true
+
+      - name: Check routers layout (app vs pages)
+        run: |
+          set -e
+          echo "--- web router check ---"
+          if [ -d apps/web/src/pages ]; then
+            echo "apps/web/src/pages exists"; fi
+          if [ -d apps/web/src/app ]; then
+            echo "apps/web/src/app exists"; fi
+          echo "--- admin router check ---"
+          if [ -d apps/admin/src/pages ]; then
+            echo "apps/admin/src/pages exists"; fi
+          if [ -d apps/admin/src/app ]; then
+            echo "apps/admin/src/app exists"; fi
+
+      - name: Build Web (Next.js)
+        continue-on-error: true
+        run: |
+          set +e
+          rm -rf apps/web/.next || true
+          (cd apps/web && NEXT_DISABLE_ESLINT=1 npx next build | tee $GITHUB_WORKSPACE/web_build.log)
+          echo "web_exit=$?" >> $GITHUB_OUTPUT
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then echo FAILED > $GITHUB_WORKSPACE/web.failed; fi
+
+      - name: Build Admin (Next.js)
+        continue-on-error: true
+        run: |
+          set +e
+          rm -rf apps/admin/.next || true
+          (cd apps/admin && NEXT_DISABLE_ESLINT=1 npx next build | tee $GITHUB_WORKSPACE/admin_build.log)
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then echo FAILED > $GITHUB_WORKSPACE/admin.failed; fi
+
+      - name: Build API (tsc)
+        continue-on-error: true
+        run: |
+          set +e
+          (cd packages/db && npx prisma generate | tee $GITHUB_WORKSPACE/prisma_generate.log) || true
+          (cd packages/api && pnpm clean || true && npx tsc -p tsconfig.json | tee $GITHUB_WORKSPACE/api_build.log)
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then echo FAILED > $GITHUB_WORKSPACE/api.failed; fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-logs
+          path: |
+            web_build.log
+            admin_build.log
+            api_build.log
+            prisma_generate.log
+            *.failed
+
+      - name: Summarize and fail if needed
+        run: |
+          any=0
+          for f in web admin api; do
+            if [ -f "$GITHUB_WORKSPACE/$f.failed" ]; then
+              echo "$f build: FAILED"; any=1; else echo "$f build: OK"; fi
+          done
+          exit $any
+
