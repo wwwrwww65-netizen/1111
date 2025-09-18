@@ -1,23 +1,24 @@
 <template>
   <nav class="bottom-nav">
     <a href="/" aria-current="page">
-      <span>🏠</span>
+      <Icon name="home" />
       <span>الرئيسية</span>
     </a>
     <a href="/products">
-      <span>🛍️</span>
+      <Icon name="bag" />
       <span>تسوّق</span>
     </a>
     <a href="/cart">
-      <span>🧺</span>
+      <Icon name="cart" />
       <span>السلة</span>
     </a>
     <a href="/login">
-      <span>👤</span>
+      <Icon name="user" />
       <span>حسابي</span>
     </a>
   </nav>
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/Icon.vue'
 </script>
