@@ -166,10 +166,8 @@ export default function AdminProductCreate(): JSX.Element {
   const [brandOptions, setBrandOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
   const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
-  const [sizeOptions, setSizeOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [selectedColors, setSelectedColors] = React.useState<string[]>([]);
-  const [sizeTypeId, setSizeTypeId] = React.useState<string>('');
-  const [sizes, setSizes] = React.useState('');
+  const [selectedSizeTypes, setSelectedSizeTypes] = React.useState<Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }>>([]);
   const [colors, setColors] = React.useState('');
   const [purchasePrice, setPurchasePrice] = React.useState<number | ''>('');
   const [salePrice, setSalePrice] = React.useState<number | ''>('');
@@ -201,16 +199,33 @@ export default function AdminProductCreate(): JSX.Element {
       } catch {}
     })();
   }, [apiBase]);
-  React.useEffect(()=>{
-    (async ()=>{
-      if (!sizeTypeId) { setSizeOptions([]); return; }
-      try{
-        const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${sizeTypeId}/sizes`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
-        const j = await r.json();
-        setSizeOptions(j.sizes||[]);
-      } catch{}
-    })();
-  }, [sizeTypeId, apiBase]);
+  async function loadSizesForType(typeId: string): Promise<Array<{id:string;name:string}>> {
+    try{
+      const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+      const j = await r.json();
+      return j.sizes || [];
+    } catch { return []; }
+  }
+  function getTypeNameById(id: string): string {
+    return sizeTypeOptions.find(t=>t.id===id)?.name || id;
+  }
+  async function addSizeType(typeId: string) {
+    if (!typeId) return;
+    const exists = selectedSizeTypes.some(t=>t.id===typeId);
+    if (exists) return;
+    const sizes = await loadSizesForType(typeId);
+    setSelectedSizeTypes(prev => [...prev, { id: typeId, name: getTypeNameById(typeId), sizes, selectedSizes: [] }]);
+  }
+  function toggleSizeForType(typeId: string, sizeName: string) {
+    setSelectedSizeTypes(prev => prev.map(t => {
+      if (t.id !== typeId) return t;
+      const have = t.selectedSizes.includes(sizeName);
+      return { ...t, selectedSizes: have ? t.selectedSizes.filter(s=>s!==sizeName) : [...t.selectedSizes, sizeName] };
+    }));
+  }
+  function aggregatedSizeList(): string[] {
+    return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -476,17 +491,26 @@ export default function AdminProductCreate(): JSX.Element {
             <>
               <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
                 <div className="panel" style={{ padding:10 }}>
-                  <div style={{ marginBottom:8, color:'#9ca3af' }}>نوع المقاس</div>
-                  <select value={sizeTypeId} onChange={(e)=>{ setSizeTypeId(e.target.value); setSizes(''); }} className="select">
-                    <option value="">اختر نوعًا</option>
-                    {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
-                  </select>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
-                    {sizeOptions.map((s)=> (
-                      <button type="button" key={s.id} onClick={()=> setSizes(prev=>{
-                        const list = prev.split(',').map(x=>x.trim()).filter(Boolean);
-                        return list.includes(s.name) ? list.filter(x=>x!==s.name).join(', ') : [...list, s.name].join(', ');
-                      })} className="chip">{s.name}</button>
+                  <div style={{ marginBottom:8, color:'#9ca3af' }}>إضافة نوع مقاس</div>
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    <select defaultValue="" onChange={(e)=> { addSizeType(e.target.value); e.currentTarget.value=''; }} className="select">
+                      <option value="">اختر نوعًا</option>
+                      {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
+                    </select>
+                  </div>
+                  <div style={{ display:'grid', gap:10, marginTop:10 }}>
+                    {selectedSizeTypes.map((t)=>(
+                      <div key={t.id} className="panel" style={{ padding:10 }}>
+                        <div style={{ marginBottom:6, fontWeight:600 }}>{t.name}</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
+                          {t.sizes.map(s=> (
+                            <label key={s.id} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                              <input type="checkbox" checked={t.selectedSizes.includes(s.name)} onChange={()=> toggleSizeForType(t.id, s.name)} />
+                              <span>{s.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -510,7 +534,7 @@ export default function AdminProductCreate(): JSX.Element {
                     <option value="colors_x_sizes">لكل لون كل المقاسات</option>
                   </select>
                   <button type="button" onClick={() => {
-                    const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
+                    const sizeList = aggregatedSizeList();
                     const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
                     const rows: typeof variantRows = [];
                     if (sizeList.length && colorList.length) {
