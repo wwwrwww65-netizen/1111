@@ -41,10 +41,13 @@ const core = [
   { path: '/login', component: "() => import('./pages/Login.vue')" },
 ];
 
-// De-duplicate by path priority: mapping overrides core
+// De-duplicate by path priority: core overrides mapping for '/'
 const byPath = new Map();
 for (const r of core) byPath.set(r.path, r);
-for (const r of routes) byPath.set(r.path, r);
+for (const r of routes) {
+  if (r.path === '/') continue; // keep handcrafted Home.vue for root
+  byPath.set(r.path, r);
+}
 
 const finalRoutes = Array.from(byPath.values());
 const genPath = path.join(root, 'apps', 'mweb', 'src', 'routes.generated.ts');
