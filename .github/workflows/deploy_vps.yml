@@ -33,7 +33,7 @@ jobs:
           GHA_DB_URL: ${{ secrets.DATABASE_URL }}
           GHA_DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'ENVAPI'
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<ENVAPI
           set -e
           ROOT=/var/www/ecom
           mkdir -p "$ROOT"
@@ -68,6 +68,8 @@ jobs:
             --exclude=dist \
             --exclude=.pnpm-store \
             --exclude=.cache \
+            --exclude=.env.api \
+            --exclude=packages/api/.env \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ root@72.60.92.17:/var/www/ecom
           rc=$?
@@ -171,7 +173,7 @@ jobs:
           GHA_DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
           set -e
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'CHECK'
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<CHECK
           set -e
           ROOT=/var/www/ecom
           echo '--- Ensure .env.api exists ---'
@@ -184,8 +186,8 @@ jobs:
               echo "COOKIE_DOMAIN=.jeeey.com"
               echo "JWT_SECRET=$JRAND"
               echo "MAINTENANCE_SECRET=$MRAND"
-              [ -n "${GHA_DB_URL}" ] && echo "DATABASE_URL=${GHA_DB_URL}" || true
-              [ -n "${GHA_DIRECT_URL}" ] && echo "DIRECT_URL=${GHA_DIRECT_URL}" || true
+              [ -n "$GHA_DB_URL" ] && echo "DATABASE_URL=$GHA_DB_URL" || true
+              [ -n "$GHA_DIRECT_URL" ] && echo "DIRECT_URL=$GHA_DIRECT_URL" || true
             } > "$ROOT/.env.api"
             chmod 600 "$ROOT/.env.api"
             mkdir -p "$ROOT/packages/api"
