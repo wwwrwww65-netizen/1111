@@ -1,4 +1,6 @@
 map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+proxy_next_upstream error timeout http_502 http_503 http_504;
+proxy_next_upstream_tries 2;
 map $http_user_agent $is_mobile {
   default 0;
   ~*(iphone|android|mobile|ipad|ipod) 1;

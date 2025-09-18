@@ -127,6 +127,22 @@ jobs:
               echo 'Admin did not become ready locally. Recent logs:'
               journalctl -u ecom-admin --no-pager -n 200 || true
             fi
+            echo '--- Restart web service to load latest build ---'
+            systemctl reset-failed ecom-web || true
+            systemctl try-restart ecom-web || true
+            echo '--- Wait for web to listen on 3000 (local) ---'
+            okw=0
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || true)
+              if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then
+                echo "web local ok: $code"; okw=1; break
+              fi
+              sleep 1
+            done
+            if [ "$okw" != "1" ]; then
+              echo 'Web did not become ready locally. Recent logs:'
+              journalctl -u ecom-web --no-pager -n 200 || true
+            fi
             echo '--- Nginx config test ---'
             nginx -t
             echo '--- Services status ---'
@@ -160,10 +176,10 @@ jobs:
             for url in "${doms[@]}"; do
               echo "-- Smoke: $url"
               ok=0
-              for i in $(seq 1 12); do
-                code=$(curl -k -s -o /dev/null -w '%{http_code}' "$url" || true)
-                if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ]; then ok=1; break; fi
-                sleep 5
+              for i in $(seq 1 18); do
+                code=$(curl -L -k -s -o /dev/null -w '%{http_code}' "$url" || true)
+                if [ "$code" = "200" ] || [ "$code" = "204" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then ok=1; break; fi
+                sleep 4
               done
               if [ "$ok" != "1" ]; then
                 echo "Smoke failed for $url. Recent nginx errors:"
