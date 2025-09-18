@@ -176,7 +176,6 @@ export default function AdminProductCreate(): JSX.Element {
   const [files, setFiles] = React.useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
-  const [variantMatrix, setVariantMatrix] = React.useState<'sizes_x_colors'|'colors_x_sizes'>('sizes_x_colors');
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
   const formRef = React.useRef<HTMLFormElement>(null);
   const [autoFilled, setAutoFilled] = React.useState(false);
@@ -227,6 +226,64 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
   }
 
+  function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> {
+    const priceValue = Number(salePrice || 0);
+    const purchaseValue = purchasePrice === '' ? undefined : Number(purchasePrice || 0);
+    const stockValue = Number(stockQuantity || 0);
+    const activeSizeTypes = selectedSizeTypes.filter(t => t.selectedSizes?.length);
+    const colorList = selectedColors;
+    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> = [];
+
+    if (activeSizeTypes.length >= 2 && colorList.length) {
+      const [t1, t2] = activeSizeTypes;
+      for (const s1 of t1.selectedSizes) {
+        for (const s2 of t2.selectedSizes) {
+          for (const c of colorList) {
+            rows.push({ name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+          }
+        }
+      }
+      return rows;
+    }
+
+    if (activeSizeTypes.length >= 2) {
+      const [t1, t2] = activeSizeTypes;
+      for (const s1 of t1.selectedSizes) {
+        for (const s2 of t2.selectedSizes) {
+          rows.push({ name: `${t1.name}: ${s1}`, value: `${t2.name}: ${s2}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+        }
+      }
+      return rows;
+    }
+
+    if (activeSizeTypes.length === 1 && colorList.length) {
+      const [t1] = activeSizeTypes;
+      for (const s1 of t1.selectedSizes) {
+        for (const c of colorList) {
+          rows.push({ name: `${t1.name}: ${s1}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+        }
+      }
+      return rows;
+    }
+
+    if (activeSizeTypes.length === 1) {
+      const [t1] = activeSizeTypes;
+      for (const s1 of t1.selectedSizes) {
+        rows.push({ name: `${t1.name}: ${s1}`, value: `${t1.name}: ${s1}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+      }
+      return rows;
+    }
+
+    if (colorList.length) {
+      for (const c of colorList) {
+        rows.push({ name: c, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+      }
+      return rows;
+    }
+
+    return rows;
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const baseImages: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -249,22 +306,7 @@ export default function AdminProductCreate(): JSX.Element {
     const productId = j?.product?.id;
     if (type === 'variable' && productId) {
       let variants = variantRows;
-      if (!variants?.length) {
-        const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
-        const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
-        const rows: typeof variantRows = [];
-        if (sizeList.length && colorList.length) {
-          if (variantMatrix === 'sizes_x_colors') {
-            for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-          } else {
-            for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-          }
-        } else {
-          for (const s of sizeList) rows.push({ name: s, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-          for (const c of colorList) rows.push({ name: c, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-        }
-        variants = rows;
-      }
+      if (!variants?.length) variants = generateVariantRows();
       if (variants.length) {
         // Future: POST variants in bulk when endpoint is ready
       }
@@ -529,29 +571,9 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
               <div className="panel" style={{ paddingTop:12 }}>
                 <div className="toolbar" style={{ gap:8 }}>
-                  <span style={{ color:'var(--sub)' }}>إنشاء التباينات:</span>
-                  <select value={variantMatrix} onChange={(e)=>setVariantMatrix(e.target.value as any)} className="select">
-                    <option value="sizes_x_colors">لكل مقاس كل الألوان</option>
-                    <option value="colors_x_sizes">لكل لون كل المقاسات</option>
-                  </select>
                   <button type="button" onClick={() => {
-                  const sizeList = aggregatedSizeList();
-                  const colorList = selectedColors;
-                  const rows: typeof variantRows = [];
-                  // حالات شاملة: مقاسات فقط، ألوان فقط، أو كلاهما
-                  if (sizeList.length && colorList.length) {
-                    if (variantMatrix === 'sizes_x_colors') {
-                      for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                    } else {
-                      for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                    }
-                  } else if (sizeList.length) {
-                    for (const s of sizeList) rows.push({ name: s, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                  } else if (colorList.length) {
-                    for (const c of colorList) rows.push({ name: c, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                  }
-                  setVariantRows(rows);
-                  }} className="btn btn-outline">توليد التباينات</button>
+                    setVariantRows(generateVariantRows());
+                  }} className="btn btn-outline">توليد التباينات المتعددة</button>
                 </div>
                 {variantRows.length > 0 ? (
                   <div style={{ overflowX:'auto' }}>
