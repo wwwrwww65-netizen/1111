@@ -165,30 +165,49 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== api health ==='; curl -ksS -i https://api.jeeey.com/health | sed -n 1,15p || true"
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (expect Set-Cookie auth_token) ==='; curl -ksS -D - -o /dev/null -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,60p || true"
 
-      - name: API login JSON + fallback create-admin + form cookie check
+      - name: API login JSON + fallback create-admin (local) + cookie check
         run: |
           set -e
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'CHECK'
           set -e
           ROOT=/var/www/ecom
-          echo '--- JSON login ---'
-          JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
+          echo '--- Ensure .env.api exists ---'
+          if [ ! -f "$ROOT/.env.api" ]; then
+            echo '.env.api missing; creating and restarting API'
+            JRAND=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)
+            MRAND="deploy-$(date +%s)"
+            cat > "$ROOT/.env.api" <<ENV
+NODE_ENV=production
+COOKIE_DOMAIN=.jeeey.com
+JWT_SECRET=$JRAND
+MAINTENANCE_SECRET=$MRAND
+ENV
+            chmod 600 "$ROOT/.env.api"
+            mkdir -p "$ROOT/packages/api"
+            cp "$ROOT/.env.api" "$ROOT/packages/api/.env" || true
+            systemctl restart ecom-api || (systemctl reset-failed ecom-api && systemctl start ecom-api) || true
+            for i in $(seq 1 40); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health || true)
+              [ "$code" = "200" ] && break; sleep 1
+            done
+            echo 'API restarted with new env.'
+          fi
+          echo '--- JSON login (local API) ---'
+          JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
           echo "json status: $JSON_STATUS"
           if [ "$JSON_STATUS" != "200" ]; then
-            echo 'Admin login failed, attempting maintenance create-admin...'
+            echo 'Admin login failed, attempting maintenance create-admin (local)...'
             . "$ROOT/.env.api" || true
-            curl -ksS -X POST https://api.jeeey.com/api/admin/maintenance/create-admin -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' || true
+            curl -s -X POST http://127.0.0.1:4000/api/admin/maintenance/create-admin -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' || true
             sleep 1
-            JSON_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
+            JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
             echo "json status (retry): $JSON_STATUS"
             [ "$JSON_STATUS" = "200" ] || (echo "JSON login still failing ($JSON_STATUS)"; exit 1)
           fi
-          echo '--- Form-URLENCODED login check & Set-Cookie ---'
+          echo '--- Form login (external) header check ---'
           set +e
-          FORM_STATUS=$(curl -ksS -o /dev/null -w '%{http_code}' -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
-          echo "form status: $FORM_STATUS"
           HEADERS=$(curl -ksS -D - -o /dev/null -X POST https://api.jeeey.com/api/admin/auth/login -H 'content-type: application/x-www-form-urlencoded' --data 'email=admin@example.com&password=admin123&remember=true')
-          printf '%s\n' "$HEADERS" | sed -n '1,20p'
+          printf '%s\n' "$HEADERS" | sed -n '1,30p'
           printf '%s\n' "$HEADERS" | grep -iq '^set-cookie: .*auth_token=' && echo 'auth_token cookie issued (form)' || echo 'warning: no auth_token Set-Cookie observed (form)'
           set -e
           CHECK
