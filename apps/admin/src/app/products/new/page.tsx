@@ -516,12 +516,13 @@ export default function AdminProductCreate(): JSX.Element {
                 </div>
                 <div className="panel" style={{ padding:10 }}>
                   <div style={{ marginBottom:8, color:'#9ca3af' }}>الألوان</div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:12 }}>
                     {colorOptions.map((c)=> (
-                      <button type="button" key={c.id} title={c.name} onClick={()=> setSelectedColors(prev=> prev.includes(c.name) ? prev.filter(x=>x!==c.name) : [...prev, c.name])} className="chip">
+                      <label key={c.id} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                        <input type="checkbox" checked={selectedColors.includes(c.name)} onChange={()=> setSelectedColors(prev=> prev.includes(c.name) ? prev.filter(x=>x!==c.name) : [...prev, c.name])} />
                         <span style={{ width:14, height:14, borderRadius:999, background:c.hex, border:'1px solid #111827' }} />
                         <span style={{ fontSize:12 }}>{c.name}</span>
-                      </button>
+                      </label>
                     ))}
                   </div>
                 </div>
@@ -663,92 +664,7 @@ export default function AdminProductCreate(): JSX.Element {
             }} className="btn btn-outline">إضافة الملفات إلى قائمة الصور</button>
           )}
 
-          {type === 'variable' && (
-            <div className="panel" style={{ paddingTop:12 }}>
-              <div className="toolbar" style={{ gap:8 }}>
-                <span style={{ color:'var(--sub)' }}>إنشاء التباينات:</span>
-                <select value={variantMatrix} onChange={(e)=>setVariantMatrix(e.target.value as any)} className="select">
-                  <option value="sizes_x_colors">لكل مقاس كل الألوان</option>
-                  <option value="colors_x_sizes">لكل لون كل المقاسات</option>
-                </select>
-                <button type="button" onClick={() => {
-                  const sizeList = (sizes || '').split(',').map(s => s.trim()).filter(Boolean);
-                  const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
-                  const rows: typeof variantRows = [];
-                  if (sizeList.length && colorList.length) {
-                    if (variantMatrix === 'sizes_x_colors') {
-                      for (const s of sizeList) for (const c of colorList) rows.push({ name: s, value: c, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                    } else {
-                      for (const c of colorList) for (const s of sizeList) rows.push({ name: c, value: s, price: Number(salePrice||0), purchasePrice: purchasePrice===''? undefined : Number(purchasePrice||0), stockQuantity: Number(stockQuantity||0) });
-                    }
-                  }
-                  setVariantRows(rows);
-                }} className="btn btn-outline">توليد التباينات</button>
-              </div>
-              {variantRows.length > 0 && (
-                <div style={{ overflowX:'auto' }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>المجموعة</th>
-                        <th>القيمة</th>
-                        <th>سعر الشراء</th>
-                        <th>سعر البيع</th>
-                        <th>المخزون</th>
-                        <th>SKU</th>
-                        <th>صورة</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {variantRows.map((row, idx) => (
-                        <tr key={idx}>
-                          <td>{row.name}</td>
-                          <td>{row.value}</td>
-                          <td>
-                            <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
-                              const val = e.target.value === '' ? undefined : Number(e.target.value);
-                              setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, purchasePrice: val } : r));
-                            }} className="input" />
-                          </td>
-                          <td>
-                            <input type="number" value={row.price ?? ''} onChange={(e)=>{
-                              const val = e.target.value === '' ? undefined : Number(e.target.value);
-                              setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, price: val } : r));
-                            }} className="input" />
-                          </td>
-                          <td>
-                            <input type="number" value={row.stockQuantity} onChange={(e)=>{
-                              const val = e.target.value === '' ? 0 : Number(e.target.value);
-                              setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, stockQuantity: val } : r));
-                            }} className="input" />
-                          </td>
-                          <td>
-                            <input value={row.sku ?? ''} onChange={(e)=>{
-                              const val = e.target.value || undefined;
-                              setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, sku: val } : r));
-                            }} className="input" />
-                          </td>
-                          <td>
-                            <select value={(()=>{ const mapped = (review?.mapping||{})[row.value]; return mapped || ''; })()} onChange={(e)=>{
-                              const url = e.target.value || undefined;
-                              setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [row.value]: url }}));
-                            }} className="select">
-                              <option value="">(بدون)</option>
-                              {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
-                            </select>
-                          </td>
-                          <td>
-                            <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+          {/* removed duplicate side variants panel */}
         </div>
 
         <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
