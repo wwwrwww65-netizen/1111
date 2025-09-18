@@ -10,7 +10,7 @@ Type=simple
 WorkingDirectory=/var/www/ecom/apps/web
 ExecStartPre=/usr/bin/test -x /usr/bin/node
 ExecStartPre=/usr/bin/test -d /var/www/ecom/apps/web
-ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
+ExecStart=/usr/bin/node .next/standalone/server.js
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Restart=always
