@@ -24,7 +24,11 @@ fi
 cd "$ROOT_DIR"
 corepack enable || true
 corepack prepare pnpm@9 --activate || true
-pnpm install -r --no-frozen-lockfile
+export npm_config_ignore_scripts=true
+export NPM_CONFIG_IGNORE_SCRIPTS=true
+export PUPPETEER_SKIP_DOWNLOAD=true
+export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+pnpm install -r --no-frozen-lockfile --ignore-scripts
 
 # Load public env (for Next build) if present and materialize per-app .env.production
 if [ -f "$ROOT_DIR/.env.web" ]; then
