@@ -28,15 +28,25 @@ jobs:
           git config --global core.autocrlf false
           git archive --format=tar.gz -o app.tar.gz HEAD
 
-      # Removed SSH preflight to avoid hangs; use direct host/port with timeouts
+      - name: Set SSH connection env (with safe defaults)
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          set -e
+          echo "SSH_HOST=${VPS_HOST:-72.60.92.17}" >> "$GITHUB_ENV"
+          echo "SSH_USER=${VPS_USER:-root}" >> "$GITHUB_ENV"
+          echo "SSH_PORT=${VPS_PORT:-22}" >> "$GITHUB_ENV"
 
       - name: Prepare API env file on server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
-          username: ${{ secrets.VPS_USER || 'root' }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          port: ${{ env.SSH_PORT }}
           timeout: 60s
           command_timeout: 40m
           script: |
@@ -62,10 +72,10 @@ jobs:
       - name: Copy to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
-          username: ${{ secrets.VPS_USER || 'root' }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          port: ${{ env.SSH_PORT }}
           timeout: 60s
           source: "app.tar.gz"
           target: "/root/"
@@ -73,10 +83,10 @@ jobs:
       - name: Remote deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
-          username: ${{ secrets.VPS_USER || 'root' }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          port: ${{ env.SSH_PORT }}
           timeout: 60s
           command_timeout: 40m
           script: |
@@ -190,10 +200,10 @@ jobs:
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
-          username: ${{ secrets.VPS_USER || 'root' }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          port: ${{ env.SSH_PORT }}
           timeout: 60s
           command_timeout: 40m
           script: |
@@ -222,8 +232,8 @@ jobs:
         if: always()
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
