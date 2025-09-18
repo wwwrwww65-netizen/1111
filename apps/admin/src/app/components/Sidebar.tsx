@@ -19,6 +19,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/orders', label: 'الطلبات' },
       { href: '/products', label: 'المنتجات' },
       { href: '/categories', label: 'الفئات' },
+          { href: '/attributes', label: 'السمات' },
       { href: '/inventory', label: 'المخزون' },
       { href: '/shipments', label: 'الشحن' },
       { href: '/drivers', label: 'السائقون' },
