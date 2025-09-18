@@ -30,16 +30,22 @@ jobs:
 
       - name: Ensure /var/www/ecom/.env.api exists (merge)
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; d=/var/www/ecom; mkdir -p "$d"; f="$d/.env.api"; jr=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid); mr="deploy-$(date +%s)"; tmp="$f.new"; [ -f "$f" ] && . "$f" 2>/dev/null || true; {
-            echo NODE_ENV=production;
-            echo COOKIE_DOMAIN=.jeeey.com;
-            echo NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com;
-            echo NEXT_PUBLIC_APP_URL=https://jeeey.com;
-            echo JWT_SECRET="${JWT_SECRET:-$jr}";
-            echo MAINTENANCE_SECRET="${MAINTENANCE_SECRET:-$mr}";
-            if [ -n "${{ secrets.DATABASE_URL }}" ]; then echo DATABASE_URL=${{ secrets.DATABASE_URL }}; fi;
-            if [ -n "${{ secrets.DIRECT_URL }}" ]; then echo DIRECT_URL=${{ secrets.DIRECT_URL }}; fi;
-          } > "$tmp"; mv "$tmp" "$f"; chmod 600 "$f"; ls -l "$f" | cat'"
+          set -e
+          TMP=$(mktemp)
+          JRAND=$(openssl rand -hex 32 || echo 000)
+          MRAND="deploy-$(date +%s)"
+          {
+            echo NODE_ENV=production
+            echo COOKIE_DOMAIN=.jeeey.com
+            echo NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com
+            echo NEXT_PUBLIC_APP_URL=https://jeeey.com
+            echo JWT_SECRET=$JRAND
+            echo MAINTENANCE_SECRET=$MRAND
+          } > "$TMP"
+          if [ -n "${{ secrets.DATABASE_URL }}" ]; then echo DATABASE_URL=${{ secrets.DATABASE_URL }} >> "$TMP"; fi
+          if [ -n "${{ secrets.DIRECT_URL }}" ]; then echo DIRECT_URL=${{ secrets.DIRECT_URL }} >> "$TMP"; fi
+          scp -o StrictHostKeyChecking=no "$TMP" root@72.60.92.17:/var/www/ecom/.env.api
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "chmod 600 /var/www/ecom/.env.api && ls -l /var/www/ecom/.env.api | cat"
 
       - name: Rsync repository to VPS (/var/www/ecom)
         run: |
