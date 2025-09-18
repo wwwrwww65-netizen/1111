@@ -166,6 +166,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "echo '=== login attempt to API (expect Set-Cookie auth_token) ==='; curl -ksS -D - -o /dev/null -X POST -H 'content-type: application/x-www-form-urlencoded' --data-urlencode email=admin@example.com --data-urlencode password=admin123 https://api.jeeey.com/api/admin/auth/login | sed -n 1,60p || true"
 
       - name: API login JSON + fallback create-admin (local) + cookie check
+        env:
+          GHA_DB_URL: ${{ secrets.DATABASE_URL }}
+          GHA_DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
           set -e
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'CHECK'
@@ -181,6 +184,8 @@ jobs:
               echo "COOKIE_DOMAIN=.jeeey.com"
               echo "JWT_SECRET=$JRAND"
               echo "MAINTENANCE_SECRET=$MRAND"
+              [ -n "${GHA_DB_URL}" ] && echo "DATABASE_URL=${GHA_DB_URL}" || true
+              [ -n "${GHA_DIRECT_URL}" ] && echo "DIRECT_URL=${GHA_DIRECT_URL}" || true
             } > "$ROOT/.env.api"
             chmod 600 "$ROOT/.env.api"
             mkdir -p "$ROOT/packages/api"

@@ -27,4 +27,3 @@ const { img, title, price, badge } = props;
 .price{color:var(--primary);font-weight:800}
 .add{margin:0 12px 12px}
 </style>
-</script>
