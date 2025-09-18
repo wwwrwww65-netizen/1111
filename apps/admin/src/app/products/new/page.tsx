@@ -323,7 +323,7 @@ export default function AdminProductCreate(): JSX.Element {
     }
     setBusy(true);
     const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean);
-    let uploadedUrls: string[] = [];
+    let uploadedOrBase64: string[] = [];
     try {
       if (files.length > 0) {
         const base64List = await Promise.all(files.map(f => fileToBase64(f)));
@@ -337,13 +337,16 @@ export default function AdminProductCreate(): JSX.Element {
             });
             const j = await r.json();
             if (r.ok && j?.asset?.url) return j.asset.url as string;
-            return undefined;
-          } catch { return undefined; }
+            // fallback: keep base64 data URL if media upload isn't configured
+            return b64;
+          } catch {
+            return b64;
+          }
         }));
-        uploadedUrls = results.filter((u): u is string => Boolean(u));
+        uploadedOrBase64 = results.filter((u): u is string => Boolean(u));
       }
     } catch {}
-    const baseImages: string[] = [...existingImageUrls, ...uploadedUrls];
+    const baseImages: string[] = [...existingImageUrls, ...uploadedOrBase64];
     const productPayload: any = {
       name,
       description,
@@ -386,7 +389,7 @@ export default function AdminProductCreate(): JSX.Element {
         // Future: POST variants in bulk when endpoint is ready
       }
     }
-    if (uploadedUrls.length) {
+    if (uploadedOrBase64.length) {
       setImages(baseImages.join(', '));
       setFiles([]);
     }
