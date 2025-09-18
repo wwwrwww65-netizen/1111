@@ -107,7 +107,11 @@ jobs:
           cache: ''
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile --store-dir="$PNPM_CONFIG_STORE_DIR"
+        run: |
+          pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR"
+          pnpm config set node-linker hoisted
+          pnpm config set package-import-method copy
+          pnpm install --no-frozen-lockfile --ignore-scripts --store-dir="$PNPM_CONFIG_STORE_DIR"
 
       - name: Load prod-like env from repo Variables/Secrets (main only)
         if: github.ref == 'refs/heads/main'

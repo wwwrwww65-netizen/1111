@@ -30,7 +30,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies (workspace)
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --ignore-scripts
         working-directory: .
 
       - name: Set EXPO_PUBLIC_TRPC_URL (debug)

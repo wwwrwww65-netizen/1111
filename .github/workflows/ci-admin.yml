@@ -27,7 +27,10 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
-      - run: pnpm install --no-frozen-lockfile
+      - run: |
+          pnpm config set node-linker hoisted
+          pnpm config set package-import-method copy
+          pnpm install --no-frozen-lockfile --ignore-scripts
       - name: Env
         run: |
           echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app" >> $GITHUB_ENV

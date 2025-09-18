@@ -48,8 +48,12 @@ jobs:
       - name: Ensure pnpm store dir exists
         run: mkdir -p "$PNPM_CONFIG_STORE_DIR"
 
-      - name: Install dependencies (workspace)
-        run: pnpm install --no-frozen-lockfile --store-dir="$PNPM_CONFIG_STORE_DIR"
+      - name: Install dependencies
+        run: |
+          pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR"
+          pnpm config set node-linker hoisted
+          pnpm config set package-import-method copy
+          pnpm install --no-frozen-lockfile --ignore-scripts --store-dir="$PNPM_CONFIG_STORE_DIR"
         working-directory: .
 
       - name: Build web (Next.js)

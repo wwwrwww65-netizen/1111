@@ -43,7 +43,10 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: |
+          pnpm config set node-linker hoisted
+          pnpm config set package-import-method copy
+          pnpm install --no-frozen-lockfile --ignore-scripts
 
       - name: Configure env
         run: |
