@@ -29,34 +29,17 @@ jobs:
           ssh-keyscan -H 72.60.92.17 >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Ensure /var/www/ecom/.env.api exists (merge)
-        env:
-          GHA_DB_URL: ${{ secrets.DATABASE_URL }}
-          GHA_DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<ENVAPI
-          set -e
-          ROOT=/var/www/ecom
-          mkdir -p "$ROOT"
-          F="$ROOT/.env.api"
-          JRAND=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)
-          MRAND="deploy-$(date +%s)"
-          TMP="$F.new"
-          # Preserve existing values if present
-          [ -f "$F" ] && . "$F" 2>/dev/null || true
-          {
-            echo "NODE_ENV=production"
-            echo "COOKIE_DOMAIN=.jeeey.com"
-            echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com"
-            echo "NEXT_PUBLIC_APP_URL=https://jeeey.com"
-            echo "JWT_SECRET=${JWT_SECRET:-$JRAND}"
-            echo "MAINTENANCE_SECRET=${MAINTENANCE_SECRET:-$MRAND}"
-            if [ -n "${GHA_DB_URL}" ]; then echo "DATABASE_URL=${GHA_DB_URL}"; fi
-            if [ -n "${GHA_DIRECT_URL}" ]; then echo "DIRECT_URL=${GHA_DIRECT_URL}"; fi
-          } > "$TMP"
-          mv "$TMP" "$F"
-          chmod 600 "$F"
-          ls -l "$F" | cat
-          ENVAPI
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "bash -lc 'set -e; d=/var/www/ecom; mkdir -p "$d"; f="$d/.env.api"; jr=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid); mr="deploy-$(date +%s)"; tmp="$f.new"; [ -f "$f" ] && . "$f" 2>/dev/null || true; {
+            echo NODE_ENV=production;
+            echo COOKIE_DOMAIN=.jeeey.com;
+            echo NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com;
+            echo NEXT_PUBLIC_APP_URL=https://jeeey.com;
+            echo JWT_SECRET="${JWT_SECRET:-$jr}";
+            echo MAINTENANCE_SECRET="${MAINTENANCE_SECRET:-$mr}";
+            if [ -n "${{ secrets.DATABASE_URL }}" ]; then echo DATABASE_URL=${{ secrets.DATABASE_URL }}; fi;
+            if [ -n "${{ secrets.DIRECT_URL }}" ]; then echo DIRECT_URL=${{ secrets.DIRECT_URL }}; fi;
+          } > "$tmp"; mv "$tmp" "$f"; chmod 600 "$f"; ls -l "$f" | cat'"
 
       - name: Rsync repository to VPS (/var/www/ecom)
         run: |
