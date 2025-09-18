@@ -176,12 +176,12 @@ jobs:
             echo '.env.api missing; creating and restarting API'
             JRAND=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)
             MRAND="deploy-$(date +%s)"
-            cat > "$ROOT/.env.api" <<ENV
-NODE_ENV=production
-COOKIE_DOMAIN=.jeeey.com
-JWT_SECRET=$JRAND
-MAINTENANCE_SECRET=$MRAND
-ENV
+            {
+              echo "NODE_ENV=production"
+              echo "COOKIE_DOMAIN=.jeeey.com"
+              echo "JWT_SECRET=$JRAND"
+              echo "MAINTENANCE_SECRET=$MRAND"
+            } > "$ROOT/.env.api"
             chmod 600 "$ROOT/.env.api"
             mkdir -p "$ROOT/packages/api"
             cp "$ROOT/.env.api" "$ROOT/packages/api/.env" || true
