@@ -3,8 +3,6 @@ const nextConfig = {
   transpilePackages: ["@repo/ui"],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  // Disable legacy Pages router by not matching any extensions
-  pageExtensions: ['xpage'],
   images: {
     unoptimized: true,
     remotePatterns: [
