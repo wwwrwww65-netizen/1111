@@ -535,8 +535,8 @@ export default function AdminProductCreate(): JSX.Element {
                     <option value="colors_x_sizes">لكل لون كل المقاسات</option>
                   </select>
                   <button type="button" onClick={() => {
-                    const sizeList = aggregatedSizeList();
-                    const colorList = (colors || '').split(',').map(c => c.trim()).filter(Boolean);
+                  const sizeList = aggregatedSizeList();
+                  const colorList = selectedColors;
                     const rows: typeof variantRows = [];
                     if (sizeList.length && colorList.length) {
                       if (variantMatrix === 'sizes_x_colors') {
@@ -548,7 +548,7 @@ export default function AdminProductCreate(): JSX.Element {
                     setVariantRows(rows);
                   }} className="btn btn-outline">توليد التباينات</button>
                 </div>
-                {variantRows.length > 0 && (
+                {variantRows.length > 0 ? (
                   <div style={{ overflowX:'auto' }}>
                     <table className="table">
                       <thead>
@@ -609,6 +609,8 @@ export default function AdminProductCreate(): JSX.Element {
                       </tbody>
                     </table>
                   </div>
+                ) : (
+                  <div style={{ marginTop:8, color:'var(--sub)' }}>اختر مقاسات وألوان ثم اضغط “توليد التباينات”.</div>
                 )}
               </div>
             </>
