@@ -14,6 +14,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -27,12 +28,50 @@ jobs:
           git config --global core.autocrlf false
           git archive --format=tar.gz -o app.tar.gz HEAD
 
+      - name: Preflight SSH connectivity
+        id: preflight
+        shell: bash
+        env:
+          IN_HOST: ${{ secrets.VPS_HOST }}
+          IN_USER: ${{ secrets.VPS_USER }}
+          IN_PORT: ${{ secrets.VPS_PORT }}
+          IN_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          PORT="${IN_PORT:-22}"
+          KEY="$RUNNER_TEMP/vps_key"
+          printf "%s" "$IN_KEY" > "$KEY"
+          chmod 600 "$KEY"
+          hosts=( )
+          if [ -n "$IN_HOST" ]; then hosts+=("$IN_HOST"); fi
+          hosts+=("72.60.92.17" "srv995016.hstgr.cloud")
+          ok=0; picked=""
+          for h in "${hosts[@]}"; do
+            echo "Testing SSH to $h:$PORT ..."
+            for i in $(seq 1 6); do
+              if ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 -p "$PORT" -i "$KEY" "$IN_USER@$h" "echo ok" >/dev/null 2>&1; then
+                ok=1; picked="$h"; break
+              fi
+              sleep 5
+            done
+            [ "$ok" = "1" ] && break
+          done
+          if [ "$ok" != "1" ]; then
+            echo "SSH preflight failed. Ensure port $PORT is open and host reachable." >&2
+            exit 255
+          fi
+          echo "host=$picked" >> "$GITHUB_OUTPUT"
+          echo "port=$PORT" >> "$GITHUB_OUTPUT"
+
       - name: Prepare API env file on server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
+          host: ${{ steps.preflight.outputs.host }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ steps.preflight.outputs.port }}
+          timeout: 60s
+          command_timeout: 40m
           script: |
             set -e
             ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
@@ -56,18 +95,23 @@ jobs:
       - name: Copy to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
+          host: ${{ steps.preflight.outputs.host }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ steps.preflight.outputs.port }}
+          timeout: 60s
           source: "app.tar.gz"
           target: "/root/"
 
       - name: Remote deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
+          host: ${{ steps.preflight.outputs.host }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ steps.preflight.outputs.port }}
+          timeout: 60s
+          command_timeout: 40m
           script: |
             set -e
             PATH_ON_HOST=${{ github.event.inputs.path || '/var/www/ecom' }}
@@ -98,9 +142,12 @@ jobs:
       - name: Post-deploy smoke (health, login, static, services)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
+          host: ${{ steps.preflight.outputs.host }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ steps.preflight.outputs.port }}
+          timeout: 60s
+          command_timeout: 40m
           script: |
             set -Eeuo pipefail
             ROOT="${{ github.event.inputs.path || '/var/www/ecom' }}"
@@ -176,9 +223,12 @@ jobs:
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '72.60.92.17' }}
+          host: ${{ steps.preflight.outputs.host }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ steps.preflight.outputs.port }}
+          timeout: 60s
+          command_timeout: 40m
           script: |
             set -e
             doms=("https://jeeey.com" "https://admin.jeeey.com" "https://m.jeeey.com" "https://api.jeeey.com/health")
