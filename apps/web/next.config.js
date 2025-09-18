@@ -3,8 +3,6 @@ const nextConfig = {
   transpilePackages: ["@repo/ui"],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  // Force Node runtime for any pages/* we keep
-  experimental: { ...({}), runtime: 'nodejs' },
   images: {
     unoptimized: true,
     remotePatterns: [

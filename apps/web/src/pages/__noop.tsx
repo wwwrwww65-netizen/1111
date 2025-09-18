@@ -1,3 +1,3 @@
-export default function Noop() { return null; }
+export default function Noop() { return <div />; }
 export const config = { runtime: 'nodejs' };
 
