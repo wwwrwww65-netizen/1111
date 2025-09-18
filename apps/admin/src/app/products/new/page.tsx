@@ -260,7 +260,7 @@ export default function AdminProductCreate(): JSX.Element {
 
   return (
     <div className="container">
-    <main className="panel">
+    <main className="panel" style={{ display:'grid', gap:16 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
         <h1 style={{ margin:0 }}>إنشاء منتج</h1>
         <a href="/products" className="btn btn-outline">رجوع</a>
@@ -308,14 +308,14 @@ export default function AdminProductCreate(): JSX.Element {
             }} disabled={busy || !review} className="btn">توليد</button>
           </div>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16 }}>
           <div style={{ display:'grid', gap:12 }}>
-            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={8} className="input" />
+            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={8} className="input" style={{ borderRadius:12 }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
             {review && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                   <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" /></label>
                   <label>سعر البيع (ثقة {Math.round((review.confidence?.salePrice||0)*100)}%)<input type="number" value={review.salePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, salePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   <label>سعر الشراء (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
@@ -374,7 +374,7 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
             )}
           </div>
-          <div>
+        <div>
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -385,11 +385,11 @@ export default function AdminProductCreate(): JSX.Element {
                 if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
               }}
               className="dropzone"
-              style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
+            style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
             >
               اسحب وأفلت الصور هنا أو
               <br />
-              <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
+            <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
                 اختر من جهازك
                 <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
                   const selected = Array.from(e.target.files || []);
@@ -399,12 +399,12 @@ export default function AdminProductCreate(): JSX.Element {
               <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
             </div>
             {files.length > 0 && (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:8, marginTop:10 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
                 {files.map((f, idx) => (
                   <div key={idx} className="panel" style={{ padding:0 }}>
                     <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
                     <div style={{ padding:8, textAlign:'right' }}>
-                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
+                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
                     </div>
                   </div>
                 ))}
@@ -414,7 +414,7 @@ export default function AdminProductCreate(): JSX.Element {
         </div>
       </section>
 
-      <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 16, alignItems:'start' }}>
+      <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 20, alignItems:'start' }}>
         {/* Left main column span 8 */}
         <div style={{ gridColumn: 'span 8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <label>نوع المنتج
