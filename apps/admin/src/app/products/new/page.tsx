@@ -167,7 +167,10 @@ export default function AdminProductCreate(): JSX.Element {
   const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
   const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [selectedColors, setSelectedColors] = React.useState<string[]>([]);
-  const [colorCards, setColorCards] = React.useState<Array<{ key:string; color?: string; primaryEnabled: boolean; selectedImageIdxs: number[]; primaryImageIdx?: number }>>([]);
+  const [colorCards, setColorCards] = React.useState<Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }>>([]);
+  const [primaryColorCardKey, setPrimaryColorCardKey] = React.useState<string | undefined>(undefined);
+  const [primaryColorName, setPrimaryColorName] = React.useState<string | undefined>(undefined);
+  const [primaryImageUrl, setPrimaryImageUrl] = React.useState<string | undefined>(undefined);
   const [selectedSizeTypes, setSelectedSizeTypes] = React.useState<Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }>>([]);
   const [colors, setColors] = React.useState('');
   const [purchasePrice, setPurchasePrice] = React.useState<number | ''>('');
@@ -251,7 +254,8 @@ export default function AdminProductCreate(): JSX.Element {
       for (const s1 of t1.selectedSizes) {
         for (const s2 of t2.selectedSizes) {
           for (const c of colorList) {
-            rows.push({ name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+            const isPrimary = primaryColorName && c===primaryColorName;
+            rows.push({ name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
           }
         }
       }
@@ -272,7 +276,8 @@ export default function AdminProductCreate(): JSX.Element {
       const [t1] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
         for (const c of colorList) {
-          rows.push({ name: `${t1.name}: ${s1}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+          const isPrimary = primaryColorName && c===primaryColorName;
+          rows.push({ name: `${t1.name}: ${s1}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
         }
       }
       return rows;
@@ -573,7 +578,7 @@ export default function AdminProductCreate(): JSX.Element {
                     <span>الألوان</span>
                     <button type="button" className="btn btn-outline" onClick={()=>{
                       const key = String(Date.now())+'-'+Math.random().toString(36).slice(2);
-                      setColorCards(prev => [...prev, { key, primaryEnabled: false, selectedImageIdxs: [] }]);
+                      setColorCards(prev => [...prev, { key, selectedImageIdxs: [] }]);
                     }}>إضافة لون</button>
                   </div>
                   <div style={{ display:'grid', gap:10 }}>
@@ -591,10 +596,16 @@ export default function AdminProductCreate(): JSX.Element {
                             {(() => { const opt = colorOptions.find(o=>o.name===card.color); return opt ? (<span style={{ width:14, height:14, borderRadius:999, background:opt.hex, border:'1px solid #111827' }} />) : null; })()}
                           </div>
                           <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                            <input type="checkbox" checked={card.primaryEnabled} onChange={()=>{
-                              setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, primaryEnabled: !c.primaryEnabled, primaryImageIdx: !c.primaryEnabled ? c.primaryImageIdx : undefined } : c));
+                            <input type="radio" name="primary-color" checked={primaryColorCardKey===card.key} onChange={()=>{
+                              setPrimaryColorCardKey(card.key);
+                              setPrimaryColorName(card.color);
+                              const urls = allProductImageUrls();
+                              const url = (card.primaryImageIdx!==undefined) ? urls[card.primaryImageIdx] : undefined;
+                              setPrimaryImageUrl(url);
+                              const colorName = card.color;
+                              if (colorName && url) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: url } }));
                             }} />
-                            <span>تحديد اللون الرئيسي</span>
+                            <span>اللون الرئيسي للمنتج</span>
                           </label>
                         </div>
                         <div style={{ marginTop:10 }}>
@@ -617,13 +628,16 @@ export default function AdminProductCreate(): JSX.Element {
                                     }} />
                                     <span style={{ fontSize:12 }}>اختيار</span>
                                   </label>
-                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6, opacity: card.primaryEnabled ? 1 : 0.5 }}>
-                                    <input type="radio" name={`primary-${card.key}`} disabled={!card.primaryEnabled} checked={card.primaryImageIdx===imgIdx} onChange={()=>{
+                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                    <input type="radio" name={`primary-image-${card.key}`} checked={card.primaryImageIdx===imgIdx} onChange={()=>{
                                       setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, primaryImageIdx: imgIdx } : c));
-                                      const colorName = card.color;
-                                      if (colorName) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: u } }));
+                                      if (primaryColorCardKey===card.key) {
+                                        setPrimaryImageUrl(u);
+                                        const colorName = card.color;
+                                        if (colorName) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: u } }));
+                                      }
                                     }} />
-                                    <span style={{ fontSize:12 }}>رئيسية</span>
+                                    <span style={{ fontSize:12 }}>صورة اللون الرئيسية</span>
                                   </label>
                                 </div>
                               </div>
