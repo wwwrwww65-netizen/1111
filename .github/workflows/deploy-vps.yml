@@ -46,21 +46,11 @@ jobs:
           getent hosts "$IN_HOST" || true
           getent hosts srv995016.hstgr.cloud || true
           echo "---"
-          hosts=( )
+          hosts=("72.60.92.17")
           if [ -n "$IN_HOST" ]; then hosts+=("$IN_HOST"); fi
-          hosts+=("72.60.92.17" "srv995016.hstgr.cloud")
-          ports=()
-          add_port() {
-            case "$1" in 22|2222|8022) ports+=("$1");; esac
-          }
-          add_port "$PORT" || true
-          add_port 22; add_port 2222; add_port 8022
-          # de-duplicate
-          declare -A seen=(); unique_ports=();
-          for p in "${ports[@]}"; do
-            if [ -z "${seen[$p]+x}" ]; then unique_ports+=("$p"); seen[$p]=1; fi
-          done
-          ports=("${unique_ports[@]}")
+          hosts+=("srv995016.hstgr.cloud")
+          # Use only known SSH ports; ignore any provided secret/masked port
+          ports=(22 2222 8022)
           users=("$IN_USER" root)
           ok=0; picked=""; picked_port=""; picked_user=""
           max_checks=24; checks=0
