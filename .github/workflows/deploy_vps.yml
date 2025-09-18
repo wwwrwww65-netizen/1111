@@ -86,6 +86,10 @@ jobs:
           export PRISMA_CLI_QUERY_ENGINE_TYPE=binary
           export PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
           export PRISMA_CLI_QUERY_ENGINE_BINARY=/var/www/ecom/node_modules/.pnpm/prisma@5.14.0/node_modules/prisma/libquery_engine-debian-openssl-3.0.x.so.node
+          export npm_config_ignore_scripts=true
+          export NPM_CONFIG_IGNORE_SCRIPTS=true
+          export PUPPETEER_SKIP_DOWNLOAD=true
+          export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
           CI=1 NODE_ENV=development pnpm install -w --frozen-lockfile=false --prod=false --force --ignore-scripts \
             --filter ./packages/db \
             --filter ./packages/api \
