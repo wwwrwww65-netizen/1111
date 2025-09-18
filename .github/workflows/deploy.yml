@@ -47,7 +47,11 @@ jobs:
             pnpm config set package-import-method copy
 
             # Install deps without running postinstall scripts to avoid native failures
-            CI=1 NODE_ENV=development pnpm install -w --frozen-lockfile=false --prod=false --force --ignore-scripts | cat
+            CI=1 NODE_ENV=development pnpm install -w --frozen-lockfile=false --prod=false --force --ignore-scripts \
+              --filter ./packages/db \
+              --filter ./packages/api \
+              --filter ./apps/web \
+              --filter ./apps/admin | cat
 
             # Manually rebuild native deps as needed
             pnpm rebuild @prisma/client prisma esbuild puppeteer || true
