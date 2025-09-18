@@ -10,6 +10,9 @@ on:
       - '.github/workflows/figma-extract.yml'
       - 'infra/ops/trigger-figma.txt'
 
+permissions:
+  contents: write
+
 jobs:
   extract:
     runs-on: ubuntu-latest
@@ -18,6 +21,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Configure git for push
+        env:
+          PUSH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GH_PAT || github.token }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git
       - name: Run extractor
         env:
           FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN || secrets.FIGMA_API }}
@@ -26,15 +36,13 @@ jobs:
           node scripts/figma-extract.mjs | cat
       - name: Commit mapping
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
           git add infra/figma/mapping.json
           git commit -m "chore(figma): update mapping.json" || echo "no changes"
-          git push || true
+          git push origin HEAD:main || true
       - name: Generate mweb routes from mapping
         run: |
           node scripts/figma-generate-mweb.mjs | cat
           git add apps/mweb/src/routes.generated.ts apps/mweb/src/pages
           git commit -m "feat(mweb): generate routes and pages from Figma mapping" || echo "no changes"
-          git push || true
+          git push origin HEAD:main || true
 
