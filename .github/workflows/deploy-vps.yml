@@ -81,9 +81,18 @@ jobs:
             if [ -f infra/nginx/jeeey.conf.tpl ]; then
               DOMAIN_ROOT="jeeey.com"
               TPL=$(cat infra/nginx/jeeey.conf.tpl)
-              echo "$TPL" | sed "s/jeeey.com/${DOMAIN_ROOT}/g" > /etc/nginx/sites-available/jeeey.conf
-              ln -sf /etc/nginx/sites-available/jeeey.conf /etc/nginx/sites-enabled/jeeey.conf
-              nginx -t && systemctl reload nginx || true
+              TMP="/tmp/jeeey.conf.$$"
+              echo "$TPL" | sed "s/jeeey.com/${DOMAIN_ROOT}/g" > "$TMP"
+              TARGET="/etc/nginx/sites-available/jeeey.conf"
+              if [ ! -f "$TARGET" ] || ! cmp -s "$TMP" "$TARGET"; then
+                mv "$TMP" "$TARGET"
+                ln -sf "$TARGET" /etc/nginx/sites-enabled/jeeey.conf
+                nginx -t && systemctl reload nginx || true
+                echo 'Nginx config changed and reloaded.'
+              else
+                rm -f "$TMP"
+                echo 'Nginx config unchanged; skip reload.'
+              fi
             fi
 
       - name: Post-deploy smoke (health, login, static, services)
@@ -177,13 +186,17 @@ jobs:
               echo "-- Smoke: $url"
               ok=0
               for i in $(seq 1 18); do
-                code=$(curl -L -k -s -o /dev/null -w '%{http_code}' "$url" || true)
+                code=$(curl -L -k -s -D /tmp/headers.txt -o /tmp/body.txt -w '%{http_code}' "$url" || true)
                 if [ "$code" = "200" ] || [ "$code" = "204" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then ok=1; break; fi
                 sleep 4
               done
               if [ "$ok" != "1" ]; then
                 echo "Smoke failed for $url. Recent nginx errors:"
                 journalctl -u nginx --no-pager -n 120 || true
+                echo '--- Response headers ---'
+                cat /tmp/headers.txt || true
+                echo '--- Body (first 200 bytes) ---'
+                head -c 200 /tmp/body.txt || true
                 exit 1
               fi
             done
