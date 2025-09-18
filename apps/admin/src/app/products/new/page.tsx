@@ -316,6 +316,12 @@ export default function AdminProductCreate(): JSX.Element {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (!name || !categoryId || salePrice === '' || salePrice === undefined) {
+      setError('يرجى تعبئة الاسم، التصنيف، وسعر البيع');
+      showToast('أكمل الحقول المطلوبة', 'err');
+      return;
+    }
+    setBusy(true);
     const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean);
     let uploadedUrls: string[] = [];
     try {
@@ -351,8 +357,26 @@ export default function AdminProductCreate(): JSX.Element {
       tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
       isActive: true,
     };
-    const res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
-    if (!res.ok) { alert('فشل إنشاء المنتج'); return; }
+    let res: Response;
+    try {
+      res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
+    } catch (err) {
+      setBusy(false);
+      showToast('تعذر الاتصال بالخادم', 'err');
+      return;
+    }
+    if (!res.ok) {
+      let msg = 'فشل إنشاء المنتج';
+      try {
+        const j = await res.json();
+        if (j?.error) msg = String(j.error);
+        if ((j?.message||'').toLowerCase().includes('unique') || (j?.error||'').toLowerCase().includes('unique')) msg = 'SKU مكرر أو بيانات غير صالحة';
+        if (res.status === 403) msg = 'لا تملك صلاحية إنشاء المنتجات، يرجى تسجيل الدخول';
+      } catch {}
+      setBusy(false);
+      showToast(msg, 'err');
+      return;
+    }
     const j = await res.json();
     const productId = j?.product?.id;
     if (type === 'variable' && productId) {
@@ -366,7 +390,8 @@ export default function AdminProductCreate(): JSX.Element {
       setImages(baseImages.join(', '));
       setFiles([]);
     }
-    alert('تم إنشاء المنتج بنجاح');
+    setBusy(false);
+    showToast('تم إنشاء المنتج بنجاح', 'ok');
     router.push('/products');
   }
 
