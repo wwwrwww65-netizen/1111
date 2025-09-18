@@ -29,8 +29,12 @@ jobs:
           ssh-keyscan -H 72.60.92.17 >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Ensure /var/www/ecom/.env.api exists (merge)
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
           set -e
+          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "mkdir -p /var/www/ecom"
           TMP=$(mktemp)
           JRAND=$(openssl rand -hex 32 || echo 000)
           MRAND="deploy-$(date +%s)"
@@ -42,12 +46,8 @@ jobs:
             echo "JWT_SECRET=$JRAND"
             echo "MAINTENANCE_SECRET=$MRAND"
           } > "$TMP"
-          if [ -n "${{ secrets.DATABASE_URL }}" ]; then
-            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> "$TMP"
-          fi
-          if [ -n "${{ secrets.DIRECT_URL }}" ]; then
-            echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> "$TMP"
-          fi
+          if [ -n "${DB_URL:+x}" ]; then printf '%s\n' "DATABASE_URL=$DB_URL" >> "$TMP"; fi
+          if [ -n "${DIRECT_URL:+x}" ]; then printf '%s\n' "DIRECT_URL=$DIRECT_URL" >> "$TMP"; fi
           scp -o StrictHostKeyChecking=no "$TMP" root@72.60.92.17:/var/www/ecom/.env.api
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 "chmod 600 /var/www/ecom/.env.api && ls -l /var/www/ecom/.env.api | cat"
 
