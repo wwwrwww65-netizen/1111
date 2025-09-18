@@ -77,12 +77,16 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@72.60.92.17 bash -s <<'DEPS'
           set -e
           cd /var/www/ecom
+          # Stabilize pnpm on monorepo: use hoisted node-linker and local store
+          corepack enable || true
+          corepack prepare pnpm@9 --activate || true
+          pnpm config set store-dir /var/www/ecom/.pnpm-store
+          pnpm config set node-linker hoisted
+          pnpm config set package-import-method copy
           export PRISMA_CLI_QUERY_ENGINE_TYPE=binary
           export PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
           export PRISMA_CLI_QUERY_ENGINE_BINARY=/var/www/ecom/node_modules/.pnpm/prisma@5.14.0/node_modules/prisma/libquery_engine-debian-openssl-3.0.x.so.node
-          corepack enable || true
-          corepack prepare pnpm@9 --activate || true
-          CI=1 NODE_ENV=development pnpm install --frozen-lockfile=false --prod=false --force | cat
+          CI=1 NODE_ENV=development pnpm install -w --frozen-lockfile=false --prod=false --force | cat
           # Rebuild native deps and prisma engines
           pnpm rebuild | cat || true
           npx prisma --version || true
