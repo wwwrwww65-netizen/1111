@@ -1,6 +1,10 @@
 export function resolveApiBase(): string {
-  const env = process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined;
-  if (env && env.trim()) return env;
+  let env = process.env.NEXT_PUBLIC_API_BASE_URL as string | undefined;
+  if (env && env.trim()) {
+    // Sanitize accidental /trpc suffix
+    if (env.endsWith('/trpc')) env = env.slice(0, -5);
+    return env;
+  }
   if (typeof window !== 'undefined') {
     const host = window.location.host;
     // Common pattern: admin.<root> -> api.<root>
