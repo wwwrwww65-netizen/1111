@@ -224,6 +224,24 @@ jobs:
       - name: E2E admin check (smoke)
         run: bash scripts/ci/e2e-admin-check.sh
 
+      - name: Admin console smoke (no client errors)
+        env:
+          PORT: '3001'
+          NEXT_PUBLIC_TRPC_URL: 'http://localhost:4000/trpc'
+          NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000'
+        run: |
+          set -e
+          echo "--- Rebuild admin with local API env ---"
+          (cd apps/admin && NEXT_PUBLIC_TRPC_URL="$NEXT_PUBLIC_TRPC_URL" NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" pnpm build)
+          echo "--- Start admin standalone on :$PORT ---"
+          node apps/admin/.next/standalone/apps/admin/server.js & echo $! > /tmp/admin.pid
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT/ || true)
+            [ "$code" = "200" ] && break; sleep 1;
+          done
+          node scripts/ci/admin-console-smoke.mjs
+          kill -9 $(cat /tmp/admin.pid) 2>/dev/null || true
+
   deploy_staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
