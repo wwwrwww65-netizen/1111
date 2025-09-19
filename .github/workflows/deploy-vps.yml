@@ -64,11 +64,12 @@ jobs:
             ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
             mkdir -p "$ROOT"
             F="$ROOT/.env.api"
-            J=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid)
-            M="deploy-$(date +%s)"
+            # Prefer GitHub Secrets for stable values; fallback to generated
+            J="${{ secrets.JWT_SECRET || '' }}"; if [ -z "$J" ]; then J=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid); fi
+            M="${{ secrets.MAINTENANCE_SECRET || '' }}"; if [ -z "$M" ]; then M="deploy-$(date +%s)"; fi
             {
               echo "NODE_ENV=production"
-              echo "COOKIE_DOMAIN=.jeeey.com"
+              echo "COOKIE_DOMAIN=${{ vars.COOKIE_DOMAIN || secrets.COOKIE_DOMAIN || '.jeeey.com' }}"
               echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS || secrets.CORS_ALLOW_ORIGINS || 'https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://api.jeeey.com' }}"
               echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com"
               echo "NEXT_PUBLIC_APP_URL=https://jeeey.com"
