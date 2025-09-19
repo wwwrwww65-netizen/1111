@@ -71,12 +71,20 @@ fi
 # Ensure systemd ExecStart points to actual server.js paths for Next.js apps
 # Ensure systemd ExecStart uses next start with correct working directory
 if [ -f /etc/systemd/system/ecom-admin.service ]; then
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/env bash -lc 'cd $ROOT_DIR/apps/admin && /usr/bin/node node_modules/next/dist/bin/next start -p 3001'|" /etc/systemd/system/ecom-admin.service || true
-  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/admin|" /etc/systemd/system/ecom-admin.service || true
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001|" /etc/systemd/system/ecom-admin.service || true
+  if grep -q '^WorkingDirectory=' /etc/systemd/system/ecom-admin.service; then
+    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/admin|" /etc/systemd/system/ecom-admin.service || true
+  else
+    sed -i -E "/^\[Service\]/a WorkingDirectory=$ROOT_DIR/apps/admin" /etc/systemd/system/ecom-admin.service || true
+  fi
 fi
 if [ -f /etc/systemd/system/ecom-web.service ]; then
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/env bash -lc 'cd $ROOT_DIR/apps/web && /usr/bin/node node_modules/next/dist/bin/next start -p 3000'|" /etc/systemd/system/ecom-web.service || true
-  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/web|" /etc/systemd/system/ecom-web.service || true
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000|" /etc/systemd/system/ecom-web.service || true
+  if grep -q '^WorkingDirectory=' /etc/systemd/system/ecom-web.service; then
+    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/web|" /etc/systemd/system/ecom-web.service || true
+  else
+    sed -i -E "/^\[Service\]/a WorkingDirectory=$ROOT_DIR/apps/web" /etc/systemd/system/ecom-web.service || true
+  fi
 fi
 
 systemctl daemon-reload || true
