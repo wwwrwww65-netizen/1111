@@ -9,7 +9,9 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
   React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/overview`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setData(j); } catch{} })(); }, [apiBase, id]);
   const d = data?.driver;

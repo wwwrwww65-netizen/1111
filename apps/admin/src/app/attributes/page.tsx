@@ -12,7 +12,9 @@ function ColorsTab(): JSX.Element {
   const authHeaders = React.useCallback(() => {
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
@@ -77,7 +79,9 @@ function SizesTab(): JSX.Element {
   const authHeaders = React.useCallback(() => {
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
@@ -120,7 +124,9 @@ function BrandsTab(): JSX.Element {
   const authHeaders = React.useCallback(() => {
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
