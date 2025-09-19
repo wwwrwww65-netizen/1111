@@ -285,6 +285,51 @@ jobs:
             if (grep -R -nE "://0\.0\.0\.0|0\.0\.0\.0:" /var/www/ecom/apps/admin/.next 2>/dev/null || true) | head -n1 | grep -q "0.0.0.0"; then
               echo 'Found 0.0.0.0 in admin build output'; exit 1; fi
 
+      - name: Post-deploy admin login end-to-end trace
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          timeout: 60s
+          command_timeout: 20m
+          script: |
+            set -Eeuo pipefail
+            EMAIL=${ADMIN_EMAIL:-admin@example.com}
+            PASS=${ADMIN_PASSWORD:-admin123}
+            CJ=/tmp/admin_login_$$.cookies
+            rm -f "$CJ"
+            echo '--- Admin login via same-origin proxy (/api/admin/auth/login) ---'
+            curl -k -sSi -c "$CJ" \
+              -H 'origin: https://admin.jeeey.com' \
+              -H 'content-type: application/json' \
+              -X POST 'https://admin.jeeey.com/api/admin/auth/login' \
+              --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" | sed -n '1,60p'
+            echo
+            echo '--- Extract token from response body (fallback to cookie if missing) ---'
+            BODY=/tmp/admin_login_body_$$.json
+            curl -k -s -c "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST 'https://admin.jeeey.com/api/admin/auth/login' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
+            TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
+            if [ -n "${TOKEN:-}" ]; then echo "token: ${#TOKEN} bytes"; else echo 'token: (not present, will rely on cookie)'; fi
+            echo
+            echo '--- Simulate bridge set-cookie and redirect chain ---'
+            if [ -n "${TOKEN:-}" ]; then
+              curl -k -sSI -b "$CJ" "https://admin.jeeey.com/bridge?token=${TOKEN}&remember=true&next=%2F" | sed -n '1,40p'
+              # load home after bridge
+              CODE=$(curl -k -s -o /dev/null -w '%{http_code}' -b "$CJ" https://admin.jeeey.com/ || true)
+              echo "admin home after bridge => $CODE"
+              [ "$CODE" = "200" ] || { echo 'Admin home did not return 200 after bridge'; exit 1; }
+            else
+              echo 'No token available; verifying whoami using cookie...'
+              curl -k -sSI -b "$CJ" https://admin.jeeey.com/ | sed -n '1,20p'
+            fi
+            echo
+            echo '--- API whoami (cookie jar) ---'
+            curl -k -sS -b "$CJ" https://api.jeeey.com/api/admin/auth/whoami | sed -n '1,80p'
+            echo
+            echo '--- Done ---'
+
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
         with:
