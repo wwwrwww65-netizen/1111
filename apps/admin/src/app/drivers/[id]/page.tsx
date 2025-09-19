@@ -16,6 +16,7 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
   React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/overview`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setData(j); } catch{} })(); }, [apiBase, id]);
   const d = data?.driver;
   const k = data?.kpis || {};
+  const orders: Array<{id:string;status:string;total:number;createdAt:string}> = data?.orders || [];
   return (
     <main className="panel">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
@@ -56,6 +57,17 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
               </div>
             </div>
           </div>
+        <div className="panel" style={{ marginTop:12 }}>
+          <h3 style={{ marginTop:0 }}>الطلبات المسندة (أحدث 10)</h3>
+          <table className="table">
+            <thead><tr><th>المعرف</th><th>الحالة</th><th>الإجمالي</th><th>التاريخ</th><th></th></tr></thead>
+            <tbody>
+              {orders.length ? orders.map(o => (
+                <tr key={o.id}><td>{o.id}</td><td>{o.status}</td><td>${Number(o.total||0).toFixed(2)}</td><td>{String(o.createdAt).slice(0,10)}</td><td><a className="btn btn-sm" href={`/orders/${o.id}`}>عرض</a></td></tr>
+              )) : (<tr><td colSpan={5}>لا توجد طلبات</td></tr>)}
+            </tbody>
+          </table>
+        </div>
         </>
       )}
     </main>
