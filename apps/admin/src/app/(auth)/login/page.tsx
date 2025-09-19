@@ -49,19 +49,16 @@ export default function AdminLogin(): JSX.Element {
           ? (u.pathname + (u.search || '') + (u.hash || ''))
           : '/';
       } catch { redirectTo = '/'; }
-      // Robust bridge: redirect to same-origin bridge that sets HttpOnly cookie then forwards
-      const bridge = new URL('/bridge', window.location.origin);
+      // Robust bridge (relative path to avoid any external rewriting)
       if (token) {
-        bridge.searchParams.set('token', token);
-        if (remember) bridge.searchParams.set('remember', 'true');
-        bridge.searchParams.set('next', redirectTo);
-        window.location.href = bridge.toString();
+        const bridgePath = `/bridge?token=${encodeURIComponent(token)}${remember ? '&remember=true' : ''}&next=${encodeURIComponent(redirectTo)}`;
+        window.location.assign(bridgePath);
         return;
       }
       // Fallback to session check
       const sess = await fetch(`${apiBase}/api/admin/auth/sessions`, { credentials:'include', cache:'no-store' });
       if (sess.ok) {
-        window.location.href = redirectTo;
+        window.location.assign(redirectTo);
       } else {
         const msg = 'فشل تسجيل الدخول';
         setError(msg);
