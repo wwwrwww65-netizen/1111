@@ -121,6 +121,7 @@ adminRest.post('/maintenance/ensure-rbac', async (req, res) => {
       audit: [ { key: 'audit.read' } ],
       tickets: [ { key: 'tickets.read' }, { key: 'tickets.create' }, { key: 'tickets.assign' }, { key: 'tickets.comment' }, { key: 'tickets.close' } ],
       finance: [ { key: 'finance.expenses.read' }, { key: 'finance.expenses.create' }, { key: 'finance.expenses.update' }, { key: 'finance.expenses.delete' }, { key: 'finance.expenses.export' } ],
+      logistics: [ { key: 'logistics.read' }, { key: 'logistics.update' }, { key: 'logistics.dispatch' }, { key: 'logistics.scan' } ],
     };
     const required = Object.values(groups).flat();
     for (const p of required) {
@@ -187,6 +188,7 @@ adminRest.get('/permissions', async (req, res) => {
       backups: [ { key: 'backups.run' }, { key: 'backups.list' }, { key: 'backups.restore' }, { key: 'backups.schedule' } ],
       audit: [ { key: 'audit.read' } ],
       tickets: [ { key: 'tickets.read' }, { key: 'tickets.create' }, { key: 'tickets.assign' }, { key: 'tickets.comment' }, { key: 'tickets.close' } ],
+      logistics: [ { key: 'logistics.read' }, { key: 'logistics.update' }, { key: 'logistics.dispatch' }, { key: 'logistics.scan' } ],
     };
     const required = Object.values(groups).flat();
     for (const p of required) {
@@ -865,6 +867,49 @@ adminRest.get('/finance/gateways/logs', async (req, res) => {
     const items = logs.map(l=> ({ at: l.createdAt, gateway: l.method||'UNKNOWN', amount: l.amount, fee: Number((l.amount||0)*0.03).toFixed(2), status: l.status }));
     return res.json({ logs: items });
   } catch (e:any) { res.status(500).json({ error: e.message||'gateways_logs_failed' }); }
+});
+
+// ---------------------------
+// Logistics minimal endpoints (MVP)
+// ---------------------------
+adminRest.post('/logistics/scans', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.scan'))) return res.status(403).json({ error:'forbidden' });
+    const { barcode, scanType, lat, lng } = req.body || {};
+    if (!barcode || !scanType) return res.status(400).json({ error:'barcode_and_scanType_required' });
+    // Find or create package by barcode
+    let pkg = await (db as any).package?.findUnique?.({ where: { barcode } });
+    if (!pkg) {
+      try { pkg = await (db as any).package?.create?.({ data: { barcode, status: 'CREATED' } }); } catch {}
+    }
+    if (pkg) {
+      // Update status progression
+      const statusMap: any = { PICKUP:'PICKUP', INBOUND:'INBOUND', PACKED:'PACKED', OUTBOUND:'OUTBOUND', DELIVERED:'DELIVERED' };
+      const next = statusMap[String(scanType).toUpperCase()] || null;
+      if (next) {
+        await (db as any).package?.update?.({ where: { id: pkg.id }, data: { status: next } });
+      }
+    }
+    // Record scan
+    try { await (db as any).barcodeScan?.create?.({ data: { packageId: pkg?.id||null, scanType: String(scanType).toUpperCase(), lat: lat??null, lng: lng??null, actorUserId: u.userId } }); } catch {}
+    // If delivered, optionally update order status
+    if (String(scanType).toUpperCase() === 'DELIVERED' && pkg?.orderId) {
+      try { await db.order.update({ where: { id: pkg.orderId }, data: { status: 'DELIVERED' } }); } catch {}
+    }
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'scan_failed' }); }
+});
+
+adminRest.post('/logistics/legs/delivery/dispatch', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
+    const { orderId, driverId } = req.body || {};
+    if (!orderId || !driverId) return res.status(400).json({ error:'orderId_and_driverId_required' });
+    // Create a delivery leg
+    try { await (db as any).shipmentLeg?.create?.({ data: { orderId, driverId, legType: 'DELIVERY', status: 'SCHEDULED' } }); } catch {}
+    await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId } });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'dispatch_failed' }); }
 });
 // Drivers
 adminRest.get('/drivers', async (req, res) => {
