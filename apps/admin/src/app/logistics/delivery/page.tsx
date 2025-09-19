@@ -14,6 +14,9 @@ export default function DeliveryPage(): JSX.Element {
   const [proofOrder, setProofOrder] = React.useState('');
   const [signature, setSignature] = React.useState('');
   const [photo, setPhoto] = React.useState('');
+  const mapRef = React.useRef<HTMLDivElement|null>(null);
+  const mapObjRef = React.useRef<any>(null);
+  const markersRef = React.useRef<any[]>([]);
 
   async function load(){
     const url = new URL(`${apiBase}/api/admin/logistics/delivery/list`);
@@ -24,6 +27,58 @@ export default function DeliveryPage(): JSX.Element {
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
   React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/delivery/suggest-drivers`, { credentials:'include' })).json(); setSuggested(j.drivers||[]);}catch{ setSuggested([]);} })(); }, [apiBase]);
   React.useEffect(()=>{ const t = setInterval(async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/drivers/locations`, { credentials:'include' })).json(); setDriversLive(j.drivers||[]);}catch{} }, 5000); return ()=> clearInterval(t); }, [apiBase]);
+
+  // Lazy-load MapLibre from CDN and render base map
+  React.useEffect(()=>{
+    let cancelled = false;
+    async function ensureMap(){
+      if (!mapRef.current) return;
+      if (!(window as any).maplibregl) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css';
+        document.head.appendChild(link);
+        await new Promise<void>((resolve)=>{
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js';
+          s.onload = ()=> resolve();
+          document.body.appendChild(s);
+        });
+      }
+      if (cancelled) return;
+      if (!mapObjRef.current && (window as any).maplibregl && mapRef.current) {
+        const maplibregl = (window as any).maplibregl;
+        mapObjRef.current = new maplibregl.Map({
+          container: mapRef.current,
+          style: 'https://demotiles.maplibre.org/style.json',
+          center: [46.6753, 24.7136],
+          zoom: 6
+        });
+      }
+    }
+    ensureMap();
+    return ()=> { cancelled = true; };
+  }, []);
+
+  // Update driver markers when live locations change
+  React.useEffect(()=>{
+    if (!mapObjRef.current || !(window as any).maplibregl) return;
+    for (const m of markersRef.current) { try { m.remove(); } catch {}
+    }
+    markersRef.current = [];
+    const maplibregl = (window as any).maplibregl;
+    for (const d of driversLive) {
+      if (typeof d.lng !== 'number' || typeof d.lat !== 'number') continue;
+      const el = document.createElement('div');
+      el.style.width = '10px';
+      el.style.height = '10px';
+      el.style.borderRadius = '50%';
+      el.style.background = d.status === 'AVAILABLE' ? '#22c55e' : '#f59e0b';
+      el.title = d.name || '';
+      const mk = new maplibregl.Marker({ element: el }).setLngLat([d.lng, d.lat]).addTo(mapObjRef.current);
+      markersRef.current.push(mk);
+    }
+  }, [driversLive]);
 
   async function assign(){
     setMessage('');
@@ -72,7 +127,8 @@ export default function DeliveryPage(): JSX.Element {
             ))}</tbody>
           </table>
           <div className="panel" style={{ marginTop:12 }}>
-            <div>خريطة (placeholder) — عدد السائقين: {driversLive.length}</div>
+            <div style={{ marginBottom:8 }}>الخريطة الحية — السائقون: {driversLive.length}</div>
+            <div ref={mapRef} style={{ width:'100%', height: 360, border:'1px solid var(--muted)' }} />
           </div>
         </div>
       )}
@@ -100,8 +156,8 @@ export default function DeliveryPage(): JSX.Element {
           <div className="panel" style={{ marginTop:12, display:'grid', gap:8, maxWidth:520 }}>
             <h3 style={{ margin:0 }}>إثبات التسليم</h3>
             <input className="input" placeholder="رقم الطلب" value={proofOrder} onChange={e=> setProofOrder(e.target.value)} />
-            <input className="input" placeholder="Base64 توقيع" value={signature} onChange={e=> setSignature(e.target.value)} />
-            <input className="input" placeholder="Base64 صورة" value={photo} onChange={e=> setPhoto(e.target.value)} />
+            <SignaturePad value={signature} onChange={setSignature} />
+            <PhotoInput value={photo} onChange={setPhoto} />
             <button className="btn" onClick={submitProof}>حفظ الإثبات وتحديث الحالة</button>
           </div>
         </div>
@@ -121,3 +177,50 @@ export default function DeliveryPage(): JSX.Element {
   );
 }
 
+function SignaturePad({ value, onChange }: { value: string; onChange: (v:string)=>void }): JSX.Element {
+  const canvasRef = React.useRef<HTMLCanvasElement|null>(null);
+  const drawingRef = React.useRef<boolean>(false);
+  function getPos(e: any){
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const x = (e.touches? e.touches[0].clientX : e.clientX) - rect.left;
+    const y = (e.touches? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x, y };
+  }
+  function start(e:any){ drawingRef.current = true; const ctx = canvasRef.current!.getContext('2d')!; const {x,y} = getPos(e); ctx.beginPath(); ctx.moveTo(x,y); }
+  function move(e:any){ if (!drawingRef.current) return; const ctx = canvasRef.current!.getContext('2d')!; const {x,y} = getPos(e); ctx.lineTo(x,y); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); }
+  function end(){ drawingRef.current = false; }
+  function clear(){ const ctx = canvasRef.current!.getContext('2d')!; ctx.clearRect(0,0,canvasRef.current!.width, canvasRef.current!.height); onChange(''); }
+  function save(){ const data = canvasRef.current!.toDataURL('image/png'); onChange(data); }
+  return (
+    <div>
+      <label>توقيع العميل:</label>
+      <div style={{ border:'1px solid var(--muted)', borderRadius:8, background:'#0b0e14', width:'100%', maxWidth:520 }}>
+        <canvas ref={canvasRef} width={520} height={160}
+          onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+          onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+        />
+      </div>
+      <div style={{ display:'flex', gap:8, marginTop:6 }}>
+        <button className="btn btn-sm" onClick={save}>حفظ التوقيع</button>
+        <button className="btn btn-sm btn-outline" onClick={clear}>مسح</button>
+        {value && <span className="badge ok">تم الحفظ</span>}
+      </div>
+    </div>
+  );
+}
+
+function PhotoInput({ value, onChange }: { value: string; onChange: (v:string)=>void }): JSX.Element {
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>){
+    const f = e.target.files?.[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=> { onChange(String(reader.result||'')); };
+    reader.readAsDataURL(f);
+  }
+  return (
+    <div>
+      <label>صورة إثبات:</label>
+      <input type="file" accept="image/*" onChange={onFile} />
+      {value && <span className="badge ok" style={{ marginInlineStart:8 }}>تم التحميل</span>}
+    </div>
+  );
+}
