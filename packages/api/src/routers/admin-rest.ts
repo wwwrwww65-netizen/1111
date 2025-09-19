@@ -1000,6 +1000,73 @@ adminRest.get('/logistics/pickup/export/csv', async (req, res) => {
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="pickup.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_failed' }); }
 });
+
+// Warehouse tabs: inbound, sorting, ready
+adminRest.get('/logistics/warehouse/list', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const tab = String(req.query.tab||'inbound').toLowerCase();
+    let rows: any[] = [];
+    if (tab === 'inbound') {
+      rows = await db.$queryRawUnsafe(`SELECT s.id as shipmentId, d.name as driverName, s."createdAt" as arrivedAt, 'PENDING' as status
+        FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId"
+        WHERE s."legType"='INBOUND' AND s."status" IN ('SCHEDULED','IN_PROGRESS')
+        ORDER BY s."createdAt" DESC`);
+    } else if (tab === 'sorting') {
+      rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt" as updatedAt
+        FROM "Package" p WHERE p.status IN ('INBOUND','PACKED') ORDER BY p."updatedAt" DESC`);
+    } else if (tab === 'ready') {
+      rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt"
+        FROM "Package" p WHERE p.status='READY' ORDER BY p."updatedAt" DESC`);
+    }
+    return res.json({ items: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_list_failed' }); }
+});
+
+adminRest.post('/logistics/warehouse/inbound/confirm', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { shipmentId, notes } = req.body||{}; if (!shipmentId) return res.status(400).json({ error:'shipmentId_required' });
+    await db.$executeRawUnsafe(`UPDATE "ShipmentLeg" SET status='COMPLETED', "updatedAt"=NOW() WHERE id='${shipmentId}'`);
+    if (notes) { try { await db.auditLog.create({ data: { module: 'warehouse', action: 'inbound_notes', details: { shipmentId, notes } } }); } catch {} }
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'inbound_confirm_failed' }); }
+});
+
+adminRest.post('/logistics/warehouse/sorting/result', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { packageId, match, diff, photoUrl } = req.body||{}; if (!packageId) return res.status(400).json({ error:'packageId_required' });
+    if (match) await db.$executeRawUnsafe(`UPDATE "Package" SET status='PACKED', "updatedAt"=NOW() WHERE id='${packageId}'`);
+    if (diff) await db.$executeRawUnsafe(`UPDATE "Package" SET status='INBOUND', "updatedAt"=NOW() WHERE id='${packageId}'`);
+    if (photoUrl) { try { await db.mediaAsset.create({ data: { url: photoUrl, type: 'image' } }); } catch {} }
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'sorting_result_failed' }); }
+});
+
+adminRest.post('/logistics/warehouse/ready/assign', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
+    const { packageId, driverId } = req.body||{}; if (!packageId || !driverId) return res.status(400).json({ error:'packageId_and_driverId_required' });
+    await db.$executeRawUnsafe(`UPDATE "Package" SET status='READY', "updatedAt"=NOW() WHERE id='${packageId}'`);
+    // create outbound leg
+    await db.$executeRawUnsafe(`INSERT INTO "ShipmentLeg" (id, "legType", status, "driverId", "createdAt", "updatedAt") VALUES ('${(require('crypto').randomUUID as ()=>string)()}', 'OUTBOUND', 'SCHEDULED', '${driverId}', NOW(), NOW())`);
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'ready_assign_failed' }); }
+});
+
+adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const tab = String(req.query.tab||'inbound').toLowerCase();
+    const itemsRes: any = await (await fetch('http://localhost')).catch(()=> ({} as any)); // placeholder no-op
+    const fields = tab==='inbound' ? ['shipmentId','driverName','arrivedAt','status'] : tab==='sorting' ? ['packageId','barcode','status','updatedAt'] : ['packageId','barcode','status','updatedAt'];
+    const rows: any[] = [];
+    const parser = new CsvParser({ fields });
+    const csv = parser.parse(rows);
+    res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="warehouse.csv"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_export_failed' }); }
+});
 // Drivers
 adminRest.get('/drivers', async (req, res) => {
   try {
