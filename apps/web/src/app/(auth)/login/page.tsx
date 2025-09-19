@@ -15,7 +15,8 @@ export default function LoginPage(): JSX.Element {
     setError(null);
     try {
       await login.mutateAsync({ email, password });
-      window.location.href = "/account";
+      const dest = new URL('/account', window.location.origin).toString();
+      window.location.assign(dest);
     } catch (e: any) {
       setError(e?.message || "فشل تسجيل الدخول");
     }
