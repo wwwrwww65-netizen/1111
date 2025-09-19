@@ -59,12 +59,39 @@ jobs:
             {
               echo "NODE_ENV=production"
               echo "COOKIE_DOMAIN=.jeeey.com"
+              echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS || secrets.CORS_ALLOW_ORIGINS || 'https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://api.jeeey.com' }}"
               echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com"
               echo "NEXT_PUBLIC_APP_URL=https://jeeey.com"
               echo "JWT_SECRET=${J}"
               echo "MAINTENANCE_SECRET=${M}"
+              SENTRY="${{ secrets.SENTRY_DSN }}"; if [ -n "$SENTRY" ]; then echo "SENTRY_DSN=$SENTRY"; fi
+              STRIPE="${{ secrets.STRIPE_SECRET_KEY }}"; if [ -n "$STRIPE" ]; then echo "STRIPE_SECRET_KEY=$STRIPE"; fi
+              STRIPE_WH="${{ secrets.STRIPE_WEBHOOK_SECRET }}"; if [ -n "$STRIPE_WH" ]; then echo "STRIPE_WEBHOOK_SECRET=$STRIPE_WH"; fi
+              CLOUD="${{ secrets.CLOUDINARY_URL }}"; if [ -n "$CLOUD" ]; then echo "CLOUDINARY_URL=$CLOUD"; fi
               DB="${{ secrets.DATABASE_URL }}"; if [ -n "$DB" ]; then echo "DATABASE_URL=$DB"; fi
               DU="${{ secrets.DIRECT_URL }}"; if [ -n "$DU" ]; then echo "DIRECT_URL=$DU"; fi
+            } > "$F.new"
+            mv "$F.new" "$F"
+            chmod 600 "$F"
+
+      - name: Prepare WEB env file on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          timeout: 60s
+          command_timeout: 40m
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            F="$ROOT/.env.web"
+            {
+              echo "NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || secrets.NEXT_PUBLIC_APP_URL || 'https://jeeey.com' }}"
+              echo "NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL || secrets.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jeeey.com' }}"
+              echo "NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || secrets.NEXT_PUBLIC_API_BASE_URL || 'https://api.jeeey.com' }}"
+              echo "NEXT_PUBLIC_TRPC_URL=${{ vars.NEXT_PUBLIC_TRPC_URL || secrets.NEXT_PUBLIC_TRPC_URL || 'https://api.jeeey.com/trpc' }}"
             } > "$F.new"
             mv "$F.new" "$F"
             chmod 600 "$F"
