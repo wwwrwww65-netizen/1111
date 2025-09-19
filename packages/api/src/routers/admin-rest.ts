@@ -1000,6 +1000,18 @@ adminRest.get('/logistics/pickup/export/csv', async (req, res) => {
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="pickup.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_failed' }); }
 });
+adminRest.get('/logistics/pickup/export/pdf', async (_req, res) => {
+  try {
+    res.setHeader('Content-Type','application/pdf');
+    res.setHeader('Content-Disposition','attachment; filename="pickup.pdf"');
+    const doc = new PDFDocument({ autoFirstPage: true });
+    doc.pipe(res);
+    doc.fontSize(16).text('Pickup - Supplier to Warehouse', { align:'center' });
+    doc.moveDown();
+    doc.fontSize(12).text('Placeholder PDF');
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_pdf_failed' }); }
+});
 
 // Warehouse tabs: inbound, sorting, ready
 adminRest.get('/logistics/warehouse/list', async (req, res) => {
@@ -1096,6 +1108,19 @@ adminRest.get('/logistics/delivery/export/csv', async (req, res) => {
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="delivery.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'delivery_export_failed' }); }
 });
+adminRest.get('/logistics/delivery/export/pdf', async (req, res) => {
+  try {
+    const tab = String(req.query.tab||'ready').toLowerCase();
+    res.setHeader('Content-Type','application/pdf');
+    res.setHeader('Content-Disposition','attachment; filename="delivery.pdf"');
+    const doc = new PDFDocument({ autoFirstPage: true });
+    doc.pipe(res);
+    doc.fontSize(16).text(`Delivery Export (${tab})`, { align:'center' });
+    doc.moveDown();
+    doc.fontSize(12).text('Placeholder PDF');
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message||'delivery_export_pdf_failed' }); }
+});
 adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
@@ -1121,6 +1146,19 @@ adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
     const csv = parser.parse(rows);
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="warehouse.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_export_failed' }); }
+});
+adminRest.get('/logistics/warehouse/export/pdf', async (req, res) => {
+  try {
+    const tab = String(req.query.tab||'inbound').toLowerCase();
+    res.setHeader('Content-Type','application/pdf');
+    res.setHeader('Content-Disposition','attachment; filename="warehouse.pdf"');
+    const doc = new PDFDocument({ autoFirstPage: true });
+    doc.pipe(res);
+    doc.fontSize(16).text(`Warehouse Export (${tab})`, { align:'center' });
+    doc.moveDown();
+    doc.fontSize(12).text('Placeholder PDF');
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_export_pdf_failed' }); }
 });
 // Drivers
 adminRest.get('/drivers', async (req, res) => {
