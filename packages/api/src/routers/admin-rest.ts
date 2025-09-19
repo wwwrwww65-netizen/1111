@@ -911,6 +911,95 @@ adminRest.post('/logistics/legs/delivery/dispatch', async (req, res) => {
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'dispatch_failed' }); }
 });
+
+// Logistics: Supplier pickup lists and actions
+adminRest.get('/logistics/pickup/list', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const status = String(req.query.status||'waiting').toLowerCase();
+    // Map status to SQL conditions on PurchaseOrder and ShipmentLeg
+    let where = '';
+    if (status === 'waiting') where = `WHERE p.status='SUBMITTED'`;
+    else if (status === 'completed') where = `WHERE p.status='RECEIVED'`;
+    // in_progress: SUBMITTED and has a pickup leg scheduled or in progress
+    const rows: any[] = status === 'in_progress'
+      ? await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
+         (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
+         (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS') LIMIT 1) as "driverName"
+       FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
+       WHERE p.status='SUBMITTED' AND EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS'))
+       ORDER BY p."createdAt" DESC`
+      : await db.$queryRawUnsafe(`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
+         (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
+         (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' ORDER BY s."createdAt" DESC LIMIT 1) as "driverName"
+       FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
+       ${where}
+       ORDER BY p."createdAt" DESC`);
+    return res.json({ pickup: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
+});
+
+adminRest.post('/logistics/pickup/assign', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
+    const { poId, driverId } = req.body||{}; if (!poId || !driverId) return res.status(400).json({ error:'poId_and_driverId_required' });
+    // Create or update pickup leg
+    const existing: any[] = await db.$queryRaw<any[]>`SELECT id FROM "ShipmentLeg" WHERE "poId"=${poId} AND "legType"='PICKUP' LIMIT 1`;
+    if (existing.length) {
+      await db.$executeRaw`UPDATE "ShipmentLeg" SET "driverId"=${driverId}, "status"='SCHEDULED', "updatedAt"=NOW() WHERE id=${existing[0].id}`;
+    } else {
+      await db.$executeRaw`INSERT INTO "ShipmentLeg" (id, "poId", "legType", status, "driverId", "createdAt", "updatedAt") VALUES (${(require('crypto').randomUUID as ()=>string)()}, ${poId}, ${'PICKUP'}, ${'SCHEDULED'}, ${driverId}, NOW(), NOW())`;
+    }
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_assign_failed' }); }
+});
+
+adminRest.post('/logistics/pickup/status', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { poId, status } = req.body||{}; if (!poId || !status) return res.status(400).json({ error:'poId_and_status_required' });
+    const allowed = ['DRAFT','SUBMITTED','RECEIVED'];
+    if (!allowed.includes(String(status).toUpperCase())) return res.status(400).json({ error:'invalid_status' });
+    await db.$executeRawUnsafe(`UPDATE "PurchaseOrder" SET status='${String(status).toUpperCase()}', "updatedAt"=NOW() WHERE id='${poId}'`);
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_status_failed' }); }
+});
+
+adminRest.get('/logistics/pickup/export/csv', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const status = String(req.query.status||'waiting').toLowerCase();
+    const url = new URLSearchParams({ status } as any);
+    (req as any).query = Object.fromEntries(url.entries());
+    const fakeReq: any = req; const rowsRes: any = { json: (v:any)=>v };
+    const data: any = await new Promise((resolve)=> {
+      (async ()=>{
+        const status = String(fakeReq.query.status||'waiting').toLowerCase();
+        let where = '';
+        if (status === 'waiting') where = `WHERE p.status='SUBMITTED'`;
+        else if (status === 'completed') where = `WHERE p.status='RECEIVED'`;
+        const rows: any[] = status === 'in_progress'
+          ? await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
+             (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
+             (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS') LIMIT 1) as "driverName"
+           FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
+           WHERE p.status='SUBMITTED' AND EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS'))
+           ORDER BY p."createdAt" DESC`
+          : await db.$queryRawUnsafe(`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
+             (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
+             (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' ORDER BY s."createdAt" DESC LIMIT 1) as "driverName"
+           FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
+           ${where}
+           ORDER BY p."createdAt" DESC`);
+        resolve({ pickup: rows });
+      })();
+    });
+    const rows = data.pickup || [];
+    const parser = new CsvParser({ fields: ['id','vendorName','vendorAddress','status','driverName','itemsCount','createdAt'] });
+    const csv = parser.parse(rows.map((r:any)=> ({ id: r.id, vendorName: r.vendorName||'', vendorAddress: r.vendorAddress||'', status: r.status, driverName: r.driverName||'', itemsCount: Number(r.itemsCount||0), createdAt: (r.createdAt||'') })));
+    res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="pickup.csv"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_failed' }); }
+});
 // Drivers
 adminRest.get('/drivers', async (req, res) => {
   try {
