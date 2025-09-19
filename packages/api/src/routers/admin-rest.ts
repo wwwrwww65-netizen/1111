@@ -1098,6 +1098,27 @@ adminRest.post('/logistics/delivery/assign', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'delivery_assign_failed' }); }
 });
 
+// Proof of delivery: signature + photo
+adminRest.post('/logistics/delivery/proof', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { orderId, signatureBase64, photoBase64 } = req.body||{};
+    if (!orderId) return res.status(400).json({ error:'orderId_required' });
+    let signatureUrl: string|undefined; let photoUrl: string|undefined;
+    if (signatureBase64) {
+      // store as media asset
+      try { const saved = await db.mediaAsset.create({ data: { url: signatureBase64, type: 'image' } }); signatureUrl = saved.url; } catch {}
+      try { await db.signature.create({ data: { orderId, imageUrl: signatureUrl||signatureBase64, signedBy: u.userId } }); } catch {}
+    }
+    if (photoBase64) {
+      try { const saved = await db.mediaAsset.create({ data: { url: photoBase64, type: 'image' } }); photoUrl = saved.url; } catch {}
+    }
+    // mark delivered
+    await db.order.update({ where: { id: orderId }, data: { status: 'DELIVERED' } });
+    return res.json({ success: true, signatureUrl, photoUrl });
+  } catch (e:any) { res.status(500).json({ error: e.message||'proof_failed' }); }
+});
+
 adminRest.get('/logistics/delivery/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });

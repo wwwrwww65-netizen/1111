@@ -11,6 +11,9 @@ export default function DeliveryPage(): JSX.Element {
   const [assignDriver, setAssignDriver] = React.useState('');
   const [suggested, setSuggested] = React.useState<Array<{id:string;name:string;load:number}>>([]);
   const [driversLive, setDriversLive] = React.useState<Array<{id:string;name:string;lat:number;lng:number;status:string}>>([]);
+  const [proofOrder, setProofOrder] = React.useState('');
+  const [signature, setSignature] = React.useState('');
+  const [photo, setPhoto] = React.useState('');
 
   async function load(){
     const url = new URL(`${apiBase}/api/admin/logistics/delivery/list`);
@@ -28,6 +31,13 @@ export default function DeliveryPage(): JSX.Element {
     const r = await fetch(`${apiBase}/api/admin/logistics/delivery/assign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: assignOrder, driverId: assignDriver }) });
     if (!r.ok) { setMessage('تعذر التوزيع'); return; }
     setMessage('تم التوزيع'); setAssignOrder(''); setAssignDriver(''); await load();
+  }
+  async function submitProof(){
+    setMessage('');
+    if (!proofOrder) { setMessage('ادخل رقم الطلب'); return; }
+    const r = await fetch(`${apiBase}/api/admin/logistics/delivery/proof`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: proofOrder, signatureBase64: signature||undefined, photoBase64: photo||undefined }) });
+    if (!r.ok) { setMessage('تعذر حفظ الإثبات'); return; }
+    setMessage('تم حفظ إثبات التسليم وتحديث الحالة'); setProofOrder(''); setSignature(''); setPhoto(''); await load();
   }
 
   return (
@@ -86,6 +96,13 @@ export default function DeliveryPage(): JSX.Element {
               <tr key={o.orderId}><td>{o.orderId}</td><td>{new Date(o.deliveredAt||Date.now()).toLocaleString()}</td><td>{o.paymentStatus||'-'}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm btn-outline">عرض التقييم</button><button className="btn btn-sm btn-outline">تفاصيل التسليم</button><button className="btn btn-sm btn-outline">إشعار شكر</button></td></tr>
             ))}</tbody>
           </table>
+          <div className="panel" style={{ marginTop:12, display:'grid', gap:8, maxWidth:520 }}>
+            <h3 style={{ margin:0 }}>إثبات التسليم</h3>
+            <input className="input" placeholder="رقم الطلب" value={proofOrder} onChange={e=> setProofOrder(e.target.value)} />
+            <input className="input" placeholder="Base64 توقيع" value={signature} onChange={e=> setSignature(e.target.value)} />
+            <input className="input" placeholder="Base64 صورة" value={photo} onChange={e=> setPhoto(e.target.value)} />
+            <button className="btn" onClick={submitProof}>حفظ الإثبات وتحديث الحالة</button>
+          </div>
         </div>
       )}
 
