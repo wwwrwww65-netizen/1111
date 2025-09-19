@@ -285,6 +285,100 @@ model Expense {
   createdAt   DateTime @default(now())
 }
 
+// Logistics: Shipment legs across the delivery pipeline
+enum ShipmentLegType {
+  PICKUP       // supplier to warehouse
+  INBOUND      // warehouse receiving
+  PROCESSING   // packing/ready
+  OUTBOUND     // warehouse to customer dispatch
+  DELIVERY     // customer delivery
+}
+
+enum ShipmentLegStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ShipmentLeg {
+  id          String            @id @default(cuid())
+  orderId     String?
+  poId        String?           // purchase order id (for supplier pickups)
+  legType     ShipmentLegType
+  status      ShipmentLegStatus @default(SCHEDULED)
+  fromLocation String?
+  toLocation   String?
+  driverId    String?
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+enum PackageStatus {
+  CREATED
+  PICKUP
+  INBOUND
+  PACKED
+  READY
+  OUTBOUND
+  DELIVERED
+}
+
+model Package {
+  id          String         @id @default(cuid())
+  orderId     String?
+  poId        String?
+  barcode     String         @unique
+  weight      Float?
+  dimensions  String?
+  priority    String?        // High/Normal/Low
+  status      PackageStatus  @default(CREATED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+enum ScanType {
+  PICKUP
+  INBOUND
+  PACKED
+  OUTBOUND
+  DELIVERED
+}
+
+model BarcodeScan {
+  id         String   @id @default(cuid())
+  packageId  String?
+  shipmentLegId String?
+  scanType   ScanType
+  lat        Float?
+  lng        Float?
+  actorUserId  String?
+  actorDriverId String?
+  ts         DateTime @default(now())
+}
+
+model DriverLocation {
+  id        String   @id @default(cuid())
+  driverId  String
+  lat       Float
+  lng       Float
+  speed     Float?
+  heading   Float?
+  ts        DateTime @default(now())
+}
+
+model Signature {
+  id        String   @id @default(cuid())
+  orderId   String?
+  legId     String?
+  imageUrl  String
+  signedBy  String?
+  ts        DateTime @default(now())
+}
+
 model Review {
   id        String   @id @default(cuid())
   productId String

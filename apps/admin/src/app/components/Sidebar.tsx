@@ -26,6 +26,14 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     ],
   },
   {
+    title: 'مراحل التوصيل',
+    items: [
+      { href: '/logistics/pickup', label: 'من المورد إلى المستودع' },
+      { href: '/logistics/warehouse', label: 'المعالجة في المستودع' },
+      { href: '/logistics/delivery', label: 'التوصيل إلى العميل' },
+    ],
+  },
+  {
     title: 'المالية',
     items: [
       { href: '/finance/pnl', label: 'تحليل الأرباح' },
