@@ -55,18 +55,25 @@ server {
   }
 
   # Serve Next.js static assets directly if present
-  location ~* ^/_next/static/ {
-    # Try nested standalone path first then fallback to root standalone
-    try_files $uri @admin_static_fallback;
+  # Serve Next.js static assets from either nested or root standalone paths
+  location ~* ^/_next/static/(.*)$ {
+    set $static_path1 /apps-admin-static/$1;
+    set $static_path2 /apps-admin-static2/$1;
+    try_files $static_path1 $static_path2 =404;
+  }
+
+  location /apps-admin-static/ {
+    internal;
+    alias /var/www/ecom/apps/admin/.next/standalone/apps/admin/.next/static/;
     access_log off;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
   }
 
-  location @admin_static_fallback {
+  location /apps-admin-static2/ {
+    internal;
     alias /var/www/ecom/apps/admin/.next/standalone/.next/static/;
     access_log off;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
-    try_files $uri =404;
   }
 
   location / {
