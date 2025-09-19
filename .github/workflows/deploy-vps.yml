@@ -180,6 +180,7 @@ jobs:
             if [ "$okapi" != "1" ]; then
               echo 'API did not become ready locally. Recent logs:'
               journalctl -u ecom-api --no-pager -n 200 || true
+              exit 1
             fi
             echo '--- Restart admin service to load latest build ---'
             systemctl reset-failed ecom-admin || true
@@ -196,6 +197,7 @@ jobs:
             if [ "$ok" != "1" ]; then
               echo 'Admin did not become ready locally. Recent logs:'
               journalctl -u ecom-admin --no-pager -n 200 || true
+              exit 1
             fi
             echo '--- Restart web service to load latest build ---'
             systemctl reset-failed ecom-web || true
@@ -212,6 +214,7 @@ jobs:
             if [ "$okw" != "1" ]; then
               echo 'Web did not become ready locally. Recent logs:'
               journalctl -u ecom-web --no-pager -n 200 || true
+              exit 1
             fi
             echo '--- Nginx config test ---'
             nginx -t
@@ -231,7 +234,17 @@ jobs:
                 sleep 1
                 JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}")
                 echo "json status (retry): $JSON_STATUS"
+                if [ "$JSON_STATUS" != "200" ]; then
+                  echo 'Admin login failed after bootstrap'
+                  journalctl -u ecom-api --no-pager -n 200 || true
+                  exit 1
+                fi
               fi
+              # Verify whoami with cookie jar
+              curl -c /tmp/c.jar -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" | grep -q 200
+              WHO=$(curl -b /tmp/c.jar -s http://127.0.0.1:4000/api/admin/auth/whoami || true)
+              echo "whoami: $WHO"
+              echo "$WHO" | grep -q '"authenticated":true' || { echo 'whoami did not authenticate'; exit 1; }
             else
               echo '.env.api missing; skipping login.'
             fi
@@ -275,7 +288,7 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
         run: |
           set -e
-          node scripts/ci/admin-console-prod-smoke.mjs
+          node scripts/ci/admin-console-prod-smoke.mjs || { echo 'Prod admin smoke failed'; exit 1; }
 
       - name: Print service logs (admin & web)
         if: always()
