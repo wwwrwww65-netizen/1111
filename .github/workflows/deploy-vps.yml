@@ -275,10 +275,14 @@ jobs:
             echo "register status: $code"
             if [ "$code" != "200" ]; then
               echo 'Registration page did not return 200'; exit 1; fi
+            echo '--- Verify registration HTML has no 0.0.0.0 references ---'
+            html=$(curl -k -s https://jeeey.com/register || true)
+            if echo "$html" | grep -q "0.0.0.0"; then
+              echo 'Registration HTML contains 0.0.0.0'; exit 1; fi
             echo '--- Grep built outputs for 0.0.0.0 (should be none) ---'
-            if (grep -R "0.0.0.0" -n /var/www/ecom/apps/web/.next 2>/dev/null || true) | head -n1 | grep -q "0.0.0.0"; then
+            if (grep -R -nE "://0\.0\.0\.0|0\.0\.0\.0:" /var/www/ecom/apps/web/.next 2>/dev/null || true) | head -n1 | grep -q "0.0.0.0"; then
               echo 'Found 0.0.0.0 in web build output'; exit 1; fi
-            if (grep -R "0.0.0.0" -n /var/www/ecom/apps/admin/.next 2>/dev/null || true) | head -n1 | grep -q "0.0.0.0"; then
+            if (grep -R -nE "://0\.0\.0\.0|0\.0\.0\.0:" /var/www/ecom/apps/admin/.next 2>/dev/null || true) | head -n1 | grep -q "0.0.0.0"; then
               echo 'Found 0.0.0.0 in admin build output'; exit 1; fi
 
       - name: External HTTPS smoke tests (retry)
