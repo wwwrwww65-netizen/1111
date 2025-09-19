@@ -44,7 +44,7 @@ const audit = async (req: Request, module: string, action: string, details?: any
 adminRest.use((req: Request, res: Response, next) => {
   // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac')) {
     return next();
   }
   try {
@@ -1265,9 +1265,17 @@ adminRest.post('/auth/logout', async (req, res) => {
 });
 
 adminRest.get('/auth/whoami', async (req, res) => {
-  const user = (req as any).user as { userId: string; email?: string; role?: string } | undefined;
-  if (!user) return res.status(401).json({ authenticated: false });
-  res.json({ authenticated: true, user });
+  try {
+    // Try to read token directly (bypasses admin auth gate for diagnostics)
+    const { readTokenFromRequest } = require('../utils/jwt');
+    const { verifyToken } = require('../middleware/auth');
+    const t = readTokenFromRequest(req);
+    if (!t) return res.status(401).json({ authenticated: false, error: 'No token provided' });
+    const payload = verifyToken(t);
+    return res.json({ authenticated: true, user: payload });
+  } catch (e: any) {
+    return res.status(401).json({ authenticated: false, error: e?.message || 'invalid_token' });
+  }
 });
 
 adminRest.get('/auth/sessions', async (req, res) => {
