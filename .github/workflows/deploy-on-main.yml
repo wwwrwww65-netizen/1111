@@ -1,10 +1,11 @@
-name: Deploy on push to main
+name: DEPRECATED Deploy on push to main (use Deploy to VPS (SSH))
 
 on:
   workflow_dispatch:
 
 jobs:
   deploy:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

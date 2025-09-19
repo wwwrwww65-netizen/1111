@@ -19,18 +19,22 @@ jobs:
             ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Prime known_hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H 72.60.92.17 >> ~/.ssh/known_hosts 2>/dev/null || true
-          ssh-keyscan -H srv995016.hstgr.cloud >> ~/.ssh/known_hosts 2>/dev/null || true
+          if [ -n "$VPS_HOST" ]; then ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true; fi
 
       - name: Run HTTPS/API checks from VPS (avoids runner egress issues)
         env:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           set -e
-          ssh -o StrictHostKeyChecking=no root@72.60.92.17 "ADMIN_EMAIL='${ADMIN_EMAIL}' ADMIN_PASSWORD='${ADMIN_PASSWORD}' bash -s" <<'REMOTE'
+          HOST="${VPS_HOST:-}"
+          if [ -z "$HOST" ]; then echo "VPS_HOST not set" >&2; exit 1; fi
+          ssh -o StrictHostKeyChecking=no root@"$HOST" "ADMIN_EMAIL='${ADMIN_EMAIL}' ADMIN_PASSWORD='${ADMIN_PASSWORD}' bash -s" <<'REMOTE'
           set -e
           : "${ADMIN_EMAIL:=admin@example.com}"
           : "${ADMIN_PASSWORD:=admin123}"

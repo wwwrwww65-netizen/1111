@@ -1,8 +1,6 @@
-name: deploy_vps
+name: DEPRECATED deploy_vps (use Deploy to VPS (SSH))
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch: {}
 
 concurrency:
@@ -11,6 +9,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

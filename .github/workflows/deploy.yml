@@ -1,8 +1,6 @@
-name: deploy_to_vps
+name: DEPRECATED deploy_to_vps (use Deploy to VPS (SSH))
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch: {}
 
 concurrency:
@@ -11,6 +9,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Ensure repo context

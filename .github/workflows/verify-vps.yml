@@ -1,4 +1,4 @@
-name: Verify and Manage VPS
+name: diagnostics-vps (verify and manage)
 
 on:
   workflow_dispatch:
@@ -21,37 +21,38 @@ jobs:
       - name: Prepare SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           set -e
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H srv995016.hstgr.cloud >> ~/.ssh/known_hosts 2>/dev/null || true
+          if [ -n "$VPS_HOST" ]; then ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true; fi
 
       - name: Verify services and health
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'set -e; systemctl is-active --quiet ecom-api && echo ecom-api: active || (echo ecom-api: not active; journalctl -u ecom-api -n 120 --no-pager || true); systemctl is-active --quiet ecom-admin && echo ecom-admin: active || (echo ecom-admin: not active; journalctl -u ecom-admin -n 120 --no-pager || true); systemctl is-active --quiet ecom-web && echo ecom-web: active || (echo ecom-web: not active; journalctl -u ecom-web -n 120 --no-pager || true); curl -fsS http://127.0.0.1:4000/health || true; nginx -t && systemctl reload nginx || true'"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "bash -lc 'set -e; systemctl is-active --quiet ecom-api && echo ecom-api: active || (echo ecom-api: not active; journalctl -u ecom-api -n 120 --no-pager || true); systemctl is-active --quiet ecom-admin && echo ecom-admin: active || (echo ecom-admin: not active; journalctl -u ecom-admin -n 120 --no-pager || true); systemctl is-active --quiet ecom-web && echo ecom-web: active || (echo ecom-web: not active; journalctl -u ecom-web -n 120 --no-pager || true); curl -fsS http://127.0.0.1:4000/health || true; nginx -t && systemctl reload nginx || true'"
 
       - name: Run Prisma db push (non-destructive)
         if: inputs.run_migrations == true || github.event_name == 'push'
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'cd /var/www/ecom/packages/db && set -a; . /var/www/ecom/.env.api; set +a; npx -y prisma db push'"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "bash -lc 'cd /var/www/ecom/packages/db && set -a; . /var/www/ecom/.env.api; set +a; npx -y prisma db push'"
 
       - name: Restart services
         if: inputs.restart_services == true || github.event_name == 'push'
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'set -e; systemctl restart ecom-api || true; systemctl restart ecom-admin || true; systemctl restart ecom-web || true; sleep 2; systemctl is-active --quiet ecom-api && echo ecom-api:active || (echo ecom-api:not active; journalctl -u ecom-api -n 120 --no-pager || true); systemctl is-active --quiet ecom-admin && echo ecom-admin:active || (echo ecom-admin:not active; journalctl -u ecom-admin -n 120 --no-pager || true); systemctl is-active --quiet ecom-web && echo ecom-web:active || (echo ecom-web:not active; journalctl -u ecom-web -n 120 --no-pager || true);'"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "bash -lc 'set -e; systemctl restart ecom-api || true; systemctl restart ecom-admin || true; systemctl restart ecom-web || true; sleep 2; systemctl is-active --quiet ecom-api && echo ecom-api:active || (echo ecom-api:not active; journalctl -u ecom-api -n 120 --no-pager || true); systemctl is-active --quiet ecom-admin && echo ecom-admin:active || (echo ecom-admin:not active; journalctl -u ecom-admin -n 120 --no-pager || true); systemctl is-active --quiet ecom-web && echo ecom-web:active || (echo ecom-web:not active; journalctl -u ecom-web -n 120 --no-pager || true);'"
 
       - name: Collect service logs and health
         if: always()
         run: |
           set -e
           mkdir -p logs
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "journalctl -u ecom-api -n 300 --no-pager || true" | tee logs/ecom-api.log
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "journalctl -u ecom-admin -n 300 --no-pager || true" | tee logs/ecom-admin.log
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "journalctl -u ecom-web -n 300 --no-pager || true" | tee logs/ecom-web.log
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "nginx -t || true" | tee logs/nginx-test.txt
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "curl -fsS http://127.0.0.1:4000/health || true" | tee logs/api-health.txt
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "journalctl -u ecom-api -n 300 --no-pager || true" | tee logs/ecom-api.log
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "journalctl -u ecom-admin -n 300 --no-pager || true" | tee logs/ecom-admin.log
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "journalctl -u ecom-web -n 300 --no-pager || true" | tee logs/ecom-web.log
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "nginx -t || true" | tee logs/nginx-test.txt
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${VPS_HOST}" "curl -fsS http://127.0.0.1:4000/health || true" | tee logs/api-health.txt
 
       - name: Login smoke (API+Admin)
         run: |
