@@ -87,5 +87,37 @@ done < "$OUT_FILE"
 
 mv "$OUT_FILE.tmp" "$OUT_FILE"
 log "Sidebar list written to $OUT_FILE"
+
+# --- Finance expenses smoke test ---
+section "Finance: create expense then list"
+JSON=$(printf '{"date":"%s","category":"Ops","description":"Smoke expense","amount":5.5}' "$(date -u +%F)")
+ECODE=$(echo "$JSON" | curl -s -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/finance/expenses --data-binary @- || true)
+log "POST /finance/expenses => $ECODE"
+LCODE=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" 'https://api.jeeey.com/api/admin/finance/expenses?page=1&limit=1' || true)
+log "GET /finance/expenses => $LCODE"
+if [ "$ECODE" != "200" ] || [ "$LCODE" != "200" ]; then
+  log "Finance smoke failed"
+fi
+
+# --- Logistics: create order, assign driver, verify driver overview shows it ---
+section "Logistics: assign order to driver and verify overview"
+# Ensure at least one driver exists or create a demo
+DRIVERS_JSON=$(curl -s -b "$COOKIE_JAR" https://api.jeeey.com/api/admin/drivers || true)
+DRIVER_ID=$(echo "$DRIVERS_JSON" | grep -o '"id":"[^"]\+"' | head -1 | cut -d'"' -f4 || true)
+if [ -z "$DRIVER_ID" ]; then
+  log "+ POST /drivers (demo)"
+  DRIVER_ID=$(curl -s -b "$COOKIE_JAR" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/drivers --data '{"name":"Demo Driver"}' | grep -o '"id":"[^"]\+"' | head -1 | cut -d'"' -f4 || true)
+fi
+# Create a minimal order
+ORDER_PAYLOAD='{"customer":{"name":"Smoke","email":"smoke+order@local"},"items":[{"productId":null,"price":10,"quantity":1}]}'
+ORDER_ID=$(echo "$ORDER_PAYLOAD" | curl -s -b "$COOKIE_JAR" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/orders --data-binary @- | grep -o '"id":"[^"]\+"' | head -1 | cut -d'"' -f4 || true)
+if [ -n "$ORDER_ID" ] && [ -n "$DRIVER_ID" ]; then
+  ACODE=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/orders/assign-driver --data "{\"orderId\":\"$ORDER_ID\",\"driverId\":\"$DRIVER_ID\"}" || true)
+  log "POST /orders/assign-driver => $ACODE"
+  # Verify on driver overview
+  OVER_JSON=$(curl -s -b "$COOKIE_JAR" https://api.jeeey.com/api/admin/drivers/$DRIVER_ID/overview || true)
+  echo "$OVER_JSON" | grep -q "$ORDER_ID" && log "Driver overview includes order $ORDER_ID" || log "Driver overview missing order $ORDER_ID"
+fi
+
 echo "---" && cat "$OUT_FILE" | sed -n '1,200p'
 
