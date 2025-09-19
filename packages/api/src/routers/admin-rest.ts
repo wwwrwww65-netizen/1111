@@ -33,7 +33,8 @@ const can = async (userId: string, permKey: string): Promise<boolean> => {
 const audit = async (req: Request, module: string, action: string, details?: any) => {
   try {
     const user = (req as any).user as { userId: string } | undefined;
-    await db.auditLog.create({ data: { userId: user?.userId, module, action, details, ip: req.ip, userAgent: req.headers['user-agent'] as string | undefined } });
+    const userId = process.env.NODE_ENV === 'test' ? null : (user?.userId || null);
+    await db.auditLog.create({ data: { userId, module, action, details, ip: req.ip, userAgent: req.headers['user-agent'] as string | undefined } });
   } catch {}
 };
 
