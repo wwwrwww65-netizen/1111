@@ -45,6 +45,10 @@ jobs:
           echo "SSH_HOST=${VPS_HOST:-72.60.92.17}" >> "$GITHUB_ENV"
           echo "SSH_USER=${VPS_USER:-root}" >> "$GITHUB_ENV"
           echo "SSH_PORT=${VPS_PORT:-22}" >> "$GITHUB_ENV"
+      - name: Set admin credentials env
+        run: |
+          echo "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}" >> "$GITHUB_ENV"
+          echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> "$GITHUB_ENV"
 
       - name: Prepare API env file on server
         uses: appleboy/ssh-action@v1.0.3
@@ -218,12 +222,14 @@ jobs:
             echo '--- Ensure admin exists & JSON login (local API) ---'
             set +e
             if [ -f "$ROOT/.env.api" ]; then
-              JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
+              EMAIL="${ADMIN_EMAIL:-admin@example.com}"
+              PASS="${ADMIN_PASSWORD:-admin123}"
+              JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}")
               if [ "$JSON_STATUS" != "200" ]; then
                 . "$ROOT/.env.api" || true
-                curl -s -X POST http://127.0.0.1:4000/api/admin/maintenance/create-admin -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","name":"Admin"}' || true
+                curl -s -X POST http://127.0.0.1:4000/api/admin/maintenance/create-admin -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"name\":\"Admin\"}" || true
                 sleep 1
-                JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}')
+                JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}")
                 echo "json status (retry): $JSON_STATUS"
               fi
             else
