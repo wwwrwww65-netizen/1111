@@ -8,6 +8,7 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/api') || // includes /api/admin proxy and /api/auth/set
+    pathname === '/bridge' ||
     pathname.startsWith('/_debug') || pathname.startsWith('/debug') ||
     pathname === '/login' ||
     pathname.startsWith('/(auth)')

@@ -42,7 +42,7 @@ export default function AdminLogin(): JSX.Element {
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
       // Robust bridge: redirect to same-origin bridge that sets HttpOnly cookie then forwards
-      const bridge = new URL('/(auth)/bridge', window.location.origin);
+      const bridge = new URL('/bridge', window.location.origin);
       if (token) {
         bridge.searchParams.set('token', token);
         if (remember) bridge.searchParams.set('remember', 'true');
