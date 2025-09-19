@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
 import { readTokenFromRequest } from '../utils/jwt';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
@@ -11,6 +11,9 @@ import { z } from 'zod';
 import { db } from '@repo/db';
 
 const adminRest = Router();
+// Ensure body parsers explicitly for this router
+adminRest.use(express.json({ limit: '2mb' }));
+adminRest.use(express.urlencoded({ extended: true }));
 
 const can = async (userId: string, permKey: string): Promise<boolean> => {
   if (process.env.NODE_ENV === 'test') return true;

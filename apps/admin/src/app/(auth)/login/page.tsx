@@ -17,7 +17,9 @@ export default function AdminLogin(): JSX.Element {
     setError("");
     try {
       setBusy(true);
-      const res = await fetch(`${apiBase}/api/admin/auth/login`, {
+      // Prefer same-origin proxy if available
+      const target = typeof window !== 'undefined' && window.location.origin ? `${window.location.origin}/api/admin/auth/login` : `${apiBase}/api/admin/auth/login`;
+      const res = await fetch(target, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
