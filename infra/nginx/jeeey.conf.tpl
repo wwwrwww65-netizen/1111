@@ -55,26 +55,7 @@ server {
   }
 
   # Serve Next.js static assets directly if present
-  # Serve Next.js static assets from either nested or root standalone paths
-  location ~* ^/_next/static/(.*)$ {
-    set $static_path1 /apps-admin-static/$1;
-    set $static_path2 /apps-admin-static2/$1;
-    try_files $static_path1 $static_path2 =404;
-  }
-
-  location /apps-admin-static/ {
-    internal;
-    alias /var/www/ecom/apps/admin/.next/standalone/apps/admin/.next/static/;
-    access_log off;
-    add_header Cache-Control "public, max-age=31536000, immutable" always;
-  }
-
-  location /apps-admin-static2/ {
-    internal;
-    alias /var/www/ecom/apps/admin/.next/standalone/.next/static/;
-    access_log off;
-    add_header Cache-Control "public, max-age=31536000, immutable" always;
-  }
+  # With next start, static assets are served by the app itself; proxy everything
 
   location / {
     proxy_set_header Host $host;
