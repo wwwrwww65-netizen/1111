@@ -23,33 +23,32 @@ fi
 
 cd "$ROOT_DIR"
 corepack enable || true
-corepack prepare pnpm@9 --activate || true
+corepack prepare pnpm@8.6.10 --activate || true
 export npm_config_ignore_scripts=true
 export NPM_CONFIG_IGNORE_SCRIPTS=true
 export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 pnpm install -r --no-frozen-lockfile --ignore-scripts
 
-# Load public env (for Next build) if present and materialize per-app .env.production
+# Load or materialize public env (for Next build) and per-app .env.production
+mkdir -p "$ROOT_DIR/apps/admin" "$ROOT_DIR/apps/web"
 if [ -f "$ROOT_DIR/.env.web" ]; then
   set -a; . "$ROOT_DIR/.env.web"; set +a
-  mkdir -p "$ROOT_DIR/apps/admin" "$ROOT_DIR/apps/web"
-  {
-    echo "NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-}"
-    echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL:-}"
-    echo "NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-}"
-    echo "NEXT_PUBLIC_TRPC_URL=${NEXT_PUBLIC_TRPC_URL:-}"
-  } > "$ROOT_DIR/apps/admin/.env.production"
-  cp "$ROOT_DIR/apps/admin/.env.production" "$ROOT_DIR/apps/web/.env.production"
 fi
+{
+  echo "NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://jeeey.com}"
+  echo "NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL:-https://admin.jeeey.com}"
+  echo "NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-https://api.jeeey.com}"
+  echo "NEXT_PUBLIC_TRPC_URL=${NEXT_PUBLIC_TRPC_URL:-https://api.jeeey.com/trpc}"
+} > "$ROOT_DIR/apps/admin/.env.production"
+cp "$ROOT_DIR/apps/admin/.env.production" "$ROOT_DIR/apps/web/.env.production"
 
 export NODE_ENV=production
-# Load API env for Prisma if present
+# Load API env for Prisma and run migrate deploy
 if [ -f "$ROOT_DIR/.env.api" ]; then
   set -a; . "$ROOT_DIR/.env.api"; set +a
 fi
-# Skip Prisma migrate deploy in production (database already initialized)
-# pnpm --filter @repo/db db:deploy || true
+pnpm --filter @repo/db db:deploy || true
 # Force fresh Next.js builds for web/admin
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 pnpm --filter @repo/api build

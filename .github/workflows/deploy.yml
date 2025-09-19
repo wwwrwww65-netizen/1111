@@ -16,13 +16,13 @@ jobs:
       - name: Ensure repo context
         uses: actions/checkout@v4
 
-      - name: Deploy over SSH to Hostinger VPS
+      - name: Deploy over SSH to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 72.60.92.17
+          host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
+          port: ${{ secrets.VPS_PORT || 22 }}
           script_stop: true
           command_timeout: 30m
           script: |
