@@ -1059,9 +1059,23 @@ adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
     const tab = String(req.query.tab||'inbound').toLowerCase();
-    const itemsRes: any = await (await fetch('http://localhost')).catch(()=> ({} as any)); // placeholder no-op
-    const fields = tab==='inbound' ? ['shipmentId','driverName','arrivedAt','status'] : tab==='sorting' ? ['packageId','barcode','status','updatedAt'] : ['packageId','barcode','status','updatedAt'];
-    const rows: any[] = [];
+    let rows: any[] = [];
+    let fields: string[] = [];
+    if (tab === 'inbound') {
+      rows = await db.$queryRawUnsafe(`SELECT s.id as shipmentId, d.name as "driverName", s."createdAt" as arrivedAt, s.status
+        FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId"
+        WHERE s."legType"='INBOUND' AND s."status" IN ('SCHEDULED','IN_PROGRESS','COMPLETED')
+        ORDER BY s."createdAt" DESC`);
+      fields = ['shipmentId','driverName','arrivedAt','status'];
+    } else if (tab === 'sorting') {
+      rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt" as updatedAt
+        FROM "Package" p WHERE p.status IN ('INBOUND','PACKED') ORDER BY p."updatedAt" DESC`);
+      fields = ['packageId','barcode','status','updatedAt'];
+    } else {
+      rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt"
+        FROM "Package" p WHERE p.status='READY' ORDER BY p."updatedAt" DESC`);
+      fields = ['packageId','barcode','status','updatedAt'];
+    }
     const parser = new CsvParser({ fields });
     const csv = parser.parse(rows);
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="warehouse.csv"'); res.send(csv);
