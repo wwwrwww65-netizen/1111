@@ -9,6 +9,7 @@ export default function DeliveryPage(): JSX.Element {
   const [message, setMessage] = React.useState('');
   const [assignOrder, setAssignOrder] = React.useState('');
   const [assignDriver, setAssignDriver] = React.useState('');
+  const [suggested, setSuggested] = React.useState<Array<{id:string;name:string;load:number}>>([]);
 
   async function load(){
     const url = new URL(`${apiBase}/api/admin/logistics/delivery/list`);
@@ -17,6 +18,7 @@ export default function DeliveryPage(): JSX.Element {
     setItems(j.items||[]);
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/delivery/suggest-drivers`, { credentials:'include' })).json(); setSuggested(j.drivers||[]);}catch{ setSuggested([]);} })(); }, [apiBase]);
 
   async function assign(){
     setMessage('');
@@ -35,6 +37,7 @@ export default function DeliveryPage(): JSX.Element {
         <button className={`btn btn-sm ${tab==='completed'?'':'btn-outline'}`} onClick={()=> setTab('completed')}>مكتمل</button>
         <button className={`btn btn-sm ${tab==='returns'?'':'btn-outline'}`} onClick={()=> setTab('returns')}>مرتجعات</button>
         <a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/delivery/export/csv?tab=${tab}`}>تصدير CSV</a>
+        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/delivery/export/pdf?tab=${tab}`}>تصدير PDF</a>
       </div>
 
       {tab==='ready' && (
@@ -42,6 +45,10 @@ export default function DeliveryPage(): JSX.Element {
           <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
             <input className="input" placeholder="رقم الطلب" value={assignOrder} onChange={e=> setAssignOrder(e.target.value)} />
             <input className="input" placeholder="معرّف السائق" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
+            <select className="select" onChange={e=> setAssignDriver(e.target.value)} value={assignDriver}>
+              <option value="">سائق مقترح</option>
+              {suggested.map(d=> (<option key={d.id} value={d.id}>{d.name} (نشط: {d.load})</option>))}
+            </select>
             <button className="btn" onClick={assign}>تعيين سائق</button>
             {message && <div className="text-sm" style={{ color:'#9ae6b4' }}>{message}</div>}
           </div>
