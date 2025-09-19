@@ -9,7 +9,9 @@ export default function InventoryPage(): JSX.Element {
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {};
   },[]);
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
@@ -90,7 +92,9 @@ function InlineAdjust({ productId, onDone }: { productId: string; onDone: ()=>vo
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-    return m ? { Authorization: `Bearer ${decodeURIComponent(m[1])}` } : {};
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {};
   },[]);
   async function apply(d: number) {
     await fetch(`${apiBase}/api/admin/inventory/adjust`, { method: "POST", headers: { "content-type":"application/json", ...authHeaders() }, credentials:'include', body: JSON.stringify({ productId, delta: d }) });

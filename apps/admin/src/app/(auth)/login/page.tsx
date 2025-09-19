@@ -35,7 +35,7 @@ export default function AdminLogin(): JSX.Element {
       let token: string | undefined = j?.token;
       if (!token && typeof document !== 'undefined') {
         const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-        if (m) token = decodeURIComponent(m[1]);
+        if (m) { try { token = decodeURIComponent(m[1]); } catch { token = m[1]; } }
       }
       if (!token) {
         // Some browsers block reading cookie immediately; verify session server-side
