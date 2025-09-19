@@ -22,7 +22,13 @@ jobs:
         with:
           node-version: 20
       - name: Install pnpm
-        run: corepack enable && corepack prepare pnpm@9 --activate
+        run: corepack enable && corepack prepare pnpm@8.6.10 --activate
+      - name: Pre-deploy build verification
+        run: |
+          set -e
+          pnpm install -r --no-frozen-lockfile
+          pnpm --filter @repo/api build
+          pnpm --filter admin build
       - name: Archive project (use git archive to avoid file change warnings)
         run: |
           git config --global core.autocrlf false
@@ -146,10 +152,10 @@ jobs:
       - name: Post-deploy smoke (health, login, static, services)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ steps.preflight.outputs.host }}
-          username: ${{ steps.preflight.outputs.user || secrets.VPS_USER }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ steps.preflight.outputs.port }}
+          port: ${{ env.SSH_PORT }}
           timeout: 60s
           command_timeout: 40m
           script: |
