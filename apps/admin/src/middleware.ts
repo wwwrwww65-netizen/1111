@@ -7,7 +7,7 @@ export function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
-    pathname.startsWith('/api') ||
+    pathname.startsWith('/api') || // includes /api/admin proxy and /api/auth/set
     pathname.startsWith('/_debug') || pathname.startsWith('/debug') ||
     pathname === '/login' ||
     pathname.startsWith('/(auth)')
