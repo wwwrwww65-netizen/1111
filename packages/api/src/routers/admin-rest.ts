@@ -1055,6 +1055,47 @@ adminRest.post('/logistics/warehouse/ready/assign', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'ready_assign_failed' }); }
 });
 
+// Delivery tabs: ready, in_delivery, completed, returns
+adminRest.get('/logistics/delivery/list', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const tab = String(req.query.tab||'ready').toLowerCase();
+    let rows: any[] = [];
+    if (tab === 'ready') {
+      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
+        FROM "Order" o LEFT JOIN "User" u ON u.id=o."userId" WHERE o.status IN ('PAID','SHIPPED') ORDER BY o."createdAt" DESC`);
+    } else if (tab === 'in_delivery') {
+      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
+        FROM "Order" o LEFT JOIN "Driver" d ON d.id=o."assignedDriverId" WHERE o.status IN ('SHIPPED') ORDER BY o."updatedAt" DESC`);
+    } else if (tab === 'completed') {
+      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o."updatedAt" as deliveredAt, p.status as paymentStatus
+        FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id WHERE o.status='DELIVERED' ORDER BY o."updatedAt" DESC`);
+    } else if (tab === 'returns') {
+      rows = await db.$queryRawUnsafe(`SELECT r.id as returnId, r."createdAt" as createdAt, r.reason FROM "ReturnRequest" r ORDER BY r."createdAt" DESC`);
+    }
+    return res.json({ items: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'delivery_list_failed' }); }
+});
+
+adminRest.post('/logistics/delivery/assign', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
+    const { orderId, driverId } = req.body||{}; if (!orderId || !driverId) return res.status(400).json({ error:'orderId_and_driverId_required' });
+    await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId, status: 'SHIPPED' } });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'delivery_assign_failed' }); }
+});
+
+adminRest.get('/logistics/delivery/export/csv', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const tab = String(req.query.tab||'ready').toLowerCase();
+    const fields = tab==='ready' ? ['orderId','customer','address','total'] : tab==='in_delivery' ? ['orderId','driver','status','updatedAt'] : tab==='completed' ? ['orderId','deliveredAt','paymentStatus'] : ['returnId','createdAt','reason'];
+    const parser = new CsvParser({ fields });
+    const csv = parser.parse([]);
+    res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="delivery.csv"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'delivery_export_failed' }); }
+});
 adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
