@@ -273,6 +273,18 @@ model Payment {
   updatedAt DateTime      @updatedAt
 }
 
+// Finance: Expenses (admin-side operational expenses)
+model Expense {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+  category    String
+  description String?
+  amount      Float
+  vendorId    String?
+  invoiceRef  String?
+  createdAt   DateTime @default(now())
+}
+
 model Review {
   id        String   @id @default(cuid())
   productId String

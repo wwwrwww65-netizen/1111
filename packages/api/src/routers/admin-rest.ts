@@ -120,6 +120,7 @@ adminRest.post('/maintenance/ensure-rbac', async (req, res) => {
       backups: [ { key: 'backups.run' }, { key: 'backups.list' }, { key: 'backups.restore' }, { key: 'backups.schedule' } ],
       audit: [ { key: 'audit.read' } ],
       tickets: [ { key: 'tickets.read' }, { key: 'tickets.create' }, { key: 'tickets.assign' }, { key: 'tickets.comment' }, { key: 'tickets.close' } ],
+      finance: [ { key: 'finance.expenses.read' }, { key: 'finance.expenses.create' }, { key: 'finance.expenses.update' }, { key: 'finance.expenses.delete' }, { key: 'finance.expenses.export' } ],
     };
     const required = Object.values(groups).flat();
     for (const p of required) {
@@ -672,6 +673,68 @@ adminRest.post('/payments/refund', async (req, res) => {
   }
 });
 
+// Finance: Expenses
+adminRest.get('/finance/expenses', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, Number(req.query.page ?? 1));
+    const limit = Math.min(Number(req.query.limit ?? 20), 100);
+    const skip = (page - 1) * limit;
+    const category = (req.query.category as string | undefined) ?? undefined;
+    const where: any = {};
+    if (category) where.category = category;
+    const [rows, total] = await Promise.all([
+      db.expense.findMany({ where, orderBy: { date: 'desc' }, skip, take: limit }),
+      db.expense.count({ where }),
+    ]);
+    await audit(req, 'finance.expenses', 'list', { page, limit, category });
+    res.json({ expenses: rows, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total/limit)) } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'expenses_list_failed' }); }
+});
+
+adminRest.post('/finance/expenses', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.create'))) return res.status(403).json({ error:'forbidden' });
+    const { date, category, description, amount, vendorId, invoiceRef } = req.body || {};
+    if (!category || !(amount != null)) return res.status(400).json({ error: 'category_and_amount_required' });
+    const d = await db.expense.create({ data: { date: date? new Date(String(date)) : new Date(), category: String(category), description: description||null, amount: Number(amount), vendorId: vendorId||null, invoiceRef: invoiceRef||null } });
+    await audit(req, 'finance.expenses', 'create', { id: d.id, amount: d.amount });
+    res.json({ expense: d });
+  } catch (e:any) { res.status(500).json({ error: e.message||'expense_create_failed' }); }
+});
+
+adminRest.patch('/finance/expenses/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const { date, category, description, amount, vendorId, invoiceRef } = req.body || {};
+    const d = await db.expense.update({ where: { id }, data: { ...(date && { date: new Date(String(date)) }), ...(category && { category }), ...(description !== undefined && { description }), ...(amount != null && { amount: Number(amount) }), ...(vendorId !== undefined && { vendorId }), ...(invoiceRef !== undefined && { invoiceRef }) } });
+    await audit(req, 'finance.expenses', 'update', { id });
+    res.json({ expense: d });
+  } catch (e:any) { res.status(500).json({ error: e.message||'expense_update_failed' }); }
+});
+
+adminRest.delete('/finance/expenses/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.delete'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await db.expense.delete({ where: { id } });
+    await audit(req, 'finance.expenses', 'delete', { id });
+    res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'expense_delete_failed' }); }
+});
+
+adminRest.get('/finance/expenses/export/csv', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.export'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.expense.findMany({ orderBy: { date: 'desc' } });
+    const parser = new CsvParser({ fields: ['id','date','category','description','amount','vendorId','invoiceRef'] });
+    const csv = parser.parse(rows.map(r => ({ ...r, date: r.date.toISOString() })));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="expenses.csv"');
+    res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'expenses_export_failed' }); }
+});
 // Drivers
 adminRest.get('/drivers', async (req, res) => {
   try {
