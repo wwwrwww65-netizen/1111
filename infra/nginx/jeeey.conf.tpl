@@ -73,6 +73,7 @@ server {
     proxy_connect_timeout 5s;
     proxy_send_timeout 60s;
     proxy_read_timeout 60s;
+    add_header Cache-Control "no-store" always;
     proxy_pass http://127.0.0.1:3001;
   }
 }
