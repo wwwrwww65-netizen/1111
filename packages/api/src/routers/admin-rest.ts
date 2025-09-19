@@ -1147,6 +1147,23 @@ adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="warehouse.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_export_failed' }); }
 });
+
+// Driver locations (live snapshot from Driver table lat/lng)
+adminRest.get('/logistics/drivers/locations', async (_req, res) => {
+  try {
+    const list = await db.driver.findMany({ where: { lat: { not: null }, lng: { not: null } }, select: { id: true, name: true, lat: true, lng: true, status: true } });
+    res.json({ drivers: list });
+  } catch (e:any) { res.status(500).json({ error: e.message||'locations_failed' }); }
+});
+
+// Simple route planning stub (echoes orderIds)
+adminRest.get('/logistics/delivery/route', async (req, res) => {
+  try {
+    const ids = String(req.query.orderIds||'').split(',').filter(Boolean);
+    // TODO: integrate real optimization; for now, return same order
+    res.json({ orderIds: ids, plan: ids.map((id,idx)=> ({ seq: idx+1, orderId: id })) });
+  } catch (e:any) { res.status(500).json({ error: e.message||'route_failed' }); }
+});
 adminRest.get('/logistics/warehouse/export/pdf', async (req, res) => {
   try {
     const tab = String(req.query.tab||'inbound').toLowerCase();

@@ -10,6 +10,7 @@ export default function DeliveryPage(): JSX.Element {
   const [assignOrder, setAssignOrder] = React.useState('');
   const [assignDriver, setAssignDriver] = React.useState('');
   const [suggested, setSuggested] = React.useState<Array<{id:string;name:string;load:number}>>([]);
+  const [driversLive, setDriversLive] = React.useState<Array<{id:string;name:string;lat:number;lng:number;status:string}>>([]);
 
   async function load(){
     const url = new URL(`${apiBase}/api/admin/logistics/delivery/list`);
@@ -19,6 +20,7 @@ export default function DeliveryPage(): JSX.Element {
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
   React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/delivery/suggest-drivers`, { credentials:'include' })).json(); setSuggested(j.drivers||[]);}catch{ setSuggested([]);} })(); }, [apiBase]);
+  React.useEffect(()=>{ const t = setInterval(async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/drivers/locations`, { credentials:'include' })).json(); setDriversLive(j.drivers||[]);}catch{} }, 5000); return ()=> clearInterval(t); }, [apiBase]);
 
   async function assign(){
     setMessage('');
@@ -58,7 +60,9 @@ export default function DeliveryPage(): JSX.Element {
               <tr key={o.orderId}><td>{o.orderId}</td><td>{o.customer||'-'}</td><td>{o.address||'-'}</td><td>${Number(o.total||0).toFixed(2)}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm">تخطيط المسار</button><button className="btn btn-sm btn-outline">تجميع الطلبات</button><button className="btn btn-sm btn-outline">طباعة الفواتير</button></td></tr>
             ))}</tbody>
           </table>
-          <div className="panel" style={{ marginTop:12 }}>خريطة (placeholder)</div>
+          <div className="panel" style={{ marginTop:12 }}>
+            <div>خريطة (placeholder) — عدد السائقين: {driversLive.length}</div>
+          </div>
         </div>
       )}
 
