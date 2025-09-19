@@ -66,12 +66,17 @@ if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
 fi
 
 # Ensure Next.js standalone bundles have their static assets next to server.js
-# Admin static assets
-if [ -d "$ROOT_DIR/apps/admin/.next/static" ] && [ -d "$ROOT_DIR/apps/admin/.next/standalone/apps/admin" ]; then
-  mkdir -p "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next"
-  rsync -a "$ROOT_DIR/apps/admin/.next/static" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next/" || true
-  # also copy public as safety
-  cp -r "$ROOT_DIR/apps/admin/public" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/" 2>/dev/null || true
+# Admin static assets (copy to both plausible standalone locations)
+if [ -d "$ROOT_DIR/apps/admin/.next/static" ] && [ -d "$ROOT_DIR/apps/admin/.next/standalone" ]; then
+  # 1) alongside standalone root
+  mkdir -p "$ROOT_DIR/apps/admin/.next/standalone/.next"
+  rsync -a "$ROOT_DIR/apps/admin/.next/static" "$ROOT_DIR/apps/admin/.next/standalone/.next/" || true
+  # 2) alongside nested server.js path
+  if [ -d "$ROOT_DIR/apps/admin/.next/standalone/apps/admin" ]; then
+    mkdir -p "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next"
+    rsync -a "$ROOT_DIR/apps/admin/.next/static" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next/" || true
+    cp -r "$ROOT_DIR/apps/admin/public" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/" 2>/dev/null || true
+  fi
 fi
 # Web static assets
 if [ -d "$ROOT_DIR/apps/web/.next/static" ] && [ -d "$ROOT_DIR/apps/web/.next/standalone" ]; then
