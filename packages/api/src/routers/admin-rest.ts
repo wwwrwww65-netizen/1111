@@ -735,6 +735,137 @@ adminRest.get('/finance/expenses/export/csv', async (req, res) => {
     res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'expenses_export_failed' }); }
 });
+
+// Finance: P&L
+adminRest.get('/finance/pnl', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30*24*60*60*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const revenueAgg = await db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID','SHIPPED','DELIVERED'] }, createdAt: { gte: from, lte: to } } });
+    const expensesAgg = await db.expense.aggregate({ _sum: { amount: true }, where: { date: { gte: from, lte: to } } });
+    const revenues = revenueAgg._sum.total || 0;
+    const expenses = expensesAgg._sum.amount || 0;
+    const profit = revenues - expenses;
+    return res.json({ range: { from, to }, revenues, expenses, profit });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pnl_failed' }); }
+});
+adminRest.get('/finance/pnl/export/csv', async (req, res) => {
+  const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30*24*60*60*1000);
+  const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+  const revenueAgg = await db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID','SHIPPED','DELIVERED'] }, createdAt: { gte: from, lte: to } } });
+  const expensesAgg = await db.expense.aggregate({ _sum: { amount: true }, where: { date: { gte: from, lte: to } } });
+  const rows = [{ from: from.toISOString().slice(0,10), to: to.toISOString().slice(0,10), revenues: revenueAgg._sum.total||0, expenses: expensesAgg._sum.amount||0, profit: (revenueAgg._sum.total||0) - (expensesAgg._sum.amount||0) }];
+  const parser = new CsvParser({ fields: ['from','to','revenues','expenses','profit'] });
+  const csv = parser.parse(rows);
+  res.setHeader('Content-Type','text/csv');
+  res.setHeader('Content-Disposition','attachment; filename="pnl.csv"');
+  res.send(csv);
+});
+
+// Finance: Cashflow (simple model)
+adminRest.get('/finance/cashflow', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const windowDays = Math.max(1, Math.min(180, Number(req.query.window||30)));
+    const since = new Date(Date.now() - windowDays*24*60*60*1000);
+    const paymentsAgg = await db.payment.aggregate({ _sum: { amount: true }, where: { status: { in: ['COMPLETED','PENDING'] }, createdAt: { gte: since } } });
+    const expensesAgg = await db.expense.aggregate({ _sum: { amount: true }, where: { date: { gte: since } } });
+    const currentBalance = (paymentsAgg._sum.amount||0) - (expensesAgg._sum.amount||0);
+    // naive forecast: average net per day * window
+    const dailyNet = currentBalance / windowDays;
+    const forecast30 = dailyNet * 30;
+    const duePayments = await db.payment.aggregate({ _sum: { amount: true }, where: { status: 'PENDING' } }).then(r=> r._sum.amount||0);
+    return res.json({ windowDays, currentBalance, forecast30, duePayments });
+  } catch (e:any) { res.status(500).json({ error: e.message||'cashflow_failed' }); }
+});
+
+// Finance: Revenues list
+adminRest.get('/finance/revenues', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, Number(req.query.page||1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit||20)));
+    const skip = (page-1)*limit;
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const where: any = {}; if (from || to) where.createdAt = { ...(from && { gte: from }), ...(to && { lte: to }) };
+    const [rows, total] = await Promise.all([
+      db.payment.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { order: true } }),
+      db.payment.count({ where })
+    ]);
+    const items = rows.map(r=> ({ id: r.id, at: r.createdAt, source: (r.method||'UNKNOWN'), amount: r.amount, orderId: r.orderId, status: r.status }));
+    return res.json({ revenues: items, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total/limit)) } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'revenues_failed' }); }
+});
+adminRest.get('/finance/revenues/export/csv', async (_req, res) => {
+  const rows = await db.payment.findMany({ orderBy: { createdAt: 'desc' }, take: 1000 });
+  const items = rows.map(r=> ({ id: r.id, date: r.createdAt.toISOString(), method: r.method, amount: r.amount, status: r.status }));
+  const parser = new CsvParser({ fields: ['id','date','method','amount','status'] });
+  const csv = parser.parse(items);
+  res.setHeader('Content-Type','text/csv');
+  res.setHeader('Content-Disposition','attachment; filename="revenues.csv"');
+  res.send(csv);
+});
+
+// Finance: Invoices
+adminRest.get('/finance/invoices', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, Number(req.query.page||1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit||20)));
+    const skip = (page-1)*limit;
+    const status = (req.query.status as string|undefined) || undefined;
+    const where: any = {};
+    if (status === 'PAID') where.payment = { is: { status: 'COMPLETED' } };
+    if (status === 'DUE') where.payment = { is: { status: { in: ['PENDING','FAILED'] } } };
+    const [orders, total] = await Promise.all([
+      db.order.findMany({ where, include: { user: true, payment: true }, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      db.order.count({ where })
+    ]);
+    const items = orders.map(o=> ({ number: `INV-${o.id.slice(0,8).toUpperCase()}`, orderId: o.id, customer: o.user?.email||'', amount: o.total, status: o.payment?.status||'PENDING' }));
+    return res.json({ invoices: items, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total/limit)) } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'invoices_failed' }); }
+});
+adminRest.post('/finance/invoices/settle', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { orderId } = req.body||{}; if (!orderId) return res.status(400).json({ error:'orderId_required' });
+    const exists = await db.payment.findUnique({ where: { orderId } });
+    if (exists) await db.payment.update({ where: { orderId }, data: { status: 'COMPLETED' } });
+    else await db.payment.create({ data: { orderId, amount: (await db.order.findUnique({ where: { id: orderId } }))?.total||0, method: 'CASH_ON_DELIVERY', status: 'COMPLETED' } });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'settle_failed' }); }
+});
+
+// Finance: Suppliers ledger (demo from PurchaseOrder table if exists)
+adminRest.get('/finance/suppliers-ledger', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const vendorId = (req.query.vendorId as string|undefined) || undefined;
+    // Attempt to query raw POS tables; tolerate absence
+    let rows: any[] = [];
+    try {
+      if (vendorId) rows = await db.$queryRaw<any[]>`SELECT p.id, p."createdAt" as date, COALESCE(p.total,0) as amount FROM "PurchaseOrder" p WHERE p."vendorId"=${vendorId} ORDER BY p."createdAt" DESC LIMIT 200`;
+      else rows = await db.$queryRaw<any[]>`SELECT p.id, p."createdAt" as date, COALESCE(p.total,0) as amount FROM "PurchaseOrder" p ORDER BY p."createdAt" DESC LIMIT 200`;
+    } catch {}
+    const ledger = rows.map(r=> ({ date: r.date, description: `PO-${String(r.id).slice(0,6)}`, debit: 0, credit: Number(r.amount||0) }));
+    let balance = 0; const withBal = ledger.map((l: any)=> { balance += (l.credit||0)-(l.debit||0); return { ...l, balance }; });
+    return res.json({ ledger: withBal });
+  } catch (e:any) { res.status(500).json({ error: e.message||'suppliers_ledger_failed' }); }
+});
+
+// Finance: Gateways logs (derived from payments)
+adminRest.get('/finance/gateways/logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const gateway = (req.query.gateway as string|undefined) || undefined;
+    const where: any = {}; if (gateway) where.method = gateway as any;
+    const logs = await db.payment.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 });
+    const items = logs.map(l=> ({ at: l.createdAt, gateway: l.method||'UNKNOWN', amount: l.amount, fee: Number((l.amount||0)*0.03).toFixed(2), status: l.status }));
+    return res.json({ logs: items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'gateways_logs_failed' }); }
+});
 // Drivers
 adminRest.get('/drivers', async (req, res) => {
   try {
