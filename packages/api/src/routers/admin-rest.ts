@@ -1000,6 +1000,31 @@ adminRest.get('/logistics/pickup/export/csv', async (req, res) => {
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="pickup.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_failed' }); }
 });
+adminRest.get('/logistics/pickup/export/xls', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const status = String(req.query.status||'waiting').toLowerCase();
+    let where = '';
+    if (status === 'waiting') where = `WHERE p.status='SUBMITTED'`;
+    else if (status === 'completed') where = `WHERE p.status='RECEIVED'`;
+    const rows: any[] = status === 'in_progress'
+      ? await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
+         (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
+         (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS') LIMIT 1) as "driverName"
+       FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
+       WHERE p.status='SUBMITTED' AND EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS'))
+       ORDER BY p."createdAt" DESC`
+      : await db.$queryRawUnsafe(`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
+         (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
+         (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' ORDER BY s."createdAt" DESC LIMIT 1) as "driverName"
+       FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
+       ${where}
+       ORDER BY p."createdAt" DESC`);
+    const parser = new CsvParser({ fields: ['id','vendorName','vendorAddress','status','driverName','itemsCount','createdAt'] });
+    const csv = parser.parse(rows.map((r:any)=> ({ id: r.id, vendorName: r.vendorName||'', vendorAddress: r.vendorAddress||'', status: r.status, driverName: r.driverName||'', itemsCount: Number(r.itemsCount||0), createdAt: (r.createdAt||'') })));
+    res.setHeader('Content-Type','application/vnd.ms-excel'); res.setHeader('Content-Disposition','attachment; filename="pickup.xls"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_xls_failed' }); }
+});
 adminRest.get('/logistics/pickup/export/pdf', async (_req, res) => {
   try {
     res.setHeader('Content-Type','application/pdf');
@@ -1129,6 +1154,16 @@ adminRest.get('/logistics/delivery/export/csv', async (req, res) => {
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="delivery.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'delivery_export_failed' }); }
 });
+adminRest.get('/logistics/delivery/export/xls', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const tab = String(req.query.tab||'ready').toLowerCase();
+    const fields = tab==='ready' ? ['orderId','customer','address','total'] : tab==='in_delivery' ? ['orderId','driver','status','updatedAt'] : tab==='completed' ? ['orderId','deliveredAt','paymentStatus'] : ['returnId','createdAt','reason'];
+    const parser = new CsvParser({ fields });
+    const csv = parser.parse([]);
+    res.setHeader('Content-Type','application/vnd.ms-excel'); res.setHeader('Content-Disposition','attachment; filename="delivery.xls"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'delivery_export_xls_failed' }); }
+});
 adminRest.get('/logistics/delivery/export/pdf', async (req, res) => {
   try {
     const tab = String(req.query.tab||'ready').toLowerCase();
@@ -1167,6 +1202,32 @@ adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
     const csv = parser.parse(rows);
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="warehouse.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_export_failed' }); }
+});
+adminRest.get('/logistics/warehouse/export/xls', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const tab = String(req.query.tab||'inbound').toLowerCase();
+    let rows: any[] = [];
+    let fields: string[] = [];
+    if (tab === 'inbound') {
+      rows = await db.$queryRawUnsafe(`SELECT s.id as shipmentId, d.name as "driverName", s."createdAt" as arrivedAt, s.status
+        FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId"
+        WHERE s."legType"='INBOUND' AND s."status" IN ('SCHEDULED','IN_PROGRESS','COMPLETED')
+        ORDER BY s."createdAt" DESC`);
+      fields = ['shipmentId','driverName','arrivedAt','status'];
+    } else if (tab === 'sorting') {
+      rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt" as updatedAt
+        FROM "Package" p WHERE p.status IN ('INBOUND','PACKED') ORDER BY p."updatedAt" DESC`);
+      fields = ['packageId','barcode','status','updatedAt'];
+    } else {
+      rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt"
+        FROM "Package" p WHERE p.status='READY' ORDER BY p."updatedAt" DESC`);
+      fields = ['packageId','barcode','status','updatedAt'];
+    }
+    const parser = new CsvParser({ fields });
+    const csv = parser.parse(rows);
+    res.setHeader('Content-Type','application/vnd.ms-excel'); res.setHeader('Content-Disposition','attachment; filename="warehouse.xls"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_export_xls_failed' }); }
 });
 
 // Driver locations (live snapshot from Driver table lat/lng)

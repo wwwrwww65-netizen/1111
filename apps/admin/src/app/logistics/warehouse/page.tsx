@@ -37,6 +37,7 @@ export default function WarehousePage(): JSX.Element {
         <button className={`btn btn-sm ${tab==='sorting'?'':'btn-outline'}`} onClick={()=> setTab('sorting')}>الفرز والجرد</button>
         <button className={`btn btn-sm ${tab==='ready'?'':'btn-outline'}`} onClick={()=> setTab('ready')}>جاهز للتسليم</button>
         <a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/warehouse/export/csv?tab=${tab}`}>تصدير CSV</a>
+        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/warehouse/export/xls?tab=${tab}`}>تصدير Excel</a>
       </div>
 
       {tab==='inbound' && (

@@ -49,6 +49,7 @@ export default function DeliveryPage(): JSX.Element {
         <button className={`btn btn-sm ${tab==='completed'?'':'btn-outline'}`} onClick={()=> setTab('completed')}>مكتمل</button>
         <button className={`btn btn-sm ${tab==='returns'?'':'btn-outline'}`} onClick={()=> setTab('returns')}>مرتجعات</button>
         <a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/delivery/export/csv?tab=${tab}`}>تصدير CSV</a>
+        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/delivery/export/xls?tab=${tab}`}>تصدير Excel</a>
         <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/delivery/export/pdf?tab=${tab}`}>تصدير PDF</a>
       </div>
 

@@ -38,6 +38,7 @@ export default function PickupPage(): JSX.Element {
         <button className={`btn btn-sm ${tab==='in_progress'?'':'btn-outline'}`} onClick={()=> setTab('in_progress')}>قيد التنفيذ</button>
         <button className={`btn btn-sm ${tab==='completed'?'':'btn-outline'}`} onClick={()=> setTab('completed')}>مكتمل</button>
         <a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/pickup/export/csv?status=${tab}`}>تصدير CSV</a>
+        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/pickup/export/xls?status=${tab}`}>تصدير Excel</a>
       </div>
 
       <div className="mt-4" style={{ display:'flex', gap:12, alignItems:'center' }}>
