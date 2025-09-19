@@ -78,7 +78,7 @@ async function ensureSchema(): Promise<void> {
       'CREATE TABLE IF NOT EXISTS "PurchaseOrder" ('+
       '"id" TEXT PRIMARY KEY,'+
       '"vendorId" TEXT NULL,'+
-      '"status" TEXT NOT NULL DEFAULT "DRAFT",'+
+      '\"status\" TEXT NOT NULL DEFAULT '\''DRAFT'\'', '+
       '"total" DOUBLE PRECISION DEFAULT 0,'+
       '"notes" TEXT NULL,'+
       '"createdAt" TIMESTAMP DEFAULT NOW(),'+
