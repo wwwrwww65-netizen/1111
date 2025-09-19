@@ -66,25 +66,34 @@ if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
 fi
 
 # Ensure Next.js standalone bundles have their static assets next to server.js
-# Using next start, static will be served from .next directly; no manual copy needed
+# Ensure standalone static assets are available (copy to both plausible locations)
+if [ -d "$ROOT_DIR/apps/admin/.next/static" ] && [ -d "$ROOT_DIR/apps/admin/.next/standalone" ]; then
+  mkdir -p "$ROOT_DIR/apps/admin/.next/standalone/.next"
+  rsync -a "$ROOT_DIR/apps/admin/.next/static" "$ROOT_DIR/apps/admin/.next/standalone/.next/" || true
+  if [ -d "$ROOT_DIR/apps/admin/.next/standalone/apps/admin" ]; then
+    mkdir -p "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next"
+    rsync -a "$ROOT_DIR/apps/admin/.next/static" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next/" || true
+    cp -r "$ROOT_DIR/apps/admin/public" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/" 2>/dev/null || true
+  fi
+fi
+if [ -d "$ROOT_DIR/apps/web/.next/static" ] && [ -d "$ROOT_DIR/apps/web/.next/standalone" ]; then
+  mkdir -p "$ROOT_DIR/apps/web/.next/standalone/.next"
+  rsync -a "$ROOT_DIR/apps/web/.next/static" "$ROOT_DIR/apps/web/.next/standalone/.next/" || true
+  cp -r "$ROOT_DIR/apps/web/public" "$ROOT_DIR/apps/web/.next/standalone/" 2>/dev/null || true
+fi
 
 # Ensure systemd ExecStart points to actual server.js paths for Next.js apps
 # Ensure systemd ExecStart uses next start with correct working directory
-if [ -f /etc/systemd/system/ecom-admin.service ]; then
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001|" /etc/systemd/system/ecom-admin.service || true
-  if grep -q '^WorkingDirectory=' /etc/systemd/system/ecom-admin.service; then
-    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/admin|" /etc/systemd/system/ecom-admin.service || true
-  else
-    sed -i -E "/^\[Service\]/a WorkingDirectory=$ROOT_DIR/apps/admin" /etc/systemd/system/ecom-admin.service || true
-  fi
+# Use Next.js standalone server.js for admin and web
+ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
+WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
+if [ -n "$ADMIN_JS" ] && [ -f /etc/systemd/system/ecom-admin.service ]; then
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
+  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|" /etc/systemd/system/ecom-admin.service || true
 fi
-if [ -f /etc/systemd/system/ecom-web.service ]; then
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000|" /etc/systemd/system/ecom-web.service || true
-  if grep -q '^WorkingDirectory=' /etc/systemd/system/ecom-web.service; then
-    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/web|" /etc/systemd/system/ecom-web.service || true
-  else
-    sed -i -E "/^\[Service\]/a WorkingDirectory=$ROOT_DIR/apps/web" /etc/systemd/system/ecom-web.service || true
-  fi
+if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $WEB_JS|" /etc/systemd/system/ecom-web.service || true
+  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|" /etc/systemd/system/ecom-web.service || true
 fi
 
 systemctl daemon-reload || true
