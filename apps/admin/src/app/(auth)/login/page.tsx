@@ -40,7 +40,15 @@ export default function AdminLogin(): JSX.Element {
         if (m) { try { token = decodeURIComponent(m[1]); } catch { token = m[1]; } }
       }
       const params = new URLSearchParams(window.location.search);
-      const redirectTo = params.get('next') || '/';
+      const rawNext = params.get('next') || '/';
+      // Sanitize next: allow only same-origin targets; fallback to '/'
+      let redirectTo = '/';
+      try {
+        const u = new URL(rawNext, window.location.origin);
+        redirectTo = (u.origin === window.location.origin)
+          ? (u.pathname + (u.search || '') + (u.hash || ''))
+          : '/';
+      } catch { redirectTo = '/'; }
       // Robust bridge: redirect to same-origin bridge that sets HttpOnly cookie then forwards
       const bridge = new URL('/bridge', window.location.origin);
       if (token) {
