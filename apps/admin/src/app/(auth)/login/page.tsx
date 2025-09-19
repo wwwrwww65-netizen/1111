@@ -39,32 +39,27 @@ export default function AdminLogin(): JSX.Element {
         const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
         if (m) { try { token = decodeURIComponent(m[1]); } catch { token = m[1]; } }
       }
-      if (!token) {
-        // Some browsers block reading cookie immediately; verify session server-side
-        const sess = await fetch(`${apiBase}/api/admin/auth/sessions`, { credentials:'include', cache:'no-store' });
-        if (!sess.ok) {
-          const msg = 'فشل تسجيل الدخول';
-          setError(msg);
-          setToast(msg);
-          setTimeout(()=> setToast(""), 4000);
-          return;
-        }
-      }
-      if (token) {
-        // Bridge token to Host-only cookie + JS cookie for stability
-        await fetch('/api/auth/set', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token, remember })
-        }).catch(()=>{});
-        const parts = [ `auth_token=${token}`, 'Path=/', 'SameSite=Lax' ];
-        if (remember) parts.push(`Max-Age=${30*24*60*60}`);
-        if (typeof window !== 'undefined' && window.location.protocol === 'https:') parts.push('Secure');
-        document.cookie = parts.join('; ');
-      }
       const params = new URLSearchParams(window.location.search);
       const redirectTo = params.get('next') || '/';
-      window.location.href = redirectTo;
+      // Robust bridge: redirect to same-origin bridge that sets HttpOnly cookie then forwards
+      const bridge = new URL('/(auth)/bridge', window.location.origin);
+      if (token) {
+        bridge.searchParams.set('token', token);
+        if (remember) bridge.searchParams.set('remember', 'true');
+        bridge.searchParams.set('next', redirectTo);
+        window.location.href = bridge.toString();
+        return;
+      }
+      // Fallback to session check
+      const sess = await fetch(`${apiBase}/api/admin/auth/sessions`, { credentials:'include', cache:'no-store' });
+      if (sess.ok) {
+        window.location.href = redirectTo;
+      } else {
+        const msg = 'فشل تسجيل الدخول';
+        setError(msg);
+        setToast(msg);
+        setTimeout(()=> setToast(""), 4000);
+      }
     } catch {
       const msg = 'خطأ غير متوقع';
       setError(msg);
