@@ -267,6 +267,16 @@ jobs:
               fi
             done
 
+      - name: Admin console production smoke (pages + login)
+        env:
+          ADMIN_URL: https://admin.jeeey.com
+          API_URL: https://api.jeeey.com
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        run: |
+          set -e
+          node scripts/ci/admin-console-prod-smoke.mjs
+
       - name: Print service logs (admin & web)
         if: always()
         uses: appleboy/ssh-action@v1.0.3
