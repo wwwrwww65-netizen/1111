@@ -1,10 +1,15 @@
 "use client";
 import React from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { AccountMenu } from "./AccountMenu";
 
 export function AppShell({ children }: { children: React.ReactNode }): JSX.Element {
+  const pathname = usePathname();
+  if (pathname === '/login' || pathname.startsWith('/(auth)')) {
+    return <>{children}</>;
+  }
   const [open, setOpen] = React.useState(false);
   const [desktopOpen, setDesktopOpen] = React.useState<boolean>(true);
   const [isDesktop, setIsDesktop] = React.useState<boolean>(() => {
