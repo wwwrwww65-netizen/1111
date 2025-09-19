@@ -241,6 +241,15 @@ jobs:
           done
           node scripts/ci/admin-console-smoke.mjs
           kill -9 $(cat /tmp/admin.pid) 2>/dev/null || true
+      - name: API login smoke (local)
+        run: |
+          set -e
+          node packages/api/dist/index.js & echo $! > /tmp/api.pid
+          sleep 3
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/health | grep -q 200
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:4000/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}') || true
+          kill -9 $(cat /tmp/api.pid) 2>/dev/null || true
+          if [ "$STATUS" != "200" ]; then echo "Login smoke failed with status $STATUS"; exit 1; fi
 
   deploy_staging:
     name: Deploy to Staging

@@ -1261,6 +1261,12 @@ adminRest.post('/auth/logout', async (req, res) => {
   } catch { res.json({ success: true }); }
 });
 
+adminRest.get('/auth/whoami', async (req, res) => {
+  const user = (req as any).user as { userId: string; email?: string; role?: string } | undefined;
+  if (!user) return res.status(401).json({ authenticated: false });
+  res.json({ authenticated: true, user });
+});
+
 adminRest.get('/auth/sessions', async (req, res) => {
   const user = (req as any).user as { userId: string } | undefined;
   if (!user) return res.status(401).json({ error: 'unauthenticated' });
