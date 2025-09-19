@@ -17,7 +17,8 @@ export default function RegisterPage(): JSX.Element {
     setError(null);
     try {
       await register.mutateAsync({ name, email, phone, password });
-      window.location.href = "/account";
+      const dest = new URL('/account', window.location.origin).toString();
+      window.location.assign(dest);
     } catch (e: any) {
       setError(e?.message || "فشل إنشاء الحساب");
     }
