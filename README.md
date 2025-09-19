@@ -264,6 +264,32 @@ For support and questions:
 - للفرع `feature/admin-non-product-modules` يوجد وركفلو خاص: `.github/workflows/ci-admin.yml` يقوم بـ migration-run-check و seed-run-check (admin-only) ثم build/lint/tests/E2E (Placeholder).
 - تشغيل يدوي: Actions > CI / CD > CI - Admin Modules.
 
+### إصلاحات تسجيل الدخول والتوجيه ونتائج النشر
+
+- منع إعادة كتابة الروابط إلى 0.0.0.0:
+  - Web (`apps/web`): بعد نجاح التسجيل/الدخول نعيد التوجيه لمسار مطلق آمن باستخدام `window.location.origin` إلى `/account`.
+  - Admin (`apps/admin`): بعد النجاح نضبط الكوكي عبر نقطة داخلية `POST /api/auth/set` ثم نوجّه داخلياً إلى `/` (إزالة أي توجيه خارجي/bridge محتمل).
+  - تنقية `next` بحيث يسمح بمسارات نفس الأصل فقط.
+  - `resolveApiBase()` يزيل لاحقة `/trpc` إن وُجدت في `NEXT_PUBLIC_API_BASE_URL`.
+
+- النشر (Deploy to VPS) يتحقق تلقائياً من:
+  - صحة `/register` (200) وخلو HTML/مخرجات build من أي روابط `0.0.0.0`.
+  - مسار دخول الأدمن end-to-end (تسجيل الدخول، ضبط الكوكي، whoami).
+  - فحص CRUD للأدمن: `ensure-rbac` و`grant-admin` ثم `users/list` وإنشاء Vendor/User تجريبيين. أي فشل يوقف النشر ويطبع السبب.
+
+- Secrets المطلوبة في GitHub:
+  - `JWT_SECRET`, `MAINTENANCE_SECRET`
+  - `DATABASE_URL`, `DIRECT_URL`
+  - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
+  - `SSH_PRIVATE_KEY`, `VPS_HOST`, `VPS_PORT`, `VPS_USER`
+  - (اختياري) `SENTRY_DSN`, `STRIPE_*`, `CLOUDINARY_URL`
+
+- Variables (vars) المفضّلة لغير الحساسة:
+  - `COOKIE_DOMAIN`, `CORS_ALLOW_ORIGINS`
+  - `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_URL`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_TRPC_URL`
+
+بعد ضبط القيم أعلاه، يصبح ضبط الدخول والإنشاء عبر لوحة التحكم مستقراً ومتوافقاً مع الإنتاج، ويتم التقاط الأخطاء تلقائياً في ورْكفلو النشر.
+
 ## 🔐 Admin Credentials (Seed)
 
 - Email: `admin@example.com`
