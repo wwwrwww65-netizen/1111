@@ -185,10 +185,10 @@ jobs:
             echo '--- Restart admin service to load latest build ---'
             systemctl reset-failed ecom-admin || true
             systemctl try-restart ecom-admin || true
-            echo '--- Wait for admin to listen on 3001 (local) ---'
+            echo '--- Wait for admin to serve /login on 3001 (local) ---'
             ok=0
             for i in $(seq 1 40); do
-              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/ || true)
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)
               if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then
                 echo "admin local ok: $code"; ok=1; break
               fi
@@ -198,6 +198,15 @@ jobs:
               echo 'Admin did not become ready locally. Recent logs:'
               journalctl -u ecom-admin --no-pager -n 200 || true
               exit 1
+            fi
+            echo '--- Verify static chunk is served by app ---'
+            CHUNK=$(find "$ROOT/apps/admin/.next/static" -type f -name '*.js' -printf '%P\n' | head -n1 || true)
+            if [ -n "$CHUNK" ]; then
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3001/_next/static/$CHUNK" || true)
+              echo "static chunk status: $code"
+              [ "$code" = "200" ] || { echo "Static chunk not served"; exit 1; }
+            else
+              echo 'No static chunks found locally'; exit 1
             fi
             echo '--- Restart web service to load latest build ---'
             systemctl reset-failed ecom-web || true
