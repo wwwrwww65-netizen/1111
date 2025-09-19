@@ -54,6 +54,14 @@ server {
     proxy_pass http://127.0.0.1:4000;
   }
 
+  # Serve Next.js static assets directly if present
+  location ~* ^/_next/static/ {
+    alias /var/www/ecom/apps/admin/.next/standalone/apps/admin/.next/static/;
+    access_log off;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    try_files $uri =404;
+  }
+
   location / {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

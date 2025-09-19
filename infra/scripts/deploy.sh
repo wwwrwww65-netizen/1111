@@ -65,6 +65,21 @@ if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
   (cd "$ROOT_DIR/packages/api" && ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" node scripts/upsert-admin.js) || true
 fi
 
+# Ensure Next.js standalone bundles have their static assets next to server.js
+# Admin static assets
+if [ -d "$ROOT_DIR/apps/admin/.next/static" ] && [ -d "$ROOT_DIR/apps/admin/.next/standalone/apps/admin" ]; then
+  mkdir -p "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next"
+  rsync -a "$ROOT_DIR/apps/admin/.next/static" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/.next/" || true
+  # also copy public as safety
+  cp -r "$ROOT_DIR/apps/admin/public" "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/" 2>/dev/null || true
+fi
+# Web static assets
+if [ -d "$ROOT_DIR/apps/web/.next/static" ] && [ -d "$ROOT_DIR/apps/web/.next/standalone" ]; then
+  mkdir -p "$ROOT_DIR/apps/web/.next/standalone/.next"
+  rsync -a "$ROOT_DIR/apps/web/.next/static" "$ROOT_DIR/apps/web/.next/standalone/.next/" || true
+  cp -r "$ROOT_DIR/apps/web/public" "$ROOT_DIR/apps/web/.next/standalone/" 2>/dev/null || true
+fi
+
 # Ensure systemd ExecStart points to actual server.js paths for Next.js apps
 ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
 WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
