@@ -1117,7 +1117,7 @@ adminRest.get('/logistics/delivery/export/pdf', async (req, res) => {
     doc.pipe(res);
     doc.fontSize(16).text(`Delivery Export (${tab})`, { align:'center' });
     doc.moveDown();
-    doc.fontSize(12).text('Placeholder PDF');
+    doc.fontSize(12).text('Placeholder PDF.');
     doc.end();
   } catch (e:any) { res.status(500).json({ error: e.message||'delivery_export_pdf_failed' }); }
 });
@@ -2192,4 +2192,17 @@ adminRest.post('/pos/:id/receive', async (req, res) => {
     await db.$executeRaw`UPDATE "PurchaseOrder" SET status=${'RECEIVED'}, "updatedAt"=NOW() WHERE id=${id}`;
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'pos_receive_failed' }); }
+});
+
+// Suggest drivers (naive ranking by active in_delivery count)
+adminRest.get('/logistics/delivery/suggest-drivers', async (_req, res) => {
+  try {
+    const drivers = await db.driver.findMany({ orderBy: { name: 'asc' } });
+    const ranked = await Promise.all(drivers.map(async (d:any)=>{
+      const active = await db.order.count({ where: { assignedDriverId: d.id, status: { in: ['SHIPPED'] } } });
+      return { id: d.id, name: d.name, load: active };
+    }));
+    ranked.sort((a,b)=> a.load - b.load);
+    res.json({ drivers: ranked });
+  } catch (e:any) { res.status(500).json({ error: e.message||'suggest_failed' }); }
 });
