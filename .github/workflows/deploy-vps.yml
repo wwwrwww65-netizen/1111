@@ -341,9 +341,9 @@ jobs:
           command_timeout: 40m
           script: |
             set -Eeuo pipefail
-            EMAIL=${ADMIN_EMAIL:-admin@example.com}
-            PASS=${ADMIN_PASSWORD:-admin123}
-            SECRET=${MAINTENANCE_SECRET:-}
+            EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
+            PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
+            SECRET='${{ secrets.MAINTENANCE_SECRET }}'
             if [ -z "$SECRET" ]; then echo 'MAINTENANCE_SECRET is empty'; exit 1; fi
             CJ=$(mktemp)
             echo '--- Login (JSON) ---'
