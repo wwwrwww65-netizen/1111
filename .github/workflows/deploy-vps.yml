@@ -330,6 +330,45 @@ jobs:
             echo
             echo '--- Done ---'
 
+      - name: Post-deploy admin CRUD smoke (RBAC, grant-admin, users, vendor, user)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          timeout: 60s
+          command_timeout: 40m
+          script: |
+            set -Eeuo pipefail
+            EMAIL=${ADMIN_EMAIL:-admin@example.com}
+            PASS=${ADMIN_PASSWORD:-admin123}
+            SECRET=${MAINTENANCE_SECRET:-}
+            if [ -z "$SECRET" ]; then echo 'MAINTENANCE_SECRET is empty'; exit 1; fi
+            CJ=$(mktemp)
+            echo '--- Login (JSON) ---'
+            JSON=$(printf '{"email":"%s","password":"%s","remember":true}' "$EMAIL" "$PASS")
+            CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/login.body -c "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "$JSON" || true)
+            head -n 2 /tmp/login.body | sed -n '1,2p'
+            [ "$CODE" = "200" ] || { echo "login failed: $CODE"; cat /tmp/login.body; exit 1; }
+            echo '--- Ensure RBAC ---'
+            RB=$(curl -k -sS -H "x-maintenance-secret: $SECRET" -X POST https://api.jeeey.com/api/admin/maintenance/ensure-rbac || true)
+            echo "$RB" | sed -n '1,40p'
+            echo '--- Grant admin ---'
+            GA=$(curl -k -sS -H "x-maintenance-secret: $SECRET" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/maintenance/grant-admin --data "{\"email\":\"$EMAIL\"}" || true)
+            echo "$GA" | sed -n '1,60p'
+            echo '--- Users list (first 5) ---'
+            UL=$(curl -k -sS -b "$CJ" 'https://api.jeeey.com/api/admin/users/list?page=1&limit=5' || true)
+            echo "$UL" | sed -n '1,80p'
+            echo '--- Create vendor (smoke) ---'
+            VEND=$(curl -k -sS -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/vendors --data '{"name":"Deploy Smoke Vendor"}' || true)
+            echo "$VEND" | sed -n '1,80p'
+            echo '--- Create user (smoke) ---'
+            TS=$(date +%s)
+            CUSR=$(curl -k -sS -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/users --data "{\"email\":\"deploy+${TS}@local\",\"password\":\"Temp#12345\",\"name\":\"Deploy User\"}" || true)
+            echo "$CUSR" | sed -n '1,120p'
+            echo '--- CRUD smoke done ---'
+
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
         with:
