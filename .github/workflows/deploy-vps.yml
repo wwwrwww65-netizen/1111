@@ -259,6 +259,28 @@ jobs:
               echo '.env.api missing; skipping login.'
             fi
             set -e
+      - name: Post-deploy verify registration page and no 0.0.0.0
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          timeout: 60s
+          command_timeout: 20m
+          script: |
+            set -e
+            echo '--- Verify registration page (200) ---'
+            code=$(curl -k -s -o /dev/null -w '%{http_code}' https://jeeey.com/register || true)
+            echo "register status: $code"
+            if [ "$code" != "200" ]; then
+              echo 'Registration page did not return 200'; exit 1; fi
+            echo '--- Grep built outputs for 0.0.0.0 (should be none) ---'
+            if (grep -R "0.0.0.0" -n /var/www/ecom/apps/web/.next 2>/dev/null || true) | head -n1 | grep -q "0.0.0.0"; then
+              echo 'Found 0.0.0.0 in web build output'; exit 1; fi
+            if (grep -R "0.0.0.0" -n /var/www/ecom/apps/admin/.next 2>/dev/null || true) | head -n1 | grep -q "0.0.0.0"; then
+              echo 'Found 0.0.0.0 in admin build output'; exit 1; fi
+
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
         with:
