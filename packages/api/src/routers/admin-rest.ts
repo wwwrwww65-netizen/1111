@@ -1301,6 +1301,61 @@ adminRest.get('/drivers/export/csv', async (req, res) => {
     res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="drivers.csv"'); res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'drivers_export_failed' }); }
 });
+// Driver ping (update live location/status)
+adminRest.post('/drivers/ping', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'drivers.update'))) return res.status(403).json({ error:'forbidden' });
+    const { driverId, lat, lng, status } = req.body || {};
+    if (!driverId) return res.status(400).json({ error: 'driverId_required' });
+    const d = await db.driver.update({ where: { id: driverId }, data: { ...(typeof lat==='number' && { lat }), ...(typeof lng==='number' && { lng }), ...(status && { status }), lastSeenAt: new Date() } });
+    try { await db.driverLocation.create({ data: { driverId, lat: Number(lat)||0, lng: Number(lng)||0 } }); } catch {}
+    await audit(req, 'drivers', 'ping', { driverId, lat, lng, status });
+    res.json({ ok: true, driver: d });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_ping_failed' }); }
+});
+
+// Driver ledger
+adminRest.get('/drivers/:id/ledger', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const items = await db.driverLedgerEntry.findMany({ where: { driverId: id }, orderBy: { createdAt: 'desc' } });
+    const balance = items.reduce((acc, it)=> acc + (it.type==='CREDIT'? it.amount : -it.amount), 0);
+    res.json({ entries: items, balance });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_ledger_failed' }); }
+});
+adminRest.post('/drivers/:id/ledger', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const { amount, type, note } = req.body || {};
+    const amt = Number(amount); if (!Number.isFinite(amt)) return res.status(400).json({ error:'amount_invalid' });
+    if (type!=='CREDIT' && type!=='DEBIT') return res.status(400).json({ error:'type_invalid' });
+    const entry = await db.driverLedgerEntry.create({ data: { driverId: id, amount: amt, type, note: note||null } });
+    await audit(req, 'drivers', 'ledger_add', { id, amount: amt, type });
+    res.json({ entry });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_ledger_add_failed' }); }
+});
+
+// Driver documents
+adminRest.get('/drivers/:id/documents', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const docs = await db.driverDocument.findMany({ where: { driverId: id }, orderBy: { createdAt: 'desc' } });
+    res.json({ documents: docs });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_docs_failed' }); }
+});
+adminRest.post('/drivers/:id/documents', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const { docType, url, base64, expiresAt } = req.body || {};
+    let finalUrl: string | undefined = url;
+    if (!finalUrl && base64) {
+      if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error: 'cloudinary_not_configured' });
+      const uploaded = await cloudinary.uploader.upload(base64, { folder: 'driver-docs' });
+      finalUrl = uploaded.secure_url;
+    }
+    if (!finalUrl) return res.status(400).json({ error:'url_or_base64_required' });
+    const doc = await db.driverDocument.create({ data: { driverId: id, docType: String(docType||'DOC'), url: finalUrl, expiresAt: expiresAt? new Date(String(expiresAt)) : null } });
+    await audit(req, 'drivers', 'document_add', { id, docType });
+    res.json({ document: doc });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_doc_add_failed' }); }
+});
 adminRest.get('/drivers/export/xls', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
     const rows = await db.driver.findMany({ orderBy: { name: 'asc' } });
@@ -1329,8 +1384,8 @@ adminRest.post('/drivers', async (req, res) => {
 });
 adminRest.patch('/drivers/:id', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.update'))) return res.status(403).json({ error:'forbidden' });
-    const { id } = req.params; const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {};
-    const d = await db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }), ...(address !== undefined && { address }), ...(nationalId !== undefined && { nationalId }), ...(vehicleType !== undefined && { vehicleType }), ...(ownership !== undefined && { ownership }), ...(notes !== undefined && { notes }), ...(lat !== undefined && { lat }), ...(lng !== undefined && { lng }) } });
+    const { id } = req.params; const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng, plateNumber, rating } = req.body || {};
+    const d = await db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }), ...(address !== undefined && { address }), ...(nationalId !== undefined && { nationalId }), ...(vehicleType !== undefined && { vehicleType }), ...(ownership !== undefined && { ownership }), ...(notes !== undefined && { notes }), ...(lat !== undefined && { lat }), ...(lng !== undefined && { lng }), ...(plateNumber !== undefined && { plateNumber }), ...(rating !== undefined && { rating }) } });
     await audit(req, 'drivers', 'update', { id }); res.json({ driver: d });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_update_failed' }); }
 });
