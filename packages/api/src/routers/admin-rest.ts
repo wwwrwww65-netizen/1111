@@ -1291,6 +1291,7 @@ async function ensureDriversSchema(): Promise<void> {
 adminRest.get('/drivers', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
+    await ensureDriversSchema();
     const q = (req.query.q as string | undefined) || undefined;
     const status = (req.query.status as string | undefined) || undefined; // AVAILABLE/BUSY/OFFLINE/DISABLED/all
     const veh = (req.query.veh as string | undefined) || undefined;
@@ -1308,18 +1309,7 @@ adminRest.get('/drivers', async (req, res) => {
     if (status && status !== 'ALL') {
       if (status === 'DISABLED') where.isActive = false; else where.status = status;
     }
-    let list;
-    try {
-      list = await db.driver.findMany({ where, orderBy: { name: 'asc' } });
-    } catch (e:any) {
-      const msg = String(e?.message||'').toLowerCase();
-      if (msg.includes('does not exist') || msg.includes('undefined_table') || (msg.includes('relation') && msg.includes('driver'))) {
-        await ensureDriversSchema();
-        list = await db.driver.findMany({ where, orderBy: { name: 'asc' } });
-      } else {
-        throw e;
-      }
-    }
+    const list = await db.driver.findMany({ where, orderBy: { name: 'asc' } });
     res.json({ drivers: list });
   } catch (e:any) { res.status(500).json({ error: e.message || 'drivers_list_failed' }); }
 });
@@ -1409,17 +1399,9 @@ adminRest.get('/drivers/export/pdf', async (req, res) => {
 });
 adminRest.post('/drivers', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.create'))) return res.status(403).json({ error:'forbidden' });
+    await ensureDriversSchema();
     const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {}; if (!name) return res.status(400).json({ error: 'name_required' });
-    let d;
-    try {
-      d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
-    } catch (e:any) {
-      const msg = String(e?.message||'').toLowerCase();
-      if (msg.includes('does not exist') || msg.includes('undefined_table') || (msg.includes('relation') && msg.includes('driver'))) {
-        await ensureDriversSchema();
-        d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
-      } else { throw e; }
-    }
+    const d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
     await audit(req, 'drivers', 'create', { id: d.id }); res.json({ driver: d });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_create_failed' }); }
 });
