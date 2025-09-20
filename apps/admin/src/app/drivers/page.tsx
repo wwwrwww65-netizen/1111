@@ -17,6 +17,7 @@ export default function DriversPage(): JSX.Element {
   const mapObjRef = React.useRef<any>(null);
   const markersRef = React.useRef<any[]>([]);
   const [focusedId, setFocusedId] = React.useState<string>('');
+  const [msg, setMsg] = React.useState<string>('');
   // Add modal fields
   const [name, setName] = React.useState('');
   const [phone, setPhone] = React.useState('');
@@ -35,11 +36,18 @@ export default function DriversPage(): JSX.Element {
   }, []);
 
   async function load(){
-    const url = new URL(`${apiBase}/api/admin/drivers`);
-    if (q) url.searchParams.set('q', q);
-    if (status) url.searchParams.set('status', status);
-    if (veh) url.searchParams.set('veh', veh);
-    const j = await (await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setRows(j.drivers||[]);
+    try {
+      setMsg('');
+      const url = new URL(`${apiBase}/api/admin/drivers`);
+      if (q) url.searchParams.set('q', q);
+      if (status) url.searchParams.set('status', status);
+      if (veh) url.searchParams.set('veh', veh);
+      const resp = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+      if (!resp.ok) { setMsg(`فشل تحميل السائقين (${resp.status})`); setRows([]); return; }
+      const j = await resp.json(); setRows(j.drivers||[]);
+    } catch (e:any) {
+      setMsg('تعذر الاتصال بالخادم'); setRows([]);
+    }
   }
   React.useEffect(()=>{ load(); },[apiBase, q, status, veh]);
 
@@ -114,12 +122,18 @@ export default function DriversPage(): JSX.Element {
   }
 
   async function add(){
-    if (!name.trim()) return;
-    const payload: any = { name, phone, address: address||undefined, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
-    await fetch(`${apiBase}/api/admin/drivers`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
-    setName(''); setPhone(''); setAddress(''); setNationalId(''); setVehicleType(''); setOwnership(''); setNotes('');
-    setShowAdd(false);
-    await load();
+    setMsg('');
+    if (!name.trim()) { setMsg('أدخل اسم السائق'); return; }
+    const payload: any = { name, phone, isActive: true, status: 'AVAILABLE', address: address||undefined, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
+    try {
+      const resp = await fetch(`${apiBase}/api/admin/drivers`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
+      if (!resp.ok) { const txt = await resp.text().catch(()=> ''); setMsg(`تعذر الإضافة (${resp.status}) ${txt.slice(0,120)}`); return; }
+      setName(''); setPhone(''); setAddress(''); setNationalId(''); setVehicleType(''); setOwnership(''); setNotes('');
+      setShowAdd(false);
+      await load();
+    } catch {
+      setMsg('تعذر الاتصال بالخادم أثناء الإضافة');
+    }
   }
 
   return (
@@ -150,6 +164,7 @@ export default function DriversPage(): JSX.Element {
           <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/pdf`}>PDF</a>
         </div>
       </div>
+      {msg && <div className="panel" style={{ color:'#fca5a5', marginBottom:8 }}>{msg}</div>}
 
       {view==='list' && (
         <div style={{ overflowX:'auto' }}>
