@@ -8,8 +8,7 @@ export default function DriversPage(): JSX.Element {
   const [q, setQ] = React.useState('');
   const [status, setStatus] = React.useState<'ALL'|'AVAILABLE'|'BUSY'|'OFFLINE'|'DISABLED'>('ALL');
   const [veh, setVeh] = React.useState<string>('ALL');
-  const [view, setView] = React.useState<'list'|'map'>('list');
-  const [showAdd, setShowAdd] = React.useState(false);
+  const [tab, setTab] = React.useState<'list'|'map'|'add'>('list');
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [sortBy, setSortBy] = React.useState<'name'|'phone'|'vehicleType'|'status'>('name');
   const [sortDir, setSortDir] = React.useState<'asc'|'desc'>('asc');
@@ -55,7 +54,7 @@ export default function DriversPage(): JSX.Element {
   React.useEffect(()=>{
     let cancelled = false;
     async function ensureMap(){
-      if (view !== 'map') return;
+      if (tab !== 'map') return;
       if (!mapRef.current) return;
       if (!(window as any).maplibregl) {
         const link = document.createElement('link'); link.rel='stylesheet'; link.href='https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css'; document.head.appendChild(link);
@@ -69,11 +68,11 @@ export default function DriversPage(): JSX.Element {
     }
     ensureMap();
     return ()=> { cancelled = true; };
-  }, [view]);
+  }, [tab]);
 
   // Update markers when rows or filters change
   React.useEffect(()=>{
-    if (view !== 'map') return;
+    if (tab !== 'map') return;
     if (!mapObjRef.current || !(window as any).maplibregl) return;
     for (const m of markersRef.current) { try { m.remove(); } catch {} }
     markersRef.current = [];
@@ -96,7 +95,7 @@ export default function DriversPage(): JSX.Element {
       markersRef.current.push(mk);
       if (!firstSet) { try { mapObjRef.current.easeTo({ center: [d.lng, d.lat], zoom: 9 }); } catch {} firstSet=true; }
     }
-  }, [rows, q, status, veh, view]);
+  }, [rows, q, status, veh, tab]);
 
   function toggleAll(checked: boolean){
     const next: Record<string, boolean> = {};
@@ -138,35 +137,34 @@ export default function DriversPage(): JSX.Element {
 
   return (
     <main className="panel">
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-        <h1 style={{ margin:0 }}>السائقون</h1>
-        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <button className="btn" onClick={()=> setShowAdd(true)}>إضافة سائق</button>
-          <input className="input" placeholder="بحث: اسم/هاتف/لوحة/مهمة" value={q} onChange={(e)=> setQ(e.target.value)} style={{ minWidth:240 }} />
-          <select className="select" value={status} onChange={(e)=> setStatus(e.target.value as any)}>
-            <option value="ALL">كل الحالات</option>
-            <option value="AVAILABLE">🟢 متاح</option>
-            <option value="BUSY">🟡 قيد التوصيل</option>
-            <option value="OFFLINE">🔴 غير متصل</option>
-            <option value="DISABLED">⛔ معطل</option>
-          </select>
-          <select className="select" value={veh} onChange={(e)=> setVeh(e.target.value)}>
-            <option value="ALL">كل المركبات</option>
-            <option value="دراجة نارية">دراجة نارية</option>
-            <option value="دباب نقل">دباب نقل</option>
-          </select>
-          <div className="btn-group">
-            <button className={`btn btn-sm ${view==='list'?'':'btn-outline'}`} onClick={()=> setView('list')}>قائمة</button>
-            <button className={`btn btn-sm ${view==='map'?'':'btn-outline'}`} onClick={()=> setView('map')}>خريطة</button>
-          </div>
-          <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/csv`}>CSV</a>
-          <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/xls`}>Excel</a>
-          <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/pdf`}>PDF</a>
+      <div style={{ display:'grid', placeItems:'center', marginBottom:8 }}>
+        <div className="btn-group">
+          <button className={`btn btn-sm ${tab==='list'?'':'btn-outline'}`} onClick={()=> setTab('list')}>القائمة</button>
+          <button className={`btn btn-sm ${tab==='map'?'':'btn-outline'}`} onClick={()=> setTab('map')}>الخريطة</button>
+          <button className={`btn btn-sm ${tab==='add'?'':'btn-outline'}`} onClick={()=> setTab('add')}>إضافة سائق</button>
         </div>
+      </div>
+      <div style={{ display:'flex', gap:8, alignItems:'center', justifyContent:'center', marginBottom:12 }}>
+        <input className="input" placeholder="بحث: اسم/هاتف/لوحة/مهمة" value={q} onChange={(e)=> setQ(e.target.value)} style={{ minWidth:260 }} />
+        <select className="select" value={status} onChange={(e)=> setStatus(e.target.value as any)}>
+          <option value="ALL">كل الحالات</option>
+          <option value="AVAILABLE">🟢 متاح</option>
+          <option value="BUSY">🟡 قيد التوصيل</option>
+          <option value="OFFLINE">🔴 غير متصل</option>
+          <option value="DISABLED">⛔ معطل</option>
+        </select>
+        <select className="select" value={veh} onChange={(e)=> setVeh(e.target.value)}>
+          <option value="ALL">كل المركبات</option>
+          <option value="دراجة نارية">دراجة نارية</option>
+          <option value="دباب نقل">دباب نقل</option>
+        </select>
+        <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/csv`}>CSV</a>
+        <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/xls`}>Excel</a>
+        <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/pdf`}>PDF</a>
       </div>
       {msg && <div className="panel" style={{ color:'#fca5a5', marginBottom:8 }}>{msg}</div>}
 
-      {view==='list' && (
+      {tab==='list' && (
         <div style={{ overflowX:'auto' }}>
           <table className="table">
             <thead><tr>
@@ -217,7 +215,7 @@ export default function DriversPage(): JSX.Element {
           </div>
         </div>
       )}
-      {view==='map' && (
+      {tab==='map' && (
         <div className="grid" style={{ gridTemplateColumns:'1fr 320px', gap:12, alignItems:'stretch' }}>
           <div className="panel" style={{ height: 420, padding:0 }}>
             <div ref={mapRef} style={{ width:'100%', height:'100%', borderRadius:8 }} />
@@ -250,35 +248,27 @@ export default function DriversPage(): JSX.Element {
         </div>
       )}
 
-      {showAdd && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <div className="modal-header">
-              <div>إضافة سائق</div>
-              <button className="btn btn-sm btn-outline" onClick={()=> setShowAdd(false)}>إغلاق</button>
-            </div>
-            <div className="modal-body">
-              <div className="grid" style={{ gridTemplateColumns:'repeat(2,1fr)', gap:12 }}>
-                <input className="input" placeholder="اسم السائق" value={name} onChange={(e)=>setName(e.target.value)} />
-                <input className="input" placeholder="رقم الهاتف" value={phone} onChange={(e)=>setPhone(e.target.value)} />
-                <input className="input" placeholder="عنوان السكن" value={address} onChange={(e)=>setAddress(e.target.value)} />
-                <input className="input" placeholder="البطاقة الشخصية" value={nationalId} onChange={(e)=>setNationalId(e.target.value)} />
-                <select className="select" value={vehicleType} onChange={(e)=> setVehicleType(e.target.value as any)}>
-                  <option value="">نوع المركبة</option>
-                  <option value="دراجة نارية">دراجة نارية</option>
-                  <option value="دباب نقل">دباب نقل</option>
-                </select>
-                <select className="select" value={ownership} onChange={(e)=> setOwnership(e.target.value as any)}>
-                  <option value="">ملكية المركبة</option>
-                  <option value="company">ملك الشركة</option>
-                  <option value="driver">ملك السائق</option>
-                </select>
-                <input className="input" placeholder="ملاحظات" value={notes} onChange={(e)=>setNotes(e.target.value)} />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn" onClick={add}>حفظ</button>
-            </div>
+      {tab==='add' && (
+        <div className="panel" style={{ marginTop:8 }}>
+          <div className="grid" style={{ gridTemplateColumns:'repeat(2,1fr)', gap:12 }}>
+            <input className="input" placeholder="اسم السائق" value={name} onChange={(e)=>setName(e.target.value)} />
+            <input className="input" placeholder="رقم الهاتف" value={phone} onChange={(e)=>setPhone(e.target.value)} />
+            <input className="input" placeholder="عنوان السكن" value={address} onChange={(e)=>setAddress(e.target.value)} />
+            <input className="input" placeholder="البطاقة الشخصية" value={nationalId} onChange={(e)=>setNationalId(e.target.value)} />
+            <select className="select" value={vehicleType} onChange={(e)=> setVehicleType(e.target.value as any)}>
+              <option value="">نوع المركبة</option>
+              <option value="دراجة نارية">دراجة نارية</option>
+              <option value="دباب نقل">دباب نقل</option>
+            </select>
+            <select className="select" value={ownership} onChange={(e)=> setOwnership(e.target.value as any)}>
+              <option value="">ملكية المركبة</option>
+              <option value="company">ملك الشركة</option>
+              <option value="driver">ملك السائق</option>
+            </select>
+            <input className="input" placeholder="ملاحظات" value={notes} onChange={(e)=>setNotes(e.target.value)} />
+          </div>
+          <div style={{ marginTop:8 }}>
+            <button className="btn" onClick={add}>حفظ</button>
           </div>
         </div>
       )}
