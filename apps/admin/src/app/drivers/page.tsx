@@ -13,6 +13,10 @@ export default function DriversPage(): JSX.Element {
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [sortBy, setSortBy] = React.useState<'name'|'phone'|'vehicleType'|'status'>('name');
   const [sortDir, setSortDir] = React.useState<'asc'|'desc'>('asc');
+  const mapRef = React.useRef<HTMLDivElement|null>(null);
+  const mapObjRef = React.useRef<any>(null);
+  const markersRef = React.useRef<any[]>([]);
+  const [focusedId, setFocusedId] = React.useState<string>('');
   // Add modal fields
   const [name, setName] = React.useState('');
   const [phone, setPhone] = React.useState('');
@@ -38,6 +42,53 @@ export default function DriversPage(): JSX.Element {
     const j = await (await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setRows(j.drivers||[]);
   }
   React.useEffect(()=>{ load(); },[apiBase, q, status, veh]);
+
+  // Ensure MapLibre on map view
+  React.useEffect(()=>{
+    let cancelled = false;
+    async function ensureMap(){
+      if (view !== 'map') return;
+      if (!mapRef.current) return;
+      if (!(window as any).maplibregl) {
+        const link = document.createElement('link'); link.rel='stylesheet'; link.href='https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css'; document.head.appendChild(link);
+        await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js'; s.onload=()=> resolve(); document.body.appendChild(s); });
+      }
+      if (cancelled) return;
+      if (!mapObjRef.current && (window as any).maplibregl) {
+        const maplibregl = (window as any).maplibregl;
+        mapObjRef.current = new maplibregl.Map({ container: mapRef.current!, style: 'https://demotiles.maplibre.org/style.json', center: [46.6753, 24.7136], zoom: 6 });
+      }
+    }
+    ensureMap();
+    return ()=> { cancelled = true; };
+  }, [view]);
+
+  // Update markers when rows or filters change
+  React.useEffect(()=>{
+    if (view !== 'map') return;
+    if (!mapObjRef.current || !(window as any).maplibregl) return;
+    for (const m of markersRef.current) { try { m.remove(); } catch {} }
+    markersRef.current = [];
+    const maplibregl = (window as any).maplibregl;
+    const filtered = rows.filter((d:any)=>{
+      const t = (q||'').trim();
+      const passQ = !t || [d.name,d.phone,d.plateNumber].some((x:string)=> String(x||'').toLowerCase().includes(t.toLowerCase()));
+      const passStatus = status==='ALL' ? true : (status==='DISABLED' ? d.isActive===false : (d.status===status));
+      const passVeh = veh==='ALL' ? true : d.vehicleType===veh;
+      return passQ && passStatus && passVeh;
+    });
+    let firstSet = false;
+    for (const d of filtered) {
+      if (typeof d.lng !== 'number' || typeof d.lat !== 'number') continue;
+      const el = document.createElement('div'); el.style.width='12px'; el.style.height='12px'; el.style.borderRadius='50%'; el.style.cursor='pointer';
+      el.style.background = (d.isActive===false)? '#6b7280' : (d.status==='AVAILABLE'? '#22c55e' : d.status==='BUSY'? '#f59e0b' : '#ef4444');
+      el.title = d.name || '';
+      const mk = new maplibregl.Marker({ element: el }).setLngLat([d.lng, d.lat]).addTo(mapObjRef.current);
+      el.onclick = ()=> { setFocusedId(d.id); try { mapObjRef.current.easeTo({ center: [d.lng, d.lat], zoom: Math.max(10, mapObjRef.current.getZoom()) }); } catch {} };
+      markersRef.current.push(mk);
+      if (!firstSet) { try { mapObjRef.current.easeTo({ center: [d.lng, d.lat], zoom: 9 }); } catch {} firstSet=true; }
+    }
+  }, [rows, q, status, veh, view]);
 
   function toggleAll(checked: boolean){
     const next: Record<string, boolean> = {};
@@ -152,8 +203,35 @@ export default function DriversPage(): JSX.Element {
         </div>
       )}
       {view==='map' && (
-        <div className="panel" style={{ height: 420, display:'grid', placeItems:'center', color:'var(--sub)', border:'1px solid var(--muted)', borderRadius: 8 }}>
-          عرض الخريطة قيد الإعداد (Map view)
+        <div className="grid" style={{ gridTemplateColumns:'1fr 320px', gap:12, alignItems:'stretch' }}>
+          <div className="panel" style={{ height: 420, padding:0 }}>
+            <div ref={mapRef} style={{ width:'100%', height:'100%', borderRadius:8 }} />
+          </div>
+          <div className="panel" style={{ height: 420, overflowY:'auto' }}>
+            <h3 style={{ marginTop:0 }}>السائقون على الخريطة</h3>
+            <div style={{ display:'grid', gap:8 }}>
+              {rows.filter((d:any)=>{
+                const t = (q||'').trim();
+                const passQ = !t || [d.name,d.phone,d.plateNumber].some((x:string)=> String(x||'').toLowerCase().includes(t.toLowerCase()));
+                const passStatus = status==='ALL' ? true : (status==='DISABLED' ? d.isActive===false : (d.status===status));
+                const passVeh = veh==='ALL' ? true : d.vehicleType===veh;
+                return passQ && passStatus && passVeh;
+              }).map((d:any)=> (
+                <div key={d.id} className={`card ${focusedId===d.id?'active':''}`} style={{ display:'grid', gap:4, padding:8, border:'1px solid var(--muted)', borderRadius:8 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div style={{ fontWeight:600 }}>{d.name}</div>
+                    <span className="badge">{d.isActive===false?'⛔ معطل': (d.status||'-')}</span>
+                  </div>
+                  <div style={{ color:'var(--sub)', fontSize:12 }}>{d.phone||'-'} • {d.vehicleType||'-'}</div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button className="btn btn-sm" onClick={()=> { setFocusedId(d.id); if (typeof d.lng==='number' && typeof d.lat==='number') { try { mapObjRef.current.easeTo({ center:[d.lng,d.lat], zoom: Math.max(11, mapObjRef.current.getZoom()) }); } catch {} } }}>تركيز</button>
+                    <a className="btn btn-sm btn-outline" href={`tel:${d.phone||''}`}>اتصال</a>
+                    <a className="btn btn-sm btn-outline" href={`/drivers/${d.id}`}>تفاصيل</a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
