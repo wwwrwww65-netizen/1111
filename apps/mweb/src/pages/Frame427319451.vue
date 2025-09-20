@@ -1,8 +1,7 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319451</h1>
-      <p>Figma: Document / APP_DELEVRY / تفاصيل الطالب_العميل / Frame 427319447 / Frame 427319452 / Frame 427319451 (id: 2928:1047)</p>
+    <div style="position:absolute;left:956px;top:4886px;width:47px;height:16px">
+      <div style="position:absolute;left:955px;top:4886px;width:48px;height:16px;background:rgba(112, 112, 112, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:14px;line-height:16px;color:rgba(112, 112, 112, 1)">الكمية: 4</div>
     </div>
   </div>
 </template>

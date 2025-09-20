@@ -1,8 +1,7 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 2</h1>
-      <p>Figma: Document / ICON / Icon/General / Security / Styles / Frame 2 (id: 1823:50265)</p>
+    <div style="display:flex;flex-direction:row;gap:16px;align-items:center;position:absolute;left:2107px;top:9409px;width:131px;height:28px">
+      <div style="position:absolute;left:2107px;top:9409px;width:131px;height:28px;background:rgba(41, 45, 50, 1);font-family:'Plus Jakarta Sans', Tajawal, system-ui, sans-serif;font-weight:700;font-size:32px;line-height:28px;color:rgba(41, 45, 50, 1)">Security</div>
     </div>
   </div>
 </template>

@@ -1,8 +1,7 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">thumbtack 3</h1>
-      <p>Figma: Document / Dashboard / thumbtack 3 (id: 1491:1777)</p>
+    <div style="overflow:hidden;position:absolute;left:-10206px;top:4833px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="min-width:24px;min-height:24px;background:rgba(138, 21, 56, 1)">Vector</div>
     </div>
   </div>
 </template>

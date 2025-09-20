@@ -1,9 +1,6 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319281</h1>
-      <p>Figma: Document / ui / عملية البحث / Frame 427319491 / Frame 427319285 / Frame 427319320 / Frame 427319281 (id: 129:3865)</p>
-    </div>
+    <div style="position:absolute;left:-3589px;top:16px;width:125px;height:16px">Frame 427319281</div>
   </div>
 </template>
 

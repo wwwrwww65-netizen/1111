@@ -1,8 +1,11 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319505</h1>
-      <p>Figma: Document / ui / حسابي / Frame 427319508 / Frame 427319505 (id: 187:3772)</p>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center;position:absolute;left:-97px;top:10077px;width:75px;height:60px">
+      <div style="overflow:hidden;position:absolute;left:-71px;top:10077px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="min-width:24px;min-height:18px;background:rgba(0, 0, 0, 1)">Vector</div>
+    </div>
+      <div style="align-self:stretch;position:absolute;left:-97px;top:10105px;width:75px;height:32px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:16px;color:rgba(0, 0, 0, 1)">مركز التجربة 
+المجانية </div>
     </div>
   </div>
 </template>

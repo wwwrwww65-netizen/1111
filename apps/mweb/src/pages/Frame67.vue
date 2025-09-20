@@ -1,8 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 67</h1>
-      <p>Figma: Document / Dashboard / Rectangle 50 / Property 1=Variant2 / Frame 67 (id: 1939:7763)</p>
+    <div style="min-width:10px;min-height:7px">
+      <div style="min-width:7px;min-height:7px">Line 2</div>
+      <div style="min-width:2px;min-height:3px">Line 3</div>
     </div>
   </div>
 </template>

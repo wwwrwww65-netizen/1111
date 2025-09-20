@@ -1,8 +1,7 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">measuring-tape 1</h1>
-      <p>Figma: Document / Dashboard / الاعدادات / Frame 1000003635 / Frame 1000003634 / measuring-tape 1 (id: 2212:10105)</p>
+    <div style="overflow:hidden;position:absolute;left:-187px;top:16701px;width:32px;height:32px;background:rgba(255, 255, 255, 1)">
+      <div style="min-width:32px;min-height:29px;background:rgba(92, 92, 92, 1)">Vector</div>
     </div>
   </div>
 </template>

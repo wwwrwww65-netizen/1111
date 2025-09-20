@@ -1,8 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319340</h1>
-      <p>Figma: Document / ui / الفلاترة / Frame 427319343 / Frame 427319342 / Frame 427319340 (id: 11:1533)</p>
+    <div style="position:absolute;left:-1750px;top:-424px;width:37px;height:19px">
+      <div style="position:absolute;left:-1750px;top:-424px;width:37px;height:18px;background:rgba(255, 255, 255, 1)">Rectangle 1145</div>
+      <div style="position:absolute;left:-1744px;top:-423px;width:24px;height:16px;background:rgba(112, 112, 112, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:12px;line-height:16px;color:rgba(112, 112, 112, 1)">شارع</div>
     </div>
   </div>
 </template>

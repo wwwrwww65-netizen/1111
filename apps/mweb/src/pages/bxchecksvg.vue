@@ -1,8 +1,7 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">bx-check.svg</h1>
-      <p>Figma: Document / Dashboard / ادارة الطلبات / عرض التفاصيل / Frame 1000003514 / Frame 1000003480 / Stepper / Content / Step Success / bx-check.svg (id: I1611:3298;2:1720)</p>
+    <div style="overflow:hidden;position:absolute;left:3182px;top:5056px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="min-width:14px;min-height:11px;background:rgba(255, 255, 255, 1)">Vector</div>
     </div>
   </div>
 </template>

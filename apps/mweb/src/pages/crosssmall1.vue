@@ -1,8 +1,7 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">cross-small 1</h1>
-      <p>Figma: Document / Dashboard / ادارة الكميات / Frame 79 / Frame 78 / Frame 58 / cross-small 1 (id: I2158:3431;1921:7147)</p>
+    <div style="overflow:hidden;position:absolute;left:-2709px;top:1271px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="min-width:13px;min-height:13px;background:rgba(255, 255, 255, 1)">Vector</div>
     </div>
   </div>
 </template>

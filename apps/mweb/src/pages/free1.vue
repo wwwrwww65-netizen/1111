@@ -1,8 +1,7 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">free 1</h1>
-      <p>Figma: Document / ui / حسابي / Frame 427319508 / Frame 427319505 / free 1 (id: 187:3773)</p>
+    <div style="overflow:hidden;position:absolute;left:-71px;top:10077px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="min-width:24px;min-height:18px;background:rgba(0, 0, 0, 1)">Vector</div>
     </div>
   </div>
 </template>

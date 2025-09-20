@@ -1,8 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003430</h1>
-      <p>Figma: Document / Dashboard / المنتجات / المنتجات / Frame 49 / Frame 48 / Frame 42 / Frame 57 / Frame 1000003430 (id: 1356:1334)</p>
+    <div style="position:absolute;left:-722px;top:1487px;width:47px;height:27px">
+      <div style="min-width:47px;min-height:27px;border-radius:13.5px;background:rgba(237, 33, 21, 1)">Rectangle</div>
+      <div style="min-width:22px;min-height:15px;background:rgba(255, 255, 255, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:10px;line-height:15px;color:rgba(255, 255, 255, 1)">موفق</div>
     </div>
   </div>
 </template>
