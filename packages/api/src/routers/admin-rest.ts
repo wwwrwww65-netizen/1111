@@ -1267,6 +1267,27 @@ adminRest.get('/logistics/warehouse/export/pdf', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'warehouse_export_pdf_failed' }); }
 });
 // Drivers
+async function ensureDriversSchema(): Promise<void> {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Driver" (\n'+
+      '"id" TEXT PRIMARY KEY,\n"name" TEXT NOT NULL,\n"phone" TEXT NULL,\n"isActive" BOOLEAN DEFAULT TRUE,\n"status" TEXT DEFAULT \''+ 'AVAILABLE' +'\',\n"location" TEXT NULL,\n"address" TEXT NULL,\n"nationalId" TEXT NULL,\n"vehicleType" TEXT NULL,\n"ownership" TEXT NULL,\n"notes" TEXT NULL,\n"lat" DOUBLE PRECISION NULL,\n"lng" DOUBLE PRECISION NULL,\n"plateNumber" TEXT NULL,\n"rating" DOUBLE PRECISION NULL,\n"lastSeenAt" TIMESTAMP NULL,\n"createdAt" TIMESTAMP DEFAULT NOW(),\n"updatedAt" TIMESTAMP DEFAULT NOW()\n)');
+  } catch {}
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DriverLocation" (\n'+
+      '"id" TEXT PRIMARY KEY,\n"driverId" TEXT NOT NULL,\n"lat" DOUBLE PRECISION NOT NULL,\n"lng" DOUBLE PRECISION NOT NULL,\n"speed" DOUBLE PRECISION NULL,\n"heading" DOUBLE PRECISION NULL,\n"ts" TIMESTAMP DEFAULT NOW()\n)');
+    await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DriverLocation_driverId_fkey') THEN ALTER TABLE \"DriverLocation\" ADD CONSTRAINT \"DriverLocation_driverId_fkey\" FOREIGN KEY (\"driverId\") REFERENCES \"Driver\"(\"id\") ON DELETE CASCADE; END IF; END $$;");
+  } catch {}
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DriverLedgerEntry" (\n'+
+      '"id" TEXT PRIMARY KEY,\n"driverId" TEXT NOT NULL,\n"amount" DOUBLE PRECISION NOT NULL,\n"type" TEXT NOT NULL,\n"note" TEXT NULL,\n"createdAt" TIMESTAMP DEFAULT NOW()\n)');
+    await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DriverLedgerEntry_driverId_fkey') THEN ALTER TABLE \"DriverLedgerEntry\" ADD CONSTRAINT \"DriverLedgerEntry_driverId_fkey\" FOREIGN KEY (\"driverId\") REFERENCES \"Driver\"(\"id\") ON DELETE CASCADE; END IF; END $$;");
+  } catch {}
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DriverDocument" (\n'+
+      '"id" TEXT PRIMARY KEY,\n"driverId" TEXT NOT NULL,\n"docType" TEXT NOT NULL,\n"url" TEXT NOT NULL,\n"expiresAt" TIMESTAMP NULL,\n"createdAt" TIMESTAMP DEFAULT NOW()\n)');
+    await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DriverDocument_driverId_fkey') THEN ALTER TABLE \"DriverDocument\" ADD CONSTRAINT \"DriverDocument_driverId_fkey\" FOREIGN KEY (\"driverId\") REFERENCES \"Driver\"(\"id\") ON DELETE CASCADE; END IF; END $$;");
+  } catch {}
+}
 adminRest.get('/drivers', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
@@ -1287,7 +1308,18 @@ adminRest.get('/drivers', async (req, res) => {
     if (status && status !== 'ALL') {
       if (status === 'DISABLED') where.isActive = false; else where.status = status;
     }
-    const list = await db.driver.findMany({ where, orderBy: { name: 'asc' } });
+    let list;
+    try {
+      list = await db.driver.findMany({ where, orderBy: { name: 'asc' } });
+    } catch (e:any) {
+      const msg = String(e?.message||'').toLowerCase();
+      if (msg.includes('does not exist') || msg.includes('undefined_table') || (msg.includes('relation') && msg.includes('driver'))) {
+        await ensureDriversSchema();
+        list = await db.driver.findMany({ where, orderBy: { name: 'asc' } });
+      } else {
+        throw e;
+      }
+    }
     res.json({ drivers: list });
   } catch (e:any) { res.status(500).json({ error: e.message || 'drivers_list_failed' }); }
 });
@@ -1378,7 +1410,16 @@ adminRest.get('/drivers/export/pdf', async (req, res) => {
 adminRest.post('/drivers', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.create'))) return res.status(403).json({ error:'forbidden' });
     const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {}; if (!name) return res.status(400).json({ error: 'name_required' });
-    const d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
+    let d;
+    try {
+      d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
+    } catch (e:any) {
+      const msg = String(e?.message||'').toLowerCase();
+      if (msg.includes('does not exist') || msg.includes('undefined_table') || (msg.includes('relation') && msg.includes('driver'))) {
+        await ensureDriversSchema();
+        d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
+      } else { throw e; }
+    }
     await audit(req, 'drivers', 'create', { id: d.id }); res.json({ driver: d });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_create_failed' }); }
 });
