@@ -5,7 +5,7 @@ import { resolveApiBase } from "../../lib/apiBase";
 export default function VendorOverviewPage({ params }: { params: { id: string } }): JSX.Element {
   const { id } = params;
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
-  const [tab, setTab] = React.useState<'info'|'products'|'orders'|'invoices'|'ledger'|'docs'>('info');
+  const [tab, setTab] = React.useState<'info'|'products'|'orders'|'invoices'|'ledger'|'docs'| 'scorecard'>('info');
   const [data, setData] = React.useState<any>(null);
   const [ledger, setLedger] = React.useState<{ entries:any[]; balance:number }>({ entries:[], balance:0 });
   const [docs, setDocs] = React.useState<any[]>([]);
@@ -15,7 +15,10 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
   const [docType, setDocType] = React.useState('Contract');
   const [docExpiry, setDocExpiry] = React.useState('');
   const [docFile, setDocFile] = React.useState('');
+  const [vendorOrders, setVendorOrders] = React.useState<any[]>([]);
+  const [orderLines, setOrderLines] = React.useState<any[]|null>(null);
   React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/${id}/overview`, { credentials:'include' }).then(r=>r.json()).then(setData); },[apiBase,id]);
+  React.useEffect(()=>{ if(tab==='orders'){ fetch(`${apiBase}/api/admin/vendors/${id}/orders`, { credentials:'include' }).then(r=>r.json()).then(j=> setVendorOrders(j.orders||[])); } },[apiBase,id,tab]);
   React.useEffect(()=>{ if(tab==='ledger'){ fetch(`${apiBase}/api/admin/vendors/${id}/ledger`, { credentials:'include' }).then(r=>r.json()).then(j=> setLedger({ entries:j.entries||[], balance:j.balance||0 })); } },[apiBase,id,tab]);
   React.useEffect(()=>{ if(tab==='docs'){ fetch(`${apiBase}/api/admin/vendors/${id}/documents`, { credentials:'include' }).then(r=>r.json()).then(j=> setDocs(j.documents||[])); } },[apiBase,id,tab]);
   if (!data) return <main>Loading…</main>;
@@ -44,6 +47,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
           <button className={`btn btn-sm ${tab==='invoices'?'':'btn-outline'}`} onClick={()=> setTab('invoices')}>الفواتير والمدفوعات</button>
           <button className={`btn btn-sm ${tab==='ledger'?'':'btn-outline'}`} onClick={()=> setTab('ledger')}>الحساب المالي</button>
           <button className={`btn btn-sm ${tab==='docs'?'':'btn-outline'}`} onClick={()=> setTab('docs')}>الوثائق</button>
+          <button className={`btn btn-sm ${tab==='scorecard'?'':'btn-outline'}`} onClick={()=> setTab('scorecard')}>التقارير والتنبيهات</button>
         </div>
       </div>
 
@@ -78,15 +82,49 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
 
       {tab==='orders' && (
       <>
-      <h2 style={{ margin:'12px 0' }}>طلبات المورد</h2>
+      <h2 style={{ margin:'12px 0' }}>طلبات المورد (PO/GRN)</h2>
+      <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/orders/export/xls`}>تصدير Excel</a>
+        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/orders/export/pdf`}>تصدير PDF</a>
+      </div>
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
-        <thead><tr><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>#</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الحالة</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الإجمالي</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>التاريخ</th></tr></thead>
+        <thead><tr>
+          <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>#</th>
+          <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الحالة</th>
+          <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>المطلوب</th>
+          <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>المستلم</th>
+          <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الإجمالي</th>
+          <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>التاريخ</th>
+          <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>تفاصيل</th>
+        </tr></thead>
         <tbody>
-          {orders.map((o:any)=> (
-            <tr key={o.id}><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.id.slice(0,6)}</td><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.status}</td><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.total}</td><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{new Date(o.createdAt).toLocaleString()}</td></tr>
+          {vendorOrders.map((o:any)=> (
+            <tr key={o.orderId}>
+              <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{String(o.orderId).slice(0,6)}</td>
+              <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.status}</td>
+              <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.requestedQty}</td>
+              <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.receivedQty}</td>
+              <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.total}</td>
+              <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{new Date(o.createdAt).toLocaleString()}</td>
+              <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>
+                <button className="btn btn-xs" onClick={async()=>{ const j = await (await fetch(`${apiBase}/api/admin/vendors/${id}/orders/detail?orderId=${o.orderId}`, { credentials:'include' })).json(); setOrderLines(j.lines||[]); }}>عرض</button>
+              </td>
+            </tr>
           ))}
         </tbody>
       </table>
+      {orderLines && (
+        <div className="panel" style={{ marginTop:12 }}>
+          <h3 style={{ marginTop:0 }}>تفاصيل الطلب</h3>
+          <table className="table">
+            <thead><tr><th>المنتج</th><th>SKU</th><th>المطلوب</th><th>المستلم</th></tr></thead>
+            <tbody>
+              {orderLines.map((l:any)=> (<tr key={l.productId}><td>{l.name}</td><td>{l.sku||'-'}</td><td>{l.requestedQty}</td><td>{l.receivedQty}</td></tr>))}
+            </tbody>
+          </table>
+          <div style={{ textAlign:'left' }}><button className="btn btn-sm btn-outline" onClick={()=> setOrderLines(null)}>إغلاق</button></div>
+        </div>
+      )}
       </>
       )}
 
@@ -151,7 +189,51 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
           </table>
         </div>
       )}
+
+      {tab==='scorecard' && (
+        <div className="panel" style={{ marginTop:12 }}>
+          <h3 style={{ marginTop:0 }}>التقارير والتنبيهات</h3>
+          <Scorecard id={id} apiBase={apiBase} />
+          <Notifications id={id} apiBase={apiBase} />
+        </div>
+      )}
     </main>
+  );
+}
+
+function Scorecard({ id, apiBase }: { id: string; apiBase: string }) {
+  const [m, setM] = React.useState<any>(null);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/${id}/scorecard`, { credentials:'include' }).then(r=>r.json()).then(setM); },[apiBase,id]);
+  if (!m) return <div>Loading…</div>;
+  return (
+    <div className="grid" style={{ gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:12 }}>
+      <div className="panel">إجمالي الطلبات: {m.ordersCount}</div>
+      <div className="panel">تم التسليم: {m.deliveredCount}</div>
+      <div className="panel">ملغي: {m.cancelledCount}</div>
+      <div className="panel">عمر متوسط (ساعات): {Number(m.avgAgeHours||0).toFixed(1)}</div>
+    </div>
+  );
+}
+
+function Notifications({ id, apiBase }: { id: string; apiBase: string }) {
+  const [list, setList] = React.useState<any[]>([]);
+  const [message, setMessage] = React.useState('');
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/${id}/notifications`, { credentials:'include' }).then(r=>r.json()).then(j=> setList(j.notifications||[])); },[apiBase,id]);
+  return (
+    <div>
+      <div className="grid" style={{ gridTemplateColumns:'1fr auto', gap:8, marginBottom:8 }}>
+        <input className="input" placeholder="رسالة فورية" value={message} onChange={(e)=> setMessage(e.target.value)} />
+        <button className="btn btn-sm" onClick={async()=>{ if(!message) return; await fetch(`${apiBase}/api/admin/vendors/${id}/notifications`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ message }) }); setMessage(''); const j= await (await fetch(`${apiBase}/api/admin/vendors/${id}/notifications`, { credentials:'include' })).json(); setList(j.notifications||[]); }}>إرسال</button>
+      </div>
+      <table className="table">
+        <thead><tr><th>التاريخ</th><th>الحدث</th><th>تفاصيل</th></tr></thead>
+        <tbody>
+          {list.length ? list.map((n:any, idx:number)=> (
+            <tr key={n.id || idx}><td>{n.createdAt ? new Date(n.createdAt).toLocaleString() : '-'}</td><td>{n.action || n.channel || '-'}</td><td><pre style={{ whiteSpace:'pre-wrap' }}>{typeof n.details==='object'? JSON.stringify(n.details) : (n.message || '-') }</pre></td></tr>
+          )) : (<tr><td colSpan={3}>لا توجد تنبيهات</td></tr>)}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

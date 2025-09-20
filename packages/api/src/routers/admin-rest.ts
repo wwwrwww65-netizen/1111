@@ -1961,6 +1961,134 @@ adminRest.get('/vendors/:id/export/pdf', async (req, res) => {
     doc.end();
   } catch (e:any) { return res.status(500).json({ error: e.message||'vendor_export_pdf_failed' }); }
 });
+
+// Vendor orders (PO/GRN style) - list and detail
+adminRest.get('/vendors/:id/orders', async (req, res) => {
+  try {
+    const { id } = req.params; const safeId = id.replace(/'/g, "''");
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT o.id AS "orderId", o.status, o.total, o."createdAt",
+             SUM(oi.quantity) AS "requestedQty",
+             0::int AS "receivedQty",
+             COUNT(oi.id) AS lines
+      FROM "Order" o
+      JOIN "OrderItem" oi ON oi."orderId" = o.id
+      JOIN "Product" pr ON pr.id = oi."productId"
+      WHERE pr."vendorId"='${safeId}'
+      GROUP BY o.id
+      ORDER BY o."createdAt" DESC
+      LIMIT 100`);
+    res.json({ orders: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_orders_failed' }); }
+});
+
+adminRest.get('/vendors/:id/orders/detail', async (req, res) => {
+  try {
+    const { id } = req.params; const { orderId } = req.query as { orderId?: string };
+    if (!orderId) return res.status(400).json({ error: 'orderId_required' });
+    const safeId = id.replace(/'/g, "''"); const safeOrder = String(orderId).replace(/'/g, "''");
+    const lines: any[] = await db.$queryRawUnsafe(`
+      SELECT pr.id AS "productId", pr.name, pr.sku,
+             SUM(oi.quantity) AS "requestedQty",
+             0::int AS "receivedQty"
+      FROM "OrderItem" oi
+      JOIN "Product" pr ON pr.id = oi."productId"
+      WHERE oi."orderId"='${safeOrder}' AND pr."vendorId"='${safeId}'
+      GROUP BY pr.id, pr.name, pr.sku
+      ORDER BY pr.name ASC`);
+    res.json({ lines });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_order_detail_failed' }); }
+});
+
+adminRest.get('/vendors/:id/orders/export/xls', async (req, res) => {
+  try {
+    const { id } = req.params; const safeId = id.replace(/'/g, "''");
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT o.id AS "orderId", o.status, o.total, o."createdAt",
+             SUM(oi.quantity) AS "requestedQty",
+             0::int AS "receivedQty"
+      FROM "Order" o
+      JOIN "OrderItem" oi ON oi."orderId" = o.id
+      JOIN "Product" pr ON pr.id = oi."productId"
+      WHERE pr."vendorId"='${safeId}'
+      GROUP BY o.id
+      ORDER BY o."createdAt" DESC
+      LIMIT 200`);
+    res.setHeader('Content-Type','application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', `attachment; filename="vendor_${id}_orders.xls"`);
+    const Parser = require('json2csv').Parser; const parser = new Parser({ fields:['orderId','status','total','createdAt','requestedQty','receivedQty'] });
+    const csv = parser.parse(rows);
+    return res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_orders_export_failed' }); }
+});
+
+adminRest.get('/vendors/:id/orders/export/pdf', async (req, res) => {
+  try {
+    const { id } = req.params; const safeId = id.replace(/'/g, "''");
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT o.id AS "orderId", o.status, o.total, o."createdAt",
+             SUM(oi.quantity) AS "requestedQty",
+             0::int AS "receivedQty"
+      FROM "Order" o
+      JOIN "OrderItem" oi ON oi."orderId" = o.id
+      JOIN "Product" pr ON pr.id = oi."productId"
+      WHERE pr."vendorId"='${safeId}'
+      GROUP BY o.id
+      ORDER BY o."createdAt" DESC
+      LIMIT 200`);
+    res.setHeader('Content-Type','application/pdf'); res.setHeader('Content-Disposition', `attachment; filename="vendor_${id}_orders.pdf"`);
+    const doc = new PDFDocument({ autoFirstPage: true }); doc.pipe(res);
+    doc.fontSize(16).text(`Vendor ${id} - Orders (PO/GRN)`, { align:'center' }); doc.moveDown();
+    rows.forEach((r:any)=>{ doc.fontSize(12).text(`Order ${String(r.orderId).slice(0,6)} | ${r.status} | requested ${r.requestedQty} | total ${r.total}`); });
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_orders_export_pdf_failed' }); }
+});
+
+// Vendor scorecard & notifications
+adminRest.get('/vendors/:id/scorecard', async (req, res) => {
+  try {
+    const { id } = req.params; const safeId = id.replace(/'/g, "''");
+    const rows: any[] = await db.$queryRawUnsafe(`
+      WITH vendor_orders AS (
+        SELECT DISTINCT o.id, o.status, o."createdAt"
+        FROM "Order" o
+        JOIN "OrderItem" oi ON oi."orderId"=o.id
+        JOIN "Product" pr ON pr.id=oi."productId"
+        WHERE pr."vendorId"='${safeId}'
+      )
+      SELECT
+        (SELECT COUNT(*) FROM vendor_orders) as orderscount,
+        (SELECT COUNT(*) FROM vendor_orders WHERE status='DELIVERED') as deliveredcount,
+        (SELECT COUNT(*) FROM vendor_orders WHERE status='CANCELLED') as cancelledcount,
+        (SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (NOW() - v."createdAt"))/3600),0) FROM vendor_orders v) as avgagehours`);
+    const m = (rows && rows[0]) || {};
+    res.json({
+      ordersCount: Number(m.orderscount||0),
+      deliveredCount: Number(m.deliveredcount||0),
+      cancelledCount: Number(m.cancelledcount||0),
+      avgAgeHours: Number(m.avgagehours||0)
+    });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_scorecard_failed' }); }
+});
+
+adminRest.get('/vendors/:id/notifications', async (req, res) => {
+  try {
+    const { id } = req.params; const safeId = id.replace(/'/g, "''");
+    const items = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, action, details, "createdAt" FROM "AuditLog" WHERE module='vendors' AND details->>'vendorId'='${safeId}' ORDER BY "createdAt" DESC LIMIT 100`
+    );
+    res.json({ notifications: items });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_notifications_failed' }); }
+});
+
+adminRest.post('/vendors/:id/notifications', async (req, res) => {
+  try {
+    const { id } = req.params; const { channel='system', message='' } = req.body || {};
+    if (!message) return res.status(400).json({ error: 'message_required' });
+    await audit(req, 'vendors', 'notify', { vendorId: id, channel, message });
+    res.json({ ok: true });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_notifications_post_failed' }); }
+});
 adminRest.post('/integrations', async (req, res) => {
   const { provider, config } = req.body || {};
   const integ = await db.integration.create({ data: { provider, config } });
