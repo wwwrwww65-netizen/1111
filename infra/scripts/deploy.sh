@@ -57,7 +57,12 @@ pnpm --filter admin build
 # Build mobile web (m.jeeey.com) if present (Vite)
 if [ -d "$ROOT_DIR/apps/mweb" ]; then
   rm -rf "$ROOT_DIR/apps/mweb/dist" || true
-  (cd "$ROOT_DIR/apps/mweb" && pnpm install --silent && pnpm build) || true
+  echo "[deploy] Building mweb (Vite)"
+  (cd "$ROOT_DIR/apps/mweb" && pnpm install --silent && pnpm build)
+  if [ ! -f "$ROOT_DIR/apps/mweb/dist/index.html" ]; then
+    echo "[deploy] ERROR: mweb dist/index.html missing after build" >&2
+    exit 1
+  fi
 fi
 
 # Optional: seed admin if creds provided via environment
