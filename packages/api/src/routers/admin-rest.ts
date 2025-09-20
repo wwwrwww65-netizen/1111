@@ -1270,9 +1270,55 @@ adminRest.get('/logistics/warehouse/export/pdf', async (req, res) => {
 adminRest.get('/drivers', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
-    const list = await db.driver.findMany({ orderBy: { name: 'asc' } });
+    const q = (req.query.q as string | undefined) || undefined;
+    const status = (req.query.status as string | undefined) || undefined; // AVAILABLE/BUSY/OFFLINE/DISABLED/all
+    const veh = (req.query.veh as string | undefined) || undefined;
+    const where: any = {};
+    if (q && q.trim()) {
+      const t = q.trim();
+      where.OR = [
+        { name: { contains: t, mode: 'insensitive' } },
+        { phone: { contains: t, mode: 'insensitive' } },
+        { address: { contains: t, mode: 'insensitive' } },
+        { nationalId: { contains: t, mode: 'insensitive' } },
+      ];
+    }
+    if (veh && veh !== 'ALL') where.vehicleType = veh;
+    if (status && status !== 'ALL') {
+      if (status === 'DISABLED') where.isActive = false; else where.status = status;
+    }
+    const list = await db.driver.findMany({ where, orderBy: { name: 'asc' } });
     res.json({ drivers: list });
   } catch (e:any) { res.status(500).json({ error: e.message || 'drivers_list_failed' }); }
+});
+// Drivers export
+adminRest.get('/drivers/export/csv', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.driver.findMany({ orderBy: { name: 'asc' } });
+    const flat = rows.map(d=> ({ id:d.id, name:d.name, phone:d.phone||'', vehicleType:d.vehicleType||'', ownership:d.ownership||'', status:d.isActive===false?'DISABLED':d.status||'', lat:d.lat||'', lng:d.lng||'' }));
+    const parser = new CsvParser({ fields: ['id','name','phone','vehicleType','ownership','status','lat','lng'] });
+    const csv = parser.parse(flat);
+    res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="drivers.csv"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'drivers_export_failed' }); }
+});
+adminRest.get('/drivers/export/xls', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.driver.findMany({ orderBy: { name: 'asc' } });
+    const flat = rows.map(d=> ({ id:d.id, name:d.name, phone:d.phone||'', vehicleType:d.vehicleType||'', ownership:d.ownership||'', status:d.isActive===false?'DISABLED':d.status||'', lat:d.lat||'', lng:d.lng||'' }));
+    const parser = new CsvParser({ fields: ['id','name','phone','vehicleType','ownership','status','lat','lng'] });
+    const csv = parser.parse(flat);
+    res.setHeader('Content-Type','application/vnd.ms-excel'); res.setHeader('Content-Disposition','attachment; filename="drivers.xls"'); res.send(csv);
+  } catch (e:any) { res.status(500).json({ error: e.message||'drivers_export_xls_failed' }); }
+});
+adminRest.get('/drivers/export/pdf', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.read'))) return res.status(403).json({ error:'forbidden' });
+    res.setHeader('Content-Type','application/pdf'); res.setHeader('Content-Disposition','attachment; filename="drivers.pdf"');
+    const doc = new PDFDocument({ autoFirstPage: true }); doc.pipe(res);
+    doc.fontSize(16).text('Drivers Report', { align:'center' }); doc.moveDown();
+    const rows = await db.driver.findMany({ orderBy: { name: 'asc' } });
+    rows.forEach(d=>{ doc.fontSize(11).text(`${d.name} • ${d.phone||'-'} • ${d.vehicleType||'-'} • ${(d.isActive===false?'DISABLED':(d.status||'-'))}`); });
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message||'drivers_export_pdf_failed' }); }
 });
 adminRest.post('/drivers', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.create'))) return res.status(403).json({ error:'forbidden' });
