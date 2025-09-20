@@ -1,8 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="align-self:stretch;position:absolute;left:3486px;top:12174px;width:93px;height:27px">
-      <div style="min-width:93px;min-height:27px;border-radius:13.5px;background:rgba(69, 162, 69, 1)">Rectangle</div>
-      <div style="min-width:74px;min-height:21px;background:rgba(255, 255, 255, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:14px;line-height:21px;color:rgba(255, 255, 255, 1)">نشط</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003620</h1>
+      <p>Figma: Document / Dashboard / ادارة الموردين_منتج المورد / Frame 1000003573 / Frame 1000003570 / Delivered / Frame 1000003622 / Frame 1000003620 (id: 2199:7235)</p>
     </div>
   </div>
 </template>

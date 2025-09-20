@@ -1,7 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="overflow:hidden;position:absolute;left:-3026px;top:-480px;width:301px;height:283px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:301px;min-height:283px;background:rgba(255, 255, 255, 0.6000000238418579)">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">et:focus</h1>
+      <p>Figma: Document / ui / الكاميرا / et:focus (id: 465:4321)</p>
     </div>
   </div>
 </template>

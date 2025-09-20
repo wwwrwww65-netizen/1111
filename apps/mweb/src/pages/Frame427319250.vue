@@ -1,27 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:-4149px;top:-708px;width:356px;height:30px;border-radius:50px">
-      <div style="position:absolute;left:-3836px;top:-702px;width:32px;height:16px;background:rgba(120, 137, 136, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:16px;color:rgba(120, 137, 136, 1)">جاكيت</div>
-      <div style="position:absolute;left:-4147px;top:-706px;width:39px;height:26px;border-radius:14px;background:rgba(0, 0, 0, 1)">Rectangle 1206</div>
-      <div style="position:absolute;left:-4133px;top:-699px;width:12px;height:12px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-4133px;top:-699px;width:12px;height:12px">
-      <div style="position:absolute;left:-4133px;top:-699px;width:12px;height:12px">
-      <div style="min-width:9px;min-height:9px">Vector</div>
-      <div style="min-width:2px;min-height:2px">Vector</div>
-      <div style="min-width:12px;min-height:12px">Vector</div>
-    </div>
-    </div>
-    </div>
-      <div style="position:absolute;left:-4102px;top:-698px;width:12px;height:12px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-4102px;top:-698px;width:12px;height:12px">
-      <div style="position:absolute;left:-4102px;top:-698px;width:12px;height:12px">
-      <div style="min-width:10px;min-height:10px">Vector</div>
-      <div style="min-width:2px;min-height:0px">Vector</div>
-      <div style="min-width:3px;min-height:3px">Vector</div>
-      <div style="min-width:12px;min-height:12px">Vector</div>
-    </div>
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319250</h1>
+      <p>Figma: Document / ui / عملية البحث / Frame 427319484 / Frame 427319250 (id: 129:4005)</p>
     </div>
   </div>
 </template>

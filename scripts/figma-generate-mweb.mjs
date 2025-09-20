@@ -50,10 +50,24 @@ function cssGradientFromPaint(p) {
       return `${col} ${pos}%`;
     })
     .join(', ');
-  // Angle approximation; proper matrix->angle conversion skipped for brevity
   const angle = p.type === 'GRADIENT_RADIAL' ? 'circle at center' : '180deg';
   if (p.type === 'GRADIENT_RADIAL') return `radial-gradient(${angle}, ${stops})`;
   return `linear-gradient(${angle}, ${stops})`;
+}
+
+function sizeRules(node) {
+  const rules = [];
+  const bb = node.absoluteBoundingBox;
+  const hMode = node.layoutSizingHorizontal; // HUG, FIXED, FILL
+  const vMode = node.layoutSizingVertical;
+  if (hMode === 'FIXED' && bb) rules.push(`width:${Math.round(bb.width)}px`);
+  if (vMode === 'FIXED' && bb) rules.push(`height:${Math.round(bb.height)}px`);
+  if (hMode === 'FILL') rules.push('width:100%');
+  if (vMode === 'FILL') rules.push('height:100%');
+  // HUG -> fit-content with min based on children if available; approximate
+  if (hMode === 'HUG') rules.push('width:fit-content');
+  if (vMode === 'HUG') rules.push('height:fit-content');
+  return rules;
 }
 
 function styleFor(node) {
@@ -73,6 +87,8 @@ function styleFor(node) {
     if (ji === 'SPACE_BETWEEN') s.push('justify-content:space-between');
     if (ji === 'MIN') s.push('justify-content:flex-start');
   }
+  // Apply size rules first
+  s.push(...sizeRules(node));
   // Sizing constraints
   if (node.layoutGrow === 1) s.push('flex:1 1 auto');
   if (node.layoutAlign === 'STRETCH') s.push('align-self:stretch');
@@ -90,7 +106,6 @@ function styleFor(node) {
       s.push(`height:${Math.round(bb.height)}px`);
     }
   }
-  // Size hints from absoluteBoundingBox when present
   if (!s.some(v => v.startsWith('width')) && node.absoluteBoundingBox) {
     s.push(`min-width:${Math.round(node.absoluteBoundingBox.width)}px`);
   }
@@ -115,7 +130,7 @@ function styleFor(node) {
   if ([pl, pr, pt, pb].some(v => typeof v === 'number')) {
     s.push(`padding:${pt||0}px ${pr||0}px ${pb||0}px ${pl||0}px`);
   }
-  // Corner radii per corner if available
+  // Corner radii per corner
   const tl = node.topLeftRadius ?? node.cornerRadius;
   const tr = node.topRightRadius ?? node.cornerRadius;
   const br = node.bottomRightRadius ?? node.cornerRadius;
@@ -130,7 +145,6 @@ function styleFor(node) {
       const grad = cssGradientFromPaint(f0);
       if (grad) s.push(`background-image:${grad}`);
     } else if (f0.type === 'IMAGE') {
-      // Use assets saved as <node.id>.png
       const file = assetManifest[node.id] || `${String(node.id).replace(/:/g,'__').replace(/;/g,'___').replace(/[^A-Za-z0-9_\-]/g,'_')}.png`;
       s.push(`background-image:url('/assets/figma/${file}')`);
       s.push('background-size:cover');
@@ -179,7 +193,6 @@ function typographyFor(node) {
     const ta = node.textAlignHorizontal.toLowerCase();
     if (ta === 'center' || ta === 'right' || ta === 'left' || ta === 'justified') t.push(`text-align:${ta === 'justified' ? 'justify' : ta}`);
   }
-  // Text color from fills
   const fills = Array.isArray(node.fills) ? node.fills : [];
   const solid = fills.find(f => f.type === 'SOLID');
   if (solid) t.push(`color:${rgbaFromPaint(solid)}`);
@@ -190,7 +203,6 @@ function nodeToVue(node, depth = 0) {
   if (!node || depth > 4) return '';
   const style = styleFor(node);
   const children = Array.isArray(node.children) ? node.children : [];
-  // If this is a text node, render with typography styles
   if (node.type === 'TEXT') {
     const text = node.characters || '';
     const typo = typographyFor(node);
@@ -205,7 +217,6 @@ function nodeToVue(node, depth = 0) {
 }
 
 const routes = [];
-// Naive component detection: group frames by normalized name prefix
 function normalizeCompName(n){
   return String(n||'').toLowerCase().replace(/\d+$/,'').replace(/\s+/g,'-');
 }
@@ -219,7 +230,6 @@ for (const [name, info] of entries) {
 
 for (const group of nameGroups.values()) {
   for (const [name, info] of group) {
-  // Build a route for every frame. Heuristic: 'Home' => '/', otherwise kebab-case of name
   let route = info.route;
   if (!route) {
     const n = String(name).trim().toLowerCase();
@@ -242,7 +252,6 @@ for (const group of nameGroups.values()) {
   }
 }
 
-// Always ensure core routes exist
 const core = [
   { path: '/', component: "() => import('./pages/Home.vue')" },
   { path: '/products', component: "() => import('./pages/Products.vue')" },
@@ -250,7 +259,6 @@ const core = [
   { path: '/login', component: "() => import('./pages/Login.vue')" },
 ];
 
-// De-duplicate by path priority: core overrides mapping for '/'
 const byPath = new Map();
 for (const r of core) byPath.set(r.path, r);
 for (const r of routes) {

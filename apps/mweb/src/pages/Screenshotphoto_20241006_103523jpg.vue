@@ -1,7 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="overflow:hidden;position:absolute;left:-8969px;top:15004px;width:591px;height:1154px;background:rgba(0, 0, 0, 0)">
-      <div style="position:absolute;left:-8969px;top:15004px;width:591px;height:1154px;background-image:url('/assets/figma/335:4448.png');background-size:cover;background-position:center;background-repeat:no-repeat">Rectangle</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Screenshot - photo_2024-10-06_10-35-23.jpg</h1>
+      <p>Figma: Document / ui / Screenshot - photo_2024-10-06_10-35-23.jpg (id: 335:4449)</p>
     </div>
   </div>
 </template>

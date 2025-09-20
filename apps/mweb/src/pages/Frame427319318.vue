@@ -1,7 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="display:flex;flex-direction:column;gap:10px;position:absolute;left:-122px;top:458px;width:232px;height:31px">
-      <div style="align-self:stretch;position:absolute;left:-122px;top:458px;width:232px;height:31px;background:rgba(30, 30, 44, 1);font-family:'Ping AR + LT', Tajawal, system-ui, sans-serif;font-weight:700;font-size:24px;line-height:31px;color:rgba(30, 30, 44, 1)">الخطوط Typography</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319318</h1>
+      <p>Figma: Document / design system / Frame 427319324 / Frame 427319322 / Frame 427319318 / Frame 427319318 (id: 1:249)</p>
     </div>
   </div>
 </template>

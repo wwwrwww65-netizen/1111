@@ -1,10 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:-1363px;top:10012px;width:116px;height:69px">
-      <div style="position:absolute;left:-1330px;top:10016px;width:16px;height:18px;background:rgba(86, 86, 86, 1);font-family:'Plus Jakarta Sans', Tajawal, system-ui, sans-serif;font-weight:500;font-size:14px;line-height:18px;color:rgba(86, 86, 86, 1)">10</div>
-      <div style="position:absolute;left:-1363px;top:10012px;width:116px;height:69px;border-radius:5px;background:rgba(255, 255, 255, 1)">Rectangle 39</div>
-      <div style="position:absolute;left:-1347px;top:10019px;width:85px;height:21px;background:rgba(86, 86, 86, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:14px;line-height:21px;color:rgba(86, 86, 86, 1)">عرض التفاصيل</div>
-      <div style="position:absolute;left:-1337px;top:10047px;width:63px;height:21px;background:rgba(86, 86, 86, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:14px;line-height:21px;color:rgba(86, 86, 86, 1)">انشاء كوبون</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003500</h1>
+      <p>Figma: Document / Dashboard / Frame 1000003500 (id: 1641:3604)</p>
     </div>
   </div>
 </template>

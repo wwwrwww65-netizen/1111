@@ -1,15 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:-1154px;top:4718px;width:434px;height:120px">
-      <div style="position:absolute;left:-1154px;top:4718px;width:434px;height:120px;background:rgba(255, 255, 255, 1)">Rectangle 1143</div>
-      <div style="position:absolute;left:-764px;top:4725px;width:25px;height:16px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:12px;line-height:16px;color:rgba(0, 0, 0, 1)">جميع</div>
-      <div style="position:absolute;left:-763px;top:4753px;width:22px;height:16px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:12px;line-height:16px;color:rgba(0, 0, 0, 1)">اليوم</div>
-      <div style="position:absolute;left:-765px;top:4779px;width:24px;height:16px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:12px;line-height:16px;color:rgba(0, 0, 0, 1)">أمس</div>
-      <div style="position:absolute;left:-809px;top:4809px;width:67px;height:16px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:12px;line-height:16px;color:rgba(0, 0, 0, 1)">2024/09/12</div>
-      <div style="position:absolute;left:-1138px;top:4731px;width:12px;height:7px">
-      <div style="position:absolute;left:-1135px;top:4733px;width:6px;height:6px">Line 16</div>
-      <div style="position:absolute;left:-1137px;top:4737px;width:2px;height:2px">Line 17</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319343</h1>
+      <p>Figma: Document / ui / الفلاترة / Frame 427319343 (id: 94:3629)</p>
     </div>
   </div>
 </template>

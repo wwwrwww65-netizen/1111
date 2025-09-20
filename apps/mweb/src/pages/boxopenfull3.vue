@@ -1,7 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="overflow:hidden;position:absolute;left:-403px;top:1798px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:24px;min-height:24px;background:rgba(138, 21, 56, 1)">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">box-open-full 3</h1>
+      <p>Figma: Document / Dashboard / المنتجات / المنتجات / Frame 49 / Frame 48 / Frame 42 / Frame 57 / Frame 39 / Frame 32 / box-open-full 3 (id: 719:318)</p>
     </div>
   </div>
 </template>

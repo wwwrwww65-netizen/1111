@@ -1,25 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:-6564px;top:1658px;width:317px;height:301px">
-      <div style="position:absolute;left:-6564px;top:1658px;width:317px;height:301px;background:rgba(217, 217, 217, 1)">Rectangle 39</div>
-      <div style="position:absolute;left:-6276px;top:1927px;width:21px;height:20px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:21px;min-height:20px;background:rgba(255, 255, 255, 1)">Ellipse 1</div>
-    </div>
-      <div style="position:absolute;left:-6556px;top:1927px;width:20px;height:20px">
-      <div style="position:absolute;left:-6556px;top:1927px;width:20px;height:20px;border-radius:2px;background:rgba(255, 255, 255, 1)">Rectangle 45</div>
-      <div style="position:absolute;left:-6554px;top:1929px;width:16px;height:16px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-6554px;top:1929px;width:16px;height:16px">
-      <div style="position:absolute;left:-6554px;top:1929px;width:16px;height:16px">
-      
-      
-      
-      
-      
-      
-    </div>
-    </div>
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 70</h1>
+      <p>Figma: Document / Dashboard / أضافة صورة / Property 1=Variant2 / Frame 72 / Frame 70 (id: 739:5170)</p>
     </div>
   </div>
 </template>

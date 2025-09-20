@@ -1,10 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:-3648px;top:-215px;width:20px;height:20px">
-      <div style="position:absolute;left:-3648px;top:-215px;width:20px;height:20px;background:rgba(255, 255, 255, 1)">Ellipse 22</div>
-      <div style="overflow:hidden;position:absolute;left:-3644px;top:-211px;width:12px;height:12px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:10px;min-height:9px">Vector</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 132</h1>
+      <p>Figma: Document / ui / عملية البحث / Frame 427319491 / Frame 427319285 / Frame 427319320 / Placeholder_01 / Frame 132 (id: 129:3856)</p>
     </div>
   </div>
 </template>

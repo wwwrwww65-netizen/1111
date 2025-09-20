@@ -1,9 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:3323px;top:12231px;width:4px;height:24px">
-      <div style="position:absolute;left:3323px;top:12251px;width:4px;height:4px;background:rgba(92, 92, 92, 1)">Ellipse 2</div>
-      <div style="position:absolute;left:3323px;top:12241px;width:4px;height:4px;background:rgba(92, 92, 92, 1)">Ellipse 4</div>
-      <div style="position:absolute;left:3323px;top:12231px;width:4px;height:4px;background:rgba(92, 92, 92, 1)">Ellipse 6</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003448</h1>
+      <p>Figma: Document / Dashboard / ادارة الموردين_منتج المورد / Frame 1000003573 / Frame 1000003570 / Frame 1000003449 / Frame 1000003448 (id: 2199:7255)</p>
     </div>
   </div>
 </template>

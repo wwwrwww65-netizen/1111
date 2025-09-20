@@ -1,14 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="display:flex;flex-direction:row;gap:8px;align-items:center;position:absolute;left:496px;top:4691px;width:307px;height:25px">
-      <div style="position:absolute;left:496px;top:4691px;width:68px;height:25px;border-radius:50px;background:rgba(255, 255, 255, 1)">Rectangle 1172</div>
-      <div style="position:absolute;left:572px;top:4691px;width:68px;height:25px;border-radius:50px;background:rgba(255, 255, 255, 1)">Rectangle 1171</div>
-      <div style="position:absolute;left:648px;top:4691px;width:68px;height:25px;border-radius:50px;background:rgba(255, 255, 255, 1)">Rectangle 1170</div>
-      <div style="position:absolute;left:724px;top:4691px;width:68px;height:25px;border-radius:50px;background:rgba(255, 255, 255, 1)">Rectangle 1169</div>
-      <div style="position:absolute;left:591px;top:4693px;width:31px;height:18px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:18px;color:rgba(0, 0, 0, 1)">تجميل</div>
-      <div style="position:absolute;left:668px;top:4693px;width:28px;height:18px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:18px;color:rgba(0, 0, 0, 1)">اطفال</div>
-      <div style="position:absolute;left:745px;top:4693px;width:26px;height:18px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:18px;color:rgba(0, 0, 0, 1)">نسائي</div>
-      <div style="position:absolute;left:504px;top:4693px;width:54px;height:18px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:18px;color:rgba(0, 0, 0, 1)">اكسسوارات</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319530</h1>
+      <p>Figma: Document / ui / Frame 427319567 / Frame 427319530 (id: 241:4469)</p>
     </div>
   </div>
 </template>

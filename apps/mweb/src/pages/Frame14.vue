@@ -1,17 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end;justify-content:center;align-self:stretch;position:absolute;left:7397px;top:11375px;width:202px;height:50px;padding:13px 6px 13px 6px;border-radius:10px;background:rgba(245, 245, 245, 1)">
-      <div style="display:flex;flex-direction:row;gap:12px;align-items:center;justify-content:flex-end;position:absolute;left:7463px;top:11388px;width:130px;height:24px;padding:0px 6px 0px 6px">
-      <div style="position:absolute;left:7469px;top:11388px;width:82px;height:24px;background:rgba(117, 117, 117, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:16px;line-height:24px;letter-spacing:0.20000000298023224px;color:rgba(117, 117, 117, 1)">ادارة الطلبات</div>
-      <div style="position:absolute;left:7563px;top:11388px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:7567px;top:11391px;width:17px;height:18px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:7px;min-height:1px">Line</div>
-      <div style="min-width:7px;min-height:1px">Line</div>
-      <div style="min-width:3px;min-height:1px">Line</div>
-      <div style="min-width:17px;min-height:18px">Vector</div>
-    </div>
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 14</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات / المنتجات / Frame 50 / Frame 14 (id: 2199:7600)</p>
     </div>
   </div>
 </template>

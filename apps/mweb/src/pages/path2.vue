@@ -1,10 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="overflow:hidden;position:absolute;left:-4381px;top:6977px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:9px;min-height:6px">Vector</div>
-      <div style="min-width:16px;min-height:14px">Vector</div>
-      <div style="min-width:0px;min-height:4px">Vector</div>
-      <div style="min-width:24px;min-height:24px">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">path-2</h1>
+      <p>Figma: Document / ICON / Icon/General / Design, Tools / path-2 / Property 1=twotone / vuesax/twotone/path-2 / path-2 (id: 1823:29308)</p>
     </div>
   </div>
 </template>

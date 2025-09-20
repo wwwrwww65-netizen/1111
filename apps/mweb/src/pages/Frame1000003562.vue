@@ -1,14 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:space-between;position:absolute;left:886px;top:11549px;width:517px;height:38px;padding:11px 16px 11px 16px;border-radius:10px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:902px;top:11556px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:24px;min-height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:911px;top:11561px;width:7px;height:14px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:7px;min-height:14px">Stroke 1</div>
-    </div>
-    </div>
-    </div>
-      <div style="position:absolute;left:1365px;top:11561px;width:22px;height:15px;background:rgba(151, 151, 151, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:10px;line-height:15px;letter-spacing:0.20000000298023224px;color:rgba(151, 151, 151, 1)">الموقع</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003562</h1>
+      <p>Figma: Document / Dashboard / اضافة مورد / Frame 1000003568 / Frame 1000003565 / Frame 1000003561 / Frame 1000003562 (id: 2199:9643)</p>
     </div>
   </div>
 </template>

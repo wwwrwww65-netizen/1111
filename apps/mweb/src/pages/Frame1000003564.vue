@@ -1,7 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:3902px;top:18093px;width:199px;height:167px">
-      <div style="min-width:196px;min-height:36px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:24px;line-height:36px;letter-spacing:0.20000000298023224px;color:rgba(0, 0, 0, 1)">اضافة تفاصيل قياس</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003564</h1>
+      <p>Figma: Document / Dashboard / اضافة قياس / Frame 1000003568 / Frame 1000003565 / Frame 1000003563 / Frame 1000003564 (id: I2242:5966;2212:11037)</p>
     </div>
   </div>
 </template>

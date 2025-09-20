@@ -1,46 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="overflow:hidden;min-width:400px;min-height:356px;background:rgba(255, 255, 255, 1)">
-      <div style="min-width:400px;min-height:356px;border-radius:28px;background:rgba(255, 255, 255, 1)">Rectangle</div>
-      <div style="min-width:340px;min-height:29px;background:rgba(47, 46, 65, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:20px;line-height:30px;color:rgba(47, 46, 65, 1)">ليس لديك أي منتج في قائمة الاماني
-</div>
-      <div style="position:absolute;left:-5383px;top:1108px;width:250px;height:200px">
-      <div style="min-width:250px;min-height:200px">
-      <div style="min-width:250px;min-height:200px">
-      <div style="min-width:250px;min-height:200px;background:rgba(255, 255, 255, 1)">Rectangle 1</div>
-      <div style="min-width:167px;min-height:70px;background:rgba(255, 238, 238, 1)">Background</div>
-    </div>
-      <div style="min-width:85px;min-height:84px">
-      <div style="min-width:67px;min-height:67px;background:rgba(255, 238, 238, 1)">Oval</div>
-      <div style="min-width:53px;min-height:53px;background:rgba(255, 255, 255, 1)">Oval</div>
-      <div style="min-width:7px;min-height:4px">Oval</div>
-      <div style="min-width:6px;min-height:6px">Path-4</div>
-      <div style="min-width:21px;min-height:21px;background:rgba(255, 218, 218, 1)">Rectangle</div>
-      <div style="min-width:11px;min-height:11px">Line</div>
-      <div style="min-width:44px;min-height:45px;background:rgba(255, 218, 218, 1)">Oval-3</div>
-      <div style="min-width:19px;min-height:19px">Shape</div>
-    </div>
-      <div style="min-width:24px;min-height:8px">Line-8</div>
-      <div style="min-width:32px;min-height:9px">Line-8</div>
-    </div>
-      <div style="position:absolute;left:-5300px;top:1181px;width:80px;height:80px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-5300px;top:1181px;width:80px;height:80px">
-      <div style="position:absolute;left:-5300px;top:1181px;width:80px;height:80px">
-      
-      
-    </div>
-    </div>
-    </div>
-    </div>
-      <div style="position:absolute;left:-5445px;top:1356px;width:80px;height:80px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-5445px;top:1356px;width:80px;height:80px">
-      <div style="position:absolute;left:-5445px;top:1356px;width:80px;height:80px">
-      <div style="min-width:67px;min-height:30px;background:rgba(152, 0, 0, 1)">Vector</div>
-      <div style="min-width:63px;min-height:30px;background:rgba(152, 0, 0, 1)">Vector</div>
-      <div style="min-width:80px;min-height:80px">Vector</div>
-    </div>
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Card - No Favorite</h1>
+      <p>Figma: Document / ui / Card - No Favorite (id: 2896:5042)</p>
     </div>
   </div>
 </template>

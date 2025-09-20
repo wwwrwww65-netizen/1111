@@ -1,19 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="align-self:stretch;position:absolute;left:7263px;top:8305px;width:1084px;height:41px">
-      <div style="min-width:1036px;min-height:41px;border-radius:10px;background:rgba(255, 255, 255, 1)">Rectangle</div>
-      <div style="position:absolute;left:8172px;top:8317px;width:88px;height:18px;background:rgba(151, 151, 151, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:18px;letter-spacing:0.20000000298023224px;color:rgba(151, 151, 151, 1)">القصص و الروايات</div>
-      <div style="position:absolute;left:8268px;top:8321px;width:0px;height:13px">Line 17</div>
-      <div style="display:flex;flex-direction:column;gap:4px;position:absolute;left:8273px;top:8324px;width:14px;height:8px">
-      <div style="align-self:stretch;position:absolute;left:8273px;top:8324px;width:14px;height:0px">Line 14</div>
-      <div style="align-self:stretch;position:absolute;left:8273px;top:8328px;width:14px;height:0px">Line 15</div>
-      <div style="align-self:stretch;position:absolute;left:8273px;top:8332px;width:14px;height:0px">Line 16</div>
-    </div>
-      <div style="position:absolute;left:7280px;top:8314px;width:4px;height:24px">
-      <div style="position:absolute;left:7280px;top:8334px;width:4px;height:4px;background:rgba(151, 151, 151, 1)">Ellipse 2</div>
-      <div style="position:absolute;left:7280px;top:8324px;width:4px;height:4px;background:rgba(151, 151, 151, 1)">Ellipse 4</div>
-      <div style="position:absolute;left:7280px;top:8314px;width:4px;height:4px;background:rgba(151, 151, 151, 1)">Ellipse 6</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003641</h1>
+      <p>Figma: Document / Dashboard / Frame 1000003641 / Property 1=Variant6 / Frame 1000003640 / Frame 1000003641 (id: 2242:5387)</p>
     </div>
   </div>
 </template>

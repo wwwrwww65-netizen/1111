@@ -1,7 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="position:absolute;left:755px;top:4653px;width:13px;height:18px">
-      <div style="position:absolute;left:755px;top:4653px;width:13px;height:18px;background:rgba(0, 0, 0, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:500;font-size:12px;line-height:18px;color:rgba(0, 0, 0, 1)">كل</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319247</h1>
+      <p>Figma: Document / ui / Frame 427319567 / Frame 427319372 / Frame 427319247 (id: 241:4465)</p>
     </div>
   </div>
 </template>

@@ -1,7 +1,8 @@
 <template>
   <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
-    <div style="display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:center;position:absolute;left:784px;top:12546px;width:117px;height:27px;padding:4px 14px 4px 14px;border-radius:2px;background:rgba(138, 21, 56, 1)">
-      <div style="position:absolute;left:836px;top:12552px;width:14px;height:16px;background:rgba(255, 255, 255, 1);font-family:'IBM Plex Sans Arabic', Tajawal, system-ui, sans-serif;font-weight:400;font-size:10px;line-height:16px;color:rgba(255, 255, 255, 1)">نعم</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319412</h1>
+      <p>Figma: Document / ui / مسح ذكرة التخزين / Frame 427319412 (id: 65:4314)</p>
     </div>
   </div>
 </template>
