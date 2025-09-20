@@ -37,12 +37,13 @@ jobs:
       - name: Set SSH connection env (with safe defaults)
         shell: bash
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_HOST: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER || vars.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT }}
         run: |
           set -e
-          echo "SSH_HOST=${VPS_HOST:-72.60.92.17}" >> "$GITHUB_ENV"
+          if [ -z "${VPS_HOST}" ]; then echo 'ERROR: VPS_HOST is not set in secrets/vars' ; exit 1 ; fi
+          echo "SSH_HOST=${VPS_HOST}" >> "$GITHUB_ENV"
           echo "SSH_USER=${VPS_USER:-root}" >> "$GITHUB_ENV"
           echo "SSH_PORT=${VPS_PORT:-22}" >> "$GITHUB_ENV"
       - name: Set admin credentials env
