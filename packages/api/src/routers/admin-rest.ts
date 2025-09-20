@@ -1271,6 +1271,12 @@ async function ensureDriversSchema(): Promise<void> {
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Driver" (\n'+
       '"id" TEXT PRIMARY KEY,\n"name" TEXT NOT NULL,\n"phone" TEXT NULL,\n"isActive" BOOLEAN DEFAULT TRUE,\n"status" TEXT DEFAULT \''+ 'AVAILABLE' +'\',\n"location" TEXT NULL,\n"address" TEXT NULL,\n"nationalId" TEXT NULL,\n"vehicleType" TEXT NULL,\n"ownership" TEXT NULL,\n"notes" TEXT NULL,\n"lat" DOUBLE PRECISION NULL,\n"lng" DOUBLE PRECISION NULL,\n"plateNumber" TEXT NULL,\n"rating" DOUBLE PRECISION NULL,\n"lastSeenAt" TIMESTAMP NULL,\n"createdAt" TIMESTAMP DEFAULT NOW(),\n"updatedAt" TIMESTAMP DEFAULT NOW()\n)');
+    // Backfill newly introduced columns on existing table
+    await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "plateNumber" TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "rating" DOUBLE PRECISION');
+    await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP');
+    await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP DEFAULT NOW()');
+    await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP DEFAULT NOW()');
   } catch {}
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DriverLocation" (\n'+
