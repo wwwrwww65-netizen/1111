@@ -50,7 +50,8 @@ if (!idList.length) {
   process.exit(0);
 }
 // Ensure output dir exists before network calls so git add won't fail on missing path
-const outDir = path.join(root, 'apps', 'mweb', 'src', 'assets');
+// Prefer serving from public so paths are stable and not hashed by bundler
+const outDir = path.join(root, 'apps', 'mweb', 'public', 'assets', 'figma');
 fs.mkdirSync(outDir, { recursive: true });
 
 // Helper to chunk IDs to avoid 413 URI Too Large
@@ -76,4 +77,17 @@ for (const batch of chunk(idList, 100)) {
   }
 }
 
-console.log(`Downloaded ${total} assets to apps/mweb/src/assets`);
+// Migrate any previously saved src assets to public for stability
+try {
+  const legacyDir = path.join(root, 'apps', 'mweb', 'src', 'assets');
+  if (fs.existsSync(legacyDir)) {
+    for (const f of fs.readdirSync(legacyDir)) {
+      if (!f.endsWith('.png')) continue;
+      const srcPath = path.join(legacyDir, f);
+      const dstPath = path.join(outDir, f);
+      if (!fs.existsSync(dstPath)) fs.copyFileSync(srcPath, dstPath);
+    }
+  }
+} catch {}
+
+console.log(`Downloaded ${total} assets to apps/mweb/public/assets/figma`);

@@ -92,7 +92,7 @@ function styleFor(node) {
     } else if (f0.type === 'IMAGE') {
       // Use assets saved as <node.id>.png
       const safeId = String(node.id).replace(/[^A-Za-z0-9:_;-]/g, '');
-      s.push(`background-image:url('/assets/${safeId}.png')`);
+      s.push(`background-image:url('/assets/figma/${safeId}.png')`);
       s.push('background-size:cover');
       s.push('background-position:center');
       s.push('background-repeat:no-repeat');
@@ -167,9 +167,9 @@ for (const group of nameGroups.values()) {
   const rich = nodesIndex.get(info.figmaId);
   if (rich) {
     const rendered = nodeToVue(rich);
-    body = `<template>\n  <div class=\"container\">\n    ${rendered}\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
+    body = `<template>\n  <div class=\"container\" style=\"max-width:430px;margin:0 auto;min-height:100vh\">\n    ${rendered}\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
   } else {
-    body = `<template>\n  <div class=\"container\">\n    <div class=\"card\" style=\"margin-top:16px\">\n      <h1 style=\"margin:0 0 8px 0\">${name}</h1>\n      <p>Figma: ${info.figmaPath} (id: ${info.figmaId})</p>\n    </div>\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
+    body = `<template>\n  <div class=\"container\" style=\"max-width:430px;margin:0 auto;min-height:100vh\">\n    <div class=\"card\" style=\"margin-top:16px\">\n      <h1 style=\"margin:0 0 8px 0\">${name}</h1>\n      <p>Figma: ${info.figmaPath} (id: ${info.figmaId})</p>\n    </div>\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
   }
   fs.writeFileSync(filePath, body, 'utf8');
     routes.push({ path: route, component: `() => import('./pages/${fileName}')` });

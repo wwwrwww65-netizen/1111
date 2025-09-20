@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container" style="max-width:430px;margin:0 auto;min-height:100vh">
     <div class="card" style="margin-top:16px">
       <h1 style="margin:0 0 8px 0">Frame 427319246</h1>
       <p>Figma: Document / ui / المنتج / Frame 427319404 / Frame 427319403 / Frame 427319292 / Frame 427319291 / Frame 427319248 / Frame 427319246 (id: 207:3950)</p>
