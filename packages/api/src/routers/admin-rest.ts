@@ -1832,6 +1832,51 @@ adminRest.post('/vendors', async (req, res) => {
     return res.status(500).json({ error: 'vendor_save_failed', message: msg });
   }
 });
+// Vendor Ledger
+adminRest.get('/vendors/:id/ledger', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorLedgerEntry" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "amount" DOUBLE PRECISION NOT NULL, "type" TEXT NOT NULL, "note" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const items = await db.$queryRawUnsafe(`SELECT id, "vendorId" as vendorId, amount, type, note, "createdAt" FROM "VendorLedgerEntry" WHERE "vendorId"='${id}' ORDER BY "createdAt" DESC`);
+    const balance = (items as any[]).reduce((acc, it)=> acc + (it.type==='CREDIT'? it.amount : -it.amount), 0);
+    res.json({ entries: items, balance });
+  } catch (e:any) { res.status(500).json({ error: e.message||'vendor_ledger_failed' }); }
+});
+adminRest.post('/vendors/:id/ledger', async (req, res) => {
+  const { id } = req.params; const { amount, type, note } = req.body || {};
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorLedgerEntry" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "amount" DOUBLE PRECISION NOT NULL, "type" TEXT NOT NULL, "note" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const cuid = (await db.$queryRawUnsafe(`SELECT substr(md5(random()::text),1,24) as id`))[0].id;
+    await db.$executeRawUnsafe(`INSERT INTO "VendorLedgerEntry" (id, "vendorId", amount, type, note) VALUES ('${cuid}', '${id}', ${Number(amount)||0}, '${type==='DEBIT'?'DEBIT':'CREDIT'}', ${note? `'${String(note).replace(/'/g,"''")}'` : 'NULL'})`);
+    res.json({ ok: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'vendor_ledger_add_failed' }); }
+});
+// Vendor Documents
+adminRest.get('/vendors/:id/documents', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorDocument" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "docType" TEXT NOT NULL, "url" TEXT NOT NULL, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const items = await db.$queryRawUnsafe(`SELECT id, "vendorId" as vendorId, "docType" as docType, url, "expiresAt" as expiresAt, "createdAt" as createdAt FROM "VendorDocument" WHERE "vendorId"='${id}' ORDER BY "createdAt" DESC`);
+    res.json({ documents: items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'vendor_docs_failed' }); }
+});
+adminRest.post('/vendors/:id/documents', async (req, res) => {
+  const { id } = req.params; const { docType, url, base64, expiresAt } = req.body || {};
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorDocument" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "docType" TEXT NOT NULL, "url" TEXT NOT NULL, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    let finalUrl: string | undefined = url;
+    if (!finalUrl && base64) {
+      if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error: 'cloudinary_not_configured' });
+      const uploaded = await cloudinary.uploader.upload(base64, { folder: 'vendor-docs' });
+      finalUrl = uploaded.secure_url;
+    }
+    if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
+    const cuid = (await db.$queryRawUnsafe(`SELECT substr(md5(random()::text),1,24) as id`))[0].id;
+    const exp = expiresAt ? `'${new Date(String(expiresAt)).toISOString()}'` : 'NULL';
+    await db.$executeRawUnsafe(`INSERT INTO "VendorDocument" (id, "vendorId", "docType", url, "expiresAt") VALUES ('${cuid}', '${id}', '${String(docType||'DOC').replace(/'/g,"''")}', '${String(finalUrl).replace(/'/g,"''")}', ${exp})`);
+    res.json({ ok: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'vendor_doc_add_failed' }); }
+});
 adminRest.get('/vendors/:id/next-sku', async (req, res) => {
   const { id } = req.params;
   const v = await db.vendor.findUnique({ where: { id } });
