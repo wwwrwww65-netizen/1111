@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319378</h1>
-      <p>Figma: Document / ui / حسابي / Frame 427319382 / Frame 427319378 (id: 33:4578)</p>
+    <div style="position:absolute;left:-72px;top:9960px;width:42px;height:49px">
+      <div style="position:absolute;left:-67px;top:9960px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:-67px;top:9960px;width:24px;height:24px">
+      
+    </div>
+    </div>
+      <div style="position:absolute;left:-72px;top:9993px;width:42px;height:16px;background:rgba(0, 0, 0, 1)">المسترجعه</div>
     </div>
   </div>
 </template>

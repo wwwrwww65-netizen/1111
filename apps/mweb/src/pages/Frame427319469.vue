@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319469</h1>
-      <p>Figma: Document / ui / حذف الحساب  / Frame 427319469 (id: 125:2875)</p>
+    <div style="position:absolute;left:-2175px;top:13798px;width:364px;height:44px">
+      <div style="position:absolute;left:-2206px;top:13798px;width:400px;height:24px;background:rgba(120, 137, 136, 1)">قبل المعالجة طلب حذف الحساب , جـــي ستبدا بعمليات التحقق التالي</div>
+      <div style="background:rgba(120, 137, 136, 1)">ملاحظة : لايمكن أسترداد الحساب بمجرد حذفة.</div>
     </div>
   </div>
 </template>

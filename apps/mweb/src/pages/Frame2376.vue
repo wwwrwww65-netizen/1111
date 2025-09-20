@@ -1,8 +1,9 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 2376</h1>
-      <p>Figma: Document / Dashboard / Sales Details / Frame 2376 (id: 1431:38552)</p>
+    <div style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:flex-end;position:absolute;left:9223px;top:2383px;width:44px;height:18px">
+      <div style="position:absolute;left:9223px;top:2383px;width:44px;height:18px;background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(117, 117, 117, 1)">المبيعات</div>
+    </div>
     </div>
   </div>
 </template>

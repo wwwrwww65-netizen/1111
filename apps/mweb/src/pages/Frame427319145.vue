@@ -1,8 +1,28 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319145</h1>
-      <p>Figma: Document / ui / snackbar  / Frame 427319145 (id: 65:4916)</p>
+    <div style="display:flex;flex-direction:row;gap:12px;justify-content:flex-end;align-self:stretch;position:absolute;left:732px;top:13627px;width:398px;height:53px">
+      <div style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:center;flex:1 1 auto;position:absolute;left:732px;top:13627px;width:193px;height:53px;padding:16px 24px 16px 24px;border-radius:12px">
+      <div style="position:absolute;left:780px;top:13644px;width:20px;height:20px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="display:flex;flex-direction:row;gap:8px;align-items:center;position:absolute;left:790px;top:13643px;width:78px;height:21px">
+      
+    </div>
+      <div style="position:absolute;left:860px;top:13644px;width:20px;height:20px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+    </div>
+      <div style="display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:center;flex:1 1 auto;position:absolute;left:937px;top:13627px;width:193px;height:53px;padding:16px 24px 16px 24px;border-radius:12px;background:rgba(138, 21, 56, 1)">
+      <div style="position:absolute;left:987px;top:13644px;width:20px;height:20px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="display:flex;flex-direction:row;gap:8px;align-items:center;position:absolute;left:1030px;top:13643px;width:8px;height:21px">
+      
+    </div>
+      <div style="position:absolute;left:1064px;top:13644px;width:20px;height:20px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

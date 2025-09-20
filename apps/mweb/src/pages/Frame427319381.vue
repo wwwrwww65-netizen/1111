@@ -1,8 +1,16 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319381</h1>
-      <p>Figma: Document / ui / حسابي / Frame 427319382 / Frame 427319381 (id: 33:4581)</p>
+    <div style="position:absolute;left:256px;top:9960px;width:46px;height:49px">
+      <div style="position:absolute;left:269px;top:9960px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="">
+      
+      
+      
+      
+      
+    </div>
+    </div>
+      <div style="position:absolute;left:256px;top:9993px;width:46px;height:16px;background:rgba(0, 0, 0, 1)">غير مدفوع</div>
     </div>
   </div>
 </template>

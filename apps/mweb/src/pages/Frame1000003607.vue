@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003607</h1>
-      <p>Figma: Document / Dashboard / ادارة الكميات الرسمي / Property 1=Variant8 / Frame 79 / Frame 1000003607 (id: 2152:3483)</p>
+    <div style="display:flex;flex-direction:column;gap:16px;align-items:center;position:absolute;left:-27287px;top:2144px;width:29px;height:58px">
+      <div style="align-self:stretch;position:absolute;left:-27287px;top:2144px;width:29px;height:21px;background:rgba(0, 0, 0, 1)">لون</div>
+      <div style="align-self:stretch;position:absolute;left:-27287px;top:2181px;width:29px;height:21px;background:rgba(0, 0, 0, 1)">صورة</div>
     </div>
   </div>
 </template>

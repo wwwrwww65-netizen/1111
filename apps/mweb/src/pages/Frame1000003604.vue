@@ -1,8 +1,9 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003604</h1>
-      <p>Figma: Document / Dashboard / Frame 1000003641 / Property 1=Variant6 / Frame 1000003640 / Frame 1000003642 / Frame 1000003604 (id: 2242:5423)</p>
+    <div style="display:flex;flex-direction:column;gap:4px;position:absolute;left:8324px;top:8425px;width:14px;height:8px">
+      <div style="align-self:stretch;position:absolute;left:8324px;top:8425px;width:14px;height:0px">Line 14</div>
+      <div style="align-self:stretch;position:absolute;left:8324px;top:8429px;width:14px;height:0px">Line 15</div>
+      <div style="align-self:stretch;position:absolute;left:8324px;top:8433px;width:14px;height:0px">Line 16</div>
     </div>
   </div>
 </template>

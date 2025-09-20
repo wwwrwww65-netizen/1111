@@ -1,8 +1,13 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003534</h1>
-      <p>Figma: Document / Dashboard / Frame 1000003552 / Frame 78 / Frame 1000003550 / Frame 1000003534 (id: 1823:7464)</p>
+    <div style="position:absolute;left:-7399px;top:8589px;width:59px;height:21px">
+      <div style="position:absolute;left:-7360px;top:8590px;width:20px;height:20px">
+      <div style="position:absolute;left:-7360px;top:8590px;width:20px;height:20px;border-radius:2px;background:rgba(255, 255, 255, 1)">Rectangle 45</div>
+      <div style="position:absolute;left:-7358px;top:8592px;width:16px;height:16px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+    </div>
+      <div style="position:absolute;left:-7399px;top:8589px;width:29px;height:18px;background:rgba(92, 92, 92, 1)">كوتش</div>
     </div>
   </div>
 </template>

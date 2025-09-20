@@ -1,8 +1,24 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319410</h1>
-      <p>Figma: Document / ui / التعليقات / Frame 427319410 (id: 53:1919)</p>
+    <div style="position:absolute;left:-1298px;top:6603px;width:80px;height:16px">
+      <div style="position:absolute;left:-1285px;top:6608px;width:48px;height:8px">
+      <div style="position:absolute;left:-1245px;top:6608px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="position:absolute;left:-1285px;top:6608px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="position:absolute;left:-1275px;top:6608px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="position:absolute;left:-1265px;top:6608px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="position:absolute;left:-1255px;top:6608px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+    </div>
+      <div style="position:absolute;left:-1235px;top:6604px;width:17px;height:16px;background:rgba(0, 0, 0, 1)">4.69</div>
     </div>
   </div>
 </template>

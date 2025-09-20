@@ -1,8 +1,18 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319259</h1>
-      <p>Figma: Document / ui / الرئيسية / Frame 427319261 / Frame 427319259 (id: 2:17754)</p>
+    <div style="position:absolute;left:-158px;top:-77px;width:384px;height:80px">
+      <div style="position:absolute;left:-158px;top:-77px;width:60px;height:80px">
+      <div style="position:absolute;left:-158px;top:-77px;width:60px;height:60px;border-radius:50px">unsplash:X4v3nCjzOVo</div>
+      <div style="position:absolute;left:-140px;top:-13px;width:21px;height:16px;background:rgba(56, 67, 84, 1)">الهاتف</div>
+    </div>
+      <div style="position:absolute;left:-78px;top:-77px;width:60px;height:60px;border-radius:50px">Rectangle 592</div>
+      <div style="position:absolute;left:2px;top:-77px;width:60px;height:60px;border-radius:50px">Rectangle 592</div>
+      <div style="position:absolute;left:84px;top:-77px;width:60px;height:60px;border-radius:50px">Rectangle 47</div>
+      <div style="position:absolute;left:166px;top:-77px;width:60px;height:60px;border-radius:50px">Rectangle 592</div>
+      <div style="position:absolute;left:96px;top:-13px;width:35px;height:16px;background:rgba(0, 0, 0, 1)">البيت الذكي</div>
+      <div style="position:absolute;left:186px;top:-13px;width:20px;height:16px;background:rgba(0, 0, 0, 1)">رياضي</div>
+      <div style="position:absolute;left:21px;top:-13px;width:18px;height:16px;background:rgba(0, 0, 0, 1)">نسائي</div>
+      <div style="position:absolute;left:-59px;top:-13px;width:16px;height:16px;background:rgba(0, 0, 0, 1)">رجالي</div>
     </div>
   </div>
 </template>

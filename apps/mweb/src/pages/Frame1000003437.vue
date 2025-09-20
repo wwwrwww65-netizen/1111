@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003437</h1>
-      <p>Figma: Document / Dashboard / عرض المنتجات / Frame 1000003439 / Frame 1000003422 / Frame 1000003421 / Frame 1000003420 / Frame 1000003420 / Frame 1000003437 (id: 1321:8109)</p>
+    <div style="position:absolute;left:9828px;top:773px;width:11px;height:98px">
+      <div style="background:rgba(0, 0, 0, 1)">0</div>
+      <div style="background:rgba(0, 0, 0, 1)">1</div>
+      <div style="background:rgba(0, 0, 0, 1)">2</div>
+      <div style="background:rgba(0, 0, 0, 1)">3</div>
     </div>
   </div>
 </template>

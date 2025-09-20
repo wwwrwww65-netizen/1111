@@ -1,8 +1,11 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003636</h1>
-      <p>Figma: Document / Dashboard / عرض التفاصيل_ قياس / Deals Details / Frame 1000003636 (id: 2212:11030)</p>
+    <div style="display:flex;flex-direction:column;gap:28px;align-items:flex-end;position:absolute;left:2816px;top:16951px;width:22px;height:217px">
+      <div style="align-self:stretch;position:absolute;left:2816px;top:16951px;width:22px;height:21px;background:rgba(92, 92, 92, 1)">xxl </div>
+      <div style="position:absolute;left:2824px;top:17000px;width:14px;height:21px;background:rgba(92, 92, 92, 1)">xl</div>
+      <div style="align-self:stretch;position:absolute;left:2816px;top:17049px;width:22px;height:21px;background:rgba(92, 92, 92, 1)">l</div>
+      <div style="align-self:stretch;position:absolute;left:2816px;top:17098px;width:22px;height:21px;background:rgba(92, 92, 92, 1)">m</div>
+      <div style="align-self:stretch;position:absolute;left:2816px;top:17147px;width:22px;height:21px;background:rgba(92, 92, 92, 1)">s</div>
     </div>
   </div>
 </template>

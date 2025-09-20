@@ -1,8 +1,13 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 139</h1>
-      <p>Figma: Document / ui / الشروط والاحكام / Frame 139 (id: 65:4481)</p>
+    <div style="display:flex;flex-direction:column;gap:20px;position:absolute;left:-2748px;top:12568px;width:398px;height:215px">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;align-self:stretch;position:absolute;left:-2748px;top:12568px;width:398px;height:215px">
+      <div style="position:absolute;left:-2403px;top:12568px;width:53px;height:24px;background:rgba(46, 51, 51, 1)">السياسات</div>
+      <div style="position:absolute;left:-2748px;top:12600px;width:398px;height:183px">
+      
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

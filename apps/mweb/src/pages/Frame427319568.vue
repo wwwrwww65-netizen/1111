@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319568</h1>
-      <p>Figma: Document / ui / جديدنا / Frame 427319568 (id: 248:4888)</p>
+    <div style="position:absolute;left:188px;top:4677px;width:68px;height:73px">
+      <div style="position:absolute;left:188px;top:4679px;width:68px;height:71px;border-radius:2px;background:rgba(88, 243, 14, 0.5)">Rectangle 1166</div>
+      <div style="position:absolute;left:199px;top:4713px;width:48px;height:16px;background:rgba(1, 169, 38, 1)">24</div>
+      <div style="position:absolute;left:188px;top:4679px;width:68px;height:15px;background:rgba(92, 184, 92, 0.5)">Rectangle 1167</div>
+      <div style="position:absolute;left:212px;top:4677px;width:20px;height:16px;background:rgba(1, 169, 38, 1)">سبتمبر</div>
     </div>
   </div>
 </template>

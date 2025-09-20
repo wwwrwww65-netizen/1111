@@ -1,8 +1,7 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">tshirt 1</h1>
-      <p>Figma: Document / Dashboard / عرض المنتجات / المنتجات / Frame 50 / Frame 15 / Frame 6 / tshirt 1 (id: 2199:7598)</p>
+    <div style="position:absolute;left:7567px;top:11326px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(117, 117, 117, 1)">Vector</div>
     </div>
   </div>
 </template>

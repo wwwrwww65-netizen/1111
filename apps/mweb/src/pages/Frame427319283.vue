@@ -1,8 +1,25 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319283</h1>
-      <p>Figma: Document / ui / Frame 427319283 (id: 51:2091)</p>
+    <div style="position:absolute;left:-586px;top:7853px;width:430px;height:263px">
+      <div style="position:absolute;left:-586px;top:7859px;width:430px;height:257px;background:rgba(255, 255, 255, 1)">Rectangle 74</div>
+      <div style="background:rgba(52, 40, 62, 1)">وصف حول المنتج</div>
+      <div style="display:flex;flex-direction:column;gap:16px;align-items:flex-end;position:absolute;left:-450px;top:7894px;width:177px;height:208px">
+      <div style="align-self:stretch;position:absolute;left:-450px;top:7894px;width:177px;height:24px;background:rgba(46, 51, 51, 1)">مرونة</div>
+      <div style="align-self:stretch;position:absolute;left:-450px;top:7934px;width:177px;height:24px;background:rgba(46, 51, 51, 1)">بني</div>
+      <div style="align-self:stretch;position:absolute;left:-450px;top:7974px;width:177px;height:24px;background:rgba(46, 51, 51, 1)">مقلوب</div>
+      <div style="align-self:stretch;position:absolute;left:-450px;top:8014px;width:177px;height:48px;background:rgba(46, 51, 51, 1)">مرونة شاملة (4 اتجاهات),
+نعومة</div>
+      <div style="align-self:stretch;position:absolute;left:-450px;top:8078px;width:177px;height:24px;background:rgba(46, 51, 51, 1)">ياقة القاع</div>
+    </div>
+      <div style="position:absolute;left:-257px;top:7894px;width:0px;height:208px">Vector 1</div>
+      <div style="display:flex;flex-direction:column;gap:16px;align-items:flex-end;position:absolute;left:-241px;top:7894px;width:54px;height:208px">
+      <div style="position:absolute;left:-246px;top:7894px;width:59px;height:24px;background:rgba(63, 61, 86, 1)">نوع الاغلاق</div>
+      <div style="align-self:stretch;position:absolute;left:-241px;top:7934px;width:54px;height:24px;background:rgba(63, 61, 86, 1)">اللون</div>
+      <div style="align-self:stretch;position:absolute;left:-241px;top:7974px;width:54px;height:24px;background:rgba(63, 61, 86, 1)">نوع</div>
+      <div style="align-self:stretch;position:absolute;left:-241px;top:8014px;width:54px;height:48px;background:rgba(63, 61, 86, 1)">ميزة
+</div>
+      <div style="align-self:stretch;position:absolute;left:-241px;top:8078px;width:54px;height:24px;background:rgba(63, 61, 86, 1)">خط العنق</div>
+    </div>
     </div>
   </div>
 </template>

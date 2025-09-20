@@ -1,8 +1,7 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319415</h1>
-      <p>Figma: Document / ui / كوبونات / Frame 427319433 / Frame 427319416 / Frame 427319415 (id: 207:3648)</p>
+    <div style="position:absolute;left:-1162px;top:11275px;width:67px;height:18px">
+      <div style="position:absolute;left:-1153px;top:11275px;width:56px;height:16px;background:rgba(0, 0, 0, 1)">غير مستخدم</div>
     </div>
   </div>
 </template>

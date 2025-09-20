@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319564</h1>
-      <p>Figma: Document / ui / بطاقة هدية / Frame 427319564 (id: 212:3753)</p>
+    <div style="position:absolute;left:-1109px;top:19987px;width:398px;height:64px">
+      <div style="position:absolute;left:-1109px;top:19987px;width:398px;height:64px;border-radius:15px;background:rgba(188, 188, 188, 1)">Rectangle 7</div>
+      <div style="background:rgba(255, 255, 255, 1)">الدفع</div>
     </div>
   </div>
 </template>

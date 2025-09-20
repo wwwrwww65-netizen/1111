@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 91</h1>
-      <p>Figma: Document / Dashboard / بيانات المنتج/Variant6 / Frame 91 (id: 1309:2879)</p>
+    <div style="display:flex;flex-direction:column;gap:16px;position:absolute;left:-6301px;top:-19px;width:811px;height:64px">
+      <div style="align-self:stretch;position:absolute;left:-6301px;top:-19px;width:811px;height:64px">
+      <div style="position:absolute;left:-6301px;top:-19px;width:811px;height:18px;background:rgba(64, 64, 64, 1)">رمز المنتج</div>
+      <div style="position:absolute;left:-6301px;top:7px;width:811px;height:38px">
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

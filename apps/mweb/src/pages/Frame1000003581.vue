@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003581</h1>
-      <p>Figma: Document / Dashboard / Frame 1000003585 / Frame 1000003581 (id: 1933:7178)</p>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center;position:absolute;left:-22257px;top:2796px;width:31px;height:50px">
+      <div style="align-self:stretch;position:absolute;left:-22257px;top:2796px;width:31px;height:21px;background:rgba(67, 121, 238, 1)">ازرق</div>
+      <div style="align-self:stretch;position:absolute;left:-22257px;top:2825px;width:31px;height:21px;background:rgba(60, 255, 12, 1)">اخضر</div>
     </div>
   </div>
 </template>

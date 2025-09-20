@@ -1,8 +1,7 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003556</h1>
-      <p>Figma: Document / Dashboard / اضافة قياس / Frame 1000003568 / Frame 1000003565 / Frame 1000003561 / Frame 1000003556 (id: I2242:5966;2212:11042)</p>
+    <div style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:flex-end;position:absolute;left:3036px;top:18145px;width:1065px;height:38px;padding:11px 19px 11px 19px;border-radius:10px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:4034px;top:18157px;width:48px;height:15px;background:rgba(151, 151, 151, 1)">أسم القياس</div>
     </div>
   </div>
 </template>

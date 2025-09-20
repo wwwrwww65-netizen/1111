@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Styles</h1>
-      <p>Figma: Document / ICON / Icon/General / Security / Styles (id: 1823:50263)</p>
+    <div style="position:absolute;left:2107px;top:9409px;width:664px;height:56px">
+      <div style="">Line</div>
+      <div style="display:flex;flex-direction:row;gap:16px;align-items:center;position:absolute;left:2107px;top:9409px;width:131px;height:28px">
+      <div style="position:absolute;left:2107px;top:9409px;width:131px;height:28px;background:rgba(41, 45, 50, 1)">Security</div>
+    </div>
     </div>
   </div>
 </template>

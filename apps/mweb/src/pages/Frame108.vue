@@ -1,8 +1,33 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 108</h1>
-      <p>Figma: Document / ui / Frame 427319578 / Frame 108 (id: 462:4265)</p>
+    <div style="position:absolute;left:729px;top:7046px;width:342px;height:79px">
+      <div style="position:absolute;left:1041px;top:7046px;width:30px;height:20px;background:rgba(46, 51, 51, 1)">الحجم</div>
+      <div style="position:absolute;left:729px;top:7078px;width:342px;height:47px">
+      <div style="position:absolute;left:788px;top:7078px;width:47px;height:47px;border-radius:50px">
+      
+      
+    </div>
+      <div style="position:absolute;left:847px;top:7078px;width:47px;height:47px;border-radius:50px">
+      
+      
+    </div>
+      <div style="position:absolute;left:729px;top:7078px;width:47px;height:47px;border-radius:50px">
+      
+      
+    </div>
+      <div style="position:absolute;left:906px;top:7078px;width:47px;height:47px;border-radius:50px">
+      
+      
+    </div>
+      <div style="position:absolute;left:965px;top:7078px;width:47px;height:47px;border-radius:50px">
+      
+      
+    </div>
+      <div style="position:absolute;left:1024px;top:7078px;width:47px;height:47px;border-radius:50px">
+      
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

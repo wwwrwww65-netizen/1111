@@ -1,8 +1,18 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Root</h1>
-      <p>Figma: Document / ui / Figma design - photo_2024-10-08_12-55-49.jpg / Root (id: 468:4363)</p>
+    <div style="background:rgba(0, 0, 0, 0)">
+      <div style="background:rgba(255, 255, 255, 1)">Background</div>
+      <div style="background:rgba(255, 255, 255, 1)">Background</div>
+      <div style="background:rgba(152, 152, 152, 1)">يتم تحديث البحث عن الموديلات العصرية يوميأ ليعكس ما يبحث عنه عشاق
+الموضة</div>
+      <div style="background:rgba(0, 0, 0, 0)">
+      <div style="background:rgba(0, 0, 0, 0)">
+      
+      
+      
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

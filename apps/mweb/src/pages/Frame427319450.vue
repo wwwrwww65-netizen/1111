@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319450</h1>
-      <p>Figma: Document / APP_DELEVRY / تفاصيل الطالب_العميل / Frame 427319447 / Frame 427319452 / Frame 427319450 (id: 2928:1044)</p>
+    <div style="position:absolute;left:956px;top:4866px;width:47px;height:16px">
+      <div style="position:absolute;left:972px;top:4866px;width:31px;height:16px;background:rgba(112, 112, 112, 1)">اللون:</div>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;position:absolute;left:956px;top:4870px;width:12px;height:12px;padding:12px 16px 12px 16px;border-radius:8px;background:rgba(160, 97, 106, 1)">Filter</div>
     </div>
   </div>
 </template>

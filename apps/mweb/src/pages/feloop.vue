@@ -1,8 +1,11 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">fe:loop</h1>
-      <p>Figma: Document / ui / الكاميرا / fe:loop (id: 465:4317)</p>
+    <div style="position:absolute;left:-2721px;top:102px;width:31px;height:31px;background:rgba(255, 255, 255, 1)">
+      <div style="">
+      <div style="">
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

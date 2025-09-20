@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319586</h1>
-      <p>Figma: Document / ui / الرئيسية / Frame 427319285 / Frame 427319586 (id: 1420:4321)</p>
+    <div style="position:absolute;left:-164px;top:491px;width:20px;height:20px">
+      <div style="position:absolute;left:-164px;top:491px;width:20px;height:20px">
+      <div style="position:absolute;left:-164px;top:491px;width:20px;height:20px;background:rgba(255, 255, 255, 1)">Ellipse 22</div>
+      <div style="position:absolute;left:-160px;top:495px;width:12px;height:12px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

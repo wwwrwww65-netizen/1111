@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319367</h1>
-      <p>Figma: Document / ui / الدفع / Frame 427319367 (id: 32:3052)</p>
+    <div style="position:absolute;left:-522px;top:2754px;width:122px;height:24px">
+      <div style="position:absolute;left:-522px;top:2754px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:-522px;top:2754px;width:24px;height:24px">
+      
+    </div>
+    </div>
+      <div style="position:absolute;left:-496px;top:2757px;width:96px;height:16px;background:rgba(0, 0, 0, 1)">أضافة عنوان جديد</div>
     </div>
   </div>
 </template>

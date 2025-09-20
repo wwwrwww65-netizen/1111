@@ -1,8 +1,20 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003555</h1>
-      <p>Figma: Document / Dashboard / تفاصيل الموصلين / Frame 1000003555 (id: 2199:9399)</p>
+    <div style="position:absolute;left:1796px;top:12583px;width:1188px;height:69px">
+      <div style="position:absolute;left:1796px;top:12583px;width:1188px;height:69px">
+      <div style="position:absolute;left:1796px;top:12583px;width:1183px;height:70px;background:rgba(255, 255, 255, 1)">Rectangle 26</div>
+    </div>
+      <div style="position:absolute;left:1819px;top:12610px;width:24px;height:24px">
+      <div style="position:absolute;left:1819px;top:12610px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="position:absolute;left:1835px;top:12612px;width:6px;height:6px;background:rgba(247, 85, 85, 1)">Ellipse</div>
+    </div>
+      <div style="background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(216, 216, 216, 1)">Mask</div>
+      <div style="background:rgba(216, 216, 216, 1)">Mask</div>
+      <div style="">a-l-l-e-f-v-i-n-i-c-i-u-s-343875-unsplash</div>
+    </div>
     </div>
   </div>
 </template>

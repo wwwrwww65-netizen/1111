@@ -1,8 +1,19 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003546</h1>
-      <p>Figma: Document / Dashboard / Frame 1000003540 / Property 1=Variant4 / Frame 1000003541 / Frame 1000003542 / Frame 1000003546 (id: 1682:2719)</p>
+    <div style="position:absolute;left:-7067px;top:8745px;width:1017px;height:38px">
+      <div style="position:absolute;left:-7067px;top:8745px;width:993px;height:38px;border-radius:10px;background:rgba(255, 255, 255, 1)">Rectangle 40</div>
+      <div style="position:absolute;left:-6168px;top:8755px;width:76px;height:18px;background:rgba(151, 151, 151, 1)">التصنيف الفرعي</div>
+      <div style="position:absolute;left:-7067px;top:8745px;width:63px;height:38px;background:rgba(245, 246, 250, 1)">Rectangle 1265</div>
+      <div style="position:absolute;left:-7043px;top:8756px;width:16px;height:16px">
+      <div style="position:absolute;left:-7043px;top:8756px;width:16px;height:16px">
+      
+      
+      
+      
+      
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

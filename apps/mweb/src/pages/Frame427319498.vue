@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319498</h1>
-      <p>Figma: Document / ui / رسالة / Frame 427319433 / Frame 427319501 / Frame 427319498 (id: 187:3099)</p>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center;position:absolute;left:-4553px;top:-682px;width:32px;height:44px">
+      <div style="position:absolute;left:-4549px;top:-682px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(0, 0, 0, 1)">Vector</div>
+    </div>
+      <div style="align-self:stretch;position:absolute;left:-4553px;top:-654px;width:32px;height:16px;background:rgba(0, 0, 0, 1)">عروض</div>
     </div>
   </div>
 </template>

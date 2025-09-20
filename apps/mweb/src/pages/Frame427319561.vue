@@ -1,8 +1,9 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319561</h1>
-      <p>Figma: Document / ui / بطاقة هدية / Frame 427319561 (id: 210:6150)</p>
+    <div style="position:absolute;left:-565px;top:19863px;width:195px;height:190px">
+      <div style="position:absolute;left:-565px;top:19863px;width:195px;height:129px;border-radius:10px">unsplash:jsgby4-zj44</div>
+      <div style="position:absolute;left:-516px;top:20002px;width:142px;height:24px;background:rgba(0, 0, 0, 1)">القيمة   2000 ريال</div>
+      <div style="position:absolute;left:-514px;top:20029px;width:140px;height:24px;background:rgba(0, 0, 0, 1)">السعر   2000 ريال</div>
     </div>
   </div>
 </template>

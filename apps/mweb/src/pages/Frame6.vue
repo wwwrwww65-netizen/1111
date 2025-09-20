@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 6</h1>
-      <p>Figma: Document / Dashboard / اضافة قياس / Frame 1000003568 / Frame 18 / Frame 6 (id: I2242:5966;2242:5596)</p>
+    <div style="display:flex;flex-direction:row;gap:12px;align-items:center;position:absolute;left:3518px;top:18220px;width:151px;height:24px">
+      <div style="position:absolute;left:3518px;top:18222px;width:115px;height:21px;background:rgba(138, 21, 56, 1)">أضافة تفاصيل قياس</div>
+      <div style="position:absolute;left:3645px;top:18220px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:3645px;top:18220px;width:24px;height:24px">
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

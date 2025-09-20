@@ -1,8 +1,7 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 10</h1>
-      <p>Figma: Document / Dashboard / اضافة قياس / Frame 1000003567 / Frame 1000003565 / Frame 10 (id: I2242:5966;2212:11049)</p>
+    <div style="display:flex;flex-direction:row;gap:12px;align-items:center;position:absolute;left:4002px;top:18286px;width:31px;height:24px">
+      <div style="position:absolute;left:4002px;top:18286px;width:31px;height:24px;background:rgba(255, 255, 255, 1)">حفظ</div>
     </div>
   </div>
 </template>

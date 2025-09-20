@@ -1,8 +1,7 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319471</h1>
-      <p>Figma: Document / APP_DELEVRY / Frame 427319473 / Frame 427319472 / Frame 427319471 (id: 2905:5479)</p>
+    <div style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:flex-end;align-self:stretch;position:absolute;left:1189px;top:3865px;width:398px;height:47px;padding:9px 22px 9px 22px;border-radius:10px;background:rgba(246, 247, 249, 1)">
+      <div style="position:absolute;left:1510px;top:3879px;width:55px;height:20px;background:rgba(92, 91, 91, 1)">عدد المنتجات</div>
     </div>
   </div>
 </template>

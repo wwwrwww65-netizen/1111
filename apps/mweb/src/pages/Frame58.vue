@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 58</h1>
-      <p>Figma: Document / Dashboard / ادارة الكميات / Frame 79 / Frame 78 / Frame 58 (id: I2158:3431;1921:7146)</p>
+    <div style="display:flex;flex-direction:row;gap:656px;align-items:center;justify-content:space-between;align-self:stretch;position:absolute;left:-2725px;top:1259px;width:850px;height:47px;padding:8px 16px 8px 16px;background:rgba(138, 21, 56, 1)">
+      <div style="position:absolute;left:-2709px;top:1271px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(255, 255, 255, 1)">Vector</div>
+    </div>
+      <div style="position:absolute;left:-2038px;top:1271px;width:147px;height:24px;background:rgba(255, 255, 255, 1)">ادارة الكمية - أسم المنتج</div>
     </div>
   </div>
 </template>

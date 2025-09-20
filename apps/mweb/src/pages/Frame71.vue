@@ -1,8 +1,22 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 71</h1>
-      <p>Figma: Document / Dashboard / أضافة صورة / Property 1=Variant2 / Frame 72 / Frame 71 (id: 739:5186)</p>
+    <div style="display:flex;flex-direction:column;gap:20px;align-items:center;position:absolute;left:-7077px;top:1456px;width:850px;height:182px">
+      <div style="display:flex;flex-direction:row;gap:656px;align-items:center;justify-content:space-between;align-self:stretch;position:absolute;left:-7077px;top:1456px;width:850px;height:47px;padding:8px 16px 8px 16px;background:rgba(138, 21, 56, 1)">
+      <div style="position:absolute;left:-7061px;top:1468px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      
+    </div>
+      <div style="position:absolute;left:-6379px;top:1468px;width:136px;height:24px;background:rgba(255, 255, 255, 1)">صور وفيديوهات المنتج</div>
+    </div>
+      <div style="display:flex;flex-direction:column;gap:1px;align-items:center;position:absolute;left:-7059px;top:1523px;width:814px;height:57px;padding:8px 338px 8px 338px;background:rgba(217, 217, 217, 1)">
+      <div style="position:absolute;left:-6721px;top:1531px;width:138px;height:21px;background:rgba(41, 45, 50, 1)">أسحب الصورة وأفلتها هنا</div>
+      <div style="position:absolute;left:-6695px;top:1553px;width:87px;height:18px;background:rgba(117, 117, 117, 1)">أوتصفح من جهازك</div>
+    </div>
+      <div style="display:flex;flex-direction:column;gap:10px;position:absolute;left:-7057px;top:1600px;width:810px;height:38px">
+      <div style="display:flex;flex-direction:column;gap:10px;position:absolute;left:-7057px;top:1600px;width:810px;height:38px">
+      
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

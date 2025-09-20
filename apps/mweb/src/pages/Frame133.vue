@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 133</h1>
-      <p>Figma: Document / ui / عملية البحث / Frame 427319491 / Frame 427319285 / Frame 427319319 / Frame 133 (id: 129:3886)</p>
+    <div style="position:absolute;left:-3446px;top:-205px;width:20px;height:20px">
+      <div style="position:absolute;left:-3446px;top:-205px;width:20px;height:20px;background:rgba(255, 255, 255, 1)">Ellipse 22</div>
+      <div style="position:absolute;left:-3442px;top:-201px;width:12px;height:12px;background:rgba(255, 255, 255, 1)">
+      <div style="">Vector</div>
+    </div>
     </div>
   </div>
 </template>

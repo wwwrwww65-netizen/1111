@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Size picker</h1>
-      <p>Figma: Document / APP_DELEVRY / تفاصيل طلباتي / Frame 1000003549 / Frame 78 / Frame 75 / Frame 33 / Frame 78 / Frame 75 / Location picker / Frame 32 / Size picker (id: I2899:6470;109:4000)</p>
+    <div style="display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:center;position:absolute;left:1054px;top:3220px;width:48px;height:48px;padding:4px 4px 4px 4px;border-radius:8px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:1066px;top:3232px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(190, 0, 0, 1)">Vector</div>
+      <div style="background:rgba(190, 0, 0, 1)">Vector</div>
+    </div>
     </div>
   </div>
 </template>

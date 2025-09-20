@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319344</h1>
-      <p>Figma: Document / ui / التعليقات / Frame 427319343 / Frame 427319344 (id: 53:2106)</p>
+    <div style="position:absolute;left:-1185px;top:6799px;width:37px;height:18px">
+      <div style="position:absolute;left:-1185px;top:6799px;width:37px;height:18px;background:rgba(152, 0, 0, 1)">Rectangle 1146</div>
+      <div style="position:absolute;left:-1173px;top:6800px;width:14px;height:16px;background:rgba(255, 255, 255, 1)">فعلة</div>
     </div>
   </div>
 </template>

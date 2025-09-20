@@ -1,8 +1,9 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319486</h1>
-      <p>Figma: Document / ui / عملية البحث / Frame 427319488 / Frame 427319486 (id: 129:3798)</p>
+    <div style="position:absolute;left:-3654px;top:-562px;width:121px;height:29px">
+      <div style="position:absolute;left:-3649px;top:-557px;width:116px;height:24px;border-radius:5px;background:rgba(246, 247, 249, 1)">Rectangle 611</div>
+      <div style="position:absolute;left:-3623px;top:-562px;width:64px;height:22px;background:rgba(0, 0, 0, 1)">جاكتات نار شرار</div>
+      <div style="position:absolute;left:-3555px;top:-562px;width:12px;height:32px;background:rgba(0, 0, 0, 1)">🔥</div>
     </div>
   </div>
 </template>

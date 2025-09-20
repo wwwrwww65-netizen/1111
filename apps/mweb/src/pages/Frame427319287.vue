@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319287</h1>
-      <p>Figma: Document / ui / Component 24 / Property 1=حسابي / Frame 427319287 (id: 351:5207)</p>
+    <div style="">
+      <div style="position:absolute;left:955px;top:741px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:955px;top:741px;width:24px;height:24px">
+      
+    </div>
+    </div>
+      <div style="position:absolute;left:952px;top:766px;width:25px;height:16px;background:rgba(188, 188, 188, 1)">جديدنا</div>
     </div>
   </div>
 </template>

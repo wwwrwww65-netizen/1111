@@ -1,8 +1,26 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">club</h1>
-      <p>Figma: Document / ui / club (id: 526:4290)</p>
+    <div style="position:absolute;left:-7784px;top:-611px;width:589px;height:1154px;background:rgba(0, 0, 0, 0)">
+      <div style="background:rgba(0, 0, 0, 0)">
+      <div style="background:rgba(0, 0, 0, 0)">Image</div>
+      <div style="background:rgba(0, 0, 0, 0)">Background</div>
+      <div style="">Image</div>
+      <div style="background:rgba(90, 82, 79, 1)">CLUBالشروطوالأحكام</div>
+      <div style="background:rgba(0, 0, 0, 0)">
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

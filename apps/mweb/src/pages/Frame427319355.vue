@@ -1,8 +1,15 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319355</h1>
-      <p>Figma: Document / ui / Frame 427319356 / Frame 427319355 (id: 11:2442)</p>
+    <div style="position:absolute;left:399px;top:-417px;width:302px;height:85px">
+      <div style="position:absolute;left:605px;top:-386px;width:6px;height:24px;background:rgba(0, 0, 0, 1)">﷼</div>
+      <div style="position:absolute;left:402px;top:-389px;width:6px;height:24px;background:rgba(0, 0, 0, 1)">﷼</div>
+      <div style="position:absolute;left:621px;top:-386px;width:7px;height:24px;background:rgba(46, 51, 51, 1)"> 50</div>
+      <div style="position:absolute;left:418px;top:-389px;width:7px;height:24px;background:rgba(46, 51, 51, 1)"> 50</div>
+      <div style="position:absolute;left:399px;top:-352px;width:287px;height:4px;border-radius:6px;background:rgba(225, 225, 225, 1)">Rectangle 69</div>
+      <div style="position:absolute;left:399px;top:-352px;width:214px;height:4px;border-radius:6px;background:rgba(0, 0, 0, 1)">Rectangle 70</div>
+      <div style="position:absolute;left:399px;top:-362px;width:24px;height:30px;background:rgba(255, 255, 255, 1)">Ellipse 5</div>
+      <div style="position:absolute;left:603px;top:-362px;width:24px;height:30px;background:rgba(255, 255, 255, 1)">Ellipse 6</div>
+      <div style="position:absolute;left:649px;top:-417px;width:52px;height:16px;background:rgba(0, 0, 0, 1)">نطاق السعر</div>
     </div>
   </div>
 </template>

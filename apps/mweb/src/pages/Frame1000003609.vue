@@ -1,8 +1,11 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003609</h1>
-      <p>Figma: Document / Dashboard / ادارة الموردين_منتج المورد / Frame 1000003573 / Frame 1000003570 / Frame 1000003609 (id: 2199:7200)</p>
+    <div style="display:flex;flex-direction:column;gap:26px;position:absolute;left:3820px;top:12031px;width:76px;height:224px">
+      <div style="align-self:stretch;position:absolute;left:3820px;top:12031px;width:76px;height:24px;background:rgba(40, 46, 58, 1)">12000 ر.ي</div>
+      <div style="align-self:stretch;position:absolute;left:3820px;top:12081px;width:76px;height:24px;background:rgba(40, 46, 58, 1)">12000 ر.ي</div>
+      <div style="align-self:stretch;position:absolute;left:3820px;top:12131px;width:76px;height:24px;background:rgba(40, 46, 58, 1)">12000 ر.ي</div>
+      <div style="align-self:stretch;position:absolute;left:3820px;top:12181px;width:76px;height:24px;background:rgba(40, 46, 58, 1)">12000 ر.ي</div>
+      <div style="align-self:stretch;position:absolute;left:3820px;top:12231px;width:76px;height:24px;background:rgba(40, 46, 58, 1)">12000 ر.ي</div>
     </div>
   </div>
 </template>

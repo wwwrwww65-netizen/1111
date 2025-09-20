@@ -1,8 +1,13 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">brush</h1>
-      <p>Figma: Document / ICON / Icon/General / Design, Tools / brush-4 / Property 1=twotone / vuesax/twotone/brush / brush (id: 1823:29458)</p>
+    <div style="position:absolute;left:-4117px;top:6977px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="">Vector</div>
+      <div style="position:absolute;left:-4113px;top:6979px;width:16px;height:12px">
+      <div style="">Vector</div>
+      <div style="">Vector</div>
+      <div style="">Vector</div>
+    </div>
+      <div style="">Vector</div>
     </div>
   </div>
 </template>

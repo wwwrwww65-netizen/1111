@@ -1,8 +1,15 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003554</h1>
-      <p>Figma: Document / Dashboard / ادارة الاقسام / تصنيف المنتجات / Frame 1000003554 (id: 1823:52368)</p>
+    <div style="position:absolute;left:2071px;top:7009px;width:965px;height:40px">
+      <div style="border-radius:10px;background:rgba(255, 255, 255, 1)">
+      <div style="border-radius:10px;background:rgba(245, 246, 250, 1)">Rectangle</div>
+      <div style="background:rgba(32, 34, 36, 1)">عملية البحث</div>
+    </div>
+      <div style="position:absolute;left:3004px;top:7015px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:3004px;top:7015px;width:24px;height:24px">
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

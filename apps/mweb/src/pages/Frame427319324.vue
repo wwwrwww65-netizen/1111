@@ -1,8 +1,22 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319324</h1>
-      <p>Figma: Document / design system / Frame 427319324 (id: 1:246)</p>
+    <div style="display:flex;flex-direction:column;gap:31px;align-items:center;position:absolute;left:-348px;top:458px;width:684px;height:203px">
+      <div style="display:flex;flex-direction:column;gap:8px;position:absolute;left:-150px;top:458px;width:289px;height:94px">
+      <div style="display:flex;flex-direction:column;gap:60px;align-items:center;align-self:stretch;position:absolute;left:-150px;top:458px;width:289px;height:31px">
+      
+    </div>
+      <div style="align-self:stretch;position:absolute;left:-150px;top:497px;width:289px;height:26px;background:rgba(98, 119, 149, 1)">Ibm plex sans arabic</div>
+      <div style="display:flex;flex-direction:row;gap:22px;position:absolute;left:-150px;top:531px;width:289px;height:21px">
+      
+      
+      
+      
+    </div>
+    </div>
+      <div style="display:flex;flex-direction:row;gap:194px;position:absolute;left:-348px;top:583px;width:684px;height:78px">
+      <div style="position:absolute;left:-348px;top:583px;width:245px;height:78px;background:rgba(98, 119, 149, 1)">A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z</div>
+      <div style="position:absolute;left:91px;top:583px;width:245px;height:78px;background:rgba(98, 119, 149, 1)">أ, ب, ت, ث, ج, ح, خ, د, ذ, ر, ز, س, ش, ص, ض, ط, ظ, ع, غ, ف, ق, ك, ل, م, ن, ه, و,</div>
+    </div>
     </div>
   </div>
 </template>

@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003562</h1>
-      <p>Figma: Document / Dashboard / اضافة مورد / Frame 1000003568 / Frame 1000003565 / Frame 1000003561 / Frame 1000003562 (id: 2199:9643)</p>
+    <div style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:space-between;position:absolute;left:886px;top:11549px;width:517px;height:38px;padding:11px 16px 11px 16px;border-radius:10px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:902px;top:11556px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(255, 255, 255, 1)">
+      
+    </div>
+    </div>
+      <div style="position:absolute;left:1365px;top:11561px;width:22px;height:15px;background:rgba(151, 151, 151, 1)">الموقع</div>
     </div>
   </div>
 </template>

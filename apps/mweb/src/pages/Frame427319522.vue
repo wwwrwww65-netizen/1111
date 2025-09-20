@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319522</h1>
-      <p>Figma: Document / ui / كوبونات / Frame 427319523 / Frame 427319522 (id: 206:3337)</p>
+    <div style="position:absolute;left:-486px;top:11329px;width:73px;height:17px">
+      <div style="position:absolute;left:-486px;top:11329px;width:73px;height:17px;border-radius:50px;background:rgba(217, 217, 217, 1)">Rectangle 1220</div>
+      <div style="position:absolute;left:-473px;top:11330px;width:46px;height:16px;background:rgba(0, 0, 0, 1)">كوبون خصم</div>
     </div>
   </div>
 </template>

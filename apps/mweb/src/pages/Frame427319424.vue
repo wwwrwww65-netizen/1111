@@ -1,8 +1,7 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319424</h1>
-      <p>Figma: Document / ui / حذف / Frame 427319434 / Frame 427319432 / Frame 427319424 (id: 248:5114)</p>
+    <div style="display:flex;flex-direction:column;gap:12px;position:absolute;left:-928px;top:9822px;width:222px;height:15px">
+      <div style="display:flex;flex-direction:column;gap:12px;align-items:flex-end;align-self:stretch;position:absolute;left:-928px;top:9822px;width:222px;height:15px">Frame 427319421</div>
     </div>
   </div>
 </template>

@@ -1,8 +1,7 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319526</h1>
-      <p>Figma: Document / ui / كوبونات / Frame 427319526 / Frame 427319526 (id: 207:3613)</p>
+    <div style="position:absolute;left:-1417px;top:11379px;width:382px;height:0px">
+      <div style="position:absolute;left:-1417px;top:11379px;width:382px;height:0px">Line 29</div>
     </div>
   </div>
 </template>

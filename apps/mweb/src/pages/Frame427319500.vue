@@ -1,8 +1,12 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319500</h1>
-      <p>Figma: Document / ui / رسالة / Frame 427319433 / Frame 427319501 / Frame 427319500 (id: 187:3096)</p>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center;position:absolute;left:-4640px;top:-682px;width:27px;height:44px">
+      <div style="align-self:stretch;position:absolute;left:-4640px;top:-682px;width:27px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="position:absolute;left:-4640px;top:-682px;width:27px;height:24px">
+      
+    </div>
+    </div>
+      <div style="align-self:stretch;position:absolute;left:-4640px;top:-654px;width:27px;height:16px;background:rgba(0, 0, 0, 1)">أخبار</div>
     </div>
   </div>
 </template>

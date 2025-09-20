@@ -1,8 +1,24 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 427319326</h1>
-      <p>Figma: Document / design system / Frame 427319327 / Frame 427319317 / Frame 427319325 / Frame 427319326 (id: 1:188)</p>
+    <div style="display:flex;flex-direction:row;gap:60px;justify-content:space-between;align-self:stretch;position:absolute;left:-480px;top:-61px;width:960px;height:170px">
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end;position:absolute;left:-480px;top:-61px;width:344px;height:170px">
+      <div style="align-self:stretch;position:absolute;left:-480px;top:-61px;width:344px;height:31px;background:rgba(30, 30, 44, 1)">Error Color</div>
+      <div style="display:flex;flex-direction:row;gap:8px;position:absolute;left:-480px;top:-20px;width:344px;height:129px;background:rgba(255, 255, 255, 1)">
+      
+      
+      
+      
+    </div>
+    </div>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end;position:absolute;left:136px;top:-61px;width:344px;height:170px">
+      <div style="align-self:stretch;position:absolute;left:136px;top:-61px;width:344px;height:31px;background:rgba(30, 30, 44, 1)">Success Color</div>
+      <div style="display:flex;flex-direction:row;gap:8px;position:absolute;left:136px;top:-20px;width:344px;height:129px;background:rgba(255, 255, 255, 1)">
+      
+      
+      
+      
+    </div>
+    </div>
     </div>
   </div>
 </template>

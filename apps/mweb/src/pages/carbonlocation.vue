@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">carbon:location</h1>
-      <p>Figma: Document / ui / عنوان جديد / carbon:location (id: 33:4205)</p>
+    <div style="position:absolute;left:-808px;top:3209px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
+      <div style="background:rgba(41, 45, 50, 1)">Vector</div>
+      <div style="background:rgba(41, 45, 50, 1)">Vector</div>
     </div>
   </div>
 </template>

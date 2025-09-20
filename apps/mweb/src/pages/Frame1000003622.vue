@@ -1,8 +1,26 @@
 <template>
   <div class="container">
-    <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Frame 1000003622</h1>
-      <p>Figma: Document / Dashboard / ادارة الموردين_منتج المورد / Frame 1000003573 / Frame 1000003570 / Delivered / Frame 1000003622 (id: 2199:7237)</p>
+    <div style="display:flex;flex-direction:column;gap:18px;position:absolute;left:3486px;top:12039px;width:93px;height:207px">
+      <div style="align-self:stretch;position:absolute;left:3486px;top:12039px;width:93px;height:27px">
+      <div style="position:absolute;left:3486px;top:12039px;width:93px;height:27px;border-radius:13.5px;background:rgba(69, 162, 69, 1)">Rectangle</div>
+      <div style="background:rgba(255, 255, 255, 1)">نشط</div>
+    </div>
+      <div style="position:absolute;left:3486px;top:12084px;width:93px;height:27px;border-radius:13.5px;background:rgba(255, 255, 255, 1)">
+      <div style="border-radius:13.5px;background:rgba(255, 185, 27, 1)">Rectangle</div>
+      <div style="background:rgba(255, 255, 255, 1)">موقف</div>
+    </div>
+      <div style="position:absolute;left:3486px;top:12129px;width:93px;height:27px;border-radius:13.5px;background:rgba(255, 255, 255, 1)">
+      <div style="border-radius:13.5px;background:rgba(255, 185, 27, 1)">Rectangle</div>
+      <div style="background:rgba(255, 255, 255, 1)">موقف</div>
+    </div>
+      <div style="align-self:stretch;position:absolute;left:3486px;top:12174px;width:93px;height:27px">
+      <div style="border-radius:13.5px;background:rgba(69, 162, 69, 1)">Rectangle</div>
+      <div style="background:rgba(255, 255, 255, 1)">نشط</div>
+    </div>
+      <div style="align-self:stretch;position:absolute;left:3486px;top:12219px;width:93px;height:27px">
+      <div style="border-radius:13.5px;background:rgba(69, 162, 69, 1)">Rectangle</div>
+      <div style="background:rgba(255, 255, 255, 1)">نشط</div>
+    </div>
     </div>
   </div>
 </template>
