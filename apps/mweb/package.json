@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 3002"
+    "preview": "vite preview --port 3002",
+    "figma:tokens": "node ../../scripts/figma-extract-tokens.mjs && echo tokens done",
+    "figma:generate": "node ../../scripts/figma-generate-mweb.mjs && echo generate done",
+    "figma:sync": "FIGMA_FILE_KEY=$FIGMA_FILE_KEY FIGMA_TOKEN=$FIGMA_TOKEN pnpm figma:tokens && pnpm figma:generate"
   },
   "dependencies": {
     "vue": "3.5.13",
