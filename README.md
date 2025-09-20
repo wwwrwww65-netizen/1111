@@ -357,3 +357,119 @@ Services and suggested configuration:
 Tips:
 - Clear Build Cache before redeploying when switching Start/Build commands.
 - Ensure `NEXT_PUBLIC_TRPC_URL`, `NEXT_PUBLIC_APP_URL`, `JWT_SECRET`, `DATABASE_URL` are set.
+
+## 📌 What's New (Production Parity & Logistics)
+
+- Fixed login/redirect issues causing 0.0.0.0 by moving admin cookie setting to an internal endpoint and enforcing absolute URLs on web login/register.
+- Hardened CI/CD deploy with server smoke checks, 0.0.0.0 scans, admin E2E login, and CRUD smokes (RBAC/roles/users/vendors).
+- Implemented Logistics pages inside Admin (Arabic, RTL):
+  - التوصيل من المورد (Pickup): تبويبات انتظار/تنفيذ/مكتمل + تصدير CSV/PDF/XLS.
+  - المستودع: المعالجة والاستلام (Warehouse): الاستلام/الفرز/جاهز للتسليم + تصدير CSV/PDF/XLS.
+  - التوصيل إلى العميل (Delivery): الطلبات الجاهزة/قيد التوصيل/مكتمل/مرتجعات + خريطة حية (MapLibre) + إثبات التسليم (توقيع وصورة) + تصدير CSV/PDF/XLS.
+- Finance: صفحة "المصروفات" CRUD كاملة مع نموذج Prisma وREST endpoints.
+- Drivers: صفحة السائق تعرض الطلبات المسندة (overview API محدث).
+- RBAC: توسيع الصلاحيات `logistics.*` لتغطية العمليات الجديدة.
+
+## 🔐 Production Parity: Secrets & Vars (GitHub)
+
+Set these in GitHub repository Settings → Secrets and Variables → Actions:
+
+- Secrets (required):
+  - `JWT_SECRET`
+  - `MAINTENANCE_SECRET`
+  - `DATABASE_URL`, `DIRECT_URL`
+  - `SSH_PRIVATE_KEY` (private key for VPS SSH)
+  - `VPS_HOST`, `VPS_PORT` (22), `VPS_USER` (root)
+  - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
+  - Optional: `SENTRY_DSN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CLOUDINARY_URL`
+- Variables (vars) for non-sensitive configuration:
+  - `COOKIE_DOMAIN` (e.g. `.jeeey.com`)
+  - `CORS_ALLOW_ORIGINS` (e.g. `https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://api.jeeey.com`)
+  - `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_URL`
+  - `NEXT_PUBLIC_API_BASE_URL` (e.g. `https://api.jeeey.com`)
+  - `NEXT_PUBLIC_TRPC_URL` (e.g. `https://api.jeeey.com/trpc`)
+
+The deploy workflow `.github/workflows/deploy-vps.yml` will fail early with a clear message if `VPS_HOST` is missing, preventing the "missing server host" error.
+
+## 🚀 CI/CD: Deploy to VPS (SSH)
+
+Workflow: `.github/workflows/deploy-vps.yml`
+
+Steps overview:
+- Pre-deploy build verification for API/Admin in CI to catch TypeScript errors early.
+- Archive the repo, upload to server.
+- Prepare `.env.api` and `.env.web` remotely from Secrets/Vars. Existing `JWT_SECRET`/`MAINTENANCE_SECRET` are preserved (no random regeneration unless absent).
+- Run `infra/scripts/deploy.sh` to install, migrate Prisma, build, and restart `systemd` services.
+- Install/reload NGINX from `infra/nginx/jeeey.conf.tpl`.
+- Post-deploy smoke tests:
+  - API health on localhost.
+  - Admin startup on 3001 and static chunk availability.
+  - Web on 3000.
+  - Verify `https://jeeey.com/register` returns 200 and no `0.0.0.0` in HTML/builds.
+  - Admin login E2E via `https://admin.jeeey.com/api/admin/auth/login`, verify cookie and whoami.
+  - Admin CRUD smoke: `ensure-rbac`, `grant-admin`, users list, create vendor/user.
+  - External HTTPS smokes for web/admin/mweb/api.
+
+Services on VPS (systemd): `ecom-api`, `ecom-admin`, `ecom-web`. Use `journalctl -u <svc> -n 200 --no-pager` to inspect.
+
+## 🔐 Admin Login: Final Flow
+
+- Web (`apps/web`): redirects use absolute origin after login/register.
+- Admin (`apps/admin`):
+  - Sanitizes `next` to same-origin paths.
+  - Sets auth cookie by calling internal route `POST /api/auth/set` with token; then `window.location.assign('/')`.
+  - API base resolver strips `/trpc` if leaked into `NEXT_PUBLIC_API_BASE_URL`.
+
+## 🚚 Logistics Inside Admin
+
+- التوصيل من المورد: تبويبات "قيد الانتظار/قيد التنفيذ/مكتمل"، تعيين سائق، تغيير حالة، تصدير CSV/PDF/XLS.
+- المستودع: تبويبات "الاستلام من السائق/الفرز والجرد/جاهز للتسليم"، أزرار تأكيد/توثيق/تقارير، مؤقتات ومؤشرات.
+- التوصيل إلى العميل: "الطلبات الجاهزة/قيد التوصيل/مكتمل/مرتجعات"، خريطة حية (MapLibre CDN) تعرض مواقع السائقين، واجهة إثبات تسليم:
+  - SignaturePad (canvas) + رفع صورة (Base64).
+  - Endpoint: `POST /api/admin/logistics/delivery/proof` { orderId, signatureBase64?, photoBase64? }.
+  - عند النجاح: يحدّث الطلب إلى `DELIVERED` ويكمل أرجل الشحن `DELIVERY`.
+
+Exports: CSV + XLS (CSV بامتداد .xls) + PDF placeholders لكلٍ من pickup/warehouse/delivery.
+
+RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `logistics.dispatch`, `logistics.scan`.
+
+## 💵 Finance
+
+- المصروفات: REST
+  - `GET /api/admin/finance/expenses`
+  - `POST /api/admin/finance/expenses`
+  - `PATCH /api/admin/finance/expenses/:id`
+  - `DELETE /api/admin/finance/expenses/:id`
+  - `GET /api/admin/finance/expenses/export/csv`
+- تقارير: `/api/admin/finance/pnl`, `/cashflow`, `/revenues`, `/invoices` + settle.
+
+## 🛠️ Troubleshooting (CI/CD & Runtime)
+
+- Build error: TS property not found (e.g., `deliveredAt` on `Order`)
+  - Ensure fields exist in `packages/db/prisma/schema.prisma`. Adjust API updates to schema fields only, then re-run build.
+- appleboy/ssh-action: `missing server host`
+  - Define `VPS_HOST` (Secret or Var). The workflow now fails fast if missing.
+- 0.0.0.0 redirects after login/register
+  - Confirm `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_URL`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_TRPC_URL` are correct.
+  - Admin uses internal `/api/auth/set` to set cookie, avoiding cross-origin bridge.
+- Admin CRUD smoke unauthorized
+  - Set `MAINTENANCE_SECRET` Secret. The workflow calls `ensure-rbac` and `grant-admin` post-deploy.
+- Services not ready
+  - Check `journalctl -u ecom-api/ecom-admin/ecom-web -n 200 --no-pager` on VPS.
+- DB permissions/roles missing
+  - Trigger `/api/admin/maintenance/ensure-rbac` and `/grant-admin` with header `x-maintenance-secret`.
+
+## 🔧 Reference: Key Files
+
+- Admin login fixes: `apps/admin/src/app/(auth)/login/page.tsx`, `apps/admin/src/app/api/auth/set/route.ts`
+- API Logistics/Finance: `packages/api/src/routers/admin-rest.ts`
+- Prisma models: `packages/db/prisma/schema.prisma`
+- Admin Logistics UI:
+  - Pickup: `apps/admin/src/app/logistics/pickup/page.tsx`
+  - Warehouse: `apps/admin/src/app/logistics/warehouse/page.tsx`
+  - Delivery: `apps/admin/src/app/logistics/delivery/page.tsx`
+- CI/CD: `.github/workflows/deploy-vps.yml`
+- NGINX template: `infra/nginx/jeeey.conf.tpl`
+- Deploy script: `infra/scripts/deploy.sh`
+
+This README is the source of truth for configuration and recovery steps for production parity, deployments, and admin logistics features.
