@@ -41,6 +41,21 @@ function rgbaFromPaint(p) {
   return `rgba(${r}, ${g}, ${b}, ${a ?? 1})`;
 }
 
+function cssGradientFromPaint(p) {
+  if (!p || !Array.isArray(p.gradientStops)) return '';
+  const stops = p.gradientStops
+    .map((s) => {
+      const col = rgbaFromPaint({ color: s.color, opacity: s.color?.a ?? s.opacity ?? 1 });
+      const pos = Math.round(((s.position ?? 0) * 100));
+      return `${col} ${pos}%`;
+    })
+    .join(', ');
+  // Angle approximation; proper matrix->angle conversion skipped for brevity
+  const angle = p.type === 'GRADIENT_RADIAL' ? 'circle at center' : '180deg';
+  if (p.type === 'GRADIENT_RADIAL') return `radial-gradient(${angle}, ${stops})`;
+  return `linear-gradient(${angle}, ${stops})`;
+}
+
 function styleFor(node) {
   const s = [];
   const lm = node.layoutMode;
@@ -82,6 +97,17 @@ function styleFor(node) {
   if (!s.some(v => v.startsWith('height')) && node.absoluteBoundingBox) {
     s.push(`min-height:${Math.round(node.absoluteBoundingBox.height)}px`);
   }
+  // Center constraints -> auto margins
+  if (node.constraints) {
+    if (node.constraints.horizontal === 'CENTER') {
+      s.push('margin-left:auto');
+      s.push('margin-right:auto');
+    }
+    if (node.constraints.vertical === 'CENTER') {
+      s.push('margin-top:auto');
+      s.push('margin-bottom:auto');
+    }
+  }
   const pl = node.paddingLeft ?? node.horizontalPadding;
   const pr = node.paddingRight ?? node.horizontalPadding;
   const pt = node.paddingTop ?? node.verticalPadding;
@@ -89,11 +115,20 @@ function styleFor(node) {
   if ([pl, pr, pt, pb].some(v => typeof v === 'number')) {
     s.push(`padding:${pt||0}px ${pr||0}px ${pb||0}px ${pl||0}px`);
   }
-  if (typeof node.cornerRadius === 'number') s.push(`border-radius:${node.cornerRadius}px`);
+  // Corner radii per corner if available
+  const tl = node.topLeftRadius ?? node.cornerRadius;
+  const tr = node.topRightRadius ?? node.cornerRadius;
+  const br = node.bottomRightRadius ?? node.cornerRadius;
+  const bl = node.bottomLeftRadius ?? node.cornerRadius;
+  const anyCorners = [tl,tr,br,bl].some(v => typeof v === 'number');
+  if (anyCorners) s.push(`border-radius:${tl||0}px ${tr||0}px ${br||0}px ${bl||0}px`);
   if (Array.isArray(node.fills) && node.fills.length) {
     const f0 = node.fills[0];
     if (f0.type === 'SOLID') {
       s.push(`background:${rgbaFromPaint(f0)}`);
+    } else if (f0.type && String(f0.type).startsWith('GRADIENT')) {
+      const grad = cssGradientFromPaint(f0);
+      if (grad) s.push(`background-image:${grad}`);
     } else if (f0.type === 'IMAGE') {
       // Use assets saved as <node.id>.png
       const file = assetManifest[node.id] || `${String(node.id).replace(/:/g,'__').replace(/;/g,'___').replace(/[^A-Za-z0-9_\-]/g,'_')}.png`;
@@ -102,6 +137,32 @@ function styleFor(node) {
       s.push('background-position:center');
       s.push('background-repeat:no-repeat');
     }
+  }
+  // Borders
+  if (Array.isArray(node.strokes) && node.strokes.length) {
+    const stroke = node.strokes.find(sx => sx.type === 'SOLID') || node.strokes[0];
+    if (stroke) {
+      const col = rgbaFromPaint(stroke);
+      const w = Math.round(node.strokeWeight || 1);
+      s.push(`border:${w}px solid ${col}`);
+    }
+  }
+  // Shadows (effects)
+  if (Array.isArray(node.effects) && node.effects.length) {
+    const shadows = [];
+    for (const ef of node.effects) {
+      if (!ef || ef.visible === false) continue;
+      if (ef.type === 'DROP_SHADOW' || ef.type === 'INNER_SHADOW') {
+        const col = rgbaFromPaint(ef);
+        const x = Math.round(ef.offset?.x || 0);
+        const y = Math.round(ef.offset?.y || 0);
+        const b = Math.round(ef.radius || 0);
+        const spr = Math.round(ef.spread || 0);
+        const inset = ef.type === 'INNER_SHADOW' ? 'inset ' : '';
+        shadows.push(`${inset}${x}px ${y}px ${b}px ${spr}px ${col}`);
+      }
+    }
+    if (shadows.length) s.push(`box-shadow:${shadows.join(',')}`);
   }
   return s.join(';');
 }
