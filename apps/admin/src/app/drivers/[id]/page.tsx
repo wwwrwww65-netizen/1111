@@ -9,6 +9,14 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
   const [statusSel, setStatusSel] = React.useState<'AVAILABLE'|'BUSY'|'OFFLINE'>('AVAILABLE');
   const [active, setActive] = React.useState<boolean>(true);
   const [assignOrder, setAssignOrder] = React.useState('');
+  const [ledger, setLedger] = React.useState<{ entries: any[]; balance: number }>({ entries: [], balance: 0 });
+  const [ledgerAmount, setLedgerAmount] = React.useState('');
+  const [ledgerType, setLedgerType] = React.useState<'CREDIT'|'DEBIT'>('CREDIT');
+  const [ledgerNote, setLedgerNote] = React.useState('');
+  const [docs, setDocs] = React.useState<any[]>([]);
+  const [docType, setDocType] = React.useState('License');
+  const [docFile, setDocFile] = React.useState<string>('');
+  const [docExpiry, setDocExpiry] = React.useState<string>('');
   const mapRef = React.useRef<HTMLDivElement|null>(null);
   const mapObjRef = React.useRef<any>(null);
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
@@ -21,6 +29,8 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
   }, []);
   React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/overview`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setData(j); setStatusSel((j?.driver?.status||'AVAILABLE')); setActive(!(j?.driver?.isActive===false)); } catch{} })(); }, [apiBase, id]);
   React.useEffect(()=>{ (async ()=>{ try{ const url = new URL(`${apiBase}/api/admin/orders/list`); url.searchParams.set('driverId', id); url.searchParams.set('status', 'DELIVERED'); url.searchParams.set('limit','10'); const j = await (await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' })).json(); setDelivered((j?.orders||[]).map((o:any)=> ({ id:o.id, status:o.status, total:o.total||0, createdAt:o.createdAt })) ); } catch{} })(); }, [apiBase, id]);
+  React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/ledger`, { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' })).json(); setLedger({ entries: j.entries||[], balance: j.balance||0 }); } catch{} })(); }, [apiBase, id]);
+  React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/documents`, { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' })).json(); setDocs(j.documents||[]); } catch{} })(); }, [apiBase, id]);
   React.useEffect(()=>{
     if (!mapRef.current) return;
     const hasLib = (window as any).maplibregl;
@@ -55,6 +65,16 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
     await fetch(`${apiBase}/api/admin/orders/assign-driver`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId: assignOrder.trim(), driverId: id }) });
     setAssignOrder('');
   }
+  async function addLedger(){
+    const amt = Number(ledgerAmount);
+    if (!Number.isFinite(amt)) return;
+    await fetch(`${apiBase}/api/admin/drivers/${id}/ledger`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ amount: amt, type: ledgerType, note: ledgerNote||undefined }) });
+    setLedgerAmount(''); setLedgerNote('');
+    const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/ledger`, { credentials:'include', headers:{ ...authHeaders() } })).json();
+    setLedger({ entries: j.entries||[], balance: j.balance||0 });
+  }
+  async function onDocFile(e: React.ChangeEvent<HTMLInputElement>){ const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ()=> setDocFile(String(r.result||'')); r.readAsDataURL(f); }
+  async function addDoc(){ if (!docFile) return; await fetch(`${apiBase}/api/admin/drivers/${id}/documents`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ docType, base64: docFile, expiresAt: docExpiry||undefined }) }); setDocFile(''); setDocExpiry(''); const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/documents`, { credentials:'include', headers:{ ...authHeaders() } })).json(); setDocs(j.documents||[]); }
   return (
     <main className="panel">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
@@ -102,6 +122,7 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
             <div className="panel">
               <h3 style={{ marginTop:0 }}>الموقع</h3>
               <div ref={mapRef} style={{ height:300, background:'#0b0f1a', border:'1px solid var(--muted)', borderRadius:8 }} />
+              <div style={{ marginTop:8, color:'var(--sub)' }}>آخر ظهور: {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : '—'}</div>
             </div>
           </div>
         <div className="panel" style={{ marginTop:12 }}>
@@ -114,6 +135,46 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
               )) : (<tr><td colSpan={5}>لا توجد طلبات</td></tr>)}
             </tbody>
           </table>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12 }}>
+          <div className="panel">
+            <h3 style={{ marginTop:0 }}>الرصيد والمعاملات</h3>
+            <div style={{ marginBottom:8 }}>الرصيد الحالي: <b>{Number(ledger.balance||0).toFixed(2)}</b></div>
+            <div className="grid" style={{ gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8 }}>
+              <input className="input" placeholder="المبلغ" value={ledgerAmount} onChange={(e)=> setLedgerAmount(e.target.value)} />
+              <select className="select" value={ledgerType} onChange={(e)=> setLedgerType(e.target.value as any)}>
+                <option value="CREDIT">إضافة (CREDIT)</option>
+                <option value="DEBIT">خصم (DEBIT)</option>
+              </select>
+              <input className="input" placeholder="ملاحظة" value={ledgerNote} onChange={(e)=> setLedgerNote(e.target.value)} />
+            </div>
+            <button className="btn btn-sm" onClick={addLedger}>حفظ المعاملة</button>
+            <table className="table" style={{ marginTop:8 }}>
+              <thead><tr><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>ملاحظة</th></tr></thead>
+              <tbody>
+                {ledger.entries.length ? ledger.entries.map((it:any)=> (
+                  <tr key={it.id}><td>{new Date(it.createdAt).toLocaleString()}</td><td>{it.type}</td><td>{Number(it.amount).toFixed(2)}</td><td>{it.note||'-'}</td></tr>
+                )) : (<tr><td colSpan={4}>لا توجد معاملات</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <div className="panel">
+            <h3 style={{ marginTop:0 }}>الوثائق</h3>
+            <div className="grid" style={{ gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8 }}>
+              <input className="input" placeholder="نوع الوثيقة" value={docType} onChange={(e)=> setDocType(e.target.value)} />
+              <input className="input" type="date" value={docExpiry} onChange={(e)=> setDocExpiry(e.target.value)} />
+              <input className="input" type="file" onChange={onDocFile} />
+            </div>
+            <button className="btn btn-sm" onClick={addDoc} disabled={!docFile}>رفع الوثيقة</button>
+            <table className="table" style={{ marginTop:8 }}>
+              <thead><tr><th>النوع</th><th>الرابط</th><th>انتهاء</th></tr></thead>
+              <tbody>
+                {docs.length ? docs.map((dc:any)=> (
+                  <tr key={dc.id}><td>{dc.docType}</td><td><a className="link" href={dc.url} target="_blank">فتح</a></td><td>{dc.expiresAt? String(dc.expiresAt).slice(0,10) : '—'}</td></tr>
+                )) : (<tr><td colSpan={3}>لا توجد وثائق</td></tr>)}
+              </tbody>
+            </table>
+          </div>
         </div>
         <div className="panel" style={{ marginTop:12 }}>
           <h3 style={{ marginTop:0 }}>مكتمل مؤخراً</h3>
