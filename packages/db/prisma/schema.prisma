@@ -532,6 +532,8 @@ model Driver {
   updatedAt     DateTime      @updatedAt
   orders        Order[]
   shipments     Shipment[]
+  ledgerEntries DriverLedgerEntry[]
+  documents     DriverDocument[]
 }
 
 enum LedgerEntryType {

@@ -54,7 +54,7 @@ jobs:
       - name: Prepare API env file on server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ env.SSH_HOST }}
+          host: ${{ env.SSH_HOST || secrets.VPS_HOST || vars.VPS_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
@@ -89,7 +89,7 @@ jobs:
       - name: Prepare WEB env file on server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ env.SSH_HOST }}
+          host: ${{ env.SSH_HOST || secrets.VPS_HOST || vars.VPS_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
@@ -111,7 +111,7 @@ jobs:
       - name: Copy to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ env.SSH_HOST }}
+          host: ${{ env.SSH_HOST || secrets.VPS_HOST || vars.VPS_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
@@ -122,7 +122,7 @@ jobs:
       - name: Remote deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ env.SSH_HOST }}
+          host: ${{ env.SSH_HOST || secrets.VPS_HOST || vars.VPS_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
@@ -158,7 +158,7 @@ jobs:
       - name: Post-deploy smoke (health, login, static, services)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ env.SSH_HOST }}
+          host: ${{ env.SSH_HOST || secrets.VPS_HOST || vars.VPS_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
@@ -263,7 +263,7 @@ jobs:
       - name: Post-deploy verify registration page and no 0.0.0.0
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ env.SSH_HOST }}
+          host: ${{ env.SSH_HOST || secrets.VPS_HOST || vars.VPS_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
