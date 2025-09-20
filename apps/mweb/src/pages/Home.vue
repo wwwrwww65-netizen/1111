@@ -1,8 +1,8 @@
 <template>
-  <div>
+  <div :style="rootStyle">
     <HeaderBar />
     <div class="container">
-      <HeroBanner />
+      <HeroBanner :style="heroTokens" />
       <PromoBanners />
       <SectionHeading title="الفئات" href="/categories" />
       <CategoryScroller class="space-y-16" />
@@ -22,7 +22,13 @@ import PromoBanners from '@/components/PromoBanners.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
 
-// placeholder data is now inside components
+import { computed } from 'vue'
+// Apply Figma tokens if present
+const rootStyle = computed(()=> ({ background: 'var(--figma-color-background, var(--bg))' }))
+const heroTokens = computed(()=> ({
+  boxShadow: 'var(--figma-shadow-hero-shadow, var(--shadow))',
+  borderRadius: 'var(--figma-radius-hero-radius, 12px)'
+}))
 </script>
 
 <style scoped>

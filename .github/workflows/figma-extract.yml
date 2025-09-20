@@ -34,9 +34,11 @@ jobs:
           FIGMA_FILE_KEY: ${{ secrets.FIGMA_FILE_ID }}
         run: |
           node scripts/figma-extract.mjs | cat
+          node scripts/figma-extract-nodes.mjs | cat
+          node scripts/figma-extract-tokens.mjs | cat
       - name: Commit mapping
         run: |
-          git add infra/figma/mapping.json
+          git add infra/figma/mapping.json infra/figma/nodes.json apps/mweb/src/tokens.css
           git commit -m "chore(figma): update mapping.json" || echo "no changes"
           git push origin HEAD:main || true
       - name: Generate mweb routes from mapping
