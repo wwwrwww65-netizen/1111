@@ -51,6 +51,24 @@ jobs:
           echo "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}" >> "$GITHUB_ENV"
           echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> "$GITHUB_ENV"
 
+      - name: Check SSH reachability (preflight with retries)
+        shell: bash
+        run: |
+          set -e
+          echo "Host: ${SSH_HOST} Port: ${SSH_PORT} User: ${SSH_USER}"
+          echo 'DNS resolution:'
+          getent hosts "${SSH_HOST}" || true
+          ok=0
+          for i in $(seq 1 20); do
+            echo "[Attempt $i] TCP check..."
+            nc -z -w5 "${SSH_HOST}" "${SSH_PORT}" && { echo 'TCP reachable'; ok=1; break; } || true
+            sleep 3
+          done
+          if [ "$ok" != "1" ]; then
+            echo 'ERROR: SSH TCP not reachable. Check firewall or server availability.'
+            exit 1
+          fi
+
       - name: Prepare API env file on server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -58,7 +76,7 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
+          timeout: 180s
           command_timeout: 40m
           script: |
             set -e
@@ -93,7 +111,7 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
+          timeout: 180s
           command_timeout: 40m
           script: |
             set -e
@@ -115,7 +133,7 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
+          timeout: 180s
           source: "app.tar.gz"
           target: "/root/"
 
@@ -126,8 +144,8 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
-          command_timeout: 40m
+          timeout: 180s
+          command_timeout: 60m
           script: |
             set -e
             PATH_ON_HOST=${{ github.event.inputs.path || '/var/www/ecom' }}
@@ -162,8 +180,8 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
-          command_timeout: 40m
+          timeout: 180s
+          command_timeout: 60m
           script: |
             set -Eeuo pipefail
             ROOT="${{ github.event.inputs.path || '/var/www/ecom' }}"
@@ -267,8 +285,8 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
-          command_timeout: 20m
+          timeout: 180s
+          command_timeout: 30m
           script: |
             set -e
             echo '--- Verify registration page (200) ---'
@@ -293,8 +311,8 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
-          command_timeout: 20m
+          timeout: 180s
+          command_timeout: 30m
           script: |
             set -Eeuo pipefail
             EMAIL=${ADMIN_EMAIL:-admin@example.com}
@@ -338,8 +356,8 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
-          command_timeout: 40m
+          timeout: 180s
+          command_timeout: 60m
           script: |
             set -Eeuo pipefail
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
@@ -377,8 +395,8 @@ jobs:
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SSH_PORT }}
-          timeout: 60s
-          command_timeout: 40m
+          timeout: 180s
+          command_timeout: 60m
           script: |
             set -e
             doms=("https://jeeey.com" "https://admin.jeeey.com" "https://m.jeeey.com" "https://api.jeeey.com/health")
@@ -418,6 +436,8 @@ jobs:
           host: ${{ env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 180s
+          command_timeout: 20m
           script: |
             set -e
             echo '=== ecom-admin logs (tail) ==='
