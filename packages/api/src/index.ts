@@ -69,6 +69,8 @@ async function ensureSchema(): Promise<void> {
 applySecurityMiddleware(app);
 app.use(cookieParser());
 app.use('/api/admin', adminRest);
+// Mount shipping webhooks (required by tests hitting /webhooks/shipping)
+app.use('/webhooks', shippingWebhooks);
 
 try {
   const swaggerDoc = YAML.load(__dirname + '/../openapi.yaml');
