@@ -1,6 +1,7 @@
 <template>
   <div :style="rootStyle">
     <HeaderBar />
+    <TopTabs />
     <div class="container">
       <HeroBanner :style="heroTokens" />
       <PromoBanners />
@@ -21,6 +22,7 @@ import CategoryScroller from '@/components/CategoryScroller.vue'
 import PromoBanners from '@/components/PromoBanners.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
+import TopTabs from '@/components/TopTabs.vue'
 
 import { computed } from 'vue'
 // Apply Figma tokens if present

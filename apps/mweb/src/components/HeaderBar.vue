@@ -1,12 +1,11 @@
 <template>
   <header class="header">
     <div class="header-inner">
+      <a class="icon-btn" href="#" aria-label="Menu"><Icon name="menu" /></a>
       <div class="brand">jeeey</div>
-      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
-        <div class="search-wrap">
-          <Icon name="search" />
-          <input placeholder="ابحث عن المنتجات" class="search" />
-        </div>
+      <div style="display:flex;gap:8px">
+        <a class="icon-btn" href="/search" aria-label="Search"><Icon name="search" /></a>
+        <a class="icon-btn" href="/wishlist" aria-label="Wishlist"><Icon name="heart" /></a>
         <a class="icon-btn" href="/cart" aria-label="Cart"><Icon name="cart" /></a>
       </div>
     </div>
