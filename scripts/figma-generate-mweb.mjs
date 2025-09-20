@@ -53,6 +53,22 @@ function styleFor(node) {
     if (ji === 'SPACE_BETWEEN') s.push('justify-content:space-between');
     if (ji === 'MIN') s.push('justify-content:flex-start');
   }
+  // Sizing constraints
+  if (node.layoutGrow === 1) s.push('flex:1 1 auto');
+  if (node.layoutAlign === 'STRETCH') s.push('align-self:stretch');
+  if (node.layoutAlign === 'CENTER') s.push('align-self:center');
+  // Absolute positioning
+  if (node.absoluteBoundingBox && node.constraints) {
+    const c = node.constraints;
+    if (c.horizontal === 'LEFT' && c.vertical === 'TOP') {
+      const bb = node.absoluteBoundingBox;
+      s.push('position:absolute');
+      s.push(`left:${Math.round(bb.x)}px`);
+      s.push(`top:${Math.round(bb.y)}px`);
+      s.push(`width:${Math.round(bb.width)}px`);
+      s.push(`height:${Math.round(bb.height)}px`);
+    }
+  }
   const pl = node.paddingLeft ?? node.horizontalPadding;
   const pr = node.paddingRight ?? node.horizontalPadding;
   const pt = node.paddingTop ?? node.verticalPadding;
@@ -80,7 +96,20 @@ function nodeToVue(node, depth = 0) {
 }
 
 const routes = [];
+// Naive component detection: group frames by normalized name prefix
+function normalizeCompName(n){
+  return String(n||'').toLowerCase().replace(/\d+$/,'').replace(/\s+/g,'-');
+}
+const nameGroups = new Map();
 for (const [name, info] of entries) {
+  const key = normalizeCompName(name);
+  const arr = nameGroups.get(key) || [];
+  arr.push([name, info]);
+  nameGroups.set(key, arr);
+}
+
+for (const group of nameGroups.values()) {
+  for (const [name, info] of group) {
   // Build a route for every frame. Heuristic: 'Home' => '/', otherwise kebab-case of name
   let route = info.route;
   if (!route) {
@@ -100,7 +129,8 @@ for (const [name, info] of entries) {
     body = `<template>\n  <div class=\"container\">\n    <div class=\"card\" style=\"margin-top:16px\">\n      <h1 style=\"margin:0 0 8px 0\">${name}</h1>\n      <p>Figma: ${info.figmaPath} (id: ${info.figmaId})</p>\n    </div>\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
   }
   fs.writeFileSync(filePath, body, 'utf8');
-  routes.push({ path: route, component: `() => import('./pages/${fileName}')` });
+    routes.push({ path: route, component: `() => import('./pages/${fileName}')` });
+  }
 }
 
 // Always ensure core routes exist
