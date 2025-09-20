@@ -49,18 +49,31 @@ if (!idList.length) {
   console.log('No image nodes found');
   process.exit(0);
 }
-// Request image URLs
-const imagesJson = await fetchJson(`https://api.figma.com/v1/images/${FIGMA_FILE_KEY}?ids=${encodeURIComponent(idList.join(','))}&format=png&scale=2`);
-const images = imagesJson.images || {};
-
+// Ensure output dir exists before network calls so git add won't fail on missing path
 const outDir = path.join(root, 'apps', 'mweb', 'src', 'assets');
 fs.mkdirSync(outDir, { recursive: true });
 
-for (const [id, url] of Object.entries(images)) {
-  if (!url) continue;
-  const buf = await fetchBuffer(url);
-  const file = path.join(outDir, `${id}.png`);
-  fs.writeFileSync(file, buf);
+// Helper to chunk IDs to avoid 413 URI Too Large
+function chunk(arr, size) {
+  const out = []; for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size)); return out;
 }
 
-console.log(`Downloaded ${Object.keys(images).length} assets to apps/mweb/src/assets`);
+let total = 0;
+for (const batch of chunk(idList, 100)) {
+  try {
+    const url = `https://api.figma.com/v1/images/${FIGMA_FILE_KEY}?ids=${encodeURIComponent(batch.join(','))}&format=png&scale=2`;
+    const imagesJson = await fetchJson(url);
+    const images = imagesJson.images || {};
+    for (const [id, imgUrl] of Object.entries(images)) {
+      if (!imgUrl) continue;
+      const buf = await fetchBuffer(imgUrl);
+      const file = path.join(outDir, `${id}.png`);
+      fs.writeFileSync(file, buf);
+      total++;
+    }
+  } catch (e) {
+    console.error('Batch failed:', e?.message || e);
+  }
+}
+
+console.log(`Downloaded ${total} assets to apps/mweb/src/assets`);

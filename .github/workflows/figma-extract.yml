@@ -36,17 +36,23 @@ jobs:
           node scripts/figma-extract.mjs | cat
           node scripts/figma-extract-nodes.mjs | cat
           node scripts/figma-extract-tokens.mjs | cat
-      - name: Commit mapping
+      - name: Commit mapping (mapping only, no large nodes)
         run: |
-          git add infra/figma/mapping.json infra/figma/nodes.json apps/mweb/src/tokens.css
+          git add infra/figma/mapping.json apps/mweb/src/tokens.css
           git commit -m "chore(figma): update mapping.json" || echo "no changes"
           git push origin HEAD:main || true
-      - name: Generate mweb routes from mapping
+      - name: Generate mweb routes from mapping (nodes optional)
         run: |
           node scripts/figma-generate-mweb.mjs | cat
           git add apps/mweb/src/routes.generated.ts apps/mweb/src/pages
           git commit -m "feat(mweb): generate routes and pages from Figma mapping" || echo "no changes"
           git push origin HEAD:main || true
+      - name: Upload nodes.json as artifact (avoid pushing huge file)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: figma-nodes
+          path: infra/figma/nodes.json
       - name: Sync Figma assets (images/icons)
         env:
           FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN || secrets.FIGMA_API }}

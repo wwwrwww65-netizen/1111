@@ -14,3 +14,4 @@ yarn-debug.log*
 .env
 .env.local
 .env.production
+infra/figma/nodes.json
