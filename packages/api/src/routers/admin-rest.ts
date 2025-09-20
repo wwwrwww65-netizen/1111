@@ -1138,8 +1138,15 @@ adminRest.post('/logistics/delivery/proof', async (req, res) => {
     if (photoBase64) {
       try { const saved = await db.mediaAsset.create({ data: { url: photoBase64, type: 'image' } }); photoUrl = saved.url; } catch {}
     }
-    // mark delivered
-    await db.order.update({ where: { id: orderId }, data: { status: 'DELIVERED' } });
+    // mark order delivered
+    const updatedOrder = await db.order.update({ where: { id: orderId }, data: { status: 'DELIVERED', deliveredAt: new Date() } });
+    // mark related DELIVERY shipment legs completed (if any)
+    try {
+      await db.shipmentLeg.updateMany({ where: { orderId, legType: 'DELIVERY' as any }, data: { status: 'COMPLETED', updatedAt: new Date(), completedAt: new Date() as any } as any });
+    } catch {}
+    // audit + notify stubs
+    await audit(req as any, 'logistics.delivery', 'delivered', { orderId, signature: Boolean(signatureBase64), photo: Boolean(photoBase64) });
+    try { console.log('[notify] order_delivered', { orderId }); } catch {}
     return res.json({ success: true, signatureUrl, photoUrl });
   } catch (e:any) { res.status(500).json({ error: e.message||'proof_failed' }); }
 });
