@@ -47,4 +47,13 @@ jobs:
           git add apps/mweb/src/routes.generated.ts apps/mweb/src/pages
           git commit -m "feat(mweb): generate routes and pages from Figma mapping" || echo "no changes"
           git push origin HEAD:main || true
+      - name: Sync Figma assets (images/icons)
+        env:
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN || secrets.FIGMA_API }}
+          FIGMA_FILE_KEY: ${{ secrets.FIGMA_FILE_ID }}
+        run: |
+          node scripts/figma-assets-sync.mjs | cat
+          git add apps/mweb/src/assets || true
+          git commit -m "chore(mweb): sync Figma assets" || echo "no changes"
+          git push origin HEAD:main || true
 

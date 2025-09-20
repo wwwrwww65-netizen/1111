@@ -9,7 +9,8 @@
     "preview": "vite preview --port 3002",
     "figma:tokens": "node ../../scripts/figma-extract-tokens.mjs && echo tokens done",
     "figma:generate": "node ../../scripts/figma-generate-mweb.mjs && echo generate done",
-    "figma:sync": "FIGMA_FILE_KEY=$FIGMA_FILE_KEY FIGMA_TOKEN=$FIGMA_TOKEN pnpm figma:tokens && pnpm figma:generate"
+    "figma:assets": "node ../../scripts/figma-assets-sync.mjs && echo assets done",
+    "figma:sync": "FIGMA_FILE_KEY=$FIGMA_FILE_KEY FIGMA_TOKEN=$FIGMA_TOKEN pnpm figma:tokens && pnpm figma:generate && pnpm figma:assets"
   },
   "dependencies": {
     "vue": "3.5.13",
