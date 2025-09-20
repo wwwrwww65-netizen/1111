@@ -1,0 +1,7 @@
+:root{
+  /* Fallback Figma tokens (overwritten by CI when available) */
+  --figma-color-background: var(--bg);
+  --figma-shadow-hero-shadow: var(--shadow);
+  --figma-radius-hero-radius: var(--radius);
+  --figma-font-tajawal-24-size: var(--fs-20);
+}
