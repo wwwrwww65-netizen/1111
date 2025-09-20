@@ -1,11 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-149px;top:2793px;width:24px;height:16px">
-      <div style="position:absolute;left:-149px;top:2793px;width:24px;height:16px;border-radius:2px;background:rgba(246, 246, 246, 1)">Rectangle 1155</div>
-      <div style="position:absolute;left:-144px;top:2794px;width:14px;height:14px;background:rgba(255, 255, 255, 1)">
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319587</h1>
+      <p>Figma: Document / ui / السلة / Frame 427319364 / Frame 427319362 / Frame 427319587 (id: 1812:7123)</p>
     </div>
   </div>
 </template>

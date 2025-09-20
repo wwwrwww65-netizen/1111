@@ -1,13 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-7467px;top:8590px;width:54px;height:21px">
-      <div style="position:absolute;left:-7467px;top:8590px;width:54px;height:21px">
-      <div style="position:absolute;left:-7433px;top:8591px;width:20px;height:20px">
-      
-      
-    </div>
-      <div style="position:absolute;left:-7467px;top:8590px;width:19px;height:18px;background:rgba(92, 92, 92, 1)">بلايز</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003550</h1>
+      <p>Figma: Document / Dashboard / Frame 1000003552 / Frame 1000003535 / Frame 1000003550 (id: 1823:7550)</p>
     </div>
   </div>
 </template>

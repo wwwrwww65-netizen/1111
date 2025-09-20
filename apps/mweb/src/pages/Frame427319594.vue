@@ -1,26 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-7110px;top:1098px;width:250px;height:200px">
-      <div style="">
-      <div style="position:absolute;left:-7110px;top:1098px;width:250px;height:200px">
-      
-      
-    </div>
-      <div style="position:absolute;left:-7044px;top:1139px;width:98px;height:99px;background:rgba(255, 255, 255, 1)">
-      
-      
-      
-      
-    </div>
-      <div style="position:absolute;left:-7020px;top:1154px;width:96px;height:97px;background:rgba(255, 255, 255, 1)">
-      
-      
-      
-      
-      
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319594</h1>
+      <p>Figma: Document / ui / Card - No Images / Frame 427319594 (id: 2916:5151)</p>
     </div>
   </div>
 </template>

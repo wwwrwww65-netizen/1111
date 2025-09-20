@@ -1,11 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:2520px;top:13344px;width:67px;height:239px">
-      <div style="position:absolute;left:2520px;top:13344px;width:67px;height:39px;background:rgba(41, 45, 50, 1)">ttdvvgfbbc</div>
-      <div style="position:absolute;left:2520px;top:13399px;width:67px;height:39px;background:rgba(41, 45, 50, 1)">vzvgdgsbbc</div>
-      <div style="position:absolute;left:2520px;top:13450px;width:67px;height:39px;background:rgba(41, 45, 50, 1)">vcvcbvbbc</div>
-      <div style="position:absolute;left:2520px;top:13498px;width:67px;height:39px;background:rgba(41, 45, 50, 1)">bcxbxcbbc</div>
-      <div style="position:absolute;left:2520px;top:13544px;width:67px;height:39px;background:rgba(41, 45, 50, 1)">bcxbvcbbc</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003548</h1>
+      <p>Figma: Document / Dashboard / تفاصيل الموصلين / Frame 1000003630 / Deals Details / Frame 1000003548 (id: 2199:9447)</p>
     </div>
   </div>
 </template>

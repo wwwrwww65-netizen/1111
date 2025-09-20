@@ -1,10 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:row;gap:12px;align-items:center;justify-content:flex-end;align-self:stretch;position:absolute;left:-722px;top:1791px;width:351px;height:38px;padding:7px 8px 7px 8px;border-radius:10px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-488px;top:1801px;width:73px;height:18px;background:rgba(86, 86, 86, 1)">أدخل أسم المنتج</div>
-      <div style="position:absolute;left:-403px;top:1798px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(138, 21, 56, 1)">Vector</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 32</h1>
+      <p>Figma: Document / Dashboard / المنتجات / المنتجات / Frame 49 / Frame 48 / Frame 42 / Frame 57 / Frame 39 / Frame 32 (id: 719:316)</p>
     </div>
   </div>
 </template>

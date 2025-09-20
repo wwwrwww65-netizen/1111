@@ -1,10 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:row;gap:2px;align-self:stretch;position:absolute;left:10091px;top:725px;width:67px;height:24px">
-      <div style="position:absolute;left:10091px;top:725px;width:57px;height:24px;background:rgba(20, 20, 20, 1)">2021</div>
-      <div style="position:absolute;left:10150px;top:725px;width:8px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(138, 21, 56, 1)">Vector 111</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 3834</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات / Frame 1000003439 / Frame 1000003422 / Frame 1000003421 / Frame 1000003420 / Frame 1000003420 / Frame 1000003415 / Header / Month and Year / Component 4 / Frame 3834 (id: I1321:8039;7:3203;7:3050)</p>
     </div>
   </div>
 </template>

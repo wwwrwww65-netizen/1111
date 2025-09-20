@@ -1,12 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-6296px;top:-340px;width:863px;height:64px">
-      <div style="display:flex;flex-direction:column;gap:16px;position:absolute;left:-6296px;top:-339px;width:806px;height:64px">
-      <div style="display:flex;flex-direction:row;gap:23px;align-items:center;align-self:stretch;position:absolute;left:-6296px;top:-339px;width:806px;height:64px">
-      
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 84</h1>
+      <p>Figma: Document / Dashboard / بيانات المنتج/Variant6 / Frame 84 (id: 1309:2915)</p>
     </div>
   </div>
 </template>

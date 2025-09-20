@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:1189px;top:3942px;width:385px;height:57px">
-      <div style="position:absolute;left:1189px;top:3942px;width:385px;height:57px;border-radius:50px;background:rgba(152, 0, 0, 1)">Rectangle 1196</div>
-      <div style="position:absolute;left:1374px;top:3961px;width:16px;height:20px;background:rgba(255, 255, 255, 1)">تم</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319474</h1>
+      <p>Figma: Document / APP_DELEVRY / Frame 427319473 / Frame 427319474 (id: 2905:5490)</p>
     </div>
   </div>
 </template>

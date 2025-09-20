@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-end;position:absolute;left:7243px;top:11183px;width:106px;height:40px">
-      <div style="position:absolute;left:7243px;top:11183px;width:92px;height:40px;background:rgba(46, 51, 51, 1)">صور المنتج</div>
-      <div style="position:absolute;left:7343px;top:11189px;width:6px;height:28px">Rectangle 11</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003487</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات / Frame 1000003487 (id: 2199:7506)</p>
     </div>
   </div>
 </template>

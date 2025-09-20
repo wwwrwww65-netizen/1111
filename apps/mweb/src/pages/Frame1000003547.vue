@@ -1,11 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-440px;top:14873px;width:77px;height:239px">
-      <div style="position:absolute;left:-445px;top:14886px;width:81px;height:21px;background:rgba(92, 92, 92, 1)">سعوان - هبرة</div>
-      <div style="position:absolute;left:-456px;top:14938px;width:92px;height:21px;background:rgba(92, 92, 92, 1)">حدة - الاصبحي</div>
-      <div style="position:absolute;left:-444px;top:14987px;width:81px;height:21px;background:rgba(92, 92, 92, 1)">سعوان - هبرة</div>
-      <div style="position:absolute;left:-456px;top:15035px;width:92px;height:21px;background:rgba(92, 92, 92, 1)">حدة - الاصبحي</div>
-      <div style="position:absolute;left:-456px;top:15084px;width:92px;height:21px;background:rgba(92, 92, 92, 1)">حدة - الاصبحي</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003547</h1>
+      <p>Figma: Document / Dashboard / ادارة التوصيل / Deals Details / Frame 1000003547 (id: 1939:7264)</p>
     </div>
   </div>
 </template>

@@ -1,17 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:row;gap:38px;align-items:center;position:absolute;left:7409px;top:11758px;width:183px;height:24px">
-      <div style="position:absolute;left:7409px;top:11758px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(255, 255, 255, 1)">
-      
-    </div>
-    </div>
-      <div style="display:flex;flex-direction:row;gap:12px;align-items:center;position:absolute;left:7471px;top:11758px;width:121px;height:24px">
-      <div style="position:absolute;left:7471px;top:11758px;width:85px;height:24px;background:rgba(117, 117, 117, 1)">ادارة التوصيل</div>
-      <div style="position:absolute;left:7568px;top:11758px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003586</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات / المنتجات / Frame 50 / Frame 28 / Frame 1000003586 (id: I2199:7622;1939:7205)</p>
     </div>
   </div>
 </template>

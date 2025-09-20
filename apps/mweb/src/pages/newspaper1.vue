@@ -1,7 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:7563px;top:11636px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(255, 255, 255, 1)">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">newspaper 1</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات / المنتجات / Frame 50 / Frame 11 / Frame 10 / newspaper 1 (id: 2199:7616)</p>
     </div>
   </div>
 </template>

@@ -1,12 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-1150px;top:17668px;width:430px;height:50px">
-      <div style="position:absolute;left:-1150px;top:17668px;width:430px;height:50px;background:rgba(255, 255, 255, 1)">Rectangle 1235</div>
-      <div style="position:absolute;left:-1138px;top:17681px;width:15px;height:16px;background:rgba(42, 147, 5, 1)">+5</div>
-      <div style="position:absolute;left:-885px;top:17672px;width:61px;height:16px;background:rgba(0, 0, 0, 1)">DALIY CHECK IN</div>
-      <div style="position:absolute;left:-966px;top:17688px;width:142px;height:16px;background:rgba(112, 112, 112, 1)">انتهت الصلاحية في 10/10/2024    11:13:44 </div>
-      <div style="position:absolute;left:-785px;top:17672px;width:45px;height:16px;background:rgba(188, 188, 188, 1)">10/10/2024</div>
-      <div style="position:absolute;left:-779px;top:17688px;width:34px;height:16px;background:rgba(188, 188, 188, 1)">11:13:44</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319546</h1>
+      <p>Figma: Document / ui / النقاط / Frame 427319546 (id: 210:5554)</p>
     </div>
   </div>
 </template>

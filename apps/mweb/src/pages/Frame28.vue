@@ -1,17 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:row;gap:20px;align-items:center;position:absolute;left:-721px;top:1942px;width:187px;height:36px;padding:6px 8px 6px 8px;background:rgba(245, 245, 245, 1)">
-      <div style="position:absolute;left:-713px;top:1951px;width:83px;height:18px;background:rgba(86, 86, 86, 1)">الخيارات والكميات</div>
-      <div style="position:absolute;left:-610px;top:1948px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-610px;top:1948px;width:24px;height:24px">
-      
-    </div>
-    </div>
-      <div style="position:absolute;left:-566px;top:1948px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-566px;top:1948px;width:24px;height:24px">
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 28</h1>
+      <p>Figma: Document / Dashboard / المنتجات / المنتجات / Frame 49 / Frame 48 / Frame 42 / Frame 57 / Frame 39 / Frame 30 / Frame 28 (id: 719:332)</p>
     </div>
   </div>
 </template>

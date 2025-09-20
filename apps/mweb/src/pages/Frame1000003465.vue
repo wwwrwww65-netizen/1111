@@ -1,10 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:7114px;top:11796px;width:194px;height:30px">
-      <div style="position:absolute;left:7114px;top:11796px;width:162px;height:30px;background:rgba(138, 21, 56, 1)">تفاصل المنتج الرئيسية</div>
-      <div style="position:absolute;left:7284px;top:11799px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(138, 21, 56, 1)">Vector</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003465</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات / Frame 1000003486 / Frame 1000003481 / Frame 1000003433 / Frame 1000003465 (id: 2199:7537)</p>
     </div>
   </div>
 </template>

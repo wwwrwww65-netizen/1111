@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:column;gap:4px;align-items:center;position:absolute;left:160px;top:9765px;width:22px;height:44px;padding:4px 0px 4px 0px">
-      <div style="align-self:stretch;position:absolute;left:160px;top:9769px;width:22px;height:16px;background:rgba(0, 0, 0, 1)">4</div>
-      <div style="align-self:stretch;position:absolute;left:160px;top:9789px;width:22px;height:16px;background:rgba(0, 0, 0, 1)">نقاط</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319373</h1>
+      <p>Figma: Document / ui / حسابي / Frame 427319377 / Frame 427319373 (id: 33:4222)</p>
     </div>
   </div>
 </template>

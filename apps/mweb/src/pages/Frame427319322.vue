@@ -1,18 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:column;gap:8px;position:absolute;left:-150px;top:458px;width:289px;height:94px">
-      <div style="display:flex;flex-direction:column;gap:60px;align-items:center;align-self:stretch;position:absolute;left:-150px;top:458px;width:289px;height:31px">
-      <div style="display:flex;flex-direction:column;gap:10px;position:absolute;left:-122px;top:458px;width:232px;height:31px">
-      
-    </div>
-    </div>
-      <div style="align-self:stretch;position:absolute;left:-150px;top:497px;width:289px;height:26px;background:rgba(98, 119, 149, 1)">Ibm plex sans arabic</div>
-      <div style="display:flex;flex-direction:row;gap:22px;position:absolute;left:-150px;top:531px;width:289px;height:21px">
-      <div style="position:absolute;left:-150px;top:531px;width:35px;height:21px;background:rgba(98, 119, 149, 1)">Bold</div>
-      <div style="position:absolute;left:-93px;top:531px;width:72px;height:21px;background:rgba(98, 119, 149, 1)">SemiBold</div>
-      <div style="position:absolute;left:1px;top:531px;width:60px;height:21px;background:rgba(98, 119, 149, 1)">Medium</div>
-      <div style="position:absolute;left:83px;top:531px;width:56px;height:21px;background:rgba(98, 119, 149, 1)">Regular</div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319322</h1>
+      <p>Figma: Document / design system / Frame 427319324 / Frame 427319322 (id: 1:247)</p>
     </div>
   </div>
 </template>

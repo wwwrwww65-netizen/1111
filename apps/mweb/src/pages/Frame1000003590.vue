@@ -1,12 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:row;gap:230px;align-items:center;justify-content:space-between;position:absolute;left:3754px;top:14817px;width:305px;height:40px;padding:7px 10px 7px 10px;border-radius:10px;background:rgba(245, 246, 250, 1)">
-      <div style="position:absolute;left:3764px;top:14825px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(255, 255, 255, 1)">
-      
-    </div>
-    </div>
-      <div style="position:absolute;left:4016px;top:14827px;width:33px;height:21px;background:rgba(151, 151, 151, 1)">التاريخ</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003590</h1>
+      <p>Figma: Document / Dashboard / ادارة التوصيل / Frame 1000003590 (id: 1942:7995)</p>
     </div>
   </div>
 </template>

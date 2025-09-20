@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-1856px;top:-447px;width:37px;height:19px">
-      <div style="position:absolute;left:-1856px;top:-446px;width:37px;height:18px;background:rgba(255, 255, 255, 1)">Rectangle 1145</div>
-      <div style="position:absolute;left:-1848px;top:-447px;width:22px;height:16px;background:rgba(112, 112, 112, 1)">بوهو</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319335</h1>
+      <p>Figma: Document / ui / الفلاترة / Frame 427319343 / Frame 427319342 / Frame 427319335 (id: 11:1524)</p>
     </div>
   </div>
 </template>

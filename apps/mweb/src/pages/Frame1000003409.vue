@@ -1,12 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-4057px;top:1921px;width:37px;height:39px">
-      <div style="position:absolute;left:-4057px;top:1921px;width:37px;height:39px;border-radius:10px;background:rgba(255, 255, 255, 1)">Rectangle 501</div>
-      <div style="position:absolute;left:-4051px;top:1929px;width:24px;height:24px">
-      <div style="display:flex;flex-direction:column;gap:12px;background:rgba(255, 255, 255, 1)">
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003409</h1>
+      <p>Figma: Document / Dashboard / ادارة الكميات / Property 1=Variant4 / Frame 1000003409 (id: 1927:7401)</p>
     </div>
   </div>
 </template>

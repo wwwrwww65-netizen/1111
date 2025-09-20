@@ -1,22 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-4137px;top:5517px;width:3072px;height:912px;border-radius:24px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-4037px;top:5617px;width:2872px;height:712px">
-      <div style="position:absolute;left:-4037px;top:5617px;width:2872px;height:712px">
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Arrow</h1>
+      <p>Figma: Document / ICON / Icon/General / Arrow (id: 1823:22034)</p>
     </div>
   </div>
 </template>

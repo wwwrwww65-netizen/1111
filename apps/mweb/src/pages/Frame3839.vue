@@ -1,9 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:7280px;top:8417px;width:4px;height:24px">
-      <div style="position:absolute;left:7280px;top:8437px;width:4px;height:4px;background:rgba(151, 151, 151, 1)">Ellipse 2</div>
-      <div style="position:absolute;left:7280px;top:8427px;width:4px;height:4px;background:rgba(151, 151, 151, 1)">Ellipse 4</div>
-      <div style="position:absolute;left:7280px;top:8417px;width:4px;height:4px;background:rgba(151, 151, 151, 1)">Ellipse 6</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 3839</h1>
+      <p>Figma: Document / Dashboard / Frame 1000003641 / Property 1=Variant6 / Frame 1000003640 / Frame 1000003642 / Frame 3839 (id: 2242:5427)</p>
     </div>
   </div>
 </template>

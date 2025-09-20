@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;justify-content:center;position:absolute;left:-1597px;top:19148px;width:394px;height:44px">
-      <div style="position:absolute;left:-1232px;top:19148px;width:29px;height:16px;background:rgba(46, 51, 51, 1)">القوانين</div>
-      <div style="align-self:stretch;position:absolute;left:-1597px;top:19172px;width:394px;height:20px;background:rgba(46, 51, 51, 1)">1- بإمكانك استخدام المحفظة للدع لمشترياتك.</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 156</h1>
+      <p>Figma: Document / ui / النقاط / Frame 427319230 / Frame 128 / Frame 156 (id: 212:3764)</p>
     </div>
   </div>
 </template>

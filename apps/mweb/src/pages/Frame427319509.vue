@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-898px;top:16778px;width:174px;height:16px">
-      <div style="position:absolute;left:-724px;top:16778px;width:0px;height:14px">Line 28</div>
-      <div style="position:absolute;left:-898px;top:16778px;width:172px;height:16px;background:rgba(0, 0, 0, 1)">هل يعني الطلب من الرسوم الجمركية؟</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319509</h1>
+      <p>Figma: Document / ui / دعم / Frame 427319509 (id: 188:4501)</p>
     </div>
   </div>
 </template>

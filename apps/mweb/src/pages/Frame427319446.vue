@@ -1,7 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:713px;top:4818px;width:398px;height:235px">
-      <div style="position:absolute;left:713px;top:4818px;width:398px;height:235px;background:rgba(246, 247, 249, 1)">Rectangle 618</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319446</h1>
+      <p>Figma: Document / APP_DELEVRY / تفاصيل الطالب_العميل / Frame 427319447 / Frame 427319446 (id: 2928:1026)</p>
     </div>
   </div>
 </template>

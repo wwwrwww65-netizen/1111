@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:1864px;top:13351px;width:93px;height:27px">
-      <div style="border-radius:13.5px;background:rgba(69, 162, 69, 1)">Rectangle</div>
-      <div style="background:rgba(255, 255, 255, 1)">مكتمل</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003626</h1>
+      <p>Figma: Document / Dashboard / تفاصيل الموصلين / Frame 1000003630 / Frame 1000003626 (id: 2199:9502)</p>
     </div>
   </div>
 </template>

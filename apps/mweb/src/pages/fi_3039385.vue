@@ -1,14 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:876px;top:13418px;width:110px;height:110px;background:rgba(255, 255, 255, 1)">
-      <div style="">
-      <div style="">
-      
-      
-      
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">fi_3039385</h1>
+      <p>Figma: Document / ui / snackbar  / Frame 427319142 / fi_3039385 (id: 65:4902)</p>
     </div>
   </div>
 </template>

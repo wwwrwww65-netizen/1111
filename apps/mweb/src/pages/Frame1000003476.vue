@@ -1,12 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:3020px;top:4994px;width:194px;height:30px">
-      <div style="position:absolute;left:3083px;top:4994px;width:98px;height:30px;background:rgba(138, 21, 56, 1)">سجل الطلب</div>
-      <div style="position:absolute;left:3190px;top:4997px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:3190px;top:4997px;width:24px;height:24px">
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003476</h1>
+      <p>Figma: Document / Dashboard / ادارة الطلبات / عرض التفاصيل / Frame 1000003514 / Frame 1000003480 / Frame 1000003476 (id: 1611:3309)</p>
     </div>
   </div>
 </template>

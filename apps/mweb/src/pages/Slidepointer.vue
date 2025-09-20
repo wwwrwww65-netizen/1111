@@ -1,11 +1,8 @@
 <template>
   <div class="container">
-    <div style="">
-      <div style="position:absolute;left:6759px;top:11622px;width:8px;height:8px;background:rgba(138, 21, 56, 1)">Pointer</div>
-      <div style="position:absolute;left:6771px;top:11622px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">Pointer</div>
-      <div style="position:absolute;left:6783px;top:11622px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">Pointer</div>
-      <div style="position:absolute;left:6795px;top:11622px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">Pointer</div>
-      <div style="position:absolute;left:6807px;top:11622px;width:8px;height:8px;background:rgba(255, 255, 255, 1)">Pointer</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Slide pointer</h1>
+      <p>Figma: Document / Dashboard / عرض المنتجات / Slide pointer (id: 2199:7579)</p>
     </div>
   </div>
 </template>

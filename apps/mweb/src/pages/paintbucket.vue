@@ -1,10 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-5437px;top:6977px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">paintbucket</h1>
+      <p>Figma: Document / ICON / Icon/General / Design, Tools / paintbucket / Property 1=twotone / vuesax/twotone/paintbucket / paintbucket (id: 1823:28632)</p>
     </div>
   </div>
 </template>

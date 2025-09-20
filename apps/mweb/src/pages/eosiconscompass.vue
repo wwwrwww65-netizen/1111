@@ -1,7 +1,8 @@
 <template>
   <div class="container">
-    <div style="background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(255, 255, 255, 1)">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">eos-icons:compass</h1>
+      <p>Figma: Document / ui / الخريطة / Frame / eos-icons:compass (id: 248:5004)</p>
     </div>
   </div>
 </template>

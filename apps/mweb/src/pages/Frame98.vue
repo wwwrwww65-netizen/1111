@@ -1,7 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-3601px;top:1881px;width:23px;height:19px">
-      <div style="position:absolute;left:-3601px;top:1878px;width:24px;height:25px;background:rgba(12, 24, 255, 1)">Ellipse 1</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 98</h1>
+      <p>Figma: Document / Dashboard / ادارة الكميات / Property 1=Variant4 / Frame 80 / Frame 98 (id: 1927:7367)</p>
     </div>
   </div>
 </template>

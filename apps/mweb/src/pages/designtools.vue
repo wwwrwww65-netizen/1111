@@ -1,16 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-5173px;top:6977px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="">Vector</div>
-      <div style="position:absolute;left:-5167px;top:6979px;width:16px;height:16px">
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-    </div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">designtools</h1>
+      <p>Figma: Document / ICON / Icon/General / Design, Tools / designtools / Property 1=twotone / vuesax/twotone/designtools / designtools (id: 1823:28784)</p>
     </div>
   </div>
 </template>

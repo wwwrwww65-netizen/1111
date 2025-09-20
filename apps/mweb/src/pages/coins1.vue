@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-5521px;top:-386px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="background:rgba(151, 151, 151, 1)">Vector</div>
-      <div style="position:absolute;left:-5833px;top:-345px;width:186px;height:36px;background:rgba(245, 245, 245, 1)">Rectangle 42</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">coins 1</h1>
+      <p>Figma: Document / Dashboard / بيانات المنتج/Variant6 / Frame 79 / Frame 78 / Frame 87 / Frame 85 / Frame 62 / Frame 63 / Frame 61 / coins 1 (id: 1309:2846)</p>
     </div>
   </div>
 </template>

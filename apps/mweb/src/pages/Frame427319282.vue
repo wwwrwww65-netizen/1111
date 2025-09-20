@@ -1,15 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-3390px;top:13px;width:125px;height:16px">
-      <div style="position:absolute;left:-3390px;top:15px;width:125px;height:13px;border-radius:1px;background:rgba(240, 218, 151, 0.20000000298023224)">Rectangle 1109</div>
-      <div style="position:absolute;left:-3360px;top:18px;width:6px;height:6px;background:rgba(255, 255, 255, 1)">
-      <div style="position:absolute;left:-3360px;top:18px;width:6px;height:6px">
-      
-    </div>
-    </div>
-      <div style="position:absolute;left:-3352px;top:13px;width:48px;height:16px;background:rgba(240, 218, 151, 1)"># مجموعات مخططة</div>
-      <div style="position:absolute;left:-3302px;top:15px;width:37px;height:13px;background:rgba(240, 218, 151, 1)">Rectangle 1110</div>
-      <div style="position:absolute;left:-3288px;top:13px;width:15px;height:16px;background:rgba(255, 255, 255, 1)">ترندات</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 427319282</h1>
+      <p>Figma: Document / ui / عملية البحث / Frame 427319491 / Frame 427319285 / Frame 427319319 / Frame 427319282 (id: 129:3890)</p>
     </div>
   </div>
 </template>

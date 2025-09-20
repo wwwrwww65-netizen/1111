@@ -1,7 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:row;gap:3px;align-items:center;justify-content:center;align-self:stretch;position:absolute;left:-722px;top:2091px;width:351px;height:38px;padding:6px 121px 6px 121px;border-radius:10px;background:rgba(138, 21, 56, 1)">
-      <div style="position:absolute;left:-559px;top:2101px;width:24px;height:18px;background:rgba(255, 255, 255, 1)">حفظ</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 37</h1>
+      <p>Figma: Document / Dashboard / المنتجات / المنتجات / Frame 49 / Frame 48 / Frame 42 / Frame 57 / Frame 39 / Frame 37 (id: 719:354)</p>
     </div>
   </div>
 </template>

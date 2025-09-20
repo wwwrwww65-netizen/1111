@@ -1,10 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-4469px;top:6977px;width:24px;height:24px;background:rgba(255, 255, 255, 1)">
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
-      <div style="">Vector</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">path</h1>
+      <p>Figma: Document / ICON / Icon/General / Design, Tools / path / Property 1=twotone / vuesax/twotone/path / path (id: 1823:29263)</p>
     </div>
   </div>
 </template>

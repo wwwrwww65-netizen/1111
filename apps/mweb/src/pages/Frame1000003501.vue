@@ -1,7 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:5148px;top:12184px;width:678px;height:27px">
-      <div style="position:absolute;left:5816px;top:12184px;width:10px;height:24px;background:rgba(40, 46, 58, 1)">4</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003501</h1>
+      <p>Figma: Document / Dashboard / ادارة الموردين / Frame 1000003573 / Frame 1000003570 / Frame 1000003501 (id: 2150:3814)</p>
     </div>
   </div>
 </template>

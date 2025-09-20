@@ -57,6 +57,7 @@ function styleFor(node) {
   if (node.layoutGrow === 1) s.push('flex:1 1 auto');
   if (node.layoutAlign === 'STRETCH') s.push('align-self:stretch');
   if (node.layoutAlign === 'CENTER') s.push('align-self:center');
+  if (node.clipsContent) s.push('overflow:hidden');
   // Absolute positioning
   if (node.absoluteBoundingBox && node.constraints) {
     const c = node.constraints;
@@ -69,6 +70,13 @@ function styleFor(node) {
       s.push(`height:${Math.round(bb.height)}px`);
     }
   }
+  // Size hints from absoluteBoundingBox when present
+  if (!s.some(v => v.startsWith('width')) && node.absoluteBoundingBox) {
+    s.push(`min-width:${Math.round(node.absoluteBoundingBox.width)}px`);
+  }
+  if (!s.some(v => v.startsWith('height')) && node.absoluteBoundingBox) {
+    s.push(`min-height:${Math.round(node.absoluteBoundingBox.height)}px`);
+  }
   const pl = node.paddingLeft ?? node.horizontalPadding;
   const pr = node.paddingRight ?? node.horizontalPadding;
   const pt = node.paddingTop ?? node.verticalPadding;
@@ -77,21 +85,56 @@ function styleFor(node) {
     s.push(`padding:${pt||0}px ${pr||0}px ${pb||0}px ${pl||0}px`);
   }
   if (typeof node.cornerRadius === 'number') s.push(`border-radius:${node.cornerRadius}px`);
-  if (Array.isArray(node.fills) && node.fills.length && node.fills[0].type === 'SOLID') {
-    s.push(`background:${rgbaFromPaint(node.fills[0])}`);
+  if (Array.isArray(node.fills) && node.fills.length) {
+    const f0 = node.fills[0];
+    if (f0.type === 'SOLID') {
+      s.push(`background:${rgbaFromPaint(f0)}`);
+    } else if (f0.type === 'IMAGE') {
+      // Use assets saved as <node.id>.png
+      const safeId = String(node.id).replace(/[^A-Za-z0-9:_;-]/g, '');
+      s.push(`background-image:url('/assets/${safeId}.png')`);
+      s.push('background-size:cover');
+      s.push('background-position:center');
+      s.push('background-repeat:no-repeat');
+    }
   }
   return s.join(';');
 }
 
+function typographyFor(node) {
+  const t = [];
+  const st = node.style || {};
+  if (st.fontFamily) t.push(`font-family:'${String(st.fontFamily).replace(/'/g, '')}', Tajawal, system-ui, sans-serif`);
+  if (st.fontWeight) t.push(`font-weight:${st.fontWeight}`);
+  if (st.fontSize) t.push(`font-size:${Math.round(st.fontSize)}px`);
+  if (st.lineHeightPx) t.push(`line-height:${Math.round(st.lineHeightPx)}px`);
+  if (st.letterSpacing) t.push(`letter-spacing:${typeof st.letterSpacing === 'number' ? st.letterSpacing + 'px' : st.letterSpacing}`);
+  if (node.textAlignHorizontal) {
+    const ta = node.textAlignHorizontal.toLowerCase();
+    if (ta === 'center' || ta === 'right' || ta === 'left' || ta === 'justified') t.push(`text-align:${ta === 'justified' ? 'justify' : ta}`);
+  }
+  // Text color from fills
+  const fills = Array.isArray(node.fills) ? node.fills : [];
+  const solid = fills.find(f => f.type === 'SOLID');
+  if (solid) t.push(`color:${rgbaFromPaint(solid)}`);
+  return t.join(';');
+}
+
 function nodeToVue(node, depth = 0) {
-  if (!node || depth > 2) return '';
+  if (!node || depth > 4) return '';
   const style = styleFor(node);
   const children = Array.isArray(node.children) ? node.children : [];
+  // If this is a text node, render with typography styles
+  if (node.type === 'TEXT') {
+    const text = node.characters || '';
+    const typo = typographyFor(node);
+    return `<div style="${style};${typo}">${String(text)}</div>`;
+  }
   if (!children.length) {
     const text = node.characters || node.name || '';
-    return `<div style="${style}">${text ? String(text).slice(0,80) : ''}</div>`;
+    return `<div style="${style}">${text ? String(text).slice(0,120) : ''}</div>`;
   }
-  const inner = children.slice(0, 12).map(ch => nodeToVue(ch, depth + 1)).join('\n      ');
+  const inner = children.slice(0, 50).map(ch => nodeToVue(ch, depth + 1)).join('\n      ');
   return `<div style="${style}">\n      ${inner}\n    </div>`;
 }
 

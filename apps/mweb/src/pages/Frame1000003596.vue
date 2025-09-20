@@ -1,10 +1,8 @@
 <template>
   <div class="container">
-    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;position:absolute;left:2618px;top:15947px;width:128px;height:96px">
-      <div style="align-self:stretch;position:absolute;left:2618px;top:15947px;width:128px;height:21px;background:rgba(55, 71, 79, 1)">عبدالله نشوان الانسي</div>
-      <div style="align-self:stretch;position:absolute;left:2618px;top:15972px;width:128px;height:21px;background:rgba(55, 71, 79, 1)">صلاح الدين منصور</div>
-      <div style="align-self:stretch;position:absolute;left:2618px;top:15997px;width:128px;height:21px;background:rgba(55, 71, 79, 1)">اسامة جريد المحنك</div>
-      <div style="align-self:stretch;position:absolute;left:2618px;top:16022px;width:128px;height:21px;background:rgba(55, 71, 79, 1)">صاحب الوايت</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003596</h1>
+      <p>Figma: Document / Dashboard / Frame 1000003595 / Frame 1000003601 / Frame 1000003599 / Frame 1000003386 / Frame 1000003596 (id: 1959:3189)</p>
     </div>
   </div>
 </template>

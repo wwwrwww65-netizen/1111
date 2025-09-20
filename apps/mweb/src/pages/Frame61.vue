@@ -1,7 +1,8 @@
 <template>
   <div class="container">
-    <div style="border-radius:10px;background:rgba(138, 21, 56, 1)">
-      <div style="position:absolute;left:-2301px;top:1460px;width:27px;height:21px;background:rgba(255, 255, 255, 1)">حفظ</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 61</h1>
+      <p>Figma: Document / Dashboard / ادارة الكميات / Frame 61 (id: I2158:3431;1921:7154)</p>
     </div>
   </div>
 </template>

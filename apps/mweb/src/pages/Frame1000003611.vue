@@ -1,11 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:2454px;top:5379px;width:33px;height:225px">
-      <div style="position:absolute;left:2454px;top:5379px;width:31px;height:24px;background:rgba(40, 46, 58, 1)">أحمر</div>
-      <div style="position:absolute;left:2455px;top:5431px;width:32px;height:24px;background:rgba(40, 46, 58, 1)">أصفر</div>
-      <div style="position:absolute;left:2454px;top:5483px;width:31px;height:24px;background:rgba(40, 46, 58, 1)">أحمر</div>
-      <div style="position:absolute;left:2454px;top:5535px;width:31px;height:24px;background:rgba(40, 46, 58, 1)">أحمر</div>
-      <div style="position:absolute;left:2454px;top:5580px;width:31px;height:24px;background:rgba(40, 46, 58, 1)">أحمر</div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003611</h1>
+      <p>Figma: Document / Dashboard / ادارة الطلبات / عرض التفاصيل / Frame 1000003514 / Frame 1000003514 / Frame 1000003503 / Frame 1000003611 (id: 2199:6645)</p>
     </div>
   </div>
 </template>

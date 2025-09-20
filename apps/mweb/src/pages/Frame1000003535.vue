@@ -1,12 +1,8 @@
 <template>
   <div class="container">
-    <div style="position:absolute;left:-7473px;top:8546px;width:59px;height:21px">
-      <div style="position:absolute;left:-7467px;top:8590px;width:54px;height:21px">
-      <div style="position:absolute;left:-7467px;top:8590px;width:54px;height:21px">
-      
-      
-    </div>
-    </div>
+    <div class="card" style="margin-top:16px">
+      <h1 style="margin:0 0 8px 0">Frame 1000003535</h1>
+      <p>Figma: Document / Dashboard / Frame 1000003552 / Frame 1000003535 (id: 1823:7474)</p>
     </div>
   </div>
 </template>
