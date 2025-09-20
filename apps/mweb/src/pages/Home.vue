@@ -7,8 +7,18 @@
       <PromoBanners />
       <SectionHeading title="الفئات" href="/categories" />
       <CategoryScroller class="space-y-16" />
-      <SectionHeading title="الأكثر رواجًا" href="/products?sort=trending" />
-      <HorizontalProducts />
+      <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
+      <div class="prod-grid">
+        <ProductCard v-for="i in newItems" :key="i.title" v-bind="i" />
+      </div>
+      <SectionHeading title="الأكثر مبيعًا" href="/products?sort=top" />
+      <div class="prod-grid">
+        <ProductCard v-for="i in bestItems" :key="i.title" v-bind="i" />
+      </div>
+      <SectionHeading title="تخفيضات الصيف" href="/products?deal=summer" />
+      <div class="prod-grid">
+        <ProductCard v-for="i in saleItems" :key="i.title" v-bind="i" />
+      </div>
     </div>
     <BottomNav />
   </div>
@@ -22,6 +32,7 @@ import CategoryScroller from '@/components/CategoryScroller.vue'
 import PromoBanners from '@/components/PromoBanners.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
+import ProductCard from '@/components/ProductCard.vue'
 import TopTabs from '@/components/TopTabs.vue'
 
 import { computed } from 'vue'
@@ -31,6 +42,15 @@ const heroTokens = computed(()=> ({
   boxShadow: 'var(--figma-shadow-hero-shadow, var(--shadow))',
   borderRadius: 'var(--figma-radius-hero-radius, 12px)'
 }))
+
+const newItems = [
+  { img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=480&auto=format&fit=crop', title: 'فستان صيفي', original: '199 ر.س', price: '129 ر.س', badge: '-35%' },
+  { img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=480&auto=format&fit=crop', title: 'سماعات بلوتوث', original: '349 ر.س', price: '279 ر.س', badge: '-20%' },
+  { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=480&auto=format&fit=crop', title: 'ساعة ذكية', original: '399 ر.س', price: '329 ر.س', badge: '-18%' },
+  { img: 'https://images.unsplash.com/photo-1547949003-9792a18a2601?q=80&w=480&auto=format&fit=crop', title: 'حقيبة يد', original: '299 ر.س', price: '249 ر.س', badge: '-17%' },
+]
+const bestItems = newItems
+const saleItems = newItems
 </script>
 
 <style scoped>

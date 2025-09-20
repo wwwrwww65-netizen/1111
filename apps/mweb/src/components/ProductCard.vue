@@ -6,15 +6,18 @@
     </div>
     <div class="info">
       <div class="title">{{ title }}</div>
-      <div class="price">{{ price }}</div>
+      <div class="price-wrap">
+        <span v-if="original" class="original">{{ original }}</span>
+        <span class="price">{{ price }}</span>
+      </div>
     </div>
     <button class="btn add">إضافة للسلة</button>
   </article>
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ img: string; title: string; price: string; badge?: string }>();
-const { img, title, price, badge } = props;
+const props = defineProps<{ img: string; title: string; price: string; original?: string; badge?: string }>();
+const { img, title, price, original, badge } = props;
 </script>
 
 <style scoped>
@@ -24,6 +27,8 @@ const { img, title, price, badge } = props;
 .badge-accent{position:absolute;top:8px;left:8px}
 .info{display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
 .title{font-weight:600;font-size:13px}
-.price{color:var(--primary);font-weight:800}
+.price-wrap{display:flex;gap:6px;align-items:center}
+.original{text-decoration:line-through;color:#94a3b8;font-size:12px}
+.price{color:#dc2626;font-weight:800}
 .add{margin:0 12px 12px}
 </style>
