@@ -36,6 +36,7 @@ import HorizontalProducts from '@/components/HorizontalProducts.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import TopTabs from '@/components/TopTabs.vue'
 import Carousel from '@/components/Carousel.vue'
+import SvgBanner from '@/components/SvgBanner.vue'
 
 import { computed } from 'vue'
 // Apply Figma tokens if present
