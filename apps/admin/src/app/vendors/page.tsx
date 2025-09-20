@@ -22,6 +22,9 @@ export default function VendorsPage(): JSX.Element {
   const [storeNumber, setStoreNumber] = React.useState("");
   const [vendorCode, setVendorCode] = React.useState("");
   const [search, setSearch] = React.useState("");
+  const [visibleCols, setVisibleCols] = React.useState<{email:boolean;phone:boolean;code:boolean}>({ email:true, phone:true, code:true });
+  const [sortBy, setSortBy] = React.useState<'name'|'contactEmail'|'phone'|'vendorCode'>('name');
+  const [sortDir, setSortDir] = React.useState<'asc'|'desc'>('asc');
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
   const [busy, setBusy] = React.useState(false);
@@ -85,22 +88,28 @@ export default function VendorsPage(): JSX.Element {
         </div>
       </section>
       <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12, marginTop: 16 }}>
+        <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:8 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.email} onChange={(e)=> setVisibleCols(v=> ({ ...v, email: e.currentTarget.checked }))} /> بريد</label>
+          <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.phone} onChange={(e)=> setVisibleCols(v=> ({ ...v, phone: e.currentTarget.checked }))} /> هاتف</label>
+          <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.code} onChange={(e)=> setVisibleCols(v=> ({ ...v, code: e.currentTarget.checked }))} /> كود</label>
+        </div>
         {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
         {!loading && rows.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا موردين</div>)}
         {rows.length>0 && (
         <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
           <thead>
             <tr>
-              <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>الاسم</th>
-              <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>البريد</th>
-              <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>الهاتف</th>
-              <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>الكود</th>
+              <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='name' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'name') : (setSortDir('asc'), 'name'))} style={{ background:'transparent', color:'#e2e8f0' }}>الاسم {sortBy==='name'?(sortDir==='asc'?'▲':'▼'):''}</button></th>
+              {visibleCols.email && (<th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='contactEmail' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'contactEmail') : (setSortDir('asc'), 'contactEmail'))} style={{ background:'transparent', color:'#e2e8f0' }}>البريد {sortBy==='contactEmail'?(sortDir==='asc'?'▲':'▼'):''}</button></th>)}
+              {visibleCols.phone && (<th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='phone' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'phone') : (setSortDir('asc'), 'phone'))} style={{ background:'transparent', color:'#e2e8f0' }}>الهاتف {sortBy==='phone'?(sortDir==='asc'?'▲':'▼'):''}</button></th>)}
+              {visibleCols.code && (<th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='vendorCode' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'vendorCode') : (setSortDir('asc'), 'vendorCode'))} style={{ background:'transparent', color:'#e2e8f0' }}>الكود {sortBy==='vendorCode'?(sortDir==='asc'?'▲':'▼'):''}</button></th>)}
               <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>إجراءات</th>
             </tr>
           </thead>
           <tbody>
             {rows
               .filter((v)=> !search || v.name?.toLowerCase().includes(search.toLowerCase()) || v.vendorCode?.toLowerCase().includes(search.toLowerCase()))
+              .sort((a:any,b:any)=>{ const dir = sortDir==='asc'?1:-1; const ka=String(a[sortBy]||''); const kb=String(b[sortBy]||''); return ka.localeCompare(kb,'ar')*dir; })
               .map((v, idx)=> (
               <tr key={v.id} style={{ background: idx % 2 ? '#0a0e17' : 'transparent' }}>
                 <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
@@ -109,9 +118,9 @@ export default function VendorsPage(): JSX.Element {
                     <span>{v.name}</span>
                   </div>
                 </td>
-                <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.contactEmail||'-'}</td>
-                <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.phone||'-'}</td>
-                <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.vendorCode||'-'}</td>
+              {visibleCols.email && (<td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.contactEmail||'-'}</td>)}
+              {visibleCols.phone && (<td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.phone||'-'}</td>)}
+              {visibleCols.code && (<td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.vendorCode||'-'}</td>)}
                 <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                   <a href={`/vendors/${v.id}`} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, textDecoration:'none' }}>عرض</a>
                 </td>
