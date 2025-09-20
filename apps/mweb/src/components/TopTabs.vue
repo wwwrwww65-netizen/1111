@@ -16,8 +16,8 @@ const tabs = props.tabs || [
 </script>
 
 <style scoped>
-.tabs-wrap{display:flex;gap:12px;overflow:auto;padding:8px 12px;border-top:1px solid var(--muted-2);border-bottom:1px solid var(--muted-2);background:#fff}
-.tab{flex:0 0 auto;padding:6px 12px;border:1px solid var(--muted-2);border-radius:999px;text-decoration:none;color:inherit;background:#fff;font-size:13px}
+.tabs-wrap{display:flex;gap:12px;overflow:auto;padding:8px 12px;border-top:1px solid var(--muted-2);border-bottom:1px solid var(--muted-2);background:#fff;scroll-snap-type:x mandatory}
+.tab{flex:0 0 auto;padding:6px 12px;border:1px solid var(--muted-2);border-radius:999px;text-decoration:none;color:inherit;background:#fff;font-size:13px;scroll-snap-align:start}
 .tab:active{transform:scale(.98)}
 </style>
 

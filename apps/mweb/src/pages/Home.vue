@@ -5,6 +5,7 @@
     <div class="container">
       <HeroBanner :style="heroTokens" />
       <PromoBanners />
+      <Carousel :slides="heroSlides" />
       <SectionHeading title="الفئات" href="/categories" />
       <CategoryScroller class="space-y-16" />
       <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
@@ -34,6 +35,7 @@ import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import TopTabs from '@/components/TopTabs.vue'
+import Carousel from '@/components/Carousel.vue'
 
 import { computed } from 'vue'
 // Apply Figma tokens if present
@@ -51,6 +53,11 @@ const newItems = [
 ]
 const bestItems = newItems
 const saleItems = newItems
+const heroSlides = [
+  { img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1200&auto=format&fit=crop' },
+  { img: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&w=1200&auto=format&fit=crop' },
+  { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1200&auto=format&fit=crop' },
+]
 </script>
 
 <style scoped>
