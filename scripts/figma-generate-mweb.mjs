@@ -14,6 +14,71 @@ const entries = Object.entries(data.mapping || {});
 const outPages = path.join(root, 'apps', 'mweb', 'src', 'pages');
 fs.mkdirSync(outPages, { recursive: true });
 
+// Optional nodes.json to enable simple Auto Layout rendering
+let nodesIndex = new Map();
+try {
+  const nodesPath = path.join(root, 'infra', 'figma', 'nodes.json');
+  if (fs.existsSync(nodesPath)) {
+    const nj = JSON.parse(fs.readFileSync(nodesPath, 'utf8'));
+    const nodes = nj.nodes || {};
+    for (const [id, wrap] of Object.entries(nodes)) {
+      if (wrap && wrap.document) nodesIndex.set(id, wrap.document);
+    }
+  }
+} catch {}
+
+function rgbaFromPaint(p) {
+  const c = p?.color || { r:0, g:0, b:0 };
+  const a = p?.opacity != null ? p.opacity : (p?.color?.a ?? 1);
+  const r = Math.round((c.r||0) * 255);
+  const g = Math.round((c.g||0) * 255);
+  const b = Math.round((c.b||0) * 255);
+  return `rgba(${r}, ${g}, ${b}, ${a ?? 1})`;
+}
+
+function styleFor(node) {
+  const s = [];
+  const lm = node.layoutMode;
+  if (lm === 'HORIZONTAL' || lm === 'VERTICAL') {
+    s.push('display:flex');
+    s.push(`flex-direction:${lm === 'HORIZONTAL' ? 'row' : 'column'}`);
+    if (typeof node.itemSpacing === 'number') s.push(`gap:${node.itemSpacing}px`);
+    const ai = node.counterAxisAlignItems;
+    if (ai === 'CENTER') s.push('align-items:center');
+    if (ai === 'MAX') s.push('align-items:flex-end');
+    if (ai === 'MIN') s.push('align-items:flex-start');
+    const ji = node.primaryAxisAlignItems;
+    if (ji === 'CENTER') s.push('justify-content:center');
+    if (ji === 'MAX') s.push('justify-content:flex-end');
+    if (ji === 'SPACE_BETWEEN') s.push('justify-content:space-between');
+    if (ji === 'MIN') s.push('justify-content:flex-start');
+  }
+  const pl = node.paddingLeft ?? node.horizontalPadding;
+  const pr = node.paddingRight ?? node.horizontalPadding;
+  const pt = node.paddingTop ?? node.verticalPadding;
+  const pb = node.paddingBottom ?? node.verticalPadding;
+  if ([pl, pr, pt, pb].some(v => typeof v === 'number')) {
+    s.push(`padding:${pt||0}px ${pr||0}px ${pb||0}px ${pl||0}px`);
+  }
+  if (typeof node.cornerRadius === 'number') s.push(`border-radius:${node.cornerRadius}px`);
+  if (Array.isArray(node.fills) && node.fills.length && node.fills[0].type === 'SOLID') {
+    s.push(`background:${rgbaFromPaint(node.fills[0])}`);
+  }
+  return s.join(';');
+}
+
+function nodeToVue(node, depth = 0) {
+  if (!node || depth > 2) return '';
+  const style = styleFor(node);
+  const children = Array.isArray(node.children) ? node.children : [];
+  if (!children.length) {
+    const text = node.characters || node.name || '';
+    return `<div style="${style}">${text ? String(text).slice(0,80) : ''}</div>`;
+  }
+  const inner = children.slice(0, 12).map(ch => nodeToVue(ch, depth + 1)).join('\n      ');
+  return `<div style="${style}">\n      ${inner}\n    </div>`;
+}
+
 const routes = [];
 for (const [name, info] of entries) {
   // Build a route for every frame. Heuristic: 'Home' => '/', otherwise kebab-case of name
@@ -26,10 +91,15 @@ for (const [name, info] of entries) {
   const compName = (info.component || name).replace(/[^A-Za-z0-9_]/g, '');
   const fileName = compName + '.vue';
   const filePath = path.join(outPages, fileName);
-  if (!fs.existsSync(filePath)) {
-    const tpl = `<template>\n  <div class=\"container\">\n    <div class=\"card\" style=\"margin-top:16px\">\n      <h1 style=\"margin:0 0 8px 0\">${name}</h1>\n      <p>Figma: ${info.figmaPath} (id: ${info.figmaId})</p>\n    </div>\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
-    fs.writeFileSync(filePath, tpl, 'utf8');
+  let body = '';
+  const rich = nodesIndex.get(info.figmaId);
+  if (rich) {
+    const rendered = nodeToVue(rich);
+    body = `<template>\n  <div class=\"container\">\n    ${rendered}\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
+  } else {
+    body = `<template>\n  <div class=\"container\">\n    <div class=\"card\" style=\"margin-top:16px\">\n      <h1 style=\"margin:0 0 8px 0\">${name}</h1>\n      <p>Figma: ${info.figmaPath} (id: ${info.figmaId})</p>\n    </div>\n  </div>\n</template>\n\n<script setup lang=\"ts\">\n</script>\n`;
   }
+  fs.writeFileSync(filePath, body, 'utf8');
   routes.push({ path: route, component: `() => import('./pages/${fileName}')` });
 }
 

@@ -1,8 +1,8 @@
 <template>
   <div class="container">
     <div class="card" style="margin-top:16px">
-      <h1 style="margin:0 0 8px 0">Search </h1>
-      <p>Figma: Document / ICON / Search  (id: 1:9227)</p>
+      <h1 style="margin:0 0 8px 0">Search</h1>
+      <p>Figma: Document / ICON / Icon/General / Search (id: 1823:43997)</p>
     </div>
   </div>
 </template>
