@@ -49,17 +49,22 @@ if (!idList.length) {
   console.log('No image nodes found');
   process.exit(0);
 }
-// Ensure output dir exists before network calls so git add won't fail on missing path
+
 // Prefer serving from public so paths are stable and not hashed by bundler
 const outDir = path.join(root, 'apps', 'mweb', 'public', 'assets', 'figma');
 fs.mkdirSync(outDir, { recursive: true });
 
-// Helper to chunk IDs to avoid 413 URI Too Large
 function chunk(arr, size) {
   const out = []; for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size)); return out;
 }
 
+function safeId(id) {
+  // Encode colon and semicolon pairs into double-underscore tokens to keep short yet safe
+  return String(id).replace(/:/g, '__').replace(/;/g, '___').replace(/[^A-Za-z0-9_\-]/g, '_');
+}
+
 let total = 0;
+const manifest = {};
 for (const batch of chunk(idList, 100)) {
   try {
     const url = `https://api.figma.com/v1/images/${FIGMA_FILE_KEY}?ids=${encodeURIComponent(batch.join(','))}&format=png&scale=2`;
@@ -68,8 +73,10 @@ for (const batch of chunk(idList, 100)) {
     for (const [id, imgUrl] of Object.entries(images)) {
       if (!imgUrl) continue;
       const buf = await fetchBuffer(imgUrl);
-      const file = path.join(outDir, `${id}.png`);
+      const fileSafe = safeId(id);
+      const file = path.join(outDir, `${fileSafe}.png`);
       fs.writeFileSync(file, buf);
+      manifest[id] = `${fileSafe}.png`;
       total++;
     }
   } catch (e) {
@@ -77,7 +84,6 @@ for (const batch of chunk(idList, 100)) {
   }
 }
 
-// Migrate any previously saved src assets to public for stability
 try {
   const legacyDir = path.join(root, 'apps', 'mweb', 'src', 'assets');
   if (fs.existsSync(legacyDir)) {
@@ -89,5 +95,9 @@ try {
     }
   }
 } catch {}
+
+// Write manifest for generator lookups
+const manifestPath = path.join(root, 'apps', 'mweb', 'public', 'assets', 'figma', 'manifest.json');
+fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
 
 console.log(`Downloaded ${total} assets to apps/mweb/public/assets/figma`);

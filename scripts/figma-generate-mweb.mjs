@@ -16,6 +16,7 @@ fs.mkdirSync(outPages, { recursive: true });
 
 // Optional nodes.json to enable simple Auto Layout rendering
 let nodesIndex = new Map();
+let assetManifest = {};
 try {
   const nodesPath = path.join(root, 'infra', 'figma', 'nodes.json');
   if (fs.existsSync(nodesPath)) {
@@ -24,6 +25,10 @@ try {
     for (const [id, wrap] of Object.entries(nodes)) {
       if (wrap && wrap.document) nodesIndex.set(id, wrap.document);
     }
+  }
+  const manifestPath = path.join(root, 'apps', 'mweb', 'public', 'assets', 'figma', 'manifest.json');
+  if (fs.existsSync(manifestPath)) {
+    assetManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) || {};
   }
 } catch {}
 
@@ -91,8 +96,8 @@ function styleFor(node) {
       s.push(`background:${rgbaFromPaint(f0)}`);
     } else if (f0.type === 'IMAGE') {
       // Use assets saved as <node.id>.png
-      const safeId = String(node.id).replace(/[^A-Za-z0-9:_;-]/g, '');
-      s.push(`background-image:url('/assets/figma/${safeId}.png')`);
+      const file = assetManifest[node.id] || `${String(node.id).replace(/:/g,'__').replace(/;/g,'___').replace(/[^A-Za-z0-9_\-]/g,'_')}.png`;
+      s.push(`background-image:url('/assets/figma/${file}')`);
       s.push('background-size:cover');
       s.push('background-position:center');
       s.push('background-repeat:no-repeat');
