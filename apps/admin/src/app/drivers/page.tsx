@@ -17,6 +17,7 @@ export default function DriversPage(): JSX.Element {
   const markersRef = React.useRef<any[]>([]);
   const [focusedId, setFocusedId] = React.useState<string>('');
   const [msg, setMsg] = React.useState<string>('');
+  const [ioConnected, setIoConnected] = React.useState(false);
   // Add modal fields
   const [name, setName] = React.useState('');
   const [phone, setPhone] = React.useState('');
@@ -96,6 +97,32 @@ export default function DriversPage(): JSX.Element {
       if (!firstSet) { try { mapObjRef.current.easeTo({ center: [d.lng, d.lat], zoom: 9 }); } catch {} firstSet=true; }
     }
   }, [rows, q, status, veh, tab]);
+
+  // Realtime via Socket.IO
+  React.useEffect(()=>{
+    let socket: any;
+    try {
+      // Lazy load socket.io client from CDN to avoid bundling
+      const ensure = async ()=>{
+        if (!(window as any).io) {
+          await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.2/socket.io.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); });
+        }
+        const base = new URL(apiBase);
+        const origin = base.origin || apiBase;
+        socket = (window as any).io(origin, { transports:['websocket'], withCredentials:true });
+        socket.on('connect', ()=> setIoConnected(true));
+        socket.on('disconnect', ()=> setIoConnected(false));
+        socket.on('driver:locations', (payload:any)=>{
+          // Merge live locations into rows
+          const map = new Map(rows.map((r:any)=> [r.id, r]));
+          for (const d of (payload?.drivers||[])) { const cur = map.get(d.id) || {}; map.set(d.id, { ...cur, ...d }); }
+          setRows(Array.from(map.values()));
+        });
+      };
+      ensure();
+    } catch {}
+    return ()=> { try { socket && socket.disconnect(); } catch {} };
+  }, [apiBase]);
 
   function toggleAll(checked: boolean){
     const next: Record<string, boolean> = {};

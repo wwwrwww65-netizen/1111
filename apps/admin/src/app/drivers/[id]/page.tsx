@@ -17,8 +17,10 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
   const [docType, setDocType] = React.useState('License');
   const [docFile, setDocFile] = React.useState<string>('');
   const [docExpiry, setDocExpiry] = React.useState<string>('');
+  const [alert, setAlert] = React.useState<string>('');
   const mapRef = React.useRef<HTMLDivElement|null>(null);
   const mapObjRef = React.useRef<any>(null);
+  const [live, setLive] = React.useState<{lat?:number;lng?:number;lastSeenAt?:string}>({});
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -53,6 +55,25 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
     }
     ensure();
   }, [data]);
+  // Listen to live updates for this driver
+  React.useEffect(()=>{
+    let socket:any;
+    try {
+      const ensure = async ()=>{
+        if (!(window as any).io) {
+          await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.2/socket.io.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); });
+        }
+        const base = new URL(apiBase);
+        socket = (window as any).io(base.origin, { transports:['websocket'], withCredentials:true });
+        socket.on('driver:locations', (payload:any)=>{
+          const it = (payload?.drivers||[]).find((x:any)=> x.id===id);
+          if (it) { setLive({ lat: it.lat, lng: it.lng, lastSeenAt: it.lastSeenAt }); }
+        });
+      };
+      ensure();
+    } catch {}
+    return ()=> { try { socket && socket.disconnect(); } catch {} };
+  }, [apiBase, id]);
   const d = data?.driver;
   const k = data?.kpis || {};
   const orders: Array<{id:string;status:string;total:number;createdAt:string}> = data?.orders || [];
@@ -122,7 +143,7 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
             <div className="panel">
               <h3 style={{ marginTop:0 }}>الموقع</h3>
               <div ref={mapRef} style={{ height:300, background:'#0b0f1a', border:'1px solid var(--muted)', borderRadius:8 }} />
-              <div style={{ marginTop:8, color:'var(--sub)' }}>آخر ظهور: {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : '—'}</div>
+              <div style={{ marginTop:8, color:'var(--sub)' }}>آخر ظهور: {(live.lastSeenAt||d.lastSeenAt) ? new Date(live.lastSeenAt||d.lastSeenAt).toLocaleString() : '—'}</div>
             </div>
           </div>
         <div className="panel" style={{ marginTop:12 }}>
