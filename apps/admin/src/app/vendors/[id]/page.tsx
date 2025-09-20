@@ -19,7 +19,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
   React.useEffect(()=>{ if(tab==='ledger'){ fetch(`${apiBase}/api/admin/vendors/${id}/ledger`, { credentials:'include' }).then(r=>r.json()).then(j=> setLedger({ entries:j.entries||[], balance:j.balance||0 })); } },[apiBase,id,tab]);
   React.useEffect(()=>{ if(tab==='docs'){ fetch(`${apiBase}/api/admin/vendors/${id}/documents`, { credentials:'include' }).then(r=>r.json()).then(j=> setDocs(j.documents||[])); } },[apiBase,id,tab]);
   if (!data) return <main>Loading…</main>;
-  const { vendor, products, orders, stock } = data;
+  const { vendor, products, orders, invoices, stock } = data;
   return (
     <main>
       <h1 style={{ marginBottom: 8 }}>المورد: {vendor.name}</h1>
@@ -61,6 +61,10 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
       {tab==='products' && (
       <>
       <h2 style={{ margin:'12px 0' }}>منتجات المورد</h2>
+      <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
+        <input type="file" accept=".csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=async()=>{ try{ const res= await fetch(`${apiBase}/api/admin/vendors/${id}/catalog/upload`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ base64: String(r.result||'') }) }); if(!res.ok) alert('فشل رفع الكتالوج'); }catch{ alert('خطأ أثناء الرفع'); } }; r.readAsDataURL(f); }} />
+        <button className="btn btn-sm">مزامنة الأسعار</button>
+      </div>
       <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:16 }}>
         <thead><tr><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>#</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الاسم</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>SKU</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>المخزون</th></tr></thead>
         <tbody>
@@ -105,6 +109,24 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
               {ledger.entries.length ? ledger.entries.map((it:any)=> (
                 <tr key={it.id}><td>{new Date(it.createdAt).toLocaleString()}</td><td>{it.type}</td><td>{Number(it.amount).toFixed(2)}</td><td>{it.note||'-'}</td></tr>
               )) : (<tr><td colSpan={4}>لا توجد معاملات</td></tr>)}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab==='invoices' && (
+        <div className="panel" style={{ marginTop:12 }}>
+          <h3 style={{ marginTop:0 }}>الفواتير والمدفوعات</h3>
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/export/xls?type=invoices`}>تصدير Excel</a>
+            <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/export/pdf?type=invoices`}>تصدير PDF</a>
+          </div>
+          <table className="table">
+            <thead><tr><th>الطلب</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+            <tbody>
+              {(invoices||[]).map((iv:any)=> (
+                <tr key={String(iv.orderId)}><td>{String(iv.orderId).slice(0,6)}</td><td>{Number(iv.amount||0).toFixed(2)}</td><td>{iv.status||'-'}</td><td>{new Date(iv.createdAt||Date.now()).toLocaleString()}</td></tr>
+              ))}
             </tbody>
           </table>
         </div>

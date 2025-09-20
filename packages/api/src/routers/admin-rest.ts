@@ -1901,6 +1901,16 @@ adminRest.get('/vendors/list', async (_req, res) => {
   const vendors = await db.vendor.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ vendors });
 });
+// Vendor catalog upload (CSV/XLS as Base64) - stub parser
+adminRest.post('/vendors/:id/catalog/upload', async (req, res) => {
+  try {
+    const { id } = req.params; const { base64 } = req.body || {};
+    if (!base64) return res.status(400).json({ error: 'file_required' });
+    // TODO: parse CSV/XLS (stub: accept and return ok)
+    await audit(req, 'vendors', 'catalog_upload', { vendorId: id, size: String(base64).length });
+    res.json({ ok: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'catalog_upload_failed' }); }
+});
 adminRest.get('/vendors/:id/overview', async (req, res) => {
   const { id } = req.params;
   const v = await db.vendor.findUnique({ where: { id } });
@@ -1910,7 +1920,46 @@ adminRest.get('/vendors/:id/overview', async (req, res) => {
     db.order.findMany({ where: { items: { some: { product: { vendorId: id } } } }, select: { id: true, status: true, total: true, createdAt: true } }),
     db.product.aggregate({ _sum: { stockQuantity: true }, where: { vendorId: id } })
   ]);
-  res.json({ vendor: v, products, orders, stock: stock._sum.stockQuantity || 0, notifications: [] });
+  // Invoices for vendor (simple query by joining orders that include vendor products)
+  const invoices = await db.$queryRawUnsafe(`
+    SELECT o.id as orderId, COALESCE(p.amount, 0) as amount, p.status as status, p."createdAt" as createdAt
+    FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id
+    WHERE EXISTS (
+      SELECT 1 FROM "OrderItem" oi JOIN "Product" pr ON pr.id=oi."productId" WHERE oi."orderId"=o.id AND pr."vendorId"='${id}'
+    )
+    ORDER BY o."createdAt" DESC
+    LIMIT 50
+  `);
+  res.json({ vendor: v, products, orders, invoices, stock: stock._sum.stockQuantity || 0, notifications: [] });
+});
+// Vendor invoices export (CSV/XLS) and PDF stub
+adminRest.get('/vendors/:id/export/xls', async (req, res) => {
+  const { id } = req.params; const type = String(req.query.type||'invoices');
+  try {
+    res.setHeader('Content-Type','application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', `attachment; filename="vendor_${id}_${type}.xls"`);
+    if (type==='invoices') {
+      const rows = await db.$queryRawUnsafe(`
+        SELECT o.id as orderId, COALESCE(p.amount,0) as amount, COALESCE(p.status,'') as status, o."createdAt" as createdAt
+        FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id
+        WHERE EXISTS (SELECT 1 FROM "OrderItem" oi JOIN "Product" pr ON pr.id=oi."productId" WHERE oi."orderId"=o.id AND pr."vendorId"='${id}')
+        ORDER BY o."createdAt" DESC LIMIT 200`);
+      const Parser = require('json2csv').Parser; const parser = new Parser({ fields:['orderId','amount','status','createdAt'] });
+      const csv = parser.parse(rows);
+      return res.send(csv);
+    }
+    return res.send('type not supported');
+  } catch (e:any) { return res.status(500).json({ error: e.message||'vendor_export_xls_failed' }); }
+});
+adminRest.get('/vendors/:id/export/pdf', async (req, res) => {
+  const { id } = req.params; const type = String(req.query.type||'invoices');
+  try {
+    res.setHeader('Content-Type','application/pdf'); res.setHeader('Content-Disposition', `attachment; filename="vendor_${id}_${type}.pdf"`);
+    const doc = new PDFDocument({ autoFirstPage: true }); doc.pipe(res);
+    doc.fontSize(16).text(`Vendor ${id} - ${type.toUpperCase()}`, { align:'center' }); doc.moveDown();
+    doc.fontSize(12).text('Placeholder PDF export');
+    doc.end();
+  } catch (e:any) { return res.status(500).json({ error: e.message||'vendor_export_pdf_failed' }); }
 });
 adminRest.post('/integrations', async (req, res) => {
   const { provider, config } = req.body || {};
