@@ -10,6 +10,9 @@ export default function DriversPage(): JSX.Element {
   const [veh, setVeh] = React.useState<string>('ALL');
   const [view, setView] = React.useState<'list'|'map'>('list');
   const [showAdd, setShowAdd] = React.useState(false);
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [sortBy, setSortBy] = React.useState<'name'|'phone'|'vehicleType'|'status'>('name');
+  const [sortDir, setSortDir] = React.useState<'asc'|'desc'>('asc');
   // Add modal fields
   const [name, setName] = React.useState('');
   const [phone, setPhone] = React.useState('');
@@ -35,6 +38,29 @@ export default function DriversPage(): JSX.Element {
     const j = await (await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setRows(j.drivers||[]);
   }
   React.useEffect(()=>{ load(); },[apiBase, q, status, veh]);
+
+  function toggleAll(checked: boolean){
+    const next: Record<string, boolean> = {};
+    if (checked) for (const d of rows) next[d.id] = true;
+    setSelected(next);
+  }
+  function toggleOne(id: string, checked: boolean){ setSelected(prev=> ({ ...prev, [id]: checked })); }
+  function onSort(key: 'name'|'phone'|'vehicleType'|'status'){ if (sortBy===key) setSortDir(sortDir==='asc'?'desc':'asc'); else { setSortBy(key); setSortDir('asc'); } }
+
+  function exportSelectedCSV(){
+    const sel = rows.filter((r:any)=> selected[r.id]);
+    const arr = (sel.length? sel : rows).map((d:any)=> ({ id:d.id, name:d.name, phone:d.phone||'', vehicleType:d.vehicleType||'', ownership:d.ownership||'', status: d.isActive===false?'DISABLED':(d.status||''), lat:d.lat||'', lng:d.lng||'' }));
+    const header = 'id,name,phone,vehicleType,ownership,status,lat,lng\n';
+    const body = arr.map(r=> [r.id,r.name,r.phone,r.vehicleType,r.ownership,r.status,r.lat,r.lng].map(v=> String(v).replace(/"/g,'""')).map(v=> (/[,\n]/.test(v)? '"'+v+'"' : v)).join(',')).join('\n');
+    const blob = new Blob([header+body], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='drivers_selected.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  async function toggleActive(d:any){
+    const payload = { isActive: !(d.isActive!==false) } as any;
+    await fetch(`${apiBase}/api/admin/drivers/${d.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+    await load();
+  }
 
   async function add(){
     if (!name.trim()) return;
@@ -78,11 +104,13 @@ export default function DriversPage(): JSX.Element {
         <div style={{ overflowX:'auto' }}>
           <table className="table">
             <thead><tr>
-              <th>الاسم</th>
-              <th>الهاتف</th>
-              <th>النوع</th>
+              <th><input type="checkbox" onChange={(e)=> toggleAll(e.currentTarget.checked)} /></th>
+              <th><button className="link" onClick={()=> onSort('name')}>الاسم {sortBy==='name'?(sortDir==='asc'?'▲':'▼'):''}</button></th>
+              <th><button className="link" onClick={()=> onSort('phone')}>الهاتف {sortBy==='phone'?(sortDir==='asc'?'▲':'▼'):''}</button></th>
+              <th><button className="link" onClick={()=> onSort('vehicleType')}>النوع {sortBy==='vehicleType'?(sortDir==='asc'?'▲':'▼'):''}</button></th>
               <th>الملكية</th>
-              <th>الحالة</th>
+              <th><button className="link" onClick={()=> onSort('status')}>الحالة {sortBy==='status'?(sortDir==='asc'?'▲':'▼'):''}</button></th>
+              <th>آخر موقع</th>
               <th>إجراءات</th>
             </tr></thead>
             <tbody>
@@ -94,20 +122,33 @@ export default function DriversPage(): JSX.Element {
                   const passVeh = veh==='ALL' ? true : d.vehicleType===veh;
                   return passQ && passStatus && passVeh;
                 })
+                .sort((a:any,b:any)=> {
+                  const dir = sortDir==='asc'? 1 : -1;
+                  const ka = String(a[sortBy]||''); const kb = String(b[sortBy]||'');
+                  return ka.localeCompare(kb,'ar') * dir;
+                })
                 .map((d:any)=> (
                 <tr key={d.id}>
+                  <td><input type="checkbox" checked={!!selected[d.id]} onChange={(e)=> toggleOne(d.id, e.currentTarget.checked)} /></td>
                   <td>{d.name}</td>
                   <td>{d.phone||'-'}</td>
                   <td>{d.vehicleType||'-'}</td>
                   <td>{d.ownership==='company'?'ملك الشركة': d.ownership==='driver'?'ملك السائق':'-'}</td>
                   <td><span className="badge">{d.isActive===false?'⛔ معطل': (d.status||'-')}</span></td>
-                  <td>
-                    <a href={`/drivers/${d.id}`} className="btn btn-outline">عرض</a>
+                  <td>{(d.lat!=null&&d.lng!=null)? `${d.lat.toFixed?.(4)||d.lat}, ${d.lng.toFixed?.(4)||d.lng}` : '—'}</td>
+                  <td style={{ display:'flex', gap:6 }}>
+                    <a href={`tel:${d.phone||''}`} className="btn btn-sm">📞</a>
+                    <a href={`sms:${d.phone||''}`} className="btn btn-sm btn-outline">✉️</a>
+                    <button className="btn btn-sm btn-outline" onClick={()=> toggleActive(d)}>{d.isActive===false?'تفعيل':'تعليق'}</button>
+                    <a href={`/drivers/${d.id}`} className="btn btn-sm">عرض</a>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div style={{ marginTop:8 }}>
+            <button className="btn btn-outline btn-sm" onClick={exportSelectedCSV}>تصدير المحدد (CSV)</button>
+          </div>
         </div>
       )}
       {view==='map' && (
