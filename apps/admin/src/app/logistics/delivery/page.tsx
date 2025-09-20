@@ -6,6 +6,7 @@ export default function DeliveryPage(): JSX.Element {
   const apiBase = resolveApiBase();
   const [tab, setTab] = React.useState<'ready'|'in_delivery'|'completed'|'returns'>('ready');
   const [items, setItems] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState('');
   const [assignOrder, setAssignOrder] = React.useState('');
   const [assignDriver, setAssignDriver] = React.useState('');
@@ -19,10 +20,13 @@ export default function DeliveryPage(): JSX.Element {
   const markersRef = React.useRef<any[]>([]);
 
   async function load(){
-    const url = new URL(`${apiBase}/api/admin/logistics/delivery/list`);
-    url.searchParams.set('tab', tab);
-    const j = await (await fetch(url.toString(), { credentials:'include' })).json();
-    setItems(j.items||[]);
+    setLoading(true);
+    try {
+      const url = new URL(`${apiBase}/api/admin/logistics/delivery/list`);
+      url.searchParams.set('tab', tab);
+      const j = await (await fetch(url.toString(), { credentials:'include' })).json();
+      setItems(j.items||[]);
+    } finally { setLoading(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
   React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/delivery/suggest-drivers`, { credentials:'include' })).json(); setSuggested(j.drivers||[]);}catch{ setSuggested([]);} })(); }, [apiBase]);
@@ -110,6 +114,8 @@ export default function DeliveryPage(): JSX.Element {
 
       {tab==='ready' && (
         <div className="mt-4">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
             <input className="input" placeholder="رقم الطلب" value={assignOrder} onChange={e=> setAssignOrder(e.target.value)} />
             <input className="input" placeholder="معرّف السائق" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
@@ -120,12 +126,13 @@ export default function DeliveryPage(): JSX.Element {
             <button className="btn" onClick={assign}>تعيين سائق</button>
             {message && <div className="text-sm" style={{ color:'#9ae6b4' }}>{message}</div>}
           </div>
+          {items.length>0 && (
           <table className="table">
             <thead><tr><th>رقم الطلب</th><th>العميل</th><th>العنوان</th><th>القيمة الإجمالية</th><th>إجراءات</th></tr></thead>
             <tbody>{items.map((o:any)=> (
               <tr key={o.orderId}><td>{o.orderId}</td><td>{o.customer||'-'}</td><td>{o.address||'-'}</td><td>${Number(o.total||0).toFixed(2)}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm">تخطيط المسار</button><button className="btn btn-sm btn-outline">تجميع الطلبات</button><button className="btn btn-sm btn-outline">طباعة الفواتير</button></td></tr>
             ))}</tbody>
-          </table>
+          </table>)}
           <div className="panel" style={{ marginTop:12 }}>
             <div style={{ marginBottom:8 }}>الخريطة الحية — السائقون: {driversLive.length}</div>
             <div ref={mapRef} style={{ width:'100%', height: 360, border:'1px solid var(--muted)' }} />
@@ -135,24 +142,30 @@ export default function DeliveryPage(): JSX.Element {
 
       {tab==='in_delivery' && (
         <div className="mt-4">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
+          {items.length>0 && (
           <table className="table">
             <thead><tr><th>رقم الطلب</th><th>السائق</th><th>الحالة</th><th>آخر تحديث</th><th>مؤشر</th></tr></thead>
             <tbody>{items.map((o:any)=> (
               <tr key={o.orderId}><td>{o.orderId}</td><td>{o.driver||'-'}</td><td>{o.status}</td><td>{new Date(o.updatedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">في الطريق</span></td></tr>
             ))}</tbody>
-          </table>
+          </table>)}
           <div className="panel" style={{ marginTop:12 }}>خريطة حية (placeholder)</div>
         </div>
       )}
 
       {tab==='completed' && (
         <div className="mt-4">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
+          {items.length>0 && (
           <table className="table">
             <thead><tr><th>رقم الطلب</th><th>وقت التسليم</th><th>الدفع</th><th>إجراءات</th></tr></thead>
             <tbody>{items.map((o:any)=> (
               <tr key={o.orderId}><td>{o.orderId}</td><td>{new Date(o.deliveredAt||Date.now()).toLocaleString()}</td><td>{o.paymentStatus||'-'}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm btn-outline">عرض التقييم</button><button className="btn btn-sm btn-outline">تفاصيل التسليم</button><button className="btn btn-sm btn-outline">إشعار شكر</button></td></tr>
             ))}</tbody>
-          </table>
+          </table>)}
           <div className="panel" style={{ marginTop:12, display:'grid', gap:8, maxWidth:520 }}>
             <h3 style={{ margin:0 }}>إثبات التسليم</h3>
             <input className="input" placeholder="رقم الطلب" value={proofOrder} onChange={e=> setProofOrder(e.target.value)} />
@@ -165,12 +178,15 @@ export default function DeliveryPage(): JSX.Element {
 
       {tab==='returns' && (
         <div className="mt-4">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
+          {items.length>0 && (
           <table className="table">
             <thead><tr><th>رقم الإرجاع</th><th>التاريخ</th><th>السبب</th><th>إجراءات</th></tr></thead>
             <tbody>{items.map((r:any)=> (
               <tr key={r.returnId}><td>{r.returnId}</td><td>{new Date(r.createdAt||Date.now()).toLocaleString()}</td><td>{r.reason||'-'}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm">إعادة المحاولة</button><button className="btn btn-sm btn-outline">الاتصال</button><button className="btn btn-sm btn-outline">تحديث العنوان</button><button className="btn btn-sm btn-outline">إرجاع للمستودع</button></td></tr>
             ))}</tbody>
-          </table>
+          </table>)}
         </div>
       )}
     </div>

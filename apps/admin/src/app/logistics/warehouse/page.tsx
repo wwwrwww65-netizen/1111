@@ -6,12 +6,16 @@ export default function WarehousePage(): JSX.Element {
   const apiBase = resolveApiBase();
   const [tab, setTab] = React.useState<'inbound'|'sorting'|'ready'>('inbound');
   const [items, setItems] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState('');
   async function load(){
-    const url = new URL(`${apiBase}/api/admin/logistics/warehouse/list`);
-    url.searchParams.set('tab', tab);
-    const j = await (await fetch(url.toString(), { credentials:'include' })).json();
-    setItems(j.items||[]);
+    setLoading(true);
+    try {
+      const url = new URL(`${apiBase}/api/admin/logistics/warehouse/list`);
+      url.searchParams.set('tab', tab);
+      const j = await (await fetch(url.toString(), { credentials:'include' })).json();
+      setItems(j.items||[]);
+    } finally { setLoading(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
 
@@ -42,6 +46,8 @@ export default function WarehousePage(): JSX.Element {
 
       {tab==='inbound' && (
         <div className="mt-4">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <table className="table">
             <thead><tr><th>رقم الشحنة</th><th>السائق</th><th>وقت الوصول</th><th>الحالة</th><th>إجراءات</th></tr></thead>
             <tbody>{items.map((r:any)=> (
@@ -53,6 +59,8 @@ export default function WarehousePage(): JSX.Element {
 
       {tab==='sorting' && (
         <div className="mt-4">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <table className="table">
             <thead><tr><th>المعرف</th><th>الباركود</th><th>الحالة</th><th>العمليات</th></tr></thead>
             <tbody>{items.map((p:any)=> (
@@ -64,6 +72,8 @@ export default function WarehousePage(): JSX.Element {
 
       {tab==='ready' && (
         <div className="mt-4">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <table className="table">
             <thead><tr><th>المعرف</th><th>الباركود</th><th>الحالة</th><th>إجراءات</th></tr></thead>
             <tbody>{items.map((p:any)=> (

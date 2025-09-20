@@ -35,9 +35,10 @@ export default function DriversPage(): JSX.Element {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
+  const [loading, setLoading] = React.useState(false);
   async function load(){
     try {
-      setMsg('');
+      setMsg(''); setLoading(true);
       const url = new URL(`${apiBase}/api/admin/drivers`);
       if (q) url.searchParams.set('q', q);
       if (status) url.searchParams.set('status', status);
@@ -47,7 +48,7 @@ export default function DriversPage(): JSX.Element {
       const j = await resp.json(); setRows(j.drivers||[]);
     } catch (e:any) {
       setMsg('تعذر الاتصال بالخادم'); setRows([]);
-    }
+    } finally { setLoading(false); }
   }
   React.useEffect(()=>{ load(); },[apiBase, q, status, veh]);
 
@@ -162,6 +163,8 @@ export default function DriversPage(): JSX.Element {
     }
   }
 
+  const [dense, setDense] = React.useState<boolean>(()=>{ try { return localStorage.getItem('dense')==='1'; } catch { return false;} });
+  React.useEffect(()=>{ try { localStorage.setItem('dense', dense?'1':'0'); } catch{} },[dense]);
   return (
     <main className="panel">
       <div style={{ display:'grid', placeItems:'center', marginBottom:8 }}>
@@ -188,12 +191,15 @@ export default function DriversPage(): JSX.Element {
         <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/csv`}>CSV</a>
         <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/xls`}>Excel</a>
         <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/pdf`}>PDF</a>
+        <button className="btn btn-outline btn-sm" onClick={()=> setDense(v=>!v)}>{dense? 'كثافة عادية' : 'كثافة مضغوطة'}</button>
       </div>
       {msg && <div className="panel" style={{ color:'#fca5a5', marginBottom:8 }}>{msg}</div>}
 
       {tab==='list' && (
         <div style={{ overflowX:'auto' }}>
-          <table className="table">
+          {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+          {!loading && rows.length===0 && !msg && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا سائقين</div>)}
+          <table className="table" style={dense? { } : {}}>
             <thead><tr>
               <th><input type="checkbox" onChange={(e)=> toggleAll(e.currentTarget.checked)} /></th>
               <th><button className="link" onClick={()=> onSort('name')}>الاسم {sortBy==='name'?(sortDir==='asc'?'▲':'▼'):''}</button></th>

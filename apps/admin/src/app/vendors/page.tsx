@@ -13,6 +13,7 @@ export default function VendorsPage(): JSX.Element {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
   const [rows, setRows] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
@@ -24,7 +25,7 @@ export default function VendorsPage(): JSX.Element {
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
   const [busy, setBusy] = React.useState(false);
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch((e)=>{ console.error('vendors_list_failed', e); setRows([]); }); },[apiBase]);
+  React.useEffect(()=>{ setLoading(true); fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch((e)=>{ console.error('vendors_list_failed', e); setRows([]); }).finally(()=> setLoading(false)); },[apiBase]);
   async function save() {
     if (busy) return;
     setBusy(true);
@@ -84,6 +85,9 @@ export default function VendorsPage(): JSX.Element {
         </div>
       </section>
       <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12, marginTop: 16 }}>
+        {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
+        {!loading && rows.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا موردين</div>)}
+        {rows.length>0 && (
         <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
           <thead>
             <tr>
@@ -114,7 +118,7 @@ export default function VendorsPage(): JSX.Element {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table>)}
       </section>
     </main>
   );

@@ -13,6 +13,10 @@ export default function PickupPage(): JSX.Element {
   const [message, setMessage] = React.useState('');
   const [assignPo, setAssignPo] = React.useState<string>('');
   const [assignDriver, setAssignDriver] = React.useState<string>('');
+  // local filters
+  const [vendorText, setVendorText] = React.useState('');
+  const [dateFrom, setDateFrom] = React.useState('');
+  const [dateTo, setDateTo] = React.useState('');
 
   async function load(){
     setLoading(true);
@@ -53,15 +57,28 @@ export default function PickupPage(): JSX.Element {
       <div className="skeleton-row" style={{ height:48, background:'var(--muted2)', borderRadius:8 }} />
     </div>
   ) : null;
+  const filtered = rows.filter((r:any)=>{
+    const passVendor = !vendorText || String(r.vendorName||'').toLowerCase().includes(vendorText.toLowerCase());
+    const ts = new Date(r.createdAt||r.updatedAt||Date.now()).getTime();
+    const passFrom = !dateFrom || ts >= new Date(dateFrom+'T00:00:00').getTime();
+    const passTo = !dateTo || ts <= new Date(dateTo+'T23:59:59').getTime();
+    return passVendor && passFrom && passTo;
+  });
   return (
     <div className="panel">
       <h1 className="text-xl font-bold mb-3">التوصيل من المورد</h1>
-      <div className="toolbar" style={{ display:'flex', gap:8 }}>
+      <div className="toolbar" style={{ display:'flex', gap:8, position:'sticky', top:0, background:'var(--panel)', zIndex:10, padding:'6px 0' }}>
         <button className={`btn btn-sm ${tab==='waiting'?'':'btn-outline'}`} onClick={()=> setTab('waiting')}>قيد الانتظار</button>
         <button className={`btn btn-sm ${tab==='in_progress'?'':'btn-outline'}`} onClick={()=> setTab('in_progress')}>قيد التنفيذ</button>
         <button className={`btn btn-sm ${tab==='completed'?'':'btn-outline'}`} onClick={()=> setTab('completed')}>مكتمل</button>
         <a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/pickup/export/csv?status=${tab}`}>تصدير CSV</a>
         <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/pickup/export/xls?status=${tab}`}>تصدير Excel</a>
+      </div>
+
+      <div className="toolbar" style={{ display:'flex', gap:8, marginTop:8 }}>
+        <input className="input" placeholder="بحث المورد" value={vendorText} onChange={e=> setVendorText(e.target.value)} />
+        <input className="input" type="date" value={dateFrom} onChange={e=> setDateFrom(e.target.value)} />
+        <input className="input" type="date" value={dateTo} onChange={e=> setDateTo(e.target.value)} />
       </div>
 
       <div className="mt-4" style={{ display:'flex', gap:12, alignItems:'center' }}>
@@ -75,11 +92,11 @@ export default function PickupPage(): JSX.Element {
         <div className="mt-4">
           {Skeleton}
           {Empty}
-          {rows.length>0 && (
+          {filtered.length>0 && (
             <table className="table">
               <thead><tr><th>اسم المورد</th><th>الموقع</th><th>عدد المنتجات</th><th>حالة الطلب</th><th>الإجراءات</th></tr></thead>
               <tbody>
-                {rows.map((r:any)=> (
+                {filtered.map((r:any)=> (
                   <tr key={r.id}>
                     <td>{r.vendorName||'-'}</td>
                     <td>{r.vendorAddress||'-'}</td>
@@ -102,11 +119,11 @@ export default function PickupPage(): JSX.Element {
         <div className="mt-4">
           {Skeleton}
           {Empty}
-          {rows.length>0 && (
+          {filtered.length>0 && (
             <table className="table">
               <thead><tr><th>اسم المورد</th><th>اسم السائق</th><th>الحالة</th><th>الوقت المنقضي</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
               <tbody>
-                {rows.map((r:any)=> (
+                {filtered.map((r:any)=> (
                   <tr key={r.id}>
                     <td>{r.vendorName||'-'}</td>
                     <td>{r.driverName||'-'}</td>
@@ -126,11 +143,11 @@ export default function PickupPage(): JSX.Element {
         <div className="mt-4">
           {Skeleton}
           {Empty}
-          {rows.length>0 && (
+          {filtered.length>0 && (
             <table className="table">
               <thead><tr><th>المورد</th><th>السائق</th><th>حالة تسليم المورد</th><th>حالة استلام السائق</th><th>الوقت</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
               <tbody>
-                {rows.map((r:any)=> (
+                {filtered.map((r:any)=> (
                   <tr key={r.id}>
                     <td>{r.vendorName||'-'}</td>
                     <td>{r.driverName||'-'}</td>
