@@ -1103,7 +1103,9 @@ function parsePoId(poId: string): { vendorId: string; orderId: string } | null {
 // List pickup legs by status: waiting|in_progress|completed
 adminRest.get('/logistics/pickup/list', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const u = (req as any).user;
+    const allow = (await can(u.userId, 'logistics.read')) || (await can(u.userId, 'orders.manage'));
+    if (!allow) return res.status(403).json({ error:'forbidden' });
     const tab = String(req.query.status||'waiting').toLowerCase();
     const status = tab === 'in_progress' ? 'IN_PROGRESS' : tab === 'completed' ? 'COMPLETED' : 'SCHEDULED';
     // Self-heal: ensure PAID orders have PICKUP legs
