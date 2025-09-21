@@ -133,6 +133,17 @@ jobs:
           echo "DIRECT_URL=${{ vars.CI_DB_URL || secrets.CI_DB_URL || 'postgresql://user:password@localhost:5432/ecom_db?schema=public' }}" >> $GITHUB_ENV
           echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
+      - name: Pre-clean conflicting DB artifacts (indexes/tables)
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
+          PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
+          set +e
+          psql "$PGURI" -v ON_ERROR_STOP=0 -c 'DROP INDEX IF EXISTS "Category_slug_key";' || true
+          psql "$PGURI" -v ON_ERROR_STOP=0 -c 'DROP INDEX IF EXISTS category_slug_key;' || true
+          set -e
+
       - name: (Optional) Mirror production DB into CI Postgres
         if: github.ref == 'refs/heads/main'
         env:
