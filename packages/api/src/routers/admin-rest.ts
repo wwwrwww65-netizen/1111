@@ -1445,8 +1445,25 @@ adminRest.post('/status/change', async (req, res) => {
     const ent = String(entity).toLowerCase();
     const now = new Date() as any;
     // Map actions to DB mutations
-    if (ent === 'order') {
-      if (act === 'approve') await db.order.update({ where: { id }, data: { status: 'PAID' } });
+  if (ent === 'order') {
+      if (act === 'approve') {
+        await db.order.update({ where: { id }, data: { status: 'PAID' } });
+        try {
+          const items = await db.orderItem.findMany({ where: { orderId: id as any }, include: { product: { select: { vendorId: true } } } });
+          const vendorToItems = new Map<string, typeof items>();
+          for (const it of items) {
+            const vid = it.product.vendorId || 'NOVENDOR';
+            if (!vendorToItems.has(vid)) vendorToItems.set(vid, [] as any);
+            (vendorToItems.get(vid) as any).push(it);
+          }
+          for (const [vendorId] of vendorToItems) {
+            const poId = `${vendorId}:${id}`;
+            await db.shipmentLeg.create({ data: { orderId: id as any, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+          }
+          await db.shipmentLeg.create({ data: { orderId: id as any, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+          await db.shipmentLeg.create({ data: { orderId: id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+        } catch {}
+      }
       else if (act === 'reject') await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
       else if (act === 'complete') await db.order.update({ where: { id }, data: { status: 'DELIVERED' } });
     } else if (ent === 'pickup') {

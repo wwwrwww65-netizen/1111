@@ -93,6 +93,11 @@ export default function OrdersPage(): JSX.Element {
     await load();
   }
 
+  async function changeOrderStatus(orderId: string, action: 'approve'|'reject'|'complete'){
+    await fetch(`/api/admin/status/change`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id: orderId, action }) });
+    await load();
+  }
+
   function statusClass(s: string): string {
     switch (s) {
       case 'DELIVERED': return 'ok';
@@ -183,7 +188,17 @@ export default function OrdersPage(): JSX.Element {
               <td>{o.shippingAddress?.street||'-'}</td>
               <td>{o.items?.length||0}</td>
               <td>{o.total}</td>
-              <td><span className={`badge ${statusClass(o.status)}`}>{o.status}</span></td>
+              <td>
+                <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                  <span className={`badge ${statusClass(o.status)}`}>{o.status}</span>
+                  <select className="select" onChange={(e)=>{ const v=e.target.value as any; if (v) changeOrderStatus(o.id, v); e.currentTarget.selectedIndex=0; }}>
+                    <option value="">تغيير…</option>
+                    {o.status!=='PAID' && <option value="approve">اجعلها مدفوعة</option>}
+                    {o.status!=='CANCELLED' && <option value="reject">إلغاء</option>}
+                    {o.status!=='DELIVERED' && <option value="complete">اكتمل</option>}
+                  </select>
+                </div>
+              </td>
               <td><span className={`badge ${statusClass(o.payment?.status||'')}`}>{o.payment?.status||'-'}</span></td>
               <td><span className={`badge ${statusClass(shippingState)}`}>{shippingState}</span></td>
               <td>{o.assignedDriver?.name||'-'}</td>
@@ -250,16 +265,8 @@ export default function OrdersPage(): JSX.Element {
                 const r = await fetch(`/api/admin/orders`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
                 if (r.ok) {
                   const j = await r.json();
-                  // إنشاء نية دفع mock فورية ثم تأكيدها (لتوليد PICKUP مباشرة)
-                  try {
-                    const total = Number(j?.order?.total||0) || coItems.reduce((s,it)=> s + (Number(it.price||0)*Number(it.quantity||1)), 0);
-                    const pi = await fetch(`/trpc/payments.createPaymentIntent`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ amount: total, currency:'usd', orderId: j.order.id } }) });
-                    const jj = await pi.json().catch(()=>({}));
-                    const paymentIntentId = jj?.result?.data?.json?.paymentIntentId || jj?.paymentIntentId;
-                    if (paymentIntentId) {
-                      await fetch(`/trpc/payments.confirmPayment`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ paymentIntentId } }) });
-                    }
-                  } catch {}
+                  // اجعل الطلب مدفوع فوراً لبدء لوجستيات الالتقاط
+                  try { await fetch(`/api/admin/status/change`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id: j.order.id, action:'approve' }) }); } catch {}
                   setShowCreate(false); setCoName(''); setCoEmail(''); setCoPhone(''); setCoStreet(''); setCoItems([{ productId:'', quantity:1 }]); await load();
                 }
               } finally { setCreating(false); }
