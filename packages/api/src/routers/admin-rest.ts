@@ -2690,11 +2690,34 @@ async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
 }
 
 adminRest.get('/categories', async (req, res) => {
-  await ensureCategorySeo();
-  const search = (req.query.search as string | undefined)?.trim();
-  const where: any = search ? { name: { contains: search, mode: 'insensitive' } } : {};
-  const cats = await db.category.findMany({ where, orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
-  res.json({ categories: cats });
+  try {
+    const search = (req.query.search as string | undefined)?.trim();
+    if (search) {
+      const cats: Array<{ id: string; name: string; slug?: string | null }> = await db.$queryRawUnsafe(
+        `SELECT id, name, CASE WHEN EXISTS (
+            SELECT 1 FROM information_schema.columns c
+            WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='slug'
+          ) THEN slug ELSE NULL END AS slug
+         FROM "Category"
+         WHERE name ILIKE '%' || $1 || '%'
+         ORDER BY createdAt DESC
+         LIMIT 200`, search
+      );
+      return res.json({ categories: cats });
+    }
+    const cats: Array<{ id: string; name: string; slug?: string | null }> = await db.$queryRawUnsafe(
+      `SELECT id, name, CASE WHEN EXISTS (
+          SELECT 1 FROM information_schema.columns c
+          WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='slug'
+        ) THEN slug ELSE NULL END AS slug
+       FROM "Category"
+       ORDER BY createdAt DESC
+       LIMIT 200`
+    );
+    return res.json({ categories: cats });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'categories_list_failed' });
+  }
 });
 adminRest.get('/categories/health', async (req, res) => {
   try {
@@ -2761,35 +2784,26 @@ adminRest.post('/categories/reorder', async (req, res) => {
 });
 adminRest.post('/categories', async (req, res) => {
   try {
-    await ensureCategorySeo();
-    const { name, description, image, parentId, slug, sortOrder } = req.body || {};
+    const { name } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
-    const cols = await getCategoryColumnFlags();
-    const data: any = { name };
-    if (cols.description) data.description = description||null; else if (description !== undefined) data.description = undefined;
-    if (cols.image) data.image = image||null;
-    if (cols.parentid) data.parentId = parentId||null;
-    if (cols.slug) data.slug = slug||null;
-    // Intentionally omit seo* and translations in create to avoid column mismatch
-    if (cols.sortorder) data.sortOrder = typeof sortOrder==='number'? sortOrder: 0;
-    const c = await db.category.create({ data });
+    // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
+    const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
+      'INSERT INTO "Category" ("name") VALUES ($1) RETURNING id, name',
+      name
+    );
+    const c = rows[0];
     await audit(req, 'categories', 'create', { id: c.id });
     return res.json({ category: c });
   } catch (e:any) {
     const msg = String(e?.message||'');
     if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
       try {
-        await ensureCategorySeo();
-        const { name, description, image, parentId, slug, sortOrder } = req.body || {};
-        const cols = await getCategoryColumnFlags();
-        const data: any = { name };
-        if (cols.description) data.description = description||null;
-        if (cols.image) data.image = image||null;
-        if (cols.parentid) data.parentId = parentId||null;
-        if (cols.slug) data.slug = slug||null;
-        // omit seo* and translations on retry
-        if (cols.sortorder) data.sortOrder = typeof sortOrder==='number'? sortOrder: 0;
-        const c = await db.category.create({ data });
+        const { name } = req.body || {};
+        const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
+          'INSERT INTO "Category" ("name") VALUES ($1) RETURNING id, name',
+          name
+        );
+        const c = rows[0];
         await audit(req, 'categories', 'create', { id: c.id });
         return res.json({ category: c });
       } catch (e2:any) {
