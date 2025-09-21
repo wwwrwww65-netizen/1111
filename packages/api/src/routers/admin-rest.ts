@@ -925,6 +925,50 @@ adminRest.get('/admin/analytics', async (req, res) => {
     return res.json({ kpis: { users, orders, revenue } });
   } catch (e:any) { res.status(500).json({ error: e.message||'analytics_failed' }); }
 });
+adminRest.get('/admin/analytics/series', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'users.read'))) return res.status(403).json({ error:'forbidden' });
+    const days = Math.max(1, Math.min(31, Number(req.query.days||7)));
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT to_char("createdAt"::date,'YYYY-MM-DD') as day,
+             COUNT(1) as orders,
+             COALESCE(SUM(total),0) as revenue
+      FROM "Order"
+      WHERE "createdAt" >= NOW() - INTERVAL '${days} days'
+      GROUP BY 1
+      ORDER BY 1
+    `);
+    return res.json({ series: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'series_failed' }); }
+});
+
+adminRest.get('/admin/system/health', async (_req, res) => {
+  try {
+    let dbOk = false;
+    try { await db.$queryRawUnsafe('SELECT 1'); dbOk = true; } catch {}
+    const version = process.env.GIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.COMMIT_SHA || 'dev';
+    return res.json({ ok: true, db: dbOk, version, time: new Date().toISOString(), uptimeSec: Math.floor(process.uptime()) });
+  } catch (e:any) { res.status(500).json({ ok:false, error: e.message||'health_failed' }); }
+});
+
+adminRest.get('/admin/notifications/recent', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.read'))) return res.status(403).json({ error:'forbidden' });
+    const orders: any[] = await db.$queryRawUnsafe(`
+      SELECT id, status, total, "updatedAt"
+      FROM "Order"
+      ORDER BY "updatedAt" DESC
+      LIMIT 10
+    `);
+    const events = orders.map(o => ({
+      type: 'order',
+      id: o.id,
+      message: `Order ${o.id} → ${o.status}`,
+      at: o.updatedAt
+    }));
+    return res.json({ events });
+  } catch (e:any) { res.status(500).json({ error: e.message||'notifications_failed' }); }
+});
 adminRest.get('/logistics/pickup/list', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });

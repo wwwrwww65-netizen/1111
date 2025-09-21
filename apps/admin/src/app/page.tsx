@@ -6,8 +6,11 @@ export const dynamic = 'force-dynamic';
 
 export default function AdminHome(): JSX.Element {
   const [kpis, setKpis] = React.useState<{users?:number;orders?:number;revenue?:number}>({});
+  const [series, setSeries] = React.useState<{day:string;orders:number;revenue:number}[]>([]);
   const [recentOrders, setRecentOrders] = React.useState<any[]>([]);
   const [recentTickets, setRecentTickets] = React.useState<any[]>([]);
+  const [driversOnline, setDriversOnline] = React.useState<number>(0);
+  const [lastSeenAgo, setLastSeenAgo] = React.useState<string>('');
   const [busy, setBusy] = React.useState(false);
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
@@ -20,17 +23,50 @@ export default function AdminHome(): JSX.Element {
   React.useEffect(()=>{
     (async ()=>{
       try{ setBusy(true);
-        const [ak, ao, at] = await Promise.all([
+        const [ak, ao, at, as] = await Promise.all([
           fetch(`${apiBase}/api/admin/analytics`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({kpis:{}})),
           fetch(`${apiBase}/api/admin/orders/list?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({orders:[]})),
           fetch(`${apiBase}/api/admin/tickets?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({tickets:[]})),
+          fetch(`${apiBase}/api/admin/analytics/series?days=7`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({series:[]})),
         ]);
         setKpis(ak.kpis||{});
         setRecentOrders(ao.orders||[]);
         setRecentTickets(at.tickets||[]);
+        setSeries(as.series||[]);
       } finally { setBusy(false); }
     })();
   },[apiBase]);
+  // Realtime drivers count using socket.io (from API)
+  React.useEffect(()=>{
+    let socket: any;
+    let timer: any;
+    const updateAgo = (iso?: string)=>{
+      if (!iso) { setLastSeenAgo(''); return; }
+      const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+      const m = Math.floor(diff/60000); const s = Math.floor((diff%60000)/1000);
+      setLastSeenAgo(`${m}m ${s}s`);
+    };
+    const tickAgo = ()=> updateAgo((window as any).__lastDriverSeen);
+    (async ()=>{
+      if (!(window as any).io) {
+        await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.2/socket.io.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); });
+      }
+      const origin = new URL(apiBase).origin;
+      socket = (window as any).io(origin, { transports:['websocket'], withCredentials:true });
+      socket.on('driver:locations', (payload:any)=>{
+        const arr = payload?.drivers||[];
+        setDriversOnline(Array.isArray(arr)? arr.length : 0);
+        const maxSeen = arr.reduce((acc:any, d:any)=> {
+          const t = d?.lastSeenAt ? new Date(d.lastSeenAt).getTime() : 0;
+          return t>acc ? t : acc;
+        }, 0);
+        (window as any).__lastDriverSeen = maxSeen ? new Date(maxSeen).toISOString() : undefined;
+        tickAgo();
+      });
+      timer = setInterval(tickAgo, 1000);
+    })();
+    return ()=> { try { socket && socket.disconnect(); } catch {}; if (timer) clearInterval(timer); };
+  }, [apiBase]);
   return (
     <div className="grid" style={{gap:16}}>
       <div style={{
@@ -51,6 +87,11 @@ export default function AdminHome(): JSX.Element {
         <div className="card"><div style={{color:'var(--sub)'}}>الطلبات</div><div style={{fontSize:28,fontWeight:800}}>{kpis.orders ?? (busy?'…':'-')}</div></div>
         <div className="card"><div style={{color:'var(--sub)'}}>الإيرادات</div><div style={{fontSize:28,fontWeight:800}}>{typeof kpis.revenue==='number'? kpis.revenue.toLocaleString() : (busy?'…':'-')}</div></div>
       </div>
+      <div className="grid cols-3">
+        <div className="card"><div style={{color:'var(--sub)'}}>السائقون المتصلون</div><div style={{fontSize:28,fontWeight:800}}>{driversOnline}</div></div>
+        <div className="card"><div style={{color:'var(--sub)'}}>آخر مشاهدة سائق</div><div style={{fontSize:28,fontWeight:800}}>{lastSeenAgo || '—'}</div></div>
+        <div className="card"><div style={{color:'var(--sub)'}}>صحة النظام</div><SystemHealthBadge apiBase={apiBase} /></div>
+      </div>
       <div className="panel">
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <h3 style={{margin:0}}>إجراءات سريعة</h3>
@@ -60,6 +101,19 @@ export default function AdminHome(): JSX.Element {
           <a href="/coupons" className="btn" style={{textAlign:'center'}}>إنشاء كوبون</a>
           <a href="/vendors" className="btn" style={{textAlign:'center'}}>إضافة مورد</a>
         </div>
+      </div>
+      <div className="panel">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <h3 style={{margin:0}}>أحداث حديثة</h3>
+          <a href="/orders" className="btn btn-outline">عرض السجل</a>
+        </div>
+        <RecentEvents apiBase={apiBase} />
+      </div>
+      <div className="panel">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <h3 style={{margin:0}}>إحصائيات 7 أيام</h3>
+        </div>
+        <ChartOrdersRevenue series={series} />
       </div>
       <div className="grid cols-2">
         <div className="panel">
@@ -125,6 +179,103 @@ export default function AdminHome(): JSX.Element {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ChartOrdersRevenue({ series }: { series: Array<{ day:string; orders:number; revenue:number }> }): JSX.Element {
+  const ref = React.useRef<HTMLDivElement|null>(null);
+  const chartRef = React.useRef<any>(null);
+  React.useEffect(()=>{
+    let disposed = false;
+    async function ensure(){
+      if (!ref.current) return;
+      if (!(window as any).echarts) {
+        await new Promise<void>((resolve)=>{
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+          s.onload = ()=> resolve();
+          document.body.appendChild(s);
+        });
+      }
+      if (disposed) return;
+      const echarts = (window as any).echarts;
+      chartRef.current = echarts.init(ref.current);
+      const option = {
+        backgroundColor: 'transparent',
+        textStyle: { color: '#e2e8f0' },
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['الطلبات','الإيرادات'], textStyle:{ color:'#cbd5e1' } },
+        grid: { left: 36, right: 18, top: 30, bottom: 28 },
+        xAxis: { type:'category', data: series.map(s=> s.day), axisLine:{ lineStyle:{ color:'#334155' } } },
+        yAxis: [
+          { type:'value', name:'طلبات', axisLine:{ lineStyle:{ color:'#334155' } }, splitLine:{ lineStyle:{ color:'#172036' } } },
+          { type:'value', name:'ريال', axisLine:{ lineStyle:{ color:'#334155' } }, splitLine:{ show:false } }
+        ],
+        series: [
+          { name:'الطلبات', type:'bar', data: series.map(s=> s.orders), itemStyle:{ color:'#22c55e' } },
+          { name:'الإيرادات', type:'line', yAxisIndex:1, data: series.map(s=> s.revenue), itemStyle:{ color:'#0ea5e9' }, smooth:true }
+        ]
+      };
+      chartRef.current.setOption(option);
+      window.addEventListener('resize', resize);
+    }
+    function resize(){ try { chartRef.current && chartRef.current.resize(); } catch {}
+    }
+    ensure();
+    return ()=> { disposed = true; window.removeEventListener('resize', resize); try { chartRef.current && chartRef.current.dispose(); } catch {} };
+  }, [series]);
+  return <div ref={ref} style={{ width:'100%', height: 280 }} />;
+}
+
+function SystemHealthBadge({ apiBase }: { apiBase: string }): JSX.Element {
+  const [state, setState] = React.useState<{ok?:boolean;db?:boolean;version?:string}>({});
+  React.useEffect(()=>{
+    let t: any;
+    const load = async()=>{
+      try { const j = await (await fetch(`${apiBase}/api/admin/system/health`, { credentials:'include' })).json(); setState(j||{}); }
+      catch { setState({ ok:false }); }
+    };
+    load(); t = setInterval(load, 15000); return ()=> clearInterval(t);
+  }, [apiBase]);
+  const ok = state.ok && state.db;
+  return (
+    <div style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+      <span className={`badge ${ok? 'ok':'warn'}`}>{ok? 'OK':'تحقق'}</span>
+      <span style={{ color:'var(--sub)', fontSize:12 }}>v{state.version||'dev'}</span>
+    </div>
+  );
+}
+
+function RecentEvents({ apiBase }: { apiBase: string }): JSX.Element {
+  const [rows, setRows] = React.useState<Array<{type:string;id:string;message:string;at:string}>>([]);
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(()=>{
+    let t: any;
+    const load = async()=>{
+      setLoading(true);
+      try { const j = await (await fetch(`${apiBase}/api/admin/notifications/recent`, { credentials:'include' })).json(); setRows(j.events||[]); }
+      catch { setRows([]); }
+      finally { setLoading(false); }
+    };
+    load(); t = setInterval(load, 15000); return ()=> clearInterval(t);
+  }, [apiBase]);
+  if (loading) return <div className="skeleton-table-row" />;
+  if (!rows.length) return <div className="empty-state">لا توجد أحداث</div>;
+  return (
+    <div style={{ overflowX:'auto' }}>
+      <table className="table">
+        <thead><tr><th>النوع</th><th>الوصف</th><th>الوقت</th></tr></thead>
+        <tbody>
+          {rows.map((e)=> (
+            <tr key={`${e.type}:${e.id}`}>
+              <td>{e.type}</td>
+              <td>{e.message}</td>
+              <td>{new Date(e.at||Date.now()).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
