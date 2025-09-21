@@ -1161,6 +1161,22 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
     const tab = String(req.query.status||'waiting').toLowerCase();
     const status = tab === 'in_progress' ? 'IN_PROGRESS' : tab === 'completed' ? 'COMPLETED' : 'SCHEDULED';
+    // Self-heal: ensure PAID orders have PICKUP legs
+    try {
+      const missing: Array<{ id: string }>= await db.$queryRawUnsafe(`
+        SELECT o.id FROM "Order" o
+        WHERE o.status='PAID' AND o."createdAt" > NOW() - INTERVAL '7 days'
+        AND NOT EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."orderId"=o.id AND s."legType"='PICKUP')
+      `);
+      for (const o of missing) {
+        const items = await db.orderItem.findMany({ where: { orderId: o.id }, include: { product: { select: { vendorId: true } } } });
+        const vids = Array.from(new Set(items.map(it=> it.product.vendorId || 'NOVENDOR')));
+        for (const vid of vids) {
+          const poId = `${vid}:${o.id}`;
+          await db.shipmentLeg.create({ data: { orderId: o.id, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+        }
+      }
+    } catch {}
     // Build rows from ShipmentLeg (legType=PICKUP). poId encodes vendorId:orderId
     const rows: Array<any> = await db.$queryRawUnsafe(`
       SELECT s.id, s."poId", s."orderId", s."driverId", s.status, s."createdAt", s."updatedAt",
