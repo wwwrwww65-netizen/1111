@@ -2663,6 +2663,13 @@ async function ensureCategorySeo(){
   for (const col of ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0','image TEXT','parentId TEXT']){
     try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
   }
+  // Relax NOT NULL constraints on legacy columns and ensure sane defaults
+  for (const col of ['slug','description','image','parentId','seoTitle','seoDescription','translations','ogImage']){
+    try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ALTER COLUMN "${col}" DROP NOT NULL`); } catch {}
+  }
+  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ALTER COLUMN "sortOrder" SET DEFAULT 0'); } catch {}
+  try { await db.$executeRawUnsafe('UPDATE "Category" SET "sortOrder" = 0 WHERE "sortOrder" IS NULL'); } catch {}
+  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ALTER COLUMN "updatedAt" SET DEFAULT NOW()'); } catch {}
 }
 
 async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
