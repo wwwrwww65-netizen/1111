@@ -2700,25 +2700,35 @@ adminRest.get('/categories', async (req, res) => {
   try {
     const search = (req.query.search as string | undefined)?.trim();
     if (search) {
-      const cats: Array<{ id: string; name: string; slug?: string | null }> = await db.$queryRawUnsafe(
-        `SELECT id, name, CASE WHEN EXISTS (
-            SELECT 1 FROM information_schema.columns c
-            WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='slug'
-          ) THEN slug ELSE NULL END AS slug
+      const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null }> = await db.$queryRawUnsafe(
+        `SELECT id, name,
+           CASE WHEN EXISTS (
+             SELECT 1 FROM information_schema.columns c
+             WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='slug'
+           ) THEN slug ELSE NULL END AS slug,
+           CASE WHEN EXISTS (
+             SELECT 1 FROM information_schema.columns c
+             WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='parentid'
+           ) THEN "parentId" ELSE NULL END AS "parentId"
          FROM "Category"
          WHERE name ILIKE '%' || $1 || '%'
-         ORDER BY createdAt DESC
+         ORDER BY "createdAt" DESC
          LIMIT 200`, search
       );
       return res.json({ categories: cats });
     }
-    const cats: Array<{ id: string; name: string; slug?: string | null }> = await db.$queryRawUnsafe(
-      `SELECT id, name, CASE WHEN EXISTS (
-          SELECT 1 FROM information_schema.columns c
-          WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='slug'
-        ) THEN slug ELSE NULL END AS slug
+    const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null }> = await db.$queryRawUnsafe(
+      `SELECT id, name,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM information_schema.columns c
+           WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='slug'
+         ) THEN slug ELSE NULL END AS slug,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM information_schema.columns c
+           WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='parentid'
+         ) THEN "parentId" ELSE NULL END AS "parentId"
        FROM "Category"
-       ORDER BY createdAt DESC
+       ORDER BY "createdAt" DESC
        LIMIT 200`
     );
     return res.json({ categories: cats });
@@ -2758,18 +2768,29 @@ adminRest.get('/system/health', async (_req, res) => {
   } catch (e:any) { res.status(500).json({ ok: false, error: e.message||'error' }); }
 });
 adminRest.get('/categories/tree', async (req, res) => {
-  await ensureCategorySeo();
-  const cats = await db.category.findMany({ orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
-  const byParent: Record<string, any[]> = {};
-  for (const c of cats) {
-    const key = c.parentId || 'root';
-    byParent[key] = byParent[key] || [];
-    byParent[key].push(c);
+  try {
+    const cats: Array<{ id:string; name:string; parentId?:string|null }> = await db.$queryRawUnsafe(
+      `SELECT id, name,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM information_schema.columns c
+           WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='parentid'
+         ) THEN "parentId" ELSE NULL END AS "parentId"
+       FROM "Category"
+       ORDER BY "parentId" NULLS FIRST, "createdAt" DESC`
+    );
+    const byParent: Record<string, any[]> = {};
+    for (const c of cats) {
+      const key = c.parentId || 'root';
+      byParent[key] = byParent[key] || [];
+      byParent[key].push(c);
+    }
+    const build = (parentId: string | null): any[] => {
+      return (byParent[parentId || 'root'] || []).map(c => ({ ...c, children: build(c.id) }));
+    };
+    res.json({ tree: build(null) });
+  } catch (e:any) {
+    res.status(500).json({ error: e?.message || 'categories_tree_failed' });
   }
-  const build = (parentId: string | null): any[] => {
-    return (byParent[parentId || 'root'] || []).map(c => ({ ...c, children: build(c.id) }));
-  };
-  res.json({ tree: build(null) });
 });
 adminRest.post('/categories/reorder', async (req, res) => {
   try {
