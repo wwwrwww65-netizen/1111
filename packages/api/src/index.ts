@@ -31,8 +31,8 @@ try {
 } catch {}
 
 const app = express();
-// Behind NGINX/Reverse proxy: trust proxy to avoid express-rate-limit X-Forwarded-For validation errors
-app.set('trust proxy', true);
+// Behind NGINX, trust only loopback to satisfy express-rate-limit without being overly permissive
+app.set('trust proxy', 'loopback');
 // Ensure critical DB schema tweaks are applied (idempotent)
 async function ensureSchema(): Promise<void> {
   try {
@@ -63,6 +63,21 @@ async function ensureSchema(): Promise<void> {
     );
     // Ensure Vendor columns exist for admin panel features
     await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "priority" TEXT');
+
+    // Ensure Category SEO/structure columns exist (idempotent)
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL'); } catch {}
+    for (const col of [
+      'seoTitle TEXT',
+      'seoDescription TEXT',
+      'seoKeywords TEXT[]',
+      'translations JSONB',
+      'sortOrder INTEGER DEFAULT 0',
+      'image TEXT',
+      'parentId TEXT'
+    ]) {
+      try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
+    }
   } catch (e) {
     console.error('[ensureSchema] warning:', e);
   }
