@@ -23,3 +23,21 @@ global.console = {
   warn: jest.fn(),
   error: jest.fn(),
 };
+
+// Ensure Category SEO/sort columns exist for tests without running full migrations
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { db } = require('@repo/db');
+  const ensure = async () => {
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[]'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB'); } catch {}
+  };
+  // Run immediately for the test process
+  // Note: jest doesn't await top-level awaits, so we use sync wrapper
+  (async ()=> { try { await ensure(); } catch {} })();
+} catch {}
