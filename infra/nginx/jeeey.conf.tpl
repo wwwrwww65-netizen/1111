@@ -20,6 +20,12 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
   http2 on;
 
+  # CORS headers for all responses (including errors)
+  add_header Access-Control-Allow-Origin "https://admin.jeeey.com" always;
+  add_header Access-Control-Allow-Credentials "true" always;
+  add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
+  add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+
   location / {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -29,6 +35,7 @@ server {
     proxy_send_timeout 60s;
     proxy_read_timeout 60s;
     proxy_pass http://127.0.0.1:4000;
+    if ($request_method = OPTIONS) { return 204; }
   }
 }
 
