@@ -18,7 +18,7 @@ export const wishlistRouter = router({
         include: {
           product: {
             include: {
-              category: true,
+              category: { select: { id: true, name: true } },
               reviews: true,
             },
           },
@@ -71,7 +71,7 @@ export const wishlistRouter = router({
         include: {
           product: {
             include: {
-              category: true,
+              category: { select: { id: true, name: true } },
             },
           },
         },

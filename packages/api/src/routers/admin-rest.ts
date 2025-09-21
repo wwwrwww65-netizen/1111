@@ -2643,7 +2643,7 @@ adminRest.get('/products', async (req, res) => {
   if (status === 'active') where.isActive = true;
   if (status === 'archived') where.isActive = false;
   const [products, total] = await Promise.all([
-    db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { variants: true } }),
+    db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { variants: true, category: { select: { id: true, name: true } } } }),
     db.product.count({ where })
   ]);
   res.json({ products, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
@@ -2651,7 +2651,7 @@ adminRest.get('/products', async (req, res) => {
 adminRest.get('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
-  const p = await db.product.findUnique({ where: { id }, include: { variants: true } });
+  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } } } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
   res.json({ product: p });
 });

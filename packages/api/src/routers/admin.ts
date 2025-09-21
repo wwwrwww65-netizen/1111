@@ -181,7 +181,7 @@ export const adminRouter = router({
       }
       const product = await db.product.create({
         data: { ...input, sku: nextSku ?? input.sku ?? null },
-        include: { category: true },
+        include: { category: { select: { id: true, name: true } } },
       });
 
       return { product };
@@ -196,7 +196,7 @@ export const adminRouter = router({
       const product = await db.product.update({
         where: { id },
         data,
-        include: { category: true },
+        include: { category: { select: { id: true, name: true } } },
       });
 
       return { product };

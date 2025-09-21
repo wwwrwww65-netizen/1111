@@ -107,7 +107,7 @@ export const searchRouter = router({
         db.product.findMany({
           where,
           include: {
-            category: true,
+            category: { select: { id: true, name: true } },
             reviews: {
               include: {
                 user: {

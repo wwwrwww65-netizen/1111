@@ -32,7 +32,7 @@ export const productsRouter = router({
       const product = await db.product.findUnique({
         where: { id: input.id },
         include: {
-          category: true,
+          category: { select: { id: true, name: true } },
           reviews: { include: { user: { select: { name: true } } } },
           variants: true,
         },
