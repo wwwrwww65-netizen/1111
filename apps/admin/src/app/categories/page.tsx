@@ -51,14 +51,35 @@ export default function CategoriesPage(): JSX.Element {
   }
   React.useEffect(()=>{ loadList(); loadTree(); }, [apiBase]);
 
+  const [saving, setSaving] = React.useState(false);
   async function add(){
-    const translations = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
-    const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
-    const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name, description, image, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations }) });
-    if (!res.ok) { showToast('فشل الإضافة'); return; }
-    setName(""); setDescription(""); setImage(""); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn("");
-    await Promise.all([loadList(), loadTree()]);
-    showToast('تمت الإضافة');
+    try {
+      if (!name.trim()) { showToast('الاسم مطلوب'); return; }
+      setSaving(true);
+      let finalImage = image;
+      if (finalImage && finalImage.startsWith('data:')) {
+        try {
+          const up = await fetch(`${apiBase}/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
+          if (up.ok) { const j = await up.json(); finalImage = j.url || j.presign?.url || finalImage; }
+        } catch {}
+      }
+      const translations = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
+      const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
+      const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
+      const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const t = await res.text().catch(()=> '');
+        showToast(`فشل الإضافة${t? ': '+t: ''}`);
+        return;
+      }
+      setName(""); setDescription(""); setImage(""); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn("");
+      await Promise.all([loadList(), loadTree()]);
+      showToast('تمت الإضافة');
+    } catch (e:any) {
+      showToast(`تعذّرت الإضافة${e?.message? ': '+e.message: ''}`);
+    } finally {
+      setSaving(false);
+    }
   }
   async function update(cat:any){
     const res = await fetch(`${apiBase}/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
@@ -214,7 +235,7 @@ export default function CategoriesPage(): JSX.Element {
                 {rows.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}</option>))}
               </select>
             </label>
-            <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
+            <button onClick={add} disabled={saving || !name.trim()} style={{ padding:'10px 14px', background: saving? '#6b7280':'#800020', color:'#fff', borderRadius:10, opacity: (saving||!name.trim())? 0.7: 1 }}>{saving? 'جارٍ الحفظ...':'إضافة'}</button>
           </div>
 
           <div style={{ marginTop:16 }}>
