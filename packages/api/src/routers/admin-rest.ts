@@ -45,7 +45,7 @@ const audit = async (req: Request, module: string, action: string, details?: any
 adminRest.use((req: Request, res: Response, next) => {
   // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac') || p.startsWith('/categories/health')) {
     return next();
   }
   try {
@@ -2654,6 +2654,13 @@ adminRest.get('/categories', async (req, res) => {
   const where: any = search ? { name: { contains: search, mode: 'insensitive' } } : {};
   const cats = await db.category.findMany({ where, orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
   res.json({ categories: cats });
+});
+adminRest.get('/categories/health', async (_req, res) => {
+  try {
+    await ensureCategorySeo();
+    const n = await db.category.count();
+    res.json({ ok: true, count: n });
+  } catch (e:any) { res.status(500).json({ ok: false, error: e.message||'error' }); }
 });
 adminRest.get('/categories/tree', async (req, res) => {
   await ensureCategorySeo();

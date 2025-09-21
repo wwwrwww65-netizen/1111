@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, cookies as nextCookies } from 'next/server'
 
 function computeApiBase(req: Request): string {
     const internal = process.env.INTERNAL_API_URL || ''
@@ -24,10 +24,13 @@ function computeApiBase(req: Request): string {
     }
 }
 
+export const runtime = 'nodejs'
+
 async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
 	const path = (ctx.params?.path || []).join('/')
 	const apiBase = computeApiBase(req)
-	const targetUrl = `${apiBase}/api/admin/${path}${req.url.includes('?') ? '?' + new URL(req.url).searchParams.toString() : ''}`
+	const search = (()=>{ try { return new URL(req.url).searchParams.toString() } catch { return '' } })()
+	const targetUrl = `${apiBase}/api/admin/${path}${search ? `?${search}` : ''}`
 
 	const headers = new Headers()
 	// Forward essential headers
@@ -38,6 +41,14 @@ async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
 	// Ensure credentials/cookies are forwarded
 	const cookie = req.headers.get('cookie')
 	if (cookie) headers.set('cookie', cookie)
+	// Promote cookie auth_token to Authorization for API admin REST
+	try {
+		const tokenMatch = /(?:^|; )auth_token=([^;]+)/.exec(cookie || '')
+		if (tokenMatch && !headers.get('authorization')) {
+			const token = decodeURIComponent(tokenMatch[1])
+			headers.set('authorization', `Bearer ${token}`)
+		}
+	} catch {}
 
 	const init: RequestInit = {
 		method: req.method,
@@ -50,6 +61,12 @@ async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
 	let upstream: Response
 	try {
 		upstream = await fetch(targetUrl, init)
+		if (upstream.status === 502 || upstream.status === 503) {
+			// Fallback once to public API base if internal unreachable
+			const publicBase = process.env.NEXT_PUBLIC_API_BASE_URL || apiBase
+			const alt = `${publicBase.replace(/\/$/, '')}/api/admin/${path}${search ? `?${search}` : ''}`
+			upstream = await fetch(alt, init)
+		}
 	} catch (e) {
 		return NextResponse.json({ error: 'upstream_unreachable', detail: (e as Error)?.message || '' }, { status: 502 })
 	}
