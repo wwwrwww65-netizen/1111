@@ -46,27 +46,56 @@ jobs:
           echo "SSH_HOST=${VPS_HOST}" >> "$GITHUB_ENV"
           echo "SSH_USER=${VPS_USER:-root}" >> "$GITHUB_ENV"
           echo "SSH_PORT=${VPS_PORT:-22}" >> "$GITHUB_ENV"
+      - name: Write SSH key for preflight (if provided)
+        shell: bash
+        run: |
+          set -e
+          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            mkdir -p ~/.ssh
+            umask 177
+            printf "%s\n" "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+          else
+            echo 'No SSH_PRIVATE_KEY secret provided; skipping handshake preflight'
+          fi
       - name: Set admin credentials env
         run: |
           echo "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}" >> "$GITHUB_ENV"
           echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> "$GITHUB_ENV"
 
-      - name: Check SSH reachability (preflight with retries)
+      - name: Check SSH reachability (preflight with retries and handshake)
         shell: bash
         run: |
           set -e
           echo "Host: ${SSH_HOST} Port: ${SSH_PORT} User: ${SSH_USER}"
           echo 'DNS resolution:'
           getent hosts "${SSH_HOST}" || true
-          ok=0
-          for i in $(seq 1 20); do
-            echo "[Attempt $i] TCP check..."
-            nc -z -w5 "${SSH_HOST}" "${SSH_PORT}" && { echo 'TCP reachable'; ok=1; break; } || true
-            sleep 3
+          CANDIDATE_PORTS="${SSH_PORT} 22 2222 443"
+          SELECTED_PORT=""
+          for p in $CANDIDATE_PORTS; do
+            echo "== Probing TCP ${SSH_HOST}:$p =="
+            ok=0
+            for i in $(seq 1 10); do
+              nc -z -w5 "${SSH_HOST}" "$p" && { ok=1; break; } || true
+              sleep 2
+            done
+            if [ "$ok" = "1" ]; then
+              echo "TCP reachable on port $p"; SELECTED_PORT="$p"; break
+            fi
           done
-          if [ "$ok" != "1" ]; then
-            echo 'ERROR: SSH TCP not reachable. Check firewall or server availability.'
+          if [ -z "$SELECTED_PORT" ]; then
+            echo 'ERROR: No reachable SSH TCP port found.'
+            ip route || true
             exit 1
+          fi
+          echo "SELECTED_SSH_PORT=$SELECTED_PORT" >> "$GITHUB_ENV"
+          if [ -f ~/.ssh/deploy_key ]; then
+            echo "Attempting SSH handshake to ${SSH_USER}@${SSH_HOST}:$SELECTED_PORT ..."
+            tries=0
+            until ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=8 -p "$SELECTED_PORT" "$SSH_USER@$SSH_HOST" 'echo ok' ; do
+              tries=$((tries+1)); [ $tries -ge 5 ] && { echo 'SSH handshake failed'; exit 1; }
+              sleep 3
+            done
           fi
 
       - name: Prepare API env file on server
@@ -75,7 +104,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SSH_PORT }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 40m
           script: |
@@ -110,7 +139,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SSH_PORT }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 40m
           script: |
@@ -132,7 +161,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SSH_PORT }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           source: "app.tar.gz"
           target: "/root/"
@@ -143,7 +172,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SSH_PORT }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 60m
           script: |
@@ -179,7 +208,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SSH_PORT }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 60m
           script: |
@@ -284,7 +313,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SSH_PORT }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 30m
           script: |
@@ -310,7 +339,7 @@ jobs:
           host: ${{ env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SSH_PORT }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 30m
           script: |
