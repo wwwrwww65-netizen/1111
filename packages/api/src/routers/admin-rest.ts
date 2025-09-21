@@ -929,7 +929,7 @@ adminRest.post('/logistics/legs/delivery/dispatch', async (req, res) => {
 });
 
 // Logistics: Supplier pickup lists and actions
-adminRest.get('/admin/analytics', async (req, res) => {
+adminRest.get('/analytics', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'users.read'))) return res.status(403).json({ error:'forbidden' });
     const usersRows: any[] = await db.$queryRawUnsafe(`SELECT COUNT(1) as c FROM "User"`);
@@ -941,7 +941,7 @@ adminRest.get('/admin/analytics', async (req, res) => {
     return res.json({ kpis: { users, orders, revenue } });
   } catch (e:any) { res.status(500).json({ error: e.message||'analytics_failed' }); }
 });
-adminRest.get('/admin/analytics/series', async (req, res) => {
+adminRest.get('/analytics/series', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'users.read'))) return res.status(403).json({ error:'forbidden' });
     const days = Math.max(1, Math.min(31, Number(req.query.days||7)));
@@ -993,7 +993,7 @@ adminRest.get('/admin/ops/queues', async (_req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'queues_failed' }); }
 });
 
-adminRest.get('/admin/notifications/recent', async (req, res) => {
+adminRest.get('/notifications/recent', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'orders.read'))) return res.status(403).json({ error:'forbidden' });
     const orders: any[] = await db.$queryRawUnsafe(`
