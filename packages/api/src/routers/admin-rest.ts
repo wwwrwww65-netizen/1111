@@ -64,7 +64,8 @@ adminRest.use((req: Request, res: Response, next) => {
     }
     let payload: any;
     try {
-      payload = verifyToken(token);
+      const tokenStr: string = (token ?? '') as string;
+      payload = verifyToken(tokenStr);
     } catch (e) {
       if (process.env.NODE_ENV === 'test') {
         // In tests, accept any bearer token and coerce to ADMIN to avoid env mismatches
