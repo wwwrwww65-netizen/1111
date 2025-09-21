@@ -40,12 +40,12 @@ export default function CategoriesPage(): JSX.Element {
   async function loadList(){
     const url = new URL(`${apiBase}/api/admin/categories`);
     if (search) url.searchParams.set('search', search);
-    const res = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+    const res = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { 'authorization': authHeaders().Authorization || '' } });
     if (!res.ok) { setRows([]); return; }
     const j = await res.json(); setRows(j.categories||[]);
   }
   async function loadTree(){
-    const res = await fetch(`${apiBase}/api/admin/categories/tree`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+    const res = await fetch(`${apiBase}/api/admin/categories/tree`, { credentials:'include', cache:'no-store', headers: { 'authorization': authHeaders().Authorization || '' } });
     if (!res.ok) { setTree([]); return; }
     const j = await res.json(); setTree(j.tree||[]);
   }
@@ -66,7 +66,7 @@ export default function CategoriesPage(): JSX.Element {
       const translations = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
       const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
       const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
-      const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+      const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', 'authorization': authHeaders().Authorization || '' }, credentials:'include', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(()=> '');
         showToast(`فشل الإضافة${t? ': '+t: ''}`);
@@ -82,14 +82,14 @@ export default function CategoriesPage(): JSX.Element {
     }
   }
   async function update(cat:any){
-    const res = await fetch(`${apiBase}/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
+    const res = await fetch(`${apiBase}/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', 'authorization': authHeaders().Authorization || '' }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
     if (!res.ok) { showToast('فشل الحفظ'); return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحفظ');
   }
   async function remove(id:string){
     if (!confirm('تأكيد الحذف؟')) return;
-    const res = await fetch(`${apiBase}/api/admin/categories/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } });
+    const res = await fetch(`${apiBase}/api/admin/categories/${id}`, { method:'DELETE', credentials:'include', headers: { 'authorization': authHeaders().Authorization || '' } });
     if (!res.ok) { showToast('فشل الحذف'); return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحذف');
