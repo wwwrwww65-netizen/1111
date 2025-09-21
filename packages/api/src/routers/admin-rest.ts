@@ -913,6 +913,18 @@ adminRest.post('/logistics/legs/delivery/dispatch', async (req, res) => {
 });
 
 // Logistics: Supplier pickup lists and actions
+adminRest.get('/admin/analytics', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'users.read'))) return res.status(403).json({ error:'forbidden' });
+    const usersRows: any[] = await db.$queryRawUnsafe(`SELECT COUNT(1) as c FROM "User"`);
+    const ordersRows: any[] = await db.$queryRawUnsafe(`SELECT COUNT(1) as c FROM "Order"`);
+    const revRows: any[] = await db.$queryRawUnsafe(`SELECT COALESCE(SUM(total),0) as s FROM "Order" WHERE status IN ('PAID','SHIPPED','DELIVERED')`);
+    const users = Number((usersRows[0] as any)?.c||0);
+    const orders = Number((ordersRows[0] as any)?.c||0);
+    const revenue = Number((revRows[0] as any)?.s||0);
+    return res.json({ kpis: { users, orders, revenue } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'analytics_failed' }); }
+});
 adminRest.get('/logistics/pickup/list', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
