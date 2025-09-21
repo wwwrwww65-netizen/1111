@@ -31,6 +31,8 @@ try {
 } catch {}
 
 const app = express();
+// Behind NGINX/Reverse proxy: trust proxy to avoid express-rate-limit X-Forwarded-For validation errors
+app.set('trust proxy', true);
 // Ensure critical DB schema tweaks are applied (idempotent)
 async function ensureSchema(): Promise<void> {
   try {

@@ -2670,11 +2670,13 @@ adminRest.get('/categories', async (req, res) => {
   const cats = await db.category.findMany({ where, orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
   res.json({ categories: cats });
 });
-adminRest.get('/categories/health', async (_req, res) => {
+adminRest.get('/categories/health', async (req, res) => {
   try {
     await ensureCategorySeo();
     const n = await db.category.count();
-    res.json({ ok: true, count: n });
+    // If not authenticated, still return ok:true but mark auth:false (used only for ops diagnostics)
+    const authed = Boolean((req as any).user);
+    res.json({ ok: true, auth: authed, count: n });
   } catch (e:any) { res.status(500).json({ ok: false, error: e.message||'error' }); }
 });
 adminRest.get('/categories/tree', async (req, res) => {
