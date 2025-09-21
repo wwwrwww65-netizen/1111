@@ -129,8 +129,8 @@ jobs:
 
       - name: Set DATABASE URLs
         run: |
-          echo "DATABASE_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
-          echo "DIRECT_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL_CI || secrets.DATABASE_URL || 'postgresql://user:password@localhost:5432/ecom_db?schema=public' }}" >> $GITHUB_ENV
+          echo "DIRECT_URL=${{ secrets.DIRECT_URL_CI || secrets.DIRECT_URL || env.DATABASE_URL }}" >> $GITHUB_ENV
           echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
       - name: (Optional) Mirror production DB into CI Postgres
@@ -213,6 +213,27 @@ jobs:
 
       - name: Run UI tests
         run: pnpm --filter @repo/ui test -- --ci --reporters=default --reporters=summary
+
+      - name: Ensure Category columns exist (compat for tests)
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
+          # Extract connection parts
+          node -e "const u=new URL(process.env.DATABASE_URL);console.log(`PGHOST=${u.hostname}\nPGPORT=${u.port||5432}\nPGUSER=${u.username}\nPGPASSWORD=${u.password}\nPGDATABASE=${u.pathname.replace('/','')}`)" >> $GITHUB_ENV
+          echo "Ensuring columns on Category..."
+          PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=0 <<'SQL'
+          ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0;
+          ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT;
+          DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='Category_slug_key') THEN
+            CREATE UNIQUE INDEX "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL;
+          END IF; END $$;
+          ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT;
+          ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT;
+          ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[];
+          ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB;
+          SQL
 
       - name: Run API tests
         env:
