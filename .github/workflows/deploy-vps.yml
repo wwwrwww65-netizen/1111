@@ -42,7 +42,11 @@ jobs:
           VPS_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT }}
         run: |
           set -e
-          if [ -z "${VPS_HOST}" ]; then echo 'ERROR: VPS_HOST is not set in secrets/vars' ; exit 1 ; fi
+          if [ -z "${VPS_HOST}" ]; then
+            echo 'ERROR: VPS_HOST is not set in secrets/vars.'
+            echo 'Please configure VPS_HOST (and optionally VPS_PORT, VPS_USER) in repo Settings > Secrets and variables > Actions.'
+            exit 1
+          fi
           echo "SSH_HOST=${VPS_HOST}" >> "$GITHUB_ENV"
           echo "SSH_USER=${VPS_USER:-root}" >> "$GITHUB_ENV"
           echo "SSH_PORT=${VPS_PORT:-22}" >> "$GITHUB_ENV"

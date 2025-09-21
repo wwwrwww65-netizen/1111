@@ -49,10 +49,10 @@ adminRest.use((req: Request, res: Response, next) => {
     return next();
   }
   try {
-    const token = readTokenFromRequest(req);
+    const token = readTokenFromRequest(req) as string | null;
     // Accept cookie-session in production behind same-site admin
     if (!token && process.env.NODE_ENV !== 'test') {
-      const raw = (req.headers['cookie'] as string|undefined) || '';
+      const raw = (req.headers['cookie'] as string | undefined) || '';
       const m = /(?:^|; )auth_token=([^;]+)/.exec(raw);
       if (m) {
         try {
