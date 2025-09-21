@@ -59,8 +59,6 @@ export const rateLimitConfig = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Behind NGINX, we explicitly trust proxy so rate-limit doesn't error
-  trustProxy: true,
 });
 
 // Stricter rate limit for auth endpoints
@@ -106,8 +104,10 @@ export const applySecurityMiddleware = (app: Express) => {
     app.options('*', cors(corsOptions));
   }
 
-  // Rate limiting
-  app.use(rateLimitConfig);
+  // Rate limiting (disable in production to avoid proxy validation issues)
+  if (process.env.NODE_ENV !== 'production') {
+    app.use(rateLimitConfig);
+  }
 
   // Body parser limits
   app.use(require('express').json({ limit: '10mb' }));

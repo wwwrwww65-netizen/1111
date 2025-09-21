@@ -514,3 +514,4 @@ jobs:
             journalctl -u ecom-admin --no-pager -n 200 || true
             echo '=== ecom-web logs (tail) ==='
             journalctl -u ecom-web --no-pager -n 200 || true
+        continue-on-error: true
