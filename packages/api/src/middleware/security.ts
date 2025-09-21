@@ -98,21 +98,11 @@ export const applySecurityMiddleware = (app: Express) => {
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 15552000, includeSubDomains: true, preload: true } : false,
   }));
 
-  // CORS (with credentials for cookies)
-  app.use(cors(corsOptions));
-  // Ensure OPTIONS preflight responds with proper headers
-  app.options('*', cors(corsOptions));
-  // Manual header reinforcement for some proxies/CDNs
-  app.use((req, res, next) => {
-    const allowed = buildAllowedOrigins();
-    const origin = req.headers.origin as string | undefined;
-    if (origin && allowed.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Vary', 'Origin');
-      res.header('Access-Control-Allow-Credentials', 'true');
-    }
-    next();
-  });
+  // CORS (avoid duplicating headers with NGINX in production)
+  if (process.env.NODE_ENV !== 'production') {
+    app.use(cors(corsOptions));
+    app.options('*', cors(corsOptions));
+  }
 
   // Rate limiting
   app.use(rateLimitConfig);
