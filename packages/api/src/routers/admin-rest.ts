@@ -2659,7 +2659,7 @@ async function ensureCategorySeo(){
   try {
     await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT');
   } catch {}
-  try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL'); } catch {}
+  try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE "slug" IS NOT NULL'); } catch {}
   for (const col of ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0','image TEXT','parentId TEXT']){
     try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
   }
