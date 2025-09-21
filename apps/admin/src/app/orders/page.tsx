@@ -15,6 +15,7 @@ export default function OrdersPage(): JSX.Element {
   const [sortBy, setSortBy] = React.useState<string>('createdAt');
   const [sortDir, setSortDir] = React.useState<'asc'|'desc'>('desc');
   const [rows, setRows] = React.useState<any[]>([]);
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [total, setTotal] = React.useState(0);
   const [drivers, setDrivers] = React.useState<Array<{id:string;name:string}>>([]);
   const [busy, setBusy] = React.useState(false);
@@ -66,6 +67,14 @@ export default function OrdersPage(): JSX.Element {
   async function refund(orderId: string) {
     await fetch(`${apiBase}/api/admin/payments/refund`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
     await load();
+  }
+  async function bulk(action: 'ship'|'cancel'){
+    const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
+    for (const id of ids) {
+      if (action==='ship') await ship(id);
+      if (action==='cancel') await fetch(`${apiBase}/api/admin/orders/cancel`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ orderId:id }) });
+    }
+    setSelected({}); await load();
   }
   async function assign(orderId: string, driverId: string) {
     await fetch(`${apiBase}/api/admin/orders/assign-driver`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId, driverId }) });
@@ -125,6 +134,10 @@ export default function OrdersPage(): JSX.Element {
             <option value="asc">تصاعدي</option>
           </select>
           <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">تطبيق</button>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="btn" onClick={()=> bulk('ship')}>شحن المحدد</button>
+            <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
+          </div>
         </div>
       </div>
 
@@ -132,6 +145,7 @@ export default function OrdersPage(): JSX.Element {
       <table className="table">
         <thead>
           <tr>
+            <th><input type="checkbox" onChange={(e)=>{ const on=e.currentTarget.checked; const m:Record<string,boolean>={}; for (const r of rows) m[r.id]=on; setSelected(m); }} /></th>
             <th style={{minWidth:160}}>رقم الطلب</th>
             <th style={{minWidth:120}}>تاريخ</th>
             <th style={{minWidth:220}}>العميل</th>
@@ -150,6 +164,7 @@ export default function OrdersPage(): JSX.Element {
             const shippingState = o.shipments?.[0]?.status || (o.status==='SHIPPED'?'IN_TRANSIT':o.status==='DELIVERED'?'DELIVERED':'-');
             return (
             <tr key={o.id}>
+              <td><input type="checkbox" checked={!!selected[o.id]} onChange={(e)=> setSelected(prev=> ({ ...prev, [o.id]: e.currentTarget.checked }))} /></td>
               <td><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{o.id}</a></td>
               <td>{new Date(o.createdAt).toLocaleString()}</td>
               <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>

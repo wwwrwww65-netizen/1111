@@ -950,6 +950,32 @@ adminRest.get('/admin/system/health', async (_req, res) => {
     return res.json({ ok: true, db: dbOk, version, time: new Date().toISOString(), uptimeSec: Math.floor(process.uptime()) });
   } catch (e:any) { res.status(500).json({ ok:false, error: e.message||'health_failed' }); }
 });
+adminRest.get('/admin/system/health/extended', async (_req, res) => {
+  try {
+    const out: any = { ok: true, time: new Date().toISOString(), uptimeSec: Math.floor(process.uptime()) };
+    try { await db.$queryRawUnsafe('SELECT 1'); out.db = true; } catch { out.db = false; out.ok = false; }
+    // Optional Redis check
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const IORedis = require('ioredis');
+      const client = new IORedis(process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL || undefined);
+      const pong = await client.ping(); out.redis = pong === 'PONG';
+      await client.quit();
+    } catch { out.redis = false; }
+    // Queues summary placeholder
+    out.queues = Array.isArray((global as any).__queues_summary) ? (global as any).__queues_summary : [];
+    const version = process.env.GIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.COMMIT_SHA || 'dev';
+    out.version = version;
+    res.json(out);
+  } catch (e:any) { res.status(500).json({ ok:false, error: e.message||'health_ext_failed' }); }
+});
+
+adminRest.get('/admin/ops/queues', async (_req, res) => {
+  try {
+    const out = Array.isArray((global as any).__queues_summary) ? (global as any).__queues_summary : [];
+    res.json({ queues: out });
+  } catch (e:any) { res.status(500).json({ error: e.message||'queues_failed' }); }
+});
 
 adminRest.get('/admin/notifications/recent', async (req, res) => {
   try {
@@ -2546,14 +2572,16 @@ adminRest.delete('/attributes/brands/:id', async (req, res) => {
 // Categories
 adminRest.get('/categories', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
+  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
   const search = (req.query.search as string | undefined)?.trim();
   const where: any = search ? { name: { contains: search, mode: 'insensitive' } } : {};
-  const cats = await db.category.findMany({ where, orderBy: { createdAt: 'desc' } });
+  const cats = await db.category.findMany({ where, orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
   res.json({ categories: cats });
 });
 adminRest.get('/categories/tree', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
-  const cats = await db.category.findMany({ orderBy: { createdAt: 'desc' } });
+  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+  const cats = await db.category.findMany({ orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
   const byParent: Record<string, any[]> = {};
   for (const c of cats) {
     const key = c.parentId || 'root';
@@ -2564,6 +2592,25 @@ adminRest.get('/categories/tree', async (req, res) => {
     return (byParent[parentId || 'root'] || []).map(c => ({ ...c, children: build(c.id) }));
   };
   res.json({ tree: build(null) });
+});
+adminRest.post('/categories/reorder', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) return res.status(403).json({ error:'forbidden' });
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+    const items: Array<{ id:string; parentId?:string|null; sortOrder?:number }>= Array.isArray(req.body?.items)? req.body.items: [];
+    for (const it of items) {
+      const parentVal = (it.parentId===undefined? undefined : (it.parentId||null));
+      const sortVal = (typeof it.sortOrder==='number'? it.sortOrder : undefined);
+      if (parentVal!==undefined && sortVal!==undefined) {
+        await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentVal}, "sortOrder"=${sortVal}, "updatedAt"=NOW() WHERE id=${it.id}`;
+      } else if (parentVal!==undefined) {
+        await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentVal}, "updatedAt"=NOW() WHERE id=${it.id}`;
+      } else if (sortVal!==undefined) {
+        await db.$executeRaw`UPDATE "Category" SET "sortOrder"=${sortVal}, "updatedAt"=NOW() WHERE id=${it.id}`;
+      }
+    }
+    res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'reorder_failed' }); }
 });
 adminRest.post('/categories', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) return res.status(403).json({ error:'forbidden' });

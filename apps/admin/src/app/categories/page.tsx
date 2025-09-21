@@ -68,7 +68,17 @@ export default function CategoriesPage(): JSX.Element {
     return (
       <ul style={{ listStyle:'none', paddingInlineStart: 16 }}>
         {nodes.map((n)=> (
-          <li key={n.id} style={{ marginBottom:6 }}>
+          <li key={n.id} style={{ marginBottom:6 }} draggable onDragStart={(e)=>{ e.dataTransfer.setData('text/plain', n.id); }} onDragOver={(e)=>{ e.preventDefault(); }} onDrop={async (e)=>{
+            e.preventDefault();
+            const draggedId = e.dataTransfer.getData('text/plain'); if (!draggedId || draggedId===n.id) return;
+            try {
+              const siblings = (n.children||[]).map((c:any, idx:number)=> ({ id:c.id, parentId: n.id, sortOrder: idx }));
+              const payload = { items: [ { id: draggedId, parentId: n.id, sortOrder: siblings.length }, ...siblings ] };
+              await fetch(`${apiBase}/api/admin/categories/reorder`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+              await Promise.all([loadList(), loadTree()]);
+              showToast('تم إعادة الترتيب');
+            } catch { showToast('فشل إعادة الترتيب'); }
+          }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <span style={{ padding:'2px 8px', background:'#111827', borderRadius:999, fontSize:12, color:'#9ca3af' }}>{n.id.slice(0,6)}</span>
               <strong>{n.name}</strong>
