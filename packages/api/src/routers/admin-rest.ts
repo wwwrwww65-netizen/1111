@@ -2724,31 +2724,74 @@ adminRest.post('/categories/reorder', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'reorder_failed' }); }
 });
 adminRest.post('/categories', async (req, res) => {
-  await ensureCategorySeo();
-  const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'name_required' });
-  const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null, slug: slug||null, seoTitle: seoTitle||null, seoDescription: seoDescription||null, seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [], translations: translations||undefined, sortOrder: typeof sortOrder==='number'? sortOrder: 0 } });
-  await audit(req, 'categories', 'create', { id: c.id });
-  res.json({ category: c });
+  try {
+    await ensureCategorySeo();
+    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'name_required' });
+    const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null, slug: slug||null, seoTitle: seoTitle||null, seoDescription: seoDescription||null, seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [], translations: translations||undefined, sortOrder: typeof sortOrder==='number'? sortOrder: 0 } });
+    await audit(req, 'categories', 'create', { id: c.id });
+    return res.json({ category: c });
+  } catch (e:any) {
+    const msg = String(e?.message||'');
+    if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
+      try {
+        await ensureCategorySeo();
+        const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+        const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null, slug: slug||null, seoTitle: seoTitle||null, seoDescription: seoDescription||null, seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [], translations: translations||undefined, sortOrder: typeof sortOrder==='number'? sortOrder: 0 } });
+        await audit(req, 'categories', 'create', { id: c.id });
+        return res.json({ category: c });
+      } catch (e2:any) {
+        return res.status(500).json({ error: e2?.message||'category_create_failed' });
+      }
+    }
+    return res.status(500).json({ error: e?.message||'category_create_failed' });
+  }
 });
 adminRest.patch('/categories/:id', async (req, res) => {
   const { id } = req.params;
-  await ensureCategorySeo();
-  const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
-  const c = await db.category.update({ where: { id }, data: {
-    ...(name && { name }),
-    ...(description !== undefined && { description }),
-    ...(image !== undefined && { image }),
-    ...(parentId !== undefined && { parentId }),
-    ...(slug !== undefined && { slug }),
-    ...(seoTitle !== undefined && { seoTitle }),
-    ...(seoDescription !== undefined && { seoDescription }),
-    ...(seoKeywords !== undefined && { seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [] }),
-    ...(translations !== undefined && { translations }),
-    ...(typeof sortOrder === 'number' && { sortOrder })
-  } });
-  await audit(req, 'categories', 'update', { id });
-  res.json({ category: c });
+  try {
+    await ensureCategorySeo();
+    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+    const c = await db.category.update({ where: { id }, data: {
+      ...(name && { name }),
+      ...(description !== undefined && { description }),
+      ...(image !== undefined && { image }),
+      ...(parentId !== undefined && { parentId }),
+      ...(slug !== undefined && { slug }),
+      ...(seoTitle !== undefined && { seoTitle }),
+      ...(seoDescription !== undefined && { seoDescription }),
+      ...(seoKeywords !== undefined && { seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [] }),
+      ...(translations !== undefined && { translations }),
+      ...(typeof sortOrder === 'number' && { sortOrder })
+    } });
+    await audit(req, 'categories', 'update', { id });
+    return res.json({ category: c });
+  } catch (e:any) {
+    const msg = String(e?.message||'');
+    if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
+      try {
+        await ensureCategorySeo();
+        const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+        const c = await db.category.update({ where: { id }, data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(image !== undefined && { image }),
+          ...(parentId !== undefined && { parentId }),
+          ...(slug !== undefined && { slug }),
+          ...(seoTitle !== undefined && { seoTitle }),
+          ...(seoDescription !== undefined && { seoDescription }),
+          ...(seoKeywords !== undefined && { seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [] }),
+          ...(translations !== undefined && { translations }),
+          ...(typeof sortOrder === 'number' && { sortOrder })
+        } });
+        await audit(req, 'categories', 'update', { id });
+        return res.json({ category: c });
+      } catch (e2:any) {
+        return res.status(500).json({ error: e2?.message||'category_update_failed' });
+      }
+    }
+    return res.status(500).json({ error: e?.message||'category_update_failed' });
+  }
 });
 adminRest.delete('/categories/:id', async (req, res) => {
   const { id } = req.params;
