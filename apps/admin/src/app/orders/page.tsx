@@ -220,8 +220,8 @@ export default function OrdersPage(): JSX.Element {
           <div style={{ marginTop:12 }}>
             <div style={{ color:'var(--sub)', marginBottom:6 }}>الأصناف</div>
             {coItems.map((it, idx)=> (
-              <div key={idx} className="grid" style={{ gridTemplateColumns:'1fr 1fr 1fr auto', gap:8, marginBottom:8 }}>
-                <input className="input" placeholder="Product ID" value={it.productId} onChange={(e)=>{ const v=[...coItems]; v[idx].productId=e.target.value; setCoItems(v); }} />
+              <div key={idx} className="grid" style={{ gridTemplateColumns:'2fr 1fr 1fr auto', gap:8, marginBottom:8 }}>
+                <ProductSelector apiBase={apiBase} authHeaders={authHeaders} value={it.productId} onChange={(pid)=>{ const v=[...coItems]; v[idx].productId=pid; setCoItems(v); }} />
                 <input className="input" type="number" placeholder="الكمية" value={it.quantity} onChange={(e)=>{ const v=[...coItems]; v[idx].quantity=Number(e.target.value||1); setCoItems(v); }} />
                 <input className="input" type="number" placeholder="السعر (اختياري)" value={it.price||''} onChange={(e)=>{ const v=[...coItems]; v[idx].price=Number(e.target.value||0)||undefined; setCoItems(v); }} />
                 <button className="icon-btn" onClick={()=>{ const v = coItems.filter((_,i)=>i!==idx); setCoItems(v.length? v : [{ productId:'', quantity:1 }]); }}>حذف</button>
@@ -236,7 +236,20 @@ export default function OrdersPage(): JSX.Element {
               try{
                 const payload = { customer: { name: coName, email: coEmail, phone: coPhone }, address: { street: coStreet }, items: coItems };
                 const r = await fetch(`${apiBase}/api/admin/orders`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
-                if (r.ok) { setShowCreate(false); setCoName(''); setCoEmail(''); setCoPhone(''); setCoStreet(''); setCoItems([{ productId:'', quantity:1 }]); await load(); }
+                if (r.ok) {
+                  const j = await r.json();
+                  // إنشاء نية دفع mock فورية ثم تأكيدها (لتوليد PICKUP مباشرة)
+                  try {
+                    const total = Number(j?.order?.total||0) || coItems.reduce((s,it)=> s + (Number(it.price||0)*Number(it.quantity||1)), 0);
+                    const pi = await fetch(`${apiBase}/trpc/payments.createPaymentIntent`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ amount: total, currency:'usd', orderId: j.order.id } }) });
+                    const jj = await pi.json().catch(()=>({}));
+                    const paymentIntentId = jj?.result?.data?.json?.paymentIntentId || jj?.paymentIntentId;
+                    if (paymentIntentId) {
+                      await fetch(`${apiBase}/trpc/payments.confirmPayment`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ paymentIntentId } }) });
+                    }
+                  } catch {}
+                  setShowCreate(false); setCoName(''); setCoEmail(''); setCoPhone(''); setCoStreet(''); setCoItems([{ productId:'', quantity:1 }]); await load();
+                }
               } finally { setCreating(false); }
             }}>{creating?'جارٍ الإنشاء…':'تأكيد'}</button>
           </div>
@@ -244,6 +257,48 @@ export default function OrdersPage(): JSX.Element {
       </div>
     )}
     </>
+  );
+}
+
+function ProductSelector({ apiBase, authHeaders, value, onChange }:{ apiBase:string; authHeaders:()=>Record<string,string>; value:string; onChange:(id:string)=>void }): JSX.Element {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [list, setList] = React.useState<Array<{id:string;name:string;price:number}>>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [hover, setHover] = React.useState(-1);
+  async function searchProducts(q:string){
+    setLoading(true);
+    try {
+      const url = new URL(`${apiBase}/api/admin/products`);
+      if (q) url.searchParams.set('search', q);
+      url.searchParams.set('limit','20');
+      const r = await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' });
+      const j = await r.json();
+      const items = (j.products||j.items||[]).map((p:any)=> ({ id:p.id, name:p.name, price:p.price||0 }));
+      setList(items);
+    } catch { setList([]); } finally { setLoading(false); }
+  }
+  React.useEffect(()=>{ if (open) searchProducts(query); }, [open]);
+  return (
+    <div style={{ position:'relative' }}>
+      <input className="input" placeholder="بحث عن منتج…" value={query || value} onFocus={()=> setOpen(true)} onChange={(e)=>{ setQuery(e.target.value); searchProducts(e.target.value); }} onKeyDown={(e)=>{
+        if (e.key==='ArrowDown') setHover(h=> Math.min((list.length-1), h+1));
+        if (e.key==='ArrowUp') setHover(h=> Math.max(-1, h-1));
+        if (e.key==='Enter') { if (hover>=0 && list[hover]) { onChange(list[hover].id); setQuery(list[hover].name); setOpen(false); } }
+      }} />
+      {open && (
+        <div className="panel" style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'100%', zIndex:20, width:'100%', maxHeight:240, overflowY:'auto' }}>
+          {loading && <div style={{ padding:8, color:'var(--sub)' }}>جاري البحث…</div>}
+          {!loading && !list.length && <div style={{ padding:8, color:'var(--sub)' }}>لا نتائج</div>}
+          {list.map((p, idx)=> (
+            <div key={p.id} className="row" style={{ padding:8, cursor:'pointer', background: hover===idx? 'var(--muted2)':'transparent' }} onMouseEnter={()=> setHover(idx)} onClick={()=>{ onChange(p.id); setQuery(p.name); setOpen(false); }}>
+              <div style={{ fontWeight:600 }}>{p.name}</div>
+              <div style={{ color:'var(--sub)' }}>{p.id.slice(0,6)} · {p.price}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
