@@ -1147,6 +1147,69 @@ adminRest.get('/logistics/pickup/export/pdf', async (_req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_pdf_failed' }); }
 });
 
+// ===== Logistics: Supplier Pickup (missing endpoints) =====
+function parsePoId(poId: string): { vendorId: string; orderId: string } | null {
+  if (!poId || typeof poId !== 'string') return null;
+  const idx = poId.indexOf(':');
+  if (idx <= 0) return null;
+  return { vendorId: poId.slice(0, idx), orderId: poId.slice(idx + 1) };
+}
+
+// List pickup legs by status: waiting|in_progress|completed
+adminRest.get('/logistics/pickup/list', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const tab = String(req.query.status||'waiting').toLowerCase();
+    const status = tab === 'in_progress' ? 'IN_PROGRESS' : tab === 'completed' ? 'COMPLETED' : 'SCHEDULED';
+    // Build rows from ShipmentLeg (legType=PICKUP). poId encodes vendorId:orderId
+    const rows: Array<any> = await db.$queryRawUnsafe(`
+      SELECT s.id, s."poId", s."orderId", s."driverId", s.status, s."createdAt", s."updatedAt",
+        v.name as "vendorName", v.address as "vendorAddress",
+        d.name as "driverName",
+        COALESCE((
+          SELECT SUM(oi.quantity) FROM "OrderItem" oi
+          JOIN "Product" pr ON pr.id=oi."productId"
+          WHERE oi."orderId"=s."orderId" AND pr."vendorId" = split_part(s."poId", ':', 1)
+        ), 0) as "itemsCount"
+      FROM "ShipmentLeg" s
+      LEFT JOIN "Driver" d ON d.id=s."driverId"
+      LEFT JOIN "Vendor" v ON v.id = split_part(s."poId", ':', 1)
+      WHERE s."legType"='PICKUP' AND s.status=$1
+      ORDER BY s."createdAt" DESC`, status);
+    return res.json({ pickup: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
+});
+
+// Assign driver to pickup leg (by poId)
+adminRest.post('/logistics/pickup/assign', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
+    const { poId, driverId } = req.body||{}; if (!poId || !driverId) return res.status(400).json({ error:'poId_and_driverId_required' });
+    await db.$executeRawUnsafe(`UPDATE "ShipmentLeg" SET "driverId"='${driverId}', status='IN_PROGRESS', "updatedAt"=NOW() WHERE "legType"='PICKUP' AND "poId"='${poId}'`);
+    await audit(req, 'logistics.pickup', 'assign_driver', { poId, driverId });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_assign_failed' }); }
+});
+
+// Change pickup status; when RECEIVED, mark completed and spawn INBOUND
+adminRest.post('/logistics/pickup/status', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { poId, status } = req.body||{}; if (!poId || !status) return res.status(400).json({ error:'poId_and_status_required' });
+    const leg = await db.shipmentLeg.findFirst({ where: { legType: 'PICKUP' as any, poId } });
+    if (!leg) return res.status(404).json({ error:'pickup_leg_not_found' });
+    if (String(status).toUpperCase() === 'RECEIVED') {
+      await db.shipmentLeg.update({ where: { id: leg.id }, data: { status: 'COMPLETED' as any, updatedAt: new Date() as any } as any });
+      // spawn INBOUND (warehouse receiving)
+      try { await db.shipmentLeg.create({ data: { orderId: leg.orderId, legType: 'INBOUND' as any, status: 'SCHEDULED' as any } as any }); } catch {}
+    } else {
+      await db.shipmentLeg.update({ where: { id: leg.id }, data: { status: String(status).toUpperCase() as any, updatedAt: new Date() as any } as any });
+    }
+    await audit(req, 'logistics.pickup', 'status', { poId, status });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_status_failed' }); }
+});
+
 // Warehouse tabs: inbound, sorting, ready
 adminRest.get('/logistics/warehouse/list', async (req, res) => {
   try {
@@ -1352,6 +1415,24 @@ adminRest.get('/logistics/drivers/locations', async (_req, res) => {
     const list = await db.driver.findMany({ where: { lat: { not: null }, lng: { not: null } }, select: { id: true, name: true, lat: true, lng: true, status: true } });
     res.json({ drivers: list });
   } catch (e:any) { res.status(500).json({ error: e.message||'locations_failed' }); }
+});
+
+// ===== Vendors: Orders/Lines by vendor =====
+adminRest.get('/vendors/:id/orders', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'vendors.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const rows: Array<any> = await db.$queryRawUnsafe(`
+      SELECT o.id as "orderId", o.status, o."createdAt",
+        oi.id as "orderItemId", oi.quantity, oi.price,
+        p.id as "productId", p.name as "productName"
+      FROM "Order" o
+      JOIN "OrderItem" oi ON oi."orderId"=o.id
+      JOIN "Product" p ON p.id=oi."productId"
+      WHERE p."vendorId"='${id}'
+      ORDER BY o."createdAt" DESC, oi.id ASC`);
+    res.json({ orders: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'vendor_orders_failed' }); }
 });
 
 // Simple route planning stub (echoes orderIds)

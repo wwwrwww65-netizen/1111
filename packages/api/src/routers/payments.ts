@@ -139,6 +139,28 @@ export const paymentsRouter = router({
         const payment = await db.payment.findUnique({ where: { stripeId: paymentIntentId } });
         if (payment) {
           await db.order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } });
+          // Bootstrap shipment legs per vendor for this order
+          try {
+            const items = await db.orderItem.findMany({ where: { orderId: payment.orderId }, include: { product: { select: { vendorId: true } } } });
+            const vendorToItems = new Map<string, typeof items>();
+            for (const it of items) {
+              const vid = it.product.vendorId || 'NOVENDOR';
+              if (!vendorToItems.has(vid)) vendorToItems.set(vid, [] as any);
+              (vendorToItems.get(vid) as any).push(it);
+            }
+            for (const [vendorId] of vendorToItems) {
+              const poId = `${vendorId}:${payment.orderId}`;
+              // Create PICKUP if not exists
+              await db.shipmentLeg.upsert({
+                where: { id: poId }, // use poId as id when vendor scoped
+                update: {},
+                create: { id: poId, orderId: payment.orderId, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any,
+              } as any);
+            }
+            // Also create PROCESSING and DELIVERY placeholders
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+          } catch {}
         }
         return { status: 'succeeded', paymentIntent: { id: paymentIntentId } } as any;
       }
@@ -166,6 +188,26 @@ export const paymentsRouter = router({
             where: { id: payment.orderId },
             data: { status: 'PAID' },
           });
+          // Bootstrap shipment legs per vendor
+          try {
+            const items = await db.orderItem.findMany({ where: { orderId: payment.orderId }, include: { product: { select: { vendorId: true } } } });
+            const vendorToItems = new Map<string, typeof items>();
+            for (const it of items) {
+              const vid = it.product.vendorId || 'NOVENDOR';
+              if (!vendorToItems.has(vid)) vendorToItems.set(vid, [] as any);
+              (vendorToItems.get(vid) as any).push(it);
+            }
+            for (const [vendorId] of vendorToItems) {
+              const poId = `${vendorId}:${payment.orderId}`;
+              await db.shipmentLeg.upsert({
+                where: { id: poId },
+                update: {},
+                create: { id: poId, orderId: payment.orderId, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any,
+              } as any);
+            }
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+          } catch {}
         }
       }
 
