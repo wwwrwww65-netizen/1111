@@ -219,10 +219,10 @@ jobs:
           DATABASE_URL: ${{ env.DATABASE_URL }}
         run: |
           sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
-          # Extract connection parts
-          node -e "const u=new URL(process.env.DATABASE_URL);console.log(`PGHOST=${u.hostname}\nPGPORT=${u.port||5432}\nPGUSER=${u.username}\nPGPASSWORD=${u.password}\nPGDATABASE=${u.pathname.replace('/','')}`)" >> $GITHUB_ENV
           echo "Ensuring columns on Category..."
-          PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=0 <<'SQL'
+          PGURI="$DATABASE_URL"
+          if [[ "$PGURI" == *\?* ]]; then PGURI="${PGURI%%\?*}"; fi
+          psql "$PGURI" -v ON_ERROR_STOP=0 <<'SQL'
           ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0;
           ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT;
           DO $$ BEGIN
