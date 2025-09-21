@@ -54,7 +54,7 @@ export default function OrdersPage(): JSX.Element {
       setBusy(true);
       if (loadCtlRef.current) { try { loadCtlRef.current.abort(); } catch {} }
       const ctl = new AbortController(); loadCtlRef.current = ctl;
-      const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal });
+      const res = await fetch(`/api/admin/orders/list${url.search}`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal });
       const json = await res.json();
       setRows(json.orders || []);
       setTotal(json.pagination?.total || 0);
@@ -68,12 +68,12 @@ export default function OrdersPage(): JSX.Element {
   React.useEffect(() => { load(); }, [page, pageSize, sortBy, sortDir]);
   React.useEffect(()=>{
     const ctl = new AbortController();
-    (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal })).json(); setDrivers(j.drivers||[]);} catch{} })();
+    (async ()=>{ try{ const j = await (await fetch(`/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal })).json(); setDrivers(j.drivers||[]);} catch{} })();
     return ()=> { try { ctl.abort(); } catch {} };
   }, [apiBase]);
 
   async function ship(orderId: string) {
-    await fetch(`${apiBase}/api/admin/orders/ship`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
+    await fetch(`/api/admin/orders/ship`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
     await load();
   }
   async function refund(orderId: string) {
@@ -84,12 +84,12 @@ export default function OrdersPage(): JSX.Element {
     const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
     for (const id of ids) {
       if (action==='ship') await ship(id);
-      if (action==='cancel') await fetch(`${apiBase}/api/admin/orders/cancel`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ orderId:id }) });
+      if (action==='cancel') await fetch(`/api/admin/orders/cancel`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ orderId:id }) });
     }
     setSelected({}); await load();
   }
   async function assign(orderId: string, driverId: string) {
-    await fetch(`${apiBase}/api/admin/orders/assign-driver`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId, driverId }) });
+    await fetch(`/api/admin/orders/assign-driver`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId, driverId }) });
     await load();
   }
 
@@ -247,17 +247,17 @@ export default function OrdersPage(): JSX.Element {
               setCreating(true);
               try{
                 const payload = { customer: { name: coName, email: coEmail, phone: coPhone }, address: { street: coStreet }, items: coItems };
-                const r = await fetch(`${apiBase}/api/admin/orders`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+                const r = await fetch(`/api/admin/orders`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
                 if (r.ok) {
                   const j = await r.json();
                   // إنشاء نية دفع mock فورية ثم تأكيدها (لتوليد PICKUP مباشرة)
                   try {
                     const total = Number(j?.order?.total||0) || coItems.reduce((s,it)=> s + (Number(it.price||0)*Number(it.quantity||1)), 0);
-                    const pi = await fetch(`${apiBase}/trpc/payments.createPaymentIntent`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ amount: total, currency:'usd', orderId: j.order.id } }) });
+                    const pi = await fetch(`/trpc/payments.createPaymentIntent`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ amount: total, currency:'usd', orderId: j.order.id } }) });
                     const jj = await pi.json().catch(()=>({}));
                     const paymentIntentId = jj?.result?.data?.json?.paymentIntentId || jj?.paymentIntentId;
                     if (paymentIntentId) {
-                      await fetch(`${apiBase}/trpc/payments.confirmPayment`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ paymentIntentId } }) });
+                      await fetch(`/trpc/payments.confirmPayment`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ input:{ paymentIntentId } }) });
                     }
                   } catch {}
                   setShowCreate(false); setCoName(''); setCoEmail(''); setCoPhone(''); setCoStreet(''); setCoItems([{ productId:'', quantity:1 }]); await load();

@@ -22,17 +22,20 @@ export default function AdminProducts(): JSX.Element {
     try { token = decodeURIComponent(token); } catch {}
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
+  const ctlRef = React.useRef<AbortController|null>(null);
   async function load(){
-    const url = new URL(`${apiBase}/api/admin/products`);
+    if (ctlRef.current) { try { ctlRef.current.abort(); } catch {} }
+    const ctl = new AbortController(); ctlRef.current = ctl;
+    const url = new URL(`/api/admin/products`, window.location.origin);
     url.searchParams.set('page', String(page));
     url.searchParams.set('limit', String(limit));
     if (search) url.searchParams.set('search', search);
     if (status) url.searchParams.set('status', status);
     if (categoryId) url.searchParams.set('categoryId', categoryId);
-    const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() } })).json();
+    const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal })).json();
     setRows(j.products||[]); setTotal(j.pagination?.total||0);
   }
-  React.useEffect(()=>{ load(); }, [page, status, categoryId, apiBase]);
+  React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
   const createProduct = q.admin.createProduct.useMutation();
   const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
     ? q.admin.createProductVariants.useMutation()
@@ -92,7 +95,7 @@ export default function AdminProducts(): JSX.Element {
                   <td>
                     <a href={`/products/${p.id}`} className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
                     <a href={`/products/new?id=${p.id}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
-                    <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); await load(); }} className="btn btn-md">حذف</button>
+                    <button onClick={async ()=>{ await fetch(`/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); await load(); }} className="btn btn-md">حذف</button>
                   </td>
                 </tr>
               );

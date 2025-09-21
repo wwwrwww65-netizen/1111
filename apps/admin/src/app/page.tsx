@@ -24,10 +24,10 @@ export default function AdminHome(): JSX.Element {
     (async ()=>{
       try{ setBusy(true);
         const [ak, ao, at, as] = await Promise.all([
-          fetch(`${apiBase}/api/admin/analytics`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({kpis:{}})),
-          fetch(`${apiBase}/api/admin/orders/list?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({orders:[]})),
-          fetch(`${apiBase}/api/admin/tickets?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({tickets:[]})),
-          fetch(`${apiBase}/api/admin/analytics/series?days=7`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({series:[]})),
+          fetch(`/api/admin/analytics`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({kpis:{}})),
+          fetch(`/api/admin/orders/list?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({orders:[]})),
+          fetch(`/api/admin/tickets?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({tickets:[]})),
+          fetch(`/api/admin/analytics/series?days=7`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({series:[]})),
         ]);
         setKpis(ak.kpis||{});
         setRecentOrders(ao.orders||[]);
@@ -51,8 +51,8 @@ export default function AdminHome(): JSX.Element {
       if (!(window as any).io) {
         await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.socket.io/4.7.2/socket.io.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); });
       }
-      const origin = new URL(apiBase).origin;
-      socket = (window as any).io(origin, { transports:['websocket'], withCredentials:true });
+      const origin = window.location.origin;
+      socket = (window as any).io(origin.replace('//admin.','//api.'), { transports:['websocket'], withCredentials:true });
       socket.on('driver:locations', (payload:any)=>{
         const arr = payload?.drivers||[];
         setDriversOnline(Array.isArray(arr)? arr.length : 0);
@@ -233,7 +233,7 @@ function SystemHealthBadge({ apiBase }: { apiBase: string }): JSX.Element {
   React.useEffect(()=>{
     let t: any;
     const load = async()=>{
-      try { const j = await (await fetch(`${apiBase}/api/admin/system/health`, { credentials:'include' })).json(); setState(j||{}); }
+      try { const j = await (await fetch(`/api/admin/system/health`, { credentials:'include' })).json(); setState(j||{}); }
       catch { setState({ ok:false }); }
     };
     load(); t = setInterval(load, 15000); return ()=> clearInterval(t);
@@ -254,7 +254,7 @@ function RecentEvents({ apiBase }: { apiBase: string }): JSX.Element {
     let t: any;
     const load = async()=>{
       setLoading(true);
-      try { const j = await (await fetch(`${apiBase}/api/admin/notifications/recent`, { credentials:'include' })).json(); setRows(j.events||[]); }
+      try { const j = await (await fetch(`/api/admin/notifications/recent`, { credentials:'include' })).json(); setRows(j.events||[]); }
       catch { setRows([]); }
       finally { setLoading(false); }
     };

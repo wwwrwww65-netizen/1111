@@ -25,12 +25,15 @@ export default function PurchaseOrdersPage(): JSX.Element {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
+  const ctlRef = React.useRef<AbortController|null>(null);
   async function load() {
-    const url = new URL(`${apiBase}/api/admin/pos/list`);
+    if (ctlRef.current) { try { ctlRef.current.abort(); } catch {} }
+    const ctl = new AbortController(); ctlRef.current = ctl;
+    const url = new URL(`/api/admin/pos/list`, window.location.origin);
     url.searchParams.set('page', String(page));
     url.searchParams.set('limit', String(limit));
     setBusy(true);
-    const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+    const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal });
     const json = await res.json();
     setBusy(false);
     setRows(json.pos || []);
@@ -38,12 +41,12 @@ export default function PurchaseOrdersPage(): JSX.Element {
   }
 
   React.useEffect(()=>{ load(); }, [page, limit]);
-  React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', headers: { ...authHeaders() } })).json(); setVendors(j.vendors||[]);} catch{} })(); }, [apiBase]);
+  React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`/api/admin/vendors/list`, { credentials:'include', headers: { ...authHeaders() } })).json(); setVendors(j.vendors||[]);} catch{} })(); }, []);
 
   async function createPo(){
     setCreating(true);
     try{
-      const res = await fetch(`${apiBase}/api/admin/pos`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ vendorId: vendorId||null, notes }) });
+      const res = await fetch(`/api/admin/pos`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ vendorId: vendorId||null, notes }) });
       if (res.ok) { setVendorId(''); setNotes(''); await load(); }
     } finally { setCreating(false); }
   }
@@ -93,13 +96,13 @@ export default function PurchaseOrdersPage(): JSX.Element {
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                     <button className="btn btn-md" onClick={async()=>{
                       // Demo add item: first vendor product if any
-                      const products = await (await fetch(`${apiBase}/api/admin/products?limit=1`, { credentials:'include', headers: { ...authHeaders() } })).json();
+                      const products = await (await fetch(`/api/admin/products?limit=1`, { credentials:'include', headers: { ...authHeaders() } })).json();
                       const prod = products.products?.[0];
-                      await fetch(`${apiBase}/api/admin/pos/${r.id}/items`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ productId: prod?.id||null, quantity: 1, unitCost: prod?.price||10 }) });
+                      await fetch(`/api/admin/pos/${r.id}/items`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ productId: prod?.id||null, quantity: 1, unitCost: prod?.price||10 }) });
                       await load();
                     }}>إضافة صنف</button>
-                    <button className="btn btn-md" onClick={async()=>{ await fetch(`${apiBase}/api/admin/pos/${r.id}/submit`, { method:'POST', headers: { ...authHeaders() }, credentials:'include' }); await load(); }}>إرسال</button>
-                    <button className="btn btn-md" onClick={async()=>{ await fetch(`${apiBase}/api/admin/pos/${r.id}/receive`, { method:'POST', headers: { ...authHeaders() }, credentials:'include' }); await load(); }}>استلام</button>
+                    <button className="btn btn-md" onClick={async()=>{ await fetch(`/api/admin/pos/${r.id}/submit`, { method:'POST', headers: { ...authHeaders() }, credentials:'include' }); await load(); }}>إرسال</button>
+                    <button className="btn btn-md" onClick={async()=>{ await fetch(`/api/admin/pos/${r.id}/receive`, { method:'POST', headers: { ...authHeaders() }, credentials:'include' }); await load(); }}>استلام</button>
                   </div>
                 </td>
               </tr>
