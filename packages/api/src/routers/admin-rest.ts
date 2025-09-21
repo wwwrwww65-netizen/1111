@@ -2762,7 +2762,7 @@ adminRest.post('/categories/reorder', async (req, res) => {
 adminRest.post('/categories', async (req, res) => {
   try {
     await ensureCategorySeo();
-    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+    const { name, description, image, parentId, slug, sortOrder } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
     const cols = await getCategoryColumnFlags();
     const data: any = { name };
@@ -2770,10 +2770,7 @@ adminRest.post('/categories', async (req, res) => {
     if (cols.image) data.image = image||null;
     if (cols.parentid) data.parentId = parentId||null;
     if (cols.slug) data.slug = slug||null;
-    if (cols.seotitle) data.seoTitle = seoTitle||null;
-    if (cols.seodescription) data.seoDescription = seoDescription||null;
-    if (cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
-    if (cols.translations) data.translations = translations||undefined;
+    // Intentionally omit seo* and translations in create to avoid column mismatch
     if (cols.sortorder) data.sortOrder = typeof sortOrder==='number'? sortOrder: 0;
     const c = await db.category.create({ data });
     await audit(req, 'categories', 'create', { id: c.id });
@@ -2783,17 +2780,14 @@ adminRest.post('/categories', async (req, res) => {
     if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
       try {
         await ensureCategorySeo();
-        const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+        const { name, description, image, parentId, slug, sortOrder } = req.body || {};
         const cols = await getCategoryColumnFlags();
         const data: any = { name };
         if (cols.description) data.description = description||null;
         if (cols.image) data.image = image||null;
         if (cols.parentid) data.parentId = parentId||null;
         if (cols.slug) data.slug = slug||null;
-        if (cols.seotitle) data.seoTitle = seoTitle||null;
-        if (cols.seodescription) data.seoDescription = seoDescription||null;
-        if (cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
-        if (cols.translations) data.translations = translations||undefined;
+        // omit seo* and translations on retry
         if (cols.sortorder) data.sortOrder = typeof sortOrder==='number'? sortOrder: 0;
         const c = await db.category.create({ data });
         await audit(req, 'categories', 'create', { id: c.id });
@@ -2817,10 +2811,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
     if (image !== undefined && cols.image) data.image = image;
     if (parentId !== undefined && cols.parentid) data.parentId = parentId;
     if (slug !== undefined && cols.slug) data.slug = slug;
-    if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
-    if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
-    if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
-    if (translations !== undefined && cols.translations) data.translations = translations;
+    // omit seo* and translations on patch to avoid column mismatch
     if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
     const c = await db.category.update({ where: { id }, data });
     await audit(req, 'categories', 'update', { id });
@@ -2830,7 +2821,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
     if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
       try {
         await ensureCategorySeo();
-        const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+        const { name, description, image, parentId, slug, sortOrder } = req.body || {};
         const cols = await getCategoryColumnFlags();
         const data: any = {};
         if (name) data.name = name;
@@ -2838,10 +2829,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
         if (image !== undefined && cols.image) data.image = image;
         if (parentId !== undefined && cols.parentid) data.parentId = parentId;
         if (slug !== undefined && cols.slug) data.slug = slug;
-        if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
-        if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
-        if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
-        if (translations !== undefined && cols.translations) data.translations = translations;
+        // omit seo* and translations on retry
         if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
         const c = await db.category.update({ where: { id }, data });
         await audit(req, 'categories', 'update', { id });
