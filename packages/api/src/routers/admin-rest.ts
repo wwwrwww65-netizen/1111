@@ -2665,6 +2665,30 @@ async function ensureCategorySeo(){
   }
 }
 
+async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
+  try {
+    const rows: Array<{ name: string }> = await db.$queryRawUnsafe(
+      "SELECT lower(column_name) as name FROM information_schema.columns WHERE table_schema = 'public' AND lower(table_name) = 'category'"
+    );
+    const set = new Set((rows || []).map(r => r.name));
+    const has = (n: string) => set.has(n.toLowerCase());
+    return {
+      slug: has('slug'),
+      seotitle: has('seoTitle'),
+      seodescription: has('seoDescription'),
+      seokeywords: has('seoKeywords'),
+      translations: has('translations'),
+      sortorder: has('sortOrder'),
+      image: has('image'),
+      parentid: has('parentId'),
+      name: has('name'),
+      description: has('description'),
+    } as any;
+  } catch {
+    return {} as any;
+  }
+}
+
 adminRest.get('/categories', async (req, res) => {
   await ensureCategorySeo();
   const search = (req.query.search as string | undefined)?.trim();
@@ -2728,7 +2752,18 @@ adminRest.post('/categories', async (req, res) => {
     await ensureCategorySeo();
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
-    const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null, slug: slug||null, seoTitle: seoTitle||null, seoDescription: seoDescription||null, seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [], translations: translations||undefined, sortOrder: typeof sortOrder==='number'? sortOrder: 0 } });
+    const cols = await getCategoryColumnFlags();
+    const data: any = { name };
+    if (cols.description) data.description = description||null; else if (description !== undefined) data.description = undefined;
+    if (cols.image) data.image = image||null;
+    if (cols.parentid) data.parentId = parentId||null;
+    if (cols.slug) data.slug = slug||null;
+    if (cols.seotitle) data.seoTitle = seoTitle||null;
+    if (cols.seodescription) data.seoDescription = seoDescription||null;
+    if (cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
+    if (cols.translations) data.translations = translations||undefined;
+    if (cols.sortorder) data.sortOrder = typeof sortOrder==='number'? sortOrder: 0;
+    const c = await db.category.create({ data });
     await audit(req, 'categories', 'create', { id: c.id });
     return res.json({ category: c });
   } catch (e:any) {
@@ -2737,7 +2772,18 @@ adminRest.post('/categories', async (req, res) => {
       try {
         await ensureCategorySeo();
         const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
-        const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null, slug: slug||null, seoTitle: seoTitle||null, seoDescription: seoDescription||null, seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [], translations: translations||undefined, sortOrder: typeof sortOrder==='number'? sortOrder: 0 } });
+        const cols = await getCategoryColumnFlags();
+        const data: any = { name };
+        if (cols.description) data.description = description||null;
+        if (cols.image) data.image = image||null;
+        if (cols.parentid) data.parentId = parentId||null;
+        if (cols.slug) data.slug = slug||null;
+        if (cols.seotitle) data.seoTitle = seoTitle||null;
+        if (cols.seodescription) data.seoDescription = seoDescription||null;
+        if (cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
+        if (cols.translations) data.translations = translations||undefined;
+        if (cols.sortorder) data.sortOrder = typeof sortOrder==='number'? sortOrder: 0;
+        const c = await db.category.create({ data });
         await audit(req, 'categories', 'create', { id: c.id });
         return res.json({ category: c });
       } catch (e2:any) {
@@ -2752,18 +2798,19 @@ adminRest.patch('/categories/:id', async (req, res) => {
   try {
     await ensureCategorySeo();
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
-    const c = await db.category.update({ where: { id }, data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(image !== undefined && { image }),
-      ...(parentId !== undefined && { parentId }),
-      ...(slug !== undefined && { slug }),
-      ...(seoTitle !== undefined && { seoTitle }),
-      ...(seoDescription !== undefined && { seoDescription }),
-      ...(seoKeywords !== undefined && { seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [] }),
-      ...(translations !== undefined && { translations }),
-      ...(typeof sortOrder === 'number' && { sortOrder })
-    } });
+    const cols = await getCategoryColumnFlags();
+    const data: any = {};
+    if (name) data.name = name;
+    if (description !== undefined && cols.description) data.description = description;
+    if (image !== undefined && cols.image) data.image = image;
+    if (parentId !== undefined && cols.parentid) data.parentId = parentId;
+    if (slug !== undefined && cols.slug) data.slug = slug;
+    if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
+    if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
+    if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
+    if (translations !== undefined && cols.translations) data.translations = translations;
+    if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
+    const c = await db.category.update({ where: { id }, data });
     await audit(req, 'categories', 'update', { id });
     return res.json({ category: c });
   } catch (e:any) {
@@ -2772,18 +2819,19 @@ adminRest.patch('/categories/:id', async (req, res) => {
       try {
         await ensureCategorySeo();
         const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
-        const c = await db.category.update({ where: { id }, data: {
-          ...(name && { name }),
-          ...(description !== undefined && { description }),
-          ...(image !== undefined && { image }),
-          ...(parentId !== undefined && { parentId }),
-          ...(slug !== undefined && { slug }),
-          ...(seoTitle !== undefined && { seoTitle }),
-          ...(seoDescription !== undefined && { seoDescription }),
-          ...(seoKeywords !== undefined && { seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [] }),
-          ...(translations !== undefined && { translations }),
-          ...(typeof sortOrder === 'number' && { sortOrder })
-        } });
+        const cols = await getCategoryColumnFlags();
+        const data: any = {};
+        if (name) data.name = name;
+        if (description !== undefined && cols.description) data.description = description;
+        if (image !== undefined && cols.image) data.image = image;
+        if (parentId !== undefined && cols.parentid) data.parentId = parentId;
+        if (slug !== undefined && cols.slug) data.slug = slug;
+        if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
+        if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
+        if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords)? seoKeywords: [];
+        if (translations !== undefined && cols.translations) data.translations = translations;
+        if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
+        const c = await db.category.update({ where: { id }, data });
         await audit(req, 'categories', 'update', { id });
         return res.json({ category: c });
       } catch (e2:any) {
