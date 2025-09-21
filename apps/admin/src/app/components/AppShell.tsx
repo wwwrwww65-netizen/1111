@@ -4,6 +4,8 @@ import { usePathname } from 'next/navigation';
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { AccountMenu } from "./AccountMenu";
+import { CommandPalette } from './CommandPalette';
+import { LanguageToggle } from './LanguageToggle';
 
 export function AppShell({ children }: { children: React.ReactNode }): JSX.Element {
   const pathname = usePathname();
@@ -12,6 +14,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
   }
   const [open, setOpen] = React.useState(false);
   const [desktopOpen, setDesktopOpen] = React.useState<boolean>(true);
+  const [openCmd, setOpenCmd] = React.useState(false);
   const [isDesktop, setIsDesktop] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return true; // default SSR: desktop to avoid overlay
     try { return window.matchMedia('(min-width: 992px)').matches; } catch { return true; }
@@ -28,15 +31,27 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
       mq.removeEventListener?.('change', apply);
     };
   },[]);
+  React.useEffect(()=>{
+    const onKey = (e: KeyboardEvent)=>{
+      const mod = e.ctrlKey || (e.metaKey && navigator.platform.toLowerCase().includes('mac'));
+      if (mod && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); setOpenCmd(true); }
+      if (e.key === 'Escape') setOpenCmd(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return ()=> document.removeEventListener('keydown', onKey);
+  },[]);
   return (
     <div className="app-root">
+      <CommandPalette open={openCmd} onClose={()=> setOpenCmd(false)} />
       <header className="topbar" style={{background:'linear-gradient(90deg,#0f1420,#101939)',color:'#e2e8f0',borderBottom:'1px solid #1c2333'}}>
         <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!isDesktop) setOpen(o=>!o); else setDesktopOpen(v=>!v); }}>
           ☰
         </button>
         <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
         <div className="top-actions" style={{display:'flex',alignItems:'center',gap:12}}>
+          <button className="icon-btn" title="Command Palette (Ctrl+K)" onClick={()=> setOpenCmd(true)}>⌘</button>
           <ThemeToggle />
+          <LanguageToggle />
           <AccountMenu />
         </div>
       </header>
