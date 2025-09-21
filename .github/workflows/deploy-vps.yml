@@ -423,6 +423,31 @@ jobs:
             echo "$CUSR" | sed -n '1,120p'
             echo '--- CRUD smoke done ---'
 
+      - name: Post-deploy admin categories smoke (create + list)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          timeout: 180s
+          command_timeout: 30m
+          script: |
+            set -Eeuo pipefail
+            EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
+            PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
+            CJ=$(mktemp)
+            echo '--- Login for categories smoke ---'
+            curl -k -sS -c "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" >/dev/null
+            echo '--- Create category ---'
+            TS=$(date +%s)
+            BODY=$(printf '{"name":"SmokeCat %s","slug":"smoke-%s"}' "$TS" "$TS")
+            CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.body -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/categories --data "$BODY" || true)
+            head -n 2 /tmp/cat.body | sed -n '1,2p'
+            if [ "$CODE" != "200" ]; then echo "Category create failed: $CODE"; cat /tmp/cat.body; exit 1; fi
+            echo '--- List categories (search=SmokeCat) ---'
+            curl -k -sS -b "$CJ" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
+
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
         with:
