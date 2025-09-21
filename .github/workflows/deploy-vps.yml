@@ -436,19 +436,27 @@ jobs:
             set -Eeuo pipefail
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
             PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
-            echo '--- Login to API (JSON) ---'
+            echo '--- Login to API (JSON, local first) ---'
             BODY=/tmp/login.body
-            curl -k -sS -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
+            curl -sS -H 'content-type: application/json' -X POST http://127.0.0.1:4000/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY" || true
+            if ! grep -q '"token":"' "$BODY" 2>/dev/null; then
+              echo 'Local login failed, trying public API...'
+              curl -k -sS -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
+            fi
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
             if [ -z "$TOKEN" ]; then echo 'Missing token from login response'; head -n 40 "$BODY"; exit 1; fi
             echo '--- Create category ---'
             TS=$(date +%s)
             BODY=$(printf '{"name":"SmokeCat %s","slug":"smoke-%s"}' "$TS" "$TS")
-            CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.body -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST https://api.jeeey.com/api/admin/categories --data "$BODY" || true)
+            CODE=$(curl -sS -w '%{http_code}' -o /tmp/cat.body -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST http://127.0.0.1:4000/api/admin/categories --data "$BODY" || true)
+            if [ "$CODE" != "200" ]; then
+              echo 'Local create failed, trying public API...'
+              CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.body -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST https://api.jeeey.com/api/admin/categories --data "$BODY" || true)
+            fi
             head -n 2 /tmp/cat.body | sed -n '1,2p'
-            if [ "$CODE" != "200" ]; then echo "Category create failed: $CODE"; cat /tmp/cat.body; exit 1; fi
+            if [ "$CODE" != "200" ]; then echo "Category create failed: $CODE"; cat /tmp/cat.body; echo '=== API logs (tail) ==='; journalctl -u ecom-api --no-pager -n 120 || true; exit 1; fi
             echo '--- List categories (search=SmokeCat) ---'
-            curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
+            curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/categories?search=SmokeCat' | sed -n '1,200p' || curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
 
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
