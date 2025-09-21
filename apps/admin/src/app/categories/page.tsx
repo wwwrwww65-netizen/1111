@@ -45,6 +45,7 @@ export default function CategoriesPage(): JSX.Element {
 
   async function loadList(){
     const url = new URL(buildUrl('/api/admin/categories'));
+    url.searchParams.set('_', String(Date.now()));
     if (search) url.searchParams.set('search', search);
     const res = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { 'authorization': authHeaders().Authorization || '' } });
     if (!res.ok) { setRows([]); return; }
@@ -72,7 +73,7 @@ export default function CategoriesPage(): JSX.Element {
       const translations = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
       const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
       const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
-      const res = await fetch(buildUrl('/api/admin/categories'), { method:'POST', headers:{ 'content-type':'application/json', 'authorization': authHeaders().Authorization || '' }, credentials:'include', body: JSON.stringify(payload) });
+      const res = await fetch(buildUrl('/api/admin/categories'), { method:'POST', headers:{ 'content-type':'application/json', 'authorization': authHeaders().Authorization || '' }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(()=> '');
         showToast(`فشل الإضافة${t? ': '+t: ''}`);

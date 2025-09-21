@@ -1,21 +1,27 @@
 import { NextResponse } from 'next/server'
 
 function computeApiBase(req: Request): string {
-	const env = process.env.NEXT_PUBLIC_API_BASE_URL || ''
-	if (env) {
-		return env.endsWith('/trpc') ? env.slice(0, -5) : env
-	}
-	try {
-		const u = new URL(req.url)
-		const host = u.host
-		const proto = u.protocol
-		if (host.startsWith('admin.')) {
-			return `${proto}//api.${host.slice('admin.'.length)}`
-		}
-		return `${proto}//${host}`.replace('//admin.', '//api.')
-	} catch {
-		return 'http://localhost:4000'
-	}
+    const internal = process.env.INTERNAL_API_URL || ''
+    if (internal) return internal
+    const env = process.env.NEXT_PUBLIC_API_BASE_URL || ''
+    if (env) {
+        return env.endsWith('/trpc') ? env.slice(0, -5) : env
+    }
+    try {
+        const u = new URL(req.url)
+        const host = u.host
+        // Prefer local API on same server to avoid external NGINX hops
+        if (host.includes('jeeey.com') || process.env.NODE_ENV === 'production') {
+            return 'http://127.0.0.1:4000'
+        }
+        const proto = u.protocol
+        if (host.startsWith('admin.')) {
+            return `${proto}//api.${host.slice('admin.'.length)}`
+        }
+        return `${proto}//${host}`.replace('//admin.', '//api.')
+    } catch {
+        return 'http://127.0.0.1:4000'
+    }
 }
 
 async function proxy(req: Request, ctx: { params: { path?: string[] } }) {

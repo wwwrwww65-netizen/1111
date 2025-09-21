@@ -88,6 +88,8 @@ app.use(
 
 export const expressApp = app;
 const port = process.env.PORT || 4000;
+// Health for local reverse-proxy sanity check
+app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 (async () => {
   // Run ensureSchema only when explicitly allowed or in development
   const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
