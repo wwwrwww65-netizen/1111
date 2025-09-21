@@ -2679,6 +2679,16 @@ adminRest.get('/categories/health', async (req, res) => {
     res.json({ ok: true, auth: authed, count: n });
   } catch (e:any) { res.status(500).json({ ok: false, error: e.message||'error' }); }
 });
+
+// System health for admin dashboard
+adminRest.get('/system/health', async (_req, res) => {
+  try {
+    let dbOk = false;
+    try { await db.$queryRaw`SELECT 1`; dbOk = true; } catch {}
+    const version = process.env.GIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.HEROKU_SLUG_COMMIT || 'dev';
+    res.json({ ok: true, db: dbOk, version });
+  } catch (e:any) { res.status(500).json({ ok: false, error: e.message||'error' }); }
+});
 adminRest.get('/categories/tree', async (req, res) => {
   await ensureCategorySeo();
   const cats = await db.category.findMany({ orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
