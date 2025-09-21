@@ -59,6 +59,8 @@ export const rateLimitConfig = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Behind NGINX, we explicitly trust proxy so rate-limit doesn't error
+  trustProxy: true,
 });
 
 // Stricter rate limit for auth endpoints
