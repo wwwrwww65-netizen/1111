@@ -26,6 +26,14 @@ export default function CategoriesPage(): JSX.Element {
   const [description, setDescription] = React.useState("");
   const [image, setImage] = React.useState("");
   const [parentId, setParentId] = React.useState<string>("");
+  const [slug, setSlug] = React.useState("");
+  const [seoTitle, setSeoTitle] = React.useState("");
+  const [seoDescription, setSeoDescription] = React.useState("");
+  const [seoKeywords, setSeoKeywords] = React.useState("");
+  const [trNameAr, setTrNameAr] = React.useState("");
+  const [trDescAr, setTrDescAr] = React.useState("");
+  const [trNameEn, setTrNameEn] = React.useState("");
+  const [trDescEn, setTrDescEn] = React.useState("");
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m:string) => { setToast(m); setTimeout(()=>setToast(""), 1800); };
 
@@ -44,14 +52,16 @@ export default function CategoriesPage(): JSX.Element {
   React.useEffect(()=>{ loadList(); loadTree(); }, [apiBase]);
 
   async function add(){
-    const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name, description, image, parentId: parentId||null }) });
+    const translations = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
+    const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
+    const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name, description, image, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations }) });
     if (!res.ok) { showToast('فشل الإضافة'); return; }
-    setName(""); setDescription(""); setImage(""); setParentId("");
+    setName(""); setDescription(""); setImage(""); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn("");
     await Promise.all([loadList(), loadTree()]);
     showToast('تمت الإضافة');
   }
   async function update(cat:any){
-    const res = await fetch(`${apiBase}/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null }) });
+    const res = await fetch(`${apiBase}/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
     if (!res.ok) { showToast('فشل الحفظ'); return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحفظ');
@@ -108,6 +118,7 @@ export default function CategoriesPage(): JSX.Element {
               <tr>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>ID</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>الاسم</th>
+                <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>Slug</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>أب</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>إجراءات</th>
               </tr>
@@ -118,6 +129,9 @@ export default function CategoriesPage(): JSX.Element {
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{c.id.slice(0,6)}</td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                     <input defaultValue={c.name} onBlur={(e)=> update({ ...c, name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                  </td>
+                  <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
+                    <input defaultValue={c.slug||''} onBlur={(e)=> update({ ...c, slug: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
                   </td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                     <select defaultValue={c.parentId||''} onChange={async (e)=>{ const v=(e.target as HTMLSelectElement).value||null; await update({ ...c, parentId: v }); }} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }}>
@@ -139,6 +153,21 @@ export default function CategoriesPage(): JSX.Element {
           <div style={{ display:'grid', gap:10 }}>
             <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             <label>الوصف<textarea value={description} onChange={(e)=>setDescription(e.target.value)} rows={3} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <label>Slug<input value={slug} onChange={(e)=>setSlug(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+              <label>SEO Title<input value={seoTitle} onChange={(e)=>setSeoTitle(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+              <label>SEO Description<input value={seoDescription} onChange={(e)=>setSeoDescription(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+              <label>SEO Keywords (comma)<input value={seoKeywords} onChange={(e)=>setSeoKeywords(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+            </div>
+            <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
+              <div style={{ color:'#94a3b8', marginBottom:8 }}>ترجمات</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <label>اسم (AR)<input value={trNameAr} onChange={(e)=>setTrNameAr(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                <label>اسم (EN)<input value={trNameEn} onChange={(e)=>setTrNameEn(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                <label>وصف (AR)<input value={trDescAr} onChange={(e)=>setTrDescAr(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+                <label>وصف (EN)<input value={trDescEn} onChange={(e)=>setTrDescEn(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+              </div>
+            </div>
             <label>صورة (URL)<input value={image} onChange={(e)=>setImage(e.target.value)} placeholder="https://...jpg" style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             <div onDragOver={(e)=>{ e.preventDefault(); }} onDrop={async (e)=>{
               e.preventDefault();

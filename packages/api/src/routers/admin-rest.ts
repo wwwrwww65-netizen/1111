@@ -2570,9 +2570,19 @@ adminRest.delete('/attributes/brands/:id', async (req, res) => {
 });
 
 // Categories
+async function ensureCategorySeo(){
+  try {
+    await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT');
+  } catch {}
+  try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL'); } catch {}
+  for (const col of ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0']){
+    try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
+  }
+}
+
 adminRest.get('/categories', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
-  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+  await ensureCategorySeo();
   const search = (req.query.search as string | undefined)?.trim();
   const where: any = search ? { name: { contains: search, mode: 'insensitive' } } : {};
   const cats = await db.category.findMany({ where, orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
@@ -2580,7 +2590,7 @@ adminRest.get('/categories', async (req, res) => {
 });
 adminRest.get('/categories/tree', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
-  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+  await ensureCategorySeo();
   const cats = await db.category.findMany({ orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
   const byParent: Record<string, any[]> = {};
   for (const c of cats) {
@@ -2614,17 +2624,30 @@ adminRest.post('/categories/reorder', async (req, res) => {
 });
 adminRest.post('/categories', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) return res.status(403).json({ error:'forbidden' });
-  const { name, description, image, parentId } = req.body || {};
+  await ensureCategorySeo();
+  const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
   if (!name) return res.status(400).json({ error: 'name_required' });
-  const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null } });
+  const c = await db.category.create({ data: { name, description: description||null, image: image||null, parentId: parentId||null, slug: slug||null, seoTitle: seoTitle||null, seoDescription: seoDescription||null, seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [], translations: translations||undefined, sortOrder: typeof sortOrder==='number'? sortOrder: 0 } });
   await audit(req, 'categories', 'create', { id: c.id });
   res.json({ category: c });
 });
 adminRest.patch('/categories/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
-  const { name, description, image, parentId } = req.body || {};
-  const c = await db.category.update({ where: { id }, data: { ...(name && { name }), ...(description !== undefined && { description }), ...(image !== undefined && { image }), ...(parentId !== undefined && { parentId }) } });
+  await ensureCategorySeo();
+  const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+  const c = await db.category.update({ where: { id }, data: {
+    ...(name && { name }),
+    ...(description !== undefined && { description }),
+    ...(image !== undefined && { image }),
+    ...(parentId !== undefined && { parentId }),
+    ...(slug !== undefined && { slug }),
+    ...(seoTitle !== undefined && { seoTitle }),
+    ...(seoDescription !== undefined && { seoDescription }),
+    ...(seoKeywords !== undefined && { seoKeywords: Array.isArray(seoKeywords)? seoKeywords: [] }),
+    ...(translations !== undefined && { translations }),
+    ...(typeof sortOrder === 'number' && { sortOrder })
+  } });
   await audit(req, 'categories', 'update', { id });
   res.json({ category: c });
 });

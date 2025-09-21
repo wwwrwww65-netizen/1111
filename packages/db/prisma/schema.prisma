@@ -99,6 +99,12 @@ model Category {
   description String?
   image       String?
   parentId    String?
+  slug        String?  @unique
+  seoTitle    String?
+  seoDescription String?
+  seoKeywords String[]
+  translations Json?
+  sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -106,6 +112,8 @@ model Category {
   parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children    Category[] @relation("CategoryHierarchy")
   products    Product[]
+
+  @@index([parentId, sortOrder])
 }
 
 model Product {
