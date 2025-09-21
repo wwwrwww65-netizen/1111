@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
 import { authenticator } from 'otplib';
 import { v2 as cloudinary } from 'cloudinary';
+import type { Readable } from 'stream';
 import { z } from 'zod';
 import { db } from '@repo/db';
 
@@ -1590,6 +1591,73 @@ adminRest.get('/shipments/:id/label', async (req, res) => {
 });
 adminRest.get('/shipments/:id/track', async (req, res) => {
   try { const { id } = req.params; const s = await db.shipment.findUnique({ where: { id } }); if (!s) return res.status(404).json({ error:'not_found' }); res.json({ status: s.status, trackingNumber: s.trackingNumber }); } catch (e:any) { res.status(500).json({ error: e.message||'track_failed' }); }
+});
+
+// Media upload presign or direct Cloudinary upload (fallback)
+adminRest.post('/media/upload', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'media.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { filename, type, base64 } = req.body || {};
+    const s3Key = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.S3_BUCKET;
+    if (s3Key && !base64) {
+      // Simple v4 presign via AWS SDK would be used normally; return minimal stub for now
+      const key = `uploads/${Date.now()}-${(filename||'file').replace(/[^a-zA-Z0-9_.-]/g,'_')}`;
+      const url = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION||'us-east-1'}.amazonaws.com/${key}`;
+      return res.json({ provider:'s3', presign: { url, fields: {} }, key, url });
+    }
+    if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error:'cloudinary_not_configured' });
+    if (!base64) return res.status(400).json({ error:'base64_required' });
+    const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
+    await audit(req, 'media', 'upload', { public_id: uploaded.public_id, bytes: uploaded.bytes });
+    res.json({ provider:'cloudinary', url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format });
+  } catch (e:any) { res.status(500).json({ error: e.message||'media_upload_failed' }); }
+});
+
+// Generate PDF invoice for order
+adminRest.get('/orders/:id/invoice.pdf', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const order = await db.order.findUnique({ where: { id }, include: { items: { include: { product: true } }, payment: true, user: true } });
+    if (!order) return res.status(404).json({ error:'not_found' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${id}.pdf"`);
+    const doc = new (require('pdfkit'))({ size:'A4', margin: 36 });
+    doc.pipe(res as unknown as NodeJS.WritableStream);
+    doc.fontSize(18).text('فاتورة / Invoice', { align:'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Order: ${order.id}`);
+    doc.text(`Date: ${new Date(order.createdAt).toLocaleString()}`);
+    doc.text(`Customer: ${order.user?.name||'-'} (${order.user?.email||''})`);
+    doc.moveDown(0.5);
+    doc.text('Items:');
+    doc.moveDown(0.2);
+    (order.items||[]).forEach((it:any, idx:number)=>{
+      doc.text(`${idx+1}. ${it.product?.name||it.productId}  x${it.quantity}  = ${it.price*it.quantity}`);
+    });
+    doc.moveDown(0.5);
+    doc.text(`Total: ${order.total}`, { align:'right' });
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message||'invoice_failed' }); }
+});
+
+// Generate PDF shipping label for shipment
+adminRest.get('/shipments/:id/label.pdf', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const s: any = await db.shipment.findUnique({ where: { id }, include: { order: { include: { user: true } } } } as any);
+    if (!s) return res.status(404).json({ error:'not_found' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="label-${id}.pdf"`);
+    const doc = new (require('pdfkit'))({ size:[288,432], margin: 18 }); // 4x6 inch label
+    doc.pipe(res as unknown as NodeJS.WritableStream);
+    doc.fontSize(16).text('JEEEY', { align:'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Tracking: ${s.trackingNumber||'-'}`);
+    doc.text(`Order: ${s.orderId}`);
+    doc.text(`To: ${s.order?.user?.name||'-'}`);
+    doc.text(`Status: ${s.status}`);
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message||'label_pdf_failed' }); }
 });
 adminRest.get('/users', (_req, res) => res.json({ users: [] }));
 adminRest.get('/users/list', async (req, res) => {
