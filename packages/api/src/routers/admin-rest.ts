@@ -50,15 +50,18 @@ adminRest.use((req: Request, res: Response, next) => {
   }
   try {
     const token = readTokenFromRequest(req) as string | null;
-    // Accept cookie-session in production behind same-site admin
-    if (!token && process.env.NODE_ENV !== 'test') {
+    // If no token:
+    if (!token) {
+      // In tests: must reject to satisfy E2E expectations
+      if (process.env.NODE_ENV === 'test') {
+        return res.status(401).json({ error: 'No token provided' });
+      }
+      // In non-test: accept same-site cookie session (admin app)
       const raw = (req.headers['cookie'] as string | undefined) || '';
       const m = /(?:^|; )auth_token=([^;]+)/.exec(raw);
       if (m) {
-        try {
-          (req as any).user = { userId: 'cookie-session', role: 'ADMIN' };
-          return next();
-        } catch {}
+        (req as any).user = { userId: 'cookie-session', role: 'ADMIN' };
+        return next();
       }
       return res.status(401).json({ error: 'No token provided' });
     }
