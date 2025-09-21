@@ -172,13 +172,42 @@ export default function CategoriesPage(): JSX.Element {
             <div onDragOver={(e)=>{ e.preventDefault(); }} onDrop={async (e)=>{
               e.preventDefault();
               const f = e.dataTransfer?.files?.[0]; if (!f) return;
-              const reader = new FileReader();
-              reader.onload = ()=> { const data = String(reader.result||''); setImage(data); showToast('تم تحميل الصورة (Base64)'); };
-              reader.readAsDataURL(f);
+              try {
+                // Prefer server upload
+                const reader = new FileReader();
+                reader.onload = async ()=> {
+                  const data = String(reader.result||'');
+                  try {
+                    const resp = await fetch(`${apiBase}/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
+                    if (resp.ok) {
+                      const out = await resp.json();
+                      if (out.url) { setImage(out.url); showToast('تم رفع الصورة'); }
+                      else if (out.presign?.url) { setImage(out.presign.url); showToast('تم تجهيز رابط الصورة'); }
+                      else { setImage(data); showToast('تم التحميل محلياً'); }
+                    } else { setImage(data); showToast('تم التحميل محلياً'); }
+                  } catch { setImage(data); showToast('تم التحميل محلياً'); }
+                };
+                reader.readAsDataURL(f);
+              } catch { /* noop */ }
             }} style={{ border:'1px dashed #334155', borderRadius:10, padding:14, textAlign:'center', color:'#94a3b8' }}>
-              اسحب وأسقط صورة هنا لتعيينها (Base64)
-              {image && image.startsWith('data:') && (<div style={{ marginTop:10 }}><img src={image} alt="preview" style={{ maxWidth:'100%', borderRadius:8, border:'1px solid #1c2333' }} /></div>)}
+              اسحب وأسقط صورة هنا لرفعها (S3/Cloudinary)
+              {image && (<div style={{ marginTop:10 }}><img src={image} alt="preview" style={{ maxWidth:'100%', borderRadius:8, border:'1px solid #1c2333' }} /></div>)}
             </div>
+            <label>أو اختر ملفاً من الجهاز
+              <input type="file" accept="image/*" onChange={async (e)=>{
+                const f = e.target.files?.[0]; if (!f) return;
+                const reader = new FileReader();
+                reader.onload = async ()=> {
+                  const data = String(reader.result||'');
+                  try {
+                    const resp = await fetch(`${apiBase}/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
+                    if (resp.ok) { const out = await resp.json(); setImage(out.url || out.presign?.url || data); showToast('تم رفع الصورة'); }
+                    else { setImage(data); showToast('تم التحميل محلياً'); }
+                  } catch { setImage(data); showToast('تم التحميل محلياً'); }
+                };
+                reader.readAsDataURL(f);
+              }} style={{ display:'block', marginTop:6 }} />
+            </label>
             <label>التصنيف الأب
               <select value={parentId} onChange={(e)=>setParentId(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }}>
                 <option value="">(لا يوجد)</option>

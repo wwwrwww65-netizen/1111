@@ -1596,8 +1596,8 @@ adminRest.get('/shipments/:id/track', async (req, res) => {
 // Media upload presign or direct Cloudinary upload (fallback)
 adminRest.post('/media/upload', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'media.manage'))) return res.status(403).json({ error:'forbidden' });
-    const { filename, type, base64 } = req.body || {};
+    const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
+    const { filename, type, contentType, base64 } = req.body || {};
     const s3Key = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.S3_BUCKET;
     if (s3Key && !base64) {
       // Simple v4 presign via AWS SDK would be used normally; return minimal stub for now
