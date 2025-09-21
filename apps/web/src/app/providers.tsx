@@ -18,8 +18,10 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
     if (!resolvedUrl) {
       if (isBrowser) {
         const host = window.location.host;
-        const root = host.replace(/^www\./, '').replace(/^admin\./, '');
-        resolvedUrl = `${window.location.protocol}//api.${root}/trpc`;
+        const hostname = host.split(':')[0];
+        const parts = hostname.split('.');
+        const apex = parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
+        resolvedUrl = `${window.location.protocol}//api.${apex}/trpc`;
       } else {
         // Safe production fallback for SSR
         resolvedUrl = isProd ? 'https://api.jeeey.com/trpc' : 'http://localhost:4000/trpc';
@@ -31,14 +33,14 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
         splitLink({
           condition: (op) => op.type === 'query',
           true: httpLink({
-            url: resolvedUrl,
+            url: '/api/trpc',
             method: 'GET',
             fetch(input, init) {
               return fetch(input, { ...(init ?? {}), credentials: "include" });
             },
           }),
           false: httpBatchLink({
-            url: resolvedUrl,
+            url: '/api/trpc',
             fetch(input, init) {
               return fetch(input, { ...(init ?? {}), credentials: "include" });
             },
