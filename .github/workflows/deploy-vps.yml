@@ -436,15 +436,25 @@ jobs:
             set -Eeuo pipefail
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
             PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
+            SECRET='${{ secrets.MAINTENANCE_SECRET || vars.MAINTENANCE_SECRET }}'
             echo '--- Login to API (JSON, local first) ---'
             BODY=/tmp/login.body
             curl -sS -H 'content-type: application/json' -X POST http://127.0.0.1:4000/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY" || true
-            if ! grep -q '"token":"' "$BODY" 2>/dev/null; then
+            if ! grep -q '"token":' "$BODY" 2>/dev/null; then
               echo 'Local login failed, trying public API...'
               curl -k -sS -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
             fi
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
             if [ -z "$TOKEN" ]; then echo 'Missing token from login response'; head -n 40 "$BODY"; exit 1; fi
+            if [ -n "$SECRET" ]; then
+              echo '--- Ensure Category SEO columns (maintenance) ---'
+              curl -sS -H "x-maintenance-secret: $SECRET" -X POST http://127.0.0.1:4000/api/admin/maintenance/ensure-category-seo -o /tmp/ens.body || true
+              if ! grep -q 'ok' /tmp/ens.body 2>/dev/null; then
+                echo 'Local ensure failed, trying public API...'
+                curl -k -sS -H "x-maintenance-secret: $SECRET" -X POST https://api.jeeey.com/api/admin/maintenance/ensure-category-seo -o /tmp/ens.body || true
+              fi
+              head -n 1 /tmp/ens.body || true
+            fi
             echo '--- Create category ---'
             TS=$(date +%s)
             BODY=$(printf '{"name":"SmokeCat %s","slug":"smoke-%s"}' "$TS" "$TS")

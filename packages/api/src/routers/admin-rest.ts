@@ -2660,7 +2660,7 @@ async function ensureCategorySeo(){
     await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT');
   } catch {}
   try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL'); } catch {}
-  for (const col of ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0']){
+  for (const col of ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0','image TEXT','parentId TEXT']){
     try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
   }
 }
@@ -2704,6 +2704,18 @@ adminRest.get('/categories/health', async (req, res) => {
     const authed = Boolean((req as any).user);
     res.json({ ok: true, auth: authed, count: n });
   } catch (e:any) { res.status(500).json({ ok: false, error: e.message||'error' }); }
+});
+
+// Maintenance: ensure Category SEO columns (idempotent) with secret
+adminRest.post('/maintenance/ensure-category-seo', async (req, res) => {
+  try {
+    const secret = (req.headers['x-maintenance-secret'] as string | undefined) || (req.query.secret as string | undefined);
+    if (!secret || secret !== (process.env.MAINTENANCE_SECRET || '')) return res.status(403).json({ error:'forbidden' });
+    await ensureCategorySeo();
+    return res.json({ ok: true });
+  } catch (e:any) {
+    return res.status(500).json({ ok: false, error: e?.message || 'failed' });
+  }
 });
 
 // System health for admin dashboard
