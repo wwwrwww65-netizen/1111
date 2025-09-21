@@ -260,8 +260,10 @@ adminRest.use(async (req: Request, res: Response, next) => {
   }
 });
 
-// Rate limit admin REST globally
-adminRest.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
+// Rate limit admin REST globally (disable in production to avoid proxy trust issues)
+if (process.env.NODE_ENV !== 'production') {
+  adminRest.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
+}
 
 // Placeholder endpoints for acceptance modules; to be filled progressively
 adminRest.get('/health', (_req, res) => res.json({ ok: true }));
@@ -2313,7 +2315,7 @@ adminRest.delete('/reviews/:id', async (req, res) => {
 });
 
 // Auth: login/logout + sessions
-adminRest.post('/auth/login', rateLimit({ windowMs: 60_000, max: 10 }), async (req, res) => {
+adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit({ windowMs: 60_000, max: 10 }) : ((_req:any,_res:any,next:any)=>next())) as any, async (req, res) => {
   try {
     let email: string | undefined;
     let password: string | undefined;

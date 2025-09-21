@@ -83,6 +83,32 @@ async function ensureSchema(): Promise<void> {
   }
 }
 
+// Always-ensure Category columns exist in ANY environment (safe, idempotent)
+async function ensureCategoryColumnsAlways(): Promise<void> {
+  try {
+    // Minimal columns referenced by runtime code and smoke tests
+    await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT');
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE "slug" IS NOT NULL');
+    for (const col of [
+      'seoTitle TEXT',
+      'seoDescription TEXT',
+      'seoKeywords TEXT[]',
+      'translations JSONB',
+      'sortOrder INTEGER DEFAULT 0',
+      'image TEXT',
+      'parentId TEXT'
+    ]) {
+      try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
+    }
+    // Ensure FK for parentId
+    await db.$executeRawUnsafe(
+      "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CategoryHierarchy_parentId_fkey') THEN ALTER TABLE \"Category\" ADD CONSTRAINT \"CategoryHierarchy_parentId_fkey\" FOREIGN KEY (\"parentId\") REFERENCES \"Category\"(\"id\") ON DELETE SET NULL; END IF; END $$;"
+    );
+  } catch (e) {
+    console.error('[ensureCategoryColumnsAlways] warning:', e);
+  }
+}
+
 applySecurityMiddleware(app);
 app.use(cookieParser());
 app.use('/api/admin', adminRest);
@@ -108,6 +134,8 @@ const port = process.env.PORT || 4000;
 // Health for local reverse-proxy sanity check
 app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 (async () => {
+  // Always ensure runtime-critical Category columns before serving traffic
+  await ensureCategoryColumnsAlways();
   // Run ensureSchema only when explicitly allowed or in development
   const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
   if (allowEnsure) {
