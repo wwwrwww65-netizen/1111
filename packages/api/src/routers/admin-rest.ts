@@ -2649,7 +2649,6 @@ async function ensureCategorySeo(){
 }
 
 adminRest.get('/categories', async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
   await ensureCategorySeo();
   const search = (req.query.search as string | undefined)?.trim();
   const where: any = search ? { name: { contains: search, mode: 'insensitive' } } : {};
@@ -2657,7 +2656,6 @@ adminRest.get('/categories', async (req, res) => {
   res.json({ categories: cats });
 });
 adminRest.get('/categories/tree', async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) return res.status(403).json({ error:'forbidden' });
   await ensureCategorySeo();
   const cats = await db.category.findMany({ orderBy: [ { parentId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' } ] as any });
   const byParent: Record<string, any[]> = {};
@@ -2673,7 +2671,6 @@ adminRest.get('/categories/tree', async (req, res) => {
 });
 adminRest.post('/categories/reorder', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) return res.status(403).json({ error:'forbidden' });
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
     const items: Array<{ id:string; parentId?:string|null; sortOrder?:number }>= Array.isArray(req.body?.items)? req.body.items: [];
     for (const it of items) {
@@ -2691,7 +2688,6 @@ adminRest.post('/categories/reorder', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'reorder_failed' }); }
 });
 adminRest.post('/categories', async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) return res.status(403).json({ error:'forbidden' });
   await ensureCategorySeo();
   const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
   if (!name) return res.status(400).json({ error: 'name_required' });
@@ -2700,7 +2696,6 @@ adminRest.post('/categories', async (req, res) => {
   res.json({ category: c });
 });
 adminRest.patch('/categories/:id', async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   await ensureCategorySeo();
   const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
@@ -2720,7 +2715,6 @@ adminRest.patch('/categories/:id', async (req, res) => {
   res.json({ category: c });
 });
 adminRest.delete('/categories/:id', async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
   // Re-parent children to null and detach products if FK exists
   await db.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
