@@ -36,8 +36,11 @@ try {
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[]'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "image" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "parentId" TEXT'); } catch {}
   };
-  // Run immediately for the test process
-  // Note: jest doesn't await top-level awaits, so we use sync wrapper
-  (async ()=> { try { await ensure(); } catch {} })();
+  // Ensure schema is ready before tests start
+  beforeAll(async () => {
+    try { await ensure(); } catch {}
+  });
 } catch {}
