@@ -1435,6 +1435,61 @@ adminRest.get('/vendors/:id/orders', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'vendor_orders_failed' }); }
 });
 
+// ===== Generic status change endpoint =====
+adminRest.post('/status/change', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { entity, id, action, reason, extra } = req.body || {};
+    if (!entity || !id || !action) return res.status(400).json({ error:'entity_id_action_required' });
+    const act = String(action).toLowerCase();
+    const ent = String(entity).toLowerCase();
+    const now = new Date() as any;
+    // Map actions to DB mutations
+    if (ent === 'order') {
+      if (act === 'approve') await db.order.update({ where: { id }, data: { status: 'PAID' } });
+      else if (act === 'reject') await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
+      else if (act === 'complete') await db.order.update({ where: { id }, data: { status: 'DELIVERED' } });
+    } else if (ent === 'pickup') {
+      // id may be poId; try both id and poId
+      const leg = await db.shipmentLeg.findFirst({ where: { OR: [{ id }, { poId: id as any }], legType: 'PICKUP' as any } });
+      if (!leg) return res.status(404).json({ error:'pickup_leg_not_found' });
+      if (act === 'start') await db.shipmentLeg.update({ where: { id: leg.id }, data: { status: 'IN_PROGRESS' as any, updatedAt: now } as any });
+      else if (act === 'receive' || act === 'complete') {
+        await db.shipmentLeg.update({ where: { id: leg.id }, data: { status: 'COMPLETED' as any, updatedAt: now } as any });
+        await db.shipmentLeg.create({ data: { orderId: leg.orderId, legType: 'INBOUND' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+      } else if (act === 'assign') {
+        const driverId = extra?.driverId; if (!driverId) return res.status(400).json({ error:'driverId_required' });
+        await db.shipmentLeg.update({ where: { id: leg.id }, data: { driverId, status: 'IN_PROGRESS' as any, updatedAt: now } as any });
+      }
+    } else if (ent === 'warehouse') {
+      const leg = await db.shipmentLeg.findFirst({ where: { id } }); if (!leg) return res.status(404).json({ error:'warehouse_leg_not_found' });
+      if (act === 'receive') await db.shipmentLeg.update({ where: { id }, data: { status: 'COMPLETED' as any, updatedAt: now } as any });
+      else if (act === 'start') await db.shipmentLeg.update({ where: { id }, data: { status: 'IN_PROGRESS' as any, updatedAt: now } as any });
+      else if (act === 'ready') await db.package.updateMany({ where: { orderId: leg.orderId as any }, data: { status: 'READY' as any, updatedAt: now } as any });
+    } else if (ent === 'delivery') {
+      if (act === 'assign') {
+        const driverId = extra?.driverId; if (!driverId) return res.status(400).json({ error:'driverId_required' });
+        await db.order.update({ where: { id }, data: { assignedDriverId: driverId, status: 'SHIPPED' } });
+      } else if (act === 'complete') {
+        await db.order.update({ where: { id }, data: { status: 'DELIVERED' } });
+        await db.shipmentLeg.updateMany({ where: { orderId: id, legType: 'DELIVERY' as any }, data: { status: 'COMPLETED' as any, completedAt: now } as any });
+      } else if (act === 'return') {
+        await db.returnRequest.create({ data: { orderId: id as any, status: 'REQUESTED' } as any });
+      }
+    } else if (ent === 'driver') {
+      if (act === 'suspend') await db.driver.update({ where: { id }, data: { isActive: false, status: 'OFFLINE' as any } as any });
+      else if (act === 'resume' || act === 'approve') await db.driver.update({ where: { id }, data: { isActive: true, status: 'AVAILABLE' as any } as any });
+    } else if (ent === 'vendor') {
+      if (act === 'approve') await db.vendor.update({ where: { id }, data: { isActive: true } });
+      else if (act === 'reject' || act === 'suspend') await db.vendor.update({ where: { id }, data: { isActive: false } });
+    } else {
+      return res.status(400).json({ error:'unknown_entity' });
+    }
+    await audit(req, 'status', act, { entity: ent, id, reason: reason||null });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'status_change_failed' }); }
+});
+
 // Simple route planning stub (echoes orderIds)
 adminRest.get('/logistics/delivery/route', async (req, res) => {
   try {

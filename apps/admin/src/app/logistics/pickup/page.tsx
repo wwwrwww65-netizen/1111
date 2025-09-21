@@ -41,7 +41,7 @@ export default function PickupPage(): JSX.Element {
   async function changeStatus(poId: string, status: string){
     const ok = await ask({ title:'تأكيد تغيير الحالة؟' });
     if(!ok) return;
-    await fetch(`${apiBase}/api/admin/logistics/pickup/status`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ poId, status }) });
+    await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: poId, action: status }) });
     push({ type:'ok', message:'تم تحديث الحالة' });
     await load();
   }
@@ -103,9 +103,10 @@ export default function PickupPage(): JSX.Element {
                     <td>{Number(r.itemsCount||0)}</td>
                     <td><span className={`badge ${String(r.status).toUpperCase()==='SUBMITTED'?'warn':'ok'}`}>{r.status}</span></td>
                     <td style={{ display:'flex', gap:6 }}>
-                      <button className="btn btn-sm" onClick={()=>{ setAssignPo(r.id); }}>إسناد سائق</button>
+                      <button className="btn btn-sm" onClick={()=>{ setAssignPo(r.poId||r.id); }}>إسناد سائق</button>
                       <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/pickup/export/csv?status=waiting`}>PDF</a>
-                      <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.id, 'RECEIVED')}>تغيير الحالة</button>
+                      <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'receive')}>استلام</button>
+                      <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'start')}>بدء</button>
                     </td>
                   </tr>
                 ))}
