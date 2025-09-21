@@ -246,6 +246,18 @@ For support and questions:
 - Build: `pnpm --filter @repo/api build`
 - Endpoint: `${NEXT_PUBLIC_TRPC_URL}` (e.g. http://localhost:4000/trpc)
 
+### Media & PDF endpoints
+
+- Media upload: `POST /api/admin/media/upload`
+  - Uses S3 presigned upload when `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` are set; falls back to direct Cloudinary upload when `CLOUDINARY_URL` is set.
+- Invoice PDF: `GET /api/admin/orders/:id/invoice.pdf`
+- Shipping label PDF: `GET /api/admin/shipments/:id/label.pdf` (4×6 inch)
+
+### Categories SEO & Translations
+
+- Extended `Category` with: `slug` (unique), `sortOrder`, `seoTitle`, `seoDescription`, `seoKeywords` (string[]), and `translations` (JSONB).
+- Admin UI supports editing these fields and image upload via the media endpoint.
+
 ## 🗄️ Database (Prisma + Postgres)
 
 - Migrate: `pnpm --filter @repo/db db:migrate`
@@ -259,10 +271,34 @@ For support and questions:
   - Android: `pnpm --filter mobile dlx eas-cli build -p android --profile preview`
   - iOS: `pnpm --filter mobile dlx eas-cli build -p ios --profile preview`
 
+## 📱 m.jeeey.com (Figma 1:1 Sync)
+
+- Generator syncs Figma → Vue (Vite) with:
+  - Design Tokens → `tokens.css` (colors/spacing/typography as CSS vars)
+  - Auto Layout/Constraints → Flex/Grid
+  - Assets auto-download and linking (images/icons/backgrounds)
+  - Component detection → reusable Vue components
+  - Fonts (weights/props), RTL, responsive breakpoints
+- Scripts:
+  - Extract mapping: `pnpm -w mweb:figma:extract` → writes `infra/figma/mapping.json`
+  - Generate/update UI: `pnpm -w mweb:figma:generate`
+  - Build/deploy via CI: “Figma Extract Mapping” → “Deploy to VPS (SSH)” workflows
+  
+
 ## 🧭 CI (GitHub Actions)
 
 - للفرع `feature/admin-non-product-modules` يوجد وركفلو خاص: `.github/workflows/ci-admin.yml` يقوم بـ migration-run-check و seed-run-check (admin-only) ثم build/lint/tests/E2E (Placeholder).
 - تشغيل يدوي: Actions > CI / CD > CI - Admin Modules.
+
+### CI database strategy (Postgres + Prisma)
+
+- Postgres service runs in CI (`postgres:15`).
+- Database URL is pinned to `postgresql://user:password@localhost:5432/ecom_db?schema=public` unless overridden by `CI_DB_URL`.
+- Before any Prisma push:
+  - Proactively drop lingering `Category_slug_key` (if it exists).
+  - Hard reset schema: `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`.
+- Single authoritative Prisma push step: `pnpm --filter @repo/db db:push:force`.
+- On main with `CLONE_PROD_DB=1`, Prisma push is skipped (to avoid conflicts with mirrored prod schema).
 
 ### إصلاحات تسجيل الدخول والتوجيه ونتائج النشر
 
@@ -438,6 +474,18 @@ Exports: CSV + XLS (CSV بامتداد .xls) + PDF placeholders لكلٍ من pi
 
 RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `logistics.dispatch`, `logistics.scan`.
 
+### تفاصيل إضافية (UI/UX)
+
+- نظام ألوان للحالات: أخضر (مكتمل) / أصفر (قيد التنفيذ) / أحمر (متوقف/مشكلة) / أزرق (معلّق).
+- تبسيط تغيير الحالة من الجداول مباشرة، مؤشرات زمنية (الوقت المنقضي)، صور مصغّرة للمنتجات، وتصدير PDF/Excel/CSV.
+
+## 🧷 Vendors (الموردون)
+
+- Invoices/Payments tab: قائمة/فلترة/تصدير، stub لمطابقة PO ↔ GRN.
+- Catalog upload: CSV/XLS مع واجهة ربط SKU (mapping) والتحقق من الأعمدة.
+- Orders workflow: تبويب أوامر المورد مع PO/GRN وخطوط الأصناف، حالات الاستلام الجزئي.
+- Scorecard & Notifications: مؤشرات أداء (KPIs) ورسوم بيانية وتنبيهات/مراسلات من لوحة المورد.
+
 ## 💵 Finance
 
 - المصروفات: REST
@@ -463,6 +511,10 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
   - Check `journalctl -u ecom-api/ecom-admin/ecom-web -n 200 --no-pager` on VPS.
 - DB permissions/roles missing
   - Trigger `/api/admin/maintenance/ensure-rbac` and `/grant-admin` with header `x-maintenance-secret`.
+- Prisma db push: `ERROR: relation "Category_slug_key" already exists`
+  - The CI now drops any lingering `Category_slug_key` index and resets the `public` schema before push.
+  - Ensure no custom SQL creates that index in tests. We avoid creating it in `packages/api/src/setupTests.ts`.
+  - On `main` with `CLONE_PROD_DB=1`, Prisma push is skipped to prevent conflicts with mirrored prod DB.
 
 ## 🔧 Reference: Key Files
 
