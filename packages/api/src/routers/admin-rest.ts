@@ -247,7 +247,7 @@ adminRest.post('/users/:id/assign-roles', async (req, res) => {
 // Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
 adminRest.use(async (req: Request, res: Response, next) => {
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac') || p.startsWith('/maintenance/ensure-category-seo')) {
     return next();
   }
   try {

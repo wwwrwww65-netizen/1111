@@ -115,7 +115,7 @@ cat > /etc/systemd/system/ecom-web.service.d/override.conf <<'EOF'
 Environment=PORT=3000
 EOF
 systemctl daemon-reload || true
-# Ensure API process sees COOKIE_DOMAIN (and other vars) via dotenv/config
+# Ensure API process uses deployed dist and sees env
 if [ -d "$ROOT_DIR/packages/api" ]; then
   if [ -f "$ROOT_DIR/.env.api" ]; then
     cp "$ROOT_DIR/.env.api" "$ROOT_DIR/packages/api/.env" || true
@@ -127,6 +127,16 @@ if [ -d "$ROOT_DIR/packages/api" ]; then
       'NODE_ENV=production' \
       'COOKIE_DOMAIN=.jeeey.com' \
       > "$ROOT_DIR/packages/api/.env"
+  fi
+  # Point systemd ExecStart to built API server if defined
+  if [ -f /etc/systemd/system/ecom-api.service ]; then
+    # Prefer package build entry
+    API_JS=$(node -e "const p=require('path');console.log(p.resolve(process.cwd(),'packages/api/dist/index.js'))" 2>/dev/null || true)
+    if [ -n "$API_JS" ] && [ -f "$API_JS" ]; then
+      sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $API_JS|" /etc/systemd/system/ecom-api.service || true
+      sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|" /etc/systemd/system/ecom-api.service || true
+      systemctl daemon-reload || true
+    fi
   fi
 fi
 systemctl restart ecom-api || true
