@@ -215,7 +215,7 @@ jobs:
         run: pnpm --filter @repo/ui test -- --ci --reporters=default --reporters=summary
 
       - name: Prisma db push (ensure schema for tests)
-        run: pnpm --filter @repo/db db:push
+        run: pnpm --filter @repo/db db:push -- --accept-data-loss
 
       - name: Run API tests
         env:
