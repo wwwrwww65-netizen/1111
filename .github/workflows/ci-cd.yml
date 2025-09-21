@@ -172,7 +172,13 @@ jobs:
 
       # Single authoritative prisma db push for CI (after hard reset)
       - name: Prisma db push (ensure schema for tests)
-        run: pnpm --filter @repo/db db:push:force
+        env:
+          CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${CLONE_PROD_DB}" = "1" ]; then
+            echo "Skip db:push (prod DB mirrored)"; exit 0;
+          fi
+          pnpm --filter @repo/db db:push:force
 
       - name: Prisma seed
         if: github.ref == 'refs/heads/main'
