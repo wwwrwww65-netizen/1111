@@ -40,18 +40,20 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
   http2 on;
 
-  # Proxy admin API paths to the API service
+  # Let Next.js handle /api/admin proxying internally to avoid upstream 502
   location /api/admin/ {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
-    proxy_set_header Cookie $http_cookie;
-    proxy_set_header Authorization $http_authorization;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
     proxy_connect_timeout 5s;
     proxy_send_timeout 60s;
     proxy_read_timeout 60s;
-    proxy_pass http://127.0.0.1:4000;
+    add_header Cache-Control "no-store" always;
+    proxy_pass http://127.0.0.1:3001;
   }
 
   # Serve Next.js static assets directly if present
