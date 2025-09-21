@@ -21,7 +21,7 @@ export default function PickupPage(): JSX.Element {
   async function load(){
     setLoading(true);
     try{
-      const url = new URL(`${apiBase}/api/admin/logistics/pickup/list`);
+      const url = new URL(`/api/admin/logistics/pickup/list`, window.location.origin);
       url.searchParams.set('status', tab);
       const j = await (await fetch(url.toString(), { credentials:'include' })).json();
       setRows(j.pickup||[]);
@@ -32,7 +32,7 @@ export default function PickupPage(): JSX.Element {
   async function doAssign(){
     setMessage('');
     if (!assignPo || !assignDriver) { setMessage('ادخل المورد والسائق'); return; }
-    const res = await fetch(`${apiBase}/api/admin/logistics/pickup/assign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ poId: assignPo, driverId: assignDriver }) });
+    const res = await fetch(`/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: assignPo, action:'assign', extra:{ driverId: assignDriver } }) });
     if (!res.ok) { push({ type:'err', message:'تعذر الإسناد' }); setMessage('تعذر الإسناد'); return; }
     push({ type:'ok', message:'تم إسناد السائق' });
     setMessage('تم الإسناد'); setAssignPo(''); setAssignDriver('');
@@ -41,7 +41,7 @@ export default function PickupPage(): JSX.Element {
   async function changeStatus(poId: string, status: string){
     const ok = await ask({ title:'تأكيد تغيير الحالة؟' });
     if(!ok) return;
-    await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: poId, action: status }) });
+    await fetch(`/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: poId, action: status }) });
     push({ type:'ok', message:'تم تحديث الحالة' });
     await load();
   }
@@ -131,7 +131,7 @@ export default function PickupPage(): JSX.Element {
                     <td><span className="badge warn">قيد التنفيذ</span></td>
                     <td>—</td>
                     <td>{Number(r.itemsCount||0)}</td>
-                    <td><button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.id, 'RECEIVED')}>تغيير الحالة</button></td>
+                    <td><button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.id, 'receive')}>تغيير الحالة</button></td>
                   </tr>
                 ))}
               </tbody>
