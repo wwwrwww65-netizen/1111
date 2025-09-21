@@ -140,6 +140,8 @@ jobs:
           sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
           PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
           echo "Resetting schema 'public' on CI DB..."
+          # Proactively drop any conflicting index that previous runs or manual SQL might have created
+          psql "$PGURI" -v ON_ERROR_STOP=1 -c 'DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class WHERE relname = ''Category_slug_key'') THEN EXECUTE ''DROP INDEX IF EXISTS "Category_slug_key"''; END IF; END $$;' || true
           psql "$PGURI" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
 
       - name: (Optional) Mirror production DB into CI Postgres
@@ -168,13 +170,9 @@ jobs:
           sed -i '/transaction_timeout/d;/idle_session_timeout/d;/idle_in_transaction_session_timeout/d' prod.filtered.sql
           PGPASSWORD=password psql -U user -h localhost -p 5432 -d ecom_db -v ON_ERROR_STOP=1 < prod.filtered.sql
 
-      - name: Prisma push schema (non-destructive)
-        if: github.ref == 'refs/heads/main'
-        env:
-          CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
-        run: |
-          if [ "${CLONE_PROD_DB}" = "1" ]; then echo "Skip db:push (prod DB mirrored)"; exit 0; fi
-          pnpm --filter @repo/db db:push
+      # Single authoritative prisma db push for CI (after hard reset)
+      - name: Prisma db push (ensure schema for tests)
+        run: pnpm --filter @repo/db db:push:force
 
       - name: Prisma seed
         if: github.ref == 'refs/heads/main'
@@ -223,8 +221,7 @@ jobs:
       - name: Run UI tests
         run: pnpm --filter @repo/ui test -- --ci --reporters=default --reporters=summary
 
-      - name: Prisma db push (ensure schema for tests)
-        run: pnpm --filter @repo/db db:push:force
+
 
       - name: Run API tests
         env:

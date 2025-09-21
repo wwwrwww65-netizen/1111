@@ -31,7 +31,7 @@ try {
   const ensure = async () => {
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
-    try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL'); } catch {}
+    // Do NOT create the unique index here to avoid conflicts with Prisma db push
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[]'); } catch {}
