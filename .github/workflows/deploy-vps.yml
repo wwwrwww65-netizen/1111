@@ -437,16 +437,16 @@ jobs:
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
             PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
             CJ=$(mktemp)
-            echo '--- Login for categories smoke ---'
-            curl -k -sS -c "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" >/dev/null
+            echo '--- Login for categories smoke (admin same-origin) ---'
+            curl -k -sS -c "$CJ" -H 'content-type: application/json' -X POST https://admin.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" >/dev/null
             echo '--- Create category ---'
             TS=$(date +%s)
             BODY=$(printf '{"name":"SmokeCat %s","slug":"smoke-%s"}' "$TS" "$TS")
-            CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.body -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/categories --data "$BODY" || true)
+            CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.body -b "$CJ" -H 'content-type: application/json' -X POST https://admin.jeeey.com/api/admin/categories --data "$BODY" || true)
             head -n 2 /tmp/cat.body | sed -n '1,2p'
             if [ "$CODE" != "200" ]; then echo "Category create failed: $CODE"; cat /tmp/cat.body; exit 1; fi
             echo '--- List categories (search=SmokeCat) ---'
-            curl -k -sS -b "$CJ" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
+            curl -k -sS -b "$CJ" 'https://admin.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
 
       - name: External HTTPS smoke tests (retry)
         uses: appleboy/ssh-action@v1.0.3
