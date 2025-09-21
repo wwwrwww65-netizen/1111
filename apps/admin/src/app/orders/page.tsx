@@ -36,6 +36,7 @@ export default function OrdersPage(): JSX.Element {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
+  const loadCtlRef = React.useRef<AbortController|null>(null);
   async function load() {
     const url = new URL(`${apiBase}/api/admin/orders/list`);
     url.searchParams.set("page", String(page));
@@ -49,16 +50,27 @@ export default function OrdersPage(): JSX.Element {
     if (amountMax) url.searchParams.set("amountMax", amountMax);
     if (sortBy) url.searchParams.set("sortBy", sortBy);
     if (sortDir) url.searchParams.set("sortDir", sortDir);
-    setBusy(true);
-    const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
-    const json = await res.json();
-    setBusy(false);
-    setRows(json.orders || []);
-    setTotal(json.pagination?.total || 0);
+    try {
+      setBusy(true);
+      if (loadCtlRef.current) { try { loadCtlRef.current.abort(); } catch {} }
+      const ctl = new AbortController(); loadCtlRef.current = ctl;
+      const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal });
+      const json = await res.json();
+      setRows(json.orders || []);
+      setTotal(json.pagination?.total || 0);
+    } catch (e:any) {
+      if (e?.name !== 'AbortError') console.warn('orders load error', e);
+    } finally {
+      setBusy(false);
+    }
   }
 
   React.useEffect(() => { load(); }, [page, pageSize, sortBy, sortDir]);
-  React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() } })).json(); setDrivers(j.drivers||[]);} catch{} })(); }, [apiBase]);
+  React.useEffect(()=>{
+    const ctl = new AbortController();
+    (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal })).json(); setDrivers(j.drivers||[]);} catch{} })();
+    return ()=> { try { ctl.abort(); } catch {} };
+  }, [apiBase]);
 
   async function ship(orderId: string) {
     await fetch(`${apiBase}/api/admin/orders/ship`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
@@ -266,22 +278,30 @@ function ProductSelector({ apiBase, authHeaders, value, onChange }:{ apiBase:str
   const [list, setList] = React.useState<Array<{id:string;name:string;price:number}>>([]);
   const [loading, setLoading] = React.useState(false);
   const [hover, setHover] = React.useState(-1);
-  async function searchProducts(q:string){
-    setLoading(true);
-    try {
-      const url = new URL(`${apiBase}/api/admin/products`);
-      if (q) url.searchParams.set('search', q);
-      url.searchParams.set('limit','20');
-      const r = await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' });
-      const j = await r.json();
-      const items = (j.products||j.items||[]).map((p:any)=> ({ id:p.id, name:p.name, price:p.price||0 }));
-      setList(items);
-    } catch { setList([]); } finally { setLoading(false); }
+  const ctlRef = React.useRef<AbortController|null>(null);
+  const debRef = React.useRef<any>(null);
+  function searchProducts(q:string){
+    if (debRef.current) clearTimeout(debRef.current);
+    debRef.current = setTimeout(async ()=>{
+      if (ctlRef.current) { try { ctlRef.current.abort(); } catch {} }
+      const ctl = new AbortController(); ctlRef.current = ctl;
+      setLoading(true);
+      try {
+        const url = new URL(`${apiBase}/api/admin/products`);
+        if (q) url.searchParams.set('search', q);
+        url.searchParams.set('limit','20');
+        const r = await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store', signal: ctl.signal });
+        const j = await r.json();
+        const items = (j.products||j.items||[]).map((p:any)=> ({ id:p.id, name:p.name, price:p.price||0 }));
+        setList(items);
+      } catch (e:any) { if (e?.name!=='AbortError') setList([]); } finally { setLoading(false); }
+    }, 300);
   }
+  React.useEffect(()=>{ return ()=> { if (ctlRef.current) try{ ctlRef.current.abort(); } catch{}; if (debRef.current) clearTimeout(debRef.current); }; }, []);
   React.useEffect(()=>{ if (open) searchProducts(query); }, [open]);
   return (
     <div style={{ position:'relative' }}>
-      <input className="input" placeholder="بحث عن منتج…" value={query || value} onFocus={()=> setOpen(true)} onChange={(e)=>{ setQuery(e.target.value); searchProducts(e.target.value); }} onKeyDown={(e)=>{
+      <input className="input" placeholder="بحث عن منتج…" value={query || value} onFocus={()=> setOpen(true)} onChange={(e)=>{ const val=e.target.value; setQuery(val); if (val.length>=1) searchProducts(val); else setList([]); }} onKeyDown={(e)=>{
         if (e.key==='ArrowDown') setHover(h=> Math.min((list.length-1), h+1));
         if (e.key==='ArrowUp') setHover(h=> Math.max(-1, h-1));
         if (e.key==='Enter') { if (hover>=0 && list[hover]) { onChange(list[hover].id); setQuery(list[hover].name); setOpen(false); } }
