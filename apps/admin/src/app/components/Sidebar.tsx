@@ -95,6 +95,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/trends/management', label: 'الاتجاهات' },
       { href: '/integrations', label: 'التكاملات' },
       { href: '/settings', label: 'الإعدادات' },
+      { href: '/settings/rbac', label: 'الأدوار والصلاحيات' },
     ],
   },
   {
