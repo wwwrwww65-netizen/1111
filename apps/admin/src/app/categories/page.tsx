@@ -72,7 +72,8 @@ export default function CategoriesPage(): JSX.Element {
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <span style={{ padding:'2px 8px', background:'#111827', borderRadius:999, fontSize:12, color:'#9ca3af' }}>{n.id.slice(0,6)}</span>
               <strong>{n.name}</strong>
-              <button onClick={()=> remove(n.id)} style={{ marginInlineStart:'auto', padding:'4px 8px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>حذف</button>
+              <button onClick={async()=>{ setParentId(n.id); setName(''); setDescription(''); setImage(''); showToast('سيتم الإضافة كإبن لـ '+n.name); }} style={{ marginInlineStart:'auto', padding:'4px 8px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>إضافة ابن</button>
+              <button onClick={()=> remove(n.id)} style={{ padding:'4px 8px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>حذف</button>
             </div>
             {n.children?.length ? <Tree nodes={n.children} /> : null}
           </li>
@@ -108,7 +109,12 @@ export default function CategoriesPage(): JSX.Element {
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                     <input defaultValue={c.name} onBlur={(e)=> update({ ...c, name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
                   </td>
-                  <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{c.parentId ? rows.find((r:any)=>r.id===c.parentId)?.name || '-' : '-'}</td>
+                  <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
+                    <select defaultValue={c.parentId||''} onChange={async (e)=>{ const v=(e.target as HTMLSelectElement).value||null; await update({ ...c, parentId: v }); }} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                      <option value="">(لا يوجد)</option>
+                      {rows.filter((r:any)=> r.id!==c.id).map((r:any)=> (<option key={r.id} value={r.id}>{r.name}</option>))}
+                    </select>
+                  </td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                     <button onClick={()=> remove(c.id)} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
                   </td>
@@ -124,6 +130,16 @@ export default function CategoriesPage(): JSX.Element {
             <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             <label>الوصف<textarea value={description} onChange={(e)=>setDescription(e.target.value)} rows={3} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             <label>صورة (URL)<input value={image} onChange={(e)=>setImage(e.target.value)} placeholder="https://...jpg" style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+            <div onDragOver={(e)=>{ e.preventDefault(); }} onDrop={async (e)=>{
+              e.preventDefault();
+              const f = e.dataTransfer?.files?.[0]; if (!f) return;
+              const reader = new FileReader();
+              reader.onload = ()=> { const data = String(reader.result||''); setImage(data); showToast('تم تحميل الصورة (Base64)'); };
+              reader.readAsDataURL(f);
+            }} style={{ border:'1px dashed #334155', borderRadius:10, padding:14, textAlign:'center', color:'#94a3b8' }}>
+              اسحب وأسقط صورة هنا لتعيينها (Base64)
+              {image && image.startsWith('data:') && (<div style={{ marginTop:10 }}><img src={image} alt="preview" style={{ maxWidth:'100%', borderRadius:8, border:'1px solid #1c2333' }} /></div>)}
+            </div>
             <label>التصنيف الأب
               <select value={parentId} onChange={(e)=>setParentId(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }}>
                 <option value="">(لا يوجد)</option>

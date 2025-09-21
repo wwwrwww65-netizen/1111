@@ -2584,8 +2584,9 @@ adminRest.patch('/categories/:id', async (req, res) => {
 adminRest.delete('/categories/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
-  // Optional: re-parent children to null
+  // Re-parent children to null and detach products if FK exists
   await db.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
+  try { await db.$executeRawUnsafe('UPDATE "Product" SET "categoryId"=NULL WHERE "categoryId"=$1', id as any); } catch {}
   await db.category.delete({ where: { id } });
   await audit(req, 'categories', 'delete', { id });
   res.json({ success: true });
