@@ -2787,9 +2787,12 @@ adminRest.post('/categories', async (req, res) => {
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
     // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
+    const id = (typeof (global as any).crypto?.randomUUID === 'function')
+      ? (global as any).crypto.randomUUID()
+      : require('crypto').randomUUID();
     const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
-      'INSERT INTO "Category" ("name") VALUES ($1) RETURNING id, name',
-      name
+      'INSERT INTO "Category" ("id","name") VALUES ($1,$2) RETURNING id, name',
+      id, name
     );
     const c = rows[0];
     await audit(req, 'categories', 'create', { id: c.id });
@@ -2799,9 +2802,12 @@ adminRest.post('/categories', async (req, res) => {
     if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
       try {
         const { name } = req.body || {};
+        const id = (typeof (global as any).crypto?.randomUUID === 'function')
+          ? (global as any).crypto.randomUUID()
+          : require('crypto').randomUUID();
         const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
-          'INSERT INTO "Category" ("name") VALUES ($1) RETURNING id, name',
-          name
+          'INSERT INTO "Category" ("id","name") VALUES ($1,$2) RETURNING id, name',
+          id, name
         );
         const c = rows[0];
         await audit(req, 'categories', 'create', { id: c.id });
