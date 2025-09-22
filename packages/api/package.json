@@ -38,6 +38,7 @@
     "stripe": "^14.10.0",
     "swagger-ui-express": "^5.0.0",
     "@sentry/node": "^8.26.0",
+    "meilisearch": "^0.40.0",
     "yamljs": "^0.3.0",
     "zod": "^3.22.4"
   },
