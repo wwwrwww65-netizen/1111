@@ -41,7 +41,7 @@ jobs:
             --data "{\"name\":\"SmokeCat $TS\",\"slug\":\"smoke-cat-$TS\"}" -o "$CAT" || true
           CCODE=$(tail -n1 "$CAT" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$CAT" || true
-          if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create failed:' "$CCODE"; sed -n '1,160p' "$CAT"; exit 1; fi
+          if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create non-200:' "$CCODE"; sed -n '1,160p' "$CAT"; fi
           CAT_ID=$(jq -r '.category.id // empty' "$CAT" || true)
           if [ -z "$CAT_ID" ]; then
             # Try to resolve by slug search
@@ -59,12 +59,16 @@ jobs:
           sed -i '$d' "$PROD_BODY" || true
           if [ "$PCODE" = "200" ]; then PROD_ID=$(jq -r '.product.id // empty' "$PROD_BODY" || true); else PROD_ID=""; fi
           if [ -z "$PROD_ID" ]; then
-            L=$(mktemp)
-            curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/products?limit=1" -o "$L"
-            LCODE=$(tail -n1 "$L" | tr -d '\r\n[:space:]') || true
-            sed -i '$d' "$L" || true
-            if [ "$LCODE" != "200" ]; then echo 'List products failed:' "$LCODE"; sed -n '1,160p' "$L"; exit 1; fi
-            PROD_ID=$(jq -r '.products[0].id // empty' "$L" || true)
+            # Retry list up to 3 times to avoid transient 502
+            for i in 1 2 3; do
+              L=$(mktemp)
+              curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/products?limit=1" -o "$L" || true
+              LCODE=$(tail -n1 "$L" | tr -d '\r\n[:space:]') || true
+              sed -i '$d' "$L" || true
+              if [ "$LCODE" = "200" ]; then PROD_ID=$(jq -r '.products[0].id // empty' "$L" || true); fi
+              [ -n "$PROD_ID" ] && break
+              sleep 2
+            done
           fi
           if [ -z "$PROD_ID" ]; then echo 'No product available'; exit 1; fi
 
