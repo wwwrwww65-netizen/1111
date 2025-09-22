@@ -992,6 +992,142 @@ adminRest.post('/shipping/label', async (req, res) => {
     doc.end();
   } catch (e:any) { res.status(500).json({ error: e.message||'label_failed' }); }
 });
+
+// =====================
+// P2: Points, Badges, Subscriptions, Wallet, Multi-currency, Affiliate
+// =====================
+async function ensureP2Schemas() {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PointLedger" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, points INTEGER NOT NULL, reason TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Badge" ("id" TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL, criteria JSONB NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserBadge" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "badgeCode" TEXT NOT NULL, "grantedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "SubscriptionPlan" ("id" TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL, price DOUBLE PRECISION NOT NULL, interval TEXT NOT NULL, perks JSONB NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Subscription" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, plan TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'ACTIVE\', "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WalletEntry" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, type TEXT NOT NULL, note TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "FxRate" (code TEXT PRIMARY KEY, rate DOUBLE PRECISION NOT NULL, "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Affiliate" ("id" TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, "userId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AffiliateClick" ("id" TEXT PRIMARY KEY, code TEXT NOT NULL, ip TEXT NULL, ua TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AffiliateConversion" ("id" TEXT PRIMARY KEY, code TEXT NOT NULL, "orderId" TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+  } catch {}
+}
+
+// Points
+adminRest.post('/points/accrue', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' });
+    await ensureP2Schemas();
+    const { userId, points, reason } = req.body || {};
+    if (!userId || !Number.isFinite(Number(points))) return res.status(400).json({ error:'userId_points_required' });
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "PointLedger" (id, "userId", points, reason) VALUES ($1,$2,$3,$4)', id, userId, Number(points), reason||null);
+    await audit(req,'points','accrue',{ userId, points });
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_accrue_failed' }); }
+});
+adminRest.post('/points/redeem', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' });
+    await ensureP2Schemas();
+    const { userId, points, reason } = req.body || {};
+    if (!userId || !Number.isFinite(Number(points))) return res.status(400).json({ error:'userId_points_required' });
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "PointLedger" (id, "userId", points, reason) VALUES ($1,$2,$3,$4)', id, userId, -Math.abs(Number(points)), reason||null);
+    await audit(req,'points','redeem',{ userId, points });
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_redeem_failed' }); }
+});
+
+// Badges
+adminRest.post('/badges', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
+    const { code, name, criteria } = req.body || {}; if (!code || !name) return res.status(400).json({ error:'code_name_required' });
+    await db.$executeRawUnsafe('INSERT INTO "Badge" (id, code, name, criteria) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), String(code).toUpperCase(), name, criteria? JSON.stringify(criteria) : null);
+    await audit(req,'badges','create',{ code });
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'badge_create_failed' }); }
+});
+adminRest.post('/badges/grant', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
+    const { userId, code } = req.body || {}; if (!userId || !code) return res.status(400).json({ error:'userId_code_required' });
+    await db.$executeRawUnsafe('INSERT INTO "UserBadge" (id, "userId", "badgeCode") VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), userId, String(code).toUpperCase());
+    await audit(req,'badges','grant',{ userId, code });
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'badge_grant_failed' }); }
+});
+
+// Subscriptions
+adminRest.post('/subscriptions/plans', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
+    const { code, name, price, interval, perks } = req.body || {}; if (!code || !name || !price || !interval) return res.status(400).json({ error:'missing_fields' });
+    await db.$executeRawUnsafe('INSERT INTO "SubscriptionPlan" (id, code, name, price, interval, perks) VALUES ($1,$2,$3,$4,$5,$6)', (require('crypto').randomUUID as ()=>string)(), String(code).toUpperCase(), name, Number(price), String(interval).toUpperCase(), perks? JSON.stringify(perks): null);
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'plan_create_failed' }); }
+});
+adminRest.post('/subscriptions', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
+    const { userId, plan, months } = req.body || {}; if (!userId || !plan) return res.status(400).json({ error:'userId_plan_required' });
+    const id = (require('crypto').randomUUID as ()=>string)(); const expires = new Date(Date.now() + (Number(months||1) * 30*24*60*60*1000));
+    await db.$executeRawUnsafe('INSERT INTO "Subscription" (id, "userId", plan, status, "expiresAt") VALUES ($1,$2,$3,$4,$5)', id, userId, String(plan).toUpperCase(), 'ACTIVE', expires);
+    res.json({ subscription: { id, userId, plan: String(plan).toUpperCase(), status:'ACTIVE', expiresAt: expires.toISOString() } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'subscription_create_failed' }); }
+});
+
+// Wallet
+adminRest.post('/wallet/entry', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.update'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
+    const { userId, amount, type, note } = req.body || {}; if (!userId || !amount || !type) return res.status(400).json({ error:'missing_fields' });
+    await db.$executeRawUnsafe('INSERT INTO "WalletEntry" (id, "userId", amount, type, note) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), userId, Number(amount), String(type).toUpperCase(), note||null);
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'wallet_entry_failed' }); }
+});
+adminRest.get('/wallet/:userId/balance', async (req, res) => {
+  try { const { userId } = req.params; await ensureP2Schemas();
+    const rows: Array<{ debit: number; credit: number } & any> = await db.$queryRawUnsafe('SELECT COALESCE(SUM(CASE WHEN type=\'CREDIT\' THEN amount ELSE 0 END),0)::double precision as credit, COALESCE(SUM(CASE WHEN type=\'DEBIT\' THEN amount ELSE 0 END),0)::double precision as debit FROM "WalletEntry" WHERE "userId"=$1', userId);
+    const bal = Number(rows?.[0]?.credit||0) - Number(rows?.[0]?.debit||0);
+    res.json({ balance: bal });
+  } catch (e:any) { res.status(500).json({ error: e.message||'wallet_balance_failed' }); }
+});
+
+// FX rates
+adminRest.post('/fx/rate', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
+    const { code, rate } = req.body || {}; if (!code || !rate) return res.status(400).json({ error:'code_rate_required' });
+    await db.$executeRawUnsafe('INSERT INTO "FxRate" (code, rate, "updatedAt") VALUES ($1,$2,NOW()) ON CONFLICT (code) DO UPDATE SET rate=excluded.rate, "updatedAt"=NOW()', String(code).toUpperCase(), Number(rate));
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'fx_rate_failed' }); }
+});
+adminRest.get('/fx/convert', async (req, res) => {
+  try { await ensureP2Schemas(); const from = String(req.query.from||'USD').toUpperCase(); const to = String(req.query.to||'USD').toUpperCase(); const amount = Number(req.query.amount||0);
+    if (from === to) return res.json({ amount });
+    const rows: any[] = await db.$queryRawUnsafe('SELECT code, rate FROM "FxRate" WHERE code IN ($1,$2)', from, to);
+    const map = new Map(rows.map(r=> [r.code, Number(r.rate)]));
+    if (!map.has(from) || !map.has(to)) return res.status(400).json({ error:'missing_rate' });
+    const usd = amount / (from==='USD'?1: map.get(from)!);
+    const out = usd * (to==='USD'?1: map.get(to)!);
+    res.json({ amount: out });
+  } catch (e:any) { res.status(500).json({ error: e.message||'fx_convert_failed' }); }
+});
+
+// Affiliate
+adminRest.post('/affiliate/register', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
+    const { userId, code } = req.body || {}; if (!userId || !code) return res.status(400).json({ error:'userId_code_required' });
+    await db.$executeRawUnsafe('INSERT INTO "Affiliate" (id, code, "userId") VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), String(code).toUpperCase(), userId);
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'affiliate_register_failed' }); }
+});
+adminRest.post('/affiliate/click', async (req, res) => {
+  try { await ensureP2Schemas(); const { code } = req.body || {}; if (!code) return res.status(400).json({ error:'code_required' });
+    await db.$executeRawUnsafe('INSERT INTO "AffiliateClick" (id, code, ip, ua) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), String(code).toUpperCase(), (req.ip||'').toString(), (req.headers['user-agent']||'').toString());
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'affiliate_click_failed' }); }
+});
+adminRest.post('/affiliate/convert', async (req, res) => {
+  try { await ensureP2Schemas(); const { code, orderId, amount } = req.body || {}; if (!code || !orderId || !amount) return res.status(400).json({ error:'code_orderId_amount_required' });
+    await db.$executeRawUnsafe('INSERT INTO "AffiliateConversion" (id, code, "orderId", amount) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), String(code).toUpperCase(), orderId, Number(amount));
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'affiliate_convert_failed' }); }
+});
 adminRest.get('/finance/invoices', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
