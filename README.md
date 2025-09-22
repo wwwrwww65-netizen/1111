@@ -533,6 +533,39 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
   - `GET /api/admin/finance/expenses/export/csv`
 - تقارير: `/api/admin/finance/pnl`, `/cashflow`, `/revenues`, `/invoices` + settle.
 
+## 🏷️ Discounts & Campaigns
+
+- Campaigns (تقسيم/جدولة/كوبونات):
+  - `POST /api/admin/marketing/campaigns`
+  - `GET /api/admin/marketing/campaigns`
+- Coupons (إنشاء/قائمة/تقرير الأداء):
+  - `POST /api/admin/marketing/coupons`
+  - `GET /api/admin/marketing/coupons`
+  - `GET /api/admin/marketing/coupons/:code/performance`
+
+## 🏆 Jeeey Points, Badges, Jeeey Club (Subscriptions), Wallet, FX, Affiliate
+
+- نقاط (Ledger):
+  - `POST /api/admin/points/accrue`
+  - `POST /api/admin/points/redeem`
+- الشارات (Badges):
+  - `POST /api/admin/badges` (تعريف)
+  - `POST /api/admin/badges/grant` (إسناد)
+- Jeeey Club (الاشتراكات):
+  - `POST /api/admin/subscriptions/plans`
+  - `POST /api/admin/subscriptions`
+  - `GET /api/admin/subscriptions/:userId` (قائمة المستخدم)
+- المحفظة (Wallet):
+  - `GET /api/admin/wallet/:userId/balance`
+  - `POST /api/admin/wallet/entries`
+- العملات وأسعار الصرف (FX):
+  - `GET /api/admin/fx/convert?from=USD&to=SAR&amount=100`
+- الإحالات (Affiliate):
+  - `POST /api/admin/affiliate` (إنشاء رمز)
+  - `GET /api/admin/affiliate/stats?code=...`
+
+ملاحظة: كل نقطة من النقاط أعلاه مضمّنة بـ ensure‑schema داخلي idempotent لتهيئة الجداول تلقائياً على قواعد قديمة/فارغة.
+
 ## 🛠️ Troubleshooting (CI/CD & Runtime)
 
 - Build error: TS property not found (e.g., `deliveredAt` on `Order`)
