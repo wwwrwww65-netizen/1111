@@ -21,6 +21,17 @@ This monorepo contains a complete e‑commerce solution with:
 - Role-based access control (User/Admin)
 - Rate limiting & CORS protection
 - Security headers with Helmet
+- Admin SSO (OIDC-ready): `/api/admin/auth/sso/login|callback`
+- RBAC موسع وتدقيق (Audit Log) للأعمال الحساسة
+- WS/Socket.IO مع ضبط CORS والمصادقة عبر كوكي/Token
+
+### 📈 Analytics & Facebook
+
+- GA4 + GTM (Web): `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_GTM_ID`
+- Facebook Pixel (Web) + Conversions API (Server):
+  - الويب: سكربت البكسل مع أحداث قياسية (PageView, AddToCart, Purchase)
+  - الخادم: `services/fb.ts` يرسل Server Events (requires `FB_PIXEL_ID`, `FB_ACCESS_TOKEN`)
+- Search Console & sitemaps/robots مفعّلة في Web (`app/robots.ts`, `app/sitemap.ts`)
 
 ### 🛍️ E-commerce Features
 - Product catalog with categories
@@ -533,6 +544,17 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
   - `GET /api/admin/finance/expenses/export/csv`
 - تقارير: `/api/admin/finance/pnl`, `/cashflow`, `/revenues`, `/invoices` + settle.
 
+- الحسابات والدليل المحاسبي (Chart of Accounts):
+  - `GET /api/admin/finance/accounts`
+  - `POST /api/admin/finance/accounts` (إضافة/تحديث)
+  - قيود اليومية (Journal):
+    - `GET /api/admin/finance/journal`
+    - `GET /api/admin/finance/trial-balance`
+- الفواتير الدائنة/المدينة (AP/AR):
+  - `POST /api/admin/finance/invoices`
+  - `GET /api/admin/finance/invoices`
+  - مواعيد الاستحقاق والتنبيهات مفعّلة (idempotent schema ensure)
+
 ## 🏷️ Discounts & Campaigns
 
 - Campaigns (تقسيم/جدولة/كوبونات):
@@ -575,6 +597,12 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
 - 0.0.0.0 redirects after login/register
   - Confirm `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_URL`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_TRPC_URL` are correct.
   - Admin uses internal `/api/auth/set` to set cookie, avoiding cross-origin bridge.
+- Facebook CAPI signature/403
+  - تأكد من `FB_PIXEL_ID` و`FB_ACCESS_TOKEN` و`FB_TEST_EVENT_CODE` (اختياري) في Secrets.
+  - تحقق من السجلات في `packages/api/src/services/fb.ts` عند الفشل.
+- SSO provider errors
+  - اضبط `SSO_ISSUER`, `SSO_CLIENT_ID`, `SSO_CLIENT_SECRET`, `SSO_REDIRECT_URI`, و`ADMIN_BASE_URL`.
+  - تحقق من سجلات `/api/admin/auth/sso/callback` لإرجاع مزوّد OIDC.
 - Admin CRUD smoke unauthorized
   - Set `MAINTENANCE_SECRET` Secret. The workflow calls `ensure-rbac` and `grant-admin` post-deploy.
 - Services not ready
