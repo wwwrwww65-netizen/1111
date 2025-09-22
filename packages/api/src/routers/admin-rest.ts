@@ -1742,24 +1742,23 @@ adminRest.get('/notifications/recent', async (req, res) => {
 adminRest.get('/logistics/pickup/list', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
-    const status = String(req.query.status||'').toUpperCase();
-    const where: any = { legType: 'PICKUP' as any };
-    if (['SCHEDULED','IN_PROGRESS','COMPLETED'].includes(status)) where.status = status as any;
-    const rows = await db.shipmentLeg.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-      select: {
-        id: true,
-        orderId: true,
-        poId: true,
-        legType: true,
-        status: true,
-        driverId: true,
-        createdAt: true,
-        updatedAt: true,
-      }
-    });
+    const raw = String(req.query.status||'').toUpperCase();
+    let dbStatus: string | null = null;
+    if (raw === 'WAITING' || raw === 'SCHEDULED') dbStatus = 'SCHEDULED';
+    else if (raw === 'IN_PROGRESS' || raw === 'IN-PROGRESS') dbStatus = 'IN_PROGRESS';
+    else if (raw === 'COMPLETED') dbStatus = 'COMPLETED';
+    let rows: any[] = [];
+    if (dbStatus) {
+      rows = await db.$queryRawUnsafe<any[]>(
+        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1 AND status=$2 ORDER BY "createdAt" DESC LIMIT 200',
+        'PICKUP', dbStatus
+      );
+    } else {
+      rows = await db.$queryRawUnsafe<any[]>(
+        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1 ORDER BY "createdAt" DESC LIMIT 200',
+        'PICKUP'
+      );
+    }
     res.json({ pickups: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
 });
