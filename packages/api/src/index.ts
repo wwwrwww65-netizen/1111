@@ -177,6 +177,47 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
 (async () => {
   // Always ensure runtime-critical Category columns before serving traffic
   await ensureCategoryColumnsAlways();
+  // Always ensure logistics tables exist (safe, idempotent) even in production
+  try {
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "Driver" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"name" TEXT NOT NULL,'+
+      '"phone" TEXT NULL,'+
+      '"isActive" BOOLEAN DEFAULT TRUE,'+
+      '"status" TEXT NULL,'+
+      '"lat" DOUBLE PRECISION NULL,'+
+      '"lng" DOUBLE PRECISION NULL,'+
+      '"lastSeenAt" TIMESTAMP NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "ShipmentLeg" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"orderId" TEXT NULL,'+
+      '"poId" TEXT NULL,'+
+      '"legType" TEXT NOT NULL,'+
+      '"status" TEXT NOT NULL,'+
+      '"driverId" TEXT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_orderId_idx" ON "ShipmentLeg"("orderId")');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_poId_idx" ON "ShipmentLeg"("poId")');
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "Package" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"barcode" TEXT UNIQUE NULL,'+
+      '"status" TEXT NOT NULL DEFAULT \''+"PENDING"+'\','+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Package_status_idx" ON "Package"("status")');
+  } catch {}
   // Run ensureSchema only when explicitly allowed or in development
   const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
   if (allowEnsure) {
