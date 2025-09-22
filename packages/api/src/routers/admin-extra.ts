@@ -187,6 +187,17 @@ r.post('/logistics/legs/:id/status', async (req, res) => {
   } catch { res.status(500).json({ error: 'Failed to update status' }); }
 });
 
+// -------- Orders visibility across stages --------
+r.get('/orders/visibility/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const order = await db.order.findUnique({ where: { id }, include: { payment: true, items: true } });
+    const legs = await db.shipmentLeg.findMany({ where: { OR: [{ orderId: id }, { poId: id }] }, orderBy: { createdAt: 'asc' } });
+    const packages = await db.package.findMany({ where: { orderId: id }, orderBy: { createdAt: 'asc' } }).catch(() => [] as any[]);
+    res.json({ order, legs, packages });
+  } catch { res.status(500).json({ error: 'Failed to resolve visibility' }); }
+});
+
 // -------- Trends / Badges / Subscriptions (minimal stubs) --------
 r.get('/trends', async (_req, res) => { res.json({ trends: [] }); });
 r.post('/trends', async (_req, res) => { res.json({ ok: true }); });
