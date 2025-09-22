@@ -56,8 +56,8 @@ jobs:
           if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create status:' "$CCODE"; sed -n '1,160p' "$CAT"; fi
           # Try multiple JSON shapes: {category:{id}} or {id}
           CAT_ID=$(jq -r '(.category.id // .id // empty)' "$CAT" 2>/dev/null || true)
-          # Fallback: regex extraction if jq path failed
-          if [ -z "$CAT_ID" ]; then CAT_ID=$(grep -o '"id":"[^\"]\+"' "$CAT" | head -n1 | sed 's/.*"id":"\([^\"]\+\)".*/\1/'); fi
+          # Fallback: regex extraction if jq path failed (tolerate no match)
+          if [ -z "$CAT_ID" ]; then CAT_ID=$(grep -o '"id":"[^\"]\+"' "$CAT" | head -n1 | sed 's/.*"id":"\([^\"]\+\)".*/\1/' || true); fi
           if [ -z "$CAT_ID" ]; then
             # Try to resolve by slug search
             CATS=$(mktemp)
