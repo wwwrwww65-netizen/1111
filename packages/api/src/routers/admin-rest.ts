@@ -1667,10 +1667,10 @@ adminRest.get('/analytics/series', async (req, res) => {
              COUNT(1) as orders,
              COALESCE(SUM(total),0) as revenue
       FROM "Order"
-      WHERE "createdAt" >= NOW() - INTERVAL '${days} days'
+      WHERE "createdAt" >= NOW() - ($1 * INTERVAL '1 day')
       GROUP BY 1
       ORDER BY 1
-    `);
+    `, days);
     return res.json({ series: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'series_failed' }); }
 });
