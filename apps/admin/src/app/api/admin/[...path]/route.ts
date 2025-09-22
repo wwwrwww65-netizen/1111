@@ -5,16 +5,15 @@ function computeApiBase(req: Request): string {
     if (internal) return internal
     const env = process.env.NEXT_PUBLIC_API_BASE_URL || ''
     if (env) {
-        // Prefer internal on prod to avoid 502 from external hops
-        if (process.env.NODE_ENV === 'production') return 'http://127.0.0.1:4000'
-        return env.endsWith('/trpc') ? env.slice(0, -5) : env
+        const base = env.endsWith('/trpc') ? env.slice(0, -5) : env
+        return base
     }
     try {
         const u = new URL(req.url)
         const host = u.host
-        // Prefer local API on same server to avoid external NGINX hops
-        if (host.includes('jeeey.com') || process.env.NODE_ENV === 'production') {
-            return 'http://127.0.0.1:4000'
+        // On production default to public API hostname to avoid localhost dependency
+        if (process.env.NODE_ENV === 'production') {
+            return 'https://api.jeeey.com'
         }
         const proto = u.protocol
         if (host.startsWith('admin.')) {
