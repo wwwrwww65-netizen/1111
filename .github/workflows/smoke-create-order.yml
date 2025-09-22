@@ -26,10 +26,8 @@ jobs:
 
           echo '--- Login ---'
           BODY=$(mktemp)
-          curl -sS -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/auth/login" \
-            --data "{\"email\":\"$email\",\"password\":\"$pass\",\"remember\":true}" -o "$BODY"
-          CODE=$(tail -n1 "$BODY") || true
-          sed -i '$d' "$BODY" || true
+          CODE=$(curl -sS -H 'content-type: application/json' -X POST "$API_BASE/api/admin/auth/login" \
+            --data "{\"email\":\"$email\",\"password\":\"$pass\",\"remember\":true}" -o "$BODY" -w '%{http_code}')
           if [ "$CODE" != "200" ]; then echo 'Login HTTP code:' "$CODE"; sed -n '1,160p' "$BODY"; exit 1; fi
           TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | sed 's/.*"token":"\([^"]\+\)".*/\1/')
           if [ -z "$TOKEN" ]; then echo 'Login token missing'; sed -n '1,160p' "$BODY"; exit 1; fi
