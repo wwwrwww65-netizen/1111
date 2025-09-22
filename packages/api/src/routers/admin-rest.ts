@@ -274,17 +274,17 @@ adminRest.post('/maintenance/bootstrap-pickup', async (req, res) => {
     for (const vid of vids) {
       const poId = `${vid}:${orderId}`;
       await db.$executeRawUnsafe(`INSERT INTO "ShipmentLeg" (id, "orderId", "poId", "legType", status, "createdAt", "updatedAt")
-        SELECT $1, $2, $3, $4, $5, NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$4 AND "poId"=$3)`,
+        SELECT $1, $2, $3, $4::"ShipmentLegType", $5::"ShipmentLegStatus", NOW(), NOW()
+        WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$4::"ShipmentLegType" AND "poId"=$3)`,
         (require('crypto').randomUUID as ()=>string)(), orderId, poId, 'PICKUP', 'SCHEDULED');
     }
     // Ensure downstream legs exist
     await db.$executeRawUnsafe(`INSERT INTO "ShipmentLeg" (id, "orderId", "legType", status, "createdAt", "updatedAt")
-      SELECT $1, $2, $3, $4, NOW(), NOW()
-      WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$3)`, (require('crypto').randomUUID as ()=>string)(), orderId, 'PROCESSING', 'SCHEDULED');
+      SELECT $1, $2, $3::"ShipmentLegType", $4::"ShipmentLegStatus", NOW(), NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$3::"ShipmentLegType")`, (require('crypto').randomUUID as ()=>string)(), orderId, 'PROCESSING', 'SCHEDULED');
     await db.$executeRawUnsafe(`INSERT INTO "ShipmentLeg" (id, "orderId", "legType", status, "createdAt", "updatedAt")
-      SELECT $1, $2, $3, $4, NOW(), NOW()
-      WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$3)`, (require('crypto').randomUUID as ()=>string)(), orderId, 'DELIVERY', 'SCHEDULED');
+      SELECT $1, $2, $3::"ShipmentLegType", $4::"ShipmentLegStatus", NOW(), NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$3::"ShipmentLegType")`, (require('crypto').randomUUID as ()=>string)(), orderId, 'DELIVERY', 'SCHEDULED');
     return res.json({ ok: true });
   } catch (e:any) {
     return res.status(500).json({ error: e.message || 'bootstrap_pickup_failed' });
@@ -1755,12 +1755,12 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
     let rows: any[] = [];
     if (dbStatus) {
       rows = await db.$queryRawUnsafe<any[]>(
-        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1 AND status=$2 ORDER BY "createdAt" DESC LIMIT 200',
+        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1::"ShipmentLegType" AND status=$2::"ShipmentLegStatus" ORDER BY "createdAt" DESC LIMIT 200',
         'PICKUP', dbStatus
       );
     } else {
       rows = await db.$queryRawUnsafe<any[]>(
-        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1 ORDER BY "createdAt" DESC LIMIT 200',
+        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1::"ShipmentLegType" ORDER BY "createdAt" DESC LIMIT 200',
         'PICKUP'
       );
     }
