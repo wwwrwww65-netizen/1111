@@ -203,7 +203,7 @@ adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
       '"lat" DOUBLE PRECISION NULL,'+
       '"lng" DOUBLE PRECISION NULL,'+
       '"lastSeenAt" TIMESTAMP NULL,'+
-      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"createdAt" TIMESTAMP DEFAULT NOW()'+
       '"updatedAt" TIMESTAMP DEFAULT NOW()'+
       ')'
     );
@@ -1803,9 +1803,9 @@ adminRest.post('/logistics/warehouse/ready/assign', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
     const { packageId, driverId } = req.body||{}; if (!packageId || !driverId) return res.status(400).json({ error:'packageId_and_driverId_required' });
-    await db.$executeRawUnsafe(`UPDATE "Package" SET status='READY', "updatedAt"=NOW() WHERE id='${packageId}'`);
+    await db.$executeRawUnsafe('UPDATE "Package" SET status=$1, "updatedAt"=NOW() WHERE id=$2', 'READY', packageId);
     // create outbound leg
-    await db.$executeRawUnsafe(`INSERT INTO "ShipmentLeg" (id, "legType", status, "driverId", "createdAt", "updatedAt") VALUES ('${(require('crypto').randomUUID as ()=>string)()}', 'OUTBOUND', 'SCHEDULED', '${driverId}', NOW(), NOW())`);
+    await db.$executeRawUnsafe('INSERT INTO "ShipmentLeg" (id, "legType", status, "driverId", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,NOW(),NOW())', (require('crypto').randomUUID as ()=>string)(), 'OUTBOUND', 'SCHEDULED', driverId);
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'ready_assign_failed' }); }
 });
@@ -2718,7 +2718,7 @@ adminRest.post('/vendors/:id/ledger', async (req, res) => {
   const { id } = req.params; const { amount, type, note } = req.body || {};
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorLedgerEntry" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "amount" DOUBLE PRECISION NOT NULL, "type" TEXT NOT NULL, "note" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
-    const cuidRows = await db.$queryRawUnsafe(`SELECT substr(md5(random()::text),1,24) as id` as any) as Array<{ id: string }>;
+    const cuidRows: Array<{ id: string }> = await db.$queryRawUnsafe('SELECT substr(md5(random()::text),1,24) as id');
     const cuid = (Array.isArray(cuidRows) && cuidRows[0]?.id) ? cuidRows[0].id : String(Date.now());
     await db.$executeRawUnsafe(`INSERT INTO "VendorLedgerEntry" (id, "vendorId", amount, type, note) VALUES ('${cuid}', '${id}', ${Number(amount)||0}, '${type==='DEBIT'?'DEBIT':'CREDIT'}', ${note? `'${String(note).replace(/'/g,"''")}'` : 'NULL'})`);
     res.json({ ok: true });
@@ -2744,7 +2744,7 @@ adminRest.post('/vendors/:id/documents', async (req, res) => {
       finalUrl = uploaded.secure_url;
     }
     if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
-    const cuidRows = await db.$queryRawUnsafe(`SELECT substr(md5(random()::text),1,24) as id` as any) as Array<{ id: string }>;
+    const cuidRows: Array<{ id: string }> = await db.$queryRawUnsafe('SELECT substr(md5(random()::text),1,24) as id');
     const cuid = (Array.isArray(cuidRows) && cuidRows[0]?.id) ? cuidRows[0].id : String(Date.now());
     const exp = expiresAt ? `'${new Date(String(expiresAt)).toISOString()}'` : 'NULL';
     await db.$executeRawUnsafe(`INSERT INTO "VendorDocument" (id, "vendorId", "docType", url, "expiresAt") VALUES ('${cuid}', '${id}', '${String(docType||'DOC').replace(/'/g,"''")}', '${String(finalUrl).replace(/'/g,"''")}', ${exp})`);
