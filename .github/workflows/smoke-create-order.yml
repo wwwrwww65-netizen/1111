@@ -27,7 +27,7 @@ jobs:
 
       - name: Create demo order and verify
         env:
-          API_BASE: https://api.jeeey.com
+          API_BASE: https://admin.jeeey.com
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || vars.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || vars.ADMIN_PASSWORD }}
         run: |
