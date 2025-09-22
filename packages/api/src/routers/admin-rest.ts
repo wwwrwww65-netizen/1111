@@ -1128,6 +1128,83 @@ adminRest.post('/affiliate/convert', async (req, res) => {
     res.json({ success:true });
   } catch (e:any) { res.status(500).json({ error: e.message||'affiliate_convert_failed' }); }
 });
+
+// =====================
+// P3: Data warehouse + BI dashboards (sales, cohorts, funnels)
+// =====================
+async function ensureDwSchema() {
+  try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DwEvent" ("id" TEXT PRIMARY KEY, type TEXT NOT NULL, data JSONB NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+}
+adminRest.get('/bi/sales', async (_req, res) => {
+  try {
+    const rows: any[] = await db.$queryRawUnsafe('SELECT date_trunc(\'day\', "createdAt")::date as day, COUNT(*)::integer as orders, COALESCE(SUM(total),0)::double precision as revenue FROM "Order" GROUP BY day ORDER BY day DESC LIMIT 30');
+    res.json({ series: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'bi_sales_failed' }); }
+});
+adminRest.get('/bi/cohorts', async (_req, res) => {
+  try {
+    const rows: any[] = await db.$queryRawUnsafe('SELECT date_trunc(\'month\', u."createdAt")::date as cohort, COUNT(DISTINCT u.id)::integer as users, COUNT(o.id)::integer as orders FROM "User" u LEFT JOIN "Order" o ON o."userId"=u.id GROUP BY cohort ORDER BY cohort DESC LIMIT 12');
+    res.json({ cohorts: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'bi_cohorts_failed' }); }
+});
+adminRest.get('/bi/funnels', async (_req, res) => {
+  try {
+    const users: any[] = await db.$queryRawUnsafe('SELECT COUNT(1)::integer as c FROM "User"');
+    const carts: any[] = await db.$queryRawUnsafe('SELECT COUNT(1)::integer as c FROM "CartItem"');
+    const orders: any[] = await db.$queryRawUnsafe('SELECT COUNT(1)::integer as c FROM "Order"');
+    res.json({ funnel: { visitors: users?.[0]?.c||0, cartAdds: carts?.[0]?.c||0, orders: orders?.[0]?.c||0 } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'bi_funnels_failed' }); }
+});
+
+// Server-side tagging (GA4 Measurement Protocol)
+adminRest.post('/tag/ga4', async (req, res) => {
+  try {
+    const mid = process.env.GA4_MEASUREMENT_ID; const sec = process.env.GA4_API_SECRET;
+    if (!mid || !sec) return res.status(400).json({ error:'ga4_not_configured' });
+    const payload = req.body || {};
+    const params = new URLSearchParams({ measurement_id: mid, api_secret: sec });
+    const r = await fetch(`https://www.google-analytics.com/mp/collect?${params.toString()}`, { method:'POST', headers: { 'content-type':'application/json' }, body: JSON.stringify(payload) });
+    const ok = r.ok; res.json({ ok, status: r.status });
+  } catch (e:any) { res.status(500).json({ error: e.message||'ga4_send_failed' }); }
+});
+
+// Feature flags
+async function ensureFlags() { try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "FeatureFlag" ("key" TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT FALSE, variant TEXT NULL, "updatedAt" TIMESTAMP DEFAULT NOW())'); } catch {} }
+adminRest.get('/flags', async (_req, res) => { try { await ensureFlags(); const rows: any[] = await db.$queryRawUnsafe('SELECT * FROM "FeatureFlag" ORDER BY "key"'); res.json({ flags: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'flags_list_failed' }); } });
+adminRest.post('/flags', async (req, res) => { try { const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureFlags(); const { key, enabled, variant } = req.body||{}; if (!key) return res.status(400).json({ error:'key_required' }); await db.$executeRawUnsafe('INSERT INTO "FeatureFlag" ("key", enabled, variant, "updatedAt") VALUES ($1,$2,$3,NOW()) ON CONFLICT ("key") DO UPDATE SET enabled=excluded.enabled, variant=excluded.variant, "updatedAt"=NOW()', String(key), Boolean(enabled), variant||null); res.json({ success:true }); } catch (e:any) { res.status(500).json({ error: e.message||'flags_set_failed' }); } });
+
+// i18n/L10n storage endpoints
+async function ensureI18n() { try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Translation" ("key" TEXT NOT NULL, locale TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY ("key", locale))'); } catch {} }
+adminRest.post('/i18n/set', async (req, res) => { try { const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureI18n(); const { key, locale, value } = req.body||{}; if (!key || !locale) return res.status(400).json({ error:'key_locale_required' }); await db.$executeRawUnsafe('INSERT INTO "Translation" ("key", locale, value) VALUES ($1,$2,$3) ON CONFLICT ("key", locale) DO UPDATE SET value=excluded.value', String(key), String(locale), String(value||'')); res.json({ success:true }); } catch (e:any) { res.status(500).json({ error: e.message||'i18n_set_failed' }); } });
+adminRest.get('/i18n/get', async (req, res) => { try { await ensureI18n(); const { locale } = req.query as any; const rows: any[] = await db.$queryRawUnsafe('SELECT "key", value FROM "Translation" WHERE locale=$1', String(locale||'ar')); res.json({ translations: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'i18n_get_failed' }); } });
+
+// SEO schema (JSON-LD) for product
+adminRest.get('/seo/product/:id/schema', async (req, res) => {
+  try {
+    const { id } = req.params; const p = await db.product.findUnique({ where: { id }, select: { id:true, name:true, price:true } }); if (!p) return res.status(404).json({ error:'not_found' });
+    const ld = {
+      '@context': 'https://schema.org/', '@type': 'Product', name: p.name, sku: p.id, offers: { '@type':'Offer', price: p.price, priceCurrency: 'USD', availability: 'https://schema.org/InStock' }
+    };
+    res.json(ld);
+  } catch (e:any) { res.status(500).json({ error: e.message||'seo_schema_failed' }); }
+});
+
+// Trends: top selling products (7 days)
+adminRest.get('/trends/products', async (_req, res) => { try { const rows: any[] = await db.$queryRawUnsafe('SELECT oi."productId" as id, COUNT(1)::integer as sales FROM "OrderItem" oi WHERE oi."createdAt"> NOW() - INTERVAL \'7 days\' GROUP BY oi."productId" ORDER BY sales DESC LIMIT 12'); res.json({ items: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'trends_products_failed' }); } });
+
+// Reviews moderation (approve/reject)
+adminRest.get('/reviews/pending', async (_req, res) => { try { const rows: any[] = await db.$queryRawUnsafe('SELECT id, "productId", "userId", rating, comment, status, "createdAt" FROM "Review" WHERE status IS NULL OR status=\'PENDING\' ORDER BY "createdAt" DESC'); res.json({ reviews: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'reviews_list_failed' }); } });
+adminRest.post('/reviews/:id/moderate', async (req, res) => { try { const u = (req as any).user; if (!(await can(u.userId, 'reviews.moderate'))) return res.status(403).json({ error:'forbidden' }); const { id } = req.params; const { action } = req.body||{}; const status = String(action||'').toUpperCase()==='APPROVE' ? 'APPROVED' : 'REJECTED'; await db.$executeRawUnsafe('UPDATE "Review" SET status=$1 WHERE id=$2', status, id); res.json({ success:true }); } catch (e:any) { res.status(500).json({ error: e.message||'review_moderate_failed' }); } });
+
+// CMS/blog minimal
+async function ensureCms() { try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Post" ("id" TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {} }
+adminRest.post('/cms/posts', async (req, res) => { try { const u = (req as any).user; if (!(await can(u.userId, 'cms.create'))) return res.status(403).json({ error:'forbidden' }); await ensureCms(); const { slug, title, content } = req.body||{}; if (!slug || !title || !content) return res.status(400).json({ error:'missing_fields' }); await db.$executeRawUnsafe('INSERT INTO "Post" (id, slug, title, content) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), String(slug), title, content); res.json({ success:true }); } catch (e:any) { res.status(500).json({ error: e.message||'post_create_failed' }); } });
+adminRest.get('/cms/posts', async (_req, res) => { try { await ensureCms(); const rows:any[] = await db.$queryRawUnsafe('SELECT slug, title, content, "createdAt" FROM "Post" ORDER BY "createdAt" DESC'); res.json({ posts: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'posts_list_failed' }); } });
+
+// CRM livechat minimal
+async function ensureChat() { try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ChatMessage" ("id" TEXT PRIMARY KEY, channel TEXT NOT NULL, sender TEXT NOT NULL, payload JSONB NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {} }
+adminRest.post('/crm/livechat/send', async (req, res) => { try { await ensureChat(); const { channel, sender, payload } = req.body||{}; if (!channel || !sender) return res.status(400).json({ error:'missing_fields' }); await db.$executeRawUnsafe('INSERT INTO "ChatMessage" (id, channel, sender, payload) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), String(channel), String(sender), payload? JSON.stringify(payload): null); res.json({ success:true }); } catch (e:any) { res.status(500).json({ error: e.message||'livechat_send_failed' }); } });
+adminRest.get('/crm/livechat/:channel', async (req, res) => { try { await ensureChat(); const { channel } = req.params; const rows:any[] = await db.$queryRawUnsafe('SELECT sender, payload, "createdAt" FROM "ChatMessage" WHERE channel=$1 ORDER BY "createdAt" DESC LIMIT 200', String(channel)); res.json({ messages: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'livechat_get_failed' }); } });
 adminRest.get('/finance/invoices', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
