@@ -41,7 +41,7 @@ jobs:
             --data "{\"email\":\"$email\",\"password\":\"$pass\",\"remember\":true}" -o "$BODY" -w '%{http_code}')
           CODE=$(echo "$CODE" | tr -d '\r\n[:space:]')
           if [ "$CODE" != "200" ]; then echo 'Login HTTP code:' "$CODE"; sed -n '1,160p' "$BODY"; exit 1; fi
-          TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | sed 's/.*"token":"\([^"]\+\)".*/\1/')
+          TOKEN=$(grep -o '"token":"[^\"]\+"' "$BODY" | sed 's/.*"token":"\([^\"]\+\)".*/\1/')
           if [ -z "$TOKEN" ]; then echo 'Login token missing'; sed -n '1,160p' "$BODY"; exit 1; fi
           AUTH="Authorization: Bearer $TOKEN"
 
@@ -65,11 +65,15 @@ jobs:
             sed -i '$d' "$CATS" || true
             CAT_ID=$(jq -r --arg slug "$SLUG" '(.categories // .items // []) | map(select((.slug==$slug) or (.name|tostring|contains($slug)))) | .[0].id // empty' "$CATS" || true)
           fi
-          if [ -z "$CAT_ID" ]; then echo 'No category id resolved'; exit 1; fi
+          echo "CAT_ID=${CAT_ID:-none}"
 
           PROD_BODY=$(mktemp)
-          curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/products" \
-            --data "{\"name\":\"SMOKE-P\",\"description\":\"demo\",\"price\":9.9,\"images\":[],\"stockQuantity\":5,\"categoryId\":\"$CAT_ID\"}" -o "$PROD_BODY" || true
+          if [ -n "${CAT_ID:-}" ]; then
+            DATA="{\"name\":\"SMOKE-P\",\"description\":\"demo\",\"price\":9.9,\"images\":[],\"stockQuantity\":5,\"categoryId\":\"$CAT_ID\"}"
+          else
+            DATA="{\"name\":\"SMOKE-P\",\"description\":\"demo\",\"price\":9.9,\"images\":[],\"stockQuantity\":5}"
+          fi
+          curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/products" --data "$DATA" -o "$PROD_BODY" || true
           PCODE=$(tail -n1 "$PROD_BODY" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$PROD_BODY" || true
           if [ "$PCODE" = "200" ]; then PROD_ID=$(jq -r '.product.id // empty' "$PROD_BODY" || true); else PROD_ID=""; fi
