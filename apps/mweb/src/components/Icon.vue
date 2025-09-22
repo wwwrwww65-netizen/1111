@@ -21,6 +21,7 @@ const path = {
   discount: '<path d="M9 3h6l6 6v6l-6 6H9l-6-6V9Z"/><path d="M9 9l6 6"/><circle cx="9" cy="9" r="1.5"/><circle cx="15" cy="15" r="1.5"/>',
   gift: '<path d="M20 12v8H4v-8"/><path d="M2 7h20v5H2z"/><path d="M12 7v13"/><path d="M12 7c-3 0-3-3-1.5-3S12 7 12 7Zm0 0c3 0 3-3 1.5-3S12 7 12 7Z"/>',
   shield: '<path d="M12 2l7 3v6c0 5-3 9-7 11-4-2-7-6-7-11V5z"/>'
+  ,tag: '<path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82ZM7 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>'
 }[props.name as keyof any] || '';
 const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>${path}</svg>`;
 </script>
