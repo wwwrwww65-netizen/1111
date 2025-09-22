@@ -95,6 +95,9 @@ export default function AdminLogin(): JSX.Element {
         </label>
         {error && <div style={{ marginBottom:10, color:'#f87171' }}>{error}</div>}
         <button type="submit" disabled={busy} style={{ width:'100%', padding:'10px 12px', background:'#800020', color:'#fff', borderRadius:8 }}>{busy? 'جارٍ الدخول...' : 'دخول'}</button>
+        {process.env.NEXT_PUBLIC_SSO_ISSUER && (
+          <a href={`/api/admin/auth/sso/login`} style={{ display:'block', textAlign:'center', marginTop:10, padding:'10px 12px', border:'1px solid #1c2333', borderRadius:8, color:'#e2e8f0', background:'#0b0e14' }}>تسجيل الدخول عبر المؤسسة</a>
+        )}
       </form>
       {toast && (
         <div className="toast err" role="status" aria-live="polite" style={{ position:'fixed', right:16, bottom:16, zIndex:9999, background:'#2a0f0f', border:'1px solid #7f1d1d', color:'#fff', padding:'10px 14px', borderRadius:10 }}>

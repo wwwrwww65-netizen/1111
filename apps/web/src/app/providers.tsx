@@ -50,6 +50,12 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
     });
   });
 
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      try { navigator.serviceWorker.register('/sw.js'); } catch {}
+    }
+  }, []);
+
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>

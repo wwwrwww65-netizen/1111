@@ -12,6 +12,9 @@ const nextConfig = {
   },
   generateEtags: false,
   trailingSlash: false,
+  headers: async () => ([
+    { source: '/:path*', headers: [{ key: 'Service-Worker-Allowed', value: '/' }] }
+  ])
 };
 
 module.exports = nextConfig;

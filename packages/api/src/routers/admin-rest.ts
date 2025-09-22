@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
 import nodemailer from 'nodemailer';
+import type { Request, Response, NextFunction } from 'express';
 
 const adminRest = Router();
 // Ensure body parsers explicitly for this router
@@ -1726,12 +1727,22 @@ adminRest.get('/notifications/recent', async (req, res) => {
     return res.json({ events });
   } catch (e:any) { res.status(500).json({ error: e.message||'notifications_failed' }); }
 });
-adminRest.get('/logistics/pickup/list', (_req, _res, next) => next());
+// Supplier Portal: list pickup legs (for admin and supplier views)
+adminRest.get('/logistics/pickup/list', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const status = String(req.query.status||'').toUpperCase();
+    const where: any = { legType: 'PICKUP' as any };
+    if (['SCHEDULED','IN_PROGRESS','COMPLETED'].includes(status)) where.status = status as any;
+    const rows = await db.shipmentLeg.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 });
+    res.json({ pickups: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
+});
 adminRest.post('/logistics/pickup/assign', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
     const { poId, driverId } = req.body||{}; if (!poId || !driverId) return res.status(400).json({ error:'poId_and_driverId_required' });
-    await db.$executeRawUnsafe(`UPDATE "ShipmentLeg" SET "driverId"='${driverId}', status='IN_PROGRESS', "updatedAt"=NOW() WHERE "legType"='PICKUP' AND "poId"='${poId}'`);
+    await db.$executeRawUnsafe('UPDATE "ShipmentLeg" SET "driverId"=$1, status=$2, "updatedAt"=NOW() WHERE "legType"=$3 AND "poId"=$4', driverId, 'IN_PROGRESS', 'PICKUP', poId);
     await audit(req, 'logistics.pickup', 'assign_driver', { poId, driverId });
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_assign_failed' }); }
@@ -3103,6 +3114,46 @@ adminRest.get('/auth/sessions', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'unauthenticated' });
   const sessions = await db.session.findMany({ where: { userId: user.userId }, orderBy: { createdAt: 'desc' } });
   res.json({ sessions });
+});
+
+// OIDC SSO minimal endpoints (optional)
+adminRest.get('/auth/sso/login', async (req, res) => {
+  try {
+    const issuer = process.env.SSO_ISSUER || process.env.NEXT_PUBLIC_SSO_ISSUER;
+    const clientId = process.env.SSO_CLIENT_ID;
+    const clientSecret = process.env.SSO_CLIENT_SECRET;
+    const redirectUri = process.env.SSO_REDIRECT_URI || `${process.env.PUBLIC_API_BASE || ''}/api/admin/auth/sso/callback`;
+    if (!issuer || !clientId || !redirectUri) return res.status(400).json({ error: 'sso_not_configured' });
+    const state = Math.random().toString(36).slice(2);
+    const nonce = Math.random().toString(36).slice(2);
+    const authUrl = `${issuer}/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid%20email%20profile&state=${state}&nonce=${nonce}`;
+    res.redirect(authUrl);
+  } catch (e:any) { res.status(500).json({ error: e.message||'sso_login_failed' }); }
+});
+adminRest.get('/auth/sso/callback', async (req, res) => {
+  try {
+    const issuer = process.env.SSO_ISSUER || process.env.NEXT_PUBLIC_SSO_ISSUER;
+    const clientId = process.env.SSO_CLIENT_ID;
+    const clientSecret = process.env.SSO_CLIENT_SECRET;
+    const redirectUri = process.env.SSO_REDIRECT_URI || `${process.env.PUBLIC_API_BASE || ''}/api/admin/auth/sso/callback`;
+    const code = String(req.query.code||''); if (!code) return res.status(400).json({ error:'missing_code' });
+    if (!issuer || !clientId || !redirectUri) return res.status(400).json({ error: 'sso_not_configured' });
+    const body = new URLSearchParams({ grant_type:'authorization_code', code, redirect_uri: redirectUri, client_id: clientId });
+    if (clientSecret) body.set('client_secret', clientSecret);
+    const tokenRes = await fetch(`${issuer}/token`, { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body });
+    const tj = await tokenRes.json().catch(()=> ({} as any)); if (!tokenRes.ok) return res.status(400).json({ error:'token_exchange_failed', details: tj });
+    const idToken = tj.id_token as string | undefined;
+    let email = '';
+    if (idToken) {
+      try { const [, payloadB64] = idToken.split('.'); const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString('utf8')); email = payload.email || ''; } catch {}
+    }
+    if (!email) return res.status(400).json({ error:'missing_email' });
+    const user = await db.user.upsert({ where: { email }, update: {}, create: { email, name: email.split('@')[0], password: '' } });
+    const token = createToken({ userId: user.id, email: user.email, role: (user as any).role || 'ADMIN' });
+    const adminBase = process.env.ADMIN_BASE_URL || 'https://admin.jeeey.com';
+    const dest = `${adminBase}/bridge?token=${encodeURIComponent(token)}&remember=true&next=%2F`;
+    res.redirect(dest);
+  } catch (e:any) { res.status(500).json({ error: e.message||'sso_callback_failed' }); }
 });
 
 adminRest.post('/auth/sessions/revoke', async (req, res) => {
