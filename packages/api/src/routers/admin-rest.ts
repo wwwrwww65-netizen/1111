@@ -1973,8 +1973,8 @@ adminRest.get('/vendors/:id/orders', async (req, res) => {
       FROM "Order" o
       JOIN "OrderItem" oi ON oi."orderId"=o.id
       JOIN "Product" p ON p.id=oi."productId"
-      WHERE p."vendorId"='${id}'
-      ORDER BY o."createdAt" DESC, oi.id ASC`);
+      WHERE p."vendorId"=$1
+      ORDER BY o."createdAt" DESC, oi.id ASC`, id);
     res.json({ orders: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'vendor_orders_failed' }); }
 });
@@ -2709,7 +2709,7 @@ adminRest.get('/vendors/:id/ledger', async (req, res) => {
   const { id } = req.params;
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorLedgerEntry" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "amount" DOUBLE PRECISION NOT NULL, "type" TEXT NOT NULL, "note" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
-    const items = await db.$queryRawUnsafe(`SELECT id, "vendorId" as vendorId, amount, type, note, "createdAt" FROM "VendorLedgerEntry" WHERE "vendorId"='${id}' ORDER BY "createdAt" DESC`);
+    const items = await db.$queryRawUnsafe('SELECT id, "vendorId" as vendorId, amount, type, note, "createdAt" FROM "VendorLedgerEntry" WHERE "vendorId"=$1 ORDER BY "createdAt" DESC', id);
     const balance = (items as any[]).reduce((acc, it)=> acc + (it.type==='CREDIT'? it.amount : -it.amount), 0);
     res.json({ entries: items, balance });
   } catch (e:any) { res.status(500).json({ error: e.message||'vendor_ledger_failed' }); }
@@ -2720,7 +2720,7 @@ adminRest.post('/vendors/:id/ledger', async (req, res) => {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorLedgerEntry" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "amount" DOUBLE PRECISION NOT NULL, "type" TEXT NOT NULL, "note" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
     const cuidRows: Array<{ id: string }> = await db.$queryRawUnsafe('SELECT substr(md5(random()::text),1,24) as id');
     const cuid = (Array.isArray(cuidRows) && cuidRows[0]?.id) ? cuidRows[0].id : String(Date.now());
-    await db.$executeRawUnsafe(`INSERT INTO "VendorLedgerEntry" (id, "vendorId", amount, type, note) VALUES ('${cuid}', '${id}', ${Number(amount)||0}, '${type==='DEBIT'?'DEBIT':'CREDIT'}', ${note? `'${String(note).replace(/'/g,"''")}'` : 'NULL'})`);
+    await db.$executeRawUnsafe('INSERT INTO "VendorLedgerEntry" (id, "vendorId", amount, type, note) VALUES ($1,$2,$3,$4,$5)', cuid, id, Number(amount)||0, (type==='DEBIT'?'DEBIT':'CREDIT'), note||null);
     res.json({ ok: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'vendor_ledger_add_failed' }); }
 });
@@ -2729,7 +2729,7 @@ adminRest.get('/vendors/:id/documents', async (req, res) => {
   const { id } = req.params;
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "VendorDocument" ("id" TEXT PRIMARY KEY, "vendorId" TEXT NOT NULL, "docType" TEXT NOT NULL, "url" TEXT NOT NULL, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
-    const items = await db.$queryRawUnsafe(`SELECT id, "vendorId" as vendorId, "docType" as docType, url, "expiresAt" as expiresAt, "createdAt" as createdAt FROM "VendorDocument" WHERE "vendorId"='${id}' ORDER BY "createdAt" DESC`);
+    const items = await db.$queryRawUnsafe('SELECT id, "vendorId" as vendorId, "docType" as docType, url, "expiresAt" as expiresAt, "createdAt" as createdAt FROM "VendorDocument" WHERE "vendorId"=$1 ORDER BY "createdAt" DESC', id);
     res.json({ documents: items });
   } catch (e:any) { res.status(500).json({ error: e.message||'vendor_docs_failed' }); }
 });
@@ -2746,8 +2746,8 @@ adminRest.post('/vendors/:id/documents', async (req, res) => {
     if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
     const cuidRows: Array<{ id: string }> = await db.$queryRawUnsafe('SELECT substr(md5(random()::text),1,24) as id');
     const cuid = (Array.isArray(cuidRows) && cuidRows[0]?.id) ? cuidRows[0].id : String(Date.now());
-    const exp = expiresAt ? `'${new Date(String(expiresAt)).toISOString()}'` : 'NULL';
-    await db.$executeRawUnsafe(`INSERT INTO "VendorDocument" (id, "vendorId", "docType", url, "expiresAt") VALUES ('${cuid}', '${id}', '${String(docType||'DOC').replace(/'/g,"''")}', '${String(finalUrl).replace(/'/g,"''")}', ${exp})`);
+    const exp = expiresAt ? new Date(String(expiresAt)) : null;
+    await db.$executeRawUnsafe('INSERT INTO "VendorDocument" (id, "vendorId", "docType", url, "expiresAt") VALUES ($1,$2,$3,$4,$5)', cuid, id, String(docType||'DOC'), String(finalUrl), exp);
     res.json({ ok: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'vendor_doc_add_failed' }); }
 });
@@ -2797,11 +2797,11 @@ adminRest.get('/vendors/:id/overview', async (req, res) => {
     SELECT o.id as orderId, COALESCE(p.amount, 0) as amount, p.status as status, p."createdAt" as createdAt
     FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id
     WHERE EXISTS (
-      SELECT 1 FROM "OrderItem" oi JOIN "Product" pr ON pr.id=oi."productId" WHERE oi."orderId"=o.id AND pr."vendorId"='${id}'
+      SELECT 1 FROM "OrderItem" oi JOIN "Product" pr ON pr.id=oi."productId" WHERE oi."orderId"=o.id AND pr."vendorId"=$1
     )
     ORDER BY o."createdAt" DESC
     LIMIT 50
-  `);
+  `, id);
   res.json({ vendor: v, products, orders, invoices, stock: stock._sum.stockQuantity || 0, notifications: [] });
 });
 // Vendor invoices export (CSV/XLS) and PDF stub
@@ -2814,8 +2814,8 @@ adminRest.get('/vendors/:id/export/xls', async (req, res) => {
       const rows = await db.$queryRawUnsafe(`
         SELECT o.id as orderId, COALESCE(p.amount,0) as amount, COALESCE(p.status,'') as status, o."createdAt" as createdAt
         FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id
-        WHERE EXISTS (SELECT 1 FROM "OrderItem" oi JOIN "Product" pr ON pr.id=oi."productId" WHERE oi."orderId"=o.id AND pr."vendorId"='${id}')
-        ORDER BY o."createdAt" DESC LIMIT 200`);
+        WHERE EXISTS (SELECT 1 FROM "OrderItem" oi JOIN "Product" pr ON pr.id=oi."productId" WHERE oi."orderId"=o.id AND pr."vendorId"=$1)
+        ORDER BY o."createdAt" DESC LIMIT 200`, id);
       const Parser = require('json2csv').Parser; const parser = new Parser({ fields:['orderId','amount','status','createdAt'] });
       const csv = parser.parse(rows);
       return res.send(csv);
