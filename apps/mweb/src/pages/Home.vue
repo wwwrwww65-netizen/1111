@@ -8,12 +8,12 @@
       <Carousel :slides="heroSlides" />
       <SectionHeading title="الفئات" href="/categories" />
       <CategoryGrid />
+      <SectionHeading title="عروض كبرى" href="/products?sort=top" />
+      <ProductGrid :items="bestItems" label="عروض كبرى" />
+      <SectionHeading title="اهم الترندات" href="/products?sort=reco" />
+      <ProductGrid :items="saleItems" label="اهم الترندات" />
       <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
       <ProductGrid :items="newItems" label="وصل حديثًا" />
-      <SectionHeading title="الأكثر مبيعًا" href="/products?sort=top" />
-      <ProductGrid :items="bestItems" label="الأكثر مبيعاً" />
-      <SectionHeading title="مقترح لك" href="/products?sort=reco" />
-      <ProductGrid :items="saleItems" label="مقترح لك" />
     </div>
     <BottomNav />
   </div>
