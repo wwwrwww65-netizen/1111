@@ -721,9 +721,17 @@ adminRest.post('/orders/:id/refund', async (req, res) => {
     const { id } = req.params;
     const payment = await db.payment.findFirst({ where: { orderId: id }, orderBy: { createdAt: 'desc' } });
     if (!payment) return res.status(404).json({ error:'payment_not_found' });
-    if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_MOCK === 'true') {
+    const mock = !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_MOCK === 'true';
+    if (mock) {
       await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
       await db.order.update({ where: { id }, data: { status: 'REFUNDED' } });
+      // Post journal (mock)
+      try {
+        const eid = (require('crypto').randomUUID as ()=>string)();
+        await db.$executeRawUnsafe('INSERT INTO "JournalEntry" (id, ref, memo) VALUES ($1,$2,$3)', eid, id, 'Refund');
+        await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'REFUND_EXPENSE', Number(payment.amount||0), 0);
+        await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'CASH', 0, Number(payment.amount||0));
+      } catch {}
       await audit(req, 'orders', 'refund', { id, mode: 'mock' });
       return res.json({ success: true });
     }
@@ -736,6 +744,13 @@ adminRest.post('/orders/:id/refund', async (req, res) => {
     await stripe.refunds.create({ charge: ch });
     await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
     await db.order.update({ where: { id }, data: { status: 'REFUNDED' } });
+    // Post journal (stripe)
+    try {
+      const eid = (require('crypto').randomUUID as ()=>string)();
+      await db.$executeRawUnsafe('INSERT INTO "JournalEntry" (id, ref, memo) VALUES ($1,$2,$3)', eid, id, 'Refund');
+      await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'REFUND_EXPENSE', Number(payment.amount||0), 0);
+      await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'CASH', 0, Number(payment.amount||0));
+    } catch {}
     await audit(req, 'orders', 'refund', { id, mode: 'stripe' });
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'refund_failed' }); }

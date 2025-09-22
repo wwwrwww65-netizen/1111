@@ -208,6 +208,13 @@ export const paymentsRouter = router({
             await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
             await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
           } catch {}
+          // Journal posting (sale)
+          try {
+            const eid = (require('crypto').randomUUID as ()=>string)();
+            await db.$executeRawUnsafe('INSERT INTO "JournalEntry" (id, ref, memo) VALUES ($1,$2,$3)', eid, payment.orderId, 'Sale');
+            await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'CASH', Number(payment.amount||0), 0);
+            await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'REVENUE', 0, Number(payment.amount||0));
+          } catch {}
           // Fire FB CAPI Purchase (best-effort)
           try {
             const { fbSendEvents, hashEmail } = await import('../services/fb');

@@ -240,6 +240,11 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Package_status_idx" ON "Package"("status")');
+    // Finance: minimal chart of accounts and journal tables
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Account" ("id" TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalEntry" ("id" TEXT PRIMARY KEY, ref TEXT NULL, memo TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "postedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalLine" ("id" TEXT PRIMARY KEY, "entryId" TEXT NOT NULL, "accountCode" TEXT NOT NULL, debit DOUBLE PRECISION DEFAULT 0, credit DOUBLE PRECISION DEFAULT 0)');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "JournalLine_entry_idx" ON "JournalLine"("entryId")');
   } catch {}
   // Run ensureSchema only when explicitly allowed or in development
   const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
