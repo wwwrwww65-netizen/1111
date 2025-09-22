@@ -600,7 +600,7 @@ adminRest.get('/orders', (_req, res) => res.json({ orders: [] }));
 adminRest.get('/orders/list', async (req, res) => {
   try {
     const user = (req as any).user;
-    if (!(await can(user.userId, 'orders.manage'))) return res.status(403).json({ error: 'forbidden' });
+    if (!(await can(user.userId, 'orders.manage'))) { await audit(req,'orders','forbidden_list',{ path:req.path }); return res.status(403).json({ error: 'forbidden' }); }
     const page = Number(req.query.page ?? 1);
     const limit = Math.min(Number(req.query.limit ?? 20), 100);
     const search = (req.query.search as string | undefined) ?? undefined;
@@ -659,7 +659,7 @@ adminRest.get('/orders/export/csv', async (req, res) => {
 adminRest.get('/orders/:id', async (req, res) => {
   try {
     const user = (req as any).user;
-    if (!(await can(user.userId, 'orders.manage'))) return res.status(403).json({ error: 'forbidden' });
+    if (!(await can(user.userId, 'orders.manage'))) { await audit(req,'orders','forbidden_detail',{ path:req.path }); return res.status(403).json({ error: 'forbidden' }); }
     const { id } = req.params;
     const o = await db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true } }, payment: true, shipments: { include: { carrier: true, driver: true } }, assignedDriver: true } });
     if (!o) return res.status(404).json({ error: 'not_found' });
@@ -701,7 +701,7 @@ adminRest.post('/orders/ship', async (req, res) => {
 // Create order
 adminRest.post('/orders', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) { await audit(req,'orders','forbidden_create',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     const { customer, address, items, payment } = req.body || {};
     if (!customer) return res.status(400).json({ error: 'customer_required' });
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items_required' });
@@ -728,7 +728,7 @@ adminRest.post('/orders', async (req, res) => {
       total += price * quantity;
       itemsData.push({ productId: it.productId || (prod?.id as string), price, quantity });
     }
-    const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } });
+    const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
     for (const d of itemsData) {
       await db.orderItem.create({ data: { orderId: order.id, productId: d.productId, quantity: d.quantity, price: d.price } });
     }
@@ -2903,6 +2903,7 @@ async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
 
 adminRest.get('/categories', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) { await audit(req,'categories','forbidden_list',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     const search = (req.query.search as string | undefined)?.trim();
     if (search) {
       const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null }> = await db.$queryRawUnsafe(
@@ -2974,6 +2975,7 @@ adminRest.get('/system/health', async (_req, res) => {
 });
 adminRest.get('/categories/tree', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) { await audit(req,'categories','forbidden_tree',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     const cats: Array<{ id:string; name:string; parentId?:string|null }> = await db.$queryRawUnsafe(
       `SELECT id, name,
          CASE WHEN EXISTS (
@@ -2999,6 +3001,7 @@ adminRest.get('/categories/tree', async (req, res) => {
 });
 adminRest.post('/categories/reorder', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req,'categories','forbidden_reorder',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
     const items: Array<{ id:string; parentId?:string|null; sortOrder?:number }>= Array.isArray(req.body?.items)? req.body.items: [];
     for (const it of items) {
@@ -3017,6 +3020,7 @@ adminRest.post('/categories/reorder', async (req, res) => {
 });
 adminRest.post('/categories', async (req, res) => {
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req,'categories','forbidden_create',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
     // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
@@ -3055,6 +3059,7 @@ adminRest.post('/categories', async (req, res) => {
 adminRest.patch('/categories/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req,'categories','forbidden_update',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
     await ensureCategorySeo();
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
     const cols = await getCategoryColumnFlags();
@@ -3096,6 +3101,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
 });
 adminRest.delete('/categories/:id', async (req, res) => {
   const { id } = req.params;
+  const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_delete',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
   // Re-parent children to null and detach products if FK exists
   await db.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
   try { await db.$executeRawUnsafe('UPDATE "Product" SET "categoryId"=NULL WHERE "categoryId"=$1', id as any); } catch {}
