@@ -6,7 +6,11 @@ import App from './App.vue';
 import './tokens.css';
 import './styles.css';
 
-const routes = genRoutes;
+const manualRoutes = [
+  { path: '/categories', component: () => import('./pages/Categories.vue') },
+  { path: '/c/:slug', component: () => import('./pages/c/[slug].vue') }
+];
+const routes = [...manualRoutes, ...genRoutes];
 
 const app = createApp(App);
 app.use(createPinia());
