@@ -817,7 +817,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
         const last = await db.order.findFirst({ where: { userId: usr.id }, orderBy: { createdAt: 'desc' }, select: { createdAt:true } });
         const lastTs = last?.createdAt ? new Date(last.createdAt).getTime() : 0;
         if (Date.now() - lastTs < 30*24*60*60*1000) continue;
-        const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'win_back\' AND "userId"=$1 AND "createdAt">NOW()- INTERVAL \'30 days\'', usr.id);
+        const exists: Array<{count: bigint}> = await db.$queryRawUnsafe(`SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type='win_back' AND "userId"=$1 AND "createdAt">NOW()- INTERVAL '30 days'`, usr.id);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
         if (usr.email) {
           try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: 'نفتقدك!', html: 'عُد إلينا وتمتع بعرض خاص.' }); } catch {}
@@ -1199,7 +1199,7 @@ adminRest.get('/seo/product/:id/schema', async (req, res) => {
 });
 
 // Trends: top selling products (7 days)
-adminRest.get('/trends/products', async (_req, res) => { try { const rows: any[] = await db.$queryRawUnsafe('SELECT oi."productId" as id, COUNT(1)::integer as sales FROM "OrderItem" oi WHERE oi."createdAt"> NOW() - INTERVAL \'7 days\' GROUP BY oi."productId" ORDER BY sales DESC LIMIT 12'); res.json({ items: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'trends_products_failed' }); } });
+adminRest.get('/trends/products', async (_req, res) => { try { const rows: any[] = await db.$queryRawUnsafe(`SELECT oi."productId" as id, COUNT(1)::integer as sales FROM "OrderItem" oi WHERE oi."createdAt"> NOW() - INTERVAL '7 days' GROUP BY oi."productId" ORDER BY sales DESC LIMIT 12`); res.json({ items: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'trends_products_failed' }); } });
 
 // Reviews moderation (approve/reject)
 adminRest.get('/reviews/pending', async (_req, res) => { try { const rows: any[] = await db.$queryRawUnsafe('SELECT id, "productId", "userId", rating, comment, status, "createdAt" FROM "Review" WHERE status IS NULL OR status=\'PENDING\' ORDER BY "createdAt" DESC'); res.json({ reviews: rows }); } catch (e:any) { res.status(500).json({ error: e.message||'reviews_list_failed' }); } });
@@ -1978,7 +1978,6 @@ adminRest.get('/vendors/:id/orders', async (req, res) => {
     res.json({ orders: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'vendor_orders_failed' }); }
 });
-
 // ===== Generic status change endpoint =====
 adminRest.post('/status/change', async (req, res) => {
   try {
@@ -3432,7 +3431,6 @@ async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
     return {} as any;
   }
 }
-
 adminRest.get('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) { await audit(req,'categories','forbidden_list',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
