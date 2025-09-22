@@ -20,7 +20,7 @@ jobs:
       DEPLOY_HOST: ${{ secrets.SSH_HOST || secrets.VPS_HOST || secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.SSH_USER || secrets.VPS_USER || secrets.DEPLOY_USER }}
       DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.VPS_SSH_KEY || secrets.DEPLOY_KEY }}
-      MWEB_PATH: ${{ secrets.MWEB_DEPLOY_PATH || secrets.WEBROOT_MWEB || secrets.DEPLOY_PATH_MWEB }}
+      MWEB_PATH: ${{ secrets.MWEB_DEPLOY_PATH || secrets.WEBROOT_MWEB || secrets.DEPLOY_PATH_MWEB || '/var/www/mweb' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
