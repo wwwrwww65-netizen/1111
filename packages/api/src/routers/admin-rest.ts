@@ -899,9 +899,7 @@ adminRest.get('/marketing/coupons/:code/report', async (req, res) => {
     const { code } = req.params;
     const safe = String(code).replace(/'/g, "''").toUpperCase();
     // Orders using this coupon and totals
-    const orders: any[] = await db.$queryRawUnsafe(
-      `SELECT id, total, status, "createdAt" FROM "Order" WHERE "couponId" IN (SELECT id FROM "Coupon" WHERE code='${safe}') ORDER BY "createdAt" DESC`
-    );
+    const orders: any[] = await db.$queryRawUnsafe('SELECT id, total, status, "createdAt" FROM "Order" WHERE "couponId" IN (SELECT id FROM "Coupon" WHERE code=$1) ORDER BY "createdAt" DESC', safe);
     const revenue = orders.reduce((s,o)=> s + Number(o.total||0), 0);
     res.json({ code: safe, count: orders.length, revenue, orders });
   } catch (e:any) { res.status(500).json({ error: e.message||'coupon_report_failed' }); }
