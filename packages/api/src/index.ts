@@ -245,6 +245,13 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalEntry" ("id" TEXT PRIMARY KEY, ref TEXT NULL, memo TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "postedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalLine" ("id" TEXT PRIMARY KEY, "entryId" TEXT NOT NULL, "accountCode" TEXT NOT NULL, debit DOUBLE PRECISION DEFAULT 0, credit DOUBLE PRECISION DEFAULT 0)');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "JournalLine_entry_idx" ON "JournalLine"("entryId")');
+    // Seed default accounts
+    try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'CASH','Cash','ASSET') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
+    try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'REVENUE','Sales Revenue','REVENUE') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
+    try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'REFUND_EXPENSE','Refunds','EXPENSE') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
+    try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'FEES_EXPENSE','Payment Fees','EXPENSE') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
+    try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'AR','Accounts Receivable','ASSET') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
+    try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'AP','Accounts Payable','LIABILITY') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
   } catch {}
   // Run ensureSchema only when explicitly allowed or in development
   const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
