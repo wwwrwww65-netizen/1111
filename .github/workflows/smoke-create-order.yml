@@ -36,19 +36,21 @@ jobs:
 
           echo '--- Ensure product ---'
           TS=$(date +%s)
+          SLUG="smoke-cat-$TS"
           CAT=$(mktemp)
           curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/categories" \
-            --data "{\"name\":\"SmokeCat $TS\",\"slug\":\"smoke-cat-$TS\"}" -o "$CAT" || true
+            --data "{\"name\":\"SmokeCat $TS\",\"slug\":\"$SLUG\"}" -o "$CAT" || true
           CCODE=$(tail -n1 "$CAT" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$CAT" || true
-          if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create non-200:' "$CCODE"; sed -n '1,160p' "$CAT"; fi
-          CAT_ID=$(jq -r '.category.id // empty' "$CAT" || true)
+          if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create status:' "$CCODE"; sed -n '1,160p' "$CAT"; fi
+          # Try multiple JSON shapes: {category:{id}} or {id}
+          CAT_ID=$(jq -r '(.category.id // .id // empty)' "$CAT" || true)
           if [ -z "$CAT_ID" ]; then
             # Try to resolve by slug search
             CATS=$(mktemp)
-            curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/categories?search=SmokeCat" -o "$CATS" || true
+            curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/categories?search=$SLUG" -o "$CATS" || true
             sed -i '$d' "$CATS" || true
-            CAT_ID=$(jq -r '.categories[0].id // empty' "$CATS" || true)
+            CAT_ID=$(jq -r --arg slug "$SLUG" '(.categories // .items // []) | map(select((.slug==$slug) or (.name|tostring|contains($slug)))) | .[0].id // empty' "$CATS" || true)
           fi
           if [ -z "$CAT_ID" ]; then echo 'No category id resolved'; exit 1; fi
 
