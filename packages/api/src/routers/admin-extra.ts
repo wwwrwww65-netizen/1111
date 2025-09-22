@@ -136,6 +136,57 @@ r.post('/notifications/manual', async (_req, res) => { res.json({ ok: true }); }
 r.get('/notifications/rules', async (_req, res) => { res.json({ rules: [] }); });
 r.post('/notifications/rules', async (_req, res) => { res.json({ ok: true }); });
 
+// -------- Drivers WS support (ping last seen / location) --------
+r.post('/drivers/ping', async (req, res) => {
+  try {
+    const { driverId, name, phone, lat, lng, status } = req.body || {};
+    if (!driverId) return res.status(400).json({ error: 'driverId required' });
+    const d = await db.driver.upsert({ where: { id: driverId }, update: {
+      name: name ?? undefined,
+      phone: phone ?? undefined,
+      lat: typeof lat === 'number' ? lat : undefined,
+      lng: typeof lng === 'number' ? lng : undefined,
+      status: status ?? undefined,
+      lastSeenAt: new Date(),
+    }, create: {
+      id: driverId, name: name || 'Driver', phone: phone || null,
+      isActive: true, status: status || 'AVAILABLE', lat: lat || null, lng: lng || null,
+    }});
+    res.json({ driver: d });
+  } catch { res.status(500).json({ error: 'Failed to ping' }); }
+});
+
+// -------- Logistics legs (pickup/warehouse/delivery) --------
+r.get('/logistics/legs', async (req, res) => {
+  try {
+    const legType = String(req.query.type || ''), status = String(req.query.status || '');
+    const where: any = {};
+    if (legType) where.legType = legType;
+    if (status) where.status = status;
+    const legs = await db.shipmentLeg.findMany({ where, take: 200, orderBy: { createdAt: 'desc' } });
+    res.json({ legs });
+  } catch { res.status(500).json({ error: 'Failed to list legs' }); }
+});
+
+r.post('/logistics/legs', async (req, res) => {
+  try {
+    const { orderId, poId, legType, driverId, status } = req.body || {};
+    if (!legType) return res.status(400).json({ error: 'legType required' });
+    const leg = await db.shipmentLeg.create({ data: { orderId: orderId || null, poId: poId || null, legType, driverId: driverId || null, status: status || 'SCHEDULED' } });
+    res.json({ leg });
+  } catch { res.status(500).json({ error: 'Failed to create leg' }); }
+});
+
+r.post('/logistics/legs/:id/status', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const { status, driverId } = req.body || {};
+    if (!status) return res.status(400).json({ error: 'status required' });
+    const leg = await db.shipmentLeg.update({ where: { id }, data: { status, driverId: driverId ?? undefined } });
+    res.json({ leg });
+  } catch { res.status(500).json({ error: 'Failed to update status' }); }
+});
+
 // -------- Trends / Badges / Subscriptions (minimal stubs) --------
 r.get('/trends', async (_req, res) => { res.json({ trends: [] }); });
 r.post('/trends', async (_req, res) => { res.json({ ok: true }); });
