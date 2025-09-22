@@ -199,6 +199,43 @@ adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
     return res.status(500).json({ error: e.message || 'ensure_logistics_failed' });
   }
 });
+
+// Maintenance: bootstrap pickup legs for an order (idempotent)
+adminRest.post('/maintenance/bootstrap-pickup', async (req, res) => {
+  try {
+    const orderId = (req.body?.orderId as string | undefined) || (req.query.orderId as string | undefined);
+    if (!orderId) return res.status(400).json({ error: 'orderId_required' });
+    // Ensure table exists
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShipmentLeg" ("id" TEXT PRIMARY KEY, "orderId" TEXT NULL, "poId" TEXT NULL, "legType" TEXT NOT NULL, "status" TEXT NOT NULL, "driverId" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    // Find distinct vendors for items
+    let vids: Array<string> = [];
+    try {
+      const rows: Array<{ vendorId: string | null }> = await db.$queryRawUnsafe(
+        'SELECT DISTINCT pr."vendorId" FROM "OrderItem" oi JOIN "Product" pr ON pr.id=oi."productId" WHERE oi."orderId"=$1', orderId
+      );
+      vids = rows.map(r=> r.vendorId || 'NOVENDOR');
+      if (!vids.length) vids = ['NOVENDOR'];
+    } catch { vids = ['NOVENDOR']; }
+    // Insert pickup legs if missing
+    for (const vid of vids) {
+      const poId = `${vid}:${orderId}`;
+      await db.$executeRawUnsafe('INSERT INTO "ShipmentLeg" (id, "orderId", "poId", "legType", status, "createdAt", "updatedAt")
+        SELECT $1, $2, $3, $4, $5, NOW(), NOW()
+        WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$4 AND "poId"=$3)',
+        (require('crypto').randomUUID as ()=>string)(), orderId, poId, 'PICKUP', 'SCHEDULED');
+    }
+    // Ensure downstream legs exist
+    await db.$executeRawUnsafe('INSERT INTO "ShipmentLeg" (id, "orderId", "legType", status, "createdAt", "updatedAt")
+      SELECT $1, $2, $3, $4, NOW(), NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$3)', (require('crypto').randomUUID as ()=>string)(), orderId, 'PROCESSING', 'SCHEDULED');
+    await db.$executeRawUnsafe('INSERT INTO "ShipmentLeg" (id, "orderId", "legType", status, "createdAt", "updatedAt")
+      SELECT $1, $2, $3, $4, NOW(), NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM "ShipmentLeg" WHERE "orderId"=$2 AND "legType"=$3)', (require('crypto').randomUUID as ()=>string)(), orderId, 'DELIVERY', 'SCHEDULED');
+    return res.json({ ok: true });
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message || 'bootstrap_pickup_failed' });
+  }
+});
 adminRest.get('/permissions', async (req, res) => {
   try {
     const u = (req as any).user;

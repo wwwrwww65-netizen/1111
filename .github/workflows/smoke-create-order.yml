@@ -120,6 +120,13 @@ jobs:
           LCODE=$(echo "$LCODE" | tr -d '\r\n[:space:]')
           if [ "$LCODE" != "200" ]; then echo 'Ensure logistics failed:'; sed -n '1,160p' "$LG"; fi
 
+          echo '--- Bootstrap pickup legs for this order (idempotent) ---'
+          BP=$(mktemp)
+          BPCODE=$(curl -sS -H "$AUTH" -H 'content-type: application/json' -X POST "$API_BASE/api/admin/maintenance/bootstrap-pickup" \
+            --data "{\"orderId\":\"$ORDER_ID\"}" -o "$BP" -w '%{http_code}' || true)
+          BPCODE=$(echo "$BPCODE" | tr -d '\r\n[:space:]')
+          if [ "$BPCODE" != "200" ]; then echo 'Bootstrap pickup failed (non-fatal):'; sed -n '1,160p' "$BP"; fi
+
           echo '--- Verify pickup waiting ---'
           WP=$(mktemp)
           FOUND=""
