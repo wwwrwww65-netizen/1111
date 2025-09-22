@@ -10,9 +10,9 @@
       <SectionHeading title="الفئات" href="/categories" />
       <CategoryGrid />
       <SectionHeading title="اهم الترندات" href="/products?sort=reco" />
-      <ProductGrid :items="saleItems" label="اهم الترندات" />
+      <HorizontalProducts :label="'اهم الترندات'" />
       <SectionHeading title="عروض كبرى" href="/products?sort=top" />
-      <ProductGrid :items="bestItems" label="عروض كبرى" />
+      <HorizontalProducts :label="'عروض كبرى'" />
       <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
       <ProductGrid :items="newItems" label="وصل حديثًا" />
     </div>
