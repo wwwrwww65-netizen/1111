@@ -856,6 +856,142 @@ adminRest.get('/marketing/campaigns', async (req, res) => {
     return res.json({ campaigns: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'campaign_list_failed' }); }
 });
+
+// =====================
+// Coupons & Performance Reports
+// =====================
+async function ensureCouponSchema() {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Coupon" ("id" TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, type TEXT NOT NULL, value DOUBLE PRECISION NOT NULL, "usageLimit" INTEGER NULL, "usedCount" INTEGER DEFAULT 0, "isActive" BOOLEAN DEFAULT TRUE, "startsAt" TIMESTAMP NULL, "endsAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+  } catch {}
+}
+adminRest.post('/marketing/coupons', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    await ensureCouponSchema();
+    const { code, type, value, usageLimit, startsAt, endsAt } = req.body || {};
+    if (!code || !type || typeof value !== 'number') return res.status(400).json({ error:'code_type_value_required' });
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "Coupon" (id, code, type, value, "usageLimit", "startsAt", "endsAt") VALUES ($1,$2,$3,$4,$5,$6,$7)', id, String(code).toUpperCase(), String(type).toUpperCase(), Number(value), usageLimit??null, startsAt? new Date(String(startsAt)) : null, endsAt? new Date(String(endsAt)) : null);
+    await audit(req,'marketing','coupon_create',{ code, type, value });
+    res.json({ coupon: { id, code: String(code).toUpperCase(), type: String(type).toUpperCase(), value, usageLimit: usageLimit??null, isActive: true, startsAt, endsAt } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'coupon_create_failed' }); }
+});
+adminRest.get('/marketing/coupons', async (_req, res) => {
+  try {
+    await ensureCouponSchema();
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, code, type, value, "usageLimit", "usedCount", "isActive", "startsAt", "endsAt" FROM "Coupon" ORDER BY "createdAt" DESC');
+    res.json({ coupons: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'coupon_list_failed' }); }
+});
+adminRest.get('/marketing/coupons/:code/report', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const safe = String(code).replace(/'/g, "''").toUpperCase();
+    // Orders using this coupon and totals
+    const orders: any[] = await db.$queryRawUnsafe(
+      `SELECT id, total, status, "createdAt" FROM "Order" WHERE "couponId" IN (SELECT id FROM "Coupon" WHERE code='${safe}') ORDER BY "createdAt" DESC`
+    );
+    const revenue = orders.reduce((s,o)=> s + Number(o.total||0), 0);
+    res.json({ code: safe, count: orders.length, revenue, orders });
+  } catch (e:any) { res.status(500).json({ error: e.message||'coupon_report_failed' }); }
+});
+
+// =====================
+// Image CDN & CWV: optimized media URLs
+// =====================
+adminRest.get('/media/optimize', async (req, res) => {
+  try {
+    const src = String(req.query.src||'');
+    const w = Number(req.query.w||0) || 800;
+    if (!src) return res.status(400).json({ error:'src_required' });
+    // If Cloudinary configured, generate transformation URL (f_auto,q_auto)
+    let url = src;
+    if (process.env.CLOUDINARY_URL && /res\.cloudinary\.com\//.test(src)) {
+      url = src.replace(/\/upload\//, `/upload/f_auto,q_auto,w_${w}/`);
+    }
+    res.setHeader('Cache-Control','public, max-age=31536000, immutable');
+    return res.json({ url, width: w });
+  } catch (e:any) { res.status(500).json({ error: e.message||'optimize_failed' }); }
+});
+
+// =====================
+// RMA / Returns
+// =====================
+async function ensureRmaSchema() {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ReturnRequest" ("id" TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'REQUESTED\', reason TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ReturnItem" ("id" TEXT PRIMARY KEY, "returnId" TEXT NOT NULL, "orderItemId" TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1)');
+  } catch {}
+}
+adminRest.post('/returns', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    await ensureRmaSchema();
+    const { orderId, items, reason } = req.body || {};
+    if (!orderId || !Array.isArray(items) || !items.length) return res.status(400).json({ error:'orderId_items_required' });
+    const rid = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "ReturnRequest" (id, "orderId", status, reason) VALUES ($1,$2,$3,$4)', rid, orderId, 'REQUESTED', reason||null);
+    for (const it of items) {
+      const iid = (require('crypto').randomUUID as ()=>string)();
+      await db.$executeRawUnsafe('INSERT INTO "ReturnItem" (id, "returnId", "orderItemId", quantity) VALUES ($1,$2,$3,$4)', iid, rid, String(it.orderItemId), Number(it.quantity||1));
+    }
+    await audit(req,'returns','create',{ id: rid, orderId, count: items.length });
+    res.json({ return: { id: rid, orderId, status:'REQUESTED', reason } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'return_create_failed' }); }
+});
+adminRest.post('/returns/:id/approve', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await ensureRmaSchema();
+    await db.$executeRawUnsafe('UPDATE "ReturnRequest" SET status=\'APPROVED\' WHERE id=$1', id);
+    // Trigger refund of the order
+    try { (await fetch((process.env.NEXT_PUBLIC_ADMIN_URL||'http://127.0.0.1:4000') + `/api/admin/orders/${encodeURIComponent(String(req.body?.orderId||''))}/refund`, { method:'POST', headers: { authorization: req.headers['authorization'] as string || '' } })).ok; } catch {}
+    await audit(req,'returns','approve',{ id });
+    res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'return_approve_failed' }); }
+});
+
+// =====================
+// Shipping rates / labels / address validation (stubs)
+// =====================
+adminRest.post('/shipping/rates', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
+    const { from, to, weightKg } = req.body || {};
+    const base = Math.max(10, Math.round((Number(weightKg||1) * 5)));
+    return res.json({ rates: [
+      { carrier: 'FastExpress', service:'STANDARD', etaDays: 3, total: base },
+      { carrier: 'FastExpress', service:'EXPRESS', etaDays: 1, total: base+15 },
+      { carrier: 'GlobalShip', service:'ECONOMY', etaDays: 7, total: base-3 },
+    ] });
+  } catch (e:any) { res.status(500).json({ error: e.message||'rates_failed' }); }
+});
+adminRest.post('/shipping/validate-address', async (req, res) => {
+  try {
+    const { address } = req.body || {};
+    if (!address?.street) return res.status(400).json({ error:'address_required' });
+    // Basic validation stub
+    return res.json({ valid: true, address: { ...address, postalCode: address.postalCode||'00000' } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'address_validation_failed' }); }
+});
+adminRest.post('/shipping/label', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
+    const { orderId, carrier, service } = req.body || {};
+    res.setHeader('Content-Type','application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="label-${orderId||'order'}.pdf"`);
+    const doc = new PDFDocument({ autoFirstPage: true });
+    doc.pipe(res);
+    doc.fontSize(18).text('Shipping Label', { align:'center' });
+    doc.moveDown();
+    doc.fontSize(12).text(`Order: ${orderId||'-'}`);
+    doc.text(`Carrier: ${carrier||'-'}  Service: ${service||'-'}`);
+    doc.text(`Issued: ${new Date().toISOString()}`);
+    doc.end();
+  } catch (e:any) { res.status(500).json({ error: e.message||'label_failed' }); }
+});
 adminRest.get('/finance/invoices', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
