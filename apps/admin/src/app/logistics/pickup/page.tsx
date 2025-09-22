@@ -71,8 +71,8 @@ export default function PickupPage(): JSX.Element {
         <button className={`btn btn-sm ${tab==='waiting'?'':'btn-outline'}`} onClick={()=> setTab('waiting')}>قيد الانتظار</button>
         <button className={`btn btn-sm ${tab==='in_progress'?'':'btn-outline'}`} onClick={()=> setTab('in_progress')}>قيد التنفيذ</button>
         <button className={`btn btn-sm ${tab==='completed'?'':'btn-outline'}`} onClick={()=> setTab('completed')}>مكتمل</button>
-        <a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/pickup/export/csv?status=${tab}`}>تصدير CSV</a>
-        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/pickup/export/xls?status=${tab}`}>تصدير Excel</a>
+        <a className="btn btn-sm" href={`/api/admin/logistics/pickup/export/csv?status=${tab}`}>تصدير CSV</a>
+        <a className="btn btn-sm btn-outline" href={`/api/admin/logistics/pickup/export/xls?status=${tab}`}>تصدير Excel</a>
       </div>
 
       <div className="toolbar" style={{ display:'flex', gap:8, marginTop:8 }}>
@@ -104,7 +104,7 @@ export default function PickupPage(): JSX.Element {
                     <td><span className={`badge ${String(r.status).toUpperCase()==='SUBMITTED'?'warn':'ok'}`}>{r.status}</span></td>
                     <td style={{ display:'flex', gap:6 }}>
                       <button className="btn btn-sm" onClick={()=>{ setAssignPo(r.poId||r.id); }}>إسناد سائق</button>
-                      <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/pickup/export/csv?status=waiting`}>PDF</a>
+                      <a className="btn btn-sm btn-outline" href={`/api/admin/logistics/pickup/export/csv?status=waiting`}>PDF</a>
                       <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'receive')}>استلام</button>
                       <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'start')}>بدء</button>
                     </td>
@@ -156,7 +156,7 @@ export default function PickupPage(): JSX.Element {
                     <td><span className="badge ok">تم</span></td>
                     <td>{new Date(r.updatedAt||r.createdAt||Date.now()).toLocaleString()}</td>
                     <td>{Number(r.itemsCount||0)}</td>
-                    <td><a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/pickup/export/csv?status=completed`}>تصدير</a></td>
+                    <td><a className="btn btn-sm" href={`/api/admin/logistics/pickup/export/csv?status=completed`}>تصدير</a></td>
                   </tr>
                 ))}
               </tbody>

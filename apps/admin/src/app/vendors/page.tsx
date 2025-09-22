@@ -28,7 +28,7 @@ export default function VendorsPage(): JSX.Element {
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
   const [busy, setBusy] = React.useState(false);
-  React.useEffect(()=>{ setLoading(true); fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch((e)=>{ console.error('vendors_list_failed', e); setRows([]); }).finally(()=> setLoading(false)); },[apiBase]);
+  React.useEffect(()=>{ setLoading(true); fetch(`/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch((e)=>{ console.error('vendors_list_failed', e); setRows([]); }).finally(()=> setLoading(false)); },[]);
   async function save() {
     if (busy) return;
     setBusy(true);
@@ -43,7 +43,7 @@ export default function VendorsPage(): JSX.Element {
       vendorCode: vendorCode?.trim() ? vendorCode.trim().toUpperCase() : null,
       };
       if (!normalized.name) { showToast('الاسم مطلوب'); return; }
-      const res = await fetch(`${apiBase}/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(normalized) });
+      const res = await fetch(`/api/admin/vendors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(normalized) });
       if (!res.ok) {
         let err = 'فشل حفظ المورد';
         try { const j = await res.json(); if (j?.error === 'vendor_code_or_name_exists') err = 'الاسم أو رمز المورد موجود مسبقاً'; else if (j?.message) err = j.message; } catch {}
@@ -51,7 +51,7 @@ export default function VendorsPage(): JSX.Element {
         return;
       }
       setName(""); setEmail(""); setPhone(""); setAddress(""); setStoreName(""); setStoreNumber(""); setVendorCode("");
-      const listRes = await fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      const listRes = await fetch(`/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
       if (!listRes.ok) { showToast('فشل تحديث القائمة'); return; }
       const j = await listRes.json(); setRows(j.vendors||[]);
       showToast('تمت الإضافة');

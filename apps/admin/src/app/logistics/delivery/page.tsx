@@ -22,15 +22,15 @@ export default function DeliveryPage(): JSX.Element {
   async function load(){
     setLoading(true);
     try {
-      const url = new URL(`${apiBase}/api/admin/logistics/delivery/list`);
+      const url = new URL(`/api/admin/logistics/delivery/list`, window.location.origin);
       url.searchParams.set('tab', tab);
       const j = await (await fetch(url.toString(), { credentials:'include' })).json();
       setItems(j.items||[]);
     } finally { setLoading(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
-  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/delivery/suggest-drivers`, { credentials:'include' })).json(); setSuggested(j.drivers||[]);}catch{ setSuggested([]);} })(); }, [apiBase]);
-  React.useEffect(()=>{ const t = setInterval(async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/drivers/locations`, { credentials:'include' })).json(); setDriversLive(j.drivers||[]);}catch{} }, 5000); return ()=> clearInterval(t); }, [apiBase]);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`/api/admin/logistics/delivery/suggest-drivers`, { credentials:'include' })).json(); setSuggested(j.drivers||[]);}catch{ setSuggested([]);} })(); }, []);
+  React.useEffect(()=>{ const t = setInterval(async()=>{ try{ const j = await (await fetch(`/api/admin/logistics/drivers/locations`, { credentials:'include' })).json(); setDriversLive(j.drivers||[]);}catch{} }, 5000); return ()=> clearInterval(t); }, []);
 
   // Lazy-load MapLibre from CDN and render base map
   React.useEffect(()=>{
@@ -87,14 +87,14 @@ export default function DeliveryPage(): JSX.Element {
   async function assign(){
     setMessage('');
     if (!assignOrder || !assignDriver) { setMessage('ادخل الطلب والسائق'); return; }
-    const r = await fetch(`${apiBase}/api/admin/logistics/delivery/assign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: assignOrder, driverId: assignDriver }) });
+    const r = await fetch(`/api/admin/logistics/delivery/assign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: assignOrder, driverId: assignDriver }) });
     if (!r.ok) { setMessage('تعذر التوزيع'); return; }
     setMessage('تم التوزيع'); setAssignOrder(''); setAssignDriver(''); await load();
   }
   async function submitProof(){
     setMessage('');
     if (!proofOrder) { setMessage('ادخل رقم الطلب'); return; }
-    const r = await fetch(`${apiBase}/api/admin/logistics/delivery/proof`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: proofOrder, signatureBase64: signature||undefined, photoBase64: photo||undefined }) });
+    const r = await fetch(`/api/admin/logistics/delivery/proof`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: proofOrder, signatureBase64: signature||undefined, photoBase64: photo||undefined }) });
     if (!r.ok) { setMessage('تعذر حفظ الإثبات'); return; }
     setMessage('تم حفظ إثبات التسليم وتحديث الحالة'); setProofOrder(''); setSignature(''); setPhoto(''); await load();
   }
@@ -107,9 +107,9 @@ export default function DeliveryPage(): JSX.Element {
         <button className={`btn btn-sm ${tab==='in_delivery'?'':'btn-outline'}`} onClick={()=> setTab('in_delivery')}>قيد التوصيل</button>
         <button className={`btn btn-sm ${tab==='completed'?'':'btn-outline'}`} onClick={()=> setTab('completed')}>مكتمل</button>
         <button className={`btn btn-sm ${tab==='returns'?'':'btn-outline'}`} onClick={()=> setTab('returns')}>مرتجعات</button>
-        <a className="btn btn-sm" href={`${apiBase}/api/admin/logistics/delivery/export/csv?tab=${tab}`}>تصدير CSV</a>
-        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/delivery/export/xls?tab=${tab}`}>تصدير Excel</a>
-        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/logistics/delivery/export/pdf?tab=${tab}`}>تصدير PDF</a>
+        <a className="btn btn-sm" href={`/api/admin/logistics/delivery/export/csv?tab=${tab}`}>تصدير CSV</a>
+        <a className="btn btn-sm btn-outline" href={`/api/admin/logistics/delivery/export/xls?tab=${tab}`}>تصدير Excel</a>
+        <a className="btn btn_sm btn-outline" href={`/api/admin/logistics/delivery/export/pdf?tab=${tab}`}>تصدير PDF</a>
       </div>
 
       {tab==='ready' && (

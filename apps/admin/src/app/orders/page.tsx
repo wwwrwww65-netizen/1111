@@ -38,7 +38,7 @@ export default function OrdersPage(): JSX.Element {
 
   const loadCtlRef = React.useRef<AbortController|null>(null);
   async function load() {
-    const url = new URL(`${apiBase}/api/admin/orders/list`);
+    const url = new URL(`/api/admin/orders/list`, window.location.origin);
     url.searchParams.set("page", String(page));
     url.searchParams.set("limit", String(pageSize));
     if (status) url.searchParams.set("status", status);
@@ -77,7 +77,7 @@ export default function OrdersPage(): JSX.Element {
     await load();
   }
   async function refund(orderId: string) {
-    await fetch(`${apiBase}/api/admin/payments/refund`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
+    await fetch(`/api/admin/payments/refund`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
     await load();
   }
   async function bulk(action: 'ship'|'cancel'){

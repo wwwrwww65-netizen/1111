@@ -17,10 +17,10 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
   const [docFile, setDocFile] = React.useState('');
   const [vendorOrders, setVendorOrders] = React.useState<any[]>([]);
   const [orderLines, setOrderLines] = React.useState<any[]|null>(null);
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/${id}/overview`, { credentials:'include' }).then(r=>r.json()).then(setData); },[apiBase,id]);
-  React.useEffect(()=>{ if(tab==='orders'){ fetch(`${apiBase}/api/admin/vendors/${id}/orders`, { credentials:'include' }).then(r=>r.json()).then(j=> setVendorOrders(j.orders||[])); } },[apiBase,id,tab]);
-  React.useEffect(()=>{ if(tab==='ledger'){ fetch(`${apiBase}/api/admin/vendors/${id}/ledger`, { credentials:'include' }).then(r=>r.json()).then(j=> setLedger({ entries:j.entries||[], balance:j.balance||0 })); } },[apiBase,id,tab]);
-  React.useEffect(()=>{ if(tab==='docs'){ fetch(`${apiBase}/api/admin/vendors/${id}/documents`, { credentials:'include' }).then(r=>r.json()).then(j=> setDocs(j.documents||[])); } },[apiBase,id,tab]);
+  React.useEffect(()=>{ fetch(`/api/admin/vendors/${id}/overview`, { credentials:'include' }).then(r=>r.json()).then(setData); },[id]);
+  React.useEffect(()=>{ if(tab==='orders'){ fetch(`/api/admin/vendors/${id}/orders`, { credentials:'include' }).then(r=>r.json()).then(j=> setVendorOrders(j.orders||[])); } },[id,tab]);
+  React.useEffect(()=>{ if(tab==='ledger'){ fetch(`/api/admin/vendors/${id}/ledger`, { credentials:'include' }).then(r=>r.json()).then(j=> setLedger({ entries:j.entries||[], balance:j.balance||0 })); } },[id,tab]);
+  React.useEffect(()=>{ if(tab==='docs'){ fetch(`/api/admin/vendors/${id}/documents`, { credentials:'include' }).then(r=>r.json()).then(j=> setDocs(j.documents||[])); } },[id,tab]);
   if (!data) return <main>Loading…</main>;
   const { vendor, products, orders, invoices, stock } = data;
   return (
@@ -35,15 +35,15 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
           <button className="btn btn-sm">إرسال رسالة</button>
           <button className="btn btn-sm" onClick={()=> setTab('ledger')}>إضافة دفعة</button>
           <button className="btn btn-sm">إنشاء PO</button>
-          <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/export/pdf`}>PDF</a>
-          <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/export/xls`}>Excel</a>
+          <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${id}/export/pdf`}>PDF</a>
+          <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${id}/export/xls`}>Excel</a>
         </div>
       </div>
       <div style={{ display:'grid', placeItems:'center', marginBottom:12 }}>
         <div className="btn-group">
           <button className={`btn btn-sm ${tab==='info'?'':'btn-outline'}`} onClick={()=> setTab('info')}>معلومات أساسية</button>
           <button className={`btn btn-sm ${tab==='products'?'':'btn-outline'}`} onClick={()=> setTab('products')}>المنتجات والمخزون</button>
-          <button className={`btn btn-sm ${tab==='orders'?'':'btn-outline'}`} onClick={()=> setTab('orders')}>الطلبات</button>
+          <button className={`btn btn_sm ${tab==='orders'?'':'btn-outline'}`} onClick={()=> setTab('orders')}>الطلبات</button>
           <button className={`btn btn-sm ${tab==='invoices'?'':'btn-outline'}`} onClick={()=> setTab('invoices')}>الفواتير والمدفوعات</button>
           <button className={`btn btn-sm ${tab==='ledger'?'':'btn-outline'}`} onClick={()=> setTab('ledger')}>الحساب المالي</button>
           <button className={`btn btn-sm ${tab==='docs'?'':'btn-outline'}`} onClick={()=> setTab('docs')}>الوثائق</button>
@@ -66,7 +66,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
       <>
       <h2 style={{ margin:'12px 0' }}>منتجات المورد</h2>
       <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
-        <input type="file" accept=".csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=async()=>{ try{ const res= await fetch(`${apiBase}/api/admin/vendors/${id}/catalog/upload`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ base64: String(r.result||'') }) }); if(!res.ok) alert('فشل رفع الكتالوج'); }catch{ alert('خطأ أثناء الرفع'); } }; r.readAsDataURL(f); }} />
+        <input type="file" accept=".csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=async()=>{ try{ const res= await fetch(`/api/admin/vendors/${id}/catalog/upload`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ base64: String(r.result||'') }) }); if(!res.ok) alert('فشل رفع الكتالوج'); }catch{ alert('خطأ أثناء الرفع'); } }; r.readAsDataURL(f); }} />
         <button className="btn btn-sm">مزامنة الأسعار</button>
       </div>
       <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:16 }}>
@@ -84,8 +84,8 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
       <>
       <h2 style={{ margin:'12px 0' }}>طلبات المورد (PO/GRN)</h2>
       <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/orders/export/xls`}>تصدير Excel</a>
-        <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/orders/export/pdf`}>تصدير PDF</a>
+        <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${id}/orders/export/xls`}>تصدير Excel</a>
+        <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${id}/orders/export/pdf`}>تصدير PDF</a>
       </div>
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead><tr>
@@ -107,7 +107,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
               <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{o.total}</td>
               <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{new Date(o.createdAt).toLocaleString()}</td>
               <td style={{padding:8,borderBottom:'1px solid #1c2333'}}>
-                <button className="btn btn-xs" onClick={async()=>{ const j = await (await fetch(`${apiBase}/api/admin/vendors/${id}/orders/detail?orderId=${o.orderId}`, { credentials:'include' })).json(); setOrderLines(j.lines||[]); }}>عرض</button>
+                <button className="btn btn-xs" onClick={async()=>{ const j = await (await fetch(`/api/admin/vendors/${id}/orders/detail?orderId=${o.orderId}`, { credentials:'include' })).json(); setOrderLines(j.lines||[]); }}>عرض</button>
               </td>
             </tr>
           ))}
@@ -140,7 +140,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
             </select>
             <input className="input" placeholder="ملاحظة" value={note} onChange={(e)=> setNote(e.target.value)} />
           </div>
-          <button className="btn btn-sm" onClick={async()=>{ const amt=Number(amount); if(!Number.isFinite(amt)) return; await fetch(`${apiBase}/api/admin/vendors/${id}/ledger`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ amount: amt, type, note: note||undefined }) }); const j = await (await fetch(`${apiBase}/api/admin/vendors/${id}/ledger`, { credentials:'include' })).json(); setLedger({ entries:j.entries||[], balance:j.balance||0 }); setAmount(''); setNote(''); }}>حفظ المعاملة</button>
+          <button className="btn btn-sm" onClick={async()=>{ const amt=Number(amount); if(!Number.isFinite(amt)) return; await fetch(`/api/admin/vendors/${id}/ledger`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ amount: amt, type, note: note||undefined }) }); const j = await (await fetch(`/api/admin/vendors/${id}/ledger`, { credentials:'include' })).json(); setLedger({ entries:j.entries||[], balance:j.balance||0 }); setAmount(''); setNote(''); }}>حفظ المعاملة</button>
           <table className="table" style={{ marginTop:8 }}>
             <thead><tr><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>ملاحظة</th></tr></thead>
             <tbody>
@@ -156,8 +156,8 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
         <div className="panel" style={{ marginTop:12 }}>
           <h3 style={{ marginTop:0 }}>الفواتير والمدفوعات</h3>
           <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-            <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/export/xls?type=invoices`}>تصدير Excel</a>
-            <a className="btn btn-sm btn-outline" href={`${apiBase}/api/admin/vendors/${id}/export/pdf?type=invoices`}>تصدير PDF</a>
+            <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${id}/export/xls?type=invoices`}>تصدير Excel</a>
+            <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${id}/export/pdf?type=invoices`}>تصدير PDF</a>
           </div>
           <table className="table">
             <thead><tr><th>الطلب</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead>
@@ -178,7 +178,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
             <input className="input" type="date" value={docExpiry} onChange={(e)=> setDocExpiry(e.target.value)} />
             <input className="input" type="file" onChange={(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=> setDocFile(String(r.result||'')); r.readAsDataURL(f); }} />
           </div>
-          <button className="btn btn-sm" onClick={async()=>{ if(!docFile) return; await fetch(`${apiBase}/api/admin/vendors/${id}/documents`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ docType, base64: docFile, expiresAt: docExpiry||undefined }) }); const j = await (await fetch(`${apiBase}/api/admin/vendors/${id}/documents`, { credentials:'include' })).json(); setDocs(j.documents||[]); setDocFile(''); setDocExpiry(''); }}>رفع الوثيقة</button>
+          <button className="btn btn-sm" onClick={async()=>{ if(!docFile) return; await fetch(`/api/admin/vendors/${id}/documents`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ docType, base64: docFile, expiresAt: docExpiry||undefined }) }); const j = await (await fetch(`/api/admin/vendors/${id}/documents`, { credentials:'include' })).json(); setDocs(j.documents||[]); setDocFile(''); setDocExpiry(''); }}>رفع الوثيقة</button>
           <table className="table" style={{ marginTop:8 }}>
             <thead><tr><th>النوع</th><th>الرابط</th><th>انتهاء</th></tr></thead>
             <tbody>
@@ -203,7 +203,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
 
 function Scorecard({ id, apiBase }: { id: string; apiBase: string }) {
   const [m, setM] = React.useState<any>(null);
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/${id}/scorecard`, { credentials:'include' }).then(r=>r.json()).then(setM); },[apiBase,id]);
+  React.useEffect(()=>{ fetch(`/api/admin/vendors/${id}/scorecard`, { credentials:'include' }).then(r=>r.json()).then(setM); },[id]);
   if (!m) return <div>Loading…</div>;
   return (
     <div className="grid" style={{ gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:12 }}>
@@ -218,12 +218,12 @@ function Scorecard({ id, apiBase }: { id: string; apiBase: string }) {
 function Notifications({ id, apiBase }: { id: string; apiBase: string }) {
   const [list, setList] = React.useState<any[]>([]);
   const [message, setMessage] = React.useState('');
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/vendors/${id}/notifications`, { credentials:'include' }).then(r=>r.json()).then(j=> setList(j.notifications||[])); },[apiBase,id]);
+  React.useEffect(()=>{ fetch(`/api/admin/vendors/${id}/notifications`, { credentials:'include' }).then(r=>r.json()).then(j=> setList(j.notifications||[])); },[id]);
   return (
     <div>
       <div className="grid" style={{ gridTemplateColumns:'1fr auto', gap:8, marginBottom:8 }}>
         <input className="input" placeholder="رسالة فورية" value={message} onChange={(e)=> setMessage(e.target.value)} />
-        <button className="btn btn-sm" onClick={async()=>{ if(!message) return; await fetch(`${apiBase}/api/admin/vendors/${id}/notifications`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ message }) }); setMessage(''); const j= await (await fetch(`${apiBase}/api/admin/vendors/${id}/notifications`, { credentials:'include' })).json(); setList(j.notifications||[]); }}>إرسال</button>
+        <button className="btn btn-sm" onClick={async()=>{ if(!message) return; await fetch(`/api/admin/vendors/${id}/notifications`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ message }) }); setMessage(''); const j= await (await fetch(`/api/admin/vendors/${id}/notifications`, { credentials:'include' })).json(); setList(j.notifications||[]); }}>إرسال</button>
       </div>
       <table className="table">
         <thead><tr><th>التاريخ</th><th>الحدث</th><th>تفاصيل</th></tr></thead>

@@ -34,8 +34,8 @@ export default function RBACPage(): JSX.Element {
     setLoading(true);
     try {
       const [p, r] = await Promise.all([
-        fetch(`${apiBase}/api/admin/permissions`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()),
-        fetch(`${apiBase}/api/admin/roles`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()),
+        fetch(`/api/admin/permissions`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()),
+        fetch(`/api/admin/roles`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()),
       ]);
       setPerms((p.permissions||[]) as Perm[]);
       setRoles((r.roles||[]) as Role[]);
@@ -56,7 +56,7 @@ export default function RBACPage(): JSX.Element {
       const perm = perms.find(p=> p.key===permKey);
       if (!perm) return;
       if (checked) permIds.add(perm.id); else permIds.delete(perm.id);
-      const res = await fetch(`${apiBase}/api/admin/roles/${role.id}/permissions`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ permissionIds: Array.from(permIds) }) });
+      const res = await fetch(`/api/admin/roles/${role.id}/permissions`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ permissionIds: Array.from(permIds) }) });
       if (!res.ok) { show('فشل الحفظ'); return; }
       await load(); show('تم الحفظ');
     } finally { setBusy(false); }
@@ -64,7 +64,7 @@ export default function RBACPage(): JSX.Element {
 
   async function addRole(){
     const name = prompt('اسم الدور:')||''; if (!name.trim()) return;
-    const r = await fetch(`${apiBase}/api/admin/roles`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name }) });
+    const r = await fetch(`/api/admin/roles`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name }) });
     if (!r.ok) { show('فشل إنشاء الدور'); return; }
     await load(); show('تم إنشاء الدور');
   }

@@ -39,7 +39,7 @@ export default function DriversPage(): JSX.Element {
   async function load(){
     try {
       setMsg(''); setLoading(true);
-      const url = new URL(`${apiBase}/api/admin/drivers`);
+    const url = new URL(`/api/admin/drivers`, window.location.origin);
       if (q) url.searchParams.set('q', q);
       if (status) url.searchParams.set('status', status);
       if (veh) url.searchParams.set('veh', veh);
@@ -144,7 +144,7 @@ export default function DriversPage(): JSX.Element {
 
   async function toggleActive(d:any){
     const payload = { isActive: !(d.isActive!==false) } as any;
-    await fetch(`${apiBase}/api/admin/drivers/${d.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+    await fetch(`/api/admin/drivers/${d.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
     await load();
   }
 
@@ -153,7 +153,7 @@ export default function DriversPage(): JSX.Element {
     if (!name.trim()) { setMsg('أدخل اسم السائق'); return; }
     const payload: any = { name, phone, isActive: true, status: 'AVAILABLE', address: address||undefined, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
     try {
-      const resp = await fetch(`${apiBase}/api/admin/drivers`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
+      const resp = await fetch(`/api/admin/drivers`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
       if (!resp.ok) { const txt = await resp.text().catch(()=> ''); setMsg(`تعذر الإضافة (${resp.status}) ${txt.slice(0,120)}`); return; }
       setName(''); setPhone(''); setAddress(''); setNationalId(''); setVehicleType(''); setOwnership(''); setNotes('');
       setShowAdd(false);
@@ -188,9 +188,9 @@ export default function DriversPage(): JSX.Element {
           <option value="دراجة نارية">دراجة نارية</option>
           <option value="دباب نقل">دباب نقل</option>
         </select>
-        <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/csv`}>CSV</a>
-        <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/xls`}>Excel</a>
-        <a className="btn btn-outline btn-sm" href={`${apiBase}/api/admin/drivers/export/pdf`}>PDF</a>
+        <a className="btn btn-outline btn-sm" href={`/api/admin/drivers/export/csv`}>CSV</a>
+        <a className="btn btn-outline btn-sm" href={`/api/admin/drivers/export/xls`}>Excel</a>
+        <a className="btn btn-outline btn-sm" href={`/api/admin/drivers/export/pdf`}>PDF</a>
         <button className="btn btn-outline btn-sm" onClick={()=> setDense(v=>!v)}>{dense? 'كثافة عادية' : 'كثافة مضغوطة'}</button>
       </div>
       {msg && <div className="panel" style={{ color:'#fca5a5', marginBottom:8 }}>{msg}</div>}
