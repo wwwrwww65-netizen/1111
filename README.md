@@ -424,6 +424,30 @@ Tips:
   - تفاصيل السائق: حالة/تفعيل، تعيين طلب، مكتمل مؤخراً، Ledger مالي، وثائق (رفع وصلاحية).
   - صلابة تشغيلية: تهيئة جداول وأعمدة السائقين تلقائياً لمنع أخطاء 500.
 
+### 🧭 PWA (Web/Admin)
+
+- Web (`apps/web`):
+  - Added `public/manifest.webmanifest` and `public/sw.js` with runtime registration in `src/app/providers.tsx`.
+  - Next headers expose `Service-Worker-Allowed: /`.
+- Admin (`apps/admin`):
+  - Added `public/manifest.webmanifest` and `public/sw.js` with registration in `src/app/layout.tsx`.
+
+### 🔐 Admin SSO (OIDC-ready)
+
+- API endpoints:
+  - `GET /api/admin/auth/sso/login` → يوجّه إلى موفر OIDC.
+  - `GET /api/admin/auth/sso/callback` → يستبدل الكود بـ id_token ويُصدر JWT ويعيد إلى `/bridge?token=...` على `admin`.
+- زر "تسجيل الدخول عبر المؤسسة" مضاف إلى صفحة دخول الأدمن (مشروط بـ `NEXT_PUBLIC_SSO_ISSUER`).
+
+### 🚚 Logistics DB Compatibility
+
+- نقاط الصيانة والتهيئة تضمن جداول/أعمدة اللوجستيات دون هجرة مخصّصة:
+  - `POST /api/admin/maintenance/ensure-logistics`
+    - جداول: `Driver`, `ShipmentLeg`, `Package` + فهارس.
+    - ENUMs: `ShipmentLegType`, `ShipmentLegStatus` وإنفاذ الأعمدة.
+    - أعمدة إضافية متوافقة: `fromLocation`, `toLocation`, `scheduledAt`, `startedAt`, `completedAt` على `ShipmentLeg`، و`orderId`, `poId`, `weight`, `dimensions`, `priority` على `Package`.
+- استعلامات قائمة الالتقاط تم تحويلها إلى SQL خام بانتقاء أعمدة مضمونة الوجود لمنع أخطاء CI على قواعد قديمة.
+
 ## 🔐 Production Parity: Secrets & Vars (GitHub)
 
 Set these in GitHub repository Settings → Secrets and Variables → Actions:
