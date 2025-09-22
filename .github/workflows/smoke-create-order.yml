@@ -59,10 +59,10 @@ jobs:
           # Fallback: regex extraction if jq path failed (tolerate no match)
           if [ -z "$CAT_ID" ]; then CAT_ID=$(grep -o '"id":"[^\"]\+"' "$CAT" | head -n1 | sed 's/.*"id":"\([^\"]\+\)".*/\1/' || true); fi
           if [ -z "$CAT_ID" ]; then
-            # Try to resolve by slug search
+            # Try to resolve by slug search (capture HTTP code to avoid printing)
             CATS=$(mktemp)
-            curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/categories?search=$SLUG" -o "$CATS" || true
-            sed -i '$d' "$CATS" || true
+            CCODE2=$(curl -sS -H "$AUTH" "$API_BASE/api/admin/categories?search=$SLUG" -o "$CATS" -w '%{http_code}' || true)
+            CCODE2=$(echo "$CCODE2" | tr -d '\r\n[:space:]')
             CAT_ID=$(jq -r --arg slug "$SLUG" '(.categories // .items // []) | map(select((.slug==$slug) or (.name|tostring|contains($slug)))) | .[0].id // empty' "$CATS" || true)
           fi
           echo "CAT_ID=${CAT_ID:-none}"
@@ -81,13 +81,19 @@ jobs:
             # Retry list up to 3 times to avoid transient 502
             for i in 1 2 3; do
               L=$(mktemp)
-              curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/products?limit=1" -o "$L" || true
-              LCODE=$(tail -n1 "$L" | tr -d '\r\n[:space:]') || true
-              sed -i '$d' "$L" || true
-              if [ "$LCODE" = "200" ]; then PROD_ID=$(jq -r '.products[0].id // empty' "$L" || true); fi
+              LCODE=$(curl -sS -H "$AUTH" "$API_BASE/api/admin/products?limit=1" -o "$L" -w '%{http_code}' || true)
+              LCODE=$(echo "$LCODE" | tr -d '\r\n[:space:]')
+              if [ "$LCODE" = "200" ]; then PROD_ID=$(jq -r '(.products[0].id // .items[0].id // empty)' "$L" || true); fi
               [ -n "$PROD_ID" ] && break
               sleep 2
             done
+          fi
+          if [ -z "$PROD_ID" ]; then
+            # Fallback: search by name
+            L=$(mktemp)
+            LCODE=$(curl -sS -H "$AUTH" "$API_BASE/api/admin/products?search=SMOKE-P&limit=1" -o "$L" -w '%{http_code}' || true)
+            LCODE=$(echo "$LCODE" | tr -d '\r\n[:space:]')
+            if [ "$LCODE" = "200" ]; then PROD_ID=$(jq -r '(.products[0].id // .items[0].id // empty)' "$L" || true); fi
           fi
           if [ -z "$PROD_ID" ]; then echo 'No product available'; exit 1; fi
 
