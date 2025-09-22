@@ -1,0 +1,74 @@
+name: Deploy mweb
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/mweb/**'
+      - '.github/workflows/mweb-deploy.yml'
+      - 'scripts/figma-*.mjs'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-mweb
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.6.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build mweb
+        run: pnpm --filter mweb build
+
+      - name: Create release dir on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            export DEPLOY_PATH="${{ secrets.MWEB_DEPLOY_PATH }}"
+            mkdir -p "$DEPLOY_PATH/releases/${GITHUB_SHA}"
+
+      - name: Upload build to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "apps/mweb/dist/*"
+          target: "${{ secrets.MWEB_DEPLOY_PATH }}/releases/${{ github.sha }}/"
+
+      - name: Activate release
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            export DEPLOY_PATH="${{ secrets.MWEB_DEPLOY_PATH }}"
+            ln -sfn "$DEPLOY_PATH/releases/${GITHUB_SHA}" "$DEPLOY_PATH/current"
+            # Optional: keep last 5 releases
+            ls -1dt "$DEPLOY_PATH"/releases/* | tail -n +6 | xargs -r rm -rf
+            # Try to reload nginx if available
+            (command -v sudo >/dev/null && sudo -n systemctl reload nginx) || true
+
