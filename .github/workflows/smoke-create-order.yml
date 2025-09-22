@@ -109,11 +109,10 @@ jobs:
 
           echo '--- Approve order (PAID + bootstrap legs) ---'
           APR=$(mktemp)
-          curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/status/change" \
-            --data "{\"entity\":\"order\",\"id\":\"$ORDER_ID\",\"action\":\"approve\"}" -o "$APR" || true
-          ACODE=$(tail -n1 "$APR" | tr -d '\r\n[:space:]') || true
-          sed -i '$d' "$APR" || true
-          if [ "$ACODE" != "200" ]; then echo 'Approve failed:' "$ACODE"; sed -n '1,200p' "$APR"; exit 1; fi
+          ACODE=$(curl -sS -H "$AUTH" -H 'content-type: application/json' -X POST "$API_BASE/api/admin/status/change" \
+            --data "{\"entity\":\"order\",\"id\":\"$ORDER_ID\",\"action\":\"approve\"}" -o "$APR" -w '%{http_code}' || true)
+          ACODE=$(echo "$ACODE" | tr -d '\r\n[:space:]')
+          if [ "$ACODE" != "200" ]; then echo 'Approve failed:'; sed -n '1,200p' "$APR"; exit 1; fi
 
           echo '--- Verify pickup waiting ---'
           WP=$(mktemp)
