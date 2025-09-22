@@ -682,6 +682,58 @@ adminRest.post('/finance/invoices', async (req, res) => {
     return res.json({ invoice: { id, type, partnerId, amount, currency: currency||'USD', dueDate, status: 'PENDING', reference, notes } });
   } catch (e:any) { res.status(500).json({ error: e.message||'invoice_create_failed' }); }
 });
+
+// Finance: Accounts CRUD (minimal)
+adminRest.get('/finance/accounts', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Account" ("id" TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, code, name, type, "createdAt" FROM "Account" ORDER BY code');
+    return res.json({ accounts: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'accounts_list_failed' }); }
+});
+adminRest.post('/finance/accounts', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.update'))) return res.status(403).json({ error:'forbidden' });
+    const { code, name, type } = req.body || {};
+    if (!code || !name || !type) return res.status(400).json({ error:'code_name_type_required' });
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "Account" (id, code, name, type) VALUES ($1,$2,$3,$4)', id, String(code), String(name), String(type));
+    await audit(req, 'finance', 'account_create', { code, name, type });
+    return res.json({ account: { id, code, name, type } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'account_create_failed' }); }
+});
+
+// Finance: Journal list and trial balance
+adminRest.get('/finance/journal', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalEntry" ("id" TEXT PRIMARY KEY, ref TEXT NULL, memo TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "postedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalLine" ("id" TEXT PRIMARY KEY, "entryId" TEXT NOT NULL, "accountCode" TEXT NOT NULL, debit DOUBLE PRECISION DEFAULT 0, credit DOUBLE PRECISION DEFAULT 0)');
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT e.id as entryId, e.ref, e.memo, e."createdAt",
+             json_agg(json_build_object('accountCode', l."accountCode", 'debit', l.debit, 'credit', l.credit)) as lines
+      FROM "JournalEntry" e
+      LEFT JOIN "JournalLine" l ON l."entryId"=e.id
+      GROUP BY e.id
+      ORDER BY e."createdAt" DESC
+      LIMIT 200`);
+    return res.json({ entries: jsonSafe(rows) });
+  } catch (e:any) { res.status(500).json({ error: e.message||'journal_list_failed' }); }
+});
+adminRest.get('/finance/trial-balance', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT "accountCode" as code,
+             COALESCE(SUM(debit),0)::double precision as debit,
+             COALESCE(SUM(credit),0)::double precision as credit
+      FROM "JournalLine"
+      GROUP BY "accountCode"
+      ORDER BY code`);
+    return res.json({ trial: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'trial_balance_failed' }); }
+});
 adminRest.get('/finance/invoices', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
