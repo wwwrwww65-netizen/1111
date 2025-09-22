@@ -101,6 +101,16 @@ adminRest.use((req: Request, res: Response, next) => {
   }
 });
 
+// Global 403 auditor for admin REST
+adminRest.use((req: Request, res: Response, next) => {
+  const original = res.status.bind(res);
+  (res as any).status = (code: number) => {
+    if (code === 403) { try { void audit(req, 'security', 'forbidden', { path: req.path }); } catch {} }
+    return original(code);
+  };
+  next();
+});
+
 // Roles & Permissions
 adminRest.get('/roles', async (req, res) => {
   try { const u = (req as any).user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error:'forbidden' });
@@ -3551,14 +3561,48 @@ adminRest.post('/notifications/send', async (req, res) => {
     res.json({ success:true });
   } catch (e:any) { res.status(500).json({ error: e.message||'send_failed' }); }
 });
+adminRest.get('/notifications/logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.auditLog.findMany({ where: { module: 'notifications' }, orderBy: { createdAt: 'desc' }, take: 200 });
+    res.json({ logs: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'logs_failed' }); }
+});
 
 // Basic search endpoints (autocomplete)
 adminRest.get('/search/products', async (req, res) => {
   try {
     const q = String(req.query.q||'').trim(); if (!q) return res.json({ items: [] });
+    // Optional Meilisearch integration
+    if (process.env.MEI_HOST && process.env.MEI_KEY) {
+      try {
+        const { default: MeiliSearch } = await import('meilisearch');
+        const cli = new MeiliSearch({ host: process.env.MEI_HOST!, apiKey: process.env.MEI_KEY! });
+        const r: any = await cli.index('products').search(q, { limit: 10 });
+        const items = (r?.hits||[]).map((h:any)=> ({ id: h.id, name: h.name }));
+        return res.json({ items });
+      } catch {}
+    }
     const items = await db.product.findMany({ where: { name: { contains: q, mode: 'insensitive' } }, select: { id:true, name:true }, take: 10 });
     res.json({ items });
   } catch (e:any) { res.status(500).json({ error: e.message||'search_products_failed' }); }
+});
+
+// Recommendations (basic): recently viewed & similar by category
+adminRest.get('/recommendations/recent', async (req, res) => {
+  try {
+    const items = await db.product.findMany({ orderBy: { updatedAt: 'desc' }, select: { id:true, name:true }, take: 8 });
+    res.json({ items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'recommend_recent_failed' }); }
+});
+adminRest.get('/recommendations/similar/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const p = await db.product.findUnique({ where: { id: productId }, select: { categoryId:true } });
+    if (!p) return res.status(404).json({ error:'not_found' });
+    const items = await db.product.findMany({ where: { categoryId: p.categoryId, NOT: { id: productId } }, select: { id:true, name:true }, take: 8 });
+    res.json({ items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'recommend_similar_failed' }); }
 });
 adminRest.get('/search/categories', async (req, res) => {
   try {
