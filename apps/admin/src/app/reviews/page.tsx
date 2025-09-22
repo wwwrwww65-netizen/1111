@@ -1,6 +1,8 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from "../lib/apiBase";
+import { downloadCsv } from "../lib/csv";
+import { exportToXlsx, exportToPdf } from "../lib/export";
 
 export default function ReviewsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
@@ -37,7 +39,7 @@ export default function ReviewsPage(): JSX.Element {
   return (
     <main className="panel">
       <h1>المراجعات</h1>
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
         <select value={status} onChange={(e)=>setStatus(e.target.value)} style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }}>
           <option value="">الكل</option>
           <option value="approved">مقبول</option>
@@ -45,6 +47,12 @@ export default function ReviewsPage(): JSX.Element {
         </select>
         <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث في التعليق" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
         <button onClick={()=>{ setPage(1); load(); }} className="btn">بحث</button>
+        <button className="btn btn-outline" onClick={()=> downloadCsv(`reviews_${new Date().toISOString().slice(0,10)}.csv`, [
+          ['product','user','rating','comment','status'],
+          ...rows.map((r:any)=> [r.product?.name||'', r.user?.email||r.user?.name||'', r.rating, (r.comment||'').replace(/\n/g,' '), r.isApproved? 'approved':'pending'])
+        ])}>CSV</button>
+        <button className="btn btn-outline" onClick={()=> exportToXlsx(`reviews_${new Date().toISOString().slice(0,10)}.xlsx`, ['product','user','rating','comment','status'], rows.map((r:any)=> [r.product?.name||'', r.user?.email||r.user?.name||'', r.rating, r.comment||'', r.isApproved? 'approved':'pending']))}>Excel</button>
+        <button className="btn btn-outline" onClick={()=> exportToPdf(`reviews_${new Date().toISOString().slice(0,10)}.pdf`, ['product','user','rating','comment','status'], rows.map((r:any)=> [r.product?.name||'', r.user?.email||r.user?.name||'', r.rating, r.comment||'', r.isApproved? 'approved':'pending']))}>PDF</button>
       </div>
       <div style={{ overflowX:'auto' }}>
         <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
