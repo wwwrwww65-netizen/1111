@@ -198,5 +198,54 @@ r.post('/badges', async (_req, res) => { res.json({ ok: true }); });
 r.get('/subscriptions', async (_req, res) => { res.json({ subscriptions: [] }); });
 r.post('/subscriptions', async (_req, res) => { res.json({ ok: true }); });
 
+// -------- Affiliates (list/payouts/settings) --------
+r.get('/affiliates/list', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    // No dedicated model yet: derive basic list from users with role USER and count orders
+    const users = await db.user.findMany({ select: { id: true, email: true } });
+    const orders = await db.order.groupBy({ by: ['userId'], _count: { _all: true }, _sum: { total: true } });
+    const byUser: Record<string, any> = Object.fromEntries(orders.map((o: any) => [o.userId || '', o]));
+    const affiliates = users
+      .map((u) => ({ id: u.id, email: u.email, visits: 0, sales: byUser[u.id]?._count?._all || 0, commission: Math.round(((byUser[u.id]?._sum?.total || 0) * 0.05) * 100) / 100, payouts: 0, status: 'ACTIVE' }))
+      .filter((a) => (q ? a.email.toLowerCase().includes(q) : true));
+    res.json({ affiliates });
+  } catch { res.status(500).json({ error: 'Failed to list affiliates' }); }
+});
+
+r.get('/affiliates/payouts', async (_req, res) => {
+  try {
+    // Stub payouts from payments grouped monthly
+    const payments = await db.payment.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
+    const payouts = payments.map((p: any) => ({ id: p.id, email: 'affiliate@example.com', period: `${p.createdAt.getFullYear()}-${String(p.createdAt.getMonth()+1).padStart(2,'0')}`, amount: Math.round((p.amount * 0.05) * 100) / 100, status: p.status==='COMPLETED'?'PAID':'PENDING' }));
+    res.json({ payouts });
+  } catch { res.status(500).json({ error: 'Failed to list payouts' }); }
+});
+
+r.get('/affiliates/settings', async (_req, res) => {
+  try {
+    const s = await db.setting.findUnique({ where: { key: 'affiliates.settings' } });
+    res.json({ settings: s?.value || { enabled: true, cookieDays: 30, baseRate: 5 } });
+  } catch { res.status(500).json({ error: 'Failed to load settings' }); }
+});
+
+r.post('/affiliates/settings', async (req, res) => {
+  try {
+    const { enabled, cookieDays, baseRate } = req.body || {};
+    const s = await db.setting.upsert({ where: { key: 'affiliates.settings' }, update: { value: { enabled: !!enabled, cookieDays: Number(cookieDays||0), baseRate: Number(baseRate||0) } }, create: { key: 'affiliates.settings', value: { enabled: !!enabled, cookieDays: Number(cookieDays||0), baseRate: Number(baseRate||0) } } });
+    res.json({ settings: s.value });
+  } catch { res.status(500).json({ error: 'Failed to save settings' }); }
+});
+
+// -------- Analytics KPIs --------
+r.get('/analytics', async (_req, res) => {
+  try {
+    const users = await db.user.count();
+    const orders = await db.order.count();
+    const revenueAgg = await db.payment.aggregate({ _sum: { amount: true }, where: { status: 'COMPLETED' } });
+    res.json({ kpis: { users, orders, revenue: revenueAgg._sum.amount || 0 } });
+  } catch { res.status(500).json({ error: 'Failed to compute analytics' }); }
+});
+
 export const adminExtra = r;
 
