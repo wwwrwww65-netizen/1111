@@ -4,22 +4,18 @@
     <TopTabs />
     <div class="container" style="padding-top:112px">
       <HeroBanner :style="heroTokens" />
-      <PromoBanners />
+      <PromoStrip />
       <Carousel :slides="heroSlides" />
       <SectionHeading title="الفئات" href="/categories" />
-      <CategoryScroller class="space-y-16" />
+      <CategoryGrid />
       <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
       <div class="prod-grid">
         <ProductCard v-for="i in newItems" :key="i.title" v-bind="i" />
       </div>
       <SectionHeading title="الأكثر مبيعًا" href="/products?sort=top" />
-      <div class="prod-grid">
-        <ProductCard v-for="i in bestItems" :key="i.title" v-bind="i" />
-      </div>
-      <SectionHeading title="تخفيضات الصيف" href="/products?deal=summer" />
-      <div class="prod-grid">
-        <ProductCard v-for="i in saleItems" :key="i.title" v-bind="i" />
-      </div>
+      <HorizontalProducts :label="'الأكثر مبيعاً'" />
+      <SectionHeading title="مقترح لك" href="/products?sort=reco" />
+      <HorizontalProducts :label="'مقترح لك'" />
     </div>
     <BottomNav />
   </div>
@@ -29,8 +25,8 @@
 import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import HeroBanner from '@/components/HeroBanner.vue'
-import CategoryScroller from '@/components/CategoryScroller.vue'
-import PromoBanners from '@/components/PromoBanners.vue'
+import CategoryGrid from '@/components/CategoryGrid.vue'
+import PromoStrip from '@/components/PromoStrip.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
 import ProductCard from '@/components/ProductCard.vue'

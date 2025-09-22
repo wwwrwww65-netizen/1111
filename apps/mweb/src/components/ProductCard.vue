@@ -1,7 +1,10 @@
 <template>
-  <article class="card prod-card">
+  <article class="card prod-card" tabindex="0">
     <div class="img-wrap">
-      <img :src="img" :alt="title" />
+      <picture>
+        <source :srcset="`${img}&fm=webp`" type="image/webp" />
+        <img :src="img" :alt="title" loading="lazy" />
+      </picture>
       <span v-if="badge" class="badge badge-accent">{{ badge }}</span>
     </div>
     <div class="info">
@@ -11,13 +14,22 @@
         <span class="price">{{ price }}</span>
       </div>
     </div>
-    <button class="btn add">إضافة للسلة</button>
+    <button class="btn add" @click="addToCart" aria-label="إضافة للسلة">إضافة للسلة</button>
   </article>
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ img: string; title: string; price: string; original?: string; badge?: string }>();
-const { img, title, price, original, badge } = props;
+import { useCart } from '@/store/cart'
+import gsap from 'gsap'
+const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; badge?: string }>();
+const { id = Math.random().toString(36).slice(2), img, title, price, original, badge } = props;
+const cart = useCart()
+function addToCart(){
+  cart.add({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }, 1)
+  try {
+    gsap.fromTo('.add', { y: 0 }, { y: -6, yoyo: true, repeat: 1, duration: 0.15, ease: 'power1.out' })
+  } catch {}
+}
 </script>
 
 <style scoped>

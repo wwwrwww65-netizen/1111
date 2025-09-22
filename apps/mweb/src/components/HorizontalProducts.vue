@@ -1,21 +1,38 @@
 <template>
-  <div class="hp">
-    <a v-for="p in items" :key="p.title" class="hp-card" :href="p.href || '#'">
-      <img :src="p.img" :alt="p.title" />
+  <div class="hp" ref="wrap" role="region" :aria-label="label || 'منتجات'">
+    <a v-for="p in items" :key="p.title" class="hp-card" :href="p.href || '#'" tabindex="0">
+      <picture>
+        <source :srcset="`${p.img}&fm=webp`" type="image/webp" />
+        <img :src="p.img" :alt="p.title" loading="lazy" />
+      </picture>
       <div class="hp-title">{{ p.title }}</div>
       <div class="hp-price">{{ p.price }}</div>
     </a>
   </div>
+  
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ items?: Array<{ img: string; title: string; price: string; href?: string }> }>();
+import { onMounted, onBeforeUnmount, ref } from 'vue'
+const props = defineProps<{ label?: string; items?: Array<{ img: string; title: string; price: string; href?: string }> }>();
 const items = props.items || [
   { img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', title: 'منتج 1', price: '89 ر.س' },
   { img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop', title: 'منتج 2', price: '129 ر.س' },
   { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', title: 'منتج 3', price: '59 ر.س' },
   { img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1080&auto=format&fit=crop', title: 'منتج 4', price: '149 ر.س' },
 ];
+const wrap = ref<HTMLElement|null>(null)
+let obs: IntersectionObserver | null = null
+onMounted(()=>{
+  obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if (!e.isIntersecting && wrap.value){ wrap.value.style.scrollBehavior = 'auto' }
+      else if (wrap.value){ wrap.value.style.scrollBehavior = 'smooth' }
+    })
+  }, { threshold: 0.1 })
+  if (wrap.value) obs.observe(wrap.value)
+})
+onBeforeUnmount(()=>{ try{ obs?.disconnect() }catch{} })
 </script>
 
 <style scoped>
