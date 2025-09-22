@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { downloadCsv } from '../../lib/csv';
 
 export default function PnLPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -21,13 +22,10 @@ export default function PnLPage(): JSX.Element {
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase]);
 
   function exportCsv(){
-    const rows = [
+    downloadCsv(`pnl_${new Date().toISOString().slice(0,10)}.csv`, [
       ['from','to','groupBy','costCenter','revenues','expenses','profit'],
       [from||'', to||'', group, center, String(data?.revenues||0), String(data?.expenses||0), String(data?.profit||0)]
-    ];
-    const csv = rows.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `pnl_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+    ]);
   }
   return (
     <div className="panel">

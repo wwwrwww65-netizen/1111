@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { downloadCsv } from '../../lib/csv';
 
 export default function CashflowPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -28,13 +29,10 @@ export default function CashflowPage(): JSX.Element {
   }
 
   function exportCsv(){
-    const rows = [
+    downloadCsv(`cashflow_${new Date().toISOString().slice(0,10)}.csv`, [
       ['windowDays','scenario','currentBalance','forecast30','duePayments','costCenter'],
       [windowDays, scenario, String(data?.currentBalance||0), String(adjustedForecast()), String(data?.duePayments||0), center]
-    ];
-    const csv = rows.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `cashflow_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+    ]);
   }
   return (
     <div className="panel">

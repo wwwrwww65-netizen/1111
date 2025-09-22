@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { downloadCsv } from '../../lib/csv';
 
 export default function InvoicesPaymentsPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -87,29 +88,20 @@ export default function InvoicesPaymentsPage(): JSX.Element {
 
   function exportCsv(){
     if (tab==='invoices'){
-      const rows = [
+      downloadCsv(`invoices_${new Date().toISOString().slice(0,10)}.csv`, [
         ['number','orderId','customer','amount','status','dueDate'],
         ...invoices.map((r:any)=> [r.number, r.orderId, r.customer, String(r.amount), r.status, r.dueDate||''])
-      ];
-      const csv = rows.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `invoices_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+      ]);
     } else if (tab==='payments'){
-      const rows = [
+      downloadCsv(`payments_${new Date().toISOString().slice(0,10)}.csv`, [
         ['id','orderId','ref','method','amount','at','note'],
         ...payments.map(r=> [r.id, r.orderId||'', r.ref||'', r.method, String(r.amount), r.at, (r.note||'').replace(/\n/g,' ')])
-      ];
-      const csv = rows.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `payments_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+      ]);
     } else if (tab==='schedule'){
-      const rows = [
+      downloadCsv(`schedule_${new Date().toISOString().slice(0,10)}.csv`, [
         ['id','orderId','dueDate','amount','status'],
         ...schedule.map(r=> [r.id, r.orderId, r.dueDate, String(r.amount), r.status])
-      ];
-      const csv = rows.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `schedule_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+      ]);
     }
   }
 

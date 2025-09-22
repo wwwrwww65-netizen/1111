@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { downloadCsv } from '../../lib/csv';
 
 export default function ExpensesPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -52,13 +53,10 @@ export default function ExpensesPage(): JSX.Element {
   }
 
   function exportCsv(){
-    const lines = [
+    downloadCsv(`expenses_${new Date().toISOString().slice(0,10)}.csv`, [
       ['date','category','description','amount','vendorId','invoiceRef','costCenter'],
       ...rows.map(r=> [r.date, r.category, (r.description||'').replace(/\n/g,' '), String(r.amount), r.vendorId||'', r.invoiceRef||'', r.costCenter||''])
-    ];
-    const csv = lines.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `expenses_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+    ]);
   }
 
   async function importCsv(ev: React.ChangeEvent<HTMLInputElement>){

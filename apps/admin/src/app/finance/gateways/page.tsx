@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { downloadCsv } from '../../lib/csv';
 
 export default function PaymentGatewaysPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -34,15 +35,11 @@ export default function PaymentGatewaysPage(): JSX.Element {
         <input className="input" type="date" value={from} onChange={e=> setFrom(e.target.value)} />
         <input className="input" type="date" value={to} onChange={e=> setTo(e.target.value)} />
         <button className="btn btn-sm" onClick={load} disabled={busy}>تحديث</button>
-        <button className="btn btn-sm" onClick={()=>{
-          const lines = [
+        <button className="btn btn-sm" onClick={()=> downloadCsv(`gateway_${gateway||'all'}_${new Date().toISOString().slice(0,10)}.csv`, [
             ['at','gateway','amount','fee','status','settledAt'],
             ...rows.map(r=> [r.at, r.gateway, String(r.amount), String(r.fee), r.status, r.settledAt||''])
-          ];
-          const csv = lines.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-          const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `gateway_${gateway||'all'}_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
-        }}>تصدير CSV</button>
+          ])
+        }>تصدير CSV</button>
       </div>
       {metrics && (
         <div className="grid cols-3 mt-3">

@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { downloadCsv } from '../../lib/csv';
 
 export default function ReturnsImpactPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -27,13 +28,10 @@ export default function ReturnsImpactPage(): JSX.Element {
   React.useEffect(()=>{ load().catch(()=> setBusy(false)); }, [apiBase, from, to, vendor, reason]);
 
   function exportCsv(){
-    const lines = [
+    downloadCsv(`returns_impact_${new Date().toISOString().slice(0,10)}.csv`, [
       ['rma','orderId','customer','vendorId','amount','reason','date','accountImpact'],
       ...rows.map(r=> [r.rma, r.orderId, r.customer||'', r.vendorId||'', String(r.amount), r.reason||'', String(r.at).slice(0,10), String(r.accountImpact)])
-    ];
-    const csv = lines.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `returns_impact_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+    ]);
   }
 
   return (

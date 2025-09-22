@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { resolveApiBase } from "../../lib/apiBase";
+import { downloadCsv } from "../../lib/csv";
 
 export default function WalletManagement(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -38,13 +39,10 @@ export default function WalletManagement(): JSX.Element {
   }
 
   function exportCsv(){
-    const lines = [
+    downloadCsv(`wallet_accounts_${new Date().toISOString().slice(0,10)}.csv`, [
       ['user','balance','lastTxnAt'],
       ...rows.map(r=> [r.user, String(r.balance), r.lastTxnAt? String(r.lastTxnAt).slice(0,19).replace('T',' '):''])
-    ];
-    const csv = lines.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `wallet_accounts_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+    ]);
   }
 
   return (
