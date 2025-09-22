@@ -1,8 +1,8 @@
 <template>
-  <div :style="rootStyle">
+  <div :style="rootStyle" dir="rtl">
     <HeaderBar />
     <TopTabs />
-    <div class="container">
+    <div class="container" style="padding-top:112px">
       <HeroBanner :style="heroTokens" />
       <PromoBanners />
       <Carousel :slides="heroSlides" />
