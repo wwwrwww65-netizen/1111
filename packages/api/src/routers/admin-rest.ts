@@ -26,7 +26,7 @@ const can = async (userId: string, permKey: string): Promise<boolean> => {
     if (u?.role === 'ADMIN') return true;
   } catch {}
   try {
-    const roleLinks = await db.userRoleLink.findMany({ where: { userId }, include: { role: { include: { permissions: { include: { permission: true } } } } } });
+    const roleLinks = await db.userRoleLink.findMany({ where: { userId }, include: { role: { include: { permissions: { include: { permission: true } } } } });
     for (const rl of roleLinks) {
       for (const rp of rl.role.permissions) {
         if (rp.permission.key === permKey) return true;
@@ -693,7 +693,6 @@ adminRest.post('/finance/invoices', async (req, res) => {
     return res.json({ invoice: { id, type, partnerId, amount, currency: currency||'USD', dueDate, status: 'PENDING', reference, notes } });
   } catch (e:any) { res.status(500).json({ error: e.message||'invoice_create_failed' }); }
 });
-
 // Finance: Accounts CRUD (minimal)
 adminRest.get('/finance/accounts', async (req, res) => {
   try {
@@ -1036,7 +1035,6 @@ adminRest.post('/points/redeem', async (req, res) => {
     res.json({ success:true });
   } catch (e:any) { res.status(500).json({ error: e.message||'points_redeem_failed' }); }
 });
-
 // Badges
 adminRest.post('/badges', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' }); await ensureP2Schemas();
@@ -1720,138 +1718,6 @@ adminRest.get('/notifications/recent', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'notifications_failed' }); }
 });
 adminRest.get('/logistics/pickup/list', (_req, _res, next) => next());
-
-adminRest.post('/logistics/pickup/assign', (_req, _res, next) => next());
-
-adminRest.post('/logistics/pickup/status', (_req, _res, next) => next());
-
-adminRest.get('/logistics/pickup/export/csv', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
-    const status = String(req.query.status||'waiting').toLowerCase();
-    const url = new URLSearchParams({ status } as any);
-    (req as any).query = Object.fromEntries(url.entries());
-    const fakeReq: any = req; const rowsRes: any = { json: (v:any)=>v };
-    const data: any = await new Promise((resolve)=> {
-      (async ()=>{
-        const status = String(fakeReq.query.status||'waiting').toLowerCase();
-        let where = '';
-        if (status === 'waiting') where = `WHERE p.status='SUBMITTED'`;
-        else if (status === 'completed') where = `WHERE p.status='RECEIVED'`;
-        const rows: any[] = status === 'in_progress'
-          ? await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
-             (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
-             (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS') LIMIT 1) as "driverName"
-           FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
-           WHERE p.status='SUBMITTED' AND EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS'))
-           ORDER BY p."createdAt" DESC`
-          : await db.$queryRawUnsafe(`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
-             (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
-             (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' ORDER BY s."createdAt" DESC LIMIT 1) as "driverName"
-           FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
-           ${where}
-           ORDER BY p."createdAt" DESC`);
-        resolve({ pickup: rows });
-      })();
-    });
-    const rows = data.pickup || [];
-    const parser = new CsvParser({ fields: ['id','vendorName','vendorAddress','status','driverName','itemsCount','createdAt'] });
-    const csv = parser.parse(rows.map((r:any)=> ({ id: r.id, vendorName: r.vendorName||'', vendorAddress: r.vendorAddress||'', status: r.status, driverName: r.driverName||'', itemsCount: Number(r.itemsCount||0), createdAt: (r.createdAt||'') })));
-    res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="pickup.csv"'); res.send(csv);
-  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_failed' }); }
-});
-adminRest.get('/logistics/pickup/export/xls', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
-    const status = String(req.query.status||'waiting').toLowerCase();
-    let where = '';
-    if (status === 'waiting') where = `WHERE p.status='SUBMITTED'`;
-    else if (status === 'completed') where = `WHERE p.status='RECEIVED'`;
-    const rows: any[] = status === 'in_progress'
-      ? await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
-         (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
-         (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS') LIMIT 1) as "driverName"
-       FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
-       WHERE p.status='SUBMITTED' AND EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."poId"=p.id AND s."legType"='PICKUP' AND s."status" IN ('SCHEDULED','IN_PROGRESS'))
-       ORDER BY p."createdAt" DESC`
-      : await db.$queryRawUnsafe(`SELECT p.*, v.name as "vendorName", v.address as "vendorAddress",
-         (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount",
-         (SELECT d.name FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=p.id AND s."legType"='PICKUP' ORDER BY s."createdAt" DESC LIMIT 1) as "driverName"
-       FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id=p."vendorId"
-       ${where}
-       ORDER BY p."createdAt" DESC`);
-    const parser = new CsvParser({ fields: ['id','vendorName','vendorAddress','status','driverName','itemsCount','createdAt'] });
-    const csv = parser.parse(rows.map((r:any)=> ({ id: r.id, vendorName: r.vendorName||'', vendorAddress: r.vendorAddress||'', status: r.status, driverName: r.driverName||'', itemsCount: Number(r.itemsCount||0), createdAt: (r.createdAt||'') })));
-    res.setHeader('Content-Type','application/vnd.ms-excel'); res.setHeader('Content-Disposition','attachment; filename="pickup.xls"'); res.send(csv);
-  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_xls_failed' }); }
-});
-adminRest.get('/logistics/pickup/export/pdf', async (_req, res) => {
-  try {
-    res.setHeader('Content-Type','application/pdf');
-    res.setHeader('Content-Disposition','attachment; filename="pickup.pdf"');
-    const doc = new PDFDocument({ autoFirstPage: true });
-    doc.pipe(res);
-    doc.fontSize(16).text('Pickup - Supplier to Warehouse', { align:'center' });
-    doc.moveDown();
-    doc.fontSize(12).text('Placeholder PDF');
-    doc.end();
-  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_export_pdf_failed' }); }
-});
-
-// ===== Logistics: Supplier Pickup (missing endpoints) =====
-function parsePoId(poId: string): { vendorId: string; orderId: string } | null {
-  if (!poId || typeof poId !== 'string') return null;
-  const idx = poId.indexOf(':');
-  if (idx <= 0) return null;
-  return { vendorId: poId.slice(0, idx), orderId: poId.slice(idx + 1) };
-}
-
-// List pickup legs by status: waiting|in_progress|completed
-adminRest.get('/logistics/pickup/list', async (req, res) => {
-  try {
-    const u = (req as any).user;
-    const allow = (await can(u.userId, 'logistics.read')) || (await can(u.userId, 'orders.manage'));
-    if (!allow) return res.status(403).json({ error:'forbidden' });
-    const tab = String(req.query.status||'waiting').toLowerCase();
-    const status = tab === 'in_progress' ? 'IN_PROGRESS' : tab === 'completed' ? 'COMPLETED' : 'SCHEDULED';
-    // Self-heal: ensure PAID orders have PICKUP legs
-    try {
-      const missing: Array<{ id: string }>= await db.$queryRawUnsafe(`
-        SELECT o.id FROM "Order" o
-        WHERE o.status='PAID' AND o."createdAt" > NOW() - INTERVAL '7 days'
-        AND NOT EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."orderId"=o.id AND s."legType"='PICKUP')
-      `);
-      for (const o of missing) {
-        const items = await db.orderItem.findMany({ where: { orderId: o.id }, include: { product: { select: { vendorId: true } } } });
-        const vids = Array.from(new Set(items.map(it=> it.product.vendorId || 'NOVENDOR')));
-        for (const vid of vids) {
-          const poId = `${vid}:${o.id}`;
-          await db.shipmentLeg.create({ data: { orderId: o.id, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-        }
-      }
-    } catch {}
-    // Build rows from ShipmentLeg (legType=PICKUP). poId encodes vendorId:orderId
-    const rows: Array<any> = await db.$queryRawUnsafe(`
-      SELECT s.id, s."poId", s."orderId", s."driverId", s.status, s."createdAt", s."updatedAt",
-        v.name as "vendorName", v.address as "vendorAddress",
-        d.name as "driverName",
-        COALESCE((
-          SELECT SUM(oi.quantity) FROM "OrderItem" oi
-          JOIN "Product" pr ON pr.id=oi."productId"
-          WHERE oi."orderId"=s."orderId" AND pr."vendorId" = split_part(s."poId", ':', 1)
-        ), 0)::integer as "itemsCount"
-      FROM "ShipmentLeg" s
-      LEFT JOIN "Driver" d ON d.id=s."driverId"
-      LEFT JOIN "Vendor" v ON v.id = split_part(s."poId", ':', 1)
-      WHERE s."legType"='PICKUP' AND s.status=$1
-      ORDER BY s."createdAt" DESC`, status);
-    const body = { pickup: jsonSafe(rows) };
-    res.setHeader('Content-Type','application/json');
-    return res.send(JSON.stringify(body));
-  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
-});
-
-// Assign driver to pickup leg (by poId)
 adminRest.post('/logistics/pickup/assign', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
@@ -1862,7 +1728,6 @@ adminRest.post('/logistics/pickup/assign', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_assign_failed' }); }
 });
 
-// Change pickup status; when RECEIVED, mark completed and spawn INBOUND
 adminRest.post('/logistics/pickup/status', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
@@ -1881,7 +1746,6 @@ adminRest.post('/logistics/pickup/status', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_status_failed' }); }
 });
 
-// Warehouse tabs: inbound, sorting, ready
 adminRest.get('/logistics/warehouse/list', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
@@ -1935,7 +1799,6 @@ adminRest.post('/logistics/warehouse/ready/assign', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'ready_assign_failed' }); }
 });
 
-// Delivery tabs: ready, in_delivery, completed, returns
 adminRest.get('/logistics/delivery/list', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
@@ -1966,7 +1829,6 @@ adminRest.post('/logistics/delivery/assign', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'delivery_assign_failed' }); }
 });
 
-// Proof of delivery: signature + photo
 adminRest.post('/logistics/delivery/proof', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
@@ -2361,8 +2223,8 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
       db.order.count({ where: { assignedDriverId: id, status: { in: ['PENDING','PAID','SHIPPED'] } } }),
       db.order.count({ where: { assignedDriverId: id, status: 'DELIVERED' } }),
       db.order.count({ where: { assignedDriverId: id, status: 'PENDING' } }),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED','PAID'] } } } }).then(r=> r._sum.amount || 0),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING','SHIPPED'] } } } }).then(r=> r._sum.amount || 0),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED','PAID'] } } } ).then(r=> r._sum.amount || 0),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING','SHIPPED'] } } } ).then(r=> r._sum.amount || 0),
       db.order.findMany({ where: { assignedDriverId: id }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, status: true, total: true, createdAt: true } })
     ]);
     res.json({ driver: d, kpis: { assigned, delivered, pending, totalEarned, totalDue }, orders: assignedOrders });
@@ -3356,13 +3218,48 @@ adminRest.post('/products', async (req, res) => {
   res.json({ product: p });
 });
 adminRest.patch('/products/:id', async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
-  const { id } = req.params;
-  const data = req.body || {};
-  const p = await db.product.update({ where: { id }, data });
-  await audit(req, 'products', 'update', { id });
-  res.json({ product: p });
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const data = req.body || {};
+    const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true } });
+    const p = await db.product.update({ where: { id }, data });
+    await audit(req, 'products', 'update', { id });
+    try {
+      await ensureAlertSchema();
+      const tx = buildMailer();
+      if (old) {
+        if (typeof old.stockQuantity === 'number' && typeof (p as any).stockQuantity === 'number' && old.stockQuantity <= 0 && (p as any).stockQuantity > 0) {
+          const subs: any[] = await db.$queryRawUnsafe('SELECT id, email FROM "BackInStockSub" WHERE "productId"=$1', id);
+          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'المنتج عاد للمخزون', html: `المنتج ${(old as any).name||id} أصبح متاحاً.` }); } catch {} }
+          await db.$executeRawUnsafe('DELETE FROM "BackInStockSub" WHERE "productId"=$1', id);
+        }
+        if (typeof old.price === 'number' && typeof (p as any).price === 'number' && (p as any).price < old.price) {
+          const subs: any[] = await db.$queryRawUnsafe('SELECT id, email FROM "PriceDropSub" WHERE "productId"=$1', id);
+          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'انخفاض سعر المنتج', html: `تم خفض سعر المنتج ${(old as any).name||id} من ${old.price} إلى ${(p as any).price}.` }); } catch {} }
+          await db.$executeRawUnsafe('DELETE FROM "PriceDropSub" WHERE "productId"=$1', id);
+        }
+      }
+    } catch {}
+    res.json({ product: p });
+  } catch (e:any) {
+    res.status(500).json({ error: e.message||'product_update_failed' });
+  }
 });
+
+async function ensureAlertSchema() {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "BackInStockSub" ("id" TEXT PRIMARY KEY, email TEXT NOT NULL, "productId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PriceDropSub" ("id" TEXT PRIMARY KEY, email TEXT NOT NULL, "productId" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+  } catch {}
+}
+adminRest.post('/alerts/subscribe/back-in-stock', async (req, res) => {
+  try { await ensureAlertSchema(); const { email, productId } = req.body||{}; if (!email || !productId) return res.status(400).json({ error:'email_productId_required' }); await db.$executeRawUnsafe('INSERT INTO "BackInStockSub" (id, email, "productId") VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), String(email).toLowerCase(), String(productId)); res.json({ success:true }); } catch (e:any) { res.status(500).json({ error: e.message||'subscribe_back_in_stock_failed' }); }
+});
+adminRest.post('/alerts/subscribe/price-drop', async (req, res) => {
+  try { await ensureAlertSchema(); const { email, productId } = req.body||{}; if (!email || !productId) return res.status(400).json({ error:'email_productId_required' }); await db.$executeRawUnsafe('INSERT INTO "PriceDropSub" (id, email, "productId") VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), String(email).toLowerCase(), String(productId)); res.json({ success:true }); } catch (e:any) { res.status(500).json({ error: e.message||'subscribe_price_drop_failed' }); }
+});
+
 adminRest.delete('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.delete'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
@@ -3780,22 +3677,6 @@ adminRest.post('/backups/schedule', async (req, res) => {
 });
 
 export default adminRest;
-// ---------------------------
-// Purchase Orders (POS) module
-// ---------------------------
-adminRest.get('/pos/list', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
-    const page = Math.max(1, Number(req.query.page ?? 1));
-    const limit = Math.min(Number(req.query.limit ?? 20), 100);
-    const skip = (page - 1) * limit;
-    const rows: any[] = await db.$queryRaw<any[]>`SELECT p.*, v.name as "vendorName", (SELECT COUNT(1) FROM "PurchaseOrderItem" i WHERE i."poId"=p.id) as "itemsCount" FROM "PurchaseOrder" p LEFT JOIN "Vendor" v ON v.id = p."vendorId" ORDER BY p."createdAt" DESC OFFSET ${skip} LIMIT ${limit}`;
-    const totalRows = await db.$queryRaw<Array<{count: bigint}>>`SELECT COUNT(1)::bigint as count FROM "PurchaseOrder"`;
-    const total = Number(totalRows?.[0]?.count || 0);
-    return res.json({ pos: rows, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total/limit)) } });
-  } catch (e:any) { res.status(500).json({ error: e.message||'pos_list_failed' }); }
-});
-
 adminRest.get('/pos/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
