@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
+export const db = prisma;
+
 export async function ensureSchemaSafe(): Promise<void> {
   try {
     // Remove unsafe DEFAULT expressions that reference columns (Postgres 0A000)

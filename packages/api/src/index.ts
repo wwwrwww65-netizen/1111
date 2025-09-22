@@ -12,6 +12,7 @@ import { db } from '@repo/db';
 import { ensureSchemaSafe } from './db/ensure';
 import cookieParser from 'cookie-parser';
 import adminRest from './routers/admin-rest';
+import { adminExtra } from './routers/admin-extra';
 import shippingWebhooks from './routers/webhooks';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
@@ -176,6 +177,7 @@ async function ensureCategoryColumnsAlways(): Promise<void> {
 applySecurityMiddleware(app);
 app.use(cookieParser());
 app.use('/api/admin', adminRest);
+app.use('/api/admin', adminExtra);
 // Mount shipping webhooks (required by tests hitting /webhooks/shipping)
 app.use('/webhooks', shippingWebhooks);
 
