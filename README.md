@@ -301,6 +301,25 @@ For support and questions:
 - للفرع `feature/admin-non-product-modules` يوجد وركفلو خاص: `.github/workflows/ci-admin.yml` يقوم بـ migration-run-check و seed-run-check (admin-only) ثم build/lint/tests/E2E (Placeholder).
 - تشغيل يدوي: Actions > CI / CD > CI - Admin Modules.
 
+### CI E2E Flow (logistics→finance→notifications)
+
+- Script: `scripts/ci/e2e-flow.mjs`
+- What it does:
+  - Logs in (or registers) an admin user and captures cookie.
+  - Creates shipment legs for a test order (PICKUP → INBOUND → DELIVERY).
+  - Pings a driver (WS-backed endpoint) and updates last-seen.
+  - Marks last leg COMPLETED, records a test payment, enqueues a test notification.
+  - Verifies order visibility endpoint.
+- Wired in `.github/workflows/ci-cd.yml` after API/Admin build and smoke checks.
+
+### Ops Runbooks (quick)
+
+- Start API locally: `pnpm -C packages/api build && node packages/api/dist/index.js`
+- Ensure schema (CI/Local): `pnpm -C packages/db db:push:force`
+- Seed minimal admin: `pnpm -C packages/db db:seed:admin-only`
+- NGINX reload on VPS: `sudo nginx -t && sudo systemctl reload nginx`
+- Systemd logs: `journalctl -u ecom-api -n 200 --no-pager`
+
 ### CI database strategy (Postgres + Prisma)
 
 - Postgres service runs in CI (`postgres:15`).
