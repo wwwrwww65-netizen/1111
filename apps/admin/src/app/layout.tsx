@@ -7,6 +7,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
   return (
     <html lang="ar" dir="rtl">
       <body>
+        <script dangerouslySetInnerHTML={{ __html: `window.__admin_loaded_at = Date.now();` }} />
         <AppProviders>
           <AppShell>{children}</AppShell>
         </AppProviders>
