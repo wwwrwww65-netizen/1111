@@ -724,7 +724,7 @@ adminRest.post('/orders/:id/refund', async (req, res) => {
     const mock = !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_MOCK === 'true';
     if (mock) {
       await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
-      await db.order.update({ where: { id }, data: { status: 'REFUNDED' } });
+      await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
       // Post journal (mock)
       try {
         const eid = (require('crypto').randomUUID as ()=>string)();
@@ -743,7 +743,7 @@ adminRest.post('/orders/:id/refund', async (req, res) => {
     if (!ch) return res.status(400).json({ error:'charge_not_found' });
     await stripe.refunds.create({ charge: ch });
     await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
-    await db.order.update({ where: { id }, data: { status: 'REFUNDED' } });
+    await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
     // Post journal (stripe)
     try {
       const eid = (require('crypto').randomUUID as ()=>string)();
