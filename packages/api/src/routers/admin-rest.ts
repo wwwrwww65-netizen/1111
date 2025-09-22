@@ -45,7 +45,7 @@ const audit = async (req: Request, module: string, action: string, details?: any
 adminRest.use((req: Request, res: Response, next) => {
   // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
   const p = req.path || '';
-  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac') || p.startsWith('/maintenance/ensure-category-seo') || p.startsWith('/categories/health')) {
+  if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac') || p.startsWith('/maintenance/ensure-category-seo') || p.startsWith('/maintenance/ensure-logistics') || p.startsWith('/categories/health')) {
     return next();
   }
   try {
@@ -150,6 +150,53 @@ adminRest.post('/maintenance/ensure-rbac', async (req, res) => {
     return res.json({ ok: true });
   } catch (e:any) {
     return res.status(500).json({ error: e?.message || 'ensure_rbac_failed' });
+  }
+});
+
+// Maintenance: ensure logistics tables exist (idempotent)
+adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
+  try {
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "Driver" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"name" TEXT NOT NULL,'+
+      '"phone" TEXT NULL,'+
+      '"isActive" BOOLEAN DEFAULT TRUE,'+
+      '"status" TEXT NULL,'+
+      '"lat" DOUBLE PRECISION NULL,'+
+      '"lng" DOUBLE PRECISION NULL,'+
+      '"lastSeenAt" TIMESTAMP NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "ShipmentLeg" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"orderId" TEXT NULL,'+
+      '"poId" TEXT NULL,'+
+      '"legType" TEXT NOT NULL,'+
+      '"status" TEXT NOT NULL,'+
+      '"driverId" TEXT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_orderId_idx" ON "ShipmentLeg"("orderId")');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_poId_idx" ON "ShipmentLeg"("poId")');
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "Package" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"barcode" TEXT UNIQUE NULL,'+
+      '"status" TEXT NOT NULL DEFAULT "PENDING",'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Package_status_idx" ON "Package"("status")');
+    return res.json({ ok: true });
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message || 'ensure_logistics_failed' });
   }
 });
 adminRest.get('/permissions', async (req, res) => {

@@ -114,6 +114,12 @@ jobs:
           ACODE=$(echo "$ACODE" | tr -d '\r\n[:space:]')
           if [ "$ACODE" != "200" ]; then echo 'Approve failed:'; sed -n '1,200p' "$APR"; exit 1; fi
 
+          echo '--- Ensure logistics tables (idempotent) ---'
+          LG=$(mktemp)
+          LCODE=$(curl -sS -H "$AUTH" -X POST "$API_BASE/api/admin/maintenance/ensure-logistics" -o "$LG" -w '%{http_code}' || true)
+          LCODE=$(echo "$LCODE" | tr -d '\r\n[:space:]')
+          if [ "$LCODE" != "200" ]; then echo 'Ensure logistics failed:'; sed -n '1,160p' "$LG"; fi
+
           echo '--- Verify pickup waiting ---'
           WP=$(mktemp)
           curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/logistics/pickup/list?status=waiting" -o "$WP"
