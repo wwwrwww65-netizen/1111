@@ -1237,7 +1237,9 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
       LEFT JOIN "Vendor" v ON v.id = split_part(s."poId", ':', 1)
       WHERE s."legType"='PICKUP' AND s.status=$1
       ORDER BY s."createdAt" DESC`, status);
-    return res.json({ pickup: jsonSafe(rows) });
+    const body = { pickup: jsonSafe(rows) };
+    res.setHeader('Content-Type','application/json');
+    return res.send(JSON.stringify(body));
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
 });
 
