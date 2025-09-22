@@ -41,6 +41,19 @@ if (sentryEnabled && SentryRef) {
     if (SentryRef.Handlers.tracingHandler) app.use(SentryRef.Handlers.tracingHandler());
   } catch {}
 }
+// Global JSON sanitizer: convert BigInt to Number to avoid serialization errors
+app.use((_req, res, next) => {
+  const originalJson = res.json.bind(res);
+  (res as any).json = (payload: any) => {
+    try {
+      const safe = JSON.parse(JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? Number(v) : v));
+      return originalJson(safe);
+    } catch {
+      return originalJson(payload);
+    }
+  };
+  next();
+});
 // Behind NGINX, trust only loopback to satisfy express-rate-limit without being overly permissive
 app.set('trust proxy', 'loopback');
 // Ensure critical DB schema tweaks are applied (idempotent)
