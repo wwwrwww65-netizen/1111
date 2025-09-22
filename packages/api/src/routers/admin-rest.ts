@@ -11,6 +11,7 @@ import type { Readable } from 'stream';
 import { z } from 'zod';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
+import nodemailer from 'nodemailer';
 
 const adminRest = Router();
 // Ensure body parsers explicitly for this router
@@ -733,6 +734,117 @@ adminRest.get('/finance/trial-balance', async (req, res) => {
       ORDER BY code`);
     return res.json({ trial: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'trial_balance_failed' }); }
+});
+
+// =====================
+// Marketing Flows & Campaigns
+// =====================
+async function ensureMarketingSchema() {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "MarketingEvent" ("id" TEXT PRIMARY KEY, "userId" TEXT NULL, type TEXT NOT NULL, "targetId" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Campaign" ("id" TEXT PRIMARY KEY, name TEXT NOT NULL, segment JSONB NULL, "discountCode" TEXT NULL, status TEXT NOT NULL DEFAULT \'DRAFT\', "startsAt" TIMESTAMP NULL, "endsAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+  } catch {}
+}
+
+function buildMailer() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: false,
+    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+  });
+}
+
+adminRest.post('/marketing/flows/run', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'marketing','forbidden_run',{}); return res.status(403).json({ error:'forbidden' }); }
+    await ensureMarketingSchema();
+    const flow = String(req.body?.type || '').toLowerCase();
+    const tx = buildMailer();
+    const sent: Array<any> = [];
+    if (flow === 'welcome') {
+      const users = await db.user.findMany({ where: { createdAt: { gte: new Date(Date.now() - 24*60*60*1000) } }, select: { id:true, email:true, name:true } });
+      for (const usr of users) {
+        const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'welcome\' AND "userId"=$1', usr.id);
+        if (Number(exists?.[0]?.count || 0) > 0) continue;
+        if (usr.email) {
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: 'مرحبا بك في جيي', html: `أهلا ${usr.name||''}! يسعدنا انضمامك.` }); } catch {}
+          await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type) VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), usr.id, 'welcome');
+          sent.push({ flow:'welcome', userId: usr.id });
+        }
+      }
+    } else if (flow === 'abandoned_cart') {
+      const carts = await db.cart.findMany({ include: { items: true, user: { select: { id:true, email:true, name:true } } } });
+      for (const c of carts) {
+        if (!c.items?.length) continue;
+        // If cart hasn't changed for 24h and user has no order in last 24h
+        const updatedAt = (c as any).updatedAt ? new Date((c as any).updatedAt) : new Date(0);
+        if (Date.now() - updatedAt.getTime() < 24*60*60*1000) continue;
+        const recentOrder = await db.order.findFirst({ where: { userId: c.userId, createdAt: { gte: new Date(Date.now() - 24*60*60*1000) } }, select: { id:true } });
+        if (recentOrder) continue;
+        const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'abandoned_cart\' AND "userId"=$1', c.userId);
+        if (Number(exists?.[0]?.count || 0) > 0) continue;
+        if (c.user?.email) {
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: c.user.email, subject: 'سلة التسوق بانتظارك', html: 'لديك عناصر في السلة، أكمل الطلب الآن.' }); } catch {}
+          await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type) VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), c.user.id, 'abandoned_cart');
+          sent.push({ flow:'abandoned_cart', userId: c.user.id });
+        }
+      }
+    } else if (flow === 'win_back') {
+      // users with last order older than 30 days
+      const users = await db.user.findMany({ select: { id:true, email:true, name:true } });
+      for (const usr of users) {
+        const last = await db.order.findFirst({ where: { userId: usr.id }, orderBy: { createdAt: 'desc' }, select: { createdAt:true } });
+        const lastTs = last?.createdAt ? new Date(last.createdAt).getTime() : 0;
+        if (Date.now() - lastTs < 30*24*60*60*1000) continue;
+        const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'win_back\' AND "userId"=$1 AND "createdAt">NOW()- INTERVAL \'30 days\'', usr.id);
+        if (Number(exists?.[0]?.count || 0) > 0) continue;
+        if (usr.email) {
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: 'نفتقدك!', html: 'عُد إلينا وتمتع بعرض خاص.' }); } catch {}
+          await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type) VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), usr.id, 'win_back');
+          sent.push({ flow:'win_back', userId: usr.id });
+        }
+      }
+    } else if (flow === 'post_purchase') {
+      // send thank you for recent orders in last day
+      const orders = await db.order.findMany({ where: { createdAt: { gte: new Date(Date.now() - 24*60*60*1000) }, status: 'PAID' as any }, include: { user: true } });
+      for (const o of orders) {
+        const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'post_purchase\' AND "userId"=$1 AND "targetId"=$2', o.userId, o.id);
+        if (Number(exists?.[0]?.count || 0) > 0) continue;
+        if (o.user?.email) {
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: o.user.email, subject: 'شكراً لطلبك', html: `شكراً لطلبك ${o.id}. نتمنى لك تجربة رائعة.` }); } catch {}
+          await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type, "targetId") VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), o.userId, 'post_purchase', o.id);
+          sent.push({ flow:'post_purchase', userId: o.userId, orderId: o.id });
+        }
+      }
+    } else {
+      return res.status(400).json({ error:'unknown_flow' });
+    }
+    await audit(req, 'marketing', 'flows_run', { flow, count: sent.length });
+    return res.json({ flow, sent });
+  } catch (e:any) { res.status(500).json({ error: e.message||'flows_run_failed' }); }
+});
+
+// Campaigns
+adminRest.post('/marketing/campaigns', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    await ensureMarketingSchema();
+    const { name, segment, discountCode, startsAt, endsAt } = req.body || {};
+    if (!name) return res.status(400).json({ error:'name_required' });
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "Campaign" (id, name, segment, "discountCode", status, "startsAt", "endsAt") VALUES ($1,$2,$3,$4,$5,$6,$7)', id, String(name), segment? JSON.stringify(segment): null, discountCode||null, 'DRAFT', startsAt? new Date(String(startsAt)) : null, endsAt? new Date(String(endsAt)) : null);
+    await audit(req, 'marketing', 'campaign_create', { id, name });
+    return res.json({ campaign: { id, name, segment: segment||null, discountCode: discountCode||null, status:'DRAFT', startsAt, endsAt } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'campaign_create_failed' }); }
+});
+adminRest.get('/marketing/campaigns', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    await ensureMarketingSchema();
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, name, segment, "discountCode", status, "startsAt", "endsAt", "createdAt" FROM "Campaign" ORDER BY "createdAt" DESC');
+    return res.json({ campaigns: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'campaign_list_failed' }); }
 });
 adminRest.get('/finance/invoices', async (req, res) => {
   try {
