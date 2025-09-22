@@ -4,6 +4,7 @@ import { AppProviders } from "./providers";
 import { Header } from "../components/Header";
 import { FooterCompact } from "../components/FooterCompact";
 import { MobileBottomNav } from "../components/MobileBottomNav";
+import { CookieConsent } from "../components/CookieConsent";
 import { Tajawal } from "next/font/google";
 
 const tajawal = Tajawal({ subsets: ["arabic"], weight: ["400","500","700","800"] });
@@ -69,6 +70,7 @@ export default function RootLayout({
           <FooterCompact />
           <MobileBottomNav />
         </AppProviders>
+        <CookieConsent />
       </body>
     </html>
   );
