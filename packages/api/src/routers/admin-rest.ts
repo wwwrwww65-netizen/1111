@@ -788,7 +788,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
         const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'welcome\' AND "userId"=$1', usr.id);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
         if (usr.email) {
-          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: 'مرحبا بك في جيي', html: `أهلا ${usr.name||''}! يسعدنا انضمامك.` }); } catch {}
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: 'مرحبا بك في جيي', html: 'أهلا ' + (usr.name||'') + '! يسعدنا انضمامك.' }); } catch {}
           await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type) VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), usr.id, 'welcome');
           sent.push({ flow:'welcome', userId: usr.id });
         }
@@ -832,7 +832,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
         const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'post_purchase\' AND "userId"=$1 AND "targetId"=$2', o.userId, o.id);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
         if (o.user?.email) {
-          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: o.user.email, subject: 'شكراً لطلبك', html: `شكراً لطلبك ${o.id}. نتمنى لك تجربة رائعة.` }); } catch {}
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: o.user.email, subject: 'شكراً لطلبك', html: 'شكراً لطلبك ' + o.id + '. نتمنى لك تجربة رائعة.' }); } catch {}
           await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type, "targetId") VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), o.userId, 'post_purchase', o.id);
           sent.push({ flow:'post_purchase', userId: o.userId, orderId: o.id });
         }
@@ -3241,12 +3241,12 @@ adminRest.patch('/products/:id', async (req, res) => {
       if (old) {
         if (typeof old.stockQuantity === 'number' && typeof (p as any).stockQuantity === 'number' && old.stockQuantity <= 0 && (p as any).stockQuantity > 0) {
           const subs: any[] = await db.$queryRawUnsafe('SELECT id, email FROM "BackInStockSub" WHERE "productId"=$1', id);
-          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'المنتج عاد للمخزون', html: `المنتج ${(old as any).name||id} أصبح متاحاً.` }); } catch {} }
+          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'المنتج عاد للمخزون', html: 'المنتج ' + ((old as any).name||id) + ' أصبح متاحاً.' }); } catch {} }
           await db.$executeRawUnsafe('DELETE FROM "BackInStockSub" WHERE "productId"=$1', id);
         }
         if (typeof old.price === 'number' && typeof (p as any).price === 'number' && (p as any).price < old.price) {
           const subs: any[] = await db.$queryRawUnsafe('SELECT id, email FROM "PriceDropSub" WHERE "productId"=$1', id);
-          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'انخفاض سعر المنتج', html: `تم خفض سعر المنتج ${(old as any).name||id} من ${old.price} إلى ${(p as any).price}.` }); } catch {} }
+          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'انخفاض سعر المنتج', html: 'تم خفض سعر المنتج ' + ((old as any).name||id) + ' من ' + old.price + ' إلى ' + (p as any).price + '.' }); } catch {} }
           await db.$executeRawUnsafe('DELETE FROM "PriceDropSub" WHERE "productId"=$1', id);
         }
       }
