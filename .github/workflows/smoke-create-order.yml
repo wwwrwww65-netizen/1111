@@ -28,6 +28,7 @@ jobs:
           BODY=$(mktemp)
           CODE=$(curl -sS -H 'content-type: application/json' -X POST "$API_BASE/api/admin/auth/login" \
             --data "{\"email\":\"$email\",\"password\":\"$pass\",\"remember\":true}" -o "$BODY" -w '%{http_code}')
+          CODE=$(echo "$CODE" | tr -d '\r\n[:space:]')
           if [ "$CODE" != "200" ]; then echo 'Login HTTP code:' "$CODE"; sed -n '1,160p' "$BODY"; exit 1; fi
           TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | sed 's/.*"token":"\([^"]\+\)".*/\1/')
           if [ -z "$TOKEN" ]; then echo 'Login token missing'; sed -n '1,160p' "$BODY"; exit 1; fi
@@ -38,7 +39,7 @@ jobs:
           CAT=$(mktemp)
           curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/categories" \
             --data "{\"name\":\"SmokeCat $TS\",\"slug\":\"smoke-cat-$TS\"}" -o "$CAT" || true
-          CCODE=$(tail -n1 "$CAT") || true
+          CCODE=$(tail -n1 "$CAT" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$CAT" || true
           if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create failed:' "$CCODE"; sed -n '1,160p' "$CAT"; exit 1; fi
           CAT_ID=$(jq -r '.category.id // empty' "$CAT" || true)
@@ -54,13 +55,13 @@ jobs:
           PROD_BODY=$(mktemp)
           curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/products" \
             --data "{\"name\":\"SMOKE-P\",\"description\":\"demo\",\"price\":9.9,\"images\":[],\"stockQuantity\":5,\"categoryId\":\"$CAT_ID\"}" -o "$PROD_BODY" || true
-          PCODE=$(tail -n1 "$PROD_BODY") || true
+          PCODE=$(tail -n1 "$PROD_BODY" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$PROD_BODY" || true
           if [ "$PCODE" = "200" ]; then PROD_ID=$(jq -r '.product.id // empty' "$PROD_BODY" || true); else PROD_ID=""; fi
           if [ -z "$PROD_ID" ]; then
             L=$(mktemp)
             curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/products?limit=1" -o "$L"
-            LCODE=$(tail -n1 "$L") || true
+            LCODE=$(tail -n1 "$L" | tr -d '\r\n[:space:]') || true
             sed -i '$d' "$L" || true
             if [ "$LCODE" != "200" ]; then echo 'List products failed:' "$LCODE"; sed -n '1,160p' "$L"; exit 1; fi
             PROD_ID=$(jq -r '.products[0].id // empty' "$L" || true)
@@ -71,7 +72,7 @@ jobs:
           ORD_BODY=$(mktemp)
           curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/orders" \
             --data "{\"customer\":{\"name\":\"Smoke User\",\"email\":\"smoke+$TS@local\",\"phone\":\"\"},\"address\":{\"street\":\"Test St\"},\"items\":[{\"productId\":\"$PROD_ID\",\"quantity\":1,\"price\":9.9}]}" -o "$ORD_BODY"
-          OCODE=$(tail -n1 "$ORD_BODY") || true
+          OCODE=$(tail -n1 "$ORD_BODY" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$ORD_BODY" || true
           if [ "$OCODE" != "200" ]; then echo 'Order create failed:' "$OCODE"; sed -n '1,200p' "$ORD_BODY"; exit 1; fi
           ORDER_ID=$(jq -r '.order.id // empty' "$ORD_BODY" || true)
@@ -82,14 +83,14 @@ jobs:
           APR=$(mktemp)
           curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/status/change" \
             --data "{\"entity\":\"order\",\"id\":\"$ORDER_ID\",\"action\":\"approve\"}" -o "$APR" || true
-          ACODE=$(tail -n1 "$APR") || true
+          ACODE=$(tail -n1 "$APR" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$APR" || true
           if [ "$ACODE" != "200" ]; then echo 'Approve failed:' "$ACODE"; sed -n '1,200p' "$APR"; exit 1; fi
 
           echo '--- Verify pickup waiting ---'
           WP=$(mktemp)
           curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/logistics/pickup/list?status=waiting" -o "$WP"
-          WCODE=$(tail -n1 "$WP") || true
+          WCODE=$(tail -n1 "$WP" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$WP" || true
           if [ "$WCODE" != "200" ]; then echo 'Pickup waiting failed:' "$WCODE"; sed -n '1,200p' "$WP"; exit 1; fi
           echo "$ORDER_ID" > /tmp/oid
@@ -98,7 +99,7 @@ jobs:
           echo '--- Verify pickup in_progress after assign (if driver exists) ---'
           DR=$(mktemp)
           curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/drivers" -o "$DR" || true
-          DRCODE=$(tail -n1 "$DR") || true
+          DRCODE=$(tail -n1 "$DR" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$DR" || true
           DRV=$(jq -r '.drivers[0].id // empty' "$DR" || true)
           POID=$(jq -r '.pickup[0].poId // empty' "$WP" || true)
@@ -106,7 +107,7 @@ jobs:
             AS=$(mktemp)
             curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/status/change" \
               --data "{\"entity\":\"pickup\",\"id\":\"$POID\",\"action\":\"assign\",\"extra\":{\"driverId\":\"$DRV\"}}" -o "$AS" || true
-            ASCODE=$(tail -n1 "$AS") || true
+            ASCODE=$(tail -n1 "$AS" | tr -d '\r\n[:space:]') || true
             sed -i '$d' "$AS" || true
             if [ "$ASCODE" != "200" ]; then echo 'Assign failed:' "$ASCODE"; sed -n '1,200p' "$AS"; fi
             curl -sS -H "$AUTH" "$API_BASE/api/admin/logistics/pickup/list?status=in_progress" | sed -n '1,120p'
