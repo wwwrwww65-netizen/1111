@@ -221,6 +221,12 @@ adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_orderId_idx" ON "ShipmentLeg"("orderId")');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_poId_idx" ON "ShipmentLeg"("poId")');
+    // Align columns with Prisma schema (idempotent)
+    await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "fromLocation" TEXT NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "toLocation" TEXT NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "scheduledAt" TIMESTAMP NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP NULL');
     await db.$executeRawUnsafe(
       'CREATE TABLE IF NOT EXISTS "Package" ('+
       '"id" TEXT PRIMARY KEY,'+
@@ -231,6 +237,12 @@ adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Package_status_idx" ON "Package"("status")');
+    // Align Package columns with Prisma schema (idempotent)
+    await db.$executeRawUnsafe('ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "orderId" TEXT NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "poId" TEXT NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "weight" DOUBLE PRECISION NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "dimensions" TEXT NULL');
+    await db.$executeRawUnsafe('ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "priority" TEXT NULL');
     return res.json({ ok: true });
   } catch (e:any) {
     return res.status(500).json({ error: e.message || 'ensure_logistics_failed' });
