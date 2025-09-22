@@ -31,9 +31,11 @@ export default function RootLayout({
 }): JSX.Element {
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
+  const gsc = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
   return (
     <html lang="ar" dir="rtl">
       <body className={tajawal.className}>
+        {gsc && (<meta name="google-site-verification" content={gsc} />)}
         {gtmId && (
           <script
             dangerouslySetInnerHTML={{
