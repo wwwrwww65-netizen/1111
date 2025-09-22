@@ -1777,6 +1777,26 @@ adminRest.post('/logistics/pickup/assign', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_assign_failed' }); }
 });
 
+// Loyalty summary: points per user
+adminRest.get('/loyalty/list', async (_req, res) => {
+  try {
+    await ensureP2Schemas();
+    const rows: Array<{ userId: string; points: number }> = await db.$queryRawUnsafe(
+      'SELECT "userId", COALESCE(SUM(points),0)::double precision as points FROM "PointLedger" GROUP BY "userId" ORDER BY points DESC LIMIT 500'
+    );
+    res.json({ points: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'loyalty_list_failed' }); }
+});
+
+// Points log (latest entries)
+adminRest.get('/points/log', async (_req, res) => {
+  try {
+    await ensureP2Schemas();
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "userId", points, reason, "createdAt" FROM "PointLedger" ORDER BY "createdAt" DESC LIMIT 200');
+    res.json({ entries: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_log_failed' }); }
+});
+
 adminRest.post('/logistics/pickup/status', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });

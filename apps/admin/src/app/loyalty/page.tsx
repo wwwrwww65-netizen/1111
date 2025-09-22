@@ -5,7 +5,7 @@ import { resolveApiBase } from "../lib/apiBase";
 export default function LoyaltyPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/loyalty/list`, { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.points||[])); },[apiBase]);
+  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/loyalty/list`, { credentials:'include' }).then(r=>r.json()).then(j=>setRows(j.points||[])).catch(()=>setRows([])); },[apiBase]);
   return (
     <main>
       <h1 style={{ marginBottom: 16 }}>الولاء</h1>
