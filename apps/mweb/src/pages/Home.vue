@@ -5,13 +5,14 @@
     <div class="container" style="padding-top:112px">
       <HeroBanner :style="heroTokens" />
       <PromoStrip />
+      <DiscountRow />
       <Carousel :slides="heroSlides" />
       <SectionHeading title="الفئات" href="/categories" />
       <CategoryGrid />
-      <SectionHeading title="عروض كبرى" href="/products?sort=top" />
-      <ProductGrid :items="bestItems" label="عروض كبرى" />
       <SectionHeading title="اهم الترندات" href="/products?sort=reco" />
       <ProductGrid :items="saleItems" label="اهم الترندات" />
+      <SectionHeading title="عروض كبرى" href="/products?sort=top" />
+      <ProductGrid :items="bestItems" label="عروض كبرى" />
       <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
       <ProductGrid :items="newItems" label="وصل حديثًا" />
     </div>
@@ -29,6 +30,7 @@ import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import ProductGrid from '@/components/ProductGrid.vue'
+import DiscountRow from '@/components/DiscountRow.vue'
 import TopTabs from '@/components/TopTabs.vue'
 import Carousel from '@/components/Carousel.vue'
 import SvgBanner from '@/components/SvgBanner.vue'
@@ -36,7 +38,7 @@ import SvgBanner from '@/components/SvgBanner.vue'
 
 import { computed } from 'vue'
 // Apply Figma tokens if present
-const rootStyle = computed(()=> ({ background: 'var(--figma-color-background, var(--bg))' }))
+const rootStyle = computed(()=> ({ background: '#fde9eb' }))
 const heroTokens = computed(()=> ({
   boxShadow: 'var(--figma-shadow-hero-shadow, var(--shadow))',
   borderRadius: 'var(--figma-radius-hero-radius, 12px)'
