@@ -1771,7 +1771,7 @@ adminRest.post('/logistics/pickup/assign', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
     const { poId, driverId } = req.body||{}; if (!poId || !driverId) return res.status(400).json({ error:'poId_and_driverId_required' });
-    await db.$executeRawUnsafe('UPDATE "ShipmentLeg" SET "driverId"=$1, status=$2, "updatedAt"=NOW() WHERE "legType"=$3 AND "poId"=$4', driverId, 'IN_PROGRESS', 'PICKUP', poId);
+    await db.$executeRawUnsafe('UPDATE "ShipmentLeg" SET "driverId"=$1, status=$2::"ShipmentLegStatus", "updatedAt"=NOW() WHERE "legType"=$3::"ShipmentLegType" AND "poId"=$4', driverId, 'IN_PROGRESS', 'PICKUP', poId);
     await audit(req, 'logistics.pickup', 'assign_driver', { poId, driverId });
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_assign_failed' }); }
@@ -1823,7 +1823,7 @@ adminRest.get('/logistics/warehouse/list', async (req, res) => {
     if (tab === 'inbound') {
       rows = await db.$queryRawUnsafe(`SELECT s.id as shipmentId, d.name as driverName, s."createdAt" as arrivedAt, 'PENDING' as status
         FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId"
-        WHERE s."legType"='INBOUND' AND s."status" IN ('SCHEDULED','IN_PROGRESS')
+        WHERE s."legType"='INBOUND'::"ShipmentLegType" AND s."status" IN ('SCHEDULED'::"ShipmentLegStatus",'IN_PROGRESS'::"ShipmentLegStatus")
         ORDER BY s."createdAt" DESC`);
     } else if (tab === 'sorting') {
       rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt" as updatedAt
@@ -1967,7 +1967,7 @@ adminRest.get('/logistics/warehouse/export/csv', async (req, res) => {
     if (tab === 'inbound') {
       rows = await db.$queryRawUnsafe(`SELECT s.id as shipmentId, d.name as "driverName", s."createdAt" as arrivedAt, s.status
         FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId"
-        WHERE s."legType"='INBOUND' AND s."status" IN ('SCHEDULED','IN_PROGRESS','COMPLETED')
+        WHERE s."legType"='INBOUND'::"ShipmentLegType" AND s."status" IN ('SCHEDULED'::"ShipmentLegStatus",'IN_PROGRESS'::"ShipmentLegStatus",'COMPLETED'::"ShipmentLegStatus")
         ORDER BY s."createdAt" DESC`);
       fields = ['shipmentId','driverName','arrivedAt','status'];
     } else if (tab === 'sorting') {
@@ -1993,7 +1993,7 @@ adminRest.get('/logistics/warehouse/export/xls', async (req, res) => {
     if (tab === 'inbound') {
       rows = await db.$queryRawUnsafe(`SELECT s.id as shipmentId, d.name as "driverName", s."createdAt" as arrivedAt, s.status
         FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId"
-        WHERE s."legType"='INBOUND' AND s."status" IN ('SCHEDULED','IN_PROGRESS','COMPLETED')
+        WHERE s."legType"='INBOUND'::"ShipmentLegType" AND s."status" IN ('SCHEDULED'::"ShipmentLegStatus",'IN_PROGRESS'::"ShipmentLegStatus",'COMPLETED'::"ShipmentLegStatus")
         ORDER BY s."createdAt" DESC`);
       fields = ['shipmentId','driverName','arrivedAt','status'];
     } else if (tab === 'sorting') {
