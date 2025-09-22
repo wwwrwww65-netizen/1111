@@ -8,7 +8,11 @@ import './styles.css';
 
 const manualRoutes = [
   { path: '/categories', component: () => import('./pages/Categories.vue') },
-  { path: '/c/:slug', component: () => import('./pages/c/[slug].vue') }
+  { path: '/c/:slug', component: () => import('./pages/c/[slug].vue') },
+  { path: '/wishlist', component: () => import('./pages/Wishlist.vue') },
+  { path: '/account', component: () => import('./pages/Account.vue') },
+  { path: '/checkout', component: () => import('./pages/Checkout.vue') },
+  { path: '/p', component: () => import('./pages/Product.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];
 
