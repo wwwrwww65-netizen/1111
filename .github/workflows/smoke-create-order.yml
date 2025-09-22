@@ -122,12 +122,16 @@ jobs:
 
           echo '--- Verify pickup waiting ---'
           WP=$(mktemp)
-          curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/logistics/pickup/list?status=waiting" -o "$WP"
-          WCODE=$(tail -n1 "$WP" | tr -d '\r\n[:space:]') || true
-          sed -i '$d' "$WP" || true
-          if [ "$WCODE" != "200" ]; then echo 'Pickup waiting failed:' "$WCODE"; sed -n '1,200p' "$WP"; exit 1; fi
-          echo "$ORDER_ID" > /tmp/oid
-          jq --arg oid "$(cat /tmp/oid)" '.pickup | map(select(.orderId==$oid))' "$WP" | sed -n '1,200p'
+          FOUND=""
+          for i in 1 2 3 4 5; do
+            WCODE=$(curl -sS -H "$AUTH" "$API_BASE/api/admin/logistics/pickup/list?status=waiting" -o "$WP" -w '%{http_code}')
+            WCODE=$(echo "$WCODE" | tr -d '\r\n[:space:]')
+            if [ "$WCODE" != "200" ]; then echo 'Pickup waiting failed:' "$WCODE"; sed -n '1,200p' "$WP"; exit 1; fi
+            POID=$(jq -r --arg oid "$ORDER_ID" '.pickup | map(select(.orderId==$oid)) | .[0].poId // empty' "$WP" || true)
+            if [ -n "$POID" ]; then FOUND="$POID"; break; fi
+            sleep 2
+          done
+          if [ -z "$FOUND" ]; then echo 'No pickup legs yet for this order (continuing)'; fi
 
           echo '--- Verify pickup in_progress after assign (if driver exists) ---'
           DR=$(mktemp)
@@ -135,11 +139,10 @@ jobs:
           DRCODE=$(tail -n1 "$DR" | tr -d '\r\n[:space:]') || true
           sed -i '$d' "$DR" || true
           DRV=$(jq -r '.drivers[0].id // empty' "$DR" || true)
-          POID=$(jq -r '.pickup[0].poId // empty' "$WP" || true)
-          if [ -n "$DRV" ] && [ -n "$POID" ]; then
+          if [ -n "$DRV" ] && [ -n "$FOUND" ]; then
             AS=$(mktemp)
             curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/status/change" \
-              --data "{\"entity\":\"pickup\",\"id\":\"$POID\",\"action\":\"assign\",\"extra\":{\"driverId\":\"$DRV\"}}" -o "$AS" || true
+              --data "{\"entity\":\"pickup\",\"id\":\"$FOUND\",\"action\":\"assign\",\"extra\":{\"driverId\":\"$DRV\"}}" -o "$AS" || true
             ASCODE=$(tail -n1 "$AS" | tr -d '\r\n[:space:]') || true
             sed -i '$d' "$AS" || true
             if [ "$ASCODE" != "200" ]; then echo 'Assign failed:' "$ASCODE"; sed -n '1,200p' "$AS"; fi
