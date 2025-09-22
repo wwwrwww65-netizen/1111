@@ -78,6 +78,47 @@ async function ensureSchema(): Promise<void> {
     ]) {
       try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
     }
+    // Ensure Driver table exists for logistics/WS features
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "Driver" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"name" TEXT NOT NULL,'+
+      '"phone" TEXT NULL,'+
+      '"isActive" BOOLEAN DEFAULT TRUE,'+
+      '"status" TEXT NULL,'+
+      '"lat" DOUBLE PRECISION NULL,'+
+      '"lng" DOUBLE PRECISION NULL,'+
+      '"lastSeenAt" TIMESTAMP NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    // Ensure ShipmentLeg table exists for logistics flows
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "ShipmentLeg" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"orderId" TEXT NULL,'+
+      '"poId" TEXT NULL,'+
+      '"legType" TEXT NOT NULL,'+
+      '"status" TEXT NOT NULL,'+
+      '"driverId" TEXT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_orderId_idx" ON "ShipmentLeg"("orderId")');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_poId_idx" ON "ShipmentLeg"("poId")');
+    // Ensure Package table exists for warehouse pages
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "Package" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"barcode" TEXT UNIQUE NULL,'+
+      '"status" TEXT NOT NULL DEFAULT \''+"PENDING"+'\','+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Package_status_idx" ON "Package"("status")');
   } catch (e) {
     console.error('[ensureSchema] warning:', e);
   }
