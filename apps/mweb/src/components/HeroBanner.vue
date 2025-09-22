@@ -21,7 +21,7 @@ const img = props.img || 'https://images.unsplash.com/photo-1503342217505-b0a15c
 <style scoped>
 .hero{position:relative;min-height:46vh;border-radius:0;overflow:hidden}
 .hero-img{width:100%;height:100%;object-fit:cover;display:block}
-.overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.15) 40%,rgba(0,0,0,0))}
+.overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.18) 40%,rgba(0,0,0,0))}
 .panel{position:absolute;inset-inline:12px;bottom:16px;color:#fff}
 .title{margin:0 0 6px 0;font-size:20px;font-weight:800}
 .sub{margin:0 0 10px 0;color:#e5e7eb}

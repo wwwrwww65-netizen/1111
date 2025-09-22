@@ -1,5 +1,5 @@
 <template>
-  <header class="app-header" :class="{ scrolled }" role="banner" aria-label="App header">
+<header class="app-header" :class="{ scrolled }" role="banner" aria-label="App header">
     <div class="header-inner" dir="rtl">
       <div class="side right">
         <button class="icon-btn" aria-label="القائمة" tabindex="0"><Icon name="menu" /></button>
@@ -27,7 +27,7 @@ onBeforeUnmount(()=>{ window.removeEventListener('scroll', onScroll); });
 </script>
 
 <style scoped>
-.app-header{position:fixed;top:0;left:0;right:0;height:64px;z-index:1000;background:transparent;transition:background .2s,height .2s,transform .15s}
+.app-header{position:fixed;top:0;left:0;right:0;height:64px;z-index:1001;background:transparent;transition:background .2s,height .2s,transform .15s}
 .app-header.scrolled{background:var(--surface,#fff);height:48px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .header-inner{display:flex;align-items:center;justify-content:space-between;height:100%;padding:0 12px}
 .brand{font-weight:800;font-size:18px;letter-spacing:.5px}
