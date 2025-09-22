@@ -11,9 +11,9 @@
       <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
       <ProductGrid :items="newItems" label="وصل حديثًا" />
       <SectionHeading title="الأكثر مبيعًا" href="/products?sort=top" />
-      <HorizontalProducts :label="'الأكثر مبيعاً'" />
+      <ProductGrid :items="bestItems" label="الأكثر مبيعاً" />
       <SectionHeading title="مقترح لك" href="/products?sort=reco" />
-      <HorizontalProducts :label="'مقترح لك'" />
+      <ProductGrid :items="saleItems" label="مقترح لك" />
     </div>
     <BottomNav />
   </div>
@@ -28,10 +28,11 @@ import PromoStrip from '@/components/PromoStrip.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
 import ProductCard from '@/components/ProductCard.vue'
+import ProductGrid from '@/components/ProductGrid.vue'
 import TopTabs from '@/components/TopTabs.vue'
 import Carousel from '@/components/Carousel.vue'
 import SvgBanner from '@/components/SvgBanner.vue'
-import ProductGrid from '@/components/ProductGrid.vue'
+// duplicate removed
 
 import { computed } from 'vue'
 // Apply Figma tokens if present
