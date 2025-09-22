@@ -26,7 +26,18 @@ const can = async (userId: string, permKey: string): Promise<boolean> => {
     if (u?.role === 'ADMIN') return true;
   } catch {}
   try {
-    const roleLinks = await db.userRoleLink.findMany({ where: { userId }, include: { role: { include: { permissions: { include: { permission: true } } } } });
+    const roleLinks = await db.userRoleLink.findMany({
+      where: { userId },
+      include: {
+        role: {
+          include: {
+            permissions: {
+              include: { permission: true }
+            }
+          }
+        }
+      }
+    });
     for (const rl of roleLinks) {
       for (const rp of rl.role.permissions) {
         if (rp.permission.key === permKey) return true;
