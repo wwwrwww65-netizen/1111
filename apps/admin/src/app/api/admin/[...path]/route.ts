@@ -5,6 +5,8 @@ function computeApiBase(req: Request): string {
     if (internal) return internal
     const env = process.env.NEXT_PUBLIC_API_BASE_URL || ''
     if (env) {
+        // Prefer internal on prod to avoid 502 from external hops
+        if (process.env.NODE_ENV === 'production') return 'http://127.0.0.1:4000'
         return env.endsWith('/trpc') ? env.slice(0, -5) : env
     }
     try {

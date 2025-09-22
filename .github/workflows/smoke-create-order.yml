@@ -40,12 +40,20 @@ jobs:
             --data "{\"name\":\"SmokeCat $TS\",\"slug\":\"smoke-cat-$TS\"}" -o "$CAT" || true
           CCODE=$(tail -n1 "$CAT") || true
           sed -i '$d' "$CAT" || true
-          # 200 ok or 409 conflict (duplicate) are fine
-          if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create failed:' "$CCODE"; sed -n '1,160p' "$CAT"; fi
+          if [ "$CCODE" != "200" ] && [ "$CCODE" != "409" ]; then echo 'Category create failed:' "$CCODE"; sed -n '1,160p' "$CAT"; exit 1; fi
+          CAT_ID=$(jq -r '.category.id // empty' "$CAT" || true)
+          if [ -z "$CAT_ID" ]; then
+            # Try to resolve by slug search
+            CATS=$(mktemp)
+            curl -sS -H "$AUTH" -w '\n%{http_code}' "$API_BASE/api/admin/categories?search=SmokeCat" -o "$CATS" || true
+            sed -i '$d' "$CATS" || true
+            CAT_ID=$(jq -r '.categories[0].id // empty' "$CATS" || true)
+          fi
+          if [ -z "$CAT_ID" ]; then echo 'No category id resolved'; exit 1; fi
 
           PROD_BODY=$(mktemp)
           curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/products" \
-            --data "{\"name\":\"SMOKE-P\",\"description\":\"demo\",\"price\":9.9,\"images\":[],\"stockQuantity\":5}" -o "$PROD_BODY" || true
+            --data "{\"name\":\"SMOKE-P\",\"description\":\"demo\",\"price\":9.9,\"images\":[],\"stockQuantity\":5,\"categoryId\":\"$CAT_ID\"}" -o "$PROD_BODY" || true
           PCODE=$(tail -n1 "$PROD_BODY") || true
           sed -i '$d' "$PROD_BODY" || true
           if [ "$PCODE" = "200" ]; then PROD_ID=$(jq -r '.product.id // empty' "$PROD_BODY" || true); else PROD_ID=""; fi

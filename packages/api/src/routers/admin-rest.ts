@@ -2638,7 +2638,12 @@ adminRest.get('/products/:id', async (req, res) => {
 adminRest.post('/products', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.create'))) return res.status(403).json({ error:'forbidden' });
   const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId } = req.body || {};
-  const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
+  // Fallback: if categoryId missing, pick any existing category to satisfy FK
+  let nextCategoryId = categoryId;
+  if (!nextCategoryId) {
+    try { const any = await db.category.findFirst({ select: { id: true } }); nextCategoryId = any?.id || undefined; } catch {}
+  }
+  const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId: nextCategoryId as any, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
