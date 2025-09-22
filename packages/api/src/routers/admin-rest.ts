@@ -10,6 +10,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import type { Readable } from 'stream';
 import { z } from 'zod';
 import { db } from '@repo/db';
+import { fbSendEvents, hashEmail } from '../services/fb';
 
 const adminRest = Router();
 // Ensure body parsers explicitly for this router
@@ -669,6 +670,35 @@ adminRest.get('/orders/export/csv', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'orders_export_failed' }); }
 });
 
+// Simple AP/AR endpoints (basic invoices with due dates and reminders)
+adminRest.post('/finance/invoices', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.create'))) return res.status(403).json({ error:'forbidden' });
+    const { type, partnerId, amount, currency, dueDate, reference, notes } = req.body || {};
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Invoice" ("id" TEXT PRIMARY KEY, "type" TEXT NOT NULL, "partnerId" TEXT NULL, amount DOUBLE PRECISION NOT NULL, currency TEXT NOT NULL DEFAULT \'USD\', "dueDate" TIMESTAMP NULL, status TEXT NOT NULL DEFAULT \'PENDING\', reference TEXT NULL, notes TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('INSERT INTO "Invoice" (id, type, "partnerId", amount, currency, "dueDate", status, reference, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', id, String(type||'AR'), partnerId||null, Number(amount||0), String(currency||'USD'), dueDate? new Date(String(dueDate)) : null, 'PENDING', reference||null, notes||null);
+    await audit(req, 'finance', 'invoice_create', { id, type, amount });
+    return res.json({ invoice: { id, type, partnerId, amount, currency: currency||'USD', dueDate, status: 'PENDING', reference, notes } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'invoice_create_failed' }); }
+});
+adminRest.get('/finance/invoices', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Invoice" ("id" TEXT PRIMARY KEY, "type" TEXT NOT NULL, "partnerId" TEXT NULL, amount DOUBLE PRECISION NOT NULL, currency TEXT NOT NULL DEFAULT \'USD\', "dueDate" TIMESTAMP NULL, status TEXT NOT NULL DEFAULT \'PENDING\', reference TEXT NULL, notes TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    const rows: Array<any> = await db.$queryRawUnsafe('SELECT id, type, "partnerId", amount, currency, "dueDate", status, reference, notes, "createdAt" FROM "Invoice" ORDER BY "createdAt" DESC');
+    return res.json({ invoices: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'invoice_list_failed' }); }
+});
+adminRest.post('/finance/invoices/:id/remind', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await audit(req, 'finance', 'invoice_remind', { id });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'invoice_remind_failed' }); }
+});
+
 // Order detail
 adminRest.get('/orders/:id', async (req, res) => {
   try {
@@ -682,6 +712,33 @@ adminRest.get('/orders/:id', async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'order_detail_failed' });
   }
+});
+
+// Refund order payment (Stripe mock/prod)
+adminRest.post('/orders/:id/refund', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const payment = await db.payment.findFirst({ where: { orderId: id }, orderBy: { createdAt: 'desc' } });
+    if (!payment) return res.status(404).json({ error:'payment_not_found' });
+    if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_MOCK === 'true') {
+      await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
+      await db.order.update({ where: { id }, data: { status: 'REFUNDED' } });
+      await audit(req, 'orders', 'refund', { id, mode: 'mock' });
+      return res.json({ success: true });
+    }
+    const Stripe = require('stripe');
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    const pi = payment.stripeId;
+    const intents = await stripe.paymentIntents.retrieve(pi);
+    const ch = (intents.charges?.data?.[0]?.id) || undefined;
+    if (!ch) return res.status(400).json({ error:'charge_not_found' });
+    await stripe.refunds.create({ charge: ch });
+    await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
+    await db.order.update({ where: { id }, data: { status: 'REFUNDED' } });
+    await audit(req, 'orders', 'refund', { id, mode: 'stripe' });
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'refund_failed' }); }
 });
 
 // Assign driver
@@ -743,6 +800,19 @@ adminRest.post('/orders', async (req, res) => {
       itemsData.push({ productId: it.productId || (prod?.id as string), price, quantity });
     }
     const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
+    // Fire FB CAPI AddToCart (server-side) best-effort
+    try {
+      const { fbSendEvents, hashEmail } = await import('../services/fb');
+      const uRec = await db.user.findUnique({ where: { id: user.id } });
+      await fbSendEvents([
+        {
+          event_name: 'AddToCart',
+          user_data: { em: hashEmail(uRec?.email) },
+          custom_data: { value: total || 0, currency: 'USD', num_items: itemsData.length },
+          action_source: 'website',
+        },
+      ]);
+    } catch {}
     for (const d of itemsData) {
       await db.orderItem.create({ data: { orderId: order.id, productId: d.productId, quantity: d.quantity, price: d.price } });
     }

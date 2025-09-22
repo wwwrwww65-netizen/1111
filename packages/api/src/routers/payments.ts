@@ -208,6 +208,19 @@ export const paymentsRouter = router({
             await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
             await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
           } catch {}
+          // Fire FB CAPI Purchase (best-effort)
+          try {
+            const { fbSendEvents, hashEmail } = await import('../services/fb');
+            const ord = await db.order.findUnique({ where: { id: payment.orderId }, include: { user: true, items: true } });
+            await fbSendEvents([
+              {
+                event_name: 'Purchase',
+                user_data: { em: hashEmail(ord?.user?.email) },
+                custom_data: { value: ord?.total || 0, currency: 'USD', num_items: ord?.items?.length || 0 },
+                action_source: 'website',
+              },
+            ]);
+          } catch {}
         }
       }
 
