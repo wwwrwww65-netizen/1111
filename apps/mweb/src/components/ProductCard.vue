@@ -10,13 +10,8 @@
     </div>
     <div class="info">
       <div class="title">{{ title }}</div>
-      <div class="price-wrap">
-        <span v-if="original" class="original">{{ original }}</span>
-        <span class="price">{{ price }}</span>
-      </div>
-      <div class="rating" aria-label="تقييم">
-        <span v-for="i in 5" :key="i" class="star" :class="{ on: i<=rating }">★</span>
-      </div>
+      <PriceRow :price="price" :original="original" />
+      <RatingStars :value="rating" />
     </div>
     <button class="btn add" @click="addToCart($event)" aria-label="إضافة للسلة">إضافة للسلة</button>
   </article>
@@ -26,6 +21,8 @@
 import { useCart } from '@/store/cart'
 import gsap from 'gsap'
 import Icon from '@/components/Icon.vue'
+import RatingStars from '@/components/RatingStars.vue'
+import PriceRow from '@/components/PriceRow.vue'
 const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; badge?: string; rating?: number }>();
 const { id = Math.random().toString(36).slice(2), img, title, price, original, badge, rating = 4 } = props;
 const cart = useCart()
@@ -59,11 +56,6 @@ function addToCart(ev?: MouseEvent){
 .wish:focus-visible{outline:2px solid var(--primary,#0B5FFF)}
 .info{display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
 .title{font-weight:600;font-size:13px}
-.price-wrap{display:flex;gap:6px;align-items:center}
-.original{text-decoration:line-through;color:#94a3b8;font-size:12px}
-.price{color:#dc2626;font-weight:800}
 .rating{margin-top:6px}
-.star{font-size:12px;color:#d1d5db}
-.star.on{color:#fbbf24}
 .add{margin:0 12px 12px}
 </style>
