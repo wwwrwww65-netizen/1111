@@ -42,6 +42,20 @@ const audit = async (req: Request, module: string, action: string, details?: any
   } catch {}
 };
 
+// Ensure JSON-safe payloads by converting BigInt to Number recursively
+function jsonSafe<T = any>(value: any): T {
+  if (value === null || value === undefined) return value as T;
+  const t = typeof value;
+  if (t === 'bigint') return Number(value) as any;
+  if (Array.isArray(value)) return (value as any[]).map((v) => jsonSafe(v)) as any;
+  if (t === 'object') {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = jsonSafe(v);
+    return out as any;
+  }
+  return value as T;
+}
+
 adminRest.use((req: Request, res: Response, next) => {
   // Allow unauthenticated access to login/logout and health/docs and maintenance fixer
   const p = req.path || '';
@@ -1217,13 +1231,13 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
           SELECT SUM(oi.quantity) FROM "OrderItem" oi
           JOIN "Product" pr ON pr.id=oi."productId"
           WHERE oi."orderId"=s."orderId" AND pr."vendorId" = split_part(s."poId", ':', 1)
-        ), 0) as "itemsCount"
+        ), 0)::integer as "itemsCount"
       FROM "ShipmentLeg" s
       LEFT JOIN "Driver" d ON d.id=s."driverId"
       LEFT JOIN "Vendor" v ON v.id = split_part(s."poId", ':', 1)
       WHERE s."legType"='PICKUP' AND s.status=$1
       ORDER BY s."createdAt" DESC`, status);
-    return res.json({ pickup: rows });
+    return res.json({ pickup: jsonSafe(rows) });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
 });
 
