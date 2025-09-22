@@ -221,6 +221,11 @@ adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_orderId_idx" ON "ShipmentLeg"("orderId")');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ShipmentLeg_poId_idx" ON "ShipmentLeg"("poId")');
+    // Ensure enum types exist and align column types (idempotent)
+    await db.$executeRawUnsafe("DO $$ BEGIN CREATE TYPE \"ShipmentLegType\" AS ENUM ('PICKUP','INBOUND','PROCESSING','DELIVERY'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;");
+    await db.$executeRawUnsafe("DO $$ BEGIN CREATE TYPE \"ShipmentLegStatus\" AS ENUM ('SCHEDULED','IN_PROGRESS','COMPLETED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;");
+    await db.$executeRawUnsafe("DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ShipmentLeg' AND column_name='legType') THEN ALTER TABLE \"ShipmentLeg\" ALTER COLUMN \"legType\" TYPE \"ShipmentLegType\" USING \"legType\"::\"ShipmentLegType\"; END IF; END $$;");
+    await db.$executeRawUnsafe("DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ShipmentLeg' AND column_name='status') THEN ALTER TABLE \"ShipmentLeg\" ALTER COLUMN status TYPE \"ShipmentLegStatus\" USING status::\"ShipmentLegStatus\"; END IF; END $$;");
     // Align columns with Prisma schema (idempotent)
     await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "fromLocation" TEXT NULL');
     await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "toLocation" TEXT NULL');
