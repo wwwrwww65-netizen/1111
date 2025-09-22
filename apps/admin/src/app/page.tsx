@@ -12,6 +12,11 @@ export default function AdminHome(): JSX.Element {
   const [driversOnline, setDriversOnline] = React.useState<number>(0);
   const [lastSeenAgo, setLastSeenAgo] = React.useState<string>('');
   const [busy, setBusy] = React.useState(false);
+  // Filters
+  const [range, setRange] = React.useState<'7d'|'30d'|'90d'|'custom'>('7d');
+  const [start, setStart] = React.useState<string>('');
+  const [end, setEnd] = React.useState<string>('');
+  const [costCenter, setCostCenter] = React.useState<string>('all');
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -20,22 +25,42 @@ export default function AdminHome(): JSX.Element {
     try { token = decodeURIComponent(token); } catch {}
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
-  React.useEffect(()=>{
-    (async ()=>{
-      try{ setBusy(true);
-        const [ak, ao, at, as] = await Promise.all([
-          fetch(`/api/admin/analytics`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({kpis:{}})),
-          fetch(`/api/admin/orders/list?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({orders:[]})),
-          fetch(`/api/admin/tickets?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({tickets:[]})),
-          fetch(`/api/admin/analytics/series?days=7`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({series:[]})),
-        ]);
-        setKpis(ak.kpis||{});
-        setRecentOrders(ao.orders||[]);
-        setRecentTickets(at.tickets||[]);
-        setSeries(as.series||[]);
-      } finally { setBusy(false); }
-    })();
-  },[apiBase]);
+  const load = React.useCallback(async()=>{
+    try{ setBusy(true);
+      const days = range==='7d'?7: range==='30d'?30: range==='90d'?90: 7;
+      const qs: string[] = [];
+      if (range==='custom' && start && end) { qs.push(`start=${encodeURIComponent(start)}`); qs.push(`end=${encodeURIComponent(end)}`); }
+      else { qs.push(`days=${days}`); }
+      if (costCenter && costCenter!=='all') qs.push(`costCenter=${encodeURIComponent(costCenter)}`);
+      const seriesUrl = `/api/admin/analytics/series?${qs.join('&')}`;
+      const kpiUrl = `/api/admin/analytics${qs.length?`?${qs.join('&')}`:''}`;
+      const [ak, ao, at, as] = await Promise.all([
+        fetch(kpiUrl, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({kpis:{}})),
+        fetch(`/api/admin/orders/list?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({orders:[]})),
+        fetch(`/api/admin/tickets?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({tickets:[]})),
+        fetch(seriesUrl, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({series:[]})),
+      ]);
+      setKpis(ak.kpis||{});
+      setRecentOrders(ao.orders||[]);
+      setRecentTickets(at.tickets||[]);
+      setSeries(as.series||[]);
+    } finally { setBusy(false); }
+  }, [apiBase, authHeaders, range, start, end, costCenter]);
+  React.useEffect(()=>{ load().catch(()=>{}); },[load]);
+
+  function exportSeriesCsv(){
+    const lines = [
+      ['day','orders','revenue'],
+      ...series.map(s=> [s.day, String(s.orders), String(s.revenue)])
+    ];
+    const csv = lines.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `analytics_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    setTimeout(()=> URL.revokeObjectURL(a.href), 3000);
+  }
   // Realtime drivers count using socket.io (from API)
   React.useEffect(()=>{
     let socket: any;
@@ -69,6 +94,45 @@ export default function AdminHome(): JSX.Element {
   }, [apiBase]);
   return (
     <div className="grid" style={{gap:16}}>
+      <div className="panel" style={{display:'grid',gap:12}}>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
+          <label style={{display:'grid',gap:4}}>
+            <span style={{fontSize:12,color:'var(--sub)'}}>النطاق الزمني</span>
+            <select className="input" value={range} onChange={e=> setRange(e.target.value as any)}>
+              <option value="7d">آخر 7 أيام</option>
+              <option value="30d">آخر 30 يوم</option>
+              <option value="90d">آخر 90 يوم</option>
+              <option value="custom">مخصص</option>
+            </select>
+          </label>
+          {range==='custom' && (
+            <>
+              <label style={{display:'grid',gap:4}}>
+                <span style={{fontSize:12,color:'var(--sub)'}}>من</span>
+                <input className="input" type="date" value={start} onChange={e=> setStart(e.target.value)} />
+              </label>
+              <label style={{display:'grid',gap:4}}>
+                <span style={{fontSize:12,color:'var(--sub)'}}>إلى</span>
+                <input className="input" type="date" value={end} onChange={e=> setEnd(e.target.value)} />
+              </label>
+            </>
+          )}
+          <label style={{display:'grid',gap:4}}>
+            <span style={{fontSize:12,color:'var(--sub)'}}>مركز التكلفة</span>
+            <select className="input" value={costCenter} onChange={e=> setCostCenter(e.target.value)}>
+              <option value="all">الكل</option>
+              <option value="marketing">التسويق</option>
+              <option value="shipping">الشحن</option>
+              <option value="operations">التشغيل</option>
+              <option value="development">التطوير</option>
+            </select>
+          </label>
+          <div style={{marginInlineStart:'auto',display:'flex',gap:8}}>
+            <button className="btn btn-outline" onClick={()=> load()} disabled={busy}>تحديث</button>
+            <button className="btn" onClick={exportSeriesCsv}>تصدير CSV</button>
+          </div>
+        </div>
+      </div>
       <div style={{
         padding:'14px 16px',
         border:'1px solid #1c2333',
