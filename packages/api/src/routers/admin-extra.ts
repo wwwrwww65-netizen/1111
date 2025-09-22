@@ -131,8 +131,20 @@ r.post('/finance/payments', async (req, res) => {
 });
 
 // -------- Notifications (logs) --------
-r.get('/notifications/logs', async (_req, res) => { res.json({ logs: [] }); });
-r.post('/notifications/manual', async (_req, res) => { res.json({ ok: true }); });
+r.get('/notifications/logs', async (_req, res) => {
+  try {
+    const logs = await db.$queryRawUnsafe('SELECT id, channel, target, title, body, status, error, "createdAt" FROM "NotificationLog" ORDER BY "createdAt" DESC LIMIT 200');
+    res.json({ logs });
+  } catch { res.status(500).json({ error: 'Failed to load logs' }); }
+});
+r.post('/notifications/manual', async (req, res) => {
+  try {
+    const { title, body, channel, scheduleAt, segment } = req.body || {};
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status) VALUES ($1,$2,$3,$4,$5,$6)', id, channel||'EMAIL', segment||null, title||'', body||'', scheduleAt? 'QUEUED':'SENT');
+    res.json({ ok: true });
+  } catch { res.status(500).json({ error: 'Failed to enqueue' }); }
+});
 r.get('/notifications/rules', async (_req, res) => { res.json({ rules: [] }); });
 r.post('/notifications/rules', async (_req, res) => { res.json({ ok: true }); });
 

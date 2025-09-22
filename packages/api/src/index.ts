@@ -249,6 +249,20 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalEntry" ("id" TEXT PRIMARY KEY, ref TEXT NULL, memo TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "postedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "JournalLine" ("id" TEXT PRIMARY KEY, "entryId" TEXT NOT NULL, "accountCode" TEXT NOT NULL, debit DOUBLE PRECISION DEFAULT 0, credit DOUBLE PRECISION DEFAULT 0)');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "JournalLine_entry_idx" ON "JournalLine"("entryId")');
+    // Notifications: log table for outbound messages
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "NotificationLog" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      'channel TEXT NOT NULL,'+
+      'target TEXT,'+
+      'title TEXT,'+
+      'body TEXT,'+
+      'status TEXT NOT NULL DEFAULT \'SENT\','+
+      'error TEXT,'+
+      'createdAt TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
     // Seed default accounts
     try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'CASH','Cash','ASSET') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
     try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'REVENUE','Sales Revenue','REVENUE') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
