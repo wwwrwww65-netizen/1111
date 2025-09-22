@@ -1,5 +1,5 @@
 import express, { Router, Request, Response } from 'express';
-import { verifyToken } from '../middleware/auth';
+import { verifyToken, createToken } from '../middleware/auth';
 import { readTokenFromRequest } from '../utils/jwt';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import { Parser as CsvParser } from 'json2csv';
@@ -12,7 +12,6 @@ import { z } from 'zod';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
 import nodemailer from 'nodemailer';
-import type { Request, Response, NextFunction } from 'express';
 
 const adminRest = Router();
 // Ensure body parsers explicitly for this router
@@ -204,7 +203,7 @@ adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
       '"lat" DOUBLE PRECISION NULL,'+
       '"lng" DOUBLE PRECISION NULL,'+
       '"lastSeenAt" TIMESTAMP NULL,'+
-      '"createdAt" TIMESTAMP DEFAULT NOW()'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),' +
       '"updatedAt" TIMESTAMP DEFAULT NOW()'+
       ')'
     );
@@ -1969,7 +1968,6 @@ adminRest.get('/logistics/drivers/locations', async (_req, res) => {
     res.json({ drivers: list });
   } catch (e:any) { res.status(500).json({ error: e.message||'locations_failed' }); }
 });
-
 // ===== Vendors: Orders/Lines by vendor =====
 adminRest.get('/vendors/:id/orders', async (req, res) => {
   try {
@@ -2962,7 +2960,6 @@ adminRest.get('/vendors/:id/notifications', async (req, res) => {
     res.json({ notifications: items });
   } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_notifications_failed' }); }
 });
-
 adminRest.post('/vendors/:id/notifications', async (req, res) => {
   try {
     const { id } = req.params; const { channel='system', message='' } = req.body || {};
@@ -3457,7 +3454,6 @@ async function ensureCategorySeo(){
   try { await db.$executeRawUnsafe('UPDATE "Category" SET "sortOrder" = 0 WHERE "sortOrder" IS NULL'); } catch {}
   try { await db.$executeRawUnsafe('ALTER TABLE "Category" ALTER COLUMN "updatedAt" SET DEFAULT NOW()'); } catch {}
 }
-
 async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
   try {
     const rows: Array<{ name: string }> = await db.$queryRawUnsafe(
@@ -3834,7 +3830,6 @@ adminRest.post('/notifications/send', async (req, res) => {
     // Best-effort send: email via nodemailer; SMS placeholder
     try {
       if (channel === 'email') {
-        const nodemailer = require('nodemailer');
         const tx = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
           port: Number(process.env.SMTP_PORT||587),
