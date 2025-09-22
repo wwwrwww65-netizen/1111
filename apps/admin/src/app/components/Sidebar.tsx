@@ -36,6 +36,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
   {
     title: 'المالية',
     items: [
+      { href: '/finance', label: 'لوحة المالية' },
       { href: '/finance/pnl', label: 'تحليل الأرباح' },
       { href: '/finance/revenues', label: 'الإيرادات' },
       { href: '/finance/expenses', label: 'المصروفات' },
@@ -54,6 +55,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/loyalty/points', label: 'النقاط' },
       { href: '/loyalty/points-log', label: 'سجل النقاط' },
       { href: '/loyalty', label: 'JEEEY Club' },
+      { href: '/subscriptions', label: 'الاشتراكات' },
     ],
   },
   {
@@ -63,6 +65,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/coupons', label: 'الكوبونات' },
       { href: '/promotions', label: 'العروض' },
       { href: '/cms', label: 'المحتوى (CMS)' },
+      { href: '/badges', label: 'الشارات' },
       { href: '/media', label: 'الوسائط' },
       { href: '/notifications', label: 'الإشعارات' },
       { href: '/notifications/rules', label: 'قواعد الإشعارات' },
