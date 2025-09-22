@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function PnLPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -48,6 +49,8 @@ export default function PnLPage(): JSX.Element {
         <button className="btn btn-sm" onClick={load}>تحديث</button>
         <a className="btn btn-sm" href={`${apiBase}/api/admin/finance/pnl/export/csv?from=${from||''}&to=${to||''}&groupBy=${group!=='none'?group:''}&costCenter=${center!=='all'?center:''}`}>تصدير CSV (API)</a>
         <button className="btn btn-sm" onClick={exportCsv}>تصدير CSV (محلي)</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`pnl_${new Date().toISOString().slice(0,10)}.xlsx`, ['from','to','groupBy','costCenter','revenues','expenses','profit'], [[from||'', to||'', group, center, data?.revenues||0, data?.expenses||0, data?.profit||0]])}>Excel</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`pnl_${new Date().toISOString().slice(0,10)}.pdf`, ['from','to','groupBy','costCenter','revenues','expenses','profit'], [[from||'', to||'', group, center, data?.revenues||0, data?.expenses||0, data?.profit||0]])}>PDF</button>
       </div>
       <div className="mt-3">
         <table className="table">

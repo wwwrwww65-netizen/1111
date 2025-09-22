@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function PaymentGatewaysPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -40,6 +41,8 @@ export default function PaymentGatewaysPage(): JSX.Element {
             ...rows.map(r=> [r.at, r.gateway, String(r.amount), String(r.fee), r.status, r.settledAt||''])
           ])
         }>تصدير CSV</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`gateway_${gateway||'all'}_${new Date().toISOString().slice(0,10)}.xlsx`, ['at','gateway','amount','fee','status','settledAt'], rows.map(r=> [r.at, r.gateway, r.amount, r.fee, r.status, r.settledAt||'']))}>Excel</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`gateway_${gateway||'all'}_${new Date().toISOString().slice(0,10)}.pdf`, ['at','gateway','amount','fee','status','settledAt'], rows.map(r=> [r.at, r.gateway, r.amount, r.fee, r.status, r.settledAt||'']))}>PDF</button>
       </div>
       {metrics && (
         <div className="grid cols-3 mt-3">

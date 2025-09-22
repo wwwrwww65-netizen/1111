@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function SuppliersLedgerPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -39,6 +40,8 @@ export default function SuppliersLedgerPage(): JSX.Element {
             ...rows.map(r=> [r.date, r.description, r.ref||'', String(r.debit), String(r.credit), String(r.balance)])
           ])
         }>تصدير CSV</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`vendor_ledger_${vendorId||'all'}_${new Date().toISOString().slice(0,10)}.xlsx`, ['date','description','ref','debit','credit','balance'], rows.map(r=> [r.date, r.description, r.ref||'', r.debit, r.credit, r.balance]))}>Excel</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`vendor_ledger_${vendorId||'all'}_${new Date().toISOString().slice(0,10)}.pdf`, ['date','description','ref','debit','credit','balance'], rows.map(r=> [r.date, r.description, r.ref||'', r.debit, r.credit, r.balance]))}>PDF</button>
       </div>
       {summary && (
         <div className="grid cols-4 mt-3">

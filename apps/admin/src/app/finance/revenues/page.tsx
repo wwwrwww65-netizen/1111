@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function RevenuesPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -139,6 +140,8 @@ export default function RevenuesPage(): JSX.Element {
         <label className="btn btn-outline" htmlFor="rev-import">استيراد CSV</label>
         <input id="rev-import" type="file" accept=".csv,text/csv" style={{display:'none'}} onChange={importCsv} />
         <button className="btn" onClick={exportCsv}>تصدير CSV</button>
+        <button className="btn btn-outline" onClick={()=> exportToXlsx(`revenues_${new Date().toISOString().slice(0,10)}.xlsx`, ['at','source','amount','status','costCenter','orderId','note'], rows.map(r=> [r.at, r.source, r.amount, r.status, r.costCenter||'', r.orderId||'', r.note||'']))}>Excel</button>
+        <button className="btn btn-outline" onClick={()=> exportToPdf(`revenues_${new Date().toISOString().slice(0,10)}.pdf`, ['at','source','amount','status','costCenter','orderId','note'], rows.map(r=> [r.at, r.source, r.amount, r.status, r.costCenter||'', r.orderId||'', r.note||'']))}>PDF</button>
       </div>
       <div className="mt-3" style={{overflowX:'auto'}}>
         <table className="table">

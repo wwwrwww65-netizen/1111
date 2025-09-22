@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function InvoicesPaymentsPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -171,6 +172,18 @@ export default function InvoicesPaymentsPage(): JSX.Element {
         )}
         <button className="btn btn-sm" onClick={load} disabled={busy}>تحديث</button>
         <button className="btn btn-sm" onClick={exportCsv}>تصدير CSV</button>
+        {tab==='invoices' && <>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`invoices_${new Date().toISOString().slice(0,10)}.xlsx`, ['number','orderId','customer','amount','status','dueDate'], (invoices as any[]).map(r=> [r.number, r.orderId, r.customer, r.amount, r.status, r.dueDate||'']))}>Excel</button>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`invoices_${new Date().toISOString().slice(0,10)}.pdf`, ['number','orderId','customer','amount','status','dueDate'], (invoices as any[]).map(r=> [r.number, r.orderId, r.customer, r.amount, r.status, r.dueDate||'']))}>PDF</button>
+        </>}
+        {tab==='payments' && <>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`payments_${new Date().toISOString().slice(0,10)}.xlsx`, ['id','orderId','ref','method','amount','at','note'], payments.map(r=> [r.id, r.orderId||'', r.ref||'', r.method, r.amount, r.at, r.note||'']))}>Excel</button>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`payments_${new Date().toISOString().slice(0,10)}.pdf`, ['id','orderId','ref','method','amount','at','note'], payments.map(r=> [r.id, r.orderId||'', r.ref||'', r.method, r.amount, r.at, r.note||'']))}>PDF</button>
+        </>}
+        {tab==='schedule' && <>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`schedule_${new Date().toISOString().slice(0,10)}.xlsx`, ['id','orderId','dueDate','amount','status'], schedule.map(r=> [r.id, r.orderId, r.dueDate, r.amount, r.status]))}>Excel</button>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`schedule_${new Date().toISOString().slice(0,10)}.pdf`, ['id','orderId','dueDate','amount','status'], schedule.map(r=> [r.id, r.orderId, r.dueDate, r.amount, r.status]))}>PDF</button>
+        </>}
       </div>
 
       {tab==='invoices' && (

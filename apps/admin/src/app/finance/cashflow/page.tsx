@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function CashflowPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -59,6 +60,8 @@ export default function CashflowPage(): JSX.Element {
             <option value="development">التطوير</option>
           </select>
           <button className="btn btn-sm" onClick={exportCsv}>تصدير CSV</button>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`cashflow_${new Date().toISOString().slice(0,10)}.xlsx`, ['windowDays','scenario','currentBalance','forecast30','duePayments','costCenter'], [[windowDays, scenario, data?.currentBalance||0, adjustedForecast(), data?.duePayments||0, center]])}>Excel</button>
+          <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`cashflow_${new Date().toISOString().slice(0,10)}.pdf`, ['windowDays','scenario','currentBalance','forecast30','duePayments','costCenter'], [[windowDays, scenario, data?.currentBalance||0, adjustedForecast(), data?.duePayments||0, center]])}>PDF</button>
         </div>
         <div className="mt-2 text-sm text-gray-400">(مخطط زمني — سيتم ربطه ببيانات الـ API)</div>
       </div>

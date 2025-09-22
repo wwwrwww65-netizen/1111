@@ -2,6 +2,7 @@
 import React from "react";
 import { resolveApiBase } from "../../lib/apiBase";
 import { downloadCsv } from "../../lib/csv";
+import { exportToXlsx, exportToPdf } from "../../lib/export";
 
 export default function WalletManagement(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -55,6 +56,8 @@ export default function WalletManagement(): JSX.Element {
         <button className="btn btn-sm" onClick={load} disabled={busy}>تحديث</button>
         <button className="btn btn-sm" onClick={()=> setShowTxn(true)}>+ إيداع/سحب</button>
         <button className="btn btn-sm" onClick={exportCsv}>تصدير CSV</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`wallet_${new Date().toISOString().slice(0,10)}.xlsx`, ['user','balance','lastTxnAt'], rows.map(r=> [r.user, r.balance, r.lastTxnAt? String(r.lastTxnAt).slice(0,19).replace('T',' '):'']))}>Excel</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`wallet_${new Date().toISOString().slice(0,10)}.pdf`, ['user','balance','lastTxnAt'], rows.map(r=> [r.user, r.balance, r.lastTxnAt? String(r.lastTxnAt).slice(0,19).replace('T',' '):'']))}>PDF</button>
       </div>
       <div className="mt-3">
         <table className="table">

@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function ReturnsImpactPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -45,6 +46,8 @@ export default function ReturnsImpactPage(): JSX.Element {
         <input className="input" placeholder="سبب المرتجع" value={reason} onChange={e=> setReason(e.target.value)} />
         <button className="btn btn-sm" onClick={load} disabled={busy}>تحديث</button>
         <button className="btn btn-sm" onClick={exportCsv}>تصدير CSV</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`returns_${new Date().toISOString().slice(0,10)}.xlsx`, ['rma','orderId','customer','vendorId','amount','reason','date','accountImpact'], rows.map(r=> [r.rma, r.orderId, r.customer||'', r.vendorId||'', r.amount, r.reason||'', String(r.at).slice(0,10), r.accountImpact]))}>Excel</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`returns_${new Date().toISOString().slice(0,10)}.pdf`, ['rma','orderId','customer','vendorId','amount','reason','date','accountImpact'], rows.map(r=> [r.rma, r.orderId, r.customer||'', r.vendorId||'', r.amount, r.reason||'', String(r.at).slice(0,10), r.accountImpact]))}>PDF</button>
       </div>
       <div className="mt-3">
         <table className="table">

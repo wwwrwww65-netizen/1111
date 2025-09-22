@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
+import { exportToXlsx, exportToPdf } from '../../lib/export';
 
 export default function LoyaltyPointsLogPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -33,6 +34,8 @@ export default function LoyaltyPointsLogPage(): JSX.Element {
         <input className="input" type="date" value={to} onChange={e=> setTo(e.target.value)} />
         <button className="btn btn-sm" onClick={load}>تحديث</button>
         <button className="btn btn-sm" onClick={exportCsv}>تصدير CSV</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToXlsx(`points_log_${new Date().toISOString().slice(0,10)}.xlsx`, ['id','userId','points','reason','createdAt'], rows.map(r=> [r.id, r.userId, r.points, r.reason||'', String(r.createdAt).slice(0,19).replace('T',' ')]))}>Excel</button>
+        <button className="btn btn-sm btn-outline" onClick={()=> exportToPdf(`points_log_${new Date().toISOString().slice(0,10)}.pdf`, ['id','userId','points','reason','createdAt'], rows.map(r=> [r.id, r.userId, r.points, r.reason||'', String(r.createdAt).slice(0,19).replace('T',' ')]))}>PDF</button>
       </div>
       <div className="mt-3">
         <table className="table">
