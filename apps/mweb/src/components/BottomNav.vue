@@ -3,7 +3,7 @@
     <a href="/" aria-current="page"><Icon name="home" /><span>الرئيسية</span></a>
     <a href="/categories"><Icon name="grid" /><span>التصنيفات</span></a>
     <a href="/new"><Icon name="sparkles" /><span>جديد</span></a>
-    <a href="/cart"><Icon name="cart" /><span>السلة</span></a>
+    <a href="/cart" id="cart-target"><Icon name="cart" /><span>السلة</span></a>
     <a href="/account"><Icon name="user" /><span>الحساب</span></a>
   </nav>
 </template>

@@ -14,7 +14,7 @@
         <span class="price">{{ price }}</span>
       </div>
     </div>
-    <button class="btn add" @click="addToCart" aria-label="إضافة للسلة">إضافة للسلة</button>
+    <button class="btn add" @click="addToCart($event)" aria-label="إضافة للسلة">إضافة للسلة</button>
   </article>
 </template>
 
@@ -24,10 +24,23 @@ import gsap from 'gsap'
 const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; badge?: string }>();
 const { id = Math.random().toString(36).slice(2), img, title, price, original, badge } = props;
 const cart = useCart()
-function addToCart(){
+function addToCart(ev?: MouseEvent){
   cart.add({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }, 1)
   try {
-    gsap.fromTo('.add', { y: 0 }, { y: -6, yoyo: true, repeat: 1, duration: 0.15, ease: 'power1.out' })
+    const cartEl = document.getElementById('cart-target')
+    const btn = (ev?.currentTarget as HTMLElement) || null
+    const imgEl = (btn?.closest('.prod-card') as HTMLElement)?.querySelector('img') as HTMLImageElement | null
+    if (cartEl && imgEl) {
+      const r1 = imgEl.getBoundingClientRect();
+      const r2 = cartEl.getBoundingClientRect();
+      const ghost = imgEl.cloneNode(true) as HTMLImageElement
+      Object.assign(ghost.style, { position:'fixed', left:`${r1.left}px`, top:`${r1.top}px`, width:`${r1.width}px`, height:`${r1.height}px`, borderRadius:'8px', zIndex:'9999', pointerEvents:'none' })
+      document.body.appendChild(ghost)
+      gsap.to(ghost, { duration: 0.6, ease:'power1.inOut', left: r2.left + r2.width/2 - r1.width/4, top: r2.top + r2.height/2 - r1.height/4, width: r1.width/2, height: r1.height/2, opacity: 0.3, onComplete(){ ghost.remove() } })
+      gsap.fromTo(cartEl, { scale: 1 }, { scale: 1.1, duration: 0.18, yoyo: true, repeat: 1, ease: 'power1.out' })
+    } else {
+      gsap.fromTo('.add', { y: 0 }, { y: -6, yoyo: true, repeat: 1, duration: 0.15, ease: 'power1.out' })
+    }
   } catch {}
 }
 </script>
