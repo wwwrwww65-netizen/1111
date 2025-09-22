@@ -3,6 +3,7 @@ import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
 import { exportToXlsx, exportToPdf } from '../../lib/export';
+import { Alerts } from '../../components/Alerts';
 
 export default function PaymentGatewaysPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -31,6 +32,7 @@ export default function PaymentGatewaysPage(): JSX.Element {
   return (
     <div className="panel">
       <h1 className="text-xl font-bold mb-3">بوابات الدفع وسجلاتها</h1>
+      <Alerts scope="finance.gateways" params={{ gateway, from, to }} />
       <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
         <select className="select" value={gateway} onChange={e=> setGateway(e.target.value)}><option value="">بوابة: الكل</option><option value="STRIPE">Stripe</option><option value="PAYPAL">PayPal</option><option value="CASH_ON_DELIVERY">COD</option></select>
         <input className="input" type="date" value={from} onChange={e=> setFrom(e.target.value)} />

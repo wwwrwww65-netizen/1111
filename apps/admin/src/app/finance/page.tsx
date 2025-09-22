@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../lib/apiBase';
+import { Alerts } from '../components/Alerts';
 
 export default function FinanceDashboard(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -37,6 +38,7 @@ export default function FinanceDashboard(): JSX.Element {
   return (
     <div className="panel">
       <h1 className="text-xl font-bold mb-3">المالية — لوحة تحكم</h1>
+      <Alerts scope="finance.dashboard" params={{ from, to, center }} />
       <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
         <input className="input" placeholder="بحث" value={q} onChange={e=> setQ(e.target.value)} />
         <input className="input" type="date" value={from} onChange={e=> setFrom(e.target.value)} />

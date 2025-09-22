@@ -3,6 +3,7 @@ import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { downloadCsv } from '../../lib/csv';
 import { exportToXlsx, exportToPdf } from '../../lib/export';
+import { Alerts } from '../../components/Alerts';
 
 export default function InvoicesPaymentsPage(): JSX.Element {
   const apiBase = resolveApiBase();
@@ -129,6 +130,7 @@ export default function InvoicesPaymentsPage(): JSX.Element {
   return (
     <div className="panel">
       <h1 className="text-xl font-bold mb-3">الفواتير والمدفوعات</h1>
+      <Alerts scope="finance.invoices" params={{ from, to, status }} />
       <div className="tabs" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
         <button className={`btn btn-sm ${tab==='invoices'?'btn-active':''}`} onClick={()=> setTab('invoices')}>الفواتير</button>
         <button className={`btn btn-sm ${tab==='payments'?'btn-active':''}`} onClick={()=> setTab('payments')}>المدفوعات</button>
