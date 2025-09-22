@@ -69,9 +69,16 @@ async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
 			const alt = `${publicBase.replace(/\/$/, '')}/api/admin/${path}${search ? `?${search}` : ''}`
 			upstream = await fetch(alt, init)
 		}
-	} catch (e) {
-		return NextResponse.json({ error: 'upstream_unreachable', detail: (e as Error)?.message || '' }, { status: 502 })
-	}
+    } catch (e) {
+        // Network-level failure to internal upstream; attempt public base as a fallback
+        try {
+            const publicBase = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '') || 'https://api.jeeey.com'
+            const alt = `${publicBase}/api/admin/${path}${search ? `?${search}` : ''}`
+            upstream = await fetch(alt, init)
+        } catch (e2) {
+            return NextResponse.json({ error: 'upstream_unreachable', detail: (e2 as Error)?.message || (e as Error)?.message || '' }, { status: 502 })
+        }
+    }
 
 	// Build response, passing through headers (including set-cookie)
 	const resHeaders = new Headers()
