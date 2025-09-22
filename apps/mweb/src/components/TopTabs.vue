@@ -21,6 +21,7 @@
 import { onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 const props = defineProps<{ tabs?: Array<{ label: string; href?: string }> }>();
 const tabs = props.tabs || [
+  { label: 'كل', href: '/c/all' },
   { label: 'نساء', href: '/c/women' },
   { label: 'رجال', href: '/c/men' },
   { label: 'أطفال', href: '/c/kids' },
@@ -29,9 +30,8 @@ const tabs = props.tabs || [
   { label: 'المنزل', href: '/c/home' },
   { label: 'أحذية', href: '/c/shoes' },
   { label: 'فساتين', href: '/c/dresses' },
-  { label: 'الكل', href: '/c/all' },
 ];
-const activeIndex = ref(0)
+const activeIndex = ref(1)
 function activate(i:number){ activeIndex.value = i; nextTick(positionIndicator) }
 function onKey(e: KeyboardEvent, i:number){
   if (e.key==='ArrowRight'){ activate(Math.max(0, i-1)); }
@@ -67,6 +67,6 @@ watch(activeIndex, ()=> positionIndicator())
 .tab{flex:0 0 auto;min-height:44px;min-width:44px;padding:8px 12px;border-radius:999px;text-decoration:none;color:inherit;background:transparent;font-size:13px;scroll-snap-align:start;border:0}
 .tab[aria-selected="true"]{background:rgba(11,95,255,.08);outline:2px solid transparent}
 .tab:focus-visible{outline:2px solid var(--primary,#0B5FFF);outline-offset:2px}
-.indicator{position:absolute;bottom:0;height:2px;background:#0B5FFF;border-radius:2px;transition:transform .2s ease,width .2s ease;will-change:transform,width}
+.indicator{position:absolute;bottom:0;height:3px;background:#0B5FFF;border-radius:2px;transition:transform .2s ease,width .2s ease;will-change:transform,width}
 </style>
 
