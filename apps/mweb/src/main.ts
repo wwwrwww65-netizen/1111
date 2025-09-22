@@ -11,6 +11,7 @@ const manualRoutes = [
   { path: '/c/:slug', component: () => import('./pages/c/[slug].vue') },
   { path: '/wishlist', component: () => import('./pages/Wishlist.vue') },
   { path: '/account', component: () => import('./pages/Account.vue') },
+  { path: '/orders', component: () => import('./pages/Orders.vue') },
   { path: '/checkout', component: () => import('./pages/Checkout.vue') },
   { path: '/p', component: () => import('./pages/Product.vue') }
 ];
