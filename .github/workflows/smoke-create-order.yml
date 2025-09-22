@@ -99,11 +99,10 @@ jobs:
 
           echo '--- Create order ---'
           ORD_BODY=$(mktemp)
-          curl -sS -H "$AUTH" -H 'content-type: application/json' -w '\n%{http_code}' -X POST "$API_BASE/api/admin/orders" \
-            --data "{\"customer\":{\"name\":\"Smoke User\",\"email\":\"smoke+$TS@local\",\"phone\":\"\"},\"address\":{\"street\":\"Test St\"},\"items\":[{\"productId\":\"$PROD_ID\",\"quantity\":1,\"price\":9.9}]}" -o "$ORD_BODY"
-          OCODE=$(tail -n1 "$ORD_BODY" | tr -d '\r\n[:space:]') || true
-          sed -i '$d' "$ORD_BODY" || true
-          if [ "$OCODE" != "200" ]; then echo 'Order create failed:' "$OCODE"; sed -n '1,200p' "$ORD_BODY"; exit 1; fi
+          OCODE=$(curl -sS -H "$AUTH" -H 'content-type: application/json' -X POST "$API_BASE/api/admin/orders" \
+            --data "{\"customer\":{\"name\":\"Smoke User\",\"email\":\"smoke+$TS@local\",\"phone\":\"\"},\"address\":{\"street\":\"Test St\"},\"items\":[{\"productId\":\"$PROD_ID\",\"quantity\":1,\"price\":9.9}]}" -o "$ORD_BODY" -w '%{http_code}' || true)
+          OCODE=$(echo "$OCODE" | tr -d '\r\n[:space:]')
+          if [ "$OCODE" != "200" ]; then echo 'Order create failed:'; sed -n '1,200p' "$ORD_BODY"; exit 1; fi
           ORDER_ID=$(jq -r '.order.id // empty' "$ORD_BODY" || true)
           if [ -z "$ORDER_ID" ]; then echo 'Order id missing'; sed -n '1,200p' "$ORD_BODY"; exit 1; fi
           echo "ORDER_ID=$ORDER_ID"
