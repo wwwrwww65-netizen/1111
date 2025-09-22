@@ -3403,3 +3403,55 @@ adminRest.get('/logistics/delivery/suggest-drivers', async (_req, res) => {
     res.json({ drivers: ranked });
   } catch (e:any) { res.status(500).json({ error: e.message||'suggest_failed' }); }
 });
+
+adminRest.get('/notifications/templates', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'notifications','forbidden_templates',{}); return res.status(403).json({ error:'forbidden' }); }
+    // Minimal static templates for now
+    const items = [
+      { key:'order_paid', channel:'email', subject:'تم استلام الدفع', body:'تم استلام دفعتك بنجاح. رقم الطلب: {{orderId}}' },
+      { key:'order_shipped', channel:'sms', body:'طلبك رقم {{orderId}} في طريقه إليك.' },
+    ];
+    res.json({ templates: items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'templates_failed' }); }
+});
+adminRest.post('/notifications/send', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'notifications','forbidden_send',{}); return res.status(403).json({ error:'forbidden' }); }
+    const { channel, to, subject, body } = req.body || {};
+    if (!channel || !to || !body) return res.status(400).json({ error:'channel_to_body_required' });
+    // Best-effort send: email via nodemailer; SMS placeholder
+    try {
+      if (channel === 'email') {
+        const nodemailer = require('nodemailer');
+        const tx = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: Number(process.env.SMTP_PORT||587),
+          secure: false,
+          auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+        });
+        await tx.sendMail({ from: process.env.SMTP_FROM || 'no-reply@jeeey.com', to, subject: subject||'Notification', html: body });
+      } else if (channel === 'sms') {
+        // TODO: integrate SMS provider; for now, log
+      }
+    } catch {}
+    await audit(req,'notifications','send',{ channel, to });
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'send_failed' }); }
+});
+
+// Basic search endpoints (autocomplete)
+adminRest.get('/search/products', async (req, res) => {
+  try {
+    const q = String(req.query.q||'').trim(); if (!q) return res.json({ items: [] });
+    const items = await db.product.findMany({ where: { name: { contains: q, mode: 'insensitive' } }, select: { id:true, name:true }, take: 10 });
+    res.json({ items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'search_products_failed' }); }
+});
+adminRest.get('/search/categories', async (req, res) => {
+  try {
+    const q = String(req.query.q||'').trim(); if (!q) return res.json({ items: [] });
+    const items = await db.category.findMany({ where: { name: { contains: q, mode: 'insensitive' } }, select: { id:true, name:true }, take: 10 });
+    res.json({ items });
+  } catch (e:any) { res.status(500).json({ error: e.message||'search_categories_failed' }); }
+});
