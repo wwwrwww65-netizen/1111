@@ -1745,7 +1745,21 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
     const status = String(req.query.status||'').toUpperCase();
     const where: any = { legType: 'PICKUP' as any };
     if (['SCHEDULED','IN_PROGRESS','COMPLETED'].includes(status)) where.status = status as any;
-    const rows = await db.shipmentLeg.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 });
+    const rows = await db.shipmentLeg.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        orderId: true,
+        poId: true,
+        legType: true,
+        status: true,
+        driverId: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
     res.json({ pickups: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
 });
