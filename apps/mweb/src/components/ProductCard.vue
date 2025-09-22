@@ -6,12 +6,16 @@
         <img :src="img" :alt="title" loading="lazy" />
       </picture>
       <span v-if="badge" class="badge badge-accent">{{ badge }}</span>
+      <button class="wish" aria-label="إضافة للمفضلة"><Icon name="heart" /></button>
     </div>
     <div class="info">
       <div class="title">{{ title }}</div>
       <div class="price-wrap">
         <span v-if="original" class="original">{{ original }}</span>
         <span class="price">{{ price }}</span>
+      </div>
+      <div class="rating" aria-label="تقييم">
+        <span v-for="i in 5" :key="i" class="star" :class="{ on: i<=rating }">★</span>
       </div>
     </div>
     <button class="btn add" @click="addToCart($event)" aria-label="إضافة للسلة">إضافة للسلة</button>
@@ -21,8 +25,9 @@
 <script setup lang="ts">
 import { useCart } from '@/store/cart'
 import gsap from 'gsap'
-const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; badge?: string }>();
-const { id = Math.random().toString(36).slice(2), img, title, price, original, badge } = props;
+import Icon from '@/components/Icon.vue'
+const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; badge?: string; rating?: number }>();
+const { id = Math.random().toString(36).slice(2), img, title, price, original, badge, rating = 4 } = props;
 const cart = useCart()
 function addToCart(ev?: MouseEvent){
   cart.add({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }, 1)
@@ -50,10 +55,15 @@ function addToCart(ev?: MouseEvent){
 .img-wrap{position:relative;aspect-ratio:3/4;background:#f8fafc}
 .img-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .badge-accent{position:absolute;top:8px;left:8px}
+.wish{position:absolute;top:8px;right:8px;width:36px;height:36px;display:grid;place-items:center;border-radius:999px;border:0;background:rgba(255,255,255,.7)}
+.wish:focus-visible{outline:2px solid var(--primary,#0B5FFF)}
 .info{display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
 .title{font-weight:600;font-size:13px}
 .price-wrap{display:flex;gap:6px;align-items:center}
 .original{text-decoration:line-through;color:#94a3b8;font-size:12px}
 .price{color:#dc2626;font-weight:800}
+.rating{margin-top:6px}
+.star{font-size:12px;color:#d1d5db}
+.star.on{color:#fbbf24}
 .add{margin:0 12px 12px}
 </style>

@@ -9,9 +9,7 @@
       <SectionHeading title="الفئات" href="/categories" />
       <CategoryGrid />
       <SectionHeading title="وصل حديثًا" href="/products?sort=new" />
-      <div class="prod-grid">
-        <ProductCard v-for="i in newItems" :key="i.title" v-bind="i" />
-      </div>
+      <ProductGrid :items="newItems" label="وصل حديثًا" />
       <SectionHeading title="الأكثر مبيعًا" href="/products?sort=top" />
       <HorizontalProducts :label="'الأكثر مبيعاً'" />
       <SectionHeading title="مقترح لك" href="/products?sort=reco" />
@@ -33,6 +31,7 @@ import ProductCard from '@/components/ProductCard.vue'
 import TopTabs from '@/components/TopTabs.vue'
 import Carousel from '@/components/Carousel.vue'
 import SvgBanner from '@/components/SvgBanner.vue'
+import ProductGrid from '@/components/ProductGrid.vue'
 
 import { computed } from 'vue'
 // Apply Figma tokens if present
