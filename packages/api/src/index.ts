@@ -18,19 +18,29 @@ import YAML from 'yamljs';
 import http from 'http';
 import { Server as IOServer } from 'socket.io';
 
-// Optional Sentry init
+// Optional Sentry init (guarded by env)
 let sentryEnabled = false;
+let SentryRef: any = null;
 try {
-  // Dynamically require to avoid build-time errors if missing
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const Sentry = require('@sentry/node');
+  SentryRef = require('@sentry/node');
   if (process.env.SENTRY_DSN) {
-    Sentry.init({ dsn: process.env.SENTRY_DSN });
+    SentryRef.init({
+      dsn: process.env.SENTRY_DSN,
+      tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1),
+      environment: process.env.NODE_ENV || 'production',
+    });
     sentryEnabled = true;
   }
 } catch {}
 
 const app = express();
+if (sentryEnabled && SentryRef) {
+  try {
+    app.use(SentryRef.Handlers.requestHandler());
+    if (SentryRef.Handlers.tracingHandler) app.use(SentryRef.Handlers.tracingHandler());
+  } catch {}
+}
 // Behind NGINX, trust only loopback to satisfy express-rate-limit without being overly permissive
 app.set('trust proxy', 'loopback');
 // Ensure critical DB schema tweaks are applied (idempotent)
@@ -271,5 +281,10 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     });
   }
 })();
+
+// Sentry error handler at the end
+if (sentryEnabled && SentryRef) {
+  try { (app as any).use(SentryRef.Handlers.errorHandler()); } catch {}
+}
 
 export type AppRouter = typeof appRouter;

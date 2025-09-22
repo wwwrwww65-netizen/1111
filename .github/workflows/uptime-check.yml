@@ -1,0 +1,19 @@
+name: Scheduled Uptime Check
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check admin health
+        run: |
+          set -euo pipefail
+          curl -fsS https://admin.jeeey.com/api/admin/health -m 15 -o /dev/null
+      - name: Check api health (public)
+        run: |
+          set -euo pipefail
+          curl -fsS https://api.jeeey.com/health -m 15 -o /dev/null

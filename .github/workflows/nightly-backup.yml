@@ -1,0 +1,23 @@
+name: Nightly Backup Trigger
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backup job on API
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || vars.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || vars.ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          API=https://admin.jeeey.com
+          BODY=$(mktemp)
+          curl -sS -H 'content-type: application/json' -X POST "$API/api/admin/auth/login" --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" -o "$BODY"
+          TOKEN=$(grep -o '"token":"[^\"]\+"' "$BODY" | sed 's/.*"token":"\([^\"]\+\)".*/\1/' || true)
+          test -n "$TOKEN"
+          curl -sS -H "Authorization: Bearer $TOKEN" -X POST "$API/api/admin/backups/run" -o /dev/stdout | sed -n '1,160p'
