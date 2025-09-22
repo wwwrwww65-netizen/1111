@@ -2943,9 +2943,10 @@ adminRest.get('/vendors/:id/scorecard', async (req, res) => {
 
 adminRest.get('/vendors/:id/notifications', async (req, res) => {
   try {
-    const { id } = req.params; const safeId = id.replace(/'/g, "''");
+    const { id } = req.params;
     const items = await db.$queryRawUnsafe<any[]>(
-      `SELECT id, action, details, "createdAt" FROM "AuditLog" WHERE module='vendors' AND details->>'vendorId'='${safeId}' ORDER BY "createdAt" DESC LIMIT 100`
+      'SELECT id, action, details, "createdAt" FROM "AuditLog" WHERE module=$1 AND details->>\'vendorId\'=$2 ORDER BY "createdAt" DESC LIMIT 100',
+      'vendors', id
     );
     res.json({ notifications: items });
   } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_notifications_failed' }); }
