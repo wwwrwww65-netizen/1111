@@ -10,6 +10,12 @@ const AI_KEYS: AiKey[] = [
   { key: 'GEMINI_API_KEY', label: 'Google Gemini API Key' },
   { key: 'CUSTOM_AI_ENDPOINT', label: 'Custom AI Endpoint', placeholder: 'https://api.example.com/v1' },
   { key: 'CUSTOM_AI_KEY', label: 'Custom AI API Key' },
+  // Cursor AI specific
+  { key: 'CURSOR_AI_ENDPOINT', label: 'Cursor AI Endpoint', placeholder: 'https://api.cursor.sh/v1' },
+  { key: 'CURSOR_AI_API_KEY', label: 'Cursor AI API Key' },
+  { key: 'CURSOR_AI_MODEL', label: 'Cursor AI Model', placeholder: 'cursor-large' },
+  { key: 'CURSOR_AI_TEMPERATURE', label: 'Cursor AI Temperature', placeholder: '0.2' },
+  { key: 'CURSOR_AI_MAX_TOKENS', label: 'Cursor AI Max Tokens', placeholder: '4096' },
 ];
 
 const PLACEMENTS = [
@@ -18,6 +24,11 @@ const PLACEMENTS = [
   { key: 'AI_ENABLE_CATEGORY_SEO', label: 'توليد SEO للفئات' },
   { key: 'AI_ENABLE_ORDERS_INSIGHTS', label: 'تحليلات الطلبات' },
   { key: 'AI_ENABLE_MWEB_CHAT', label: 'دردشة للموقع/الموبايل' },
+  // Cursor AI feature placements
+  { key: 'AI_ENABLE_CURSOR_CODE_ASSIST', label: 'Cursor: مساعد برمجي (Code Assist) داخل لوحة التحكم' },
+  { key: 'AI_ENABLE_CURSOR_AUTOFIX_CI', label: 'Cursor: إصلاح تلقائي للأخطاء في CI (اقتراحات فقط)' },
+  { key: 'AI_ENABLE_CURSOR_DESIGN_SYNC', label: 'Cursor: مزامنة تصميم (Figma → كود) تحت الطلب' },
+  { key: 'AI_ENABLE_CURSOR_DOCS_SUMMARY', label: 'Cursor: تلخيص الوثائق وسجلات الأخطاء' },
 ];
 
 export default function AiIntegrations(): JSX.Element {
@@ -67,6 +78,30 @@ export default function AiIntegrations(): JSX.Element {
           </div>
         ))}
       </section>
+
+      <h2 style={{ fontWeight:800, fontSize:16, marginTop:24, marginBottom:8 }}>Cursor AI (إعدادات متقدمة)</h2>
+      <div className="panel" style={{ display:'grid', gap:8 }}>
+        <div style={{ display:'grid', gap:6 }}>
+          <label style={{ fontWeight:700 }}>اختيار نموذج Cursor</label>
+          <select value={values['CURSOR_AI_MODEL']||''} onChange={(e)=> setVal('CURSOR_AI_MODEL', e.target.value)} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }}>
+            <option value="">اختر…</option>
+            <option value="cursor-large">cursor-large</option>
+            <option value="cursor-code">cursor-code</option>
+            <option value="cursor-chat">cursor-chat</option>
+          </select>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <div style={{ display:'grid', gap:6 }}>
+            <label style={{ fontWeight:700 }}>Temperature</label>
+            <input value={values['CURSOR_AI_TEMPERATURE']||''} onChange={(e)=> setVal('CURSOR_AI_TEMPERATURE', e.target.value)} placeholder="0.2" style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+          </div>
+          <div style={{ display:'grid', gap:6 }}>
+            <label style={{ fontWeight:700 }}>Max Tokens</label>
+            <input value={values['CURSOR_AI_MAX_TOKENS']||''} onChange={(e)=> setVal('CURSOR_AI_MAX_TOKENS', e.target.value)} placeholder="4096" style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+          </div>
+        </div>
+        <div style={{ color:'var(--sub)', fontSize:12 }}>اترك القيم فارغة لتعطيل ميزات Cursor. استعمال المفاتيح في الواجهة والـ CI سيكون خاضعاً لصلاحيات RBAC.</div>
+      </div>
 
       <h2 style={{ fontWeight:800, fontSize:16, marginTop:24, marginBottom:8 }}>أماكن التفعيل</h2>
       <div className="panel" style={{ display:'grid', gap:8 }}>
