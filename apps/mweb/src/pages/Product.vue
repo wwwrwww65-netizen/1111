@@ -123,7 +123,7 @@ onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passiv
 onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
 onMounted(async ()=>{
   try{
-    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`)
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
     if(res.ok){
       const d = await res.json()
       title.value = d.name || title.value

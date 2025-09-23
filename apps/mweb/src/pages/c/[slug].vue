@@ -91,7 +91,7 @@ async function fetchData(){
   if (selectedSizes.value.length) query.set('sizes', selectedSizes.value.join(','))
   const url = `${API_BASE}/api/catalog/${encodeURIComponent(slug)}?${query.toString()}`
   try{
-    const res = await fetch(url)
+    const res = await fetch(url, { credentials:'omit', headers:{ 'Accept':'application/json' } })
     if (res.ok){
       const data = await res.json()
       items.value = (data?.items||[]).map((d:any)=>({ id:d.id||d.sku||String(d.name), title:d.name, price:d.price||0, img:(d.images?.[0]||'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop') }))

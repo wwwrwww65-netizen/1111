@@ -106,7 +106,7 @@ async function runSearch(){
   if(priceMin.value!=null) sp.set('min', String(priceMin.value))
   if(priceMax.value!=null) sp.set('max', String(priceMax.value))
   try{
-    const res = await fetch(`${API_BASE}/api/search?${sp.toString()}`)
+    const res = await fetch(`${API_BASE}/api/search?${sp.toString()}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
     if(res.ok){
       const data = await res.json()
       items.value = (data?.items||[]).map((d:any)=>({ id:d.id||d.sku||String(d.name), title:d.name, price:d.price||0, img:(d.images?.[0]||'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop') }))
