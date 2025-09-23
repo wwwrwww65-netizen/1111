@@ -9,6 +9,7 @@
         <s>23.00 ر.س</s>
         <strong>18.40 ر.س</strong>
       </div>
+      <button class="cta" aria-label="تسوّق الآن">تسوّق الآن</button>
       <button class="fav" aria-label="حفظ"><Icon name="heart" /></button>
       <span class="badge">-20%</span>
     </div>
@@ -43,6 +44,7 @@ img{width:100%;aspect-ratio:4/5;object-fit:cover;display:block}
 .price{display:flex;gap:8px;align-items:center;margin-top:6px}
 .price s{color:#999;font-size:13px}
 .price strong{color:#e11d48;font-size:16px}
+.cta{margin-top:10px;width:100%;height:40px;border-radius:10px;background:#111;color:#fff;font-weight:600}
 .fav{position:absolute;top:8px;inset-inline-end:8px;width:40px;height:40px;display:grid;place-items:center;background:#fff;border:1px solid #eee;border-radius:10px}
 .badge{position:absolute;top:8px;inset-inline-start:8px;background:#111;color:#fff;border-radius:999px;padding:2px 8px;font-size:12px}
 .card:focus-within{outline:2px solid #0b5fff}

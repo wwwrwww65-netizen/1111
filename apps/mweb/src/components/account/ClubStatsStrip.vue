@@ -19,7 +19,7 @@ const user = useUser()
 </script>
 
 <style scoped>
-.card{background:#fff;border-radius:12px;padding:10px;box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 4px 12px rgba(0,0,0,.06)}
 .cells{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center}
 .cell{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 0}
 .v{font-size:16px;color:#222;font-weight:600}
