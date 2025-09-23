@@ -30,7 +30,12 @@ export default function AdminProductCreate(): JSX.Element {
   
 
   const stopwords = React.useMemo(()=> new Set<string>([
-    'مجاني','عرض','تخفيض','مميز','حصري','اصلي','اصلية','ضمان','شحن','سريع','رائع','جديد','new','sale','offer','best','free','original','premium','amazing','awesome','great'
+    // Arabic marketing/noise
+    'لايفوتك','العرض','محدود','جديد','جديدة','جديده','فقط','دلع','واناقة','واناقه','انيق','انيقه','أنيف','انيقة','اناقه','تشكيله','تشكيلة','عرض','عروض','خصم','تخفيض','مميز','حصري','اصلي','اصلية','ضمان','شحن','مجاني','سريع','متوفر','متوووفر','متاح','هديه','هدية',
+    // Numeric/labels
+    'السعر','للشمال','الشمال','جنوبي','الجنوب','عمله','عملة','فقط','فوق','تحت','اليوم','الآن',
+    // English marketing
+    'new','sale','offer','best','free','original','premium','amazing','awesome','great'
   ]), []);
 
   function cleanText(raw: string): string {
@@ -63,7 +68,8 @@ export default function AdminProductCreate(): JSX.Element {
     const model = clean.match(/موديل\s*([A-Za-z0-9_-]{2,})/i)?.[1];
     const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|بلوفر|سويتر|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i);
     const type = (typeMatch?.[1]||'').replace(/فنائل/i,'فنيلة');
-    const gender = clean.match(/(نسائي|رجالي|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
+    const genderRaw = clean.match(/(نسائي|نسائية|رجالي|رجالية|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
+    const gender = /نسائي/i.test(genderRaw) ? 'نسائية' : (/رجالي/i.test(genderRaw) ? 'رجالي' : genderRaw);
     const material = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1] || '';
     const feature = /كم\s*كامل/i.test(clean) ? 'كم كامل' : '';
     const parts = [type && gender ? `${type} ${gender}` : (type||gender), material || feature, model? `موديل ${model}`: ''].filter(Boolean);
@@ -127,8 +133,8 @@ export default function AdminProductCreate(): JSX.Element {
     const priceMatch = clean.match(new RegExp(`(?:سعر\\s*البيع|price|سعر)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
     const costOldMatch = clean.match(new RegExp(`(?:القديم|قديم)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
     // Region-based prices (الشمال/جنوبي)
-    const northMatch = clean.match(new RegExp(`(?:الشمال)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
-    const southMatch = clean.match(new RegExp(`(?:جنوبي|الجنوب)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    const northMatch = clean.match(new RegExp(`(?:السعر\s*للشمال|للشمال|الشمال)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    const southMatch = clean.match(new RegExp(`(?:السعر\s*عملة\s*جنوبي|جنوبي|الجنوب)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
     const stockMatch = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i);
     const sizesListEn = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=>s.toUpperCase())));
     // Free size with weight range (e.g., من وزن40 حتى وزن 60)
@@ -142,11 +148,13 @@ export default function AdminProductCreate(): JSX.Element {
     const keywords = extractKeywords(clean);
     const sale = priceMatch ? Number(String(priceMatch[1]).replace(',','.')) : undefined;
     // Choose cost preference: قديم > الشمال > الجنوب > الشراء/التكلفة > السعر العام
-    const candidates: Array<{v:number; tag:string}> = [];
-    if (costOldMatch) candidates.push({ v: Number(String(costOldMatch[1]).replace(',','.')), tag: 'old' });
-    if (northMatch) candidates.push({ v: Number(String(northMatch[1]).replace(',','.')), tag: 'north' });
-    if (southMatch) candidates.push({ v: Number(String(southMatch[1]).replace(',','.')), tag: 'south' });
-    if (sale!==undefined) candidates.push({ v: sale, tag: 'sale' });
+    const candidates: Array<{v:number; tag:number}> = [];
+    // priority weight: old=1, north=2, south=3, sale=4
+    if (costOldMatch) candidates.push({ v: Number(String(costOldMatch[1]).replace(',','.')), tag: 1 });
+    if (northMatch) candidates.push({ v: Number(String(northMatch[1]).replace(',','.')), tag: 2 });
+    if (southMatch) candidates.push({ v: Number(String(southMatch[1]).replace(',','.')), tag: 3 });
+    if (sale!==undefined) candidates.push({ v: sale, tag: 4 });
+    candidates.sort((a,b)=> a.tag-b.tag);
     const cost = candidates.length ? candidates[0].v : undefined;
     const stock = stockMatch ? Number(stockMatch[1]) : undefined;
     const currencyFound = detectCurrency(raw||'') || (/ريال|﷼/i.test(raw||'')? 'ريال' : undefined);
@@ -162,17 +170,18 @@ export default function AdminProductCreate(): JSX.Element {
       keywords: keywords.length? 0.6 : 0.2,
     };
     // Build professional description (without prices)
-    const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|بلوفر|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i);
+    const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بلوزة|سويتر|بلوفر|hoodie|sweater|jacket|coat|dress|shirt|blouse)/i);
     const matMatch = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i);
     const feat = [/كم\s*كامل/i.test(clean)? 'كم كامل' : '', /زرارات\s*أنيقة|زرارات\s*انيقه/i.test(clean)? 'زرارات أنيقة' : ''].filter(Boolean).join('، ');
     const gender = clean.match(/(نسائي|رجالي)/i)?.[1] || '';
     const descParts = [
-      typeMatch ? `${typeMatch[1]} ${gender}`.trim() : '',
+      typeMatch ? `${/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1]} ${gender}`.trim() : '',
       matMatch ? `من ${matMatch[1]}` : '',
       feat,
       /خارجي/i.test(clean)? 'تصميم خارجي' : ''
     ].filter(Boolean);
-    const composedDesc = (descParts.join('، ') + '، مناسبة للاستخدام اليومي وتمنح مظهراً متناسقاً.').replace(/^،\s*/,'').trim();
+    let composedDesc = (descParts.join('، ') + '، مناسبة للاستخدام اليومي وتمنح مظهراً متناسقاً.').replace(/^،\s*/,'').trim();
+    composedDesc = composedDesc.replace(/\b(850|3000)\b/g,'').trim();
     return {
       name: (nameMatch?.[1]||'').trim(),
       shortDesc,
