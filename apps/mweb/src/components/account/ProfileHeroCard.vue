@@ -21,7 +21,7 @@ const user = useUser()
 
 <style scoped>
 .card{position:relative;background:#fff;border-radius:12px;padding:16px;box-shadow:0 4px 12px rgba(0,0,0,.06)}
-.top-actions{position:absolute;top:8px;inset-inline-end:8px;display:flex;gap:6px}
+.top-actions{position:absolute;top:8px;left:8px;display:flex;gap:6px}
 .icon{width:44px;height:44px;display:grid;place-items:center;background:#fff;border:1px solid #eee;border-radius:10px}
 .row{display:flex;align-items:center;justify-content:space-between}
 .name{display:flex;align-items:center;gap:8px}

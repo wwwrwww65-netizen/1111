@@ -1,7 +1,7 @@
 <template>
   <section class="card" dir="rtl" aria-label="إحصاءات النادي">
     <div class="cells">
-      <div class="cell" role="button" aria-label="خصم 5 بالمئة"><span class="v">5%</span><span class="k">خصم</span></div>
+      <div class="cell" role="button" aria-label="خصم 5 بالمئة"><span class="v"><span class="badgep">%5</span></span><span class="k">خصم</span></div>
       <div class="sep"></div>
       <div class="cell" role="button" aria-label="هذا الشهر 15"><span class="v">{{ user.monthPoints }}</span><span class="k">هذا الشهر</span></div>
       <div class="sep"></div>
@@ -28,5 +28,6 @@ const user = useUser()
 .offer{margin-top:8px;background:#f5f7ff;border:1px dashed #d5defa;border-radius:10px;padding:8px 10px;color:#222}
 .tx strong{font-weight:700}
 .tx s{color:#999}
+.badgep{display:inline-block;background:#111;color:#fff;border-radius:6px;padding:2px 6px;font-size:12px;line-height:1}
 </style>
 
