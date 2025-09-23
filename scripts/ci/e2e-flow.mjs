@@ -35,14 +35,28 @@ async function loginOrRegister() {
 }
 
 async function ensureOrder() {
-  // Try list orders via TRPC is complex here; create minimal order by using payments/products endpoints indirectly
-  // We'll rely on existing smoke to create an order. Here we just probe and fallback.
+  // Create a real order so finance payment can succeed (FK constraints)
+  // 1) Ensure there is at least one product
+  let productId = '';
   try {
-    // Not all routers expose list; fallback to a mock ref
-    return `order_${Date.now()}`;
-  } catch {
-    return `order_${Date.now()}`;
+    const r = await api('/api/admin/products?limit=1&suggest=1');
+    if (r.ok) {
+      const j = await r.json();
+      productId = j?.products?.[0]?.id || '';
+    }
+  } catch {}
+  if (!productId) {
+    const cr = await api('/api/admin/products', { method: 'POST', body: JSON.stringify({ name: 'E2E Product', price: 10, stockQuantity: 100, isActive: true }) });
+    if (!cr.ok) throw new Error('product_create_failed');
+    const cj = await cr.json();
+    productId = cj?.product?.id;
   }
+  // 2) Create order with one line
+  const em = `e2e+${Date.now()}@example.com`;
+  const or = await api('/api/admin/orders', { method: 'POST', body: JSON.stringify({ customer: { name: 'E2E', email: em, phone: '0000000000' }, address: { street: 'CI Street' }, items: [{ productId, quantity: 1, price: 10 }] }) });
+  if (!or.ok) throw new Error(`order_create_failed_${or.status}`);
+  const oj = await or.json();
+  return oj?.order?.id;
 }
 
 async function main() {
