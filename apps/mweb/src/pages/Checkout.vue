@@ -23,7 +23,7 @@
         <div>الإجمالي</div>
         <div style="font-weight:700">{{ total.toFixed(2) }} ر.س</div>
       </div>
-      <button class="btn submit" :disabled="!address || !payment">تأكيد الطلب</button>
+      <button class="btn submit" :disabled="!address || !payment" @click="goConfirm">تأكيد الطلب</button>
     </div>
 
     <BottomSheet v-model="openAddress" height="65vh">
@@ -49,6 +49,7 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import { storeToRefs } from 'pinia'
 import { useCart } from '@/store/cart'
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 const cart = useCart()
 const { total } = storeToRefs(cart)
@@ -60,6 +61,8 @@ const demoAddresses = ['الرياض - حي الياسمين - شارع العل
 const paymentMethods = ['بطاقة ائتمانية', 'Apple Pay', 'الدفع عند الاستلام']
 function selectAddress(a:string){ address.value = a; openAddress.value = false }
 function selectPayment(p:string){ payment.value = p; openPayment.value = false }
+const router = useRouter()
+function goConfirm(){ if(address.value && payment.value){ router.push('/confirm') } }
 </script>
 
 <style scoped>

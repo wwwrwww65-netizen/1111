@@ -13,7 +13,9 @@ const manualRoutes = [
   { path: '/account', component: () => import('./pages/Account.vue') },
   { path: '/orders', component: () => import('./pages/Orders.vue') },
   { path: '/checkout', component: () => import('./pages/Checkout.vue') },
-  { path: '/p', component: () => import('./pages/Product.vue') }
+  { path: '/p', component: () => import('./pages/Product.vue') },
+  { path: '/confirm', component: () => import('./pages/Confirm.vue') },
+  { path: '/address', component: () => import('./pages/Address.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];
 
