@@ -116,10 +116,21 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   function extractKeywords(t: string): string[] {
-    const words = t.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(Boolean);
+    const normalizeArabic = (s:string)=> s
+      .replace(/[\u064B-\u065F]/g,'') // diacritics
+      .replace(/\u0640/g,'') // tatweel
+      .replace(/[إأآا]/g,'ا')
+      .replace(/ى/g,'ي')
+      .replace(/ة/g,'ه');
+    const collapse = (s:string)=> s.replace(/(.)\1{2,}/g, '$1$1');
+    const raw = normalizeArabic(collapse(t.toLowerCase()));
+    const words = raw.replace(/[^\p{Script=Arabic}a-z\s]/gu,' ') // keep arabic/latin letters only
+      .split(/\s+/).filter(Boolean);
     const freq = new Map<string,number>();
-    for (const w of words) {
-      if (w.length<3) continue; if (stopwords.has(w)) continue;
+    for (const w0 of words) {
+      const w = normalizeArabic(w0);
+      if (w.length<3) continue;
+      if (stopwords.has(w)) continue;
       freq.set(w, (freq.get(w)||0)+1);
     }
     const sorted = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]).map(([w])=>w);
@@ -141,7 +152,7 @@ export default function AdminProductCreate(): JSX.Element {
     const freeRange = clean.match(/من\s*وزن\s*(\d{2,3})\s*(?:حتى|الى|إلى)\s*وزن\s*(\d{2,3})/i);
     const freeSize = clean.match(/فري\s*سايز/i);
     const sizesList = freeRange ? [ `فري سايز (${freeRange[1]}–${freeRange[2]} كجم)` ] : (freeSize ? ['فري سايز'] : sizesListEn);
-    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي','رمادي فاتح','رمادي غامق','أزرق كحلي','Red','Blue','Green','Black','White','Yellow','Brown','Beige','Gray','Pink','Purple','Navy'];
+    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي','رمادي فاتح','رمادي غامق','أزرق كحلي','كحلي غامق','أزرق فاتح','Red','Blue','Green','Black','White','Yellow','Brown','Beige','Gray','Pink','Purple','Navy','Light Gray','Dark Gray'];
     const colorsList = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
     const shortDesc = clean.slice(0, 160);
     const longDesc = clean.length<80 ? clean : clean.slice(0, 300);
@@ -174,8 +185,9 @@ export default function AdminProductCreate(): JSX.Element {
     const matMatch = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i);
     const feat = [/كم\s*كامل/i.test(clean)? 'كم كامل' : '', /زرارات\s*أنيقة|زرارات\s*انيقه/i.test(clean)? 'زرارات أنيقة' : ''].filter(Boolean).join('، ');
     const gender = clean.match(/(نسائي|رجالي)/i)?.[1] || '';
+    const normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1]) : '';
     const descParts = [
-      typeMatch ? `${/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1]} ${gender}`.trim() : '',
+      normalizedType ? `${normalizedType} ${gender}`.trim() : '',
       matMatch ? `من ${matMatch[1]}` : '',
       feat,
       /خارجي/i.test(clean)? 'تصميم خارجي' : ''
