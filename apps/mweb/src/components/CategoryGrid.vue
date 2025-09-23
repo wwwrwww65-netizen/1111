@@ -2,7 +2,7 @@
 <section class="cat-grid" aria-label="الفئات" dir="rtl">
     <div class="grid">
       <a v-for="c in cats" :key="c.title" class="cat" :href="c.href" tabindex="0" role="button" :aria-label="`تصنيف: ${c.title}`">
-        <img class="img" :src="c.img" :srcset="c.srcset" sizes="(max-width: 768px) 92px, 110px" :alt="c.title" loading="lazy" />
+        <img class="img" :src="c.img" :srcset="c.srcset" :alt="c.title" loading="lazy" />
         <div class="label">{{ c.title }}</div>
       </a>
     </div>
@@ -38,10 +38,10 @@ onMounted(async ()=>{
 .img{width:72px;height:72px;border-radius:50%;object-fit:cover;background:#F7F7F7;box-shadow:0 2px 6px rgba(0,0,0,.06);display:block}
 .label{margin-top:8px;font-size:13px;color:#333;text-align:center;line-height:1.2;max-height:36px;overflow:hidden;text-overflow:ellipsis}
 .cat:focus-visible{outline:2px solid var(--primary,#0B5FFF);outline-offset:3px;border-radius:12px}
-.cat-grid{background:#fff;border-radius:12px;padding:8px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px 0}
-.cat{display:flex;flex-direction:column;align-items:center;text-decoration:none;color:inherit;padding:8px}
-.img{width:72px;height:72px;border-radius:50%;object-fit:cover;background:#F7F7F7;box-shadow:0 2px 6px rgba(0,0,0,.06);display:block}
+.cat-grid{background:#fff;height:100%;min-height:100%;border-radius:0;padding:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;height:100%}
+.cat{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-decoration:none;color:inherit;padding:8px}
+.img{width:96px;height:96px;border-radius:50%;object-fit:cover;object-position:center;background:#F7F7F7;box-shadow:0 2px 6px rgba(0,0,0,.06);display:block}
 .label{margin-top:8px;font-size:13px;color:#333;text-align:center;line-height:1.2;max-height:36px;overflow:hidden;text-overflow:ellipsis}
 .cat:focus-visible{outline:2px solid var(--primary,#0B5FFF);outline-offset:3px;border-radius:12px}
 </style>
