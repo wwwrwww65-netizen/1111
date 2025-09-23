@@ -1,0 +1,90 @@
+name: SSH and DB Connectivity Diagnose
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: 'Override VPS host (optional)'
+        required: false
+      port:
+        description: 'Override SSH port (optional)'
+        required: false
+      user:
+        description: 'Override SSH user (optional)'
+        required: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HOST: ${{ github.event.inputs.host || secrets.VPS_HOST }}
+      PORT: ${{ github.event.inputs.port || secrets.VPS_PORT || '22' }}
+      USER: ${{ github.event.inputs.user || secrets.VPS_USER || 'root' }}
+      DB_HOST: ${{ secrets.DB_HOST || '' }}
+      DB_PORT: ${{ secrets.DB_PORT || '5432' }}
+      DB_USER: ${{ secrets.DB_USER || '' }}
+      DB_NAME: ${{ secrets.DB_NAME || '' }}
+      DB_SSL: ${{ secrets.DB_SSL || 'require' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install diagnostics
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends dnsutils inetutils-ping netcat-openbsd traceroute openssh-client postgresql-client
+
+      - name: Resolve DNS and show network
+        run: |
+          echo "HOST=$HOST PORT=$PORT USER=$USER"
+          ip addr || true
+          ip route || true
+          getent ahosts "$HOST" || true
+          dig +short A "$HOST" || true
+          ping -c 2 -4 "$HOST" || true
+
+      - name: Check TCP reachability to SSH
+        run: |
+          for i in 1 2 3; do
+            echo "[try $i] nc $HOST:$PORT"
+            nc -zv -w 5 "$HOST" "$PORT" && exit 0 || sleep $((i*5))
+          done
+          echo "SSH port not reachable"
+          exit 1
+
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$PORT" -T 5 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: SSH handshake test (3 tries)
+        run: |
+          set -x
+          for i in 1 2 3; do
+            ssh -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=yes -p "$PORT" "$USER@$HOST" 'echo OK && uname -a' && exit 0 || sleep $((i*5))
+          done
+          exit 1
+
+      - name: Check DB TCP reachability
+        if: env.DB_HOST != ''
+        run: |
+          for i in 1 2 3; do
+            echo "[try $i] nc $DB_HOST:$DB_PORT"
+            nc -zv -w 5 "$DB_HOST" "$DB_PORT" && exit 0 || sleep $((i*5))
+          done
+          exit 1
+
+      - name: Check DB login
+        if: env.DB_HOST != '' && env.DB_USER != '' && env.DB_NAME != ''
+        env:
+          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          psql "host=$DB_HOST port=$DB_PORT user=$DB_USER dbname=$DB_NAME sslmode=$DB_SSL" -c "select now();" -tA
+
