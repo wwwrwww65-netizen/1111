@@ -2,7 +2,7 @@
   <section :aria-label="label || 'منتجات'" dir="rtl">
     <div class="grid">
       <template v-for="(p,idx) in visible" :key="(p.id || p.title)+idx">
-        <ProductCard v-bind="p" />
+        <ProductCard v-bind="withHref(p)" />
         <a v-if="(idx+1)%6===0" class="inline-banner" href="#" aria-label="عرض ترويجي">
           <img src="https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&w=600&auto=format&fit=crop" alt="عرض خاص" loading="lazy" />
         </a>
@@ -20,6 +20,7 @@ const props = defineProps<{ label?: string; items: Array<any> }>()
 const visible = ref<any[]>(props.items?.slice(0, 10) || [])
 const sentinel = ref<HTMLElement|null>(null)
 let io: IntersectionObserver | null = null
+function withHref(p:any){ return { href: p.href || `/p?id=${encodeURIComponent(p.id||p.title)}`, ...p } }
 function loadMore(){
   const next = (visible.value.length + 10)
   visible.value = (props.items || []).slice(0, next)

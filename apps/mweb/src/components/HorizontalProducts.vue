@@ -1,6 +1,6 @@
 <template>
   <div class="hp" ref="wrap" role="region" :aria-label="label || 'منتجات'">
-    <a v-for="p in items" :key="p.title" class="hp-card" :href="p.href || '#'" tabindex="0">
+    <a v-for="p in items" :key="p.title" class="hp-card" :href="p.href || `/p?id=${encodeURIComponent(p.title)}`" @click.prevent="go(p)" tabindex="0">
       <picture>
         <source :srcset="`${p.img}&fm=webp`" type="image/webp" />
         <img :src="p.img" :alt="p.title" loading="lazy" />
@@ -14,6 +14,7 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { useRouter } from 'vue-router'
 const props = defineProps<{ label?: string; items?: Array<{ img: string; title: string; price: string; href?: string }> }>();
 const items = props.items || [
   { img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', title: 'منتج 1', price: '89 ر.س' },
@@ -23,6 +24,8 @@ const items = props.items || [
 ];
 const wrap = ref<HTMLElement|null>(null)
 let obs: IntersectionObserver | null = null
+const router = useRouter()
+function go(p: any){ router.push(p.href || `/p?id=${encodeURIComponent(p.title)}`) }
 onMounted(()=>{
   obs = new IntersectionObserver((entries)=>{
     entries.forEach(e=>{

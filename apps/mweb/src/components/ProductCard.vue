@@ -1,6 +1,6 @@
 <template>
-  <article class="product-card" tabindex="0" role="article" dir="rtl">
-    <div class="image-wrap">
+  <article class="product-card" tabindex="0" role="article" dir="rtl" @click="onCardClick">
+    <div class="image-wrap" @click.stop="go()">
       <picture>
         <source :srcset="`${img}&fm=webp`" type="image/webp" />
         <img class="product-img" :src="img" :alt="title" loading="lazy" />
@@ -10,7 +10,7 @@
       <button class="wish" aria-label="إضافة للمفضلة"><Icon name="heart" /></button>
     </div>
     <div class="content">
-      <a class="title" :href="href || '#'" :title="title">{{ title }}</a>
+      <a class="title" href="#" :title="title" @click.prevent.stop="go()">{{ title }}</a>
       <div class="meta">
         <span v-if="sizeText">{{ sizeText }}</span>
         <span v-if="colorText">· {{ colorText }}</span>
@@ -37,9 +37,20 @@
 import { useCart } from '@/store/cart'
 import gsap from 'gsap'
 import Icon from '@/components/Icon.vue'
+import { useRouter } from 'vue-router'
 const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; afterCoupon?: string; discountPercent?: number; soldCount?: number; isFastShipping?: boolean; badgeRank?: number; thumbs?: string[]; href?: string; sizeText?: string; colorText?: string }>();
 const { id = Math.random().toString(36).slice(2), img, title, price, original, afterCoupon, discountPercent, soldCount, isFastShipping = false, badgeRank, thumbs, href, sizeText, colorText } = props;
 const cart = useCart()
+const router = useRouter()
+function go(){
+  const to = href || `/p?id=${encodeURIComponent(id)}`
+  router.push(to)
+}
+function onCardClick(e: MouseEvent){
+  const target = e.target as HTMLElement
+  if (target.closest('.btn-add') || target.closest('.btn-wish') || target.closest('.wish')) return
+  go()
+}
 function addToCart(ev?: MouseEvent){
   cart.add({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }, 1)
   try {
