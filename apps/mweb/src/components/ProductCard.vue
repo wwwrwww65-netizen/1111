@@ -1,19 +1,35 @@
 <template>
-  <article class="card prod-card" tabindex="0">
-    <div class="img-wrap">
+  <article class="product-card" tabindex="0" role="article" dir="rtl">
+    <div class="image-wrap">
       <picture>
         <source :srcset="`${img}&fm=webp`" type="image/webp" />
-        <img :src="img" :alt="title" loading="lazy" />
+        <img class="product-img" :src="img" :alt="title" loading="lazy" />
       </picture>
-      <span v-if="badge" class="badge badge-accent">{{ badge }}</span>
+      <div v-if="discountPercent" class="discount-badge">-{{ discountPercent }}%</div>
+      <div v-if="badgeRank" class="rank-badge">#{{ badgeRank }}</div>
       <button class="wish" aria-label="إضافة للمفضلة"><Icon name="heart" /></button>
     </div>
-    <div class="info">
-      <div class="title">{{ title }}</div>
-      <PriceRow :price="price" :original="original" />
-      <RatingStars :value="rating" />
+    <div class="content">
+      <a class="title" :href="href || '#'" :title="title">{{ title }}</a>
+      <div class="meta">
+        <span v-if="sizeText">{{ sizeText }}</span>
+        <span v-if="colorText">· {{ colorText }}</span>
+        <span v-if="soldCount" class="sold">· تم بيع +{{ soldCount }}</span>
+      </div>
+      <div class="price-row">
+        <div class="price-current">{{ price }}</div>
+        <div v-if="original" class="price-old">{{ original }}</div>
+      </div>
+      <div v-if="afterCoupon" class="price-after">بعد الكوبون {{ afterCoupon }}</div>
+      <div class="actions">
+        <button class="btn-add" @click="addToCart($event)" aria-label="أضف إلى الحقيبة">🛒</button>
+        <button class="btn-wish" aria-label="إضافة للمفضلة">♡</button>
+        <span v-if="isFastShipping" class="ship-tag">شحن سريع</span>
+      </div>
+      <div v-if="thumbs && thumbs.length" class="thumbs">
+        <img v-for="(t,i) in thumbs.slice(0,4)" :key="i" :src="t" :alt="`صورة ${i+1} - ${title}`" loading="lazy" />
+      </div>
     </div>
-    <button class="btn add" @click="addToCart($event)" aria-label="إضافة للسلة">إضافة للسلة</button>
   </article>
 </template>
 
@@ -21,17 +37,15 @@
 import { useCart } from '@/store/cart'
 import gsap from 'gsap'
 import Icon from '@/components/Icon.vue'
-import RatingStars from '@/components/RatingStars.vue'
-import PriceRow from '@/components/PriceRow.vue'
-const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; badge?: string; rating?: number }>();
-const { id = Math.random().toString(36).slice(2), img, title, price, original, badge, rating = 4 } = props;
+const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; afterCoupon?: string; discountPercent?: number; soldCount?: number; isFastShipping?: boolean; badgeRank?: number; thumbs?: string[]; href?: string; sizeText?: string; colorText?: string }>();
+const { id = Math.random().toString(36).slice(2), img, title, price, original, afterCoupon, discountPercent, soldCount, isFastShipping = false, badgeRank, thumbs, href, sizeText, colorText } = props;
 const cart = useCart()
 function addToCart(ev?: MouseEvent){
   cart.add({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }, 1)
   try {
     const cartEl = document.getElementById('cart-target')
     const btn = (ev?.currentTarget as HTMLElement) || null
-    const imgEl = (btn?.closest('.prod-card') as HTMLElement)?.querySelector('img') as HTMLImageElement | null
+    const imgEl = (btn?.closest('.product-card') as HTMLElement)?.querySelector('img') as HTMLImageElement | null
     if (cartEl && imgEl) {
       const r1 = imgEl.getBoundingClientRect();
       const r2 = cartEl.getBoundingClientRect();
@@ -48,14 +62,23 @@ function addToCart(ev?: MouseEvent){
 </script>
 
 <style scoped>
-.prod-card{padding:0;overflow:hidden}
-.img-wrap{position:relative;aspect-ratio:3/4;background:#f8fafc}
-.img-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.badge-accent{position:absolute;top:8px;left:8px}
-.wish{position:absolute;top:8px;right:8px;width:36px;height:36px;display:grid;place-items:center;border-radius:999px;border:0;background:rgba(255,255,255,.7)}
-.wish:focus-visible{outline:2px solid var(--primary,#0B5FFF)}
-.info{display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
-.title{font-weight:600;font-size:13px}
-.rating{margin-top:6px}
-.add{margin:0 12px 12px}
+.product-card{width:100%;background:#fff;border-radius:8px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.image-wrap{position:relative;width:100%;height:200px;overflow:hidden;border-radius:8px}
+.product-img{width:100%;height:100%;object-fit:cover;display:block;background:#f3f3f3}
+.discount-badge{position:absolute;top:8px;left:8px;background:#FF6B4A;color:#fff;padding:2px 6px;height:20px;display:grid;place-items:center;font-size:12px;border-radius:6px}
+.rank-badge{position:absolute;top:8px;right:8px;background:#FFD166;color:#222;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-weight:700}
+.wish{position:absolute;top:8px;inset-inline-end:8px;width:36px;height:36px;display:grid;place-items:center;border-radius:999px;border:0;background:rgba(255,255,255,.7)}
+.content{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.title{font-size:14px;font-weight:600;color:#222;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.meta{font-size:12px;color:#777}
+.sold{color:#777}
+.price-row{display:flex;align-items:center;gap:8px}
+.price-current{font-weight:700;font-size:15px;color:#FF6B4A}
+.price-old{font-size:12px;color:#999;text-decoration:line-through}
+.price-after{font-size:13px;color:#FF6B4A}
+.actions{display:flex;align-items:center;gap:8px}
+.btn-add,.btn-wish{width:36px;height:36px;border-radius:999px;border:1px solid #ECECEC;background:#fff;display:flex;align-items:center;justify-content:center}
+.ship-tag{background:#E8F8EF;color:#27AE60;font-size:12px;padding:4px 6px;border-radius:6px}
+.thumbs{display:flex;gap:6px;margin-top:6px}
+.thumbs img{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#f3f3f3}
 </style>
