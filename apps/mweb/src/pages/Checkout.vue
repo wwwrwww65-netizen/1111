@@ -48,19 +48,21 @@ import BottomNav from '@/components/BottomNav.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { storeToRefs } from 'pinia'
 import { useCart } from '@/store/cart'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useCheckout } from '@/store/checkout'
 
 const cart = useCart()
 const { total } = storeToRefs(cart)
 const openAddress = ref(false)
 const openPayment = ref(false)
-const address = ref<string|undefined>()
-const payment = ref<string|undefined>()
+const checkout = useCheckout()
+const address = computed(()=> checkout.address ? `${checkout.address.city} - ${checkout.address.street}` : undefined)
+const payment = computed(()=> checkout.payment)
 const demoAddresses = ['الرياض - حي الياسمين - شارع العليا', 'جدة - حي الروضة - الأمير سلطان']
 const paymentMethods = ['بطاقة ائتمانية', 'Apple Pay', 'الدفع عند الاستلام']
 function selectAddress(a:string){ address.value = a; openAddress.value = false }
-function selectPayment(p:string){ payment.value = p; openPayment.value = false }
+function selectPayment(p:string){ checkout.setPayment(p); openPayment.value = false }
 const router = useRouter()
 function goConfirm(){ if(address.value && payment.value){ router.push('/confirm') } }
 </script>

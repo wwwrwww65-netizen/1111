@@ -115,10 +115,22 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useCheckout } from '@/store/checkout'
 
 type Item = { id:string; title:string; img:string; size:string; color:string; price:number; priceOld?:number; off?:number; qty:number }
 
+const checkout = useCheckout()
 const address = ref({ name:'محمد الأحمد', phone:'+966 5XXXXXXX', line1:'طريق الملك فهد، مبنى 12، الطابق 3، شقة 8', city:'الرياض', province:'الرياض', country:'السعودية' })
+if (checkout.address){
+  address.value = {
+    name: `${checkout.address.firstName} ${checkout.address.lastName}`.trim(),
+    phone: checkout.address.phone,
+    line1: checkout.address.details,
+    city: checkout.address.city,
+    province: checkout.address.province,
+    country: checkout.address.country
+  }
+}
 const items = ref<Item[]>([
   { id:'sku-1', title:'جاكيت شتوي مبطن مقاوم للمطر', img:'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=600&auto=format&fit=crop', size:'L', color:'أسود', price:129.00, priceOld:169.00, off:24, qty:1 },
   { id:'sku-2', title:'حذاء رياضي خفيف للتمارين اليومية', img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop', size:'42', color:'رمادي', price:89.00, priceOld:99.00, off:10, qty:1 }

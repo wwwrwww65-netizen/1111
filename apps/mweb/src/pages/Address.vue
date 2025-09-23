@@ -134,6 +134,8 @@
 
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
+import { useCheckout } from '@/store/checkout'
+import { useRouter } from 'vue-router'
 import { ref, computed } from 'vue'
 
 const country = ref('SA')
@@ -200,9 +202,10 @@ function onSubmit(){
     street: street.value,
     details: details.value
   }
-  // simulate save
-  console.log('address.save', payload)
-  alert('تم حفظ العنوان')
+  const checkout = useCheckout()
+  checkout.setAddress(payload as any)
+  const router = useRouter()
+  router.push('/checkout')
 }
 
 function onCancel(){ history.back() }
