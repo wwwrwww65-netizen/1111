@@ -187,6 +187,13 @@ jobs:
         run: |
           if [ "${CLONE_PROD_DB}" = "1" ]; then echo "Skip seed (prod DB mirrored)"; exit 0; fi
           pnpm --filter @repo/db db:seed
+      - name: Admin-only seed (ensure admin fixtures)
+        if: github.ref == 'refs/heads/main'
+        env:
+          CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
+        run: |
+          if [ "${CLONE_PROD_DB}" = "1" ]; then echo "Skip admin-only seed (prod DB mirrored)"; exit 0; fi
+          pnpm --filter @repo/db db:seed:admin-only
 
       - name: Build API
         run: pnpm --filter @repo/api build
