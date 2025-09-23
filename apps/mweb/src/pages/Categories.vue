@@ -1,5 +1,5 @@
 <template>
-  <div dir="rtl">
+  <div class="page" dir="rtl">
     <AppHeader solid />
     <TabsBar :tabs="tabs" v-model:active="activeTab" solid />
     <div class="catalog-layout rtl container">
@@ -34,11 +34,12 @@ const activeSide = ref(sideItems[0].id)
 </script>
 
 <style scoped>
-.catalog-layout{padding-top:64px;display:grid;grid-template-columns:180px 1fr;column-gap:0;row-gap:0;height:calc(100vh - 116px)}
+.page{display:flex;flex-direction:column;min-height:100dvh;background:#fff}
+.catalog-layout{display:grid;grid-template-columns:180px 1fr;column-gap:0;row-gap:0;flex:1;min-height:0;align-items:stretch}
 /* ازالة هوامش الحاوية لهذه الصفحة */
-.catalog-layout.container{padding-left:0;padding-right:0}
-@media (max-width: 768px){ .catalog-layout{grid-template-columns:120px 1fr} }
-.main{height:100%;min-height:100%}
+.catalog-layout.container{padding-left:0;padding-right:0;max-width:none}
+@media (max-width: 768px){ .catalog-layout{grid-template-columns:110px 1fr} }
+.main{height:100%;min-height:0;overflow:hidden}
 .title{font-size:18px;margin:12px 0}
 .chips{display:flex;gap:8px;overflow:auto;padding:6px 0}
 .chip{flex:0 0 auto;padding:8px 12px;border:1px solid var(--muted-2,#eee);border-radius:999px;text-decoration:none;color:inherit;background:#fff}
