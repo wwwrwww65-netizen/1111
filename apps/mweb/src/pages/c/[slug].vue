@@ -52,6 +52,7 @@ import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import ProductGrid from '@/components/ProductGrid.vue'
+import { API_BASE } from '@/lib/api'
 
 type Product = { id:string; title:string; price:number; img:string }
 const items = ref<Product[]>([])
@@ -88,7 +89,7 @@ async function fetchData(){
   if (priceMin.value != null) query.set('priceMin', String(priceMin.value))
   if (priceMax.value != null) query.set('priceMax', String(priceMax.value))
   if (selectedSizes.value.length) query.set('sizes', selectedSizes.value.join(','))
-  const url = `https://api.jeeey.com/api/catalog/${encodeURIComponent(slug)}?${query.toString()}`
+  const url = `${API_BASE}/api/catalog/${encodeURIComponent(slug)}?${query.toString()}`
   try{
     const res = await fetch(url)
     if (res.ok){

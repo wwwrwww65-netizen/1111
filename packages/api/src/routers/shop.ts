@@ -18,12 +18,15 @@ function requireAuth(req: any, res: any, next: any) {
 }
 
 // Public: products list (basic)
-shop.get('/products', async (_req, res) => {
+shop.get('/products', async (req, res) => {
   try {
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit||20)));
+    const sort = String(req.query.sort||'new');
+    const orderBy: any = sort === 'price_asc' ? { price: 'asc' } : sort === 'price_desc' ? { price: 'desc' } : { createdAt: 'desc' };
     const items = await db.product.findMany({
       select: { id: true, name: true, price: true, images: true },
-      orderBy: { createdAt: 'desc' },
-      take: 40,
+      orderBy,
+      take: limit,
     });
     res.json({ items });
   } catch (e) {
@@ -40,6 +43,36 @@ shop.get('/product/:id', async (req, res) => {
     });
     if (!p) return res.status(404).json({ error: 'not_found' });
     res.json(p);
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Categories list
+shop.get('/categories', async (_req, res) => {
+  try {
+    const categories = await db.category.findMany({
+      select: { id: true, name: true, image: true, slug: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      take: 100,
+    });
+    res.json({ categories });
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Catalog by category slug or id
+shop.get('/catalog/:slug', async (req, res) => {
+  try {
+    const slug = String(req.params.slug);
+    const cat = await db.category.findFirst({ where: { OR: [{ slug }, { id: slug }] }, select: { id: true } });
+    if (!cat) return res.json({ items: [] });
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit||24)));
+    const sort = String(req.query.sort||'reco');
+    const orderBy: any = sort === 'price_asc' ? { price: 'asc' } : sort === 'price_desc' ? { price: 'desc' } : { createdAt: 'desc' };
+    const items = await db.product.findMany({ where: { categoryId: cat.id }, select: { id:true, name:true, price:true, images:true }, orderBy, take: limit });
+    res.json({ items });
   } catch {
     res.status(500).json({ error: 'failed' });
   }

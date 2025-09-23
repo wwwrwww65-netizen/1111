@@ -31,8 +31,10 @@ const tabs = props.tabs || [
   { label: 'أحذية', href: '/c/shoes' },
   { label: 'فساتين', href: '/c/dresses' },
 ];
-const activeIndex = ref(1)
-function activate(i:number){ activeIndex.value = i; nextTick(positionIndicator) }
+const activeIndex = ref(0)
+import { useRouter } from 'vue-router'
+const router = useRouter()
+function activate(i:number){ activeIndex.value = i; nextTick(positionIndicator); const href = tabs[i]?.href; if (href) router.push(href) }
 function onKey(e: KeyboardEvent, i:number){
   if (e.key==='ArrowRight'){ activate(Math.max(0, i-1)); }
   else if (e.key==='ArrowLeft'){ activate(Math.min(tabs.length-1, i+1)); }

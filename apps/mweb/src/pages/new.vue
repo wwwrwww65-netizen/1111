@@ -38,16 +38,20 @@
 import DailyNewStrip from '@/components/DailyNewStrip.vue'
 import CategoryPills from '@/components/CategoryPills.vue'
 import BottomNav from '@/components/BottomNav.vue'
+import { apiGet } from '@/lib/api'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
-const items = Array.from({ length: 12 }).map((_,i)=>({
-  id:`n${i}`,
-  title:`منتج جديد ${i+1}`,
-  img:`https://picsum.photos/seed/new${i}/474/600`,
-  price:`SR ${(16+i).toFixed(2)}`,
-  after:`SR ${(14.8+i).toFixed(2)}`,
-  old: i%3===0 ? `SR ${(22+i).toFixed(2)}` : '' ,
-  badge: i%4===0 ? 'خصم 20%' : ''
-}))
+const router = useRouter()
+const items = ref<Array<{id:string;title:string;img:string;price:string;after?:string;old?:string;badge?:string}>>([])
+onMounted(async ()=>{
+  const data = await apiGet<any>('/api/products?limit=24&sort=new')
+  if (data && Array.isArray(data.items)){
+    items.value = data.items.map((p:any)=>({ id:p.id, title:p.name, img:p.images?.[0]||'https://picsum.photos/seed/new/474/600', price:`${p.price||0} ر.س` }))
+  } else {
+    items.value = Array.from({ length: 12 }).map((_,i)=>({ id:`n${i}`, title:`منتج جديد ${i+1}`, img:`https://picsum.photos/seed/new${i}/474/600`, price:`SR ${(16+i).toFixed(2)}`, after:`SR ${(14.8+i).toFixed(2)}`, old: i%3===0 ? `SR ${(22+i).toFixed(2)}` : '' , badge: i%4===0 ? 'خصم 20%' : '' }))
+  }
+})
 </script>
 
 <style scoped>
