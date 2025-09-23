@@ -19,8 +19,8 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import Icon from '@/components/Icon.vue'
 import { useCart } from '@/store/cart'
-const props = defineProps<{ alwaysSolid?: boolean }>()
-const alwaysSolid = props.alwaysSolid === true
+const props = defineProps<{ alwaysSolid?: boolean; solid?: boolean }>()
+const alwaysSolid = (props.alwaysSolid === true) || (props.solid === true)
 const scrolled = ref(false)
 function onScroll(){ scrolled.value = window.scrollY > 60 }
 onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })

@@ -1,8 +1,8 @@
 <template>
   <div dir="rtl">
-    <AppHeader :alwaysSolid="true" />
-    <TabsBar :tabs="tabs" v-model:active="activeTab" />
-    <div class="catalog-layout container">
+    <AppHeader solid />
+    <TabsBar :tabs="tabs" v-model:active="activeTab" solid />
+    <div class="catalog-layout rtl container">
       <SideFilter :items="sideItems" v-model="activeSide" />
       <div class="main">
         <CategoryGrid />
@@ -20,7 +20,7 @@ import CategoryGrid from '@/components/CategoryGrid.vue'
 import TabsBar from '@/components/TabsBar.vue'
 import SideFilter from '@/components/SideFilter.vue'
 import { ref } from 'vue'
-const tabs = ['كل','نساء','أطفال','رجال','مقاسات كبيرة','المنزل + الحيوانات الأليفة']
+const tabs = ['كل','نساء','أطفال','رجال','مقاسات كبيرة','المنزل + الحيوانات الأليفة','تجميل']
 const activeTab = ref(tabs[0])
 const sideItems = [
   { id:'new-in', name:'جديد في' },
