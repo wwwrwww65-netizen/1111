@@ -123,9 +123,14 @@ r.get('/finance/payments', async (_req, res) => {
 
 r.post('/finance/payments', async (req, res) => {
   try {
-    const { orderId, amount, method } = req.body || {};
+    const { orderId, amount } = req.body || {};
+    let { method } = req.body || {};
     if (!orderId || !amount) return res.status(400).json({ error: 'orderId, amount required' });
-    const p = await db.payment.upsert({ where: { orderId }, update: { amount, method, status: 'COMPLETED' }, create: { orderId, amount, method, status: 'COMPLETED', currency: 'USD' } });
+    // Normalize method to Prisma enum
+    const m = String(method||'').toUpperCase();
+    const map: Record<string,string> = { 'CASH':'CASH_ON_DELIVERY', 'COD':'CASH_ON_DELIVERY', 'CASH_ON_DELIVERY':'CASH_ON_DELIVERY', 'STRIPE':'STRIPE', 'PAYPAL':'PAYPAL' };
+    const normalized = (map[m] || 'CASH_ON_DELIVERY') as any;
+    const p = await db.payment.upsert({ where: { orderId }, update: { amount, method: normalized, status: 'COMPLETED' }, create: { orderId, amount, method: normalized, status: 'COMPLETED', currency: 'USD' } });
     res.json({ payment: p });
   } catch { res.status(500).json({ error: 'Failed to create payment' }); }
 });

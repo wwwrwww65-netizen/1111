@@ -88,7 +88,7 @@ async function main() {
   console.log('✔ Leg completed');
 
   // Finance payment
-  const pay = await api('/api/admin/finance/payments', { method: 'POST', body: JSON.stringify({ orderId, amount: 10.0, method: 'CASH' }) });
+  const pay = await api('/api/admin/finance/payments', { method: 'POST', body: JSON.stringify({ orderId, amount: 10.0, method: 'CASH_ON_DELIVERY' }) });
   if (!pay.ok) throw new Error('Payment failed');
   console.log('✔ Payment recorded');
 
