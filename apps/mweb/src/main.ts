@@ -5,6 +5,7 @@ import { routes as genRoutes } from './routes.generated';
 import App from './App.vue';
 import './tokens.css';
 import './styles.css';
+import { injectTracking } from './tracking';
 
 const manualRoutes = [
   { path: '/categories', component: () => import('./pages/Categories.vue') },
@@ -24,4 +25,5 @@ const app = createApp(App);
 app.use(createPinia());
 app.use(createRouter({ history: createWebHistory(), routes }));
 app.mount('#app');
+injectTracking();
 
