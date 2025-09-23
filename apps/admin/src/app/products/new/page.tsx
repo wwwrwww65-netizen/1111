@@ -27,6 +27,8 @@ export default function AdminProductCreate(): JSX.Element {
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
   const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
   const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
+  const [schemaView, setSchemaView] = React.useState<any|null>(null);
+  const [jsonImport, setJsonImport] = React.useState<string>('');
 
   const stopwords = React.useMemo(()=> new Set<string>([
     'مجاني','عرض','تخفيض','مميز','حصري','اصلي','اصلية','ضمان','شحن','سريع','رائع','جديد','new','sale','offer','best','free','original','premium','amazing','awesome','great'
@@ -37,6 +39,22 @@ export default function AdminProductCreate(): JSX.Element {
     const noEmoji = noHtml.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}]/gu, '');
     const noMarketing = noEmoji.replace(/(?:عرض|تخفيض|خصم|افضل|الأفضل|best|amazing|great|awesome|premium|original|حصري|شحن\s*مجاني)/gi, ' ');
     return noMarketing.replace(/\s+/g,' ').trim();
+  }
+
+  function detectCurrency(raw: string): string | undefined {
+    const m = raw.match(/(﷼|ر\.س|SAR|ريال|درهم|AED|USD|\$|ج\.م|EGP|KWD|QR)/i);
+    return m ? m[1] : undefined;
+  }
+
+  function makeSeoName(clean: string, fallback: string): string {
+    const model = clean.match(/موديل\s*([A-Za-z0-9_-]{2,})/i)?.[1];
+    const type = clean.match(/(جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i)?.[1] || '';
+    const gender = clean.match(/(نسائي|رجالي|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
+    const material = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1] || '';
+    const parts = [type && gender ? `${type} ${gender}` : (type||gender), material, model? `موديل ${model}`: ''].filter(Boolean);
+    const base = parts.join(' ').trim();
+    const name = base || fallback || clean.slice(0, 60);
+    return name.length>90 ? name.slice(0,90) : name;
   }
 
   const KNOWN_COLORS: Array<{name:string;hex:string}> = React.useMemo(()=>[
@@ -89,12 +107,15 @@ export default function AdminProductCreate(): JSX.Element {
 
   function extractFromText(raw: string): any {
     const clean = cleanText(raw);
-    const nameMatch = clean.match(/(?:اسم\s*المنتج|product\s*name|name|اسم)[:\s]+(.{5,80})/i);
+    const nameMatch = clean.match(/(?:اسم\s*المنتج|product\s*name|name|اسم)[:\s]+(.{5,120})/i);
     const currency = '(?:ر?ي?ال|sar|aed|usd|rs|qr|egp|kwd)?';
     const priceMatch = clean.match(new RegExp(`(?:سعر\s*البيع|price|سعر)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
-    const costMatch = clean.match(new RegExp(`(?:سعر\s*الشراء|التكلفة|cost)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
+    const costOldMatch = clean.match(new RegExp(`(?:القديم|قديم)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
+    const costMatch = costOldMatch || clean.match(new RegExp(`(?:سعر\s*الشراء|التكلفة|cost)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
     const stockMatch = clean.match(/(?:المخزون|الكمية|stock|qty)[^\n]*?(\d{1,5})/i);
-    const sizesList = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=>s.toUpperCase())));
+    const sizesListEn = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=>s.toUpperCase())));
+    const freeSize = clean.match(/فري\s*سايز(?:\s*\(([^\)]+)\))?/i);
+    const sizesList = freeSize ? [ `فري سايز${freeSize[1]?` (${freeSize[1]})`:''}` ] : sizesListEn;
     const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','Red','Blue','Green','Black','White','Yellow','Brown','Beige','Gray','Pink','Purple'];
     const colorsList = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
     const shortDesc = clean.slice(0, 160);
@@ -103,6 +124,7 @@ export default function AdminProductCreate(): JSX.Element {
     const sale = priceMatch ? Number(String(priceMatch[1]).replace(',','.')) : undefined;
     const cost = costMatch ? Number(String(costMatch[1]).replace(',','.')) : undefined;
     const stock = stockMatch ? Number(stockMatch[1]) : undefined;
+    const currencyFound = detectCurrency(raw||'') || undefined;
     const confidence = {
       name: nameMatch? 0.9 : (clean.length>20? 0.5 : 0.2),
       shortDesc: shortDesc? 0.8 : 0.2,
@@ -124,7 +146,67 @@ export default function AdminProductCreate(): JSX.Element {
       colors: colorsList,
       stock,
       keywords,
+      currency: currencyFound,
+      hasOldPrice: Boolean(costOldMatch),
+      cleanText: clean,
       confidence
+    };
+  }
+
+  function buildSchemaOutput(extracted: any, palettes: Array<{url:string;hex:string;name:string}>, mapping: Record<string,string|undefined>): any {
+    const clean_text = extracted.cleanText || '';
+    const product_name_seo = makeSeoName(clean_text, extracted.name||'');
+    const description = (extracted.longDesc || extracted.shortDesc || clean_text).trim();
+    const colors: Array<{color_name:string; source:'text'|'image'|'inferred'; confidence_pct:number}> = [];
+    for (const c of (extracted.colors||[])) {
+      colors.push({ color_name: c, source: 'text', confidence_pct: 70 });
+    }
+    // Additional inferred from palette labels if not already present
+    for (const p of palettes||[]) {
+      const name = p.name;
+      if (!colors.some(x=> (x.color_name||'').toLowerCase()===name.toLowerCase())) {
+        colors.push({ color_name: name, source: 'image', confidence_pct: 60 });
+      }
+    }
+    const sizes: string[] = Array.isArray(extracted.sizes)? extracted.sizes : [];
+    const cost_price = extracted.purchasePrice!==undefined
+      ? { amount: Number(extracted.purchasePrice||0), currency: extracted.currency||'SAR', source: extracted.hasOldPrice? "text (كلمة 'قديم')" : 'text' }
+      : null;
+    const stock_quantity = extracted.stock!==undefined ? Number(extracted.stock) : null;
+    // images
+    const images = (palettes||[]).map((p, idx) => {
+      const image_id = (()=>{ try{ const u = new URL(p.url); const seg = u.pathname.split('/').filter(Boolean).pop()||`img${idx+1}.jpg`; return seg; } catch { return `img${idx+1}.jpg`; }})();
+      let linked: string|null = null; let conf = 50;
+      for (const [col, url] of Object.entries(mapping||{})) {
+        if (url === p.url) { linked = col; conf = 80; break; }
+      }
+      return { image_id, linked_color: linked, confidence_pct: conf };
+    });
+    // variants (color x size) with sku=null and stock=null per requirement
+    const colorList: string[] = Array.from(new Set(colors.map(c=>c.color_name))).filter(Boolean);
+    const sizeList: string[] = Array.isArray(sizes)? sizes : [];
+    const variants: Array<{color:string|null; size:string|null; sku:null; stock:null}> = [];
+    if (colorList.length && sizeList.length) {
+      for (const c of colorList) for (const s of sizeList) variants.push({ color: c, size: s, sku: null, stock: null });
+    } else if (sizeList.length) {
+      for (const s of sizeList) variants.push({ color: null, size: s, sku: null, stock: null });
+    } else if (colorList.length) {
+      for (const c of colorList) variants.push({ color: c, size: null, sku: null, stock: null });
+    } else {
+      // no variants
+    }
+    const notes = /لونين/i.test(clean_text) ? 'يذكر النص "لونين"؛ يلزم إرفاق صور لاستخراج أسماء الألوان وربط الصور بها.' : null;
+    return {
+      clean_text,
+      product_name_seo,
+      description,
+      colors: colors.length? colors : null,
+      sizes: sizes.length? sizes : null,
+      cost_price,
+      stock_quantity,
+      images: images.length? images : null,
+      variants: variants.length? variants : null,
+      notes
     };
   }
 
@@ -146,7 +228,10 @@ export default function AdminProductCreate(): JSX.Element {
         candidates.sort((a,b)=> a.score-b.score);
         mapping[c] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
-      setReview({ ...extracted, palettes, mapping });
+      const reviewObj = { ...extracted, palettes, mapping };
+      setReview(reviewObj);
+      const schema = buildSchemaOutput(extracted, palettes, mapping);
+      setSchemaView(schema);
       setActiveMobileTab('review');
       showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
@@ -413,6 +498,9 @@ export default function AdminProductCreate(): JSX.Element {
           <h2 style={{ margin:0 }}>Paste & Generate</h2>
           <div className="toolbar" style={{ gap:8 }}>
             <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
+            <button type="button" onClick={()=> setSchemaView((prev:any)=> prev ? null : (review ? buildSchemaOutput(review, review.palettes||[], review.mapping||{}) : null))} disabled={busy || !review} className="btn btn-outline">{schemaView? 'إخفاء JSON' : 'عرض JSON'}</button>
+            <button type="button" onClick={async()=>{ try { const data = schemaView || (review ? buildSchemaOutput(review, review.palettes||[], review.mapping||{}) : null); if (!data) return; await navigator.clipboard.writeText(JSON.stringify(data, null, 2)); showToast('تم النسخ','ok'); } catch { showToast('فشل النسخ','err'); } }} disabled={busy || !(schemaView||review)} className="btn btn-outline">نسخ JSON</button>
+            <button type="button" onClick={()=>{ try { const data = schemaView || (review ? buildSchemaOutput(review, review.palettes||[], review.mapping||{}) : null); if (!data) return; const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product.schema.json'; a.click(); URL.revokeObjectURL(a.href); } catch {} }} disabled={busy || !(schemaView||review)} className="btn btn-outline">تنزيل JSON</button>
             <button type="button" onClick={()=>{
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);
@@ -457,6 +545,11 @@ export default function AdminProductCreate(): JSX.Element {
             {review && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
+                {schemaView && (
+                  <div style={{ margin:'8px 0' }}>
+                    <pre style={{ maxHeight:240, overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:8, padding:12, color:'#e2e8f0' }}>{JSON.stringify(schemaView, null, 2)}</pre>
+                  </div>
+                )}
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                   <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" /></label>
                   <label>سعر البيع (ثقة {Math.round((review.confidence?.salePrice||0)*100)}%)<input type="number" value={review.salePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, salePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
@@ -511,6 +604,23 @@ export default function AdminProductCreate(): JSX.Element {
                         ))}
                       </div>
                     </div>
+                  </div>
+                </div>
+                <div style={{ marginTop:12, borderTop:'1px dashed #1c2333', paddingTop:12 }}>
+                  <div style={{ marginBottom:6, color:'#9ca3af' }}>استيراد JSON (مطابق للمخطط)</div>
+                  <textarea value={jsonImport} onChange={(e)=> setJsonImport(e.target.value)} rows={4} className="input" placeholder='الصق JSON هنا' />
+                  <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                    <button type="button" className="btn btn-outline" onClick={()=>{ try { const j = JSON.parse(jsonImport||'');
+                      // populate basics
+                      setName(String(j.product_name_seo||'').slice(0,60));
+                      setDescription(String(j.description||''));
+                      if (Array.isArray(j.sizes)) setReview((r:any)=> ({ ...(r||{}), sizes: j.sizes }));
+                      if (Array.isArray(j.colors)) setReview((r:any)=> ({ ...(r||{}), colors: j.colors.map((c:any)=> c?.color_name).filter(Boolean) }));
+                      if (j.cost_price?.amount!==undefined) setPurchasePrice(Number(j.cost_price.amount));
+                      if (j.stock_quantity!==undefined && j.stock_quantity!==null) setStockQuantity(Number(j.stock_quantity));
+                      showToast('تم الاستيراد','ok');
+                    } catch { showToast('JSON غير صالح','err'); } }}>استيراد JSON</button>
+                    <button type="button" className="btn btn-outline" onClick={()=> setJsonImport('')}>مسح</button>
                   </div>
                 </div>
               </div>
