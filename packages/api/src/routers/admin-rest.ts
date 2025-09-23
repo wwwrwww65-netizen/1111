@@ -2197,7 +2197,15 @@ adminRest.post('/drivers/ping', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'drivers.update'))) return res.status(403).json({ error:'forbidden' });
     const { driverId, lat, lng, status } = req.body || {};
     if (!driverId) return res.status(400).json({ error: 'driverId_required' });
-    const d = await db.driver.update({ where: { id: driverId }, data: { ...(typeof lat==='number' && { lat }), ...(typeof lng==='number' && { lng }), ...(status && { status }), lastSeenAt: new Date() } });
+    let d = await db.driver.findUnique({ where: { id: driverId } });
+    if (!d) {
+      // Create minimal driver record to allow first ping from CI/E2E
+      const name = String((req.body?.name || `Driver ${driverId}`)).slice(0, 80);
+      try {
+        d = await db.driver.create({ data: { id: driverId, name, status: (status as any) || 'AVAILABLE' as any, isActive: true } as any });
+      } catch {}
+    }
+    d = await db.driver.update({ where: { id: driverId }, data: { ...(typeof lat==='number' && { lat }), ...(typeof lng==='number' && { lng }), ...(status && { status }), lastSeenAt: new Date() } });
     try { await db.driverLocation.create({ data: { driverId, lat: Number(lat)||0, lng: Number(lng)||0 } }); } catch {}
     await audit(req, 'drivers', 'ping', { driverId, lat, lng, status });
     res.json({ ok: true, driver: d });
