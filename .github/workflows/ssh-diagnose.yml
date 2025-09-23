@@ -12,6 +12,9 @@ on:
       user:
         description: 'Override SSH user (optional)'
         required: false
+  push:
+    paths:
+      - '.github/workflows/ssh-diagnose.yml'
 
 jobs:
   diagnose:
