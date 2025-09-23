@@ -56,7 +56,8 @@ jobs:
 
       - name: Login smoke (API+Admin)
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@srv995016.hstgr.cloud "bash -lc 'set -e; CJ=/root/cj.txt; rm -f \"$CJ\"; echo \"[API login]\"; curl -sSi -c \"$CJ\" -H Content-Type:application/x-www-form-urlencoded --data-urlencode email=admin@example.com --data-urlencode password=admin123 --data-urlencode remember=true https://api.jeeey.com/api/admin/auth/login | sed -n \"1,12p\"; echo; echo \"[Admin WITH cookie]\"; curl -sSI -b \"$CJ\" https://admin.jeeey.com/ | head -n1'" | tee logs/login-smoke.txt
+          HOST="${{ secrets.VPS_HOST }}"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@"${HOST}" "bash -lc 'set -e; CJ=/root/cj.txt; rm -f \"$CJ\"; echo \"[API login]\"; curl -k -sSi -c \"$CJ\" -H Content-Type:application/x-www-form-urlencoded --data-urlencode email=admin@example.com --data-urlencode password=admin123 --data-urlencode remember=true https://api.jeeey.com/api/admin/auth/login | sed -n \"1,20p\"; echo; echo \"[Admin WITH cookie]\"; for i in $(seq 1 10); do curl -k -sSI -b \"$CJ\" https://admin.jeeey.com/ | sed -n 1p && exit 0 || sleep 3; done; exit 1'" | tee logs/login-smoke.txt
 
       - name: Upload logs artifact
         if: always()

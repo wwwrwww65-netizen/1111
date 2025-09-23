@@ -207,6 +207,24 @@ jobs:
                 echo 'Nginx config unchanged; skip reload.'
               fi
             fi
+            echo '--- Ensure HTTPS (certbot or self-signed fallback) ---'
+            CERT_EMAIL='${{ secrets.CERTBOT_EMAIL || vars.CERTBOT_EMAIL }}'
+            if [ -n "$CERT_EMAIL" ]; then
+              CERTBOT_EMAIL="$CERT_EMAIL" PROJECT_DIR="$ROOT" bash "$ROOT/infra/deploy/ensure-https.sh" || true
+            else
+              echo 'CERTBOT_EMAIL not set; installing self-signed SSL config as fallback'
+              if [ -f "$ROOT/infra/nginx/jeeey.selfsigned.conf" ]; then
+                cp -f "$ROOT/infra/nginx/jeeey.selfsigned.conf" /etc/nginx/sites-available/jeeey-ssl.conf
+                ln -sf /etc/nginx/sites-available/jeeey-ssl.conf /etc/nginx/sites-enabled/jeeey-ssl.conf
+                if [ ! -f /etc/ssl/local/jeeey.key ] || [ ! -f /etc/ssl/local/jeeey.crt ]; then
+                  mkdir -p /etc/ssl/local
+                  openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+                    -keyout /etc/ssl/local/jeeey.key -out /etc/ssl/local/jeeey.crt \
+                    -subj "/CN=jeeey.com" >/dev/null 2>&1 || true
+                fi
+                nginx -t && systemctl reload nginx || systemctl restart nginx || true
+              fi
+            fi
 
       - name: Post-deploy smoke (health, login, static, services)
         uses: appleboy/ssh-action@v1.0.3
