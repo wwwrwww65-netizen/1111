@@ -8,71 +8,90 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
   {
     items: [
       { href: '/', label: 'الرئيسية' },
-      { href: '/analytics', label: 'التحليلات' },
-      { href: '/users', label: 'المستخدمون' },
-      { href: '/vendors', label: 'الموردون' },
     ],
   },
   {
-    title: 'الطلبات والمخزون',
+    title: 'الطلبات',
     items: [
       { href: '/orders', label: 'الطلبات' },
+    ],
+  },
+  {
+    title: 'الكتالوج',
+    items: [
       { href: '/products', label: 'المنتجات' },
       { href: '/categories', label: 'الفئات' },
-          { href: '/attributes', label: 'السمات' },
+      { href: '/attributes', label: 'السمات' },
+    ],
+  },
+  {
+    title: 'المخزون',
+    items: [
       { href: '/inventory', label: 'المخزون' },
-      { href: '/shipments', label: 'الشحن' },
+      { href: '/warehouses', label: 'المستودعات' },
+    ],
+  },
+  {
+    title: 'اللوجستيات',
+    items: [
+      { href: '/logistics/pickup', label: 'من المورد إلى المستودع' },
+      { href: '/logistics/warehouse', label: 'المعالجة في المستودع' },
+      { href: '/logistics/delivery', label: 'التوصيل إلى العميل' },
+      { href: '/shipments', label: 'الشحنات' },
       { href: '/drivers', label: 'السائقون' },
     ],
   },
   {
-    title: 'مراحل التوصيل',
+    title: 'المشتريات والموردون',
     items: [
-      { href: '/logistics/pickup', label: 'من المورد إلى المستودع' },
-      { href: '/logistics/warehouse', label: 'المعالجة في المستودع' },
-      { href: '/integrations/tracking', label: 'تتبع وتحليلات' },
-      { href: '/integrations/ai', label: 'تكاملات الذكاء الاصطناعي' },
-      { href: '/logistics/delivery', label: 'التوصيل إلى العميل' },
+      { href: '/vendors', label: 'الموردون' },
+      { href: '/pos', label: 'مشتريات (PO)' },
     ],
   },
   {
     title: 'المالية',
     items: [
       { href: '/finance', label: 'لوحة المالية' },
-      { href: '/finance/pnl', label: 'تحليل الأرباح' },
       { href: '/finance/revenues', label: 'الإيرادات' },
       { href: '/finance/expenses', label: 'المصروفات' },
-      { href: '/finance/cashflow', label: 'التدفقات' },
-      { href: '/finance/gateways', label: 'بوابات الدفع' },
+      { href: '/finance/cashflow', label: 'التدفقات النقدية' },
       { href: '/finance/invoices', label: 'الفواتير' },
-      { href: '/finance/returns-impact', label: 'أثر المرتجعات' },
       { href: '/finance/suppliers-ledger', label: 'دفتر الموردين' },
+      { href: '/finance/pnl', label: 'تحليل الأرباح (P&L)' },
+      { href: '/finance/returns-impact', label: 'أثر المرتجعات' },
       { href: '/payments', label: 'المدفوعات' },
-      { href: '/pos', label: 'مشتريات (PO)' },
+    ],
+  },
+  {
+    title: 'التسويق',
+    items: [
+      { href: '/coupons', label: 'الكوبونات' },
+      { href: '/promotions', label: 'العروض' },
+      { href: '/trends/management', label: 'الاتجاهات' },
+    ],
+  },
+  {
+    title: 'المحتوى والوسائط (CMS)',
+    items: [
+      { href: '/cms', label: 'المحتوى (CMS)' },
+      { href: '/media', label: 'الوسائط' },
+    ],
+  },
+  {
+    title: 'المراجعات',
+    items: [
+      { href: '/reviews', label: 'المراجعات' },
+      { href: '/reviews/moderation', label: 'إدارة المراجعات' },
     ],
   },
   {
     title: 'الولاء و JEEEY Club',
     items: [
+      { href: '/loyalty', label: 'JEEEY Club' },
       { href: '/loyalty/points', label: 'النقاط' },
       { href: '/loyalty/points-log', label: 'سجل النقاط' },
-      { href: '/loyalty', label: 'JEEEY Club' },
-      { href: '/subscriptions', label: 'الاشتراكات' },
-    ],
-  },
-  {
-    title: 'التسويق والمحتوى',
-    items: [
-      { href: '/reviews', label: 'المراجعات' },
-      { href: '/coupons', label: 'الكوبونات' },
-      { href: '/promotions', label: 'العروض' },
-      { href: '/cms', label: 'المحتوى (CMS)' },
       { href: '/badges', label: 'الشارات' },
-      { href: '/media', label: 'الوسائط' },
-      { href: '/notifications', label: 'الإشعارات' },
-      { href: '/notifications/rules', label: 'قواعد الإشعارات' },
-      { href: '/notifications/targeted', label: 'الإشعارات الموجهة' },
-      { href: '/notifications/manual', label: 'إرسال يدوي' },
+      { href: '/subscriptions', label: 'الاشتراكات' },
     ],
   },
   {
@@ -93,21 +112,45 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     ],
   },
   {
-    title: 'أخرى',
+    title: 'التقارير والتحليلات',
     items: [
-      { href: '/wallet/management', label: 'المحفظة' },
-      { href: '/warehouses', label: 'المستودعات' },
-      { href: '/trends/management', label: 'الاتجاهات' },
+      { href: '/analytics', label: 'التحليلات' },
+    ],
+  },
+  {
+    title: 'الإشعارات',
+    items: [
+      { href: '/notifications', label: 'الإشعارات' },
+      { href: '/notifications/rules', label: 'قواعد الإشعارات' },
+      { href: '/notifications/targeted', label: 'إشعارات موجهة' },
+      { href: '/notifications/manual', label: 'إرسال يدوي' },
+    ],
+  },
+  {
+    title: 'التكاملات',
+    items: [
       { href: '/integrations', label: 'التكاملات' },
+      { href: '/integrations/tracking', label: 'تتبع وتحليلات' },
+      { href: '/integrations/ai', label: 'تكاملات الذكاء الاصطناعي' },
+    ],
+  },
+  {
+    title: 'الإعدادات',
+    items: [
       { href: '/settings', label: 'الإعدادات' },
+    ],
+  },
+  {
+    title: 'الصلاحيات والتدقيق',
+    items: [
       { href: '/settings/rbac', label: 'الأدوار والصلاحيات' },
+      { href: '/audit-logs', label: 'سجلات التدقيق' },
     ],
   },
   {
     title: 'النظام',
     items: [
       { href: '/backups', label: 'النسخ الاحتياطية' },
-      { href: '/audit-logs', label: 'سجلات التدقيق' },
       { href: '/2fa', label: 'التحقق بخطوتين (2FA)' },
     ],
   },
