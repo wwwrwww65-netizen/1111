@@ -232,7 +232,6 @@ export default function AdminProductCreate(): JSX.Element {
         name: String(schema.product_name_seo||extracted.name||'').trim(),
         shortDesc: String(schema.description||extracted.shortDesc||'').slice(0,160),
         longDesc: String(schema.description||extracted.longDesc||''),
-        salePrice: extracted.salePrice!==undefined ? Number(extracted.salePrice) : undefined,
         purchasePrice: schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined),
         stock: schema.stock_quantity!==undefined && schema.stock_quantity!==null ? Number(schema.stock_quantity) : (extracted.stock!==undefined? Number(extracted.stock): undefined),
         sizes: Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []),
@@ -522,24 +521,24 @@ export default function AdminProductCreate(): JSX.Element {
               const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
               const cList: string[] = Array.isArray(review.colors)? review.colors : [];
               const rows: typeof variantRows = [];
-              const baseSale = review.salePrice!==undefined ? Number(review.salePrice) : Number(salePrice||0);
+              const baseSale = undefined;
               const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
               if (sList.length && cList.length) {
                 for (const sz of sList) {
                   for (const col of cList) {
                     const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}-${col}`;
-                    rows.push({ name: sz, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                    rows.push({ name: sz, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
                   }
                 }
               } else if (sList.length) {
                 for (const sz of sList) {
                   const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}`;
-                  rows.push({ name: sz, value: sz, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                  rows.push({ name: sz, value: sz, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
                 }
               } else if (cList.length) {
                 for (const col of cList) {
                   const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${col}`;
-                  rows.push({ name: col, value: col, price: baseSale, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: phSku });
+                  rows.push({ name: col, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
                 }
               }
               setVariantRows(rows);
@@ -555,8 +554,7 @@ export default function AdminProductCreate(): JSX.Element {
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                   <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" /></label>
-                  <label>سعر البيع (ثقة {Math.round((review.confidence?.salePrice||0)*100)}%)<input type="number" value={review.salePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, salePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
-                  <label>سعر الشراء (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
+                  <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%)<textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} className="input" /></label>
                   <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%)<textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
