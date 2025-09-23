@@ -24,7 +24,7 @@ const user = useUser()
 .sep{width:1px;height:36px;background:#EDEDED}
 .itm{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:8px 0}
 .tx{display:flex;flex-direction:column;align-items:center}
-.v{font-size:16px;color:#222;font-weight:600}
+.v{font-size:18px;color:#222;font-weight:600}
 .k{font-size:12px;color:#666}
 .itm:focus-visible{outline:2px solid #0b5fff;border-radius:10px}
 </style>

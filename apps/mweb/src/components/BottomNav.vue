@@ -22,7 +22,7 @@ const { count } = storeToRefs(cart)
 </script>
 
 <style scoped>
-.bottom-nav{position:fixed;bottom:0;inset-inline:0;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border-top:1px solid var(--muted-2);padding:6px 4px;z-index:70}
+.bottom-nav{position:fixed;bottom:0;inset-inline:0;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border-top:1px solid var(--muted-2);padding:6px 4px;z-index:70;box-shadow:0 -4px 12px rgba(0,0,0,.06)}
 .bottom-nav a{display:grid;place-items:center;text-decoration:none;color:inherit;font-size:11px;gap:2px;padding:4px 2px}
 .bottom-nav a[aria-current="page"]{color:#0b5fff}
 .cart-link{position:relative}
