@@ -22,15 +22,15 @@ import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import { onMounted, ref } from 'vue'
+import { apiGet } from '@/lib/api'
 
 type P = { id:string; title:string; price:number; img:string }
 const products = ref<P[]>([])
 
 onMounted(async ()=>{
   try {
-    const res = await fetch('https://api.jeeey.com/api/products')
-    if (res.ok) {
-      const data = await res.json()
+    const data = await apiGet<any>('/api/products')
+    if (data) {
       products.value = (data?.items||[]).map((d:any)=>({ id:d.id||d.sku||String(d.name), title:d.name, price:d.price||0, img:(d.images?.[0]||'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop') }))
       if (products.value.length) return
     }

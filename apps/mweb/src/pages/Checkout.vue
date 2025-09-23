@@ -51,6 +51,7 @@ import { useCart } from '@/store/cart'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCheckout } from '@/store/checkout'
+import { apiPost } from '@/lib/api'
 
 const cart = useCart()
 const { total } = storeToRefs(cart)
@@ -64,7 +65,12 @@ const paymentMethods = ['بطاقة ائتمانية', 'Apple Pay', 'الدفع 
 function selectAddress(a:string){ address.value = a; openAddress.value = false }
 function selectPayment(p:string){ checkout.setPayment(p); openPayment.value = false }
 const router = useRouter()
-function goConfirm(){ if(address.value && payment.value){ router.push('/confirm') } }
+async function goConfirm(){
+  if(!(address.value && payment.value)) return
+  const created = await apiPost('/api/orders', { shippingAddressId: undefined })
+  if (created && (created as any).order){ router.push('/confirm') }
+  else { alert('تعذر إنشاء الطلب') }
+}
 </script>
 
 <style scoped>

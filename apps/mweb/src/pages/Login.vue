@@ -18,6 +18,7 @@
 import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import { ref } from 'vue'
+import { API_BASE } from '@/lib/api'
 
 const email = ref('admin@example.com')
 const password = ref('admin123')
@@ -27,7 +28,7 @@ const ok = ref(false)
 async function onSubmit(){
   msg.value=''; ok.value=false
   try{
-    const res = await fetch('https://api.jeeey.com/api/admin/auth/login', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: email.value, password: password.value }) as any, credentials:'include' })
+    const res = await fetch(`${API_BASE}/api/admin/auth/login`, { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: email.value, password: password.value }) as any, credentials:'include' })
     ok.value = res.ok
     msg.value = res.ok ? 'تم تسجيل الدخول' : 'فشل تسجيل الدخول'
   }catch{ msg.value='خطأ في الاتصال' }

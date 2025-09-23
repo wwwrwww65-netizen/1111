@@ -15,6 +15,7 @@ import adminRest from './routers/admin-rest';
 import { adminExtra } from './routers/admin-extra';
 import shippingWebhooks from './routers/webhooks';
 import rbac from './routers/rbac';
+import shop from './routers/shop';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import http from 'http';
@@ -182,6 +183,8 @@ applySecurityMiddleware(app);
 app.use(cookieParser());
 app.use('/api/admin', adminRest);
 app.use('/api/admin', adminExtra);
+// Public shop API for mweb
+app.use('/api', shop);
 // Mount shipping webhooks (required by tests hitting /webhooks/shipping)
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);

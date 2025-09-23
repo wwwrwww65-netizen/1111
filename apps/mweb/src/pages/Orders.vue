@@ -25,6 +25,7 @@
 import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import { onMounted, ref } from 'vue'
+import { apiGet } from '@/lib/api'
 
 type Order = { id: string; status: 'pending'|'paid'|'shipped'|'delivered'|'cancelled'; total: number; date: string }
 const items = ref<Order[]>([])
@@ -33,8 +34,8 @@ function t(s:Order['status']){
 }
 onMounted(async ()=>{
   try{
-    const res = await fetch('https://api.jeeey.com/api/orders/me')
-    if(res.ok){ items.value = await res.json(); if(items.value.length) return }
+    const data = await apiGet<any>('/api/orders/me')
+    if (Array.isArray(data)) { items.value = data; if(items.value.length) return }
   }catch{}
   items.value = [
     { id:'100123', status:'paid', total:329, date: new Date().toISOString() },
