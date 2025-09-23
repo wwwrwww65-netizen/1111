@@ -1,7 +1,7 @@
 <template>
   <section aria-label="الفئات" dir="rtl">
     <div class="grid">
-      <a v-for="c in cats" :key="c.title" class="cat" :href="c.href" tabindex="0">
+      <a v-for="c in cats" :key="c.title" class="cat" :href="c.href" tabindex="0" role="button" :aria-label="`تصنيف: ${c.title}`">
         <img class="img" :src="c.img" :alt="c.title" loading="lazy" />
         <div class="label">{{ c.title }}</div>
       </a>
@@ -21,11 +21,10 @@ const cats = [
 </script>
 
 <style scoped>
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px}
-@media(min-width:420px){.grid{grid-template-columns:repeat(5,1fr)}}
-.cat{display:grid;justify-items:center;text-decoration:none;color:inherit}
-.img{width:64px;height:64px;border-radius:999px;object-fit:cover;border:1px solid var(--muted-2)}
-.label{margin-top:6px;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px 0}
+.cat{display:flex;flex-direction:column;align-items:center;text-decoration:none;color:inherit;padding:8px}
+.img{width:72px;height:72px;border-radius:50%;object-fit:cover;background:#F7F7F7;box-shadow:0 2px 6px rgba(0,0,0,.06);display:block}
+.label{margin-top:8px;font-size:13px;color:#333;text-align:center;line-height:1.2;max-height:36px;overflow:hidden;text-overflow:ellipsis}
 .cat:focus-visible{outline:2px solid var(--primary,#0B5FFF);outline-offset:3px;border-radius:12px}
 </style>
 
