@@ -34,10 +34,24 @@ export default function AdminProductCreate(): JSX.Element {
   ]), []);
 
   function cleanText(raw: string): string {
-    const noHtml = (raw||'').replace(/<[^>]*>/g, ' ');
-    const noEmoji = noHtml.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}]/gu, '');
-    const noMarketing = noEmoji.replace(/(?:عرض|تخفيض|خصم|افضل|الأفضل|best|amazing|great|awesome|premium|original|حصري|شحن\s*مجاني)/gi, ' ');
-    return noMarketing.replace(/\s+/g,' ').trim();
+    let s = String(raw||'');
+    // Remove HTML
+    s = s.replace(/<[^>]*>/g, ' ');
+    // Convert Arabic-Indic digits to Latin
+    s = s.replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0) - 0x0660));
+    s = s.replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0) - 0x06F0));
+    // Remove emojis and pictographs blocks + variation selectors
+    s = s.replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}\u{2600}-\u{26FF}\u{FE0F}]/gu, ' ');
+    // Remove common marketing noise phrases (AR/EN)
+    const noise = [
+      'لايفوتك','العرض محدود','جديد اليوم','حاجة فخمة','شغل خارجي','تميز','تخفيض','خصم','عرض','افضل','الأفضل','حصري','مجاني','شحن مجاني',
+      'free','sale','offer','best','amazing','awesome','premium','original','new','🔥','👇','💎','🤩','👌'
+    ];
+    for (const w of noise) s = s.replace(new RegExp(w, 'gi'), ' ');
+    // Normalize whitespace and punctuation
+    s = s.replace(/[\t\r\n]+/g, ' ');
+    s = s.replace(/\s{2,}/g, ' ');
+    return s.trim();
   }
 
   function detectCurrency(raw: string): string | undefined {
@@ -47,10 +61,12 @@ export default function AdminProductCreate(): JSX.Element {
 
   function makeSeoName(clean: string, fallback: string): string {
     const model = clean.match(/موديل\s*([A-Za-z0-9_-]{2,})/i)?.[1];
-    const type = clean.match(/(جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i)?.[1] || '';
+    const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|بلوفر|سويتر|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i);
+    const type = (typeMatch?.[1]||'').replace(/فنائل/i,'فنيلة');
     const gender = clean.match(/(نسائي|رجالي|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
     const material = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1] || '';
-    const parts = [type && gender ? `${type} ${gender}` : (type||gender), material, model? `موديل ${model}`: ''].filter(Boolean);
+    const feature = /كم\s*كامل/i.test(clean) ? 'كم كامل' : '';
+    const parts = [type && gender ? `${type} ${gender}` : (type||gender), material || feature, model? `موديل ${model}`: ''].filter(Boolean);
     const base = parts.join(' ').trim();
     const name = base || fallback || clean.slice(0, 60);
     return name.length>90 ? name.slice(0,90) : name;
@@ -107,23 +123,33 @@ export default function AdminProductCreate(): JSX.Element {
   function extractFromText(raw: string): any {
     const clean = cleanText(raw);
     const nameMatch = clean.match(/(?:اسم\s*المنتج|product\s*name|name|اسم)[:\s]+(.{5,120})/i);
-    const currency = '(?:ر?ي?ال|sar|aed|usd|rs|qr|egp|kwd)?';
-    const priceMatch = clean.match(new RegExp(`(?:سعر\s*البيع|price|سعر)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
-    const costOldMatch = clean.match(new RegExp(`(?:القديم|قديم)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
-    const costMatch = costOldMatch || clean.match(new RegExp(`(?:سعر\s*الشراء|التكلفة|cost)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\s*${currency}`,'i'));
-    const stockMatch = clean.match(/(?:المخزون|الكمية|stock|qty)[^\n]*?(\d{1,5})/i);
+    const currencyToken = '(?:﷼|ريال|sar|aed|usd|rs|qr|egp|kwd|درهم|دولار)';
+    const priceMatch = clean.match(new RegExp(`(?:سعر\\s*البيع|price|سعر)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    const costOldMatch = clean.match(new RegExp(`(?:القديم|قديم)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    // Region-based prices (الشمال/جنوبي)
+    const northMatch = clean.match(new RegExp(`(?:الشمال)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    const southMatch = clean.match(new RegExp(`(?:جنوبي|الجنوب)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    const stockMatch = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i);
     const sizesListEn = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=>s.toUpperCase())));
-    const freeSize = clean.match(/فري\s*سايز(?:\s*\(([^\)]+)\))?/i);
-    const sizesList = freeSize ? [ `فري سايز${freeSize[1]?` (${freeSize[1]})`:''}` ] : sizesListEn;
-    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','Red','Blue','Green','Black','White','Yellow','Brown','Beige','Gray','Pink','Purple'];
+    // Free size with weight range (e.g., من وزن40 حتى وزن 60)
+    const freeRange = clean.match(/من\s*وزن\s*(\d{2,3})\s*(?:حتى|الى|إلى)\s*وزن\s*(\d{2,3})/i);
+    const freeSize = clean.match(/فري\s*سايز/i);
+    const sizesList = freeRange ? [ `فري سايز (${freeRange[1]}–${freeRange[2]} كجم)` ] : (freeSize ? ['فري سايز'] : sizesListEn);
+    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي','رمادي فاتح','رمادي غامق','أزرق كحلي','Red','Blue','Green','Black','White','Yellow','Brown','Beige','Gray','Pink','Purple','Navy'];
     const colorsList = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
     const shortDesc = clean.slice(0, 160);
     const longDesc = clean.length<80 ? clean : clean.slice(0, 300);
     const keywords = extractKeywords(clean);
     const sale = priceMatch ? Number(String(priceMatch[1]).replace(',','.')) : undefined;
-    const cost = costMatch ? Number(String(costMatch[1]).replace(',','.')) : undefined;
+    // Choose cost preference: قديم > الشمال > الجنوب > الشراء/التكلفة > السعر العام
+    const candidates: Array<{v:number; tag:string}> = [];
+    if (costOldMatch) candidates.push({ v: Number(String(costOldMatch[1]).replace(',','.')), tag: 'old' });
+    if (northMatch) candidates.push({ v: Number(String(northMatch[1]).replace(',','.')), tag: 'north' });
+    if (southMatch) candidates.push({ v: Number(String(southMatch[1]).replace(',','.')), tag: 'south' });
+    if (sale!==undefined) candidates.push({ v: sale, tag: 'sale' });
+    const cost = candidates.length ? candidates[0].v : undefined;
     const stock = stockMatch ? Number(stockMatch[1]) : undefined;
-    const currencyFound = detectCurrency(raw||'') || undefined;
+    const currencyFound = detectCurrency(raw||'') || (/ريال|﷼/i.test(raw||'')? 'ريال' : undefined);
     const confidence = {
       name: nameMatch? 0.9 : (clean.length>20? 0.5 : 0.2),
       shortDesc: shortDesc? 0.8 : 0.2,
@@ -135,14 +161,26 @@ export default function AdminProductCreate(): JSX.Element {
       stock: stock!==undefined ? 0.6 : 0.2,
       keywords: keywords.length? 0.6 : 0.2,
     };
+    // Build professional description (without prices)
+    const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|بلوفر|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i);
+    const matMatch = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i);
+    const feat = [/كم\s*كامل/i.test(clean)? 'كم كامل' : '', /زرارات\s*أنيقة|زرارات\s*انيقه/i.test(clean)? 'زرارات أنيقة' : ''].filter(Boolean).join('، ');
+    const gender = clean.match(/(نسائي|رجالي)/i)?.[1] || '';
+    const descParts = [
+      typeMatch ? `${typeMatch[1]} ${gender}`.trim() : '',
+      matMatch ? `من ${matMatch[1]}` : '',
+      feat,
+      /خارجي/i.test(clean)? 'تصميم خارجي' : ''
+    ].filter(Boolean);
+    const composedDesc = (descParts.join('، ') + '، مناسبة للاستخدام اليومي وتمنح مظهراً متناسقاً.').replace(/^،\s*/,'').trim();
     return {
       name: (nameMatch?.[1]||'').trim(),
       shortDesc,
-      longDesc,
-      salePrice: sale,
+      longDesc: composedDesc || longDesc,
+      salePrice: undefined,
       purchasePrice: cost,
       sizes: sizesList,
-      colors: colorsList,
+      colors: colorsList.length? colorsList : (/\b(?:لونين|2\s*الوان|لونان)\b/i.test(raw)? [ 'غير محدد (ذُكر "لونين")' ] : []),
       stock,
       keywords,
       currency: currencyFound,
