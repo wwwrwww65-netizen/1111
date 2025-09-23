@@ -91,6 +91,23 @@ shop.get('/catalog/:slug', async (req, res) => {
   }
 });
 
+// Public: tracking keys for client injection (merged from latest integrations)
+shop.get('/tracking/keys', async (_req, res) => {
+  try {
+    const latest = await db.integration.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
+    const merged: Record<string, string> = {};
+    for (const it of latest) {
+      const cfg: any = (it as any).config || {};
+      for (const [k, v] of Object.entries(cfg)) {
+        if (typeof v === 'string' && !(k in merged)) merged[k] = v as string;
+      }
+    }
+    res.json({ keys: merged });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'tracking_keys_failed' });
+  }
+});
+
 // Cart endpoints (auth-required)
 shop.get('/cart', requireAuth, async (req: any, res) => {
   const userId = req.user.userId;

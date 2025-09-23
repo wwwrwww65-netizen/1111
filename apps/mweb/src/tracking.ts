@@ -1,9 +1,20 @@
-export function injectTracking(): void {
+export async function injectTracking(): Promise<void> {
   try {
-    const fb = (import.meta as any)?.env?.FB_PIXEL_ID;
-    const ga = (import.meta as any)?.env?.GA_MEASUREMENT_ID;
-    const gtm = (import.meta as any)?.env?.GOOGLE_TAG_MANAGER_ID;
-    const tiktok = (import.meta as any)?.env?.TIKTOK_PIXEL_ID;
+    let fb = (import.meta as any)?.env?.FB_PIXEL_ID;
+    let ga = (import.meta as any)?.env?.GA_MEASUREMENT_ID;
+    let gtm = (import.meta as any)?.env?.GOOGLE_TAG_MANAGER_ID;
+    let tiktok = (import.meta as any)?.env?.TIKTOK_PIXEL_ID;
+    try {
+      const resp = await fetch('/api/tracking/keys', { credentials: 'omit' });
+      if (resp.ok) {
+        const j = await resp.json();
+        const keys = j?.keys || {};
+        fb = fb || keys.FB_PIXEL_ID;
+        ga = ga || keys.GA_MEASUREMENT_ID;
+        gtm = gtm || keys.GOOGLE_TAG_MANAGER_ID;
+        tiktok = tiktok || keys.TIKTOK_PIXEL_ID;
+      }
+    } catch {}
     if (fb && !document.getElementById('fb-pixel')){
       const s = document.createElement('script'); s.id='fb-pixel'; s.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init','${fb}'); fbq('track','PageView');`;
       document.head.appendChild(s);
