@@ -1,5 +1,5 @@
 <template>
-  <header class="app-header" :class="{ solid: scrolled }" role="banner" aria-label="App header">
+<header class="app-header" :class="{ solid: scrolled || alwaysSolid }" role="banner" aria-label="App header">
     <div class="inner" dir="rtl">
       <div class="right">
         <button class="icon" aria-label="سلة التسوق" id="cart-target"><Icon name="cart" /><span v-if="count>0" class="badge" :aria-label="`عدد العناصر: ${count}`">{{ count }}</span></button>
@@ -19,6 +19,8 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import Icon from '@/components/Icon.vue'
 import { useCart } from '@/store/cart'
+const props = defineProps<{ alwaysSolid?: boolean }>()
+const alwaysSolid = props.alwaysSolid === true
 const scrolled = ref(false)
 function onScroll(){ scrolled.value = window.scrollY > 60 }
 onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })
