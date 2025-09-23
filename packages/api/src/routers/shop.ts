@@ -17,6 +17,19 @@ function requireAuth(req: any, res: any, next: any) {
   }
 }
 
+// Session info (optional auth)
+shop.get('/me', async (req: any, res) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (!token) return res.json({ user: null });
+    const payload = verifyJwt(token);
+    const user = await db.user.findUnique({ where: { id: payload.userId }, select: { id:true, email:true, name:true, role:true } });
+    return res.json({ user });
+  } catch {
+    return res.json({ user: null });
+  }
+});
+
 // Public: products list (basic)
 shop.get('/products', async (req, res) => {
   try {

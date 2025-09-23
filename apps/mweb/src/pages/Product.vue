@@ -5,7 +5,7 @@
       <button class="i" aria-label="الإشعارات">🔔</button>
       <div class="logo" aria-label="jeeey">jeeey</div>
       <button class="i" aria-label="السلة">🛒</button>
-      <button class="i" aria-label="المفضلة">❤</button>
+      <button class="i" aria-label="المفضلة" @click="toggleWish">❤</button>
       <button class="i" aria-label="بحث">🔍</button>
     </header>
 
@@ -70,7 +70,7 @@
     </section>
 
     <div class="cta-bar" role="region" aria-label="أزرار الشراء">
-      <a class="buy" href="#" aria-label="اشتري الآن">اشترِ الآن</a>
+      <a class="buy" href="#" aria-label="اشتري الآن" @click.prevent="buyNow">اشترِ الآن</a>
       <button class="add" @click="addToCart" aria-label="أضف إلى السلة">🛒 أضف إلى السلة</button>
     </div>
 
@@ -80,14 +80,16 @@
 
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useCart } from '@/store/cart'
-import { API_BASE } from '@/lib/api'
+import { API_BASE, apiPost } from '@/lib/api'
+import { useWishlist } from '@/store/wishlist'
 import RatingStars from '@/components/RatingStars.vue'
 import TabsBar from '@/components/TabsBar.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
 const route = useRoute()
+const router = useRouter()
 const id = route.query.id as string || 'p1'
 const title = ref('منتج تجريبي')
 const price = ref('129 ر.س')
@@ -111,7 +113,9 @@ const description = 'وصف تفصيلي للمنتج يوضح المواصفا�
 const more = ref(false)
 const related = Array.from({length:8}).map((_,i)=>({ img:`https://picsum.photos/seed/rel${i}/320/240`, title:`منتج ${i+1}`, price:`SR ${(19+i).toFixed(2)}` }))
 const cart = useCart()
+const wl = useWishlist()
 function addToCart(){ cart.add({ id, title: title.value, price: Number(price.value.replace(/[^\d.]/g,''))||0, img: activeImg.value }, 1) }
+function toggleWish(){ wl.toggle({ id, title: title.value, price: Number(price.value.replace(/[^\d.]/g,''))||0, img: activeImg.value }) }
 function setActive(i:number){ activeIdx.value = i }
 const scrolled = ref(false)
 function onScroll(){ scrolled.value = window.scrollY > 60 }
@@ -130,6 +134,12 @@ onMounted(async ()=>{
     }
   }catch{}
 })
+async function buyNow(){
+  addToCart()
+  const created = await apiPost('/api/orders', { shippingAddressId: undefined })
+  if (created && (created as any).order){ router.push('/confirm') }
+  else { alert('تعذر إنشاء الطلب، حاول لاحقًا') }
+}
 </script>
 
 <style scoped>

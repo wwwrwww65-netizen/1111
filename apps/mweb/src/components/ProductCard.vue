@@ -23,7 +23,7 @@
       <div v-if="afterCoupon" class="price-after">بعد الكوبون {{ afterCoupon }}</div>
       <div class="actions">
         <button class="btn-add" @click="addToCart($event)" aria-label="أضف إلى الحقيبة">🛒</button>
-        <button class="btn-wish" aria-label="إضافة للمفضلة">♡</button>
+        <button class="btn-wish" @click="toggleWish" aria-label="إضافة للمفضلة">♡</button>
         <span v-if="isFastShipping" class="ship-tag">شحن سريع</span>
       </div>
       <div v-if="thumbs && thumbs.length" class="thumbs">
@@ -38,9 +38,11 @@ import { useCart } from '@/store/cart'
 import gsap from 'gsap'
 import Icon from '@/components/Icon.vue'
 import { useRouter } from 'vue-router'
+import { useWishlist } from '@/store/wishlist'
 const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; afterCoupon?: string; discountPercent?: number; soldCount?: number; isFastShipping?: boolean; badgeRank?: number; thumbs?: string[]; href?: string; sizeText?: string; colorText?: string }>();
 const { id = Math.random().toString(36).slice(2), img, title, price, original, afterCoupon, discountPercent, soldCount, isFastShipping = false, badgeRank, thumbs, href, sizeText, colorText } = props;
 const cart = useCart()
+const wl = useWishlist()
 const router = useRouter()
 function go(){
   const to = href || `/p?id=${encodeURIComponent(id)}`
@@ -70,6 +72,7 @@ function addToCart(ev?: MouseEvent){
     }
   } catch {}
 }
+function toggleWish(){ wl.toggle({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }) }
 </script>
 
 <style scoped>

@@ -15,8 +15,9 @@
 <script setup lang="ts">
 import Icon from '@/components/Icon.vue'
 import { useCart } from '@/store/cart'
+import { storeToRefs } from 'pinia'
 const cart = useCart()
-const count = cart.count
+const { count } = storeToRefs(cart)
 </script>
 
 <style scoped>
