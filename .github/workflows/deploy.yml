@@ -1,71 +1,92 @@
-name: Deploy to VPS
+name: DEPRECATED deploy_to_vps (use Deploy to VPS (SSH))
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch: {}
 
 concurrency:
-  group: deploy-production
+  group: deploy-main
   cancel-in-progress: false
 
 jobs:
   deploy:
+    if: false
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Ensure repo context
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Setup PNPM
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8.15.4
-
-      - name: Sync repository to VPS (/var/www/ecom)
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "."
-          target: "/var/www/ecom"
-          overwrite: true
-          rm: true
-          strip_components: 0
-          timeout: 120s
-          proxy_port: 0
-
-      - name: Remote deploy
+      - name: Deploy over SSH to VPS
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          PROJECT_DIR: /var/www/ecom
-          NODE_ENV: production
-          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL }}
-          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
-          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
-          COOKIE_DOMAIN: ${{ secrets.COOKIE_DOMAIN }}
-          CORS_ALLOW_ORIGINS: ${{ secrets.CORS_ALLOW_ORIGINS }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
-          EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL }}
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
+          username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: PROJECT_DIR,NODE_ENV,NEXT_PUBLIC_APP_URL,NEXT_PUBLIC_ADMIN_URL,NEXT_PUBLIC_API_BASE_URL,VITE_API_BASE,COOKIE_DOMAIN,CORS_ALLOW_ORIGINS,DATABASE_URL,DIRECT_URL,EXPO_PUBLIC_TRPC_URL,EXPO_TOKEN,JWT_SECRET,MAINTENANCE_SECRET
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          command_timeout: 30m
           script: |
             set -euo pipefail
-            echo "[deploy] Using PROJECT_DIR=$PROJECT_DIR"
-            mkdir -p "$PROJECT_DIR"
-            cd "$PROJECT_DIR"
-            bash infra/deploy/remote-deploy.sh
+            if [ ! -d /var/www/ecom ]; then
+              echo "/var/www/ecom not found. Please clone repo to this path first." >&2
+              exit 1
+            fi
+
+            cd /var/www/ecom
+            git fetch --all --prune
+            git reset --hard origin/main
+
+            # Node & pnpm
+            command -v corepack >/dev/null 2>&1 || (npm i -g corepack || true)
+            corepack enable || true
+            corepack prepare pnpm@9 --activate
+
+            # pnpm config hardening for monorepo
+            pnpm config set store-dir /var/www/ecom/.pnpm-store
+            pnpm config set node-linker hoisted
+            pnpm config set package-import-method copy
+
+            # Install deps without running postinstall scripts to avoid native failures
+            export npm_config_ignore_scripts=true
+            export NPM_CONFIG_IGNORE_SCRIPTS=true
+            export PUPPETEER_SKIP_DOWNLOAD=true
+            export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+            CI=1 NODE_ENV=development pnpm install -w --frozen-lockfile=false --prod=false --force --ignore-scripts \
+              --filter ./packages/db \
+              --filter ./packages/api \
+              --filter ./apps/web \
+              --filter ./apps/admin | cat
+
+            # Manually rebuild native deps as needed
+            pnpm rebuild @prisma/client prisma esbuild puppeteer || true
+            npx prisma --version || true
+
+            # Build apps/packages (clean .next first)
+            rm -rf apps/web/.next apps/admin/.next || true
+            pnpm --filter @repo/db build | cat
+            pnpm --filter @repo/api build | cat || true
+            pnpm --filter web build | cat
+            pnpm --filter admin build | cat
+            # After build, if standalone exists for admin/web, adjust systemd to standalone entry
+            if [ -f apps/admin/.next/standalone/apps/admin/server.js ]; then
+              sed -i -E "s|^ExecStart=.*next start -p 3001|ExecStart=/usr/bin/node /var/www/ecom/apps/admin/.next/standalone/apps/admin/server.js|" /etc/systemd/system/ecom-admin.service || true
+            fi
+            if [ -f apps/web/.next/standalone/apps/web/server.js ]; then
+              sed -i -E "s|^ExecStart=.*next start -p 3000|ExecStart=/usr/bin/node /var/www/ecom/apps/web/.next/standalone/apps/web/server.js|" /etc/systemd/system/ecom-web.service || true
+            fi
+
+            # Install/refresh systemd units
+            install -m 0644 infra/systemd/ecom-api.service /etc/systemd/system/ecom-api.service
+            install -m 0644 infra/systemd/ecom-web.service /etc/systemd/system/ecom-web.service
+            install -m 0644 infra/systemd/ecom-admin.service /etc/systemd/system/ecom-admin.service
+            systemctl daemon-reload
+
+            # Restart services (ignore failure to keep pipeline moving)
+            systemctl restart ecom-api || true
+            systemctl restart ecom-web || true
+            systemctl restart ecom-admin || true
+
+            # Show listeners for quick diagnostics
+            ss -ltnp | egrep ":3000|:3001|:4000" || true
+
+            # Reload nginx if config is valid
+            nginx -t && systemctl reload nginx || true
