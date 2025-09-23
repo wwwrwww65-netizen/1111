@@ -51,7 +51,7 @@ import { useCart } from '@/store/cart'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCheckout } from '@/store/checkout'
-import { apiPost } from '@/lib/api'
+import { apiPost, apiGet } from '@/lib/api'
 
 const cart = useCart()
 const { total } = storeToRefs(cart)
@@ -71,6 +71,18 @@ async function goConfirm(){
   if (created && (created as any).order){ router.push('/confirm') }
   else { alert('تعذر إنشاء الطلب') }
 }
+
+// Load addresses from server on open
+import { watch } from 'vue'
+watch(openAddress, async (v)=>{
+  if (v){
+    const arr = await apiGet<any[]>('/api/addresses')
+    if (Array.isArray(arr) && arr.length){
+      const a = arr[0]
+      address.value = `${a.city||''} - ${a.state||''} - ${a.street||''}`.replace(/\s+-\s+/g,' - ').trim()
+    }
+  }
+})
 </script>
 
 <style scoped>

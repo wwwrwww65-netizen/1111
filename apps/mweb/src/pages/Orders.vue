@@ -5,7 +5,7 @@
       <h1 class="title">طلباتي</h1>
       <div v-if="!items.length" class="card">لا توجد طلبات بعد</div>
       <div v-else class="list">
-        <a v-for="o in items" :key="o.id" class="card row" :href="`/orders/${o.id}`" style="justify-content:space-between;align-items:center;text-decoration:none;color:inherit">
+        <a v-for="o in items" :key="o.id" class="card row" :href="`/order/${o.id}`" style="justify-content:space-between;align-items:center;text-decoration:none;color:inherit">
           <div>
             <div class="row" style="gap:8px;align-items:center">
               <span class="muted">رقم</span><strong>#{{ o.id }}</strong>

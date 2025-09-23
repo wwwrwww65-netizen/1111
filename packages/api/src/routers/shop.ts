@@ -154,5 +154,117 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
   }
 });
 
+// Order detail
+shop.get('/orders/:id', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    const id = String(req.params.id);
+    const order = await db.order.findFirst({
+      where: { id, userId },
+      include: { items: { include: { product: { select: { id: true, name: true, images: true, price: true } } } }, payment: true, shippingAddress: true },
+    });
+    if (!order) return res.status(404).json({ error: 'not_found' });
+    res.json(order);
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Pay order (mock finalize)
+shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    const id = String(req.params.id);
+    const method = String(req.body?.method || 'CASH_ON_DELIVERY');
+    const order = await db.order.findFirst({ where: { id, userId }, include: { payment: true } });
+    if (!order) return res.status(404).json({ error: 'not_found' });
+    // Upsert payment
+    const amount = Number(order.total || 0);
+    if (order.payment) {
+      await db.payment.update({ where: { orderId: order.id }, data: { status: 'COMPLETED', method } as any });
+    } else {
+      await db.payment.create({ data: { orderId: order.id, amount, currency: 'SAR', method: method as any, status: 'COMPLETED' } as any });
+    }
+    await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Addresses (single-address per user schema)
+shop.get('/addresses', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    const a = await db.address.findUnique({ where: { userId } });
+    res.json(a ? [a] : []);
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+shop.post('/addresses', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    // Map incoming fields to schema
+    const { country, province, city, street, details, postalCode } = req.body || {};
+    const payload = {
+      country: String(country || 'SA'),
+      state: String(province || ''),
+      city: String(city || ''),
+      postalCode: String(postalCode || ''),
+      street: String(street || '') + (details ? ` - ${String(details)}` : ''),
+      isDefault: true,
+    };
+    const exists = await db.address.findUnique({ where: { userId } });
+    const addr = exists
+      ? await db.address.update({ where: { userId }, data: payload })
+      : await db.address.create({ data: { ...payload, userId } });
+    res.json({ address: addr });
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+shop.delete('/addresses/:id', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    const exists = await db.address.findUnique({ where: { userId } });
+    if (exists) await db.address.delete({ where: { userId } });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Wishlist
+shop.get('/wishlist', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    const items = await db.wishlistItem.findMany({ where: { userId }, include: { product: { select: { id: true, name: true, price: true, images: true } } } });
+    res.json(items.map(w => ({ id: w.productId, title: w.product?.name || '', price: Number(w.product?.price || 0), img: w.product?.images?.[0] })));
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+shop.post('/wishlist/toggle', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    const { productId } = req.body || {};
+    if (!productId) return res.status(400).json({ error: 'productId required' });
+    const exists = await db.wishlistItem.findUnique({ where: { userId_productId: { userId, productId } } });
+    if (exists) {
+      await db.wishlistItem.delete({ where: { userId_productId: { userId, productId } } });
+      return res.json({ removed: true });
+    } else {
+      await db.wishlistItem.create({ data: { userId, productId } });
+      return res.json({ added: true });
+    }
+  } catch {
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
 export default shop;
 
