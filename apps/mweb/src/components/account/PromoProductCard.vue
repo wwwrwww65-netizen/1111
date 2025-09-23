@@ -1,7 +1,7 @@
 <template>
   <article class="card" dir="rtl" aria-label="بطاقة ترويجية">
     <a href="#" class="media" aria-label="عرض المنتج">
-      <img :src="img" :srcset="imgSet" :alt="title" loading="lazy" />
+      <img ref="imgRef" :src="visible ? img : placeholder" :srcset="visible ? imgSet : undefined" :alt="title" loading="lazy" />
     </a>
     <div class="body">
       <h3 class="title">{{ title }}</h3>
@@ -16,10 +16,22 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Icon from '@/components/Icon.vue'
 const title = 'لباس علوي قصير من SHEIN Privé'
 const img = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&fm=webp&w=400&auto=format&fit=crop'
 const imgSet = img + ' 1x, https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&fm=webp&w=800&auto=format&fit=crop 2x'
+const placeholder = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+const visible = ref(false)
+const imgRef = ref<HTMLImageElement|null>(null)
+let observer: IntersectionObserver | null = null
+onMounted(()=>{
+  observer = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ visible.value = true; observer?.disconnect(); } })
+  }, { rootMargin: '200px' })
+  if(imgRef.value) observer.observe(imgRef.value)
+})
+onBeforeUnmount(()=>{ observer?.disconnect() })
 </script>
 
 <style scoped>
