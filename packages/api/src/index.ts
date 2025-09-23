@@ -144,6 +144,9 @@ async function ensureSchema(): Promise<void> {
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Package_status_idx" ON "Package"("status")');
+    // Speed up product name/sku search used by admin suggest
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_name_trgm_idx" ON "Product" USING gin (name gin_trgm_ops)'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_sku_idx" ON "Product"(sku)'); } catch {}
   } catch (e) {
     console.error('[ensureSchema] warning:', e);
   }

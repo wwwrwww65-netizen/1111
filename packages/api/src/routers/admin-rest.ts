@@ -3290,6 +3290,7 @@ adminRest.get('/products', async (req, res) => {
   const search = (req.query.search as string | undefined) ?? undefined;
   const categoryId = (req.query.categoryId as string | undefined) ?? undefined;
   const status = (req.query.status as string | undefined) ?? undefined; // 'active' | 'archived'
+  const suggest = String(req.query.suggest || '').trim() === '1';
   const skip = (page - 1) * limit;
   const where: any = {};
   if (search) where.OR = [
@@ -3299,8 +3300,13 @@ adminRest.get('/products', async (req, res) => {
   if (categoryId) where.categoryId = categoryId;
   if (status === 'active') where.isActive = true;
   if (status === 'archived') where.isActive = false;
+  if (suggest) {
+    const items = await db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, name: true, price: true } });
+    const total = await db.product.count({ where });
+    return res.json({ products: items, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+  }
   const [products, total] = await Promise.all([
-    db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { variants: true, category: { select: { id: true, name: true } } } }),
+    db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { variants: true, category: { select: { id: true, name: true} } } }),
     db.product.count({ where })
   ]);
   res.json({ products, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });

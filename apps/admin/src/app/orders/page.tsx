@@ -297,6 +297,7 @@ function ProductSelector({ apiBase, authHeaders, value, onChange }:{ apiBase:str
         const url = new URL(`${apiBase}/api/admin/products`);
         if (q) url.searchParams.set('search', q);
         url.searchParams.set('limit','20');
+        url.searchParams.set('suggest','1');
         const r = await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store', signal: ctl.signal });
         const j = await r.json();
         const items = (j.products||j.items||[]).map((p:any)=> ({ id:p.id, name:p.name, price:p.price||0 }));
