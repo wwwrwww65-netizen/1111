@@ -119,18 +119,54 @@ export function Sidebar(): JSX.Element {
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(href + '/') || pathname.startsWith(href + '?');
   };
+  const [open, setOpen] = React.useState<Record<number, boolean>>({});
+  React.useEffect(() => {
+    const initial: Record<number, boolean> = {};
+    groups.forEach((g, idx) => {
+      if (!g.title) { initial[idx] = true; return; }
+      const anyActive = (g.items || []).some(it => isActive(it.href));
+      initial[idx] = anyActive;
+    });
+    setOpen(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+  const toggle = (idx: number) => setOpen(s => ({ ...s, [idx]: !s[idx] }));
   return (
     <nav>
-      {groups.map((g, idx) => (
-        <div key={idx} style={{ marginBottom: 12 }}>
-          {g.title && <div style={{ color: 'var(--sub)', fontSize: 12, padding: '6px 8px' }}>{g.title}</div>}
-          <div style={{ display: 'grid', gap: 6 }}>
-            {g.items.map((it) => (
-              <a key={it.href} className={`nav-item ${isActive(it.href) ? 'active' : ''}`} href={it.href}>{it.label}</a>
-            ))}
+      {groups.map((g, idx) => {
+        const isGroupOpen = open[idx] ?? !g.title; // groups بدون عنوان تبقى مفتوحة
+        return (
+          <div key={idx} style={{ marginBottom: 12 }}>
+            {g.title ? (
+              <button onClick={() => toggle(idx)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--sub)',
+                  fontSize: 12,
+                  padding: '6px 8px',
+                  cursor: 'pointer'
+                }}>
+                <span>{g.title}</span>
+                <span aria-hidden="true">{isGroupOpen ? '▾' : '▸'}</span>
+              </button>
+            ) : (
+              <div style={{ color: 'var(--sub)', fontSize: 12, padding: '6px 8px' }}></div>
+            )}
+            {isGroupOpen && (
+              <div style={{ display: 'grid', gap: 6 }}>
+                {g.items.map((it) => (
+                  <a key={it.href} className={`nav-item ${isActive(it.href) ? 'active' : ''}`} href={it.href}>{it.label}</a>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }
