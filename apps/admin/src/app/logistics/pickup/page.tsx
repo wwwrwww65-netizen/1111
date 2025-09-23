@@ -24,7 +24,8 @@ export default function PickupPage(): JSX.Element {
       const url = new URL(`/api/admin/logistics/pickup/list`, window.location.origin);
       url.searchParams.set('status', tab);
       const j = await (await fetch(url.toString(), { credentials:'include' })).json();
-      setRows(j.pickup||[]);
+      // API returns { pickups: [...] }
+      setRows(j.pickups || j.pickup || []);
     } finally { setLoading(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
