@@ -31,6 +31,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/logistics/pickup', label: 'من المورد إلى المستودع' },
       { href: '/logistics/warehouse', label: 'المعالجة في المستودع' },
       { href: '/integrations/tracking', label: 'تتبع وتحليلات' },
+      { href: '/integrations/ai', label: 'تكاملات الذكاء الاصطناعي' },
       { href: '/logistics/delivery', label: 'التوصيل إلى العميل' },
     ],
   },

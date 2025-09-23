@@ -1,0 +1,98 @@
+"use client";
+import React from 'react';
+import { resolveApiBase } from '../../lib/apiBase';
+
+type AiKey = { key: string; label: string; placeholder?: string };
+const AI_KEYS: AiKey[] = [
+  { key: 'OPENAI_API_KEY', label: 'OpenAI API Key', placeholder: 'sk-...' },
+  { key: 'DEEPSEEK_API_KEY', label: 'DeepSeek API Key' },
+  { key: 'ANTHROPIC_API_KEY', label: 'Anthropic API Key' },
+  { key: 'GEMINI_API_KEY', label: 'Google Gemini API Key' },
+  { key: 'CUSTOM_AI_ENDPOINT', label: 'Custom AI Endpoint', placeholder: 'https://api.example.com/v1' },
+  { key: 'CUSTOM_AI_KEY', label: 'Custom AI API Key' },
+];
+
+const PLACEMENTS = [
+  { key: 'AI_ENABLE_ADMIN_ASSISTANT', label: 'مساعد داخل لوحة التحكم' },
+  { key: 'AI_ENABLE_PRODUCT_GENERATOR', label: 'توليد وصف/صور المنتجات' },
+  { key: 'AI_ENABLE_CATEGORY_SEO', label: 'توليد SEO للفئات' },
+  { key: 'AI_ENABLE_ORDERS_INSIGHTS', label: 'تحليلات الطلبات' },
+  { key: 'AI_ENABLE_MWEB_CHAT', label: 'دردشة للموقع/الموبايل' },
+];
+
+export default function AiIntegrations(): JSX.Element {
+  const apiBase = resolveApiBase();
+  const [values, setValues] = React.useState<Record<string, string>>({});
+  const [list, setList] = React.useState<any[]>([]);
+  const [saving, setSaving] = React.useState(false);
+  const [msg, setMsg] = React.useState('');
+
+  async function load(){
+    const j = await (await fetch(`${apiBase}/api/admin/integrations/list`, { credentials:'include' })).json();
+    setList(j.integrations||[]);
+    const lastByKey = new Map<string, any>();
+    for (const it of (j.integrations||[])){
+      if (typeof it.config === 'object') Object.entries(it.config).forEach(([k,v])=> lastByKey.set(k, v as string));
+    }
+    const next: Record<string,string> = {};
+    [...AI_KEYS, ...PLACEMENTS].forEach(r=> next[r.key] = String(lastByKey.get(r.key)||''));
+    setValues(next);
+  }
+  React.useEffect(()=>{ load().catch(()=>{}); },[]);
+
+  function setVal(k:string, v:string){ setValues(s=> ({ ...s, [k]: v })); }
+  function toggle(k:string){ setValues(s=> ({ ...s, [k]: s[k] ? '' : 'on' })); }
+
+  async function save(){
+    setSaving(true); setMsg('');
+    try {
+      const payload: Record<string,string> = {};
+      [...AI_KEYS, ...PLACEMENTS].forEach(r=> payload[r.key] = values[r.key] ?? '');
+      await fetch(`${apiBase}/api/admin/integrations`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ provider:'ai', config: payload }) });
+      setMsg('تم الحفظ بنجاح');
+      await load();
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <main style={{ padding: 16 }}>
+      <h1 style={{ fontWeight: 800, fontSize: 20, marginBottom: 12 }}>تكاملات الذكاء الاصطناعي</h1>
+      <p style={{ color: 'var(--sub)', marginBottom: 12 }}>أدخل مفاتيح المزودات واختر أماكن التفعيل. يمكن تعطيل أي عنصر بتركه فارغاً.</p>
+
+      <section style={{ display:'grid', gap: 12 }}>
+        {AI_KEYS.map(row => (
+          <div key={row.key} style={{ display:'grid', gap:6 }}>
+            <label style={{ fontWeight:700 }}>{row.label}</label>
+            <input value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} placeholder={row.placeholder||''} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+          </div>
+        ))}
+      </section>
+
+      <h2 style={{ fontWeight:800, fontSize:16, marginTop:24, marginBottom:8 }}>أماكن التفعيل</h2>
+      <div className="panel" style={{ display:'grid', gap:8 }}>
+        {PLACEMENTS.map(p=> (
+          <div key={p.key} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid var(--muted2)', borderRadius:12, padding:12 }}>
+            <div style={{ fontWeight:700 }}>{p.label}</div>
+            <button onClick={()=> toggle(p.key)} className="btn" style={{ background: values[p.key] ? '#16a34a' : '#374151' }}>{values[p.key] ? 'مفعّل' : 'معطّل'}</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:16 }}>
+        <button onClick={save} disabled={saving} className="btn">{saving? 'يحفظ…' : 'حفظ'}</button>
+        {msg && <span style={{ color:'#22c55e' }}>{msg}</span>}
+      </div>
+
+      <h2 style={{ fontWeight:800, fontSize:16, marginTop:24, marginBottom:8 }}>آخر الإعدادات</h2>
+      <div className="panel" style={{ display:'grid', gap:8 }}>
+        {list.filter((it:any)=> it.provider==='ai').map((it:any)=> (
+          <div key={it.id} style={{ border:'1px solid var(--muted2)', borderRadius:12, padding:12 }}>
+            <div style={{ fontWeight:700 }}>{it.provider}</div>
+            <pre style={{ margin:0, whiteSpace:'pre-wrap', color:'var(--sub)' }}>{JSON.stringify(it.config,null,2)}</pre>
+          </div>
+        ))}
+      </div>
+    </main>
+  );
+}
+
