@@ -22,11 +22,17 @@ server {
 
   # CORS headers for all responses (including errors)
   set $cors_origin "";
-  if ($http_origin = "https://admin.jeeey.com") { set $cors_origin $http_origin; }
+  if ($http_origin ~* "^https://(admin\\.jeeey\\.com|m\\.jeeey\\.com|jeeey\\.com|www\\.jeeey\\.com)$") { set $cors_origin $http_origin; }
   add_header Access-Control-Allow-Origin $cors_origin always;
   add_header Access-Control-Allow-Credentials "true" always;
   add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
   add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+
+  # Prevent duplicate CORS headers from upstream
+  proxy_hide_header Access-Control-Allow-Origin;
+  proxy_hide_header Access-Control-Allow-Credentials;
+  proxy_hide_header Access-Control-Allow-Headers;
+  proxy_hide_header Access-Control-Allow-Methods;
 
   # WebSocket (Socket.IO) endpoint
   location /socket.io/ {
