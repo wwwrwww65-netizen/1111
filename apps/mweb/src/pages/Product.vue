@@ -83,6 +83,7 @@ import BottomNav from '@/components/BottomNav.vue'
 import { useRoute } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useCart } from '@/store/cart'
+import { API_BASE } from '@/lib/api'
 import RatingStars from '@/components/RatingStars.vue'
 import TabsBar from '@/components/TabsBar.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
@@ -118,7 +119,7 @@ onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passiv
 onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
 onMounted(async ()=>{
   try{
-    const res = await fetch(`https://api.jeeey.com/api/product/${encodeURIComponent(id)}`)
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`)
     if(res.ok){
       const d = await res.json()
       title.value = d.name || title.value

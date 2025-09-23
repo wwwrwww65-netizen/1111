@@ -69,6 +69,7 @@ import BottomNav from '@/components/BottomNav.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import { ref, computed } from 'vue'
+import { API_BASE } from '@/lib/api'
 
 type P = { id:string; title:string; price:number; img:string }
 const q = ref('')
@@ -105,7 +106,7 @@ async function runSearch(){
   if(priceMin.value!=null) sp.set('min', String(priceMin.value))
   if(priceMax.value!=null) sp.set('max', String(priceMax.value))
   try{
-    const res = await fetch(`https://api.jeeey.com/api/search?${sp.toString()}`)
+    const res = await fetch(`${API_BASE}/api/search?${sp.toString()}`)
     if(res.ok){
       const data = await res.json()
       items.value = (data?.items||[]).map((d:any)=>({ id:d.id||d.sku||String(d.name), title:d.name, price:d.price||0, img:(d.images?.[0]||'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop') }))
