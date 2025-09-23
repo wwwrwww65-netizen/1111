@@ -2,7 +2,6 @@
 <nav class="tabs" :class="{ sticky: stuck, solid: solid || stuck }" role="tablist" dir="rtl">
     <button v-for="t in tabs" :key="t" class="tab" role="tab" :aria-selected="t===active" @click="$emit('update:active', t)">
       <span>{{ t }}</span>
-      <span class="underline" v-if="t===active"></span>
     </button>
   </nav>
 </template>
@@ -23,7 +22,6 @@ onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
 .tabs.sticky,.tabs.solid{background:var(--surface,#fff);box-shadow:0 1px 6px rgba(0,0,0,.04)}
 .tab{position:relative;flex:0 0 auto;border:0;background:transparent;padding:10px 12px;border-radius:10px}
 .tab[aria-selected="true"]{color:var(--primary,#0B5FFF);font-weight:700}
-.underline{position:absolute;inset:auto 10px 6px 10px;height:2px;background:currentColor;border-radius:99px;animation:slide .2s ease}
-@keyframes slide{from{transform:scaleX(.2);opacity:.5}to{transform:scaleX(1);opacity:1}}
+
 </style>
 
