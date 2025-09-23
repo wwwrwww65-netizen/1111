@@ -30,13 +30,14 @@ import SectionHeading from '@/components/SectionHeading.vue'
 import HorizontalProducts from '@/components/HorizontalProducts.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import ProductGrid from '@/components/ProductGrid.vue'
+import { apiGet } from '@/lib/api'
+import { ref, computed, onMounted } from 'vue'
 import DiscountRow from '@/components/DiscountRow.vue'
 import TopTabs from '@/components/TopTabs.vue'
 import Carousel from '@/components/Carousel.vue'
 import SvgBanner from '@/components/SvgBanner.vue'
 // duplicate removed
 
-import { computed } from 'vue'
 // Apply Figma tokens if present
 const rootStyle = computed(()=> ({ background: '#fde9eb' }))
 const heroTokens = computed(()=> ({
@@ -44,12 +45,7 @@ const heroTokens = computed(()=> ({
   borderRadius: 'var(--figma-radius-hero-radius, 12px)'
 }))
 
-const newItems = [
-  { img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=480&auto=format&fit=crop', title: 'فستان صيفي', original: '199 ر.س', price: '129 ر.س', badge: '-35%' },
-  { img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=480&auto=format&fit=crop', title: 'سماعات بلوتوث', original: '349 ر.س', price: '279 ر.س', badge: '-20%' },
-  { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=480&auto=format&fit=crop', title: 'ساعة ذكية', original: '399 ر.س', price: '329 ر.س', badge: '-18%' },
-  { img: 'https://images.unsplash.com/photo-1547949003-9792a18a2601?q=80&w=480&auto=format&fit=crop', title: 'حقيبة يد', original: '299 ر.س', price: '249 ر.س', badge: '-17%' },
-]
+const newItems = ref<any[]>([])
 const bestItems = newItems
 const saleItems = newItems
 const heroSlides = [
@@ -57,6 +53,24 @@ const heroSlides = [
   { img: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&w=1200&auto=format&fit=crop' },
   { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1200&auto=format&fit=crop' },
 ]
+
+onMounted(async ()=>{
+  const data = await apiGet<any>('/api/products?limit=20&sort=new')
+  if (data && Array.isArray(data.items)){
+    newItems.value = data.items.map((p:any)=> ({
+      id: p.id, title: p.name, img: p.images?.[0] || 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=480&auto=format&fit=crop',
+      price: (p.price||0)+' ر.س', original: p.original? (p.original+' ر.س') : undefined,
+      discountPercent: p.discountPercent || undefined,
+    }))
+  } else {
+    newItems.value = [
+      { img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=480&auto=format&fit=crop', title: 'فستان صيفي', original: '199 ر.س', price: '129 ر.س', badge: '-35%' },
+      { img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=480&auto=format&fit=crop', title: 'سماعات بلوتوث', original: '349 ر.س', price: '279 ر.س', badge: '-20%' },
+      { img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=480&auto=format&fit=crop', title: 'ساعة ذكية', original: '399 ر.س', price: '329 ر.س', badge: '-18%' },
+      { img: 'https://images.unsplash.com/photo-1547949003-9792a18a2601?q=80&w=480&auto=format&fit=crop', title: 'حقيبة يد', original: '299 ر.س', price: '249 ر.س', badge: '-17%' },
+    ]
+  }
+})
 </script>
 
 <style scoped>

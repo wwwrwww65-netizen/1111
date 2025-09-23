@@ -10,14 +10,25 @@
 </template>
 
 <script setup lang="ts">
-const cats = [
-  { title:'فساتين', href:'/c/dresses', img:'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=300&auto=format&fit=crop' },
-  { title:'بلوزات', href:'/c/tops', img:'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=300&auto=format&fit=crop' },
-  { title:'بنطال', href:'/c/pants', img:'https://images.unsplash.com/photo-1516826957135-700dedea698c?q=80&w=300&auto=format&fit=crop' },
-  { title:'رياضي', href:'/c/sports', img:'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=300&auto=format&fit=crop' },
-  { title:'أحذية', href:'/c/shoes', img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=300&auto=format&fit=crop' },
-  { title:'حقائب', href:'/c/bags', img:'https://images.unsplash.com/photo-1547949003-9792a18a2601?q=80&w=300&auto=format&fit=crop' },
-]
+import { ref, onMounted } from 'vue'
+import { apiGet } from '@/lib/api'
+type Cat = { id?: string; title: string; href: string; img: string }
+const cats = ref<Cat[]>([])
+onMounted(async ()=>{
+  const data = await apiGet<any>('/api/categories?limit=12')
+  if (data && Array.isArray(data.categories)){
+    cats.value = data.categories.map((c:any)=> ({ title: c.name || c.title, href: `/c/${encodeURIComponent(c.slug||c.id||c.name)}`, img: c.image || 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=300&auto=format&fit=crop' }))
+  } else {
+    cats.value = [
+      { title:'فساتين', href:'/c/dresses', img:'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=300&auto=format&fit=crop' },
+      { title:'بلوزات', href:'/c/tops', img:'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=300&auto=format&fit=crop' },
+      { title:'بنطال', href:'/c/pants', img:'https://images.unsplash.com/photo-1516826957135-700dedea698c?q=80&w=300&auto=format&fit=crop' },
+      { title:'رياضي', href:'/c/sports', img:'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=300&auto=format&fit=crop' },
+      { title:'أحذية', href:'/c/shoes', img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=300&auto=format&fit=crop' },
+      { title:'حقائب', href:'/c/bags', img:'https://images.unsplash.com/photo-1547949003-9792a18a2601?q=80&w=300&auto=format&fit=crop' },
+    ]
+  }
+})
 </script>
 
 <style scoped>
