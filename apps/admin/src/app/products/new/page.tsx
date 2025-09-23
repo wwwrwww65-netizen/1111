@@ -27,8 +27,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
   const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
   const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
-  const [schemaView, setSchemaView] = React.useState<any|null>(null);
-  const [jsonImport, setJsonImport] = React.useState<string>('');
+  
 
   const stopwords = React.useMemo(()=> new Set<string>([
     'مجاني','عرض','تخفيض','مميز','حصري','اصلي','اصلية','ضمان','شحن','سريع','رائع','جديد','new','sale','offer','best','free','original','premium','amazing','awesome','great'
@@ -228,10 +227,22 @@ export default function AdminProductCreate(): JSX.Element {
         candidates.sort((a,b)=> a.score-b.score);
         mapping[c] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
-      const reviewObj = { ...extracted, palettes, mapping };
-      setReview(reviewObj);
       const schema = buildSchemaOutput(extracted, palettes, mapping);
-      setSchemaView(schema);
+      const reviewObj = {
+        name: String(schema.product_name_seo||extracted.name||'').trim(),
+        shortDesc: String(schema.description||extracted.shortDesc||'').slice(0,160),
+        longDesc: String(schema.description||extracted.longDesc||''),
+        salePrice: extracted.salePrice!==undefined ? Number(extracted.salePrice) : undefined,
+        purchasePrice: schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined),
+        stock: schema.stock_quantity!==undefined && schema.stock_quantity!==null ? Number(schema.stock_quantity) : (extracted.stock!==undefined? Number(extracted.stock): undefined),
+        sizes: Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []),
+        colors: Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: []),
+        keywords: extracted.keywords||[],
+        palettes,
+        mapping,
+        confidence: extracted.confidence||{}
+      } as any;
+      setReview(reviewObj);
       setActiveMobileTab('review');
       showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
@@ -498,9 +509,6 @@ export default function AdminProductCreate(): JSX.Element {
           <h2 style={{ margin:0 }}>Paste & Generate</h2>
           <div className="toolbar" style={{ gap:8 }}>
             <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
-            <button type="button" onClick={()=> setSchemaView((prev:any)=> prev ? null : (review ? buildSchemaOutput(review, review.palettes||[], review.mapping||{}) : null))} disabled={busy || !review} className="btn btn-outline">{schemaView? 'إخفاء JSON' : 'عرض JSON'}</button>
-            <button type="button" onClick={async()=>{ try { const data = schemaView || (review ? buildSchemaOutput(review, review.palettes||[], review.mapping||{}) : null); if (!data) return; await navigator.clipboard.writeText(JSON.stringify(data, null, 2)); showToast('تم النسخ','ok'); } catch { showToast('فشل النسخ','err'); } }} disabled={busy || !(schemaView||review)} className="btn btn-outline">نسخ JSON</button>
-            <button type="button" onClick={()=>{ try { const data = schemaView || (review ? buildSchemaOutput(review, review.palettes||[], review.mapping||{}) : null); if (!data) return; const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'product.schema.json'; a.click(); URL.revokeObjectURL(a.href); } catch {} }} disabled={busy || !(schemaView||review)} className="btn btn-outline">تنزيل JSON</button>
             <button type="button" onClick={()=>{
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);
@@ -545,11 +553,6 @@ export default function AdminProductCreate(): JSX.Element {
             {review && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
-                {schemaView && (
-                  <div style={{ margin:'8px 0' }}>
-                    <pre style={{ maxHeight:240, overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:8, padding:12, color:'#e2e8f0' }}>{JSON.stringify(schemaView, null, 2)}</pre>
-                  </div>
-                )}
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                   <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" /></label>
                   <label>سعر البيع (ثقة {Math.round((review.confidence?.salePrice||0)*100)}%)<input type="number" value={review.salePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, salePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
@@ -604,23 +607,6 @@ export default function AdminProductCreate(): JSX.Element {
                         ))}
                       </div>
                     </div>
-                  </div>
-                </div>
-                <div style={{ marginTop:12, borderTop:'1px dashed #1c2333', paddingTop:12 }}>
-                  <div style={{ marginBottom:6, color:'#9ca3af' }}>استيراد JSON (مطابق للمخطط)</div>
-                  <textarea value={jsonImport} onChange={(e)=> setJsonImport(e.target.value)} rows={4} className="input" placeholder='الصق JSON هنا' />
-                  <div style={{ display:'flex', gap:8, marginTop:8 }}>
-                    <button type="button" className="btn btn-outline" onClick={()=>{ try { const j = JSON.parse(jsonImport||'');
-                      // populate basics
-                      setName(String(j.product_name_seo||'').slice(0,60));
-                      setDescription(String(j.description||''));
-                      if (Array.isArray(j.sizes)) setReview((r:any)=> ({ ...(r||{}), sizes: j.sizes }));
-                      if (Array.isArray(j.colors)) setReview((r:any)=> ({ ...(r||{}), colors: j.colors.map((c:any)=> c?.color_name).filter(Boolean) }));
-                      if (j.cost_price?.amount!==undefined) setPurchasePrice(Number(j.cost_price.amount));
-                      if (j.stock_quantity!==undefined && j.stock_quantity!==null) setStockQuantity(Number(j.stock_quantity));
-                      showToast('تم الاستيراد','ok');
-                    } catch { showToast('JSON غير صالح','err'); } }}>استيراد JSON</button>
-                    <button type="button" className="btn btn-outline" onClick={()=> setJsonImport('')}>مسح</button>
                   </div>
                 </div>
               </div>
