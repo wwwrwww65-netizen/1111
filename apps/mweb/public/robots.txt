@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://m.jeeey.com/sitemap.xml
