@@ -3100,6 +3100,41 @@ adminRest.post('/integrations/:id/toggle', async (req, res) => {
   const updated = await db.integration.update({ where: { id }, data: { config: cfg } });
   res.json({ integration: updated });
 });
+
+// Product parse/generate helpers
+import { parseProductText } from '../utils/nlp-ar';
+
+adminRest.post('/products/parse', async (req, res) => {
+  try{
+    const { text } = req.body || {};
+    if (!text || typeof text !== 'string') return res.status(400).json({ error:'text_required' });
+    const out = parseProductText(text);
+    return res.json({ ok:true, extracted: out });
+  }catch(e:any){ return res.status(500).json({ error: e.message || 'parse_failed' }); }
+});
+
+adminRest.post('/products/generate', async (req, res) => {
+  try{
+    const { product, variants } = req.body || {};
+    if (!product?.name || !product?.categoryId || product?.price==null) return res.status(400).json({ error:'missing_fields' });
+    // Create product
+    const created = await db.product.create({ data: {
+      name: String(product.name),
+      description: String(product.description||''),
+      price: Number(product.price||0),
+      images: Array.isArray(product.images)? product.images : [],
+      categoryId: String(product.categoryId),
+      vendorId: product.vendorId || null,
+      stockQuantity: Number(product.stockQuantity||0),
+      sku: product.sku || null,
+      brand: product.brand || null,
+      tags: Array.isArray(product.tags)? product.tags : [],
+      isActive: true,
+    }});
+    // TODO: when variants table exists: insert variant rows
+    return res.json({ ok:true, product: created });
+  }catch(e:any){ return res.status(500).json({ error: e.message || 'generate_failed' }); }
+});
 adminRest.post('/integrations/test', async (req, res) => {
   // Basic echo test for UI wiring; providers can be validated server-side later
   const { provider, config } = req.body || {};

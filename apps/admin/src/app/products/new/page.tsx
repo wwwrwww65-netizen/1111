@@ -272,7 +272,15 @@ export default function AdminProductCreate(): JSX.Element {
     setError('');
     try {
       setBusy(true);
-      const extracted = extractFromText(paste);
+      // Prefer server-side parse for better accuracy
+      let extracted: any;
+      try{
+        const r = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste }) });
+        const j = await r.json();
+        if (r.ok && j?.extracted) extracted = j.extracted; else throw new Error('parse_failed');
+      } catch {
+        extracted = extractFromText(paste);
+      }
       const palettes: Array<{url:string;hex:string;name:string}> = [];
       for (const f of filesForPalette.slice(0,8)) {
         const p = await getImageDominant(f);
