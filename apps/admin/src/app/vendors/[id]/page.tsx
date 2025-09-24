@@ -21,10 +21,10 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
   React.useEffect(()=>{ if(tab==='orders'){ fetch(`/api/admin/vendors/${id}/orders`, { credentials:'include' }).then(r=>r.json()).then(j=> setVendorOrders(j.orders||[])); } },[id,tab]);
   React.useEffect(()=>{ if(tab==='ledger'){ fetch(`/api/admin/vendors/${id}/ledger`, { credentials:'include' }).then(r=>r.json()).then(j=> setLedger({ entries:j.entries||[], balance:j.balance||0 })); } },[id,tab]);
   React.useEffect(()=>{ if(tab==='docs'){ fetch(`/api/admin/vendors/${id}/documents`, { credentials:'include' }).then(r=>r.json()).then(j=> setDocs(j.documents||[])); } },[id,tab]);
-  if (!data) return <main>Loading…</main>;
+  if (!data) return <main style={{ padding:16 }}>Loading…</main>;
   const { vendor, products, orders, invoices, stock } = data;
   return (
-    <main>
+    <main style={{ padding:16 }}>
       <h1 style={{ marginBottom: 8 }}>المورد: {vendor.name}</h1>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -52,7 +52,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
       </div>
 
       {tab==='info' && (
-        <div className="panel" style={{ marginBottom:12 }}>
+        <div className="panel" style={{ marginBottom:12, padding:12 }}>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12, marginBottom:8 }}>
             <div className="panel">الكود: {vendor.vendorCode||'-'}</div>
             <div className="panel">الهاتف: {vendor.phone||'-'}</div>
@@ -70,7 +70,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
         <button className="btn btn-sm">مزامنة الأسعار</button>
       </div>
       <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:16 }}>
-        <thead><tr><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>#</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الاسم</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>SKU</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>المخزون</th></tr></thead>
+        <thead style={{ position:'sticky', top:0, background:'var(--panel)', zIndex:1 }}><tr><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>#</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الاسم</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>SKU</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>المخزون</th></tr></thead>
         <tbody>
           {products.map((p:any)=> (
             <tr key={p.id}><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{p.id.slice(0,6)}</td><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{p.name}</td><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{p.sku||'-'}</td><td style={{padding:8,borderBottom:'1px solid #1c2333'}}>{p.stockQuantity}</td></tr>
@@ -88,7 +88,7 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
         <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${id}/orders/export/pdf`}>تصدير PDF</a>
       </div>
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
-        <thead><tr>
+        <thead style={{ position:'sticky', top:0, background:'var(--panel)', zIndex:1 }}><tr>
           <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>#</th>
           <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الحالة</th>
           <th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>المطلوب</th>
