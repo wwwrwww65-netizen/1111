@@ -66,7 +66,7 @@ export default function PickupPage(): JSX.Element {
     return passVendor && passFrom && passTo;
   });
   return (
-    <div className="panel">
+    <div className="panel" style={{ padding:16 }}>
       <h1 className="text-xl font-bold mb-3">التوصيل من المورد</h1>
       <div className="toolbar" style={{ display:'flex', gap:8, position:'sticky', top:0, background:'var(--panel)', zIndex:10, padding:'6px 0' }}>
         <button className={`btn btn-sm ${tab==='waiting'?'':'btn-outline'}`} onClick={()=> setTab('waiting')}>قيد الانتظار</button>
@@ -95,7 +95,7 @@ export default function PickupPage(): JSX.Element {
           {Empty}
           {filtered.length>0 && (
             <table className="table">
-              <thead><tr><th>اسم المورد</th><th>الموقع</th><th>عدد المنتجات</th><th>حالة الطلب</th><th>الإجراءات</th></tr></thead>
+              <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>اسم المورد</th><th>الموقع</th><th>عدد المنتجات</th><th>حالة الطلب</th><th>الإجراءات</th></tr></thead>
               <tbody>
                 {filtered.map((r:any)=> (
                   <tr key={r.id}>
@@ -123,7 +123,7 @@ export default function PickupPage(): JSX.Element {
           {Empty}
           {filtered.length>0 && (
             <table className="table">
-              <thead><tr><th>اسم المورد</th><th>اسم السائق</th><th>الحالة</th><th>الوقت المنقضي</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
+              <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>اسم المورد</th><th>اسم السائق</th><th>الحالة</th><th>الوقت المنقضي</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
               <tbody>
                 {filtered.map((r:any)=> (
                   <tr key={r.id}>
@@ -147,7 +147,7 @@ export default function PickupPage(): JSX.Element {
           {Empty}
           {filtered.length>0 && (
             <table className="table">
-              <thead><tr><th>المورد</th><th>السائق</th><th>حالة تسليم المورد</th><th>حالة استلام السائق</th><th>الوقت</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
+              <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>المورد</th><th>السائق</th><th>حالة تسليم المورد</th><th>حالة استلام السائق</th><th>الوقت</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
               <tbody>
                 {filtered.map((r:any)=> (
                   <tr key={r.id}>

@@ -128,16 +128,16 @@ export default function InvoicesPaymentsPage(): JSX.Element {
     } catch { alert('فشل استيراد كشف الحساب'); } finally { (ev.target as HTMLInputElement).value=''; }
   }
   return (
-    <div className="panel">
+    <div className="panel" style={{ padding:16 }}>
       <h1 className="text-xl font-bold mb-3">الفواتير والمدفوعات</h1>
       <Alerts scope="finance.invoices" params={{ from, to, status }} />
-      <div className="tabs" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+      <div className="tabs" style={{display:'flex',gap:8,flexWrap:'wrap', position:'sticky', top:0, background:'var(--panel)', zIndex:11, padding:'6px 0'}}>
         <button className={`btn btn-sm ${tab==='invoices'?'btn-active':''}`} onClick={()=> setTab('invoices')}>الفواتير</button>
         <button className={`btn btn-sm ${tab==='payments'?'btn-active':''}`} onClick={()=> setTab('payments')}>المدفوعات</button>
         <button className={`btn btn-sm ${tab==='schedule'?'btn-active':''}`} onClick={()=> setTab('schedule')}>الجدولة</button>
         <button className={`btn btn-sm ${tab==='reconcile'?'btn-active':''}`} onClick={()=> setTab('reconcile')}>مطابقة البنك</button>
       </div>
-      <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginTop:8}}>
+      <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginTop:8, position:'sticky', top:36, background:'var(--panel)', zIndex:10, padding:'6px 0'}}>
         <input className="input" placeholder="بحث" value={q} onChange={e=> setQ(e.target.value)} />
         <input className="input" type="date" value={from} onChange={e=> setFrom(e.target.value)} />
         <input className="input" type="date" value={to} onChange={e=> setTo(e.target.value)} />
@@ -191,7 +191,7 @@ export default function InvoicesPaymentsPage(): JSX.Element {
       {tab==='invoices' && (
         <div className="mt-3">
           <table className="table">
-            <thead><tr><th>#</th><th>العميل</th><th>المبلغ</th><th>الحالة</th><th>استحقاق</th><th>إجراءات</th></tr></thead>
+            <thead style={{ position:'sticky', top:84, zIndex:5, background:'var(--panel)'}}><tr><th>#</th><th>العميل</th><th>المبلغ</th><th>الحالة</th><th>استحقاق</th><th>إجراءات</th></tr></thead>
             <tbody>
               {(invoices as any[]).filter(r=> !q.trim() || (r.number + r.customer + r.orderId).toLowerCase().includes(q.trim().toLowerCase())).map((r)=> (
                 <tr key={r.orderId}><td>{(r as any).number}</td><td>{(r as any).customer}</td><td>{Number((r as any).amount||0).toFixed(2)}</td><td>{(r as any).status}</td><td>{(r as any).dueDate? String((r as any).dueDate).slice(0,10): '—'}</td><td><button className="btn btn-sm" onClick={()=> settle((r as any).orderId)}>تسوية</button></td></tr>
@@ -204,7 +204,7 @@ export default function InvoicesPaymentsPage(): JSX.Element {
       {tab==='payments' && (
         <div className="mt-3">
           <table className="table">
-            <thead><tr><th>#</th><th>الطلب</th><th>المرجع</th><th>الطريقة</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th></tr></thead>
+            <thead style={{ position:'sticky', top:84, zIndex:5, background:'var(--panel)'}}><tr><th>#</th><th>الطلب</th><th>المرجع</th><th>الطريقة</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th></tr></thead>
             <tbody>
               {payments.filter(r=> !q.trim() || ((r.ref||'')+(r.orderId||'')+r.method).toLowerCase().includes(q.trim().toLowerCase())).map(r=> (
                 <tr key={r.id}><td>{r.id}</td><td>{r.orderId||'—'}</td><td>{r.ref||'—'}</td><td>{r.method}</td><td>{r.amount.toFixed(2)}</td><td>{String(r.at).slice(0,10)}</td><td>{r.note||'—'}</td></tr>
@@ -217,7 +217,7 @@ export default function InvoicesPaymentsPage(): JSX.Element {
       {tab==='schedule' && (
         <div className="mt-3">
           <table className="table">
-            <thead><tr><th>#</th><th>الطلب</th><th>الاستحقاق</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+            <thead style={{ position:'sticky', top:84, zIndex:5, background:'var(--panel)'}}><tr><th>#</th><th>الطلب</th><th>الاستحقاق</th><th>المبلغ</th><th>الحالة</th></tr></thead>
             <tbody>
               {schedule.map(r=> (
                 <tr key={r.id}><td>{r.id}</td><td>{r.orderId}</td><td>{String(r.dueDate).slice(0,10)}</td><td>{r.amount.toFixed(2)}</td><td>{r.status}</td></tr>

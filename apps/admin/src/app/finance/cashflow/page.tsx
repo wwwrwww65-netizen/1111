@@ -36,7 +36,7 @@ export default function CashflowPage(): JSX.Element {
     ]);
   }
   return (
-    <div className="panel">
+    <div className="panel" style={{ padding:16 }}>
       <h1 className="text-xl font-bold mb-3">التدفق النقدي</h1>
       <div className="grid cols-3">
         <div className="card"><div>الرصيد الحالي</div><div className="text-2xl">${(data?.currentBalance||0).toFixed(2)}</div></div>
@@ -44,7 +44,7 @@ export default function CashflowPage(): JSX.Element {
         <div className="card"><div>دفعات مستحقة</div><div className="text-2xl">${(data?.duePayments||0).toFixed(2)}</div></div>
       </div>
       <div className="mt-3">
-        <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+        <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center', position:'sticky', top:0, background:'var(--panel)', zIndex:10, padding:'6px 0'}}>
           <button className="btn btn-sm" onClick={load} disabled={busy}>تحديث</button>
           <select className="select" value={windowDays} onChange={e=> setWindowDays(e.target.value)}><option value="30">30 يوم</option><option value="60">60 يوم</option><option value="90">90 يوم</option></select>
           <select className="select" value={scenario} onChange={e=> setScenario(e.target.value as any)}>

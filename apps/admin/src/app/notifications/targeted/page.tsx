@@ -29,9 +29,9 @@ export default function TargetedNotificationsPage(): JSX.Element {
   }
 
   return (
-    <div className="panel">
+    <div className="panel" style={{ padding:16 }}>
       <h1 className="text-xl font-bold mb-3">التنبيهات المخصّصة</h1>
-      <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+      <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center', position:'sticky', top:0, background:'var(--panel)', zIndex:10, padding:'6px 0'}}>
         <input className="input" placeholder="شرط الاستهداف (DSL)" value={dsl} onChange={e=> setDsl(e.target.value)} />
         <button className="btn btn-sm" onClick={test} disabled={busy}>اختبار</button>
         <div className="text-sm" style={{color:'var(--sub)'}}>{count!==null? `المستهدفون: ${count}` : ''}</div>

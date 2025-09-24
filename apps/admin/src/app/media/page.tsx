@@ -21,14 +21,14 @@ export default function MediaPage(): JSX.Element {
   }
   function toBase64(f: File): Promise<string> { return new Promise((resolve,reject)=>{ const r = new FileReader(); r.onload=()=>resolve(String(r.result)); r.onerror=reject; r.readAsDataURL(f); }); }
   return (
-    <main>
-      <h1 style={{ marginBottom: 16 }}>الوسائط</h1>
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-        <input value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="https://..." style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-        <input type="file" accept="image/*" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
-        <button onClick={add} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>إضافة</button>
+    <main className="panel" style={{ padding:16 }}>
+      <h1 className="text-xl font-bold mb-3">الوسائط</h1>
+      <div className="toolbar" style={{ display:'flex', gap:8, position:'sticky', top:0, background:'var(--panel)', zIndex:10, padding:'6px 0' }}>
+        <input className="input" value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="https://..." />
+        <input className="input" type="file" accept="image/*" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
+        <button className="btn" onClick={add}>إضافة</button>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:8 }}>
         {rows.map((a)=> (
           <div key={a.id} style={{ border:'1px solid #1c2333', borderRadius:8, overflow:'hidden' }}>
             <img src={a.url} alt={a.alt||''} style={{ width:'100%', height:140, objectFit:'cover' }} />
