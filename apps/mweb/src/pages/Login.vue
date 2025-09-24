@@ -20,11 +20,15 @@ import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import { ref } from 'vue'
 import { API_BASE } from '@/lib/api'
+import { useUser } from '@/store/user'
+import { useRouter } from 'vue-router'
 
 const email = ref('admin@example.com')
 const password = ref('admin123')
 const msg = ref('')
 const ok = ref(false)
+const user = useUser()
+const router = useRouter()
 
 async function onSubmit(){
   msg.value=''; ok.value=false
@@ -32,6 +36,11 @@ async function onSubmit(){
     const res = await fetch(`${API_BASE}/api/admin/auth/login`, { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: email.value, password: password.value }) as any, credentials:'include' })
     ok.value = res.ok
     msg.value = res.ok ? 'تم تسجيل الدخول' : 'فشل تسجيل الدخول'
+    if (res.ok) {
+      user.isLoggedIn = true
+      user.username = email.value.split('@')[0] || 'jeeey'
+      router.replace('/account')
+    }
   }catch{ msg.value='خطأ في الاتصال' }
 }
 </script>

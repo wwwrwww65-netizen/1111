@@ -15,17 +15,35 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { API_BASE } from '@/lib/api'
+import { useUser } from '@/store/user'
+import { useRouter } from 'vue-router'
 const name = ref('')
 const email = ref('')
 const password = ref('')
 const msg = ref('')
 const ok = ref(false)
+const user = useUser()
+const router = useRouter()
 async function onSubmit(){
   msg.value=''; ok.value=false
   try{
     const res = await fetch(`${API_BASE}/api/auth/register`, { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ name: name.value, email: email.value, password: password.value }) })
     ok.value = res.ok
     msg.value = res.ok ? 'تم إنشاء الحساب، تحقق من بريدك لتفعيل الحساب' : 'فشل التسجيل'
+    if (res.ok) {
+      // تسجيل دخول تلقائي إن أمكن عبر endpoint عام أو إعادة استخدام نفس البريد/كلمة المرور
+      try {
+        const loginRes = await fetch(`${API_BASE}/api/admin/auth/login`, { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: email.value, password: password.value }) as any, credentials:'include' })
+        if (loginRes.ok) {
+          user.isLoggedIn = true
+          user.username = name.value || email.value.split('@')[0] || 'jeeey'
+          router.replace('/account')
+          return
+        }
+      } catch {}
+      // في حال عدم التمكن من تسجيل الدخول تلقائياً
+      router.replace('/login')
+    }
   }catch{ msg.value='خطأ في الاتصال' }
 }
 </script>

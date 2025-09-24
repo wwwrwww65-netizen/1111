@@ -6,11 +6,15 @@
       <div class="hero-text">
         <div class="title">تسجيل الدخول / تسجيل</div>
         <div class="sub">انضم للاستفادة من جميع المزايا</div>
+        <div class="cta-row">
+          <button class="btn secondary" @click="go('/login')">تسجيل الدخول</button>
+          <button class="btn primary" @click="go('/register')">إنشاء حساب</button>
+        </div>
       </div>
     </section>
 
     <!-- Club Join Card -->
-    <section class="card club-join" role="button" @click="go('/club')">
+    <section class="card club-join" role="button" @click="go('/register')">
       <div class="club-title">JEEEY CLUB</div>
       <div class="club-perks">
         <div class="perk">
@@ -88,6 +92,10 @@ function go(path: string){ router.push(path) }
 .settings{position:absolute;top:10px;inset-inline-end:10px;width:40px;height:40px;border-radius:10px;border:0;background:transparent;display:grid;place-items:center}
 .hero-text .title{font-size:16px;font-weight:700;color:#111827}
 .hero-text .sub{font-size:12px;color:#6b7280;margin-top:4px}
+.cta-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.btn{height:36px;padding:0 14px;border-radius:10px;border:0;font-weight:700;font-size:13px}
+.btn.primary{background:#f97316;color:#fff}
+.btn.secondary{background:#1118270d;color:#111827}
 
 /* Club */
 .club-join{text-align:center}
