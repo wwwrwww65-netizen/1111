@@ -2,7 +2,7 @@
   <main class="account" dir="rtl" lang="ar">
     <!-- Header -->
     <header class="hdr">
-      <button class="ic" aria-label="الإعدادات"><Icon name="settings" /></button>
+      <button class="ic" aria-label="الإعدادات" @click="go('/settings')"><Icon name="settings" /></button>
       <div class="ubox">
         <span class="badge">SO %</span>
         <span class="uname">{{ username }}</span>
@@ -29,7 +29,7 @@
           <div class="perk-txt">10%-2% تكلفة الشحن</div>
         </div>
       </div>
-      <div class="club-offer">
+      <div class="club-offer" role="button" @click="go('/club')">
         <span class="old">₪33.99 (بدلاً من 93)</span>
         <span class="now">₪22.99</span>
         <span class="cta">انضم الآن</span>
@@ -56,11 +56,11 @@
     <section class="box">
       <div class="box-h">الأوامر المحفوظة</div>
       <div class="card qa">
-        <button class="qa-itm"><Icon name="heart" /><span>المنتجات المحفوظة</span></button>
-        <button class="qa-itm"><Icon name="package" /><span>تتبع</span></button>
-        <button class="qa-itm"><Icon name="truck" /><span>مركز الشحن</span></button>
-        <button class="qa-itm"><Icon name="credit-card" /><span>في التحضير</span></button>
-        <button class="qa-itm"><Icon name="gift" /><span>عرض مجاني</span></button>
+        <button class="qa-itm" @click="go('/wishlist')"><Icon name="heart" /><span>المنتجات المحفوظة</span></button>
+        <button class="qa-itm" @click="go('/orders/track')"><Icon name="package" /><span>تتبع</span></button>
+        <button class="qa-itm" @click="go('/shipping')"><Icon name="truck" /><span>مركز الشحن</span></button>
+        <button class="qa-itm" @click="go('/orders?status=preparing')"><Icon name="credit-card" /><span>في التحضير</span></button>
+        <button class="qa-itm" @click="go('/offers/free')"><Icon name="gift" /><span>عرض مجاني</span></button>
       </div>
     </section>
 
@@ -68,23 +68,23 @@
     <section class="box">
       <div class="box-h">المزيد من الخدمات</div>
       <div class="card srv">
-        <button class="srv-itm">
+        <button class="srv-itm" @click="go('/free')">
           <div class="sq">مجاني</div>
           <span>مجاني</span>
         </button>
-        <button class="srv-itm">
+        <button class="srv-itm" @click="go('/books')">
           <div class="sq"><Icon name="camera" /></div>
           <span>كتب</span>
         </button>
-        <button class="srv-itm">
+        <button class="srv-itm" @click="go('/company')">
           <div class="sq"><Icon name="megaphone" /></div>
           <span>شركة</span>
         </button>
-        <button class="srv-itm">
+        <button class="srv-itm" @click="go('/reviews')">
           <div class="sq"><Icon name="file-text" color="#ef4444" /></div>
           <span>مركز الآراء</span>
         </button>
-        <button class="srv-itm">
+        <button class="srv-itm" @click="go('/support')">
           <div class="sq"><Icon name="headphones" /></div>
           <span>خدمة العملاء</span>
         </button>
@@ -94,7 +94,7 @@
     <!-- Recommendation -->
     <section class="box">
       <div class="box-h">تقييم الأسبوع</div>
-      <article class="card promo">
+      <article class="card promo" role="button" @click="go('/products?sort=reco')">
         <img src="https://csspicker.dev/api/image/?q=black+tank+top+jeans&image_type=photo" alt="Product" />
         <div class="p-body">
           <div class="p-title">SHEIN Privé قميص علوي ملائم جداً</div>
@@ -117,10 +117,13 @@
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
 const props = defineProps<{ userName?: string }>()
 const user = useUser()
 const username = computed(()=> props.userName || user.username || 'jeeey')
+const router = useRouter()
+function go(path:string){ router.push(path) }
 </script>
 
 <style scoped>

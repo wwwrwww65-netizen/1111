@@ -28,11 +28,11 @@
     <!-- Tabs -->
     <nav class="tabs">
       <button :class="{on: active==='all'}" @click="setTab('all')">كل</button>
-      <button @click="setTab('women')">نساء</button>
-      <button @click="setTab('kids')">أطفال</button>
-      <button @click="setTab('men')">رجال</button>
-      <button @click="setTab('plus')">مقاسات كبيرة</button>
-      <button class="sm" @click="setTab('home')">المنزل + الحيوانات</button>
+      <button :class="{on: active==='women'}" @click="setTab('women')">نساء</button>
+      <button :class="{on: active==='kids'}" @click="setTab('kids')">أطفال</button>
+      <button :class="{on: active==='men'}" @click="setTab('men')">رجال</button>
+      <button :class="{on: active==='plus'}" @click="setTab('plus')">مقاسات كبيرة</button>
+      <button class="sm" :class="{on: active==='home'}" @click="setTab('home')">المنزل + الحيوانات</button>
     </nav>
 
     <div class="layout">
@@ -45,7 +45,7 @@
       <main class="main">
         <h2 class="ttl">مختارات من أجلك</h2>
         <div class="grid">
-          <a v-for="c in cats" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`">
+          <a v-for="c in filteredCats" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`">
             <img :src="c.image" :alt="c.name" />
             <div class="name">{{ c.name }}</div>
           </a>
@@ -68,7 +68,7 @@
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { apiGet } from '@/lib/api'
 type Cat = { id:string; name:string; image:string }
 const cats = ref<Cat[]>([])
@@ -84,6 +84,19 @@ onMounted(async ()=>{
   } else {
     cats.value = Array.from({ length: 12 }).map((_,i)=>({ id:String(i+1), name:`فئة ${i+1}`, image:`https://picsum.photos/seed/cat${i}/200/200` }))
   }
+})
+const filteredCats = computed(()=>{
+  if (active.value==='all') return cats.value
+  // Placeholder filter by name includes. In production map to backend groups.
+  const map: Record<string,string[]> = {
+    women: ['نساء','فستان','تنورة','بلايز','أزياء'],
+    kids: ['طف','أطفال','رضع','أولاد','بنات'],
+    men: ['رجال','قمصان','رجالي','تيشيرت'],
+    plus: ['كبيرة','بلس','واسعة'],
+    home: ['منزل','مطبخ','ديكور','حيوانات']
+  }
+  const keys = map[active.value] || []
+  return cats.value.filter(c=> keys.some(k=> c.name.includes(k)))
 })
 </script>
 
