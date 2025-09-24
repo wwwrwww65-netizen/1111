@@ -17,6 +17,10 @@
         <button v-if="historyList.length>maxHistory" class="chip more" @click="toggleHistory">{{ showAllHistory? 'أقل' : 'المزيد' }} ▾</button>
       </section>
 
+      <section class="chips" aria-label="اقتراحات" v-if="suggestions.length && q">
+        <button v-for="s in suggestions" :key="s" class="chip" role="button" @click="applyQuick(s)">{{ s }}</button>
+      </section>
+
       <section class="chips tags" aria-label="البحث والعثور" v-if="tags.length">
         <button v-for="t in tags" :key="t" class="chip" role="button" @click="applyQuick(t)">{{ t }}</button>
       </section>
