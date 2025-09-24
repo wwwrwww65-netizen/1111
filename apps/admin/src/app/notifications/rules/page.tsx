@@ -22,13 +22,13 @@ export default function NotificationRulesPage(): JSX.Element {
   }
 
   return (
-    <div className="panel">
+    <div className="panel" style={{ padding:16 }}>
       <h1 className="text-xl font-bold mb-3">قواعد التنبيهات التلقائية</h1>
-      <div className="toolbar">
+      <div className="toolbar" style={{ position:'sticky', top:0, background:'var(--panel)', zIndex:10, padding:'6px 0' }}>
         <button className="btn btn-sm" onClick={()=> setShow(true)}>+ إضافة قاعدة</button>
       </div>
       <table className="table mt-3">
-        <thead><tr><th>المشغل</th><th>القالب</th><th>القناة</th><th>الحالة</th></tr></thead>
+        <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>المشغل</th><th>القالب</th><th>القناة</th><th>الحالة</th></tr></thead>
         <tbody>
           {rules.map(r=> (
             <tr key={r.id}><td>{r.trigger}</td><td>{r.template}</td><td>{r.channel}</td><td>{r.enabled? 'مفعّل':'متوقف'}</td></tr>
