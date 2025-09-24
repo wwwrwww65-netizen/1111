@@ -10,6 +10,11 @@ on:
         description: "Remote path"
         required: true
         default: "/var/www/ecom"
+      allow_mutating_smokes:
+        description: "Run data-mutating smokes (create vendor/user/category)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -403,6 +408,7 @@ jobs:
             echo '--- Done ---'
 
       - name: Post-deploy admin CRUD smoke (RBAC, grant-admin, users, vendor, user)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_mutating_smokes == true }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -442,6 +448,7 @@ jobs:
             echo '--- CRUD smoke done ---'
 
       - name: Post-deploy admin categories smoke (create + list)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_mutating_smokes == true }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}

@@ -2,13 +2,6 @@ name: Smoke - Create Demo Order and Verify Logistics
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - '.github/workflows/smoke-create-order.yml'
-      - 'packages/api/**'
-      - 'apps/admin/**'
-      - 'apps/web/**'
 
 concurrency:
   group: smoke-${{ github.ref }}
