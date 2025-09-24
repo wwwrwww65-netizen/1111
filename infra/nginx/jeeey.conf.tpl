@@ -144,6 +144,7 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
   http2 on;
 
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
   root /var/www/ecom/apps/mweb/dist;
   index index.html;
 

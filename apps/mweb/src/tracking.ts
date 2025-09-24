@@ -1,5 +1,11 @@
 export async function injectTracking(): Promise<void> {
   try {
+    // Wait for consent
+    const consent = localStorage.getItem('consent_v1')
+    if (consent !== 'yes') {
+      document.addEventListener('consent:granted', ()=> injectTracking(), { once: true })
+      return
+    }
     let fb = (import.meta as any)?.env?.FB_PIXEL_ID;
     let ga = (import.meta as any)?.env?.GA_MEASUREMENT_ID;
     let gtm = (import.meta as any)?.env?.GOOGLE_TAG_MANAGER_ID;
