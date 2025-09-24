@@ -131,6 +131,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     items: [
       { href: '/integrations', label: 'التكاملات' },
       { href: '/integrations/tracking', label: 'تتبع وتحليلات' },
+      { href: '/integrations/login', label: 'تكامل تسجيل الدخول' },
       { href: '/integrations/ai', label: 'تكاملات الذكاء الاصطناعي' },
     ],
   },
