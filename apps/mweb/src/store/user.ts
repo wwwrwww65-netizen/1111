@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 
 export const useUser = defineStore('user', {
   state: () => ({
+    isLoggedIn: false,
     username: 'jeeey',
     clubLevel: 'S0',
     monthPoints: 15,

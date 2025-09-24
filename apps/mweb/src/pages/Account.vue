@@ -1,5 +1,5 @@
 <template>
-  <main class="account" dir="rtl" lang="ar">
+  <main class="account" dir="rtl" lang="ar" v-if="user.isLoggedIn">
     <!-- Header -->
     <header class="hdr">
       <button class="ic" aria-label="الإعدادات" @click="go('/settings')"><Icon name="settings" /></button>
@@ -110,11 +110,13 @@
     <BottomNav active="account" />
     <div style="height:72px"></div>
   </main>
+  <GuestAccount v-else />
   
 </template>
 
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
+import GuestAccount from '@/components/account/GuestAccount.vue'
 import Icon from '@/components/Icon.vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
