@@ -10,6 +10,10 @@ export const useCart = defineStore('cart', {
     total: (s) => s.items.reduce((n, i) => n + i.qty * i.price, 0)
   },
   actions: {
+    loadLocal(){
+      try{ const j = localStorage.getItem('cart_v1'); if(j){ const arr = JSON.parse(j)||[]; if(Array.isArray(arr)) this.items = arr } }catch{}
+    },
+    saveLocal(){ try{ localStorage.setItem('cart_v1', JSON.stringify(this.items)) }catch{} },
     async syncFromServer(){
       const data = await apiGet<any>('/api/cart')
       if (data && data.cart){
@@ -23,13 +27,15 @@ export const useCart = defineStore('cart', {
       else this.items.push({ ...item, qty })
       // fire and forget server sync
       apiPost('/api/cart/add', { productId: item.id, quantity: qty }).catch(()=>{})
+      this.saveLocal()
     },
-    remove(id: string) { this.items = this.items.filter(i => i.id !== id); apiPost('/api/cart/remove', { productId: id }).catch(()=>{}) },
-    clear() { this.items = []; apiPost('/api/cart/clear', {}).catch(()=>{}) },
+    remove(id: string) { this.items = this.items.filter(i => i.id !== id); apiPost('/api/cart/remove', { productId: id }).catch(()=>{}); this.saveLocal() },
+    clear() { this.items = []; apiPost('/api/cart/clear', {}).catch(()=>{}); this.saveLocal() },
     async update(id: string, qty: number){
       const it = this.items.find(i=>i.id===id); if(!it) return
       it.qty = qty
       await apiPost('/api/cart/update', { productId: id, quantity: qty })
+      this.saveLocal()
     }
   }
 })

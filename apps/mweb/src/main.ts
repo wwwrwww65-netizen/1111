@@ -6,6 +6,7 @@ import App from './App.vue';
 import './tokens.css';
 import './styles.css';
 import { injectTracking } from './tracking';
+import { useCart } from './store/cart'
 
 const manualRoutes = [
   { path: '/categories', component: () => import('./pages/Categories.vue') },
@@ -18,6 +19,8 @@ const manualRoutes = [
   { path: '/p', component: () => import('./pages/Product.vue') },
   { path: '/confirm', component: () => import('./pages/Confirm.vue') },
   { path: '/address', component: () => import('./pages/Address.vue') },
+  { path: '/register', component: () => import('./pages/Register.vue') },
+  { path: '/forgot', component: () => import('./pages/Forgot.vue') },
   { path: '/pay/processing', component: () => import('./pages/PayProcessing.vue') },
   { path: '/pay/success', component: () => import('./pages/PaySuccess.vue') },
   { path: '/pay/failure', component: () => import('./pages/PayFailure.vue') },
@@ -25,13 +28,17 @@ const manualRoutes = [
   { path: '/legal/privacy', component: () => import('./pages/LegalPrivacy.vue') },
   { path: '/legal/shipping', component: () => import('./pages/LegalShipping.vue') },
   { path: '/legal/returns', component: () => import('./pages/LegalReturns.vue') },
-  { path: '/legal/payments', component: () => import('./pages/LegalPayments.vue') }
+  { path: '/legal/payments', component: () => import('./pages/LegalPayments.vue') },
+  { path: '/payments', component: () => import('./pages/PaymentMethods.vue') }
+  ,{ path: '/order/track', component: () => import('./pages/OrderTrack.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];
 
 const app = createApp(App);
 app.use(createPinia());
-app.use(createRouter({ history: createWebHistory(), routes }));
+const router = createRouter({ history: createWebHistory(), routes });
+app.use(router);
 app.mount('#app');
 injectTracking();
+try{ const cart = useCart(); cart.loadLocal() }catch{}
 

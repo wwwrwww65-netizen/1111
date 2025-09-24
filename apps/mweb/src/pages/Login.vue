@@ -8,6 +8,7 @@
         <input v-model="password" type="password" placeholder="كلمة المرور" class="input" style="height:44px;border-radius:12px;border:1px solid var(--muted-2);padding:0 12px" required />
         <button class="btn" style="width:100%">دخول</button>
         <div v-if="msg" class="badge" :class="{ ok: ok, err: !ok }">{{ msg }}</div>
+        <div style="display:flex;justify-content:space-between"><a href="/register">إنشاء حساب</a><a href="/forgot">نسيت كلمة المرور؟</a></div>
       </form>
     </div>
     <BottomNav />

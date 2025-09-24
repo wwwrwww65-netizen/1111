@@ -27,7 +27,7 @@ export async function injectTracking(): Promise<void> {
     }
     if (ga && !document.getElementById('ga-gtag')){
       const s1 = document.createElement('script'); s1.async=true; s1.src=`https://www.googletagmanager.com/gtag/js?id=${ga}`; document.head.appendChild(s1);
-      const s2 = document.createElement('script'); s2.id='ga-gtag'; s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','${ga}');`;
+      const s2 = document.createElement('script'); s2.id='ga-gtag'; s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','${ga}', { 'transport_type': 'beacon' });`;
       document.head.appendChild(s2);
     }
     if (gtm && !document.getElementById('gtm')){
