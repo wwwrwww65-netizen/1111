@@ -91,12 +91,20 @@ function selectPayment(p:string){ checkout.setPayment(p); openPayment.value = fa
 const router = useRouter()
 async function goConfirm(){
   if(!(addressStr.value && payment.value && shipping.value)) return
-  const created = await apiPost('/api/orders', { shippingAddressId: undefined, shippingMethodId: shipping.value?.id, payment: payment.value })
-  if (created && (created as any).order){ router.push('/confirm') }
-  else {
-    // Fallback stub
-    console.warn('Order API unavailable, using stub')
-    router.push('/confirm')
+  if (payment.value === 'الدفع عند الاستلام'){
+    // COD: إنشاء طلب مباشر
+    const created = await apiPost('/api/orders', { shippingAddressId: undefined, shippingMethodId: shipping.value?.id, payment: 'COD' })
+    if (created && (created as any).order){ router.push('/pay/success') }
+    else { router.push('/pay/failure') }
+    return
+  }
+  // CARD: إنشاء جلسة دفع ثم تحويل
+  const session = await apiPost('/api/payments/session', { amount: Number(total.value.toFixed(2)), currency: 'SAR', method: 'CARD', returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure' })
+  if (session && (session as any).redirectUrl){
+    router.push('/pay/processing')
+    location.href = (session as any).redirectUrl
+  } else {
+    router.push('/pay/failure')
   }
 }
 
