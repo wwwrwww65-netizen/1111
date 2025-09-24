@@ -7,6 +7,8 @@ import './tokens.css';
 import './styles.css';
 import { injectTracking } from './tracking';
 import { useCart } from './store/cart'
+// Track affiliate ref
+const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
 const manualRoutes = [
   { path: '/categories', component: () => import('./pages/Categories.vue') },
@@ -33,6 +35,8 @@ const manualRoutes = [
   ,{ path: '/order/track', component: () => import('./pages/OrderTrack.vue') }
   ,{ path: '/returns', component: () => import('./pages/Returns.vue') }
   ,{ path: '/help', component: () => import('./pages/Help.vue') }
+  ,{ path: '/contact', component: () => import('./pages/Contact.vue') }
+  ,{ path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];
 

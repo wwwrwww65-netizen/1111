@@ -29,6 +29,16 @@
         <div class="muted" v-if="!payment">لم يتم تحديد طريقة الدفع</div>
         <div v-else>{{ payment }}</div>
       </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <div>كوبون الخصم</div>
+          <div class="row" style="gap:8px">
+            <input class="input" style="height:36px" v-model="coupon" placeholder="أدخل الكود" />
+            <button class="btn btn-outline" @click="applyCoupon">تطبيق</button>
+          </div>
+        </div>
+        <div class="muted" v-if="couponMsg">{{ couponMsg }}</div>
+      </div>
       <div class="card row" style="justify-content:space-between">
         <div>الإجمالي</div>
         <div style="font-weight:700">{{ total.toFixed(2) }} ر.س</div>
@@ -89,23 +99,33 @@ function selectAddress(a:string){
 }
 function selectPayment(p:string){ checkout.setPayment(p); openPayment.value = false }
 const router = useRouter()
+const coupon = ref('')
+const couponMsg = ref('')
 async function goConfirm(){
   if(!(addressStr.value && payment.value && shipping.value)) return
   if (payment.value === 'الدفع عند الاستلام'){
     // COD: إنشاء طلب مباشر
-    const created = await apiPost('/api/orders', { shippingAddressId: undefined, shippingMethodId: shipping.value?.id, payment: 'COD' })
+    const created = await apiPost('/api/orders', { shippingAddressId: undefined, shippingMethodId: shipping.value?.id, payment: 'COD', ref: sessionStorage.getItem('affiliate_ref')||undefined })
     if (created && (created as any).order){ router.push('/pay/success') }
     else { router.push('/pay/failure') }
     return
   }
   // CARD: إنشاء جلسة دفع ثم تحويل
-  const session = await apiPost('/api/payments/session', { amount: Number(total.value.toFixed(2)), currency: 'SAR', method: 'CARD', returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure' })
+  const session = await apiPost('/api/payments/session', { amount: Number(total.value.toFixed(2)), currency: 'SAR', method: 'CARD', ref: sessionStorage.getItem('affiliate_ref')||undefined, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure' })
   if (session && (session as any).redirectUrl){
     router.push('/pay/processing')
     location.href = (session as any).redirectUrl
   } else {
     router.push('/pay/failure')
   }
+}
+
+async function applyCoupon(){
+  couponMsg.value=''
+  if(!coupon.value.trim()) return
+  const res = await apiPost('/api/coupons/apply', { code: coupon.value })
+  if (res && (res as any).ok){ couponMsg.value = 'تم تطبيق الكوبون'; }
+  else { couponMsg.value = 'كوبون غير صالح' }
 }
 
 // Load addresses from server on open
@@ -128,6 +148,19 @@ const shippingMethods = ref<ShippingMethod[]>([
 const shipId = ref<string>('std')
 const shipping = computed(()=> shippingMethods.value.find(m=>m.id===shipId.value))
 watch(shipId, (id)=>{ const m = shippingMethods.value.find(x=>x.id===id); if(m) checkout.setShipping(m) }, { immediate:true })
+
+// dynamic shipping quote
+import { watchEffect } from 'vue'
+watchEffect(async ()=>{
+  if (!checkout.address || !shipping.value) return
+  try{
+    const q = await apiGet<any>(`/api/shipping/quote?city=${encodeURIComponent(checkout.address.city)}&method=${encodeURIComponent(shipping.value.id)}`)
+    if (q && q.price!=null){
+      const m = shippingMethods.value.find(x=>x.id===shipping.value?.id)
+      if (m) m.price = Number(q.price)
+    }
+  }catch{}
+})
 
 // Address form model
 const addrForm = ref({ country:'السعودية', firstName:'', lastName:'', phone:'', province:'', city:'', street:'', details:'' })
