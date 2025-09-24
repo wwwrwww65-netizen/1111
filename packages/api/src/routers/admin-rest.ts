@@ -3035,6 +3035,41 @@ adminRest.get('/integrations/list', async (_req, res) => {
   const list = await db.integration.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ integrations: list });
 });
+adminRest.get('/integrations/:id', async (req, res) => {
+  const { id } = req.params;
+  const integ = await db.integration.findUnique({ where: { id } });
+  if (!integ) return res.status(404).json({ error: 'not_found' });
+  res.json({ integration: integ });
+});
+adminRest.put('/integrations/:id', async (req, res) => {
+  const { id } = req.params; const { provider, config } = req.body || {};
+  const current = await db.integration.findUnique({ where: { id } });
+  if (!current) return res.status(404).json({ error: 'not_found' });
+  const updated = await db.integration.update({ where: { id }, data: { provider: provider ?? current.provider, config: config ?? current.config } });
+  res.json({ integration: updated });
+});
+adminRest.delete('/integrations/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.integration.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'delete_failed' }); }
+});
+adminRest.post('/integrations/:id/toggle', async (req, res) => {
+  const { id } = req.params; const { enabled } = req.body || {};
+  const current = await db.integration.findUnique({ where: { id } });
+  if (!current) return res.status(404).json({ error: 'not_found' });
+  const cfg = Object.assign({}, (current as any).config || {});
+  cfg.enabled = Boolean(enabled);
+  const updated = await db.integration.update({ where: { id }, data: { config: cfg } });
+  res.json({ integration: updated });
+});
+adminRest.post('/integrations/test', async (req, res) => {
+  // Basic echo test for UI wiring; providers can be validated server-side later
+  const { provider, config } = req.body || {};
+  if (!provider || !config) return res.status(400).json({ ok:false, error:'missing' });
+  res.json({ ok: true });
+});
 adminRest.post('/events', async (req, res) => {
   const { name, userId, properties } = req.body || {};
   const ev = await db.event.create({ data: { name, userId, properties } });
