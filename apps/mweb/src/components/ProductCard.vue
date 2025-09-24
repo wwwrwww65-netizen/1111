@@ -2,8 +2,9 @@
   <article class="product-card" tabindex="0" role="article" dir="rtl" @click="onCardClick">
     <div class="image-wrap" @click.stop="go()">
       <picture>
-        <source :srcset="`${img}&fm=webp`" type="image/webp" />
-        <img class="product-img" :src="img" :alt="title" loading="lazy" />
+        <source :srcset="`${img}&fm=avif 1x, ${img}&fm=avif&w=1200 2x`" type="image/avif" />
+        <source :srcset="`${img}&fm=webp 1x, ${img}&fm=webp&w=1200 2x`" type="image/webp" />
+        <img class="product-img" :src="img" :alt="title" loading="lazy" decoding="async" fetchpriority="low" />
       </picture>
       <div v-if="discountPercent" class="discount-badge">-{{ discountPercent }}%</div>
       <div v-if="badgeRank" class="rank-badge">#{{ badgeRank }}</div>

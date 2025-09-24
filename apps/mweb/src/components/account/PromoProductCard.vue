@@ -1,7 +1,11 @@
 <template>
   <article class="card" dir="rtl" aria-label="بطاقة ترويجية">
     <a href="#" class="media" aria-label="عرض المنتج">
-      <img ref="imgRef" :src="visible ? img : placeholder" :srcset="visible ? imgSet : undefined" :alt="title" loading="lazy" />
+      <picture>
+        <source v-if="visible" :srcset="imgAvif" type="image/avif" />
+        <source v-if="visible" :srcset="imgSet" type="image/webp" />
+        <img ref="imgRef" :src="visible ? img : placeholder" :alt="title" loading="lazy" decoding="async" />
+      </picture>
     </a>
     <div class="body">
       <h3 class="title">{{ title }}</h3>
@@ -20,8 +24,10 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Icon from '@/components/Icon.vue'
 const title = 'لباس علوي قصير من SHEIN Privé'
-const img = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&fm=webp&w=400&auto=format&fit=crop'
-const imgSet = img + ' 1x, https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&fm=webp&w=800&auto=format&fit=crop 2x'
+const base = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop'
+const img = base + '&w=400&fm=jpg'
+const imgSet = base + '&w=400&fm=webp 1x, ' + base + '&w=800&fm=webp 2x'
+const imgAvif = base + '&w=400&fm=avif 1x, ' + base + '&w=800&fm=avif 2x'
 const placeholder = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
 const visible = ref(false)
 const imgRef = ref<HTMLImageElement|null>(null)
