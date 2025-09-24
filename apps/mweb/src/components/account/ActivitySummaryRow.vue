@@ -1,9 +1,9 @@
 <template>
-  <section class="card" dir="rtl" aria-label="ملخص النشاط">
+  <section class="card" dir="rtl" aria-label="ملخص الحساب">
     <div class="row">
-      <button class="itm" aria-label="بطاقة هدية: 0"><Icon name="gift" /><div class="tx"><div class="v">0</div><div class="k">بطاقة هدية</div></div></button>
+      <button class="itm" aria-label="الطلبات: {{ user.orders }}"><Icon name="package" /><div class="tx"><div class="v">{{ user.orders }}</div><div class="k">الطلبات</div></div></button>
       <div class="sep"></div>
-      <button class="itm" aria-label="المحفظة: 0"><Icon name="wallet" /><div class="tx"><div class="v">0</div><div class="k">المحفظة</div></div></button>
+      <button class="itm" aria-label="المراجعات: {{ user.reviews }}"><Icon name="chat" /><div class="tx"><div class="v">{{ user.reviews }}</div><div class="k">المراجعات</div></div></button>
       <div class="sep"></div>
       <button class="itm" aria-label="النقاط: {{ user.points }}"><Icon name="star" /><div class="tx"><div class="v">{{ user.points }}</div><div class="k">النقاط</div></div></button>
       <div class="sep"></div>
