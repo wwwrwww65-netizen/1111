@@ -20,7 +20,12 @@ const manualRoutes = [
   { path: '/address', component: () => import('./pages/Address.vue') },
   { path: '/pay/processing', component: () => import('./pages/PayProcessing.vue') },
   { path: '/pay/success', component: () => import('./pages/PaySuccess.vue') },
-  { path: '/pay/failure', component: () => import('./pages/PayFailure.vue') }
+  { path: '/pay/failure', component: () => import('./pages/PayFailure.vue') },
+  { path: '/legal/terms', component: () => import('./pages/LegalTerms.vue') },
+  { path: '/legal/privacy', component: () => import('./pages/LegalPrivacy.vue') },
+  { path: '/legal/shipping', component: () => import('./pages/LegalShipping.vue') },
+  { path: '/legal/returns', component: () => import('./pages/LegalReturns.vue') },
+  { path: '/legal/payments', component: () => import('./pages/LegalPayments.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];
 
