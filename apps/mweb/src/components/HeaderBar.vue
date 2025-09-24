@@ -3,13 +3,13 @@
     <div class="header-inner" dir="rtl">
       <div class="side right">
         <button class="icon-btn" aria-label="القائمة" tabindex="0"><Icon name="menu" /></button>
-        <a class="icon-btn" href="/notifications" aria-label="الإشعارات" tabindex="0"><Icon name="bell" /></a>
+        <RouterLink class="icon-btn" to="/notifications" aria-label="الإشعارات" tabindex="0"><Icon name="bell" /></RouterLink>
       </div>
       <div class="brand" aria-label="jeeey">jeeey</div>
       <div class="side left">
-        <a class="icon-btn" href="/cart" aria-label="سلة التسوق" tabindex="0"><Icon name="cart" /></a>
-        <a class="icon-btn" href="/wishlist" aria-label="المفضلة" tabindex="0"><Icon name="heart" /></a>
-        <a class="icon-btn" href="/search" aria-label="بحث" tabindex="0"><Icon name="search" /></a>
+        <RouterLink class="icon-btn" to="/cart" aria-label="سلة التسوق" tabindex="0"><Icon name="cart" /></RouterLink>
+        <RouterLink class="icon-btn" to="/wishlist" aria-label="المفضلة" tabindex="0"><Icon name="heart" /></RouterLink>
+        <RouterLink class="icon-btn" to="/search" aria-label="بحث" tabindex="0"><Icon name="search" /></RouterLink>
       </div>
     </div>
   </header>
@@ -19,6 +19,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from 'vue';
 import Icon from '@/components/Icon.vue'
+import { RouterLink } from 'vue-router'
 
 const scrolled = ref(false);
 function onScroll(){ scrolled.value = window.scrollY > 60; }

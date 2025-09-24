@@ -1,10 +1,10 @@
 <template>
 <section class="cat-grid" aria-label="الفئات" dir="rtl">
     <div class="grid">
-      <a v-for="c in cats" :key="c.title" class="cat" :href="c.href" tabindex="0" role="button" :aria-label="`تصنيف: ${c.title}`">
+      <RouterLink v-for="c in cats" :key="c.title" class="cat" :to="c.href" tabindex="0" role="button" :aria-label="`تصنيف: ${c.title}`">
         <img class="img" :src="c.img" :srcset="c.srcset" :alt="c.title" loading="lazy" />
         <div class="label">{{ c.title }}</div>
-      </a>
+      </RouterLink>
     </div>
   </section>
 </template>
@@ -12,6 +12,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { apiGet } from '@/lib/api'
+import { RouterLink } from 'vue-router'
 type Cat = { id?: string; title: string; href: string; img: string; srcset?: string }
 const cats = ref<Cat[]>([])
 onMounted(async ()=>{

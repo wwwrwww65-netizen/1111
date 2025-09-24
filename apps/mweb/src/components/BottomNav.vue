@@ -1,14 +1,14 @@
 <template>
   <nav class="bottom-nav">
-    <a href="/" :aria-current="active==='home' ? 'page' : undefined"><Icon name="home" /><span>الرئيسية</span></a>
-    <a href="/categories" :aria-current="active==='categories' ? 'page' : undefined"><Icon name="grid" /><span>التصنيفات</span></a>
-    <a href="/new" :aria-current="active==='new' ? 'page' : undefined"><Icon name="sparkles" /><span>جديد</span></a>
-    <a href="/cart" id="cart-target" class="cart-link" :aria-current="active==='cart' ? 'page' : undefined">
+    <RouterLink to="/" :aria-current="active==='home' ? 'page' : undefined"><Icon name="home" /><span>الرئيسية</span></RouterLink>
+    <RouterLink to="/categories" :aria-current="active==='categories' ? 'page' : undefined"><Icon name="grid" /><span>التصنيفات</span></RouterLink>
+    <RouterLink to="/products?sort=new" :aria-current="active==='new' ? 'page' : undefined"><Icon name="sparkles" /><span>جديد</span></RouterLink>
+    <RouterLink to="/cart" id="cart-target" class="cart-link" :aria-current="active==='cart' ? 'page' : undefined">
       <Icon name="cart" />
       <span class="badge" v-if="count>0">{{ count }}</span>
       <span>حقيبة التسوق</span>
-    </a>
-    <a href="/account" :aria-current="active==='account' ? 'page' : undefined"><Icon name="user" /><span>الحساب</span></a>
+    </RouterLink>
+    <RouterLink to="/account" :aria-current="active==='account' ? 'page' : undefined"><Icon name="user" /><span>الحساب</span></RouterLink>
   </nav>
 </template>
 
@@ -16,6 +16,7 @@
 import Icon from '@/components/Icon.vue'
 import { useCart } from '@/store/cart'
 import { storeToRefs } from 'pinia'
+import { RouterLink } from 'vue-router'
 defineProps<{ active?: 'home'|'categories'|'new'|'cart'|'account' }>()
 const cart = useCart()
 const { count } = storeToRefs(cart)

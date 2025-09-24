@@ -1,12 +1,13 @@
 <template>
   <div class="sh">
     <h2>{{ title }}</h2>
-    <a v-if="href" class="more" :href="href">المزيد</a>
+    <RouterLink v-if="href" class="more" :to="href">المزيد</RouterLink>
   </div>
 </template>
 
 <script setup lang="ts">
 defineProps<{ title: string; href?: string }>();
+import { RouterLink } from 'vue-router'
 </script>
 
 <style scoped>
