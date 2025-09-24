@@ -9,6 +9,7 @@ export default function CouponsPage(): JSX.Element {
   const [discountValue, setDiscountValue] = React.useState<string>("10");
   const [edit, setEdit] = React.useState<Record<string, number>>({});
   const [rules, setRules] = React.useState('{"enabled":true,"min":0,"max":null,"includes":[],"excludes":[],"schedule":{"from":null,"to":null}}');
+  const [rulesModal, setRulesModal] = React.useState<{open:boolean, code:string, text:string, loading:boolean}>({ open:false, code:"", text:"", loading:false });
 
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   async function load() {
@@ -44,6 +45,7 @@ export default function CouponsPage(): JSX.Element {
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>النوع</th>
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>القيمة</th>
             <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>تحرير</th>
+            <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:8 }}>القواعد</th>
           </tr>
         </thead>
         <tbody>
@@ -61,10 +63,49 @@ export default function CouponsPage(): JSX.Element {
                   <button onClick={()=>setEdit(s=>({...s,[c.id]:c.discountValue}))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:6 }}>تحرير</button>
                 )}
               </td>
+              <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
+                <button onClick={async ()=>{
+                  setRulesModal({ open:true, code:c.code, text:'', loading:true });
+                  try {
+                    const r = await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(c.code)}/rules`, { credentials:'include' });
+                    const j = await r.json();
+                    setRulesModal({ open:true, code:c.code, text: JSON.stringify(j.rules ?? {}, null, 2), loading:false });
+                  } catch {
+                    setRulesModal({ open:true, code:c.code, text: '{}', loading:false });
+                  }
+                }} style={{ padding:'6px 10px', background:'#1f2937', color:'#e5e7eb', borderRadius:6 }}>تحرير القواعد</button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {rulesModal.open && (
+        <div role="dialog" aria-modal="true" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', display:'grid', placeItems:'center', zIndex:1000 }}>
+          <div style={{ width:'min(720px, 96vw)', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <h2 style={{ margin:0 }}>قواعد الكوبون: {rulesModal.code}</h2>
+              <button onClick={()=> setRulesModal({ open:false, code:'', text:'', loading:false })} style={{ padding:'6px 10px' }}>إغلاق</button>
+            </div>
+            {rulesModal.loading ? (
+              <div>جاري التحميل...</div>
+            ) : (
+              <textarea value={rulesModal.text} onChange={(e)=> setRulesModal(s=> ({ ...s, text: e.target.value }))} style={{ width:'100%', minHeight:260, padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            )}
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 }}>
+              <button onClick={()=> setRulesModal({ open:false, code:'', text:'', loading:false })} style={{ padding:'8px 12px' }}>إلغاء</button>
+              <button onClick={async ()=>{
+                try {
+                  const parsed = rulesModal.text.trim() ? JSON.parse(rulesModal.text) : {};
+                  await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(rulesModal.code)}/rules`, { method:'PUT', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ rules: parsed }) });
+                  setRulesModal({ open:false, code:'', text:'', loading:false });
+                } catch (err) {
+                  alert('JSON غير صالح');
+                }
+              }} style={{ padding:'8px 12px', background:'#064e3b', color:'#e5e7eb', borderRadius:8 }}>حفظ</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

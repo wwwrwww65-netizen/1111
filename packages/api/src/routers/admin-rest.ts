@@ -2559,6 +2559,42 @@ adminRest.post('/coupons', async (req, res) => {
     res.status(500).json({ error: e.message || 'coupon_create_failed' });
   }
 });
+
+// Advanced coupon rules stored in settings to avoid schema migrations
+adminRest.get('/coupons/:code/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const user = (req as any).user; if (!(await can(user.userId, 'coupons.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const code = String(req.params.code || '').toUpperCase();
+    if (!code) return res.status(400).json({ error: 'code_required' });
+    const key = `coupon_rules:${code}`;
+    const setting = await db.setting.findUnique({ where: { key } });
+    return res.json({ code, rules: (setting?.value as any) ?? null });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'coupon_rules_get_failed' });
+  }
+});
+adminRest.put('/coupons/:code/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.update'))) return res.status(403).json({ error:'forbidden' });
+    const user = (req as any).user; if (!(await can(user.userId, 'coupons.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const code = String(req.params.code || '').toUpperCase();
+    if (!code) return res.status(400).json({ error: 'code_required' });
+    const rules = req.body?.rules ?? null;
+    // Basic validation: ensure JSON-serializable object or null
+    if (rules !== null && typeof rules !== 'object') return res.status(400).json({ error: 'rules_must_be_object_or_null' });
+    const key = `coupon_rules:${code}`;
+    const setting = await db.setting.upsert({
+      where: { key },
+      update: { value: rules },
+      create: { key, value: rules },
+    });
+    await audit(req, 'coupons', 'rules_update', { code });
+    return res.json({ code, rules: setting.value });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'coupon_rules_put_failed' });
+  }
+});
 adminRest.get('/analytics', async (req, res) => {
   try {
     const user = (req as any).user;
