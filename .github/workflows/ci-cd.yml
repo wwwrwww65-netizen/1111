@@ -3,7 +3,7 @@ name: CI / CD (pnpm & Turborepo)
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
     branches:
       - main
