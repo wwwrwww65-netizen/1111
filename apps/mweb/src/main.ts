@@ -32,6 +32,7 @@ const manualRoutes = [
   { path: '/payments', component: () => import('./pages/PaymentMethods.vue') }
   ,{ path: '/order/track', component: () => import('./pages/OrderTrack.vue') }
   ,{ path: '/returns', component: () => import('./pages/Returns.vue') }
+  ,{ path: '/help', component: () => import('./pages/Help.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];
 

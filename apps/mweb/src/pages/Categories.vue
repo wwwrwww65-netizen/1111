@@ -44,7 +44,8 @@
       <!-- Main grid -->
       <main class="main">
         <h2 class="ttl">مختارات من أجلك</h2>
-        <div class="grid">
+        <SkeletonGrid v-if="loading" :count="9" :cols="3" />
+        <div v-else class="grid">
           <a v-for="c in filteredCats" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`">
             <img :src="c.image" :alt="c.name" />
             <div class="name">{{ c.name }}</div>
@@ -68,11 +69,13 @@
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
+import SkeletonGrid from '@/components/SkeletonGrid.vue'
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet } from '@/lib/api'
 type Cat = { id:string; name:string; image:string }
 const cats = ref<Cat[]>([])
+const loading = ref(true)
 const active = ref('all')
 function setTab(v:string){ active.value = v }
 const router = useRouter()
@@ -87,6 +90,7 @@ onMounted(async ()=>{
   } else {
     cats.value = Array.from({ length: 12 }).map((_,i)=>({ id:String(i+1), name:`فئة ${i+1}`, image:`https://picsum.photos/seed/cat${i}/200/200` }))
   }
+  loading.value = false
 })
 const filteredCats = computed(()=>{
   if (active.value==='all') return cats.value

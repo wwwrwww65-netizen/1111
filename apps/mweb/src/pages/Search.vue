@@ -73,6 +73,7 @@ import { API_BASE } from '@/lib/api'
 
 type P = { id:string; title:string; price:number; img:string }
 const q = ref('')
+let t: any
 const placeholder = 'أنماط مريحة لخريف وشتاء'
 const items = ref<P[]>([])
 const openFilters = ref(false)
@@ -115,6 +116,15 @@ async function runSearch(){
   }catch{}
   items.value = Array.from({length:6}).map((_,i)=>({ id:String(i+1), title:`${q.value||'منتج'} ${i+1}`, price: 49 + i*7, img:'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', off: i%2?10:0, sold: 120+i, fast: i%3===0, after: i%2? `SR ${(49+i*7-3).toFixed(2)}`: '' }))
 }
+
+// suggestions (debounced)
+const suggestions = ref<string[]>([])
+watch(q, (nv)=>{
+  clearTimeout(t); t = setTimeout(async ()=>{
+    if (!nv.trim()) { suggestions.value = []; return }
+    try{ const r = await fetch(`${API_BASE}/api/search/suggest?q=${encodeURIComponent(nv)}`, { credentials:'omit' }); if(r.ok){ const j = await r.json(); suggestions.value = Array.isArray(j?.items)? j.items : [] } }catch{ suggestions.value = [] }
+  }, 220)
+})
 </script>
 
 <style scoped>
