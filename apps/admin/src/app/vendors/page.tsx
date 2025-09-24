@@ -88,16 +88,19 @@ export default function VendorsPage(): JSX.Element {
         </div>
       </section>
       <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12, marginTop: 16 }}>
-        <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:8 }}>
+        <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:8, justifyContent:'space-between' }}>
+          <div style={{ display:'flex', gap:12, alignItems:'center' }}>
           <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.email} onChange={(e)=> setVisibleCols(v=> ({ ...v, email: e.currentTarget.checked }))} /> بريد</label>
           <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.phone} onChange={(e)=> setVisibleCols(v=> ({ ...v, phone: e.currentTarget.checked }))} /> هاتف</label>
           <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.code} onChange={(e)=> setVisibleCols(v=> ({ ...v, code: e.currentTarget.checked }))} /> كود</label>
+          </div>
+          <div style={{ color:'var(--sub)', fontSize:12 }}>{rows.length} نتيجة</div>
         </div>
         {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
         {!loading && rows.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا موردين</div>)}
         {rows.length>0 && (
         <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
-          <thead>
+          <thead style={{ position:'sticky', top:0, background:'#0b0e14', zIndex:1 }}>
             <tr>
               <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='name' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'name') : (setSortDir('asc'), 'name'))} style={{ background:'transparent', color:'#e2e8f0' }}>الاسم {sortBy==='name'?(sortDir==='asc'?'▲':'▼'):''}</button></th>
               {visibleCols.email && (<th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='contactEmail' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'contactEmail') : (setSortDir('asc'), 'contactEmail'))} style={{ background:'transparent', color:'#e2e8f0' }}>البريد {sortBy==='contactEmail'?(sortDir==='asc'?'▲':'▼'):''}</button></th>)}
