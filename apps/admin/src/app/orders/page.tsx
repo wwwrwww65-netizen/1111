@@ -19,6 +19,7 @@ export default function OrdersPage(): JSX.Element {
   const [total, setTotal] = React.useState(0);
   const [drivers, setDrivers] = React.useState<Array<{id:string;name:string}>>([]);
   const [busy, setBusy] = React.useState(false);
+  const [pendingFilters, setPendingFilters] = React.useState(false);
   const [showCreate, setShowCreate] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
   const [coName, setCoName] = React.useState('');
@@ -37,6 +38,7 @@ export default function OrdersPage(): JSX.Element {
   }, []);
 
   const loadCtlRef = React.useRef<AbortController|null>(null);
+  const debounceRef = React.useRef<any>(null);
   async function load() {
     const url = new URL(`/api/admin/orders/list`, window.location.origin);
     url.searchParams.set("page", String(page));
@@ -62,10 +64,18 @@ export default function OrdersPage(): JSX.Element {
       if (e?.name !== 'AbortError') console.warn('orders load error', e);
     } finally {
       setBusy(false);
+      setPendingFilters(false);
     }
   }
 
   React.useEffect(() => { load(); }, [page, pageSize, sortBy, sortDir]);
+  React.useEffect(()=>{
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setPendingFilters(true);
+    debounceRef.current = setTimeout(()=>{ setPage(1); load(); }, 350);
+    return ()=> { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, search, driverId, dateFrom, dateTo, amountMin, amountMax]);
   React.useEffect(()=>{
     const ctl = new AbortController();
     (async ()=>{ try{ const j = await (await fetch(`/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal })).json(); setDrivers(j.drivers||[]);} catch{} })();
@@ -108,10 +118,13 @@ export default function OrdersPage(): JSX.Element {
       default: return '';
     }
   }
+  function formatMoney(v: number): string {
+    try { return Number(v||0).toLocaleString('ar-SA'); } catch { return String(v); }
+  }
 
   return (
     <>
-    <main className="panel">
+    <main className="panel" style={{ padding:16 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
         <h1 style={{ margin:0 }}>الطلبات</h1>
         <div style={{ display:'flex', gap:8 }}>
@@ -120,7 +133,7 @@ export default function OrdersPage(): JSX.Element {
         </div>
       </div>
 
-      <div className="toolbar" style={{ justifyContent:'space-between', marginBottom:12 }}>
+      <div className="toolbar" style={{ justifyContent:'space-between', marginBottom:12, alignItems:'center' }}>
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
           <div className="search"><input className="input" value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث (المعرف/الاسم/الإيميل/الهاتف)" /></div>
           <select value={status} onChange={(e)=>setStatus(e.target.value)} className="select filter">
@@ -150,17 +163,32 @@ export default function OrdersPage(): JSX.Element {
             <option value="desc">تنازلي</option>
             <option value="asc">تصاعدي</option>
           </select>
-          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">تطبيق</button>
           <div style={{ display:'flex', gap:8 }}>
             <button className="btn" onClick={()=> bulk('ship')}>شحن المحدد</button>
             <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
           </div>
         </div>
+        <div style={{ color:'var(--sub)', fontSize:12 }}>
+          {pendingFilters ? '...تطبيق المرشحات' : `${total} نتيجة`}
+        </div>
+      </div>
+
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
+        {[
+          {k:'', label:'الكل'},
+          {k:'PENDING', label:'قيد الانتظار'},
+          {k:'PAID', label:'مدفوع'},
+          {k:'SHIPPED', label:'تم الشحن'},
+          {k:'DELIVERED', label:'تم التسليم'},
+          {k:'CANCELLED', label:'ملغي'},
+        ].map(it=> (
+          <button key={it.k||'all'} onClick={()=> setStatus(it.k)} className={`btn ${status===it.k? '':'btn-outline'}`}>{it.label}</button>
+        ))}
       </div>
 
       <div style={{ overflowX:'auto' }}>
       <table className="table">
-        <thead>
+        <thead style={{ position:'sticky', top:0, background:'var(--panel)', zIndex:1 }}>
           <tr>
             <th><input type="checkbox" onChange={(e)=>{ const on=e.currentTarget.checked; const m:Record<string,boolean>={}; for (const r of rows) m[r.id]=on; setSelected(m); }} /></th>
             <th style={{minWidth:160}}>رقم الطلب</th>
@@ -187,7 +215,7 @@ export default function OrdersPage(): JSX.Element {
               <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
               <td>{o.shippingAddress?.street||'-'}</td>
               <td>{o.items?.length||0}</td>
-              <td>{o.total}</td>
+              <td>{formatMoney(o.total)}</td>
               <td>
                 <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                   <span className={`badge ${statusClass(o.status)}`}>{o.status}</span>
