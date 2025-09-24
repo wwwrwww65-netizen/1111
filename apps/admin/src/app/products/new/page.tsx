@@ -28,6 +28,22 @@ export default function AdminProductCreate(): JSX.Element {
   const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
   const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
   
+  function Section({ title, subtitle, toolbar, children }:{ title:string; subtitle?:string; toolbar?:React.ReactNode; children:React.ReactNode }){
+    return (
+      <section className="panel" style={{ marginBottom:16, padding:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <div>
+            <h2 style={{ margin:0, fontSize:16 }}>{title}</h2>
+            {subtitle && <div style={{ color:'var(--sub)', fontSize:12, marginTop:4 }}>{subtitle}</div>}
+          </div>
+          {toolbar && <div className="toolbar" style={{ gap:8 }}>{toolbar}</div>}
+        </div>
+        <div style={{ display:'grid', gap:12 }}>
+          {children}
+        </div>
+      </section>
+    );
+  }
 
   const stopwords = React.useMemo(()=> new Set<string>([
     // Arabic marketing/noise
@@ -564,18 +580,18 @@ export default function AdminProductCreate(): JSX.Element {
 
   return (
     <div className="container">
-    <main className="panel">
+    <main className="panel" style={{ padding:16 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
         <h1 style={{ margin:0 }}>إنشاء منتج</h1>
         <a href="/products" className="btn btn-outline">رجوع</a>
       </div>
 
-      <section className="panel" style={{ marginBottom:16 }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-          <h2 style={{ margin:0 }}>Paste & Generate</h2>
-          <div className="toolbar" style={{ gap:8 }}>
-            <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
-            <button type="button" onClick={()=>{
+      <Section
+        title="Paste & Generate"
+        subtitle="الصق مواصفات المنتج وسيتم تحليلها واقتراح الحقول تلقائياً."
+        toolbar={<>
+          <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
+          <button type="button" onClick={()=>{
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);
               setName(limitedName);
@@ -610,11 +626,11 @@ export default function AdminProductCreate(): JSX.Element {
               }
               setVariantRows(rows);
             }} disabled={busy || !review} className="btn">توليد</button>
-          </div>
-        </div>
+        </>}
+      >
         <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16 }}>
           <div style={{ display:'grid', gap:12 }}>
-            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={8} className="input" style={{ borderRadius:12 }} />
+            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={6} className="input" style={{ borderRadius:12 }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
             {review && (
               <div className="panel" style={{ padding:12 }}>
@@ -715,7 +731,7 @@ export default function AdminProductCreate(): JSX.Element {
             )}
           </div>
         </div>
-      </section>
+      </Section>
 
       <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 20, alignItems:'start' }}>
         {/* Left main column span 8 */}
@@ -956,8 +972,27 @@ export default function AdminProductCreate(): JSX.Element {
           )}
         </div>
 
-        {/* Right meta column span 4 */}
-        <div style={{ gridColumn: 'span 4', display:'grid', gap:12 }}>
+        {/* Right column: summary + media */}
+        <div style={{ gridColumn: 'span 4', display:'grid', gap:12, alignSelf:'start' }}>
+          <div className="panel" style={{ position:'sticky', top:16, padding:12 }}>
+            <div style={{ display:'grid', gap:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between' }}>
+                <div style={{ color:'var(--sub)' }}>المعاينة</div>
+                <span className="badge">{type==='variable' ? 'متعدد' : 'بسيط'}</span>
+              </div>
+              <div style={{ fontWeight:700 }}>{name || '— بدون اسم —'}</div>
+              <div style={{ color:'var(--sub)', fontSize:12 }}>{categoryOptions.find(c=>c.id===categoryId)?.name || 'بدون تصنيف'}</div>
+              <div style={{ display:'flex', gap:12, marginTop:6 }}>
+                <div><div style={{ color:'var(--sub)', fontSize:12 }}>سعر البيع</div><div>{salePrice || '—'}</div></div>
+                <div><div style={{ color:'var(--sub)', fontSize:12 }}>المخزون</div><div>{stockQuantity || 0}</div></div>
+                <div><div style={{ color:'var(--sub)', fontSize:12 }}>الصور</div><div>{(images||'').split(',').filter(Boolean).length + files.length}</div></div>
+              </div>
+              <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                <button type="submit" className="btn" disabled={!name || !categoryId || salePrice==='' || salePrice===undefined}>حفظ المنتج</button>
+                <a href="/products" className="btn btn-outline">رجوع</a>
+              </div>
+            </div>
+          </div>
           <label>الصور (روابط مفصولة بفواصل)
             <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
           </label>
