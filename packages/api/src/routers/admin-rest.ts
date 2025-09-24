@@ -3070,6 +3070,23 @@ adminRest.post('/integrations/test', async (req, res) => {
   if (!provider || !config) return res.status(400).json({ ok:false, error:'missing' });
   res.json({ ok: true });
 });
+
+// Affiliate payouts minimal endpoints
+adminRest.get('/affiliates/ledger', async (_req, res) => {
+  try{
+    const rows = await db.$queryRawUnsafe('SELECT id, ref, "orderId", amount, commission, status, "createdAt" FROM "AffiliateLedger" ORDER BY "createdAt" DESC LIMIT 500');
+    res.json({ ledger: rows })
+  }catch(e:any){ res.status(500).json({ error: e.message || 'aff_ledger_failed' }) }
+});
+adminRest.post('/affiliates/payouts', async (req, res) => {
+  try{
+    const { ref, amount } = req.body || {};
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AffiliatePayouts" (id TEXT PRIMARY KEY, ref TEXT, amount DOUBLE PRECISION, status TEXT, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const id = Math.random().toString(36).slice(2)
+    await db.$executeRawUnsafe('INSERT INTO "AffiliatePayouts" (id, ref, amount, status) VALUES ($1,$2,$3,$4)', id, String(ref), Number(amount||0), 'REQUESTED')
+    res.json({ payoutId: id })
+  }catch(e:any){ res.status(500).json({ error: e.message || 'aff_payout_failed' }) }
+});
 adminRest.post('/events', async (req, res) => {
   const { name, userId, properties } = req.body || {};
   const ev = await db.event.create({ data: { name, userId, properties } });

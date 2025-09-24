@@ -36,6 +36,8 @@ const manualRoutes = [
   ,{ path: '/returns', component: () => import('./pages/Returns.vue') }
   ,{ path: '/help', component: () => import('./pages/Help.vue') }
   ,{ path: '/contact', component: () => import('./pages/Contact.vue') }
+  ,{ path: '/points', component: () => import('./pages/Points.vue') }
+  ,{ path: '/prefs', component: () => import('./pages/Prefs.vue') }
   ,{ path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];

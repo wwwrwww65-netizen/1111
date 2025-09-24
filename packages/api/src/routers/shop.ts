@@ -18,6 +18,24 @@ function requireAuth(req: any, res: any, next: any) {
 }
 
 // Session info (optional auth)
+// Notification preferences
+shop.get('/me/preferences', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId;
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserPreferences" ("userId" TEXT PRIMARY KEY, email BOOLEAN, sms BOOLEAN, whatsapp BOOLEAN, webpush BOOLEAN, "updatedAt" TIMESTAMP DEFAULT NOW())');
+    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "UserPreferences" WHERE "userId"=$1', userId)) as any[])[0] || { email:true, sms:false, whatsapp:false, webpush:true };
+    res.json({ preferences: { email: !!row.email, sms: !!row.sms, whatsapp: !!row.whatsapp, webpush: !!row.webpush } });
+  }catch{ res.status(500).json({ error:'failed' }) }
+});
+shop.put('/me/preferences', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId; const { email=true, sms=false, whatsapp=false, webpush=true } = req.body || {};
+    const exists: any = ((await db.$queryRawUnsafe('SELECT 1 FROM "UserPreferences" WHERE "userId"=$1', userId)) as any[])[0];
+    if (exists) await db.$executeRawUnsafe('UPDATE "UserPreferences" SET email=$1,sms=$2,whatsapp=$3,webpush=$4,"updatedAt"=NOW() WHERE "userId"=$5', !!email, !!sms, !!whatsapp, !!webpush, userId)
+    else await db.$executeRawUnsafe('INSERT INTO "UserPreferences" ("userId",email,sms,whatsapp,webpush) VALUES ($1,$2,$3,$4,$5)', userId, !!email, !!sms, !!whatsapp, !!webpush)
+    res.json({ ok:true })
+  }catch{ res.status(500).json({ error:'failed' }) }
+});
 shop.get('/me', async (req: any, res) => {
   try {
     const token = readTokenFromRequest(req);
@@ -196,7 +214,7 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId } = req.body || {};
+    const { shippingAddressId, ref } = req.body || {};
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
     const total = cart.items.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
@@ -210,6 +228,15 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       },
       include: { items: true },
     });
+    // Affiliate ledger (create table if needed)
+    if (ref) {
+      try {
+        await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AffiliateLedger" (id TEXT PRIMARY KEY, ref TEXT, "orderId" TEXT, amount DOUBLE PRECISION, commission DOUBLE PRECISION, status TEXT, "createdAt" TIMESTAMP DEFAULT NOW())');
+        const id = Math.random().toString(36).slice(2);
+        const commission = Number((total * 0.05).toFixed(2));
+        await db.$executeRawUnsafe('INSERT INTO "AffiliateLedger" (id, ref, "orderId", amount, commission, status) VALUES ($1,$2,$3,$4,$5,$6)', id, String(ref), order.id, Number(total), commission, 'PENDING');
+      } catch {}
+    }
     await db.cartItem.deleteMany({ where: { cartId: cart.id } });
     res.json({ order });
   } catch {
@@ -249,6 +276,17 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       await db.payment.create({ data: { orderId: order.id, amount, currency: 'SAR', method: method as any, status: 'COMPLETED' } as any });
     }
     await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } });
+    // Loyalty: accrue points (1 point لكل 10 SAR)
+    try {
+      await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PointLedger" (id TEXT PRIMARY KEY, "userId" TEXT NOT NULL, points INTEGER NOT NULL, reason TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+      const idp = Math.random().toString(36).slice(2);
+      const pts = Math.floor(Number(amount) / 10);
+      if (pts > 0) await db.$executeRawUnsafe('INSERT INTO "PointLedger" (id, "userId", points, reason) VALUES ($1,$2,$3,$4)', idp, userId, pts, 'ORDER_PAID');
+    } catch {}
+    // Affiliate: approve commission
+    try {
+      await db.$executeRawUnsafe('UPDATE "AffiliateLedger" SET status=\'APPROVED\' WHERE "orderId"=$1 AND status=\'PENDING\'', order.id);
+    } catch {}
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
