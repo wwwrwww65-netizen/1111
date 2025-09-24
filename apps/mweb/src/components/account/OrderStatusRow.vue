@@ -1,10 +1,10 @@
 <template>
   <section class="card" dir="rtl" aria-label="حالات الطلبات">
     <div class="row">
-      <button class="st" aria-label="قيد التجهيز"><Icon name="box" /><span>قيد التجهيز</span></button>
-      <button class="st" aria-label="تم الشحن"><Icon name="truck" /><span>تم الشحن</span></button>
-      <button class="st" aria-label="في التوصيل"><Icon name="pin" /><span>في التوصيل</span><em v-if="user.orders>0" class="badge">{{ user.orders }}</em></button>
-      <button class="st" aria-label="مُسترجع"><Icon name="undo" /><span>مسترجع</span></button>
+      <button class="st" aria-label="قيد التجهيز" @click="go('/orders?status=preparing')"><Icon name="box" /><span>قيد التجهيز</span></button>
+      <button class="st" aria-label="تم الشحن" @click="go('/orders?status=shipped')"><Icon name="truck" /><span>تم الشحن</span></button>
+      <button class="st" aria-label="في التوصيل" @click="go('/orders?status=delivering')"><Icon name="pin" /><span>في التوصيل</span><em v-if="user.orders>0" class="badge">{{ user.orders }}</em></button>
+      <button class="st" aria-label="مُسترجع" @click="go('/returns')"><Icon name="undo" /><span>مسترجع</span></button>
     </div>
   </section>
 </template>
@@ -12,7 +12,10 @@
 <script setup lang="ts">
 import Icon from '@/components/Icon.vue'
 import { useUser } from '@/store/user'
+import { useRouter } from 'vue-router'
 const user = useUser()
+const router = useRouter()
+function go(path:string){ router.push(path) }
 </script>
 
 <style scoped>
