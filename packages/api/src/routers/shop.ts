@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '@repo/db';
 import { readTokenFromRequest, verifyJwt } from '../utils/jwt';
+import type { Request } from 'express'
 
 const shop = Router();
 
@@ -368,4 +369,85 @@ shop.post('/wishlist/toggle', requireAuth, async (req: any, res) => {
 });
 
 export default shop;
+
+// Payments session (Stripe/HyperPay via integrations)
+shop.post('/payments/session', requireAuth, async (req: any, res) => {
+  try{
+    const { amount, currency='SAR', method='CARD', returnUrl, cancelUrl, ref } = req.body || {}
+    const integrations = await db.integration.findMany({ orderBy: { createdAt: 'desc' } })
+    const cfg = integrations.reduce((acc:any,it:any)=>Object.assign(acc,it.config||{}),{})
+    if (cfg.provider === 'stripe' && cfg.secretKey){
+      const body = new URLSearchParams({
+        'success_url': String(returnUrl||''),
+        'cancel_url': String(cancelUrl||''),
+        'mode': 'payment',
+        'line_items[0][price_data][currency]': String(currency).toLowerCase(),
+        'line_items[0][price_data][product_data][name]': 'Order',
+        'line_items[0][price_data][unit_amount]': String(Math.round(Number(amount||0)*100)),
+        'line_items[0][quantity]': '1',
+        'metadata[ref]': String(ref||'')
+      })
+      const sr = await fetch('https://api.stripe.com/v1/checkout/sessions', { method:'POST', headers:{ 'Authorization': `Bearer ${cfg.secretKey}`, 'Content-Type':'application/x-www-form-urlencoded' }, body })
+      const sj = await sr.json()
+      if (sj && sj.url) return res.json({ redirectUrl: sj.url })
+      return res.status(400).json({ error:'stripe_session_failed', details:sj })
+    }
+    // HyperPay placeholder
+    if (cfg.provider === 'hyperpay' && cfg.accessToken){
+      // Return a hosted payment page URL placeholder; real integration requires prepare checkoutId then redirect
+      const url = String(returnUrl||'/pay/success')
+      return res.json({ redirectUrl: url })
+    }
+    return res.status(400).json({ error:'no_provider' })
+  }catch(e:any){ res.status(500).json({ error: e.message||'failed' }) }
+})
+
+// Stripe webhook (signature validation omitted for brevity)
+shop.post('/webhooks/stripe', async (req: Request, res) => {
+  try{
+    const event: any = req.body
+    if (event?.type === 'checkout.session.completed'){
+      const session = event.data?.object
+      // Mark order paid if metadata carries order id (optional); otherwise no-op
+      // Implement custom mapping as needed
+    }
+    res.json({ received:true })
+  }catch{ res.status(200).end() }
+})
+
+// Coupons apply with rules
+shop.post('/coupons/apply', requireAuth, async (req:any, res) => {
+  try{
+    const { code } = req.body || {}
+    if (!code) return res.status(400).json({ error:'code_required' })
+    const c = await db.coupon.findUnique({ where: { code: String(code) } })
+    if (!c) return res.status(404).json({ error:'not_found' })
+    const now = Date.now()
+    if (c.validFrom && new Date(c.validFrom).getTime() > now) return res.status(400).json({ error:'not_started' })
+    if (c.validUntil && new Date(c.validUntil).getTime() < now) return res.status(400).json({ error:'expired' })
+    const rules: any = (c as any).rules || {}
+    if (rules.enabled === false) return res.status(400).json({ error:'disabled' })
+    // TODO: enforce includes/excludes by cart content (requires join); allow pass-through for now
+    res.json({ ok: true, coupon: { code: c.code, type: c.discountType, value: c.discountValue } })
+  }catch(e:any){ res.status(500).json({ error:e.message||'failed' }) }
+})
+
+// Shipping quote (simple placeholder; replace with provider call if enabled)
+shop.get('/shipping/quote', async (req, res) => {
+  try{
+    const method = String(req.query.method||'std')
+    const base = method==='fast' ? 30 : 18
+    res.json({ price: base })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Search suggestions
+shop.get('/search/suggest', async (req, res)=>{
+  try{
+    const q = String(req.query.q||'').trim()
+    if (!q) return res.json({ items: [] })
+    const rows = await db.product.findMany({ where: { name: { contains: q, mode:'insensitive' } }, select: { name:true }, take: 10 })
+    res.json({ items: rows.map(r=>r.name) })
+  }catch{ res.status(500).json({ items: [] }) }
+})
 
