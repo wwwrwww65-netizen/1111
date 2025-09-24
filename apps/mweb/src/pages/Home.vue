@@ -70,6 +70,14 @@ onMounted(async ()=>{
       { img: 'https://images.unsplash.com/photo-1547949003-9792a18a2601?q=80&w=480&auto=format&fit=crop', title: 'حقيبة يد', original: '299 ر.س', price: '249 ر.س', badge: '-17%' },
     ]
   }
+  // recommendations (fallback graceful)
+  const reco = await apiGet<any>('/api/recommendations/home')
+  if (reco && Array.isArray(reco.items)){
+    // reuse into newItems if empty
+    if (!newItems.value.length){
+      newItems.value = reco.items.map((p:any)=> ({ id: p.id, title: p.name, img: p.images?.[0], price: (p.price||0)+' ر.س' }))
+    }
+  }
 })
 </script>
 

@@ -1,5 +1,31 @@
 export async function injectTracking(): Promise<void> {
   try {
+    // Sentry init if DSN provided
+    let sentryDsn = (import.meta as any)?.env?.SENTRY_DSN;
+    if (!sentryDsn){
+      try{ const r = await fetch('/api/tracking/keys', { credentials:'omit' }); if(r.ok){ const j = await r.json(); sentryDsn = j?.keys?.SENTRY_DSN || sentryDsn } }catch{}
+    }
+    if (sentryDsn && !document.getElementById('sentry')){
+      const s = document.createElement('script'); s.id='sentry'; s.src='https://browser.sentry-cdn.com/7.119.0/bundle.tracing.min.js'; s.integrity='sha384-'; s.crossOrigin='anonymous'; s.onload = ()=>{
+        // @ts-ignore
+        Sentry.init({ dsn: sentryDsn, tracesSampleRate: 0.1 });
+      };
+      document.head.appendChild(s);
+    }
+
+    // Web Vitals to GA4 if consented
+    // Lazy import to avoid blocking
+    import('https://unpkg.com/web-vitals@3/dist/web-vitals.attribution.iife.js').then(()=>{
+      // @ts-ignore
+      if (typeof webVitals!=='undefined' && (window as any).gtag){
+        // @ts-ignore
+        webVitals.onCLS(sendToGA); webVitals.onFID(sendToGA); webVitals.onLCP(sendToGA); webVitals.onINP(sendToGA); webVitals.onTTFB(sendToGA);
+        function sendToGA(metric:any){
+          // @ts-ignore
+          gtag('event', metric.name, { value: Math.round(metric.value * (metric.name==='CLS'?1000:1)), event_label: metric.id, non_interaction: true });
+        }
+      }
+    }).catch(()=>{})
     // Wait for consent
     const consent = localStorage.getItem('consent_v1')
     if (consent !== 'yes') {

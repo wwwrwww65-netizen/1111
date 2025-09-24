@@ -57,12 +57,23 @@
     <section class="container reviews" id="reviews" aria-label="التقييمات">
       <div class="head">
         <div class="ttl">التقييمات</div>
-        <RatingStars :value="rating" />
+        <RatingStars :value="avgRating" />
       </div>
-      <div class="photos">
-        <img v-for="i in 6" :key="i" :src="`https://picsum.photos/seed/r${i}/120/120`" alt="صورة عميل" loading="lazy" />
+      <div class="comment" v-for="r in reviews" :key="r.id">
+        <div class="row" style="justify-content:space-between"><strong>{{ r.user||'مستخدم' }}</strong><span>{{ r.stars }}★</span></div>
+        <div>{{ r.text }}</div>
       </div>
-      <div class="comment" v-for="i in 2" :key="'c'+i">منتج رائع، الجودة ممتازة والشحن سريع.</div>
+      <form class="card" @submit.prevent="submitReview" style="margin-top:8px;display:grid;gap:6px;padding:8px">
+        <select v-model.number="stars" class="input" required>
+          <option :value="5">5 نجوم</option>
+          <option :value="4">4 نجوم</option>
+          <option :value="3">3 نجوم</option>
+          <option :value="2">2 نجوم</option>
+          <option :value="1">1 نجمة</option>
+        </select>
+        <textarea v-model="text" class="input" rows="3" placeholder="اكتب مراجعتك" required></textarea>
+        <button class="btn">إرسال المراجعة</button>
+      </form>
     </section>
 
     <section class="container related" id="related" aria-label="منتجات مشابهة">
@@ -83,7 +94,7 @@ import BottomNav from '@/components/BottomNav.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useCart } from '@/store/cart'
-import { API_BASE, apiPost } from '@/lib/api'
+import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { useWishlist } from '@/store/wishlist'
 import RatingStars from '@/components/RatingStars.vue'
 import TabsBar from '@/components/TabsBar.vue'
@@ -106,7 +117,10 @@ const sizes = ['XS','S','M','L','XL']
 const size = ref<string>('M')
 const colors = ['#111','#c00','#0a7','#f5a623']
 const colorIdx = ref(0)
-const rating = ref(4.9)
+const avgRating = ref(4.9)
+const reviews = ref<any[]>([])
+const stars = ref<number>(5)
+const text = ref('')
 const tabs = ['الوصف','المراجعات','التوصية','الأكثر مبيعًا']
 const activeTab = ref(tabs[0])
 const description = 'وصف تفصيلي للمنتج يوضح المواصفات والفوائد والاستخدام وخامات التصنيع وغير ذلك من المعلومات المهمة للمستخدم.'
@@ -133,7 +147,26 @@ onMounted(async ()=>{
       original.value = d.original ? d.original + ' ر.س' : original.value
     }
   }catch{}
+  try{
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id)}`)
+    if (list && Array.isArray(list.items)){
+      reviews.value = list.items
+      const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
+      avgRating.value = list.items.length? (sum/list.items.length) : avgRating.value
+    }
+  }catch{}
+  try{
+    const rec = await apiGet<any>(`/api/recommendations/product?productId=${encodeURIComponent(id)}`)
+    if (rec && Array.isArray(rec.items)){
+      // show in related
+      related.splice(0, related.length, ...rec.items.map((p:any)=>({ img:p.images?.[0]||'https://picsum.photos/seed/rel/320/240', title:p.name, price:`SR ${(p.price||0).toFixed(2)}` })))
+    }
+  }catch{}
 })
+async function submitReview(){
+  const ok = await apiPost('/api/reviews', { productId: id, stars: stars.value, text: text.value })
+  if (ok){ reviews.value.unshift({ id: Math.random().toString(36).slice(2), user:'أنت', stars: stars.value, text: text.value }); text.value=''; stars.value=5 }
+}
 async function buyNow(){
   addToCart()
   const created = await apiPost('/api/orders', { shippingAddressId: undefined })
