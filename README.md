@@ -499,6 +499,11 @@ Set these in GitHub repository Settings → Secrets and Variables → Actions:
 
 The deploy workflow `.github/workflows/deploy-vps.yml` will fail early with a clear message if `VPS_HOST` is missing, preventing the "missing server host" error.
 
+### Network resilience & SSH reachability
+
+- pnpm/corepack steps include retries to mitigate transient ECONNRESET during `corepack prepare pnpm@8.6.10 --activate`.
+- SSH reachability is checked before deploy; if port 22 is unreachable, deployment is skipped safely instead of failing the whole pipeline.
+
 ## 🚀 CI/CD: Deploy to VPS (SSH)
 
 Workflow: `.github/workflows/deploy-vps.yml`
@@ -519,6 +524,10 @@ Steps overview:
   - External HTTPS smokes for web/admin/mweb/api.
 
 Services on VPS (systemd): `ecom-api`, `ecom-admin`, `ecom-web`. Use `journalctl -u <svc> -n 200 --no-pager` to inspect.
+
+### Data safety during deploy
+
+- The deploy script (`infra/scripts/deploy.sh`) never seeds data by default. To allow controlled seeding, set `DEPLOY_ALLOW_SEEDING=1`. Otherwise, any admin/user/product/category/order seeding is skipped. This prevents accidental test data creation on production.
 
 ## 🔐 Admin Login: Final Flow
 
@@ -605,6 +614,21 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
   - `POST /api/admin/affiliate` (إنشاء رمز)
   - `GET /api/admin/affiliate/stats?code=...`
 
+### Loyalty & Affiliate & Preferences — mweb/API wiring (Sep 2025)
+
+- Loyalty settlement on order pay (API): upon `POST /api/orders/:id/pay` accrues points (1 per 10 SAR) into `PointLedger`.
+- Coupons apply endpoint for checkout: `POST /api/coupons/apply` validates code and schedule; advanced rules saved with coupons (JSON) via admin editor.
+- User notification preferences: `GET/PUT /api/me/preferences` (email/sms/whatsapp/webpush) with mweb page `/prefs`.
+- Affiliate ledger & payouts: on order create/pay, records commission in `AffiliateLedger` and exposes `GET /api/admin/affiliates/ledger` and `POST /api/admin/affiliates/payouts`.
+- mweb points: page `/points` shows balance/log and redeem-to-coupon flow.
+
+### Payments/Webhooks/Shipping/Search
+
+- Payment session: `POST /api/payments/session` (Stripe ready when keys are set via Integrations page; HyperPay placeholder). mweb checkout redirects to 3DS/success/failure pages.
+- Stripe webhook: `POST /webhooks/stripe` (extend signature validation with `STRIPE_WEBHOOK_SECRET`).
+- Shipping quote: `GET /api/shipping/quote?city=...&method=std|fast` used by mweb checkout to show dynamic shipping cost.
+- Search suggestions: `GET /api/search/suggest?q=...` used by mweb search.
+
 ملاحظة: كل نقطة من النقاط أعلاه مضمّنة بـ ensure‑schema داخلي idempotent لتهيئة الجداول تلقائياً على قواعد قديمة/فارغة.
 
 ## 🛠️ Troubleshooting (CI/CD & Runtime)
@@ -645,5 +669,6 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
 - CI/CD: `.github/workflows/deploy-vps.yml`
 - NGINX template: `infra/nginx/jeeey.conf.tpl`
 - Deploy script: `infra/scripts/deploy.sh`
+  - Seeding is disabled by default. To opt-in for controlled bootstrap set `DEPLOY_ALLOW_SEEDING=1`.
 
 This README is the source of truth for configuration and recovery steps for production parity, deployments, and admin logistics features.
