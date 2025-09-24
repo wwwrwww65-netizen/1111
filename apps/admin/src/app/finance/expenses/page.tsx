@@ -92,9 +92,9 @@ export default function ExpensesPage(): JSX.Element {
   }, [rows, q]);
 
   return (
-    <div className="panel">
+    <div className="panel" style={{ padding:16 }}>
       <h1 className="text-xl font-bold mb-3">المصروفات</h1>
-      <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+      <div className="toolbar" style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center', position:'sticky', top:0, background:'var(--panel)', zIndex:10, padding:'6px 0'}}>
         <input className="input" placeholder="بحث نصي" value={q} onChange={e=> setQ(e.target.value)} />
         <select className="input" value={range} onChange={e=> setRange(e.target.value as any)}>
           <option value="7d">آخر 7 أيام</option>
@@ -172,7 +172,7 @@ export default function ExpensesPage(): JSX.Element {
       )}
       <div className="mt-3">
         <table className="table">
-          <thead><tr><th>التاريخ</th><th>التصنيف</th><th>الوصف</th><th>المبلغ</th><th>فاتورة/مورد</th><th>مركز التكلفة</th></tr></thead>
+          <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>التاريخ</th><th>التصنيف</th><th>الوصف</th><th>المبلغ</th><th>فاتورة/مورد</th><th>مركز التكلفة</th></tr></thead>
           <tbody>
             {busy ? (<tr><td colSpan={6}>جارٍ التحميل…</td></tr>) :
               filtered.length ? filtered.map(r => (
