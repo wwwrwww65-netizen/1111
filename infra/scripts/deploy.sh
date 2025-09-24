@@ -67,9 +67,14 @@ if [ -d "$ROOT_DIR/apps/mweb" ]; then
   fi
 fi
 
-# Optional: seed admin if creds provided via environment
-if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
-  (cd "$ROOT_DIR/packages/api" && ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" node scripts/upsert-admin.js) || true
+# IMPORTANT: Do NOT create or seed any data on deploy.
+# To allow controlled admin seeding, explicitly set DEPLOY_ALLOW_SEEDING=1 (defaults to disabled)
+if [ "${DEPLOY_ALLOW_SEEDING:-0}" = "1" ]; then
+  if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
+    (cd "$ROOT_DIR/packages/api" && ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" node scripts/upsert-admin.js) || true
+  fi
+else
+  echo "[deploy] Skipping any admin/user/product/category/order seeding (DEPLOY_ALLOW_SEEDING!=1)"
 fi
 
 # Ensure Next.js standalone bundles have their static assets next to server.js
