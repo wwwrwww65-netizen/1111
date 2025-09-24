@@ -1,23 +1,19 @@
 <template>
   <div dir="rtl" lang="ar" class="product-page">
-    <header class="ph" :class="{ solid: scrolled }" role="banner" aria-label="الهيدر">
-      <button class="i" aria-label="قائمة">☰</button>
-      <button class="i" aria-label="الإشعارات">🔔</button>
-      <div class="logo" aria-label="jeeey">jeeey</div>
-      <button class="i" aria-label="السلة">🛒</button>
-      <button class="i" aria-label="المفضلة" @click="toggleWish">❤</button>
-      <button class="i" aria-label="بحث">🔍</button>
+    <header class="topbar" role="banner" aria-label="الهيدر">
+      <div class="bar">
+        <button class="p2" aria-label="رجوع" @click="goBack">←</button>
+        <div class="spacer"></div>
+        <button class="p2" aria-label="مشاركة" @click="share">↗</button>
+        <button class="p2 cart" aria-label="عربة التسوق" @click="router.push('/cart')">
+          🛒
+          <span v-if="cart.count" class="badge">{{ cart.count }}</span>
+        </button>
+      </div>
     </header>
 
-    <section class="gallery" role="region" aria-label="صور المنتج">
-      <div class="main">
-        <img :src="activeImg" :alt="title" loading="lazy" />
-        <button class="share" aria-label="مشاركة">↗</button>
-        <button class="fav" aria-label="مفضلة">❤</button>
-      </div>
-      <div class="thumbs">
-        <img v-for="(t,idx) in images" :key="idx" class="t" :class="{on: activeIdx===idx}" :src="t" :alt="`${title} ${idx+1}`" loading="lazy" @click="setActive(idx)" />
-      </div>
+    <section class="hero-img" role="region" aria-label="صورة المنتج">
+      <img :src="activeImg" :alt="title" loading="lazy" />
     </section>
 
     <section class="container info" aria-label="معلومات المنتج">
@@ -25,15 +21,19 @@
       <div class="pricebox">
         <span class="now">{{ price }}</span>
         <span class="old" v-if="original">{{ original }}</span>
+        <span class="disc">-50%</span>
       </div>
+      <div class="offer">ينتهي العرض خلال: <strong class="t">{{ offerEnds }}</strong></div>
       <div class="meta">
-        <RatingStars :value="rating" />
-        <span class="ship">🚚 شحن مجاني</span>
+        ⭐ <span class="rate">{{ avgRating.toFixed(1) }}</span>
+        <span class="cnt">(1158 مراجعة)</span>
+        <span class="sep">|</span>
+        <span class="ord">3000+ طلب</span>
       </div>
 
       <div class="variants">
         <div class="row vcolors" aria-label="الألوان">
-          <button v-for="(c,i) in colors" :key="c" class="dot" :style="{ background: c }" :class="{ on: colorIdx===i }" aria-label="لون" @click="colorIdx=i"></button>
+          <button v-for="(c,i) in colors" :key="c.name" class="dot" :style="{ background: c.hex }" :class="{ on: colorIdx===i }" :aria-label="`لون ${c.name}`" @click="colorIdx=i"></button>
         </div>
         <div class="row vsizes" aria-label="المقاسات">
           <button v-for="s in sizes" :key="s" class="sz" :class="{ on: size===s }" @click="size=s">{{ s }}</button>
@@ -56,9 +56,13 @@
 
     <section class="container reviews" id="reviews" aria-label="التقييمات">
       <div class="head">
-        <div class="ttl">التقييمات</div>
+        <div class="ttl">مراجعات العملاء</div>
         <RatingStars :value="avgRating" />
       </div>
+      <div class="photos">
+        <img v-for="i in 4" :key="i" :src="`https://via.placeholder.com/150?text=${i}`" :alt="`Review ${i}`" loading="lazy" />
+      </div>
+      <p class="sample">“الخامة جيدة والمقاس مناسب جدًا. الشحن كان سريعًا.”</p>
       <div class="comment" v-for="r in reviews" :key="r.id">
         <div class="row" style="justify-content:space-between"><strong>{{ r.user||'مستخدم' }}</strong><span>{{ r.stars }}★</span></div>
         <div>{{ r.text }}</div>
@@ -77,12 +81,20 @@
     </section>
 
     <section class="container related" id="related" aria-label="منتجات مشابهة">
-      <HorizontalProducts :items="related" label="منتجات مشابهة" />
+      <div class="grid2">
+        <div v-for="(i,idx) in related" :key="idx" class="card">
+          <img :src="i.img" :alt="`Related ${idx+1}`" loading="lazy" />
+          <div class="p">
+            <div class="nm">{{ i.title }}</div>
+            <div class="pr">{{ i.price }}</div>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <div class="cta-bar" role="region" aria-label="أزرار الشراء">
-      <a class="buy" href="#" aria-label="اشتري الآن" @click.prevent="buyNow">اشترِ الآن</a>
-      <button class="add" @click="addToCart" aria-label="أضف إلى السلة">🛒 أضف إلى السلة</button>
+    <div class="cta-bar" role="region" aria-label="شريط الإجراءات">
+      <button class="add" @click="addToCart" aria-label="أضف إلى عربة التسوق">أضف إلى عربة التسوق</button>
+      <button class="fav-btn" aria-label="المفضلة" title="المفضلة" @click="toggleWish">❤</button>
     </div>
 
     <BottomNav />
@@ -98,7 +110,6 @@ import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { useWishlist } from '@/store/wishlist'
 import RatingStars from '@/components/RatingStars.vue'
 import TabsBar from '@/components/TabsBar.vue'
-import HorizontalProducts from '@/components/HorizontalProducts.vue'
 const route = useRoute()
 const router = useRouter()
 const id = route.query.id as string || 'p1'
@@ -113,9 +124,15 @@ const images = ref<string[]>([
 ])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
-const sizes = ['XS','S','M','L','XL']
+const sizes = ['S','M','L','XL']
 const size = ref<string>('M')
-const colors = ['#111','#c00','#0a7','#f5a623']
+const colors = [
+  { name: 'black', hex: '#000000' },
+  { name: 'white', hex: '#ffffff' },
+  { name: 'blue', hex: '#2a62ff' },
+  { name: 'gray', hex: '#9aa0a6' },
+  { name: 'beige', hex: '#d9c3a3' },
+]
 const colorIdx = ref(0)
 const avgRating = ref(4.9)
 const reviews = ref<any[]>([])
@@ -135,6 +152,15 @@ const scrolled = ref(false)
 function onScroll(){ scrolled.value = window.scrollY > 60 }
 onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })
 onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
+const offerEnds = '1d 18h 59m 52s'
+function goBack(){ if (window.history.length > 1) router.back(); else router.push('/') }
+async function share(){
+  try{
+    const data = { title: title.value, text: title.value, url: location.href }
+    if ((navigator as any).share) await (navigator as any).share(data)
+    else await navigator.clipboard.writeText(location.href)
+  }catch{}
+}
 onMounted(async ()=>{
   try{
     const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
@@ -176,32 +202,30 @@ async function buyNow(){
 </script>
 
 <style scoped>
-.product-page{background:#fff;padding-bottom:120px}
-.ph{position:sticky;top:0;height:56px;display:grid;grid-template-columns:repeat(2,auto) 1fr repeat(3,auto);align-items:center;gap:6px;padding:0 10px;background:transparent;z-index:50;transition:background .2s}
-.ph.solid{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-.i{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;background:transparent;border:0}
-.logo{justify-self:center;font-weight:900;font-size:20px}
-.gallery{padding:0}
-.main{position:relative}
-.main img{width:100%;height:440px;object-fit:cover;background:#f3f3f3}
-.share{position:absolute;top:10px;right:10px;width:24px;height:24px;border:0;background:transparent}
-.fav{position:absolute;top:10px;left:10px;width:24px;height:24px;border:0;background:transparent}
-.thumbs{display:flex;gap:8px;overflow:auto;padding:10px 12px}
-.t{width:80px;height:100px;border-radius:6px;object-fit:cover;opacity:.7}
-.t.on{opacity:1;outline:2px solid #27AE60}
+.product-page{background:#f9fafb;padding-bottom:120px}
+.topbar{position:sticky;top:0;z-index:60;background:#fff;border-bottom:1px solid #e5e7eb}
+.bar{height:48px;display:flex;align-items:center;gap:6px;padding:0 8px}
+.spacer{flex:1}
+.p2{width:40px;height:40px;border:0;background:transparent;display:grid;place-items:center;border-radius:10px}
+.cart{position:relative}
+.badge{position:absolute;top:-4px;inset-inline-start:-4px;background:#ef4444;color:#fff;border-radius:999px;width:16px;height:16px;display:grid;place-items:center;font-size:10px}
+.hero-img img{width:100%;aspect-ratio:1/1;object-fit:cover;background:#fff}
 .container{padding:0 16px}
 .info{padding-top:8px}
-.title{font-size:16px;font-weight:600}
-.pricebox{display:flex;gap:10px;align-items:baseline;margin-top:6px}
-.now{font-size:18px;font-weight:800;color:#FF6B4A}
-.old{font-size:14px;color:#999;text-decoration:line-through}
-.meta{display:flex;gap:12px;align-items:center;margin-top:6px}
-.ship{font-size:12px;background:#E8F8EF;color:#1a5;padding:2px 8px;border-radius:999px}
+.title{font-size:14px;color:#111827;line-height:1.6}
+.pricebox{display:flex;gap:10px;align-items:center;margin-top:6px}
+.now{font-size:20px;font-weight:800;color:#dc2626}
+.old{font-size:13px;color:#9ca3af;text-decoration:line-through}
+.disc{background:#fee2e2;color:#b91c1c;border-radius:8px;padding:2px 8px;font-size:12px}
+.offer{margin-top:8px;font-size:13px;color:#374151}
+.offer .t{color:#dc2626}
+.meta{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:13px;color:#4b5563}
+.sep{color:#d1d5db}
 .variants{margin-top:12px;display:flex;flex-direction:column;gap:10px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.dot{width:32px;height:32px;border-radius:999px;border:2px solid #e5e5e5}
-.dot.on{outline:2px solid #27AE60}
-.sz{width:40px;height:40px;border:1px solid #e5e5e5;border-radius:8px;background:#fff}
+.dot{width:40px;height:40px;border-radius:8px;border:1px solid #e5e7eb}
+.dot.on{outline:2px solid #111827}
+.sz{min-width:48px;height:40px;border:1px solid #e5e7eb;border-radius:8px;background:#fff}
 .sz.on{border-color:#111}
 .chart{margin-inline-start:auto;border:0;background:transparent;color:#1A73E8;font-size:14px}
 .delivery{margin-top:8px}
@@ -215,10 +239,16 @@ async function buyNow(){
 .head{display:flex;gap:10px;align-items:center;font-weight:800;font-size:16px}
 .photos{display:flex;gap:8px;overflow:auto;margin:8px 0}
 .photos img{width:60px;height:60px;border-radius:8px;object-fit:cover}
-.comment{font-size:14px;color:#222;margin:6px 0}
+.sample{font-size:12px;color:#6b7280}
 .related{margin-top:8px}
-.cta-bar{position:fixed;bottom:56px;left:0;right:0;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;padding:8px 12px;background:#fff;border-top:1px solid #ececec;z-index:60}
-.add{height:48px;border-radius:10px;background:#000;color:#fff;border:0}
-.buy{height:48px;border-radius:10px;background:#ff2d55;color:#fff;text-align:center;line-height:48px;text-decoration:none}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.card{border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;background:#fff}
+.card img{width:100%;aspect-ratio:1/1;object-fit:cover}
+.card .p{padding:6px}
+.nm{font-size:12px;color:#111827}
+.pr{font-size:12px;color:#dc2626;font-weight:700;margin-top:2px}
+.cta-bar{position:fixed;bottom:56px;left:0;right:0;display:grid;grid-template-columns:1fr 56px;gap:8px;align-items:center;padding:8px 12px;background:#fff;border-top:1px solid #ececec;z-index:60}
+.add{height:48px;border-radius:10px;background:#dc2626;color:#fff;border:0;font-weight:700}
+.fav-btn{height:48px;border-radius:10px;background:#fff;border:1px solid #e5e7eb}
 </style>
 
