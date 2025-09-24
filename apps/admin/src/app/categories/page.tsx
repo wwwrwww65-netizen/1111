@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { Section } from "../components/Ui";
 import { resolveApiBase } from "../lib/apiBase";
 export const dynamic = 'force-dynamic';
 
@@ -133,7 +134,7 @@ export default function CategoriesPage(): JSX.Element {
             <button onClick={()=>{ loadList(); }} style={{ padding:'10px 14px', background:'#111827', color:'#e5e7eb', borderRadius:10 }}>بحث</button>
           </div>
           <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
-            <thead>
+            <thead style={{ position:'sticky', top:0, background:'#0b0e14', zIndex:1 }}>
               <tr>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>ID</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>الاسم</th>

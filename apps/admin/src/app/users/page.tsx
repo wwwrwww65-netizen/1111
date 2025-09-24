@@ -2,6 +2,7 @@
 import React from "react";
 import { resolveApiBase } from "../lib/apiBase";
 import PermissionsTab from './PermissionsTab';
+import { Tabs, Toolbar } from '../components/Ui';
 export const dynamic = 'force-dynamic';
 
 function useApiBase(){
@@ -54,24 +55,23 @@ export default function UsersPage(): JSX.Element {
   }
 
   return (
-    <main className="panel">
+    <main className="panel" style={{ padding:16 }}>
       {toast && (<div className="toast">{toast}</div>)}
 
-      <div className="toolbar" style={{ justifyContent:'center' }}>
-        <button onClick={()=>{ setTab('users'); setPage(1); }} className={`btn ${tab==='users'?'':'btn-outline'}`}>المستخدمون</button>
-        <button onClick={()=>{ setTab('vendors'); setPage(1); }} className={`btn ${tab==='vendors'?'':'btn-outline'}`}>المورّدون</button>
-        <button onClick={()=>{ setTab('admins'); setPage(1); }} className={`btn ${tab==='admins'?'':'btn-outline'}`}>الإدارة</button>
-        <button onClick={()=>{ setTab('permissions'); }} className={`btn ${tab==='permissions'?'':'btn-outline'}`}>الصلاحيات</button>
-      </div>
+      <Tabs value={tab} onChange={(v)=>{ setTab(v as any); setPage(1); }} items={[
+        { key:'users', label:'المستخدمون' },
+        { key:'vendors', label:'المورّدون' },
+        { key:'admins', label:'الإدارة' },
+        { key:'permissions', label:'الصلاحيات' },
+      ]} />
 
       {tab !== 'permissions' && (
-        <div className="toolbar" style={{ justifyContent:'space-between', marginBottom:12 }}>
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" className="input" /></div>
-            <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
-          </div>
+        <Toolbar left={<>
+          <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" className="input" /></div>
+          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
+        </>} right={<>
           <button onClick={()=> setModalOpen(true)} className="btn">إضافة حساب</button>
-        </div>
+        </>} />
       )}
 
       {tab !== 'permissions' && (
