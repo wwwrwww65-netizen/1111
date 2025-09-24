@@ -15,13 +15,13 @@
     <!-- Header -->
     <header class="hdr">
       <div class="grp">
-        <Icon name="heart" />
-        <button class="sbtn"><Icon name="search" color="#fff" /></button>
-        <Icon name="camera" />
+        <button class="ic" @click="go('/wishlist')" aria-label="المفضلة"><Icon name="heart" /></button>
+        <button class="sbtn" @click="go('/search')" aria-label="بحث"><Icon name="search" color="#fff" /></button>
+        <button class="ic" @click="go('/scan')" aria-label="كاميرا"><Icon name="camera" /></button>
       </div>
       <div class="grp">
-        <span class="lbl">البحث</span>
-        <div class="mail"><Icon name="mail" /><em></em></div>
+        <button class="lbl" @click="go('/search')">البحث</button>
+        <button class="mail" @click="go('/notifications')" aria-label="الرسائل"><Icon name="mail" /><em></em></button>
       </div>
     </header>
 
@@ -38,7 +38,7 @@
     <div class="layout">
       <!-- Sidebar -->
       <aside class="side">
-        <div class="it" v-for="(s,i) in sidebarItems" :key="i">{{ s }}</div>
+        <button class="it" v-for="(s,i) in sidebarItems" :key="i" type="button" @click="applySide(s)">{{ s }}</button>
       </aside>
 
       <!-- Main grid -->
@@ -69,11 +69,14 @@
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { apiGet } from '@/lib/api'
 type Cat = { id:string; name:string; image:string }
 const cats = ref<Cat[]>([])
 const active = ref('all')
 function setTab(v:string){ active.value = v }
+const router = useRouter()
+function go(path:string){ router.push(path) }
 const sidebarItems = [
   'لأحلامكم فقط','جديد في','تخفيض الأسعار','ملابس نسائية','إلكترونيات','أحذية','الملابس الرجالية','الأطفال','المنزل والمطبخ','ملابس داخلية، وملابس نوم','مقاسات كبيرة','مجوهرات وإكسسوارات','الأطفال والأمومة','الرياضة والأنشطة الخارجية'
 ]
@@ -98,6 +101,12 @@ const filteredCats = computed(()=>{
   const keys = map[active.value] || []
   return cats.value.filter(c=> keys.some(k=> c.name.includes(k)))
 })
+function applySide(label:string){
+  const map: Record<string,string> = {
+    'ملابس نسائية':'women', 'الأطفال':'kids', 'الملابس الرجالية':'men', 'مقاسات كبيرة':'plus', 'المنزل والمطبخ':'home'
+  }
+  setTab(map[label] || 'all')
+}
 </script>
 
 <style scoped>
@@ -111,9 +120,10 @@ const filteredCats = computed(()=>{
 
 .hdr{background:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #eee}
 .grp{display:flex;align-items:center;gap:10px}
+.ic{width:36px;height:36px;border-radius:10px;background:transparent;display:grid;place-items:center;border:0}
 .sbtn{width:36px;height:36px;border-radius:10px;background:#111;display:grid;place-items:center;border:0}
-.lbl{color:#4b5563}
-.mail{position:relative}
+.lbl{color:#4b5563;background:transparent;border:0}
+.mail{position:relative;background:transparent;border:0}
 .mail em{position:absolute;top:-4px;inset-inline-end:-4px;width:10px;height:10px;border-radius:999px;background:#ef4444}
 
 .tabs{background:#fff;display:flex;align-items:center;gap:16px;padding:10px 12px;border-bottom:1px solid #eee}
@@ -123,7 +133,7 @@ const filteredCats = computed(()=>{
 
 .layout{display:grid;grid-template-columns:160px 1fr;min-height:0}
 .side{background:#f3f4f6;padding:12px;min-height:calc(100dvh - 160px)}
-.side .it{padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:13px}
+.side .it{padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:13px;background:transparent;border:0;text-align:start;width:100%}
 .main{padding:12px}
 .ttl{text-align:center;font-weight:700;margin:12px 0}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
