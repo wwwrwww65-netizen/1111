@@ -15,14 +15,18 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
   const [open, setOpen] = React.useState(false);
   const [desktopOpen, setDesktopOpen] = React.useState<boolean>(true);
   const [openCmd, setOpenCmd] = React.useState(false);
+  const [forceDesktop, setForceDesktop] = React.useState<boolean>(()=>{
+    if (typeof window === 'undefined') return false;
+    try { return localStorage.getItem('admin_force_desktop') === '1'; } catch { return false; }
+  });
   const [isDesktop, setIsDesktop] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return true; // default SSR: desktop to avoid overlay
-    try { return window.matchMedia('(min-width: 992px)').matches; } catch { return true; }
+    try { return window.matchMedia('(min-width: 980px)').matches; } catch { return true; }
   });
   React.useEffect(()=>{
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('keydown', onEsc);
-    const mq = window.matchMedia('(min-width: 992px)');
+    const mq = window.matchMedia('(min-width: 980px)');
     const apply = () => setIsDesktop(mq.matches);
     apply();
     mq.addEventListener?.('change', apply);
@@ -31,6 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
       mq.removeEventListener?.('change', apply);
     };
   },[]);
+  React.useEffect(()=>{ try { localStorage.setItem('admin_force_desktop', forceDesktop ? '1' : ''); } catch {} }, [forceDesktop]);
   React.useEffect(()=>{
     const onKey = (e: KeyboardEvent)=>{
       const mod = e.ctrlKey || (e.metaKey && navigator.platform.toLowerCase().includes('mac'));
@@ -44,12 +49,15 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
     <div className="app-root">
       <CommandPalette open={openCmd} onClose={()=> setOpenCmd(false)} />
       <header className="topbar">
-        <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!isDesktop) setOpen(o=>!o); else setDesktopOpen(v=>!v); }}>
+        <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!(isDesktop || forceDesktop)) setOpen(o=>!o); else setDesktopOpen(v=>!v); }}>
           ☰
         </button>
         <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
         <div className="top-actions">
           <button className="icon-btn" title="Command Palette (Ctrl+K)" onClick={()=> setOpenCmd(true)}>⌘</button>
+          <button className="icon-btn" aria-pressed={forceDesktop} title="عرض سطح المكتب" onClick={()=> setForceDesktop(v=> !v)}>
+            سطح المكتب
+          </button>
           <ThemeToggle />
           <LanguageToggle />
           <AccountMenu />
@@ -57,11 +65,11 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
       </header>
       <div className="shell">
         {/* Desktop static sidebar */}
-        <aside className={`sidebar desktop ${desktopOpen ? '' : 'collapsed'}`}>
+        <aside className={`sidebar desktop ${(isDesktop || forceDesktop) && desktopOpen ? '' : 'collapsed'}`} style={{ display: (isDesktop || forceDesktop) ? 'block' : 'none' }}>
           <Sidebar />
         </aside>
         {/* Mobile drawer sidebar */}
-        {!isDesktop && (
+        {!(isDesktop || forceDesktop) && (
           <>
             <aside className={`sidebar drawer ${open ? 'is-open' : ''}`} aria-hidden={!open} role="dialog" aria-modal="true">
               <Sidebar />
@@ -69,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
             <div className="overlay" style={{display: open ? 'block' : 'none'}} onClick={()=> setOpen(false)} aria-hidden={!open} />
           </>
         )}
-        <main className="content container" style={{ marginRight: isDesktop && desktopOpen ? 260 : 0 }}>
+        <main className="content container" style={{ marginRight: (isDesktop || forceDesktop) && desktopOpen ? 260 : 0 }}>
           {children}
         </main>
       </div>
