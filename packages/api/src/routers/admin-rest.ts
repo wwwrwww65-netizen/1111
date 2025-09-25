@@ -3245,6 +3245,13 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (typeof extracted.purchasePrice === 'number' && Number.isFinite(Number(extracted.purchasePrice))) priceNums.push(Number(extracted.purchasePrice));
         if (typeof extracted.salePrice === 'number' && Number.isFinite(Number(extracted.salePrice))) priceNums.push(Number(extracted.salePrice));
       }
+      // Final heuristic fallback: pick numeric tokens >= 80 from entire text
+      if (!priceNums.length) {
+        const allNums = (preNum.match(/(\d+[\.,٬٫]?\d*)/g) || [])
+          .map(x=> Number(String(x).replace(/[٬٫,]/g,'.')))
+          .filter(v=> Number.isFinite(v) && v >= 80);
+        if (allNums.length) priceNums.push(...allNums);
+      }
       if (priceNums.length) {
         const low = Math.min(...priceNums);
         const high = Math.max(...priceNums);
