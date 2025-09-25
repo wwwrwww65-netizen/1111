@@ -321,6 +321,16 @@ export default function AdminProductCreate(): JSX.Element {
         keywords: analyzed?.tags?.value || [],
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined)
       };
+      const confidence:any = {
+        name: Number(analyzed?.name?.confidence ?? 0.8),
+        shortDesc: Number(analyzed?.description?.confidence ?? 0.85),
+        longDesc: Number(analyzed?.description?.confidence ?? 0.85),
+        sizes: Number(analyzed?.sizes?.confidence ?? 0.7),
+        colors: Number(analyzed?.colors?.confidence ?? 0.6),
+        purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6),
+        stock: 0,
+        keywords: 0.5,
+      };
       const palettes: Array<{url:string;hex:string;name:string}> = [];
       const allUrls = allProductImageUrls();
       // Recompute quick palette client-side for mapping visual review
@@ -337,7 +347,7 @@ export default function AdminProductCreate(): JSX.Element {
         mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
       const schema = buildSchemaOutput(extracted, palettes, mapping);
-              const reviewObj = {
+      const reviewObj = {
         name: String(schema.product_name_seo||extracted.name||'').trim(),
         shortDesc: String(schema.description||extracted.shortDesc||'').slice(0,160),
         longDesc: String(schema.description||extracted.longDesc||''),
@@ -348,7 +358,7 @@ export default function AdminProductCreate(): JSX.Element {
         keywords: extracted.keywords||[],
         palettes,
         mapping,
-        confidence: extracted.confidence||{}
+        confidence
       } as any;
       setReview(reviewObj);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
