@@ -351,6 +351,9 @@ export default function AdminProductCreate(): JSX.Element {
         confidence: extracted.confidence||{}
       } as any;
       setReview(reviewObj);
+      if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
+        setPurchasePrice(reviewObj.purchasePrice);
+      }
       setActiveMobileTab('review');
       showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
