@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { FilterBar } from '../../components/Mobile';
 
 type UserItem = { id:string; name:string; phone?:string; email?:string; status?:string };
 
@@ -38,7 +39,7 @@ export default function MobileUsers(): JSX.Element {
     <div className="grid" style={{ gap:12 }}>
       <div className="panel">
         <div style={{ fontWeight:700, marginBottom:8 }}>المستخدمون</div>
-        <input className="input" placeholder="بحث بالاسم أو الهاتف" value={q} onChange={e=> setQ(e.target.value)} />
+        <FilterBar value={q} onChange={setQ} />
       </div>
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}

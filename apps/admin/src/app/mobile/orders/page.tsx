@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { FilterBar } from '../../components/Mobile';
 
 type OrderItem = { id: string; code: string; customerName: string; total: number; status: string; createdAt: string };
 
@@ -41,7 +42,7 @@ export default function MobileOrders(): JSX.Element {
     <div className="grid" style={{ gap:12 }}>
       <div className="panel">
         <div style={{ fontWeight:700, marginBottom:8 }}>الطلبات</div>
-        <input className="input" placeholder="بحث بالرقم أو الاسم" value={q} onChange={e=> setQ(e.target.value)} />
+        <FilterBar value={q} onChange={setQ} />
       </div>
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}

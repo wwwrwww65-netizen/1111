@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
+import { FilterBar } from '../../components/Mobile';
 
 type VendorItem = { id:string; name:string; rating?:number; productsCount?:number };
 
@@ -38,7 +39,7 @@ export default function MobileVendors(): JSX.Element {
     <div className="grid" style={{ gap:12 }}>
       <div className="panel">
         <div style={{ fontWeight:700, marginBottom:8 }}>البائعون</div>
-        <input className="input" placeholder="بحث بالاسم" value={q} onChange={e=> setQ(e.target.value)} />
+        <FilterBar value={q} onChange={setQ} />
       </div>
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}
