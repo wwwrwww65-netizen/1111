@@ -68,9 +68,24 @@ export default function MobileNewProduct(): JSX.Element {
   async function analyzePaste(){
     if (!pasteText.trim()) return;
     try{
-      const r = await fetch(`${resolveApiBase()}/api/admin/products/analyze`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ text: pasteText, images }) });
-      const j = await r.json();
-      const a = j?.analyzed || {};
+      let a: any = {};
+      try{
+        const r = await fetch(`${resolveApiBase()}/api/admin/products/analyze`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ text: pasteText, images }) });
+        if (r.ok) { const j = await r.json(); a = j?.analyzed || {}; } else { throw new Error('analyze_failed'); }
+      } catch {
+        const r = await fetch(`${resolveApiBase()}/api/admin/products/parse`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ text: pasteText }) });
+        const j = await r.json();
+        if (r.ok && j?.extracted) {
+          a = {
+            name: { value: j.extracted.name },
+            description: { value: j.extracted.shortDesc || j.extracted.longDesc },
+            sizes: { value: j.extracted.sizes||[] },
+            colors: { value: j.extracted.colors||[] },
+            price_range: { value: { low: j.extracted.purchasePrice ?? j.extracted.salePrice ?? 0, high: j.extracted.salePrice ?? j.extracted.purchasePrice ?? 0 } },
+            tags: { value: j.extracted.keywords||[] }
+          } as any;
+        }
+      }
       if (a?.name?.value) setName(a.name.value);
       if (a?.description?.value) setDescription(a.description.value);
       if (Array.isArray(a?.colors?.value)) setColors((a.colors.value as any[]).join(', '));

@@ -291,10 +291,27 @@ export default function AdminProductCreate(): JSX.Element {
       // Server-side analyze (Node-only pipeline: text+image)
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
-      if (!resp.ok) throw new Error('analyze_failed');
-      const aj = await resp.json();
-      const analyzed = aj?.analyzed || {};
+      let analyzed: any = {};
+      try{
+        const resp = await fetch(`${apiBase}/api/admin/products/analyze`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
+        if (resp.ok) { const aj = await resp.json(); analyzed = aj?.analyzed || {}; } else { throw new Error('analyze_failed'); }
+      } catch {
+        // Fallback to legacy parse endpoint
+        try{
+          const r = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste }) });
+          const j = await r.json();
+          if (r.ok && j?.extracted) {
+            analyzed = {
+              name: { value: j.extracted.name },
+              description: { value: j.extracted.shortDesc || j.extracted.longDesc },
+              sizes: { value: j.extracted.sizes||[] },
+              colors: { value: j.extracted.colors||[] },
+              price_range: { value: { low: j.extracted.purchasePrice ?? j.extracted.salePrice ?? 0, high: j.extracted.salePrice ?? j.extracted.purchasePrice ?? 0 } },
+              tags: { value: j.extracted.keywords||[] }
+            } as any;
+          } else { analyzed = {}; }
+        } catch { analyzed = {}; }
+      }
       const extracted:any = {
         name: analyzed?.name?.value || '',
         shortDesc: analyzed?.description?.value || '',
