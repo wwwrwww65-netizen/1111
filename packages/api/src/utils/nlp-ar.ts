@@ -67,8 +67,8 @@ export function extractColors(text: string): string[] {
 export function extractSizes(text: string): string[] {
   const sizes = new Set<string>();
   const s = text;
-  // Weight-based free size
-  const range = s.match(/وزن\s*(\d{2,3})[^\d]{0,8}(?:حتى|الى|إلى|-|–)\s*(\d{2,3})/i);
+  // Weight-based free size (robust to optional second "وزن" and spacing)
+  const range = s.match(/وزن\s*(\d{2,3})[\s\S]{0,40}?(?:حتى|الى|إلى|-|–)\s*(?:وزن)?\s*(\d{2,3})/i);
   if (range) sizes.add(`فري سايز (${range[1]}–${range[2]} كجم)`);
   if (/فري\s*سايز/i.test(s)) sizes.add('فري سايز');
   // Labeled sizes
