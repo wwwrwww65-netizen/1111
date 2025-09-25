@@ -2,6 +2,7 @@
 import React from 'react';
 import { resolveApiBase } from '../../lib/apiBase';
 import { FilterBar } from '../../components/Mobile';
+import { CategoriesTree } from './tree';
 
 type CategoryItem = { id:string; name:string; parentId?:string|null };
 
@@ -38,6 +39,7 @@ export default function MobileCategories(): JSX.Element {
         <div style={{ fontWeight:800, marginBottom:8 }}>الفئات</div>
         <FilterBar value={q} onChange={setQ} />
       </div>
+      <CategoriesTree />
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}
       {!loading && !error && items.length===0 && <div className="panel" style={{ color:'var(--sub)' }}>لا توجد فئات</div>}

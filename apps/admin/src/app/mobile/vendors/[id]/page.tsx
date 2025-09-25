@@ -30,16 +30,22 @@ export default function MobileVendorDetail(): JSX.Element {
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}
       {!loading && !error && data && (
-        <div className="panel">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ fontWeight:800 }}>{data.name}</div>
-            <div style={{ color:'var(--sub)', fontSize:12 }}>المنتجات: {data.productsCount ?? '—'}</div>
+        <>
+          <div className="panel">
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontWeight:800 }}>{data.name}</div>
+              <div style={{ color:'var(--sub)', fontSize:12 }}>المنتجات: {data.productsCount ?? '—'}</div>
+            </div>
           </div>
-          <div style={{ marginTop:12, display:'grid', gap:8 }}>
-            <a className="btn" href={`/mobile/vendors/${id}?tab=orders`}>عرض الطلبات</a>
-            <a className="btn btn-outline" href={`/mobile/vendors/${id}?tab=products`}>عرض المنتجات</a>
+          <div className="panel">
+            <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+              <a className="btn btn-sm" href={`#tab=products`}>المنتجات</a>
+              <a className="btn btn-sm" href={`#tab=orders`}>الطلبات</a>
+              <a className="btn btn-sm" href={`#tab=invoices`}>الفواتير</a>
+            </div>
+            <div id="vendorTabContent" style={{ color:'var(--sub)' }}>اختر تبويبًا</div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

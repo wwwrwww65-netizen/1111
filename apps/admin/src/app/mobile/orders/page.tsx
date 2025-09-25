@@ -61,6 +61,27 @@ export default function MobileOrders(): JSX.Element {
           <input className="input" type="date" value={to} onChange={e=> setTo(e.target.value)} />
         </FilterBar>
       </div>
+      <div className="panel">
+        <div style={{ fontWeight:700, marginBottom:8 }}>إجراءات سريعة</div>
+        <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
+          <div style={{ display:'grid', gap:6 }}>
+            <div style={{ fontWeight:700, fontSize:12, color:'var(--sub)' }}>تحديث حالة طلب</div>
+            <input className="input" placeholder="رقم الطلب" id="bulkOrderId" />
+            <select className="select" id="bulkOrderStatus">
+              <option value="PROCESSING">قيد المعالجة</option>
+              <option value="SHIPPED">تم الشحن</option>
+              <option value="DELIVERED">تم التسليم</option>
+              <option value="CANCELLED">ألغيت</option>
+            </select>
+            <button className="btn btn-outline" onClick={async()=>{
+              const orderId = (document.getElementById('bulkOrderId') as HTMLInputElement)?.value.trim();
+              const st = (document.getElementById('bulkOrderStatus') as HTMLSelectElement)?.value;
+              if(!orderId) return;
+              await fetch(`${resolveApiBase()}/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'order', id: orderId, action: st }) });
+            }}>تحديث</button>
+          </div>
+        </div>
+      </div>
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}
       {!loading && !error && items.length === 0 && (
