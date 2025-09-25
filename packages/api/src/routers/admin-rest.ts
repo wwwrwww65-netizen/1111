@@ -3200,8 +3200,8 @@ adminRest.post('/products/analyze', async (req, res) => {
       let sz = '';
       const wMatch = preNum.match(/وزن\s*(\d{2,3})[^\d]{0,8}(?:حتى|إلى|الى|-|–)\s*(\d{2,3})/i);
       // تجاهل نص المقاسات المقروءة
-      const availability = /كمية كبيرة|متوفر/i.test(pre) ? 'متوفرة بكميات كبيرة.' : '';
-      const sentence3 = [availability].filter(Boolean).join(' ');
+      // لا نذكر المخزون/الكمية في الوصف
+      const sentence3 = '';
       // Always exactly three concise sentences
       const sentences = [intro, sentence2 || '', sentence3 || ''].map(s=> s.trim()).filter(Boolean);
       const finalDesc = normalizeSpaces(sentences.slice(0,3).join(' '));
@@ -3227,6 +3227,12 @@ adminRest.post('/products/analyze', async (req, res) => {
       // Prices: prefer explicit north/old/similar price lines; ignore non-price lines like "2 الوان"
       const priceNums: number[] = [];
       const lines = preNum.split(/\n|\r|\u2028|\u2029/).map(normalizeSpaces).filter(Boolean);
+      // Inline north price like "السعرللشمال 850"
+      const northInline = preNum.match(/(?:السعر\s*للشمال|السعرللشمال)[^\n\r]*?(\d+[\.,٬٫]?\d*)/i);
+      if (northInline) {
+        const v = Number(String(northInline[1]).replace(/[٬٫,]/g,'.'));
+        if (!Number.isNaN(v)) priceNums.push(v);
+      }
       for (const ln of lines) {
         const mentionsSouth = /جنوبي/i.test(ln);
         const mentionsNorth = /الشمال|للشمال/i.test(ln);
