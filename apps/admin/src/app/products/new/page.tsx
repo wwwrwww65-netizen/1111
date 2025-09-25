@@ -625,7 +625,6 @@ export default function AdminProductCreate(): JSX.Element {
               if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
               if (review.stock!==undefined) setStockQuantity(review.stock);
               if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
-              if (Array.isArray(review.sizes) && review.sizes.length) setSizes((review.sizes as string[]).join(', '));
               if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
               const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
               const cList: string[] = Array.isArray(review.colors)? review.colors : [];
