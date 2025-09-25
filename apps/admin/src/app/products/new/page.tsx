@@ -337,11 +337,11 @@ export default function AdminProductCreate(): JSX.Element {
         mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
       const schema = buildSchemaOutput(extracted, palettes, mapping);
-      const reviewObj = {
+              const reviewObj = {
         name: String(schema.product_name_seo||extracted.name||'').trim(),
         shortDesc: String(schema.description||extracted.shortDesc||'').slice(0,160),
         longDesc: String(schema.description||extracted.longDesc||''),
-        purchasePrice: schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined),
+                purchasePrice: (()=>{ const v = schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined); return (v!==undefined && v<50) ? undefined : v; })(),
         stock: schema.stock_quantity!==undefined && schema.stock_quantity!==null ? Number(schema.stock_quantity) : (extracted.stock!==undefined? Number(extracted.stock): undefined),
         sizes: Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []),
         colors: Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: []),

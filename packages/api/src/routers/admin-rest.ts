@@ -3181,32 +3181,27 @@ adminRest.post('/products/analyze', async (req, res) => {
       let feature = featureMatch ? featureMatch[2] : '';
       feature = /زرارات|أزرار/i.test(feature) ? 'أزرار أنيقة' : (/كم كامل/i.test(pre)? 'كم كامل' : feature);
       const namePrefix = [ normalizedType, attr, material ? `من ${material}` : '' ].filter(Boolean).join(' ').trim();
-      const genName = [ namePrefix, feature ].filter(Boolean).join(' — ').trim();
+      const genName = [ namePrefix, feature ].filter(Boolean).join(' ').trim();
       if (genName) { out.name = clamp(genName, 60); sources.name = { source:'rules', confidence:0.8 }; }
       else if (extracted.name) { out.name = clamp(extracted.name, 60); sources.name = { source:'rules', confidence:0.6 }; }
       // Description (3 sentences)
       const introParts: string[] = [];
-      if (normalizedType) introParts.push(normalizedType);
-      if (attr) introParts.push(attr);
-      if (material) introParts.push(`من قماش ${material}`);
+      // لا نعيد ذكر اسم المنتج أو نوعه أو المقاسات داخل الوصف
+      if (material) introParts.push(`مصنوع من ${material}`);
       const introFeatures: string[] = [];
       if (/زرارات|أزرار/i.test(pre)) introFeatures.push('أزرار أنيقة');
       if (/كم كامل/i.test(pre)) introFeatures.push('كم كامل');
       const intro = normalizeSpaces(`${introParts.join(' ')}${introFeatures.length ? ' مع ' + introFeatures.join(' و') : ''}.`);
       const mats: string[] = [];
       if (/\b2\s*الوان|لونين\b/i.test(pre)) mats.push('متوفرة بلونين');
-      if (/خارجي/i.test(pre)) mats.push('للإطلالة الخارجية');
+      if (/خارجي/i.test(pre)) mats.push('مناسبة للإطلالة الخارجية');
       const sentence2 = mats.length? `${mats.join('، ')}.` : '';
-      // Sizes: weight range 40–60
+      // لا نذكر المقاسات في الوصف (تُعرض في حقلها)
       let sz = '';
       const wMatch = preNum.match(/وزن\s*(\d{2,3})[^\d]{0,8}(?:حتى|إلى|الى|-|–)\s*(\d{2,3})/i);
-      if (wMatch) { const a=Number(wMatch[1]), b=Number(wMatch[2]); if (!Number.isNaN(a) && !Number.isNaN(b)) sz = `مقاس واحد يناسب ${Math.min(a,b)} إلى ${Math.max(a,b)} كجم.`; }
-      if (!sz && Array.isArray(extracted.sizes) && extracted.sizes.length) {
-        const cleanedSizes = (extracted.sizes as string[]).filter(s=> !/^\s*\d+(?:[\.,]\d+)?\s*$/.test(String(s)));
-        if (cleanedSizes.length) sz = `مقاسات: ${cleanedSizes.join('، ')}.`;
-      }
+      // تجاهل نص المقاسات المقروءة
       const availability = /كمية كبيرة|متوفر/i.test(pre) ? 'متوفرة بكميات كبيرة.' : '';
-      const sentence3 = [sz, availability].filter(Boolean).join(' ');
+      const sentence3 = [availability].filter(Boolean).join(' ');
       // Always exactly three concise sentences
       const sentences = [intro, sentence2 || '', sentence3 || ''].map(s=> s.trim()).filter(Boolean);
       const finalDesc = normalizeSpaces(sentences.slice(0,3).join(' '));
