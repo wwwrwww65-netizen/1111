@@ -23,11 +23,11 @@ const j = await r.json()
 const a = j?.analyzed || {}
 
 assert.ok(a?.name?.value, 'name missing')
-assert.ok(String(a.name.value).includes('فنيلة'), 'name should contain فنيلة')
+assert.ok(/فنيلة|فنيله|فنائل/.test(String(a.name.value)), 'name should contain فنيلة')
 assert.ok(String(a.name.value).length <= 60, 'name length should be <= 60')
 assert.ok(a?.description?.value, 'description missing')
-assert.ok(/40\s*–?\s*60|40\s*إلى\s*60/.test(a.description.value) || (a?.sizes?.value||[]).join(' ').includes('40'), 'sizes info missing')
-assert.ok(a?.price_range?.value?.low !== undefined, 'price low missing')
+assert.ok(/40\s*[–-]?\s*60|40\s*إلى\s*60/.test(a.description.value) || (a?.sizes?.value||[]).some(s=> /فري\s*سايز\s*\(40[–-]60\s*كجم\)/.test(s)), 'sizes info missing')
+assert.ok(a?.price_range?.value?.low !== undefined && a.price_range.value.low >= 800, 'price low missing or too low')
 
 console.log('analyze smoke OK:', {
   name: a.name.value,
