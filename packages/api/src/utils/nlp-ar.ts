@@ -40,31 +40,40 @@ export function baseClean(input: string): string {
   return normalizeWhitespace(cleanMarketingNoise(stripEmojis(arabicIndicToLatinDigits(stripHtml(input)))));
 }
 
-const COLOR_LEXICON = [
-  'احمر','ازرق','اخضر','اسود','ابيض','اصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي','سماوي','فيروزي','عنابي','ذهبي','فضي',
-  'red','blue','green','black','white','yellow','brown','beige','gray','pink','purple','navy','sky','turquoise','maroon','gold','silver'
-];
+const COLOR_MAP: Record<string, string> = {
+  // Arabic canonical
+  'احمر': 'أحمر', 'أحمر': 'أحمر', 'ازرق': 'أزرق', 'أزرق': 'أزرق', 'اخضر': 'أخضر', 'أخضر': 'أخضر',
+  'اسود': 'أسود', 'أسود': 'أسود', 'ابيض': 'أبيض', 'أبيض': 'أبيض', 'اصفر': 'أصفر', 'أصفر': 'أصفر',
+  'بني': 'بني', 'بيج': 'بيج', 'رمادي': 'رمادي', 'وردي': 'وردي', 'بنفسجي': 'بنفسجي', 'كحلي': 'كحلي',
+  'سماوي': 'سماوي', 'فيروزي': 'فيروزي', 'عنابي': 'عنابي', 'ذهبي': 'ذهبي', 'فضي': 'فضي',
+  // English to Arabic
+  'red': 'أحمر', 'blue': 'أزرق', 'green': 'أخضر', 'black': 'أسود', 'white': 'أبيض', 'yellow': 'أصفر',
+  'brown': 'بني', 'beige': 'بيج', 'gray': 'رمادي', 'grey': 'رمادي', 'pink': 'وردي', 'purple': 'بنفسجي',
+  'navy': 'كحلي', 'sky': 'سماوي', 'turquoise': 'فيروزي', 'maroon': 'عنابي', 'gold': 'ذهبي', 'silver': 'فضي'
+};
 
 export function extractColors(text: string): string[] {
-  const res = new Set<string>();
+  const found = new Set<string>();
   const s = text.toLowerCase();
-  for (const c of COLOR_LEXICON) {
-    const rx = new RegExp(`(?:^|\n|\b)${c}(?:\b|\s|,|\.|$)`, 'gi');
-    if (rx.test(s)) res.add(c);
+  const keys = Object.keys(COLOR_MAP);
+  for (const k of keys) {
+    const rx = new RegExp(`(?:^|\n|\b)${k}(?:\b|\s|,|\.|$)`, 'gi');
+    if (rx.test(s)) found.add(COLOR_MAP[k]);
   }
-  // Special phrase "لونين/2 الوان" ⇒ unknown but plural
-  if (/\b(لونين|2\s*الوان|لونان)\b/i.test(text)) res.add('لونين');
-  return Array.from(res);
+  // Phrase indicates plurality but not a specific color — do not add as color token
+  return Array.from(found);
 }
 
 export function extractSizes(text: string): string[] {
   const sizes = new Set<string>();
   const s = text;
-  const en = s.match(/\b(XXL|XL|L|M|S|XS|XXS|\d{2})\b/gi) || [];
-  en.forEach((v) => sizes.add(v.toUpperCase()));
-  const freeRange = s.match(/من\s*وزن\s*(\d{2,3})\s*(?:حتى|الى|إلى)\s*وزن\s*(\d{2,3})/i);
-  if (freeRange) sizes.add(`فري سايز (${freeRange[1]}–${freeRange[2]} كجم)`);
+  // Weight-based free size
+  const range = s.match(/وزن\s*(\d{2,3})[^\d]{0,8}(?:حتى|الى|إلى|-|–)\s*(\d{2,3})/i);
+  if (range) sizes.add(`فري سايز (${range[1]}–${range[2]} كجم)`);
   if (/فري\s*سايز/i.test(s)) sizes.add('فري سايز');
+  // Labeled sizes
+  const tokens = s.match(/\b(XXL|XL|L|M|S|XS|XXS|\d{2})\b/gi) || [];
+  for (const t of tokens) sizes.add(t.toUpperCase());
   return Array.from(sizes);
 }
 

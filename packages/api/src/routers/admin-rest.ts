@@ -3145,10 +3145,10 @@ adminRest.post('/products/analyze', async (req, res) => {
     const out:any = { name:null, description:null, brand:null, tags:[], sizes:[], colors:[], price_range:null, attributes:[], seo:{ title:null, description:null, keywords:[] } };
     const sources:any = {};
     // Helpers
-    const stripEmojis = (s:string)=> s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]/gu, '');
+    const stripEmojis = (s:string)=> s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]/gu, ' ');
     const cleanSymbols = (s:string)=> s.replace(/[✦☆★✨🔥🤩💃🏼🤑🤤]+/g, ' ').replace(/[\u0000-\u001f]/g,' ');
-    const normalizeSpaces = (s:string)=> s.replace(/\s+/g,' ').trim();
-    const toArabicDigits = (s:string)=> s.replace(/\b(\d+)\b/g, (m)=> m);
+    const normalizeSpaces = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim();
+    const toArabicDigits = (s:string)=> s;
     const clamp = (s:string, n:number)=> s.length>n ? s.slice(0,n) : s;
     const synonymsMap: Record<string,string[]> = { 'صوف': ['شتوي','دافئ'], 'قطن': ['خفيف','صيفي'], 'جلد': ['فاخر'], 'فنيلة': ['توب','بلوزة'] };
     const arabicStop: string[] = Array.isArray((sw as any)?.ar) ? (sw as any).ar : ['و','في','من','الى','على','عن','هو','هي','هذا','هذه','ذلك','تلك','ثم','كما','قد','لقد','مع','حسب','أو','أي','ما','لا','لم','لن','إن','أن','كان','كانت','يكون','يمكن','فقط','متوفر','متوفرة','جديد','جديدة','عرض','السعر','كمية','الكبرى','الصغرى','لون','الوان','لونين'];
@@ -3196,7 +3196,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       const sentence2 = mats.length? `${mats.join('، ')}.` : '';
       // Sizes: weight range 40–60
       let sz = '';
-      const wMatch = pre.match(/وزن\s*(\d+)[^\d]{0,6}(?:حتى|إلى|-)\s*(\d+)/i);
+      const wMatch = pre.match(/وزن\s*(\d{2,3})[^\d]{0,8}(?:حتى|إلى|الى|-|–)\s*(\d{2,3})/i);
       if (wMatch) { const a=Number(wMatch[1]), b=Number(wMatch[2]); if (!Number.isNaN(a) && !Number.isNaN(b)) sz = `مقاس واحد يناسب ${Math.min(a,b)} إلى ${Math.max(a,b)} كجم.`; }
       if (!sz && Array.isArray(extracted.sizes) && extracted.sizes.length) {
         const cleanedSizes = (extracted.sizes as string[]).filter(s=> !/^\s*\d+(?:[\.,]\d+)?\s*$/.test(String(s)));
@@ -3212,7 +3212,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const cleanedSizes = (extracted.sizes as string[]).filter(s=> !/^\s*\d+(?:[\.,]\d+)?\s*$/.test(String(s)));
         if (cleanedSizes.length) { out.sizes = cleanedSizes; sources.sizes = { source:'rules', confidence:0.7 }; }
       }
-      if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = extracted.colors; sources.colors = { source:'rules', confidence:0.4 }; }
+      if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = Array.from(new Set(extracted.colors)); sources.colors = { source:'rules', confidence:0.4 }; }
       if (Array.isArray(extracted.keywords)) {
         const noise = new Set<string>(['وزن','فقط','متوفر','متوفرة','متوووفر','دلع','اناقة','أنَاقة','واناقه','جديد','جديدة','جديديناءغيرر','لون','الوان','لونين']);
         const filtered = (extracted.keywords||[])
