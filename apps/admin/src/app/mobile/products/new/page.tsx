@@ -68,15 +68,16 @@ export default function MobileNewProduct(): JSX.Element {
   async function analyzePaste(){
     if (!pasteText.trim()) return;
     try{
-      const r = await fetch(`${resolveApiBase()}/api/admin/products/parse`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ text: pasteText }) });
+      const r = await fetch(`${resolveApiBase()}/api/admin/products/analyze`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ text: pasteText, images }) });
       const j = await r.json();
-      if (j?.name) setName(j.name);
-      if (j?.description) setDescription(j.description);
-      if (Array.isArray(j?.colors)) setColors(j.colors.join(', '));
-      if (Array.isArray(j?.sizes)) setSizes(j.sizes.join(', '));
-      if (Array.isArray(j?.prices) && j.prices[0]) setPrice(String(j.prices[0]));
-      if (j?.brand) setBrand(j.brand);
-      if (Array.isArray(j?.keywords)) setTags(j.keywords.join(', '));
+      const a = j?.analyzed || {};
+      if (a?.name?.value) setName(a.name.value);
+      if (a?.description?.value) setDescription(a.description.value);
+      if (Array.isArray(a?.colors?.value)) setColors((a.colors.value as any[]).join(', '));
+      if (Array.isArray(a?.sizes?.value)) setSizes((a.sizes.value as any[]).join(', '));
+      if (a?.price_range?.value?.low!=null) setPrice(String(a.price_range.value.low));
+      if (a?.brand?.value) setBrand(a.brand.value);
+      if (Array.isArray(a?.tags?.value)) setTags((a.tags.value as any[]).join(', '));
     }catch{}
   }
 

@@ -288,27 +288,36 @@ export default function AdminProductCreate(): JSX.Element {
     setError('');
     try {
       setBusy(true);
-      // Prefer server-side parse for better accuracy
-      let extracted: any;
-      try{
-        const r = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste }) });
-        const j = await r.json();
-        if (r.ok && j?.extracted) extracted = j.extracted; else throw new Error('parse_failed');
-      } catch {
-        extracted = extractFromText(paste);
-      }
+      // Server-side analyze (Node-only pipeline: text+image)
+      const b64Images: string[] = [];
+      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
+      if (!resp.ok) throw new Error('analyze_failed');
+      const aj = await resp.json();
+      const analyzed = aj?.analyzed || {};
+      const extracted:any = {
+        name: analyzed?.name?.value || '',
+        shortDesc: analyzed?.description?.value || '',
+        longDesc: analyzed?.description?.value || '',
+        sizes: analyzed?.sizes?.value || [],
+        colors: analyzed?.colors?.value || [],
+        keywords: analyzed?.tags?.value || [],
+        purchasePrice: (analyzed?.price_range?.value?.low ?? undefined)
+      };
       const palettes: Array<{url:string;hex:string;name:string}> = [];
-      for (const f of filesForPalette.slice(0,8)) {
-        const p = await getImageDominant(f);
+      const allUrls = allProductImageUrls();
+      // Recompute quick palette client-side for mapping visual review
+      for (const url of allUrls.slice(0,6)) {
+        const p = await getImageDominant(url);
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
         setReview((prev:any)=> ({ ...(prev||extracted), palettes: [...palettes] }));
       }
       const mapping: Record<string, string|undefined> = {};
       for (const c of extracted.colors as string[]) {
-        const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(c.toLowerCase()) ? 0 : 1 }));
+        const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 }));
         candidates.sort((a,b)=> a.score-b.score);
-        mapping[c] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
+        mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
       const schema = buildSchemaOutput(extracted, palettes, mapping);
       const reviewObj = {
