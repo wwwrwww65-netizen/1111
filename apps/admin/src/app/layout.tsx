@@ -7,6 +7,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
   return (
     <html lang="ar" dir="rtl">
       <body>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
         <script dangerouslySetInnerHTML={{ __html: `window.__admin_loaded_at = Date.now();` }} />
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){try{navigator.serviceWorker.register('/sw.js');}catch(e){}}` }} />
         <AppProviders>
