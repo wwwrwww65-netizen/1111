@@ -20,6 +20,7 @@ jobs:
       DEPLOY_HOST: ${{ secrets.SSH_HOST || secrets.VPS_HOST || secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.SSH_USER || secrets.VPS_USER || secrets.DEPLOY_USER }}
       DEPLOY_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.VPS_SSH_KEY || secrets.DEPLOY_KEY }}
+      DEPLOY_PORT: ${{ secrets.VPS_PORT || secrets.SSH_PORT || 22 }}
       MWEB_PATH: ${{ secrets.MWEB_DEPLOY_PATH || secrets.WEBROOT_MWEB || secrets.DEPLOY_PATH_MWEB || '/var/www/mweb' }}
     steps:
       - name: Checkout
@@ -58,6 +59,7 @@ jobs:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
           key: ${{ env.DEPLOY_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
           script: |
             set -e
             export DEPLOY_PATH="${{ env.MWEB_PATH }}"
@@ -69,6 +71,7 @@ jobs:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
           key: ${{ env.DEPLOY_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
           source: "apps/mweb/dist/*"
           target: "${{ env.MWEB_PATH }}/releases/${{ github.sha }}/"
 
@@ -78,6 +81,7 @@ jobs:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
           key: ${{ env.DEPLOY_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
           script: |
             set -e
             export DEPLOY_PATH="${{ env.MWEB_PATH }}"
