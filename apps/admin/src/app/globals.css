@@ -117,6 +117,7 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
 .tabs{display:none;gap:8px;margin-bottom:12px}
 .tabs .tab{flex:1;background:#0f1320;border:1px solid var(--muted);color:var(--text);border-radius:999px;padding:8px 12px;text-align:center}
 .tabs .tab.active{background:var(--brand)}
+.btn-group[role=tablist] .btn[role=tab]{outline-offset:2px}
 
 /* Progress bar */
 .progress{height:6px;background:#101828;border:1px solid var(--muted);border-radius:999px;overflow:hidden}

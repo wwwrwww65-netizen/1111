@@ -18,9 +18,9 @@ export function Section({ title, subtitle, toolbar, children }:{ title:string; s
 
 export function Tabs({ value, onChange, items }:{ value:string; onChange:(v:string)=>void; items:Array<{key:string; label:string}> }): JSX.Element {
   return (
-    <div className="btn-group" style={{ display:'flex', justifyContent:'center', gap:8, marginBottom:12 }}>
+    <div className="btn-group" role="tablist" style={{ display:'flex', justifyContent:'center', gap:8, marginBottom:12 }}>
       {items.map(it=> (
-        <button key={it.key} onClick={()=> onChange(it.key)} className={`btn btn-sm ${value===it.key? '':'btn-outline'}`}>{it.label}</button>
+        <button key={it.key} role="tab" aria-selected={value===it.key} onClick={()=> onChange(it.key)} className={`btn btn-sm ${value===it.key? '':'btn-outline'}`}>{it.label}</button>
       ))}
     </div>
   );
