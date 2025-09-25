@@ -3157,18 +3157,19 @@ adminRest.post('/products/analyze', async (req, res) => {
       const pre = normalizeSpaces(cleanSymbols(stripEmojis(text||'')));
       const extracted = parseProductText(pre) || {};
       // Name generation with priority: <type> <attr> من <material> — <feature>
-      const typeMatch = pre.match(/\b(فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|قميص|فستان|هودي|سويتر|بلوفر)\b/i);
-      const materialMatch = pre.match(/\b(صوف|قطن|جلد|لينن|denim|leather|cotton|wool)\b/i);
-      const attrMatch = pre.match(/\b(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)\b/i);
-      const featureMatch = pre.match(/\b(أزرار (?:انيقه|أنِيقة|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه)\b/i);
-      const normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1].replace(/ه$/,'ة')) : '';
-      let material = materialMatch ? (materialMatch[1].toLowerCase()==='wool'?'صوف':materialMatch[1].toLowerCase()==='cotton'?'قطن':materialMatch[1]) : '';
+      const typeMatch = pre.match(/(^|\s)(فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|قميص|فستان|هودي|سويتر|بلوفر)(?=\s|$)/i);
+      const materialMatch = pre.match(/(^|\s)(صوف|قطن|جلد|لينن|denim|leather|cotton|wool)(?=\s|$)/i);
+      const attrMatch = pre.match(/(^|\s)(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)(?=\s|$)/i);
+      const featureMatch = pre.match(/(^|\s)(أزرار (?:انيقه|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه)(?=\s|$)/i);
+      let normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[2]) ? 'فنيلة' : typeMatch[2].replace(/ه$/,'ة')) : '';
+      if (!normalizedType && /(فنائل|فنيله|فنيلة)/i.test(pre)) normalizedType = 'فنيلة';
+      let material = materialMatch ? (materialMatch[2].toLowerCase()==='wool'?'صوف':materialMatch[2].toLowerCase()==='cotton'?'قطن':materialMatch[2]) : '';
       if (material) {
         // أضف "ال" للتعبير العربي الطبيعي
         if (!/^ال/.test(material)) material = `الصوف` === material ? material : (material === 'صوف' ? 'الصوف' : material === 'قطن' ? 'القطن' : material);
       }
-      const attr = attrMatch ? (attrMatch[1].replace('موحد','فري سايز')) : '';
-      let feature = featureMatch ? featureMatch[1] : '';
+      const attr = attrMatch ? (attrMatch[2].replace('موحد','فري سايز')) : '';
+      let feature = featureMatch ? featureMatch[2] : '';
       feature = /زرارات|أزرار/i.test(feature) ? 'أزرار أنيقة' : (/كم كامل/i.test(pre)? 'كم كامل' : feature);
       const nameParts = [ [normalizedType, attr].filter(Boolean).join(' ').trim(), material ? `من ${material}` : '', feature ].filter(Boolean);
       const genName = nameParts.join(' — ').trim();
