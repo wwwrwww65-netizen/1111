@@ -3253,13 +3253,29 @@ adminRest.post('/reviews/:id/approve', async (req, res) => {
 adminRest.delete('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.delete'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
-  try { await db.product.delete({ where: { id } }); return res.json({ ok:true }); } catch (e:any) { return res.status(500).json({ error: e.message || 'product_delete_failed' }); }
+  try {
+    await db.$transaction(async (tx)=>{
+      // Remove dependent order items referencing this product to satisfy FK
+      try { await tx.$executeRawUnsafe('DELETE FROM "OrderItem" WHERE "productId"=$1', id as any); } catch {}
+      await tx.product.delete({ where: { id } });
+    });
+    return res.json({ ok:true });
+  } catch (e:any) { return res.status(500).json({ error: e.message || 'product_delete_failed' }); }
 });
 adminRest.post('/products/bulk-delete', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.delete'))) return res.status(403).json({ error:'forbidden' });
   const ids: string[] = Array.isArray(req.body?.ids)? req.body.ids : [];
   if (!ids.length) return res.json({ ok:true, deleted: 0 });
-  try { const r = await db.product.deleteMany({ where: { id: { in: ids as any } } }); return res.json({ ok:true, deleted: r.count }); } catch (e:any) { return res.status(500).json({ error: e.message || 'product_bulk_delete_failed' }); }
+  try {
+    let deleted = 0;
+    await db.$transaction(async (tx)=>{
+      for (const pid of ids) {
+        try { await tx.$executeRawUnsafe('DELETE FROM "OrderItem" WHERE "productId"=$1', pid as any); } catch {}
+        try { await tx.product.delete({ where: { id: pid } }); deleted++; } catch {}
+      }
+    });
+    return res.json({ ok:true, deleted });
+  } catch (e:any) { return res.status(500).json({ error: e.message || 'product_bulk_delete_failed' }); }
 });
 
 adminRest.delete('/orders/:id', async (req, res) => {
