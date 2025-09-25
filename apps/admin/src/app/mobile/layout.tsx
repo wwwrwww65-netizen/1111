@@ -13,10 +13,15 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
     { href: '/mobile/settings', label: 'الإعدادات' },
   ];
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  React.useEffect(()=>{
+    const onKey=(e:KeyboardEvent)=>{ if(e.key==='Escape') setDrawerOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return ()=> document.removeEventListener('keydown', onKey);
+  },[]);
   return (
     <div className="mobile-shell">
       <header className="mobile-appbar" role="banner" aria-label="الشريط العلوي">
-        <button className="icon-btn" aria-label="فتح القائمة" onClick={()=> setDrawerOpen(true)}>☰</button>
+        <button className="icon-btn" aria-label="القائمة" aria-expanded={drawerOpen} onClick={()=> setDrawerOpen(v=>!v)}>☰</button>
         <div className="brand">jeeey</div>
         <div className="actions">
           <Link href="/search" className="icon-btn" aria-label="بحث">بحث</Link>
