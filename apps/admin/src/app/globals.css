@@ -50,6 +50,13 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
 @media (min-width:992px){
   .overlay{display:none}
 }
+.mobile-shell{min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+.mobile-appbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;height:var(--appbar-h-sm);padding:0 12px;background:linear-gradient(90deg,#0f1420,#101939);border-bottom:1px solid var(--muted)}
+.mobile-appbar .brand{font-weight:800}
+.mobile-content{flex:1;max-width:720px;margin:0 auto;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom) + 56px)}
+.mobile-bottom-nav{position:sticky;bottom:0;z-index:40;background:var(--panel);border-top:1px solid var(--muted);display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+.mobile-tab{display:flex;align-items:center;justify-content:center;height:40px;border-radius:10px;color:var(--text);text-decoration:none;border:1px solid transparent}
+.mobile-tab.active{background:#101828;border-color:#1f2937}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid transparent;border-radius:10px;color:var(--text);text-decoration:none;background:transparent}
 .nav-item:hover{background:#101828;border-color:#1f2937}
 .nav-item.active{background:linear-gradient(180deg,#0c1220,#0a0f1a);border-color:#233046}

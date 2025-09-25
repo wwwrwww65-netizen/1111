@@ -9,7 +9,7 @@ import { LanguageToggle } from './LanguageToggle';
 
 export function AppShell({ children }: { children: React.ReactNode }): JSX.Element {
   const pathname = usePathname();
-  if (pathname === '/login' || pathname.startsWith('/(auth)')) {
+  if (pathname === '/login' || pathname.startsWith('/(auth)') || pathname.startsWith('/mobile')) {
     return <>{children}</>;
   }
   const [open, setOpen] = React.useState(false);
