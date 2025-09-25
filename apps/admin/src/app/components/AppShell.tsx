@@ -43,12 +43,12 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
   return (
     <div className="app-root">
       <CommandPalette open={openCmd} onClose={()=> setOpenCmd(false)} />
-      <header className="topbar" style={{background:'linear-gradient(90deg,#0f1420,#101939)',color:'#e2e8f0',borderBottom:'1px solid #1c2333'}}>
+      <header className="topbar">
         <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!isDesktop) setOpen(o=>!o); else setDesktopOpen(v=>!v); }}>
           ☰
         </button>
         <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
-        <div className="top-actions" style={{display:'flex',alignItems:'center',gap:12}}>
+        <div className="top-actions">
           <button className="icon-btn" title="Command Palette (Ctrl+K)" onClick={()=> setOpenCmd(true)}>⌘</button>
           <ThemeToggle />
           <LanguageToggle />
@@ -63,10 +63,10 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
         {/* Mobile drawer sidebar */}
         {!isDesktop && (
           <>
-            <aside className={`sidebar drawer ${open ? 'is-open' : ''}`} aria-hidden={!open}>
+            <aside className={`sidebar drawer ${open ? 'is-open' : ''}`} aria-hidden={!open} role="dialog" aria-modal="true">
               <Sidebar />
             </aside>
-            {/* overlay removed to avoid dimming */}
+            <div className="overlay" style={{display: open ? 'block' : 'none'}} onClick={()=> setOpen(false)} aria-hidden={!open} />
           </>
         )}
         <main className="content container" style={{ marginRight: isDesktop && desktopOpen ? 260 : 0 }}>
