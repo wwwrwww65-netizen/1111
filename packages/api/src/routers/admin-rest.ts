@@ -3135,6 +3135,27 @@ adminRest.post('/products/generate', async (req, res) => {
     return res.json({ ok:true, product: created });
   }catch(e:any){ return res.status(500).json({ error: e.message || 'generate_failed' }); }
 });
+
+// Unified analyze endpoint (text + images)
+adminRest.post('/products/analyze', async (req, res) => {
+  try{
+    const { text, images } = req.body || {};
+    const svcUrl = process.env.ANALYZE_API_URL || 'http://127.0.0.1:8008';
+    const timeoutMs = Number(process.env.ANALYZE_TIMEOUT_MS || 15000);
+    const ctrl = new AbortController();
+    const t = setTimeout(()=> ctrl.abort(), timeoutMs);
+    const r = await fetch(`${svcUrl}/analyze`, {
+      method:'POST', headers:{ 'content-type':'application/json' }, signal: ctrl.signal,
+      body: JSON.stringify({ text: text||'', images: Array.isArray(images)? images.slice(0,6): [] })
+    }).catch((e:any)=> ({ ok:false, status: 599, json: async()=> ({ error: String(e?.message||'analyze_timeout') }) } as any));
+    clearTimeout(t);
+    if (!('ok' in r) || !r.ok) {
+      return res.status(502).json({ error: 'analyze_failed', detail: (r as any)?.status });
+    }
+    const j = await (r as any).json();
+    return res.json({ ok:true, analyzed: j?.result || j });
+  }catch(e:any){ return res.status(500).json({ error: e.message || 'analyze_failed' }); }
+});
 adminRest.post('/integrations/test', async (req, res) => {
   // Basic echo test for UI wiring; providers can be validated server-side later
   const { provider, config } = req.body || {};
