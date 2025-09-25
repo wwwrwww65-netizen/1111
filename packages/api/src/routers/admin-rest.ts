@@ -3144,22 +3144,70 @@ adminRest.post('/products/analyze', async (req, res) => {
     const { text, images } = req.body || {};
     const out:any = { name:null, description:null, brand:null, tags:[], sizes:[], colors:[], price_range:null, attributes:[], seo:{ title:null, description:null, keywords:[] } };
     const sources:any = {};
-    // Text pass (rule-based + simple Arabic stopwords)
+    // Helpers
+    const stripEmojis = (s:string)=> s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]/gu, '');
+    const cleanSymbols = (s:string)=> s.replace(/[✦☆★✨🔥🤩💃🏼🤑🤤]+/g, ' ').replace(/[\u0000-\u001f]/g,' ');
+    const normalizeSpaces = (s:string)=> s.replace(/\s+/g,' ').trim();
+    const toArabicDigits = (s:string)=> s.replace(/\b(\d+)\b/g, (m)=> m);
+    const clamp = (s:string, n:number)=> s.length>n ? s.slice(0,n) : s;
+    const synonymsMap: Record<string,string[]> = { 'صوف': ['شتوي','دافئ'], 'قطن': ['خفيف','نَسيم'], 'جلد': ['فاخر'], 'فنيلة': ['توب','بلوزة'] };
+    // Text pass (rule-based + stopwords)
     if (typeof text === 'string' && text.trim()) {
-      const pre = (text||'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim();
+      const pre = normalizeSpaces(cleanSymbols(stripEmojis(text||'')));
       const extracted = parseProductText(pre) || {};
-      if (extracted.name) { out.name = extracted.name; sources.name = { source:'rules', confidence:0.6 }; }
-      if (extracted.shortDesc || extracted.longDesc) { out.description = extracted.shortDesc || extracted.longDesc; sources.description = { source:'rules', confidence:0.6 }; }
+      // Name generation with priority: <type> <attr> من <material> — <feature>
+      const typeMatch = pre.match(/\b(فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|قميص|فستان|هودي|سويتر|بلوفر)\b/i);
+      const materialMatch = pre.match(/\b(صوف|قطن|جلد|لينن|denim|leather|cotton|wool)\b/i);
+      const attrMatch = pre.match(/\b(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)\b/i);
+      const featureMatch = pre.match(/\b(أزرار (?:انيقه|أنِيقة|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه)\b/i);
+      const normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1].replace(/ه$/,'ة')) : '';
+      const material = materialMatch ? (materialMatch[1].toLowerCase()==='wool'?'صوف':materialMatch[1].toLowerCase()==='cotton'?'قطن':materialMatch[1]) : '';
+      const attr = attrMatch ? (attrMatch[1].replace('موحد','فري سايز')) : '';
+      let feature = featureMatch ? featureMatch[1] : '';
+      feature = /زرارات|أزرار/i.test(feature) ? 'أزرار أنيقة' : (/كم كامل/i.test(pre)? 'كم كامل' : feature);
+      const nameParts = [ [normalizedType, attr].filter(Boolean).join(' ').trim(), material ? `من ${material}` : '', feature ].filter(Boolean);
+      const genName = nameParts.join(' — ').trim();
+      if (genName) { out.name = clamp(genName, 60); sources.name = { source:'rules', confidence:0.8 }; }
+      else if (extracted.name) { out.name = clamp(extracted.name, 60); sources.name = { source:'rules', confidence:0.6 }; }
+      // Description (3 sentences)
+      const intro = out.name ? `${out.name}.` : (extracted.shortDesc ? clamp(extracted.shortDesc, 60)+'.' : '');
+      const materials = [] as string[]; if (material) materials.push(`من قماش ${material}`); if (/كم كامل/i.test(pre)) materials.push('كم كامل'); if (/\b2\s*الوان|لونين\b/i.test(pre)) materials.push('لونان'); if (/خارجي/i.test(pre)) materials.push('للإطلالة الخارجية');
+      const sentence2 = materials.length? `${materials.join('، ')}.` : '';
+      // Sizes: weight range 40–60
+      let sz = '';
+      const wMatch = pre.match(/وزن\s*(\d+)[^\d]{0,6}(?:حتى|إلى|-)\s*(\d+)/i);
+      if (wMatch) { const a=Number(wMatch[1]), b=Number(wMatch[2]); if (!Number.isNaN(a) && !Number.isNaN(b)) sz = `مقاس واحد يناسب ${Math.min(a,b)} إلى ${Math.max(a,b)} كجم.`; }
+      if (!sz && Array.isArray(extracted.sizes) && extracted.sizes.length) sz = `مقاسات: ${extracted.sizes.join('، ')}.`;
+      const availability = /كمية كبيرة|متوفر/i.test(pre) ? 'متوفرة بكميات كبيرة.' : '';
+      const sentence3 = [sz, availability].filter(Boolean).join(' ');
+      const finalDesc = normalizeSpaces([intro, sentence2, sentence3].filter(Boolean).join(' '));
+      if (finalDesc) { out.description = finalDesc; sources.description = { source:'rules', confidence:0.85 }; }
+      // Sizes field (normalized)
+      if (wMatch) { out.sizes = [`فري سايز (${Math.min(Number(wMatch[1]),Number(wMatch[2]))}–${Math.max(Number(wMatch[1]),Number(wMatch[2]))} كجم)`]; sources.sizes = { source:'rules', confidence:0.8 }; }
+      else if (Array.isArray(extracted.sizes) && extracted.sizes.length) { out.sizes = extracted.sizes; sources.sizes = { source:'rules', confidence:0.7 }; }
       if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = extracted.colors; sources.colors = { source:'rules', confidence:0.4 }; }
-      if (Array.isArray(extracted.sizes) && extracted.sizes.length) { out.sizes = extracted.sizes; sources.sizes = { source:'rules', confidence:0.7 }; }
       if (Array.isArray(extracted.keywords)) {
         const filtered = sw.removeStopwords(extracted.keywords, sw.ar);
-        out.tags = Array.from(new Set(filtered)).slice(0,12);
+        // add synonyms up to 6
+        const expanded = new Set<string>();
+        for (const k of filtered) { expanded.add(k); if (synonymsMap[k]) for (const s of synonymsMap[k]) expanded.add(s); }
+        out.tags = Array.from(expanded).filter(Boolean).slice(0,6);
         sources.tags = { source:'rules', confidence:0.5 };
       }
+      // Prices: prefer الشمال / غير الجنوبي / القديم / المشابه
       const priceNums: number[] = [];
-      if (typeof extracted.purchasePrice === 'number') priceNums.push(Number(extracted.purchasePrice)||0);
-      if (typeof extracted.salePrice === 'number') priceNums.push(Number(extracted.salePrice)||0);
+      const lines = pre.split(/\n|\r|\u2028|\u2029/).map(normalizeSpaces).filter(Boolean);
+      for (const ln of lines) {
+        const hasSouth = /جنوبي/i.test(ln);
+        const prefer = /الشمال|للشمال|قديم|مشابه/i.test(ln) || (!/السعر\s*عمله\s*جن/i.test(ln) && !hasSouth);
+        if (!prefer) continue;
+        const m = ln.match(/(\d+[\.,٬٫]?\d*)/g);
+        if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v)) priceNums.push(v); });
+      }
+      if (!priceNums.length) {
+        if (typeof extracted.purchasePrice === 'number') priceNums.push(Number(extracted.purchasePrice)||0);
+        if (typeof extracted.salePrice === 'number') priceNums.push(Number(extracted.salePrice)||0);
+      }
       if (priceNums.length) {
         const low = Math.min(...priceNums);
         const high = Math.max(...priceNums);
