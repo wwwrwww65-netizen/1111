@@ -11,6 +11,9 @@ export default function MobileOrders(): JSX.Element {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const ctrlRef = React.useRef<AbortController | null>(null);
+  const [status, setStatus] = React.useState('');
+  const [from, setFrom] = React.useState('');
+  const [to, setTo] = React.useState('');
 
   const fetchList = React.useCallback(async (query: string) => {
     ctrlRef.current?.abort();
@@ -21,6 +24,9 @@ export default function MobileOrders(): JSX.Element {
       const base = resolveApiBase();
       const url = new URL(base + '/api/admin/orders');
       if (query) url.searchParams.set('q', query);
+      if (status) url.searchParams.set('status', status);
+      if (from) url.searchParams.set('from', from);
+      if (to) url.searchParams.set('to', to);
       url.searchParams.set('limit', '20');
       const res = await fetch(url.toString(), { signal: ctrl.signal, headers: { 'accept': 'application/json' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -36,13 +42,24 @@ export default function MobileOrders(): JSX.Element {
   React.useEffect(()=>{
     const t = setTimeout(()=> fetchList(q), 300);
     return ()=> clearTimeout(t);
-  }, [q, fetchList]);
+  }, [q, status, from, to, fetchList]);
 
   return (
     <div className="grid" style={{ gap:12 }}>
       <div className="panel">
         <div style={{ fontWeight:700, marginBottom:8 }}>الطلبات</div>
-        <FilterBar value={q} onChange={setQ} />
+        <FilterBar value={q} onChange={setQ}>
+          <select className="select" value={status} onChange={e=> setStatus(e.target.value)}>
+            <option value="">الكل</option>
+            <option value="NEW">جديد</option>
+            <option value="PROCESSING">قيد المعالجة</option>
+            <option value="SHIPPED">تم الشحن</option>
+            <option value="DELIVERED">تم التسليم</option>
+            <option value="CANCELLED">ألغيت</option>
+          </select>
+          <input className="input" type="date" value={from} onChange={e=> setFrom(e.target.value)} />
+          <input className="input" type="date" value={to} onChange={e=> setTo(e.target.value)} />
+        </FilterBar>
       </div>
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}

@@ -8,6 +8,8 @@ type ProductItem = { id:string; name:string; price?:number; status?:string };
 export default function MobileProducts(): JSX.Element {
   const [q, setQ] = React.useState('');
   const [items, setItems] = React.useState<ProductItem[]>([]);
+  const [status, setStatus] = React.useState('');
+  const [category, setCategory] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const ctrlRef = React.useRef<AbortController | null>(null);
@@ -20,6 +22,8 @@ export default function MobileProducts(): JSX.Element {
     try{
       const u = new URL(resolveApiBase() + '/api/admin/products');
       if (query) u.searchParams.set('q', query);
+      if (status) u.searchParams.set('status', status);
+      if (category) u.searchParams.set('categoryId', category);
       u.searchParams.set('limit','20');
       const r = await fetch(u.toString(), { signal: ctrl.signal, headers:{ 'accept':'application/json' } });
       if(!r.ok) throw new Error('HTTP '+r.status);
@@ -29,7 +33,7 @@ export default function MobileProducts(): JSX.Element {
     finally{ setLoading(false); }
   },[]);
 
-  React.useEffect(()=>{ const t = setTimeout(()=>{ try{ localStorage.setItem('m_products_q', q); }catch{} load(q); },300); return ()=> clearTimeout(t); }, [q, load]);
+  React.useEffect(()=>{ const t = setTimeout(()=>{ try{ localStorage.setItem('m_products_q', q); }catch{} load(q); },300); return ()=> clearTimeout(t); }, [q, status, category, load]);
   React.useEffect(()=>{ try{ const s = localStorage.getItem('m_products_q'); if(s) setQ(s); }catch{} }, []);
 
   return (
@@ -40,7 +44,15 @@ export default function MobileProducts(): JSX.Element {
           <a className="btn" href="/mobile/products/new" style={{ textDecoration:'none', lineHeight:'40px' }}>+ جديد</a>
         </div>
         <div style={{ marginTop:8 }}>
-          <FilterBar value={q} onChange={setQ} />
+          <FilterBar value={q} onChange={setQ}>
+            <select className="select" value={status} onChange={e=> setStatus(e.target.value)}>
+              <option value="">كل الحالات</option>
+              <option value="ACTIVE">مفعل</option>
+              <option value="DRAFT">مسودة</option>
+              <option value="ARCHIVED">مؤرشف</option>
+            </select>
+            <input className="input" placeholder="معرّف الفئة" value={category} onChange={e=> setCategory(e.target.value)} />
+          </FilterBar>
         </div>
       </div>
       {loading && <div className="panel">جارٍ التحميل…</div>}
