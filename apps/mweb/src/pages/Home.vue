@@ -10,14 +10,14 @@
     <div class="header" :class="{ scrolled }" aria-label="رأس الصفحة">
       <div class="maxwrap header-inner">
         <div class="header-left">
-          <button class="icon-btn" aria-label="القائمة" @click="go('/categories')"><span class="navicon"></span></button>
-          <button class="icon-btn" aria-label="الإشعارات" @click="go('/notifications')"><span class="navicon"></span></button>
+          <button class="icon-btn" aria-label="القائمة" @click="go('/categories')"><Menu :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
+          <button class="icon-btn" aria-label="الإشعارات" @click="go('/notifications')"><Bell :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
         </div>
         <div class="logo" :class="{ dark: scrolled }" aria-label="شعار المتجر">jeeey</div>
         <div class="header-right">
-          <button class="icon-btn" aria-label="السلة" @click="go('/cart')"><span class="navicon"></span></button>
-          <button class="icon-btn" aria-label="المفضلة" @click="go('/products?wish=1')"><span class="navicon"></span></button>
-          <button class="icon-btn" aria-label="البحث" @click="go('/search')"><span class="navicon"></span></button>
+          <button class="icon-btn" aria-label="السلة" @click="go('/cart')"><ShoppingCart :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
+          <button class="icon-btn" aria-label="المفضلة" @click="go('/products?wish=1')"><Heart :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
+          <button class="icon-btn" aria-label="البحث" @click="go('/search')"><Search :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
         </div>
       </div>
     </div>
@@ -33,7 +33,10 @@
 
     <div class="maxwrap">
       <div class="banner">
-        <img src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60" alt="عرض تخفيضات" class="banner-img" loading="eager" />
+        <img
+          src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60"
+          srcset="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w"
+          alt="عرض تخفيضات" class="banner-img" loading="eager" />
         <div class="banner-overlay" />
         <div class="banner-text">
           <div class="banner-sub">احتفالنا الأكبر على الإطلاق</div>
@@ -95,19 +98,30 @@
           <div v-for="p in bestSellers" :key="p.title" class="prodcard">
             <div class="prodimg-wrap">
               <img :src="p.image" :alt="p.title" class="prodimg" loading="lazy" />
-              <button class="favbtn" aria-label="أضف إلى المفضلة" @click="toggleWish(p)">♥</button>
+              <button class="favbtn" aria-label="أضف إلى المفضلة" @click="toggleWish(p)"><Heart :size="16" :color="hasWish(p)? '#ef4444':'#111'" :fill="hasWish(p)? '#ef4444':'transparent'"/></button>
+              <span v-if="p.coupon" class="coupon-badge">{{ p.coupon }}</span>
             </div>
             <div class="info">
               <div class="brand">{{ p.brand }}</div>
               <div class="title clamp2">{{ p.title }}</div>
               <div class="row center gap1 rating">
+                <Star :size="12" color="#eab308" :fill="'#eab308'" aria-hidden="true" />
                 <span class="text11 text700">{{ p.rating.toFixed(1) }}</span>
                 <span class="text11 text600">({{ p.reviews.toLocaleString() }})</span>
               </div>
               <div class="row center gap2 price">
                 <span class="price-new">{{ p.price }}</span>
               </div>
-              <button class="mini-btn" aria-label="إضافة سريعة للسلة" @click="quickAdd(p)">أضف</button>
+              <div class="swatches">
+                <span class="sw" style="background:#000"></span>
+                <span class="sw" style="background:#c69c6d"></span>
+                <span class="sw" style="background:#fff;border:1px solid #d1d5db"></span>
+              </div>
+              <div class="badges">
+                <span class="badge">شحن مجاني</span>
+                <span class="badge">الدفع عند الاستلام</span>
+              </div>
+              <button class="mini-btn" aria-label="إضافة سريعة للسلة" @click="quickAdd(p)"><ShoppingCart :size="12"/> أضف</button>
             </div>
           </div>
         </div>
@@ -122,12 +136,22 @@
               <div class="brand">{{ p.brand }}</div>
               <div class="title clamp2">{{ p.title }}</div>
               <div class="row center gap1 rating">
+                <Star :size="12" color="#eab308" :fill="'#eab308'" />
                 <span class="text11 text700">{{ p.rating.toFixed(1) }}</span>
                 <span class="text11 text600">({{ p.reviews.toLocaleString() }})</span>
               </div>
               <div class="row center gap2 price">
                 <span class="price-new">{{ p.price }}</span>
                 <span v-if="p.oldPrice" class="price-old">{{ p.oldPrice }}</span>
+              </div>
+              <div class="swatches">
+                <span class="sw" style="background:#000"></span>
+                <span class="sw" style="background:#c69c6d"></span>
+                <span class="sw" style="background:#fff;border:1px solid #d1d5db"></span>
+              </div>
+              <div class="badges">
+                <span class="badge">شحن مجاني</span>
+                <span class="badge">الدفع عند الاستلام</span>
               </div>
             </div>
           </div>
@@ -159,11 +183,11 @@
 
     <nav class="bottomnav" aria-label="التنقل السفلي">
       <div class="maxwrap navwrap" dir="rtl">
-        <button class="navbtn active" aria-label="الرئيسية" @click="go('/')"><div class="navicon" /><div class="navtext">الرئيسية</div></button>
-        <button class="navbtn" aria-label="الفئات" @click="go('/categories')"><div class="navicon" /><div class="navtext">الفئات</div></button>
-        <button class="navbtn" aria-label="جديد/بحث" @click="go('/search')"><div class="navicon" /><div class="navtext">جديد</div></button>
-        <button class="navbtn" aria-label="الحقيبة" @click="go('/cart')"><div class="navicon" /><div class="navtext">الحقيبة</div></button>
-        <button class="navbtn" aria-label="حسابي" @click="go('/login')"><div class="navicon" /><div class="navtext">حسابي</div></button>
+        <button class="navbtn active" aria-label="الرئيسية" @click="go('/')"><LayoutGrid :size="24" class="mx-auto mb-1" /><div class="navtext">الرئيسية</div></button>
+        <button class="navbtn" aria-label="الفئات" @click="go('/categories')"><LayoutGrid :size="24" class="mx-auto mb-1" /><div class="navtext">الفئات</div></button>
+        <button class="navbtn" aria-label="جديد/بحث" @click="go('/search')"><Search :size="24" class="mx-auto mb-1" /><div class="navtext">جديد</div></button>
+        <button class="navbtn" aria-label="الحقيبة" @click="go('/cart')"><ShoppingBag :size="24" class="mx-auto mb-1" /><div class="navtext">الحقيبة</div></button>
+        <button class="navbtn" aria-label="حسابي" @click="go('/login')"><User :size="24" class="mx-auto mb-1" /><div class="navtext">حسابي</div></button>
       </div>
     </nav>
   </div>
@@ -175,6 +199,7 @@ import { useRouter } from 'vue-router'
 import { apiGet } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
+import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User } from 'lucide-vue-next'
 
 const router = useRouter()
 const cart = useCart()
@@ -354,6 +379,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .prodimg-wrap{position:relative;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
 .prodimg{width:100%;height:160px;object-fit:cover}
 .favbtn{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:4px;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;border:1px solid #e5e7eb;cursor:pointer}
+.coupon-badge{position:absolute;top:8px;left:8px;background:#000;color:#fff;font-size:10px;padding:2px 6px;border-radius:3px}
 .info{padding:6px 6px}
 .brand{font-size:11px;color:#6b7280}
 .title{font-size:12px;color:#111827}
@@ -363,6 +389,10 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .price-new{color:#dc2626;font-weight:700;font-size:13px}
 .price-old{color:#9ca3af;font-size:11px;text-decoration:line-through}
 .mini-btn{margin-top:6px;display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#374151;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer}
+.swatches{margin-top:4px;display:flex;gap:6px;align-items:center}
+.sw{width:12px;height:12px;border-radius:999px;display:inline-block}
+.badges{margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.badge{display:inline-block;font-size:10px;color:#374151;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 6px}
 
 .grid2{display:grid;grid-template-columns:1fr 1fr}
 .gridcard{cursor:pointer}
