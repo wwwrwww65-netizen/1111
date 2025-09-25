@@ -294,7 +294,12 @@ export default function AdminProductCreate(): JSX.Element {
       let analyzed: any = {};
       try{
         const resp = await fetch(`${apiBase}/api/admin/products/analyze`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
-        if (resp.ok) { const aj = await resp.json(); analyzed = aj?.analyzed || {}; } else { throw new Error('analyze_failed'); }
+        if (resp.ok) {
+          const aj = await resp.json();
+          analyzed = aj?.analyzed || {};
+          const low = Number(analyzed?.price_range?.value?.low);
+          if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
+        } else { throw new Error('analyze_failed'); }
       } catch {
         // Fallback to legacy parse endpoint
         try{
@@ -309,6 +314,8 @@ export default function AdminProductCreate(): JSX.Element {
               price_range: { value: { low: j.extracted.purchasePrice ?? j.extracted.salePrice ?? 0, high: j.extracted.salePrice ?? j.extracted.purchasePrice ?? 0 } },
               tags: { value: j.extracted.keywords||[] }
             } as any;
+            const low = Number(j.extracted.purchasePrice ?? j.extracted.salePrice);
+            if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
           } else { analyzed = {}; }
         } catch { analyzed = {}; }
       }
