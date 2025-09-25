@@ -3,6 +3,7 @@ import React from "react";
 import { resolveApiBase } from "../lib/apiBase";
 import PermissionsTab from './PermissionsTab';
 import { Tabs, Toolbar } from '../components/Ui';
+import { ResponsiveTable, FilterBar } from '../components/Mobile';
 export const dynamic = 'force-dynamic';
 
 function useApiBase(){
@@ -75,21 +76,36 @@ export default function UsersPage(): JSX.Element {
       )}
 
       {tab !== 'permissions' && (
-      <table className="table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>البريد</th>
-            <th>الاسم</th>
-            <th>الهاتف</th>
-            <th>الدور</th>
-            <th>إجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((u)=> (
-            <tr key={u.id}>
-              <td><input type="checkbox" checked={!!selected[u.id]} onChange={()=>setSelected(s=>({...s,[u.id]:!s[u.id]}))} /></td>
+        <ResponsiveTable
+          items={rows}
+          isLoading={false}
+          columns={[
+            { key:'email', title:'البريد', minWidth:200 },
+            { key:'name', title:'الاسم', minWidth:160 },
+            { key:'phone', title:'الهاتف', minWidth:140 },
+            { key:'role', title:'الدور', minWidth:120 },
+            { key:'actions', title:'إجراءات', minWidth:200 },
+          ]}
+          renderCard={(u:any)=> (
+            <div style={{ display:'grid', gap:6 }}>
+              <div style={{ display:'flex', justifyContent:'space-between' }}>
+                <div style={{ fontWeight:700 }}>{u.name||'-'}</div>
+                <span className="badge">{u.role}</span>
+              </div>
+              <div style={{ color:'var(--sub)', fontSize:12 }}>{u.email}</div>
+              <div style={{ color:'var(--sub)', fontSize:12 }}>{u.phone||'-'}</div>
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                <select value={roleName} onChange={(e)=>setRoleName(e.target.value)} className="select">
+                  <option value="MANAGER">MANAGER</option>
+                  <option value="OPERATOR">OPERATOR</option>
+                  <option value="ADMIN">ADMIN</option>
+                </select>
+                <button onClick={()=>assign(u.id)} className="btn btn-sm">إسناد</button>
+              </div>
+            </div>
+          )}
+          renderRow={(u:any)=> (
+            <>
               <td>{u.email}</td>
               <td>{u.name}</td>
               <td>{u.phone||'-'}</td>
@@ -104,10 +120,9 @@ export default function UsersPage(): JSX.Element {
                   <button onClick={()=>assign(u.id)} className="btn btn-outline">إسناد</button>
                 </div>
               </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </>
+          )}
+        />
       )}
 
       {tab !== 'permissions' && (

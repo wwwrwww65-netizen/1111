@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { BackButton } from '../../components/Mobile';
 import { resolveApiBase } from "../../lib/apiBase";
 
 export default function OrderDetailPage({ params }: { params: { id: string } }): JSX.Element {
@@ -51,6 +52,15 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
   if (!order) return <main className="panel">جارٍ التحميل…</main>;
   return (
     <main className="grid" style={{ gap:16 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <BackButton />
+        <nav className="breadcrumb" aria-label="Breadcrumb" style={{ marginInlineStart:'auto', display:'none' }}>
+          {/* يظهر على الشاشات العريضة عبر CSS (يمكن تحسينه لاحقًا) */}
+          <a href="/orders" style={{ color:'var(--sub)', textDecoration:'none' }}>الطلبات</a>
+          <span style={{ margin:'0 6px', color:'var(--sub)' }}>/</span>
+          <span style={{ color:'var(--text)' }}>#{id}</span>
+        </nav>
+      </div>
       <div className="panel">
         <h2 style={{ marginTop:0 }}>الطلب #{order.id}</h2>
         <div className="grid cols-2">

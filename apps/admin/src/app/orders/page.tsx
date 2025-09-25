@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { ResponsiveTable, FilterBar, useIsMobile } from "../components/Mobile";
 import { resolveApiBase } from "../lib/apiBase";
 
 export default function OrdersPage(): JSX.Element {
@@ -133,45 +134,39 @@ export default function OrdersPage(): JSX.Element {
         </div>
       </div>
 
-      <div className="toolbar" style={{ justifyContent:'space-between', marginBottom:12, alignItems:'center' }}>
-        <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
-          <div className="search"><input className="input" value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث (المعرف/الاسم/الإيميل/الهاتف)" /></div>
-          <select value={status} onChange={(e)=>setStatus(e.target.value)} className="select filter">
-            <option value="">كل الحالات</option>
-            <option value="PENDING">قيد الانتظار</option>
-            <option value="PAID">مدفوع</option>
-            <option value="SHIPPED">تم الشحن</option>
-            <option value="DELIVERED">تم التسليم</option>
-            <option value="CANCELLED">ملغي</option>
-          </select>
-          <select value={driverId} onChange={(e)=>setDriverId(e.target.value)} className="select filter">
-            <option value="">كل السائقين</option>
-            {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
-          </select>
-          <input type="date" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} className="input" />
-          <input type="date" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} className="input" />
-          <div style={{ display:'flex', gap:8 }}>
-            <input type="number" placeholder="المبلغ من" value={amountMin} onChange={(e)=>setAmountMin(e.target.value)} className="input" />
-            <input type="number" placeholder="إلى" value={amountMax} onChange={(e)=>setAmountMax(e.target.value)} className="input" />
-          </div>
-          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="select filter">
-            <option value="createdAt">الأحدث</option>
-            <option value="total">الإجمالي</option>
-            <option value="status">الحالة</option>
-          </select>
-          <select value={sortDir} onChange={(e)=>setSortDir(e.target.value as any)} className="select filter">
-            <option value="desc">تنازلي</option>
-            <option value="asc">تصاعدي</option>
-          </select>
-          <div style={{ display:'flex', gap:8 }}>
-            <button className="btn" onClick={()=> bulk('ship')}>شحن المحدد</button>
-            <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
-          </div>
+      <FilterBar value={search} onChange={(v)=> setSearch(v)} right={<div style={{ color:'var(--sub)', fontSize:12 }}>{pendingFilters ? '...تطبيق المرشحات' : `${total} نتيجة`}</div>}>
+        <select value={status} onChange={(e)=>setStatus(e.target.value)} className="select filter">
+          <option value="">كل الحالات</option>
+          <option value="PENDING">قيد الانتظار</option>
+          <option value="PAID">مدفوع</option>
+          <option value="SHIPPED">تم الشحن</option>
+          <option value="DELIVERED">تم التسليم</option>
+          <option value="CANCELLED">ملغي</option>
+        </select>
+        <select value={driverId} onChange={(e)=>setDriverId(e.target.value)} className="select filter">
+          <option value="">كل السائقين</option>
+          {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
+        </select>
+        <input type="date" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} className="input" />
+        <input type="date" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} className="input" />
+        <div style={{ display:'flex', gap:8 }}>
+          <input type="number" placeholder="المبلغ من" value={amountMin} onChange={(e)=>setAmountMin(e.target.value)} className="input" />
+          <input type="number" placeholder="إلى" value={amountMax} onChange={(e)=>setAmountMax(e.target.value)} className="input" />
         </div>
-        <div style={{ color:'var(--sub)', fontSize:12 }}>
-          {pendingFilters ? '...تطبيق المرشحات' : `${total} نتيجة`}
+        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="select filter">
+          <option value="createdAt">الأحدث</option>
+          <option value="total">الإجمالي</option>
+          <option value="status">الحالة</option>
+        </select>
+        <select value={sortDir} onChange={(e)=>setSortDir(e.target.value as any)} className="select filter">
+          <option value="desc">تنازلي</option>
+          <option value="asc">تصاعدي</option>
+        </select>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn" onClick={()=> bulk('ship')}>شحن المحدد</button>
+          <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
         </div>
-      </div>
+      </FilterBar>
 
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
         {[
@@ -186,72 +181,57 @@ export default function OrdersPage(): JSX.Element {
         ))}
       </div>
 
-      <div style={{ overflowX:'auto' }}>
-      <table className="table">
-        <thead style={{ position:'sticky', top:0, background:'var(--panel)', zIndex:1 }}>
-          <tr>
-            <th><input type="checkbox" onChange={(e)=>{ const on=e.currentTarget.checked; const m:Record<string,boolean>={}; for (const r of rows) m[r.id]=on; setSelected(m); }} /></th>
-            <th style={{minWidth:160}}>رقم الطلب</th>
-            <th style={{minWidth:120}}>تاريخ</th>
-            <th style={{minWidth:220}}>العميل</th>
-            <th style={{minWidth:200}}>العنوان</th>
-            <th style={{minWidth:80}}>الأصناف</th>
-            <th style={{minWidth:120}}>الإجمالي</th>
-            <th style={{minWidth:140}}>حالة الطلب</th>
-            <th style={{minWidth:140}}>حالة الدفع</th>
-            <th style={{minWidth:140}}>الشحن</th>
-            <th style={{minWidth:160}}>السائق</th>
-            <th style={{minWidth:180}}>إجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((o)=> {
-            const shippingState = o.shipments?.[0]?.status || (o.status==='SHIPPED'?'IN_TRANSIT':o.status==='DELIVERED'?'DELIVERED':'-');
-            return (
-            <tr key={o.id}>
-              <td><input type="checkbox" checked={!!selected[o.id]} onChange={(e)=> setSelected(prev=> ({ ...prev, [o.id]: e.currentTarget.checked }))} /></td>
-              <td><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{o.id}</a></td>
-              <td>{new Date(o.createdAt).toLocaleString()}</td>
-              <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
-              <td>{o.shippingAddress?.street||'-'}</td>
-              <td>{o.items?.length||0}</td>
-              <td>{formatMoney(o.total)}</td>
-              <td>
-                <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                  <span className={`badge ${statusClass(o.status)}`}>{o.status}</span>
-                  <select className="select" onChange={(e)=>{ const v=e.target.value as any; if (v) changeOrderStatus(o.id, v); e.currentTarget.selectedIndex=0; }}>
-                    <option value="">تغيير…</option>
-                    {o.status!=='PAID' && <option value="approve">اجعلها مدفوعة</option>}
-                    {o.status!=='CANCELLED' && <option value="reject">إلغاء</option>}
-                    {o.status!=='DELIVERED' && <option value="complete">اكتمل</option>}
-                  </select>
-                </div>
-              </td>
-              <td><span className={`badge ${statusClass(o.payment?.status||'')}`}>{o.payment?.status||'-'}</span></td>
-              <td><span className={`badge ${statusClass(shippingState)}`}>{shippingState}</span></td>
-              <td>{o.assignedDriver?.name||'-'}</td>
-              <td>
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  <a href={`/orders/${o.id}`} className="btn btn-md" aria-label="عرض">عرض</a>
-                  <button onClick={()=>ship(o.id)} className="btn btn-md" aria-label="شحن">شحن</button>
-                  <button onClick={()=>refund(o.id)} className="btn btn-md" aria-label="استرداد">استرداد</button>
-                  <a href={`${apiBase}/api/admin/shipments/${o.shipments?.[0]?.id||''}/label`} className="btn btn-md" aria-label="فاتورة">فاتورة</a>
-                </div>
-                <div style={{ marginTop:6 }}>
-                  <select onChange={(e)=>assign(o.id, e.target.value)} className="select" aria-label="تعيين سائق">
-                    <option value="">تعيين سائق…</option>
-                    {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
-                  </select>
-                </div>
-              </td>
-            </tr>
-          );})}
-          {!rows.length && (
-            <tr><td colSpan={11} style={{ padding:12, color:'var(--sub)' }}>{busy?'جارٍ التحميل…':'لا توجد نتائج'}</td></tr>
-          )}
-        </tbody>
-      </table>
-      </div>
+      <ResponsiveTable
+        items={rows}
+        isLoading={busy}
+        columns={[
+          { key:'id', title:'رقم الطلب', minWidth:160 },
+          { key:'createdAt', title:'تاريخ', minWidth:120 },
+          { key:'user', title:'العميل', minWidth:220 },
+          { key:'total', title:'الإجمالي', minWidth:120 },
+          { key:'status', title:'الحالة', minWidth:140 },
+          { key:'actions', title:'إجراءات', minWidth:200 },
+        ]}
+        renderCard={(o:any)=>{
+          const shippingState = o.shipments?.[0]?.status || (o.status==='SHIPPED'?'IN_TRANSIT':o.status==='DELIVERED'?'DELIVERED':'-');
+          return (
+            <div style={{ display:'grid', gap:6 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <a href={`/orders/${o.id}`} style={{ color:'var(--text)', fontWeight:700 }}>{o.id}</a>
+                <span className={`badge ${statusClass(o.status)}`}>{o.status}</span>
+              </div>
+              <div style={{ color:'var(--sub)', fontSize:12 }}>{new Date(o.createdAt).toLocaleString()}</div>
+              <div>{o.user?.name||'-'} <span style={{ color:'var(--sub)' }}>· {o.user?.phone||o.user?.email||'-'}</span></div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>الإجمالي: {formatMoney(o.total)}</div>
+                <span className={`badge ${statusClass(shippingState)}`}>{shippingState}</span>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <a href={`/orders/${o.id}`} className="btn btn-sm">عرض</a>
+                <button onClick={()=>ship(o.id)} className="btn btn-sm">شحن</button>
+                <button onClick={()=>refund(o.id)} className="btn btn-sm">استرداد</button>
+              </div>
+            </div>
+          );
+        }}
+        renderRow={(o:any)=>{
+          const shippingState = o.shipments?.[0]?.status || (o.status==='SHIPPED'?'IN_TRANSIT':o.status==='DELIVERED'?'DELIVERED':'-');
+          return <>
+            <td><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{o.id}</a></td>
+            <td>{new Date(o.createdAt).toLocaleString()}</td>
+            <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
+            <td>{formatMoney(o.total)}</td>
+            <td><span className={`badge ${statusClass(o.status)}`}>{o.status}</span></td>
+            <td>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <a href={`/orders/${o.id}`} className="btn btn-sm">عرض</a>
+                <button onClick={()=>ship(o.id)} className="btn btn-sm">شحن</button>
+                <button onClick={()=>refund(o.id)} className="btn btn-sm">استرداد</button>
+              </div>
+            </td>
+          </>;
+        }}
+      />
 
       <div className="pagination" style={{ marginTop:12 }}>
         <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="icon-btn">السابق</button>
