@@ -22,7 +22,7 @@ export default function MobileVendors(): JSX.Element {
       const url = new URL(base + '/api/admin/vendors');
       if (query) url.searchParams.set('q', query);
       url.searchParams.set('limit', '20');
-      const res = await fetch(url.toString(), { signal: ctrl.signal, headers: { 'accept': 'application/json' } });
+      const res = await fetch(url.toString(), { signal: ctrl.signal, headers: { 'accept': 'application/json' }, credentials:'include' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       setItems(Array.isArray(data?.items) ? data.items : data);

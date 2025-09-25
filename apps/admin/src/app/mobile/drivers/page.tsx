@@ -50,6 +50,22 @@ export default function MobileDrivers(): JSX.Element {
         </div>
         <FilterBar value={q} onChange={setQ} />
       </div>
+      <div className="panel">
+        <div style={{ fontWeight:700, marginBottom:8 }}>إضافة سائق</div>
+        <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <input className="input" id="dName" placeholder="الاسم" />
+          <input className="input" id="dPhone" placeholder="الهاتف" />
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+          <button className="btn" onClick={async()=>{
+            const name = (document.getElementById('dName') as HTMLInputElement)?.value.trim();
+            const phone = (document.getElementById('dPhone') as HTMLInputElement)?.value.trim();
+            if(!name) return;
+            const r = await fetch(`${resolveApiBase()}/api/admin/drivers`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name, phone }) });
+            if(r.ok){ (document.getElementById('dName') as HTMLInputElement).value=''; (document.getElementById('dPhone') as HTMLInputElement).value=''; await load(); }
+          }}>إضافة</button>
+        </div>
+      </div>
       {tab==='map' && (
         <div className="panel">
           <div style={{ fontSize:12, color:'var(--sub)', marginBottom:8 }}>تحديث كل 5 ثوانٍ</div>

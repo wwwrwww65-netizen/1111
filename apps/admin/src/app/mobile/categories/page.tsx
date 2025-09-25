@@ -22,7 +22,7 @@ export default function MobileCategories(): JSX.Element {
       const base = resolveApiBase();
       const u = new URL(base + '/api/admin/categories');
       if (query) u.searchParams.set('search', query);
-      const r = await fetch(u.toString(), { signal: ctrl.signal, headers:{ 'accept':'application/json' } });
+      const r = await fetch(u.toString(), { signal: ctrl.signal, headers:{ 'accept':'application/json' }, credentials:'include' });
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
       setItems(Array.isArray(j?.categories) ? j.categories : j);

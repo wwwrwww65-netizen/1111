@@ -25,7 +25,7 @@ export default function MobileProducts(): JSX.Element {
       if (status) u.searchParams.set('status', status);
       if (category) u.searchParams.set('categoryId', category);
       u.searchParams.set('limit','20');
-      const r = await fetch(u.toString(), { signal: ctrl.signal, headers:{ 'accept':'application/json' } });
+      const r = await fetch(u.toString(), { signal: ctrl.signal, headers:{ 'accept':'application/json' }, credentials:'include' });
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
       setItems(Array.isArray(j?.items) ? j.items : j);

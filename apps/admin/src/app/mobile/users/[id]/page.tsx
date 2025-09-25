@@ -14,7 +14,7 @@ export default function MobileUserDetail(): JSX.Element {
     let alive = true;
     (async()=>{
       try{
-        const res = await fetch(`${resolveApiBase()}/api/admin/users/${id}`, { headers:{ 'accept':'application/json' } });
+        const res = await fetch(`${resolveApiBase()}/api/admin/users/${id}`, { headers:{ 'accept':'application/json' }, credentials:'include' });
         if(!res.ok) throw new Error('HTTP '+res.status);
         const j = await res.json();
         if(alive) setData(j);

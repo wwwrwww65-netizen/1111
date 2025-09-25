@@ -28,7 +28,7 @@ export default function MobileOrders(): JSX.Element {
       if (from) url.searchParams.set('from', from);
       if (to) url.searchParams.set('to', to);
       url.searchParams.set('limit', '20');
-      const res = await fetch(url.toString(), { signal: ctrl.signal, headers: { 'accept': 'application/json' } });
+      const res = await fetch(url.toString(), { signal: ctrl.signal, headers: { 'accept': 'application/json' }, credentials:'include' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       setItems(Array.isArray(data?.items) ? data.items : data);
