@@ -21,6 +21,7 @@ export default function MobileNewProduct(): JSX.Element {
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState('');
   const [ok, setOk] = React.useState('');
+  const [pasteText, setPasteText] = React.useState('');
 
   React.useEffect(()=>{ (async()=>{
     try{
@@ -52,6 +53,19 @@ export default function MobileNewProduct(): JSX.Element {
     setVariants(list);
   }
 
+  async function analyzePaste(){
+    if (!pasteText.trim()) return;
+    try{
+      const r = await fetch(`${resolveApiBase()}/api/admin/products/parse`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ text: pasteText }) });
+      const j = await r.json();
+      if (j?.name) setName(j.name);
+      if (j?.description) setDescription(j.description);
+      if (Array.isArray(j?.colors)) setColors(j.colors.join(', '));
+      if (Array.isArray(j?.sizes)) setSizes(j.sizes.join(', '));
+      if (Array.isArray(j?.prices) && j.prices[0]) setPrice(String(j.prices[0]));
+    }catch{}
+  }
+
   async function save(){
     if (!name.trim()) { setErr('ادخل الاسم'); return; }
     if (!price.trim()) { setErr('ادخل السعر'); return; }
@@ -75,6 +89,14 @@ export default function MobileNewProduct(): JSX.Element {
 
   return (
     <div className="grid" style={{ gap:12 }}>
+      <div className="panel">
+        <div style={{ fontWeight:800, marginBottom:8 }}>لصق وتحليل</div>
+        <textarea className="input" rows={4} value={pasteText} onChange={e=> setPasteText(e.target.value)} placeholder="الصق وصف المنتج هنا" />
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+          <button className="btn btn-outline" onClick={analyzePaste}>تحليل</button>
+        </div>
+      </div>
+
       <div className="panel">
         <div style={{ fontWeight:800, marginBottom:8 }}>منتج جديد (هاتف)</div>
         {err && <div style={{ color:'var(--err)', marginBottom:8 }}>{err}</div>}
