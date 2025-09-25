@@ -3168,44 +3168,70 @@ adminRest.post('/products/analyze', async (req, res) => {
         // أضف "ال" للتعبير العربي الطبيعي
         if (!/^ال/.test(material)) material = `الصوف` === material ? material : (material === 'صوف' ? 'الصوف' : material === 'قطن' ? 'القطن' : material);
       }
-      const attr = attrMatch ? (attrMatch[2].replace('موحد','فري سايز')) : '';
+      let attr = attrMatch ? (attrMatch[2].replace('موحد','فري سايز')) : '';
+      const feminineType = /ة$/.test(normalizedType);
+      if (feminineType) {
+        if (/^نسائي$/i.test(attr)) attr = 'نسائية';
+        if (/^شتوي$/i.test(attr)) attr = 'شتوية';
+        if (/^صيفي$/i.test(attr)) attr = 'صيفية';
+      }
       let feature = featureMatch ? featureMatch[2] : '';
       feature = /زرارات|أزرار/i.test(feature) ? 'أزرار أنيقة' : (/كم كامل/i.test(pre)? 'كم كامل' : feature);
-      const nameParts = [ [normalizedType, attr].filter(Boolean).join(' ').trim(), material ? `من ${material}` : '', feature ].filter(Boolean);
-      const genName = nameParts.join(' — ').trim();
+      const namePrefix = [ normalizedType, attr, material ? `من ${material}` : '' ].filter(Boolean).join(' ').trim();
+      const genName = [ namePrefix, feature ].filter(Boolean).join(' — ').trim();
       if (genName) { out.name = clamp(genName, 60); sources.name = { source:'rules', confidence:0.8 }; }
       else if (extracted.name) { out.name = clamp(extracted.name, 60); sources.name = { source:'rules', confidence:0.6 }; }
       // Description (3 sentences)
-      const intro = out.name ? `${out.name}.` : (extracted.shortDesc ? clamp(extracted.shortDesc, 60)+'.' : '');
-      const materials = [] as string[]; if (material) materials.push(`من قماش ${material}`); if (/كم كامل/i.test(pre)) materials.push('كم كامل'); if (/\b2\s*الوان|لونين\b/i.test(pre)) materials.push('لونان'); if (/خارجي/i.test(pre)) materials.push('للإطلالة الخارجية');
-      const sentence2 = materials.length? `${materials.join('، ')}.` : '';
+      const introParts: string[] = [];
+      if (normalizedType) introParts.push(normalizedType);
+      if (attr) introParts.push(attr);
+      if (material) introParts.push(`من قماش ${material}`);
+      const introFeatures: string[] = [];
+      if (/زرارات|أزرار/i.test(pre)) introFeatures.push('أزرار أنيقة');
+      if (/كم كامل/i.test(pre)) introFeatures.push('كم كامل');
+      const intro = normalizeSpaces(`${introParts.join(' ')}${introFeatures.length ? ' مع ' + introFeatures.join(' و') : ''}.`);
+      const mats: string[] = [];
+      if (/\b2\s*الوان|لونين\b/i.test(pre)) mats.push('متوفرة بلونين');
+      if (/خارجي/i.test(pre)) mats.push('للإطلالة الخارجية');
+      const sentence2 = mats.length? `${mats.join('، ')}.` : '';
       // Sizes: weight range 40–60
       let sz = '';
       const wMatch = pre.match(/وزن\s*(\d+)[^\d]{0,6}(?:حتى|إلى|-)\s*(\d+)/i);
       if (wMatch) { const a=Number(wMatch[1]), b=Number(wMatch[2]); if (!Number.isNaN(a) && !Number.isNaN(b)) sz = `مقاس واحد يناسب ${Math.min(a,b)} إلى ${Math.max(a,b)} كجم.`; }
-      if (!sz && Array.isArray(extracted.sizes) && extracted.sizes.length) sz = `مقاسات: ${extracted.sizes.join('، ')}.`;
+      if (!sz && Array.isArray(extracted.sizes) && extracted.sizes.length) {
+        const cleanedSizes = (extracted.sizes as string[]).filter(s=> !/^\s*\d+(?:[\.,]\d+)?\s*$/.test(String(s)));
+        if (cleanedSizes.length) sz = `مقاسات: ${cleanedSizes.join('، ')}.`;
+      }
       const availability = /كمية كبيرة|متوفر/i.test(pre) ? 'متوفرة بكميات كبيرة.' : '';
       const sentence3 = [sz, availability].filter(Boolean).join(' ');
       const finalDesc = normalizeSpaces([intro, sentence2, sentence3].filter(Boolean).join(' '));
       if (finalDesc) { out.description = finalDesc; sources.description = { source:'rules', confidence:0.85 }; }
       // Sizes field (normalized)
       if (wMatch) { out.sizes = [`فري سايز (${Math.min(Number(wMatch[1]),Number(wMatch[2]))}–${Math.max(Number(wMatch[1]),Number(wMatch[2]))} كجم)`]; sources.sizes = { source:'rules', confidence:0.8 }; }
-      else if (Array.isArray(extracted.sizes) && extracted.sizes.length) { out.sizes = extracted.sizes; sources.sizes = { source:'rules', confidence:0.7 }; }
+      else if (Array.isArray(extracted.sizes) && extracted.sizes.length) {
+        const cleanedSizes = (extracted.sizes as string[]).filter(s=> !/^\s*\d+(?:[\.,]\d+)?\s*$/.test(String(s)));
+        if (cleanedSizes.length) { out.sizes = cleanedSizes; sources.sizes = { source:'rules', confidence:0.7 }; }
+      }
       if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = extracted.colors; sources.colors = { source:'rules', confidence:0.4 }; }
       if (Array.isArray(extracted.keywords)) {
-        const filtered = (extracted.keywords||[]).filter((k:string)=> !arabicStop.includes(k));
-        // add synonyms up to 6
+        const noise = new Set<string>(['وزن','فقط','متوفر','متوفرة','متوووفر','دلع','اناقة','أنَاقة','واناقه','جديد','جديدة','جديديناءغيرر','لون','الوان','لونين']);
+        const filtered = (extracted.keywords||[])
+          .map((k:string)=> String(k).trim())
+          .filter((k:string)=> k.length>=3 && !/\d/.test(k) && !arabicStop.includes(k) && !noise.has(k));
         const expanded = new Set<string>();
         for (const k of filtered) { expanded.add(k); if (synonymsMap[k]) for (const s of synonymsMap[k]) expanded.add(s); }
-        out.tags = Array.from(expanded).filter(Boolean).slice(0,6);
+        const canonicalized = Array.from(expanded).map(k=> /فنائل/i.test(k)? 'فنيلة' : k);
+        out.tags = Array.from(new Set(canonicalized)).filter(Boolean).slice(0,6);
         sources.tags = { source:'rules', confidence:0.5 };
       }
-      // Prices: prefer الشمال / غير الجنوبي / القديم / المشابه
+      // Prices: prefer explicit north/old/similar price lines; ignore non-price lines like "2 الوان"
       const priceNums: number[] = [];
       const lines = pre.split(/\n|\r|\u2028|\u2029/).map(normalizeSpaces).filter(Boolean);
       for (const ln of lines) {
-        const hasSouth = /جنوبي/i.test(ln);
-        const prefer = /الشمال|للشمال|قديم|مشابه/i.test(ln) || (!/السعر\s*عمله\s*جن/i.test(ln) && !hasSouth);
+        const mentionsSouth = /جنوبي/i.test(ln);
+        const mentionsNorth = /الشمال|للشمال/i.test(ln);
+        const priceLine = /(السعر|💱|ريال|دولار|SAR|YER)/i.test(ln);
+        const prefer = priceLine && (mentionsNorth || /قديم|مشابه/i.test(ln) || (!mentionsSouth && /السعر/i.test(ln)));
         if (!prefer) continue;
         const m = ln.match(/(\d+[\.,٬٫]?\d*)/g);
         if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v)) priceNums.push(v); });
