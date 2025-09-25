@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { ResponsiveTable, FilterBar, FormGrid, ActionBarMobile } from "../components/Mobile";
 import { resolveApiBase } from "../lib/apiBase";
 export const dynamic = 'force-dynamic';
 
@@ -61,33 +62,28 @@ export default function VendorsPage(): JSX.Element {
     } finally { setBusy(false); }
   }
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
+    <main className="panel" style={{ padding:16 }}>
       {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
       <h1 style={{ marginBottom: 16, fontSize: 22, fontWeight: 700 }}>المورّدون</h1>
-      <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      <section className="panel" style={{ marginBottom:16 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
           <h2 style={{ margin: 0, fontSize: 16 }}>إضافة مورد جديد</h2>
-          <div style={{ display:'flex', gap:8 }}>
-            <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/الكود" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0', width:220 }} />
-            <button onClick={()=>{ /* optional client-side filter */ }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>بحث</button>
-          </div>
+          <FilterBar value={search} onChange={setSearch} />
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="الاسم" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-            <input value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="البريد" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-            <input value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="الهاتف" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-            <input value={address} onChange={(e)=>setAddress(e.target.value)} placeholder="العنوان" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', gridColumn:'1 / -1' }} />
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            <input value={storeName} onChange={(e)=>setStoreName(e.target.value)} placeholder="اسم المتجر" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-            <input value={storeNumber} onChange={(e)=>setStoreNumber(e.target.value)} placeholder="رقم المتجر" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-            <input value={vendorCode} onChange={(e)=>setVendorCode(e.target.value)} placeholder="رمز المورد (SKU prefix)" style={{ padding:10, borderRadius:10, background:'#0f1320', border:"1px solid #1c2333", color:'#e2e8f0' }} />
-            <button onClick={save} disabled={busy} style={{ padding:'10px 14px', background: busy? '#4b5563':'#800020', color:'#fff', borderRadius:10 }}>{busy? 'جارٍ الحفظ...' : 'إضافة'}</button>
-          </div>
-        </div>
+        <FormGrid>
+          <input className="input" value={name} onChange={(e)=>setName(e.target.value)} placeholder="الاسم" />
+          <input className="input" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="البريد" />
+          <input className="input" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="الهاتف" />
+          <input className="input" value={address} onChange={(e)=>setAddress(e.target.value)} placeholder="العنوان" />
+          <input className="input" value={storeName} onChange={(e)=>setStoreName(e.target.value)} placeholder="اسم المتجر" />
+          <input className="input" value={storeNumber} onChange={(e)=>setStoreNumber(e.target.value)} placeholder="رقم المتجر" />
+          <input className="input" value={vendorCode} onChange={(e)=>setVendorCode(e.target.value)} placeholder="رمز المورد (SKU prefix)" />
+        </FormGrid>
+        <ActionBarMobile>
+          <button onClick={save} disabled={busy} className="btn">{busy? 'جارٍ الحفظ...' : 'إضافة'}</button>
+        </ActionBarMobile>
       </section>
-      <section style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12, marginTop: 16 }}>
+      <section className="panel">
         <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:8, justifyContent:'space-between' }}>
           <div style={{ display:'flex', gap:12, alignItems:'center' }}>
           <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.email} onChange={(e)=> setVisibleCols(v=> ({ ...v, email: e.currentTarget.checked }))} /> بريد</label>
@@ -96,41 +92,39 @@ export default function VendorsPage(): JSX.Element {
           </div>
           <div style={{ color:'var(--sub)', fontSize:12 }}>{rows.length} نتيجة</div>
         </div>
-        {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
-        {!loading && rows.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا موردين</div>)}
-        {rows.length>0 && (
-        <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
-          <thead style={{ position:'sticky', top:0, background:'#0b0e14', zIndex:1 }}>
-            <tr>
-              <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='name' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'name') : (setSortDir('asc'), 'name'))} style={{ background:'transparent', color:'#e2e8f0' }}>الاسم {sortBy==='name'?(sortDir==='asc'?'▲':'▼'):''}</button></th>
-              {visibleCols.email && (<th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='contactEmail' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'contactEmail') : (setSortDir('asc'), 'contactEmail'))} style={{ background:'transparent', color:'#e2e8f0' }}>البريد {sortBy==='contactEmail'?(sortDir==='asc'?'▲':'▼'):''}</button></th>)}
-              {visibleCols.phone && (<th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='phone' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'phone') : (setSortDir('asc'), 'phone'))} style={{ background:'transparent', color:'#e2e8f0' }}>الهاتف {sortBy==='phone'?(sortDir==='asc'?'▲':'▼'):''}</button></th>)}
-              {visibleCols.code && (<th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}><button onClick={()=> setSortBy(b=> b==='vendorCode' ? (setSortDir(d=> d==='asc'?'desc':'asc'), 'vendorCode') : (setSortDir('asc'), 'vendorCode'))} style={{ background:'transparent', color:'#e2e8f0' }}>الكود {sortBy==='vendorCode'?(sortDir==='asc'?'▲':'▼'):''}</button></th>)}
-              <th style={{ textAlign:'right', borderBottom:'1px solid #1c2333', padding:12, background:'#0f1320' }}>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows
-              .filter((v)=> !search || v.name?.toLowerCase().includes(search.toLowerCase()) || v.vendorCode?.toLowerCase().includes(search.toLowerCase()))
-              .sort((a:any,b:any)=>{ const dir = sortDir==='asc'?1:-1; const ka=String(a[sortBy]||''); const kb=String(b[sortBy]||''); return ka.localeCompare(kb,'ar')*dir; })
-              .map((v, idx)=> (
-              <tr key={v.id} style={{ background: idx % 2 ? '#0a0e17' : 'transparent' }}>
-                <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ padding:'2px 8px', background:'#111827', borderRadius:999, fontSize:12, color:'#9ca3af' }}>{v.vendorCode||'NO-CODE'}</span>
-                    <span>{v.name}</span>
-                  </div>
-                </td>
-              {visibleCols.email && (<td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.contactEmail||'-'}</td>)}
-              {visibleCols.phone && (<td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.phone||'-'}</td>)}
-              {visibleCols.code && (<td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{v.vendorCode||'-'}</td>)}
-                <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
-                  <a href={`/vendors/${v.id}`} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, textDecoration:'none' }}>عرض</a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>)}
+        <ResponsiveTable
+          items={rows.filter((v)=> !search || v.name?.toLowerCase().includes(search.toLowerCase()) || v.vendorCode?.toLowerCase().includes(search.toLowerCase()))}
+          isLoading={loading}
+          columns={[
+            { key:'name', title:'الاسم', minWidth:200 },
+            ...(visibleCols.email ? [{ key:'contactEmail', title:'البريد', minWidth:200 }] : [] as any),
+            ...(visibleCols.phone ? [{ key:'phone', title:'الهاتف', minWidth:140 }] : [] as any),
+            ...(visibleCols.code ? [{ key:'vendorCode', title:'الكود', minWidth:120 }] : [] as any),
+            { key:'actions', title:'إجراءات', minWidth:140 },
+          ]}
+          renderCard={(v:any)=> (
+            <div style={{ display:'grid', gap:6 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:700 }}>{v.name}</div>
+                <span className="badge">{v.vendorCode||'NO-CODE'}</span>
+              </div>
+              <div style={{ color:'var(--sub)', fontSize:12 }}>{v.contactEmail||'-'}</div>
+              <div style={{ color:'var(--sub)', fontSize:12 }}>{v.phone||'-'}</div>
+              <div style={{ display:'flex', gap:6 }}>
+                <a className="btn btn-sm" href={`/vendors/${v.id}`}>عرض</a>
+              </div>
+            </div>
+          )}
+          renderRow={(v:any)=> (
+            <>
+              <td><div style={{ display:'flex', alignItems:'center', gap:8 }}><span className="badge">{v.vendorCode||'NO-CODE'}</span><span>{v.name}</span></div></td>
+              {visibleCols.email && (<td>{v.contactEmail||'-'}</td>)}
+              {visibleCols.phone && (<td>{v.phone||'-'}</td>)}
+              {visibleCols.code && (<td>{v.vendorCode||'-'}</td>)}
+              <td><a className="btn btn-sm" href={`/vendors/${v.id}`}>عرض</a></td>
+            </>
+          )}
+        />
       </section>
     </main>
   );

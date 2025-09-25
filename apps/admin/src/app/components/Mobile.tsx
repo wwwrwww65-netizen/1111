@@ -112,7 +112,19 @@ export function FilterBar({
 }
 
 export function FormGrid({ children }:{ children:React.ReactNode }): JSX.Element {
-  return <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:12 }}>{children}</div> as any;
+  const isMobile = useIsMobile();
+  const cols = isMobile ? '1fr' : '1fr 1fr';
+  return <div className="grid" style={{ gridTemplateColumns: cols, gap:12 }}>{children}</div> as any;
+}
+
+export function ActionBarMobile({ children }:{ children:React.ReactNode }): JSX.Element {
+  const isMobile = useIsMobile();
+  if (!isMobile) return <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>{children}</div> as any;
+  return (
+    <div style={{ position:'sticky', bottom:0, background:'var(--panel)', borderTop:'1px solid var(--muted)', padding:12, display:'flex', gap:8, justifyContent:'space-between', zIndex:10 }}>
+      {children}
+    </div>
+  );
 }
 
 export function BackButton(): JSX.Element {
