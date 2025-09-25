@@ -25,7 +25,27 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
       {drawerOpen && (
         <>
           <aside className="sidebar drawer is-open" role="dialog" aria-modal="true" aria-label="قائمة التنقل">
-            <Sidebar />
+            {/* SidebarMobile: map desktop hrefs to /mobile */}
+            <nav>
+              <a className="nav-item" href="/mobile">الرئيسية</a>
+              <a className="nav-item" href="/mobile/orders">الطلبات</a>
+              <a className="nav-item" href="/mobile/products">المنتجات</a>
+              <a className="nav-item" href="/mobile/categories">الفئات</a>
+              <a className="nav-item" href="/mobile/vendors">الموردون</a>
+              <a className="nav-item" href="/mobile/users">المستخدمون</a>
+              <a className="nav-item" href="/mobile/inventory">المخزون</a>
+              <a className="nav-item" href="/mobile/finance">المالية</a>
+              <a className="nav-item" href="/mobile/notifications">الإشعارات</a>
+              <a className="nav-item" href="/mobile/logistics/pickup">لوجستيات: الاستلام</a>
+              <a className="nav-item" href="/mobile/logistics/warehouse">لوجستيات: المستودع</a>
+              <a className="nav-item" href="/mobile/logistics/delivery">لوجستيات: التوصيل</a>
+              <a className="nav-item" href="/mobile/drivers">السائقون</a>
+              <a className="nav-item" href="/mobile/carriers">الشركات الناقلة</a>
+              <a className="nav-item" href="/mobile/shipments">الشحنات</a>
+              <a className="nav-item" href="/mobile/coupons">الكوبونات</a>
+              <a className="nav-item" href="/mobile/audit-logs">سجل التدقيق</a>
+              <a className="nav-item" href="/mobile/settings/rbac">الأدوار والصلاحيات</a>
+            </nav>
           </aside>
           <div className="overlay" onClick={()=> setDrawerOpen(false)} aria-hidden={!drawerOpen} />
         </>

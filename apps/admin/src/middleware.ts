@@ -25,12 +25,39 @@ export function middleware(req: NextRequest) {
     url.search = `?next=${encodeURIComponent(pathname + search)}`;
     return NextResponse.redirect(url);
   }
-  // Redirect root to /mobile for mobile user agents unless user forced desktop
+  // Redirect common desktop paths to /mobile equivalents for mobile UAs (unless forced desktop)
   if (!forceDesktopCookie && isMobileUA) {
-    if (pathname === '/' && !pathname.startsWith('/mobile')) {
+    if (!pathname.startsWith('/mobile')) {
+      const directPrefixes = [
+        '/orders','/products','/vendors','/users','/categories',
+        '/drivers','/carriers','/shipments',
+        '/logistics/pickup','/logistics/warehouse','/logistics/delivery',
+        '/coupons','/audit-logs'
+      ];
+      const startsWithAny = directPrefixes.find(p => pathname === p || pathname.startsWith(p + '/'));
       const url = req.nextUrl.clone();
-      url.pathname = '/mobile';
-      return NextResponse.redirect(url);
+      if (pathname === '/') {
+        url.pathname = '/mobile';
+        return NextResponse.redirect(url);
+      } else if (startsWithAny) {
+        url.pathname = '/mobile' + pathname;
+        return NextResponse.redirect(url);
+      } else if (pathname.startsWith('/finance')) {
+        url.pathname = '/mobile/finance';
+        return NextResponse.redirect(url);
+      } else if (pathname.startsWith('/inventory')) {
+        url.pathname = '/mobile/inventory';
+        return NextResponse.redirect(url);
+      } else if (pathname.startsWith('/warehouses')) {
+        url.pathname = '/mobile/logistics/warehouse';
+        return NextResponse.redirect(url);
+      } else if (pathname.startsWith('/notifications')) {
+        url.pathname = '/mobile/notifications';
+        return NextResponse.redirect(url);
+      } else if (pathname.startsWith('/settings/rbac')) {
+        url.pathname = '/mobile/settings/rbac';
+        return NextResponse.redirect(url);
+      }
     }
   }
   return NextResponse.next();
