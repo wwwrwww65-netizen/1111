@@ -22,7 +22,7 @@ export default function MobileHome(): JSX.Element {
       <div className="panel">
         <div style={{ fontWeight:700, marginBottom:8 }}>إجراءات سريعة</div>
         <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:8 }}>
-          <a className="btn" href="/products/new" style={{ textAlign:'center', lineHeight:'40px' }}>+ منتج جديد</a>
+          <a className="btn" href="/mobile/products/new" style={{ textAlign:'center', lineHeight:'40px' }}>+ منتج جديد</a>
           <a className="btn btn-outline" href="/mobile/orders" style={{ textAlign:'center', lineHeight:'40px' }}>عرض الطلبات</a>
         </div>
       </div>
