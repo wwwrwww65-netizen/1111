@@ -183,10 +183,10 @@
 
     <nav class="bottomnav" aria-label="التنقل السفلي">
       <div class="maxwrap navwrap" dir="rtl">
-        <button class="navbtn active" aria-label="الرئيسية" @click="go('/')"><LayoutGrid :size="24" class="mx-auto mb-1" /><div class="navtext">الرئيسية</div></button>
+        <button class="navbtn active" aria-label="الرئيسية" @click="go('/')"><Home :size="24" class="mx-auto mb-1" /><div class="navtext">الرئيسية</div></button>
         <button class="navbtn" aria-label="الفئات" @click="go('/categories')"><LayoutGrid :size="24" class="mx-auto mb-1" /><div class="navtext">الفئات</div></button>
         <button class="navbtn" aria-label="جديد/بحث" @click="go('/search')"><Search :size="24" class="mx-auto mb-1" /><div class="navtext">جديد</div></button>
-        <button class="navbtn" aria-label="الحقيبة" @click="go('/cart')"><ShoppingBag :size="24" class="mx-auto mb-1" /><div class="navtext">الحقيبة</div></button>
+        <button class="navbtn" aria-label="الحقيبة" @click="go('/cart')"><div class="cart-icon"><ShoppingBag :size="24" class="mx-auto mb-1" /><span v-if="cart.count>0" class="badge-count">{{ cart.count }}</span></div><div class="navtext">الحقيبة</div></button>
         <button class="navbtn" aria-label="حسابي" @click="go('/login')"><User :size="24" class="mx-auto mb-1" /><div class="navtext">حسابي</div></button>
       </div>
     </nav>
@@ -199,7 +199,7 @@ import { useRouter } from 'vue-router'
 import { apiGet } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
-import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User } from 'lucide-vue-next'
+import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home } from 'lucide-vue-next'
 
 const router = useRouter()
 const cart = useCart()
@@ -335,7 +335,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .logo.dark{color:#111827}
 
 .tabsbar{position:fixed;left:0;right:0;z-index:40;transition:background .2s}
-.tabsbar.scrolled{background:rgba(255,255,255,.95);backdrop-filter:saturate(1.2) blur(6px)}
+.tabsbar.scrolled{background:rgba(255,255,255,.95)}
 .tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px}
 .tabbtn{background:transparent;border:none;padding:0 0 4px 0;cursor:pointer;white-space:nowrap;font-size:14px;color:#fff}
 .tabbtn.dark{color:#374151}
@@ -358,7 +358,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .coupon-title{font-size:11px;color:#047857;font-weight:700}
 .coupon-code{font-size:10px;color:#065f46}
 
-.strip{background:#fff;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:12px}
+.strip{background:#fff;padding:12px}
 .hscroll{display:flex;overflow-x:auto}
 .tile{position:relative;width:192px;height:68px;flex-shrink:0;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
 .tile-img{position:absolute;right:0;top:0;width:64px;height:100%;object-fit:cover;opacity:.9}
@@ -406,5 +406,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .navbtn.active .navtext{color:#111}
 .navtext{font-size:11px;color:#374151}
 .navicon{width:24px;height:24px;margin:0 auto 4px auto;background:#111;border-radius:4px;opacity:.9}
+.cart-icon{position:relative;display:inline-block}
+.badge-count{position:absolute;top:-4px;left:50%;transform:translateX(-20%);background:#ef4444;color:#fff;border-radius:999px;min-width:16px;height:16px;line-height:16px;font-size:10px;padding:0 4px;border:1px solid #fff}
 </style>
 
