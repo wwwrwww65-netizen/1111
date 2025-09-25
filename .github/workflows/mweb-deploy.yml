@@ -53,41 +53,25 @@ jobs:
             fi
           done
 
-      - name: Create release dir on VPS
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Setup SSH (agent)
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_KEY }}
-          port: ${{ env.DEPLOY_PORT }}
-          script: |
-            set -e
-            export DEPLOY_PATH="${{ env.MWEB_PATH }}"
-            mkdir -p "$DEPLOY_PATH/releases/${GITHUB_SHA}"
+          ssh-private-key: ${{ env.DEPLOY_KEY }}
 
-      - name: Upload build to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_KEY }}
-          port: ${{ env.DEPLOY_PORT }}
-          source: "apps/mweb/dist/*"
-          target: "${{ env.MWEB_PATH }}/releases/${{ github.sha }}/"
+      - name: Create release dir on VPS (native ssh)
+        run: |
+          set -e
+          DEPLOY_PATH="${{ env.MWEB_PATH }}"
+          ssh -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "mkdir -p '$DEPLOY_PATH/releases/${GITHUB_SHA}'"
 
-      - name: Activate release
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_KEY }}
-          port: ${{ env.DEPLOY_PORT }}
-          script: |
-            set -e
-            export DEPLOY_PATH="${{ env.MWEB_PATH }}"
-            ln -sfn "$DEPLOY_PATH/releases/${GITHUB_SHA}" "$DEPLOY_PATH/current"
-            # Optional: keep last 5 releases
-            ls -1dt "$DEPLOY_PATH"/releases/* | tail -n +6 | xargs -r rm -rf
-            # Try to reload nginx if available
-            (command -v sudo >/dev/null && sudo -n systemctl reload nginx) || true
+      - name: Upload build to VPS (scp)
+        run: |
+          set -e
+          scp -o StrictHostKeyChecking=no -P "${{ env.DEPLOY_PORT }}" -r apps/mweb/dist/* "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.MWEB_PATH }}/releases/${GITHUB_SHA}/"
+
+      - name: Activate release (native ssh)
+        run: |
+          set -e
+          DEPLOY_PATH="${{ env.MWEB_PATH }}"
+          ssh -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "set -e; ln -sfn '$DEPLOY_PATH/releases/${GITHUB_SHA}' '$DEPLOY_PATH/current'; ls -1dt '$DEPLOY_PATH'/releases/* | tail -n +6 | xargs -r rm -rf; (command -v sudo >/dev/null && sudo -n systemctl reload nginx) || true"
 
