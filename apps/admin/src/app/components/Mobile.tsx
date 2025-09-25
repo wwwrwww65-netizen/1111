@@ -1,17 +1,28 @@
 "use client";
 import React from 'react';
 
-export function useIsMobile(breakpointPx: number = 992): boolean {
+export function useIsMobile(breakpointPx: number = 980): boolean {
   const [isMobile, setIsMobile] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    try { return window.matchMedia(`(max-width: ${breakpointPx - 1}px)`).matches; } catch { return false; }
+    try {
+      const forced = localStorage.getItem('admin_force_desktop') === '1';
+      if (forced) return false;
+      return window.matchMedia(`(max-width: ${breakpointPx - 1}px)`).matches;
+    } catch { return false; }
   });
   React.useEffect(()=>{
+    const applyForced = () => {
+      try { if (localStorage.getItem('admin_force_desktop') === '1') { setIsMobile(false); return true; } } catch {}
+      return false;
+    };
+    if (applyForced()) return;
     const mq = window.matchMedia(`(max-width: ${breakpointPx - 1}px)`);
-    const apply = () => setIsMobile(mq.matches);
+    const apply = () => { if (!applyForced()) setIsMobile(mq.matches); };
     apply();
     mq.addEventListener?.('change', apply);
-    return ()=> mq.removeEventListener?.('change', apply);
+    const onStorage = () => { applyForced(); };
+    window.addEventListener('storage', onStorage);
+    return ()=> { mq.removeEventListener?.('change', apply); window.removeEventListener('storage', onStorage); };
   }, [breakpointPx]);
   return isMobile;
 }
