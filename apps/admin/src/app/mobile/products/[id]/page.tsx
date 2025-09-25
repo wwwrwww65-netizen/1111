@@ -21,7 +21,7 @@ export default function MobileProductDetail(): JSX.Element {
 
   React.useEffect(()=>{ let alive=true; (async()=>{
     try{
-      const r = await fetch(`${resolveApiBase()}/api/admin/products/${id}`, { headers:{ 'accept':'application/json' } });
+      const r = await fetch(`${resolveApiBase()}/api/admin/products/${id}`, { headers:{ 'accept':'application/json' }, credentials:'include' });
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
       if(alive) {
@@ -32,7 +32,7 @@ export default function MobileProductDetail(): JSX.Element {
     finally{ if(alive) setLoading(false); }
   })(); return ()=>{ alive=false; }; }, [id]);
 
-  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${resolveApiBase()}/api/admin/categories`, { headers:{ 'accept':'application/json' } })).json(); setCategories(j.categories||[]);}catch{ setCategories([]);} })(); }, []);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${resolveApiBase()}/api/admin/categories`, { headers:{ 'accept':'application/json' }, credentials:'include' })).json(); setCategories(j.categories||[]);}catch{ setCategories([]);} })(); }, []);
 
   function onFiles(e: React.ChangeEvent<HTMLInputElement>){
     const files = Array.from(e.target.files||[]).slice(0, 12);
@@ -47,10 +47,10 @@ export default function MobileProductDetail(): JSX.Element {
     if(!data) return;
     setSaving(true); setErr(null);
     try{
-      const payload:any = { name: data.name, price: data.price, description: data.description, status: data.status, categoryId: data.categoryId };
+      const payload:any = { name: data.name, price: data.price, description: data.description, status: data.status, categoryId: data.categoryId, sku: data.sku, barcode: data.barcode, brand: data.brand, tags: data.tags, seoTitle: data.seoTitle, seoDescription: data.seoDescription, seoKeywords: data.seoKeywords, weight: data.weight, width: data.width, height: data.height, depth: data.depth, attributes: data.attributes };
       if (images.length){ payload.media = images.map(m=> ({ name:m.name, dataUrl:m.dataUrl })); }
       if (variants.length){ payload.variants = variants.map(v=> ({ id:v.id, color:v.color, size:v.size, price:v.price, stock:v.stock })); }
-      const r = await fetch(`${resolveApiBase()}/api/admin/products/${id}`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body: JSON.stringify(payload) });
+      const r = await fetch(`${resolveApiBase()}/api/admin/products/${id}`, { method:'PATCH', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify(payload) });
       if(!r.ok) throw new Error('failed');
     }catch{ setErr('تعذر الحفظ'); }
     finally{ setSaving(false); }

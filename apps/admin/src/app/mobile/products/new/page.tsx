@@ -12,6 +12,18 @@ export default function MobileNewProduct(): JSX.Element {
   const [description, setDescription] = React.useState('');
   const [status, setStatus] = React.useState<'ACTIVE'|'DRAFT'|'ARCHIVED'>('ACTIVE');
   const [price, setPrice] = React.useState('');
+  const [sku, setSku] = React.useState('');
+  const [barcode, setBarcode] = React.useState('');
+  const [brand, setBrand] = React.useState('');
+  const [tags, setTags] = React.useState('');
+  const [seoTitle, setSeoTitle] = React.useState('');
+  const [seoDescription, setSeoDescription] = React.useState('');
+  const [seoKeywords, setSeoKeywords] = React.useState('');
+  const [weight, setWeight] = React.useState('');
+  const [width, setWidth] = React.useState('');
+  const [height, setHeight] = React.useState('');
+  const [depth, setDepth] = React.useState('');
+  const [attributes, setAttributes] = React.useState<Array<{ key:string; value:string }>>([]);
   const [categoryId, setCategoryId] = React.useState('');
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [images, setImages] = React.useState<MediaItem[]>([]);
@@ -25,7 +37,7 @@ export default function MobileNewProduct(): JSX.Element {
 
   React.useEffect(()=>{ (async()=>{
     try{
-      const j = await (await fetch(`${resolveApiBase()}/api/admin/categories`, { headers:{ 'accept':'application/json' } })).json();
+      const j = await (await fetch(`${resolveApiBase()}/api/admin/categories`, { headers:{ 'accept':'application/json' }, credentials:'include' })).json();
       setCategories(j.categories||[]);
     }catch{ setCategories([]); }
   })(); },[]);
@@ -63,6 +75,8 @@ export default function MobileNewProduct(): JSX.Element {
       if (Array.isArray(j?.colors)) setColors(j.colors.join(', '));
       if (Array.isArray(j?.sizes)) setSizes(j.sizes.join(', '));
       if (Array.isArray(j?.prices) && j.prices[0]) setPrice(String(j.prices[0]));
+      if (j?.brand) setBrand(j.brand);
+      if (Array.isArray(j?.keywords)) setTags(j.keywords.join(', '));
     }catch{}
   }
 
@@ -72,7 +86,25 @@ export default function MobileNewProduct(): JSX.Element {
     setErr(''); setOk(''); setSaving(true);
     try{
       const payload = {
-        product: { name, description, status, categoryId: categoryId||undefined, price: Number(price)||0 },
+        product: {
+          name,
+          description,
+          status,
+          categoryId: categoryId||undefined,
+          price: Number(price)||0,
+          sku: sku||undefined,
+          barcode: barcode||undefined,
+          brand: brand||undefined,
+          tags: tags ? tags.split(',').map(t=> t.trim()).filter(Boolean) : undefined,
+          seoTitle: seoTitle||undefined,
+          seoDescription: seoDescription||undefined,
+          seoKeywords: seoKeywords||undefined,
+          weight: weight? Number(weight): undefined,
+          width: width? Number(width): undefined,
+          height: height? Number(height): undefined,
+          depth: depth? Number(depth): undefined,
+          attributes: attributes && attributes.length? attributes : undefined
+        },
         variants: variants.map(v=> ({ color: v.color, size: v.size, price: v.price, stock: v.stock })),
         media: images.map(m=> ({ name: m.name, dataUrl: m.dataUrl }))
       };
@@ -83,6 +115,7 @@ export default function MobileNewProduct(): JSX.Element {
       if(!res.ok) throw new Error('failed');
       setOk('تم إنشاء المنتج');
       setName(''); setDescription(''); setStatus('ACTIVE'); setPrice(''); setCategoryId(''); setImages([]); setColors(''); setSizes(''); setVariants([]);
+      setSku(''); setBarcode(''); setBrand(''); setTags(''); setSeoTitle(''); setSeoDescription(''); setSeoKeywords(''); setWeight(''); setWidth(''); setHeight(''); setDepth(''); setAttributes([]);
     }catch{ setErr('تعذر الحفظ'); }
     finally{ setSaving(false); }
   }
@@ -114,6 +147,22 @@ export default function MobileNewProduct(): JSX.Element {
               <option value="ARCHIVED">مؤرشف</option>
             </select>
           </label>
+          <label>
+            <div style={{ marginBottom:6 }}>SKU</div>
+            <input className="input" value={sku} onChange={e=> setSku(e.target.value)} placeholder="SKU" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>Barcode</div>
+            <input className="input" value={barcode} onChange={e=> setBarcode(e.target.value)} placeholder="EAN/UPC" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>العلامة التجارية</div>
+            <input className="input" value={brand} onChange={e=> setBrand(e.target.value)} placeholder="Brand" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>وسوم</div>
+            <input className="input" value={tags} onChange={e=> setTags(e.target.value)} placeholder="افصل بفواصل" />
+          </label>
           <label style={{ gridColumn:'1 / -1' }}>
             <div style={{ marginBottom:6 }}>الوصف</div>
             <textarea className="input" rows={4} value={description} onChange={e=> setDescription(e.target.value)} placeholder="وصف قصير" />
@@ -130,6 +179,64 @@ export default function MobileNewProduct(): JSX.Element {
             </select>
           </label>
         </FormGrid>
+      </div>
+
+      <div className="panel">
+        <div style={{ fontWeight:800, marginBottom:8 }}>المقاييس (الوزن/الأبعاد)</div>
+        <FormGrid>
+          <label>
+            <div style={{ marginBottom:6 }}>الوزن (كجم)</div>
+            <input className="input" value={weight} onChange={e=> setWeight(e.target.value)} inputMode="decimal" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>العرض (سم)</div>
+            <input className="input" value={width} onChange={e=> setWidth(e.target.value)} inputMode="decimal" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>الارتفاع (سم)</div>
+            <input className="input" value={height} onChange={e=> setHeight(e.target.value)} inputMode="decimal" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>العمق (سم)</div>
+            <input className="input" value={depth} onChange={e=> setDepth(e.target.value)} inputMode="decimal" />
+          </label>
+        </FormGrid>
+      </div>
+
+      <div className="panel">
+        <div style={{ fontWeight:800, marginBottom:8 }}>SEO</div>
+        <FormGrid>
+          <label>
+            <div style={{ marginBottom:6 }}>العنوان (SEO)</div>
+            <input className="input" value={seoTitle} onChange={e=> setSeoTitle(e.target.value)} />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>الوصف (SEO)</div>
+            <input className="input" value={seoDescription} onChange={e=> setSeoDescription(e.target.value)} />
+          </label>
+          <label style={{ gridColumn:'1 / -1' }}>
+            <div style={{ marginBottom:6 }}>الكلمات المفتاحية</div>
+            <input className="input" value={seoKeywords} onChange={e=> setSeoKeywords(e.target.value)} placeholder="افصل بفواصل" />
+          </label>
+        </FormGrid>
+      </div>
+
+      <div className="panel">
+        <div style={{ fontWeight:800, marginBottom:8 }}>سمات إضافية</div>
+        <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          {attributes.map((a,idx)=> (
+            <React.Fragment key={idx}>
+              <input className="input" value={a.key} onChange={e=> setAttributes(list=> list.map((x,i)=> i===idx? { ...x, key:e.target.value }: x))} placeholder="Key" />
+              <div style={{ display:'flex', gap:8 }}>
+                <input className="input" value={a.value} onChange={e=> setAttributes(list=> list.map((x,i)=> i===idx? { ...x, value:e.target.value }: x))} placeholder="Value" />
+                <button className="btn btn-outline" onClick={()=> setAttributes(list=> list.filter((_,i)=> i!==idx))}>حذف</button>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+          <button className="btn btn-outline" onClick={()=> setAttributes(list=> [...list, { key:'', value:'' }])}>إضافة سمة</button>
+        </div>
       </div>
 
       <div className="panel">
