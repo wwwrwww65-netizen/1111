@@ -42,7 +42,7 @@
     "yamljs": "^0.3.0",
     "zod": "^3.22.4",
     "get-image-colors": "^4.0.1",
-    "stopword": "^2.0.9"
+    "stopword": "^3.1.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
