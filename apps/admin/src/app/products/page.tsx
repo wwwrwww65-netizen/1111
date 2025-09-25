@@ -64,8 +64,11 @@ export default function AdminProducts(): JSX.Element {
         </select>
         <button className="btn btn-md danger" onClick={async ()=>{
           const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
-          await fetch(`/api/admin/products/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
-          setSelected({}); await load();
+          const r = await fetch(`/api/admin/products/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
+          if (r.ok) { setSelected({}); await load(); }
+          else {
+            try { const j = await r.json(); alert(j?.error||'فشل حذف العناصر'); } catch { alert('فشل حذف العناصر'); }
+          }
         }}>حذف المحدد</button>
       </div>
 

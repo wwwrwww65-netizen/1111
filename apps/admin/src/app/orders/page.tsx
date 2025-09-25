@@ -167,8 +167,9 @@ export default function OrdersPage(): JSX.Element {
           <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
           <button className="btn danger" onClick={async ()=>{
             const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
-            await fetch(`/api/admin/orders/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
-            await load();
+            const r = await fetch(`/api/admin/orders/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
+            if (r.ok) { setSelected({}); await load(); }
+            else { try { const j=await r.json(); alert(j?.error||'فشل الحذف'); } catch { alert('فشل الحذف'); } }
           }}>حذف المحدد</button>
         </div>
       </FilterBar>

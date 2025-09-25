@@ -129,7 +129,7 @@ export default function UsersPage(): JSX.Element {
       {tab !== 'permissions' && (
         <div className="pagination" style={{ marginTop:12 }}>
           <button onClick={bulkAssign} className="btn">إسناد جماعي</button>
-          <button onClick={async ()=>{ const ids = rows.filter(r=>selected[r.id]).map(r=>r.id); if (!ids.length) return; await fetch(`${apiBase}/api/admin/users/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) }); await load(); }} className="btn danger">حذف المحدد</button>
+          <button onClick={async ()=>{ const ids = rows.filter(r=>selected[r.id]).map(r=>r.id); if (!ids.length) return; const r = await fetch(`${apiBase}/api/admin/users/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) }); if (r.ok) { setSelected({}); await load(); } else { try{ const j=await r.json(); alert(j?.error||'فشل الحذف'); } catch { alert('فشل الحذف'); } } }} className="btn danger">حذف المحدد</button>
         </div>
       )}
 
