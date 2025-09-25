@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
     return ()=> document.removeEventListener('keydown', onKey);
   },[]);
   return (
-    <div className="app-root">
+    <div className={`app-root ${forceDesktop ? 'force-desktop' : ''}`}>
       <CommandPalette open={openCmd} onClose={()=> setOpenCmd(false)} />
       <header className="topbar">
         <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!(isDesktop || forceDesktop)) setOpen(o=>!o); else setDesktopOpen(v=>!v); }}>
@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
       </header>
       <div className="shell">
         {/* Desktop static sidebar */}
-        <aside className={`sidebar desktop ${(isDesktop || forceDesktop) && desktopOpen ? '' : 'collapsed'}`} style={{ display: (isDesktop || forceDesktop) ? 'block' : 'none' }}>
+        <aside className={`sidebar desktop ${(isDesktop || forceDesktop) && desktopOpen ? 'open' : 'collapsed'}`} style={{ display: (isDesktop || forceDesktop) ? 'block' : 'none' }}>
           <Sidebar />
         </aside>
         {/* Mobile drawer sidebar */}

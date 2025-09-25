@@ -34,6 +34,10 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
 .icon-btn{background:var(--muted2);border:1px solid var(--muted);color:var(--text);border-radius:8px;padding:6px 10px}
 .icon-btn:hover{background:#121a2a}
 .shell{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - var(--appbar-h))}
+.force-desktop .shell{grid-template-columns:260px 1fr}
+.force-desktop .sidebar.desktop{display:block !important}
+.force-desktop .sidebar.drawer{display:none !important}
+.force-desktop .overlay{display:none !important}
 .sidebar{background:var(--panel);border-inline-end:1px solid var(--muted);padding:16px;transition:width .2s ease;overflow:auto;width:260px}
 .sidebar.open{width:260px}
 .sidebar:not(.open){width:260px}
