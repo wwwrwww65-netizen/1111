@@ -3149,7 +3149,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       const pre = (text||'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim();
       const extracted = parseProductText(pre) || {};
       if (extracted.name) { out.name = extracted.name; sources.name = { source:'rules', confidence:0.6 }; }
-      if (extracted.description) { out.description = extracted.description; sources.description = { source:'rules', confidence:0.6 }; }
+      if (extracted.shortDesc || extracted.longDesc) { out.description = extracted.shortDesc || extracted.longDesc; sources.description = { source:'rules', confidence:0.6 }; }
       if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = extracted.colors; sources.colors = { source:'rules', confidence:0.4 }; }
       if (Array.isArray(extracted.sizes) && extracted.sizes.length) { out.sizes = extracted.sizes; sources.sizes = { source:'rules', confidence:0.7 }; }
       if (Array.isArray(extracted.keywords)) {
@@ -3157,9 +3157,12 @@ adminRest.post('/products/analyze', async (req, res) => {
         out.tags = Array.from(new Set(filtered)).slice(0,12);
         sources.tags = { source:'rules', confidence:0.5 };
       }
-      if (Array.isArray(extracted.prices) && extracted.prices.length) {
-        const low = Math.min(...extracted.prices.map((p:number)=> Number(p)||0));
-        const high = Math.max(...extracted.prices.map((p:number)=> Number(p)||0));
+      const priceNums: number[] = [];
+      if (typeof extracted.purchasePrice === 'number') priceNums.push(Number(extracted.purchasePrice)||0);
+      if (typeof extracted.salePrice === 'number') priceNums.push(Number(extracted.salePrice)||0);
+      if (priceNums.length) {
+        const low = Math.min(...priceNums);
+        const high = Math.max(...priceNums);
         out.price_range = { low, high };
         sources.price_range = { source:'rules', confidence:0.6 };
       }
