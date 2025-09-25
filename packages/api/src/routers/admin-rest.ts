@@ -3150,7 +3150,8 @@ adminRest.post('/products/analyze', async (req, res) => {
     const normalizeSpaces = (s:string)=> s.replace(/\s+/g,' ').trim();
     const toArabicDigits = (s:string)=> s.replace(/\b(\d+)\b/g, (m)=> m);
     const clamp = (s:string, n:number)=> s.length>n ? s.slice(0,n) : s;
-    const synonymsMap: Record<string,string[]> = { 'صوف': ['شتوي','دافئ'], 'قطن': ['خفيف','نَسيم'], 'جلد': ['فاخر'], 'فنيلة': ['توب','بلوزة'] };
+    const synonymsMap: Record<string,string[]> = { 'صوف': ['شتوي','دافئ'], 'قطن': ['خفيف','صيفي'], 'جلد': ['فاخر'], 'فنيلة': ['توب','بلوزة'] };
+    const arabicStop: string[] = Array.isArray((sw as any)?.ar) ? (sw as any).ar : ['و','في','من','الى','على','عن','هو','هي','هذا','هذه','ذلك','تلك','ثم','كما','قد','لقد','مع','حسب','أو','أي','ما','لا','لم','لن','إن','أن','كان','كانت','يكون','يمكن','فقط','متوفر','متوفرة','جديد','جديدة','عرض','السعر','كمية','الكبرى','الصغرى','لون','الوان','لونين'];
     // Text pass (rule-based + stopwords)
     if (typeof text === 'string' && text.trim()) {
       const pre = normalizeSpaces(cleanSymbols(stripEmojis(text||'')));
@@ -3161,7 +3162,11 @@ adminRest.post('/products/analyze', async (req, res) => {
       const attrMatch = pre.match(/\b(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)\b/i);
       const featureMatch = pre.match(/\b(أزرار (?:انيقه|أنِيقة|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه)\b/i);
       const normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1].replace(/ه$/,'ة')) : '';
-      const material = materialMatch ? (materialMatch[1].toLowerCase()==='wool'?'صوف':materialMatch[1].toLowerCase()==='cotton'?'قطن':materialMatch[1]) : '';
+      let material = materialMatch ? (materialMatch[1].toLowerCase()==='wool'?'صوف':materialMatch[1].toLowerCase()==='cotton'?'قطن':materialMatch[1]) : '';
+      if (material) {
+        // أضف "ال" للتعبير العربي الطبيعي
+        if (!/^ال/.test(material)) material = `الصوف` === material ? material : (material === 'صوف' ? 'الصوف' : material === 'قطن' ? 'القطن' : material);
+      }
       const attr = attrMatch ? (attrMatch[1].replace('موحد','فري سايز')) : '';
       let feature = featureMatch ? featureMatch[1] : '';
       feature = /زرارات|أزرار/i.test(feature) ? 'أزرار أنيقة' : (/كم كامل/i.test(pre)? 'كم كامل' : feature);
@@ -3187,7 +3192,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       else if (Array.isArray(extracted.sizes) && extracted.sizes.length) { out.sizes = extracted.sizes; sources.sizes = { source:'rules', confidence:0.7 }; }
       if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = extracted.colors; sources.colors = { source:'rules', confidence:0.4 }; }
       if (Array.isArray(extracted.keywords)) {
-        const filtered = sw.removeStopwords(extracted.keywords, sw.ar);
+        const filtered = (extracted.keywords||[]).filter((k:string)=> !arabicStop.includes(k));
         // add synonyms up to 6
         const expanded = new Set<string>();
         for (const k of filtered) { expanded.add(k); if (synonymsMap[k]) for (const s of synonymsMap[k]) expanded.add(s); }
