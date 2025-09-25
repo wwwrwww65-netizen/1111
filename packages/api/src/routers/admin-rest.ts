@@ -3242,8 +3242,8 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v)) priceNums.push(v); });
       }
       if (!priceNums.length) {
-        if (typeof extracted.purchasePrice === 'number') priceNums.push(Number(extracted.purchasePrice)||0);
-        if (typeof extracted.salePrice === 'number') priceNums.push(Number(extracted.salePrice)||0);
+        if (typeof extracted.purchasePrice === 'number' && Number.isFinite(Number(extracted.purchasePrice))) priceNums.push(Number(extracted.purchasePrice));
+        if (typeof extracted.salePrice === 'number' && Number.isFinite(Number(extracted.salePrice))) priceNums.push(Number(extracted.salePrice));
       }
       if (priceNums.length) {
         const low = Math.min(...priceNums);
