@@ -3103,6 +3103,8 @@ adminRest.post('/integrations/:id/toggle', async (req, res) => {
 
 // Product parse/generate helpers
 import { parseProductText } from '../utils/nlp-ar';
+import getColors from 'get-image-colors';
+import sw from 'stopword';
 
 adminRest.post('/products/parse', async (req, res) => {
   try{
@@ -3140,20 +3142,55 @@ adminRest.post('/products/generate', async (req, res) => {
 adminRest.post('/products/analyze', async (req, res) => {
   try{
     const { text, images } = req.body || {};
-    const svcUrl = process.env.ANALYZE_API_URL || 'http://127.0.0.1:8008';
-    const timeoutMs = Number(process.env.ANALYZE_TIMEOUT_MS || 15000);
-    const ctrl = new AbortController();
-    const t = setTimeout(()=> ctrl.abort(), timeoutMs);
-    const r = await fetch(`${svcUrl}/analyze`, {
-      method:'POST', headers:{ 'content-type':'application/json' }, signal: ctrl.signal,
-      body: JSON.stringify({ text: text||'', images: Array.isArray(images)? images.slice(0,6): [] })
-    }).catch((e:any)=> ({ ok:false, status: 599, json: async()=> ({ error: String(e?.message||'analyze_timeout') }) } as any));
-    clearTimeout(t);
-    if (!('ok' in r) || !r.ok) {
-      return res.status(502).json({ error: 'analyze_failed', detail: (r as any)?.status });
+    const out:any = { name:null, description:null, brand:null, tags:[], sizes:[], colors:[], price_range:null, attributes:[], seo:{ title:null, description:null, keywords:[] } };
+    const sources:any = {};
+    // Text pass (rule-based + simple Arabic stopwords)
+    if (typeof text === 'string' && text.trim()) {
+      const pre = (text||'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim();
+      const extracted = parseProductText(pre) || {};
+      if (extracted.name) { out.name = extracted.name; sources.name = { source:'rules', confidence:0.6 }; }
+      if (extracted.description) { out.description = extracted.description; sources.description = { source:'rules', confidence:0.6 }; }
+      if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = extracted.colors; sources.colors = { source:'rules', confidence:0.4 }; }
+      if (Array.isArray(extracted.sizes) && extracted.sizes.length) { out.sizes = extracted.sizes; sources.sizes = { source:'rules', confidence:0.7 }; }
+      if (Array.isArray(extracted.keywords)) {
+        const filtered = sw.removeStopwords(extracted.keywords, sw.ar);
+        out.tags = Array.from(new Set(filtered)).slice(0,12);
+        sources.tags = { source:'rules', confidence:0.5 };
+      }
+      if (Array.isArray(extracted.prices) && extracted.prices.length) {
+        const low = Math.min(...extracted.prices.map((p:number)=> Number(p)||0));
+        const high = Math.max(...extracted.prices.map((p:number)=> Number(p)||0));
+        out.price_range = { low, high };
+        sources.price_range = { source:'rules', confidence:0.6 };
+      }
+      // naive SEO
+      out.seo.title = out.name || null;
+      out.seo.description = (out.description||'').slice(0,160) || null;
+      out.seo.keywords = out.tags || [];
+      sources.seo = { source:'rules', confidence:0.4 };
     }
-    const j = await (r as any).json();
-    return res.json({ ok:true, analyzed: j?.result || j });
+    // Image colors using npm libs (dominant palette)
+    const imgs:any[] = Array.isArray(images)? images.slice(0,6): [];
+    const hexes: string[] = [];
+    for (const im of imgs) {
+      const dataUrl = typeof im === 'string' ? im : im?.dataUrl;
+      if (!dataUrl || typeof dataUrl !== 'string') continue;
+      const commaIdx = dataUrl.indexOf(',');
+      const b64 = commaIdx>=0 ? dataUrl.slice(commaIdx+1) : dataUrl;
+      const buf = Buffer.from(b64, 'base64');
+      try{
+        const palette = await (getColors as any)(buf, 'image/png');
+        if (Array.isArray(palette)) {
+          palette.slice(0,5).forEach((c:any)=> {
+            const hex = typeof c.hex === 'function' ? c.hex() : (c?.hex || c?.[0]);
+            if (typeof hex === 'string') hexes.push(hex);
+          });
+        }
+      }catch{}
+    }
+    if (hexes.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...hexes])); sources.colors = { source:'vision', confidence:0.7 }; }
+    const result:any = Object.fromEntries(Object.entries(out).map(([k,v])=> [k, { value:v, ...(sources as any)[k] || { source:'rules', confidence:0.3 } }]));
+    return res.json({ ok:true, analyzed: result });
   }catch(e:any){ return res.status(500).json({ error: e.message || 'analyze_failed' }); }
 });
 adminRest.post('/integrations/test', async (req, res) => {
