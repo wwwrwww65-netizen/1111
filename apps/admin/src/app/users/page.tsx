@@ -118,6 +118,7 @@ export default function UsersPage(): JSX.Element {
                     <option value="ADMIN">ADMIN</option>
                   </select>
                   <button onClick={()=>assign(u.id)} className="btn btn-outline">إسناد</button>
+                  <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/users/${u.id}`, { method:'DELETE', credentials:'include', headers:{ ...authHeaders() } }); await load(); }} className="btn danger">حذف</button>
                 </div>
               </td>
             </>
@@ -128,6 +129,7 @@ export default function UsersPage(): JSX.Element {
       {tab !== 'permissions' && (
         <div className="pagination" style={{ marginTop:12 }}>
           <button onClick={bulkAssign} className="btn">إسناد جماعي</button>
+          <button onClick={async ()=>{ const ids = rows.filter(r=>selected[r.id]).map(r=>r.id); if (!ids.length) return; await fetch(`${apiBase}/api/admin/users/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) }); await load(); }} className="btn danger">حذف المحدد</button>
         </div>
       )}
 

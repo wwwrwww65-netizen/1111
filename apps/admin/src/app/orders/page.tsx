@@ -165,6 +165,11 @@ export default function OrdersPage(): JSX.Element {
         <div style={{ display:'flex', gap:8 }}>
           <button className="btn" onClick={()=> bulk('ship')}>شحن المحدد</button>
           <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
+          <button className="btn danger" onClick={async ()=>{
+            const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
+            await fetch(`/api/admin/orders/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
+            await load();
+          }}>حذف المحدد</button>
         </div>
       </FilterBar>
 
