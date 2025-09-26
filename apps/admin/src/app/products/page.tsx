@@ -35,6 +35,8 @@ export default function AdminProducts(): JSX.Element {
     if (search) url.searchParams.set('search', search);
     if (status) url.searchParams.set('status', status);
     if (categoryId) url.searchParams.set('categoryId', categoryId);
+    // request lean payload for faster first paint
+    url.searchParams.set('suggest','1');
     const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal })).json();
     setRows(j.products||[]); setTotal(j.pagination?.total||0);
   }

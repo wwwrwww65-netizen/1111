@@ -4032,7 +4032,7 @@ adminRest.get('/products', async (req, res) => {
   if (status === 'active') where.isActive = true;
   if (status === 'archived') where.isActive = false;
   if (suggest) {
-    const items = await db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, name: true, price: true } });
+    const items = await db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, name: true, price: true, images: true, isActive:true, sku:true, stockQuantity:true } });
     const total = await db.product.count({ where });
     return res.json({ products: items, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
   }
