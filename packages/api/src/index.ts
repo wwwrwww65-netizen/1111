@@ -149,6 +149,7 @@ async function ensureSchema(): Promise<void> {
     // Speed up product name/sku search used by admin suggest
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_name_trgm_idx" ON "Product" USING gin (name gin_trgm_ops)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_sku_idx" ON "Product"(sku)'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_created_idx" ON "Product"("createdAt")'); } catch {}
   } catch (e) {
     console.error('[ensureSchema] warning:', e);
   }
@@ -325,7 +326,8 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       cors: {
         origin: [process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jeeey.com'],
         credentials: true
-      }
+      },
+      path: '/socket.io'
     });
     setIo(io);
     io.on('connection', (socket) => {

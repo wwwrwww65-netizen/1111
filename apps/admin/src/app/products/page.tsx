@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default function AdminProducts(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [page, setPage] = React.useState(1);
-  const [limit] = React.useState(20);
+  const [limit] = React.useState(12);
   const [search, setSearch] = React.useState('');
   const [status, setStatus] = React.useState('');
   const [categoryId, setCategoryId] = React.useState('');
@@ -98,7 +98,7 @@ export default function AdminProducts(): JSX.Element {
                 <tr key={p.id} style={{ height:72 }}>
                   <td><input type="checkbox" checked={!!selected[p.id]} onChange={()=> setSelected(s=> ({...s, [p.id]: !s[p.id]}))} /></td>
                   <td>{p.id.slice(0,6)}</td>
-                  <td>{p.images?.[0] ? <img src={p.images[0]} alt={p.name} style={{ width:80, height:80, objectFit:'cover', borderRadius:6 }} /> : '-'}</td>
+                  <td>{p.images?.[0] ? <img src={p.images[0]} alt={p.name} width={64} height={64} style={{ width:64, height:64, objectFit:'cover', borderRadius:6 }} /> : '-'}</td>
                   <td>{p.name}</td>
                   <td>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
                   <td>{p.price}</td>
