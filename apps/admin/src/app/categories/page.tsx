@@ -36,7 +36,7 @@ export default function CategoriesPage(): JSX.Element {
   const showToast = (m:string) => { setToast(m); setTimeout(()=>setToast(""), 1800); };
 
   async function loadList(){
-  const url = new URL(`/api/admin/categories`, window.location.origin);
+  const url = new URL(`${apiBase}/api/admin/categories`);
     url.searchParams.set('_', String(Date.now()));
     if (search) url.searchParams.set('search', search);
     const res = await fetch(url.toString(), { credentials:'include', cache:'no-store' });
@@ -44,7 +44,7 @@ export default function CategoriesPage(): JSX.Element {
     const j = await res.json(); setRows(j.categories||[]);
   }
   async function loadTree(){
-  const res = await fetch(`/api/admin/categories/tree`, { credentials:'include', cache:'no-store' });
+  const res = await fetch(buildUrl('/api/admin/categories/tree'), { credentials:'include', cache:'no-store' });
     if (!res.ok) { setTree([]); return; }
     const j = await res.json(); setTree(j.tree||[]);
   }
@@ -58,14 +58,14 @@ export default function CategoriesPage(): JSX.Element {
       let finalImage = image;
       if (finalImage && finalImage.startsWith('data:')) {
         try {
-          const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
+          const up = await fetch(buildUrl('/api/admin/media/upload'), { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
           if (up.ok) { const j = await up.json(); finalImage = j.url || j.presign?.url || finalImage; }
         } catch {}
       }
       const translations = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
       const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
       const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
-      const res = await fetch(`/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
+      const res = await fetch(buildUrl('/api/admin/categories'), { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(()=> '');
         showToast(`فشل الإضافة${t? ': '+t: ''}`);
@@ -81,7 +81,7 @@ export default function CategoriesPage(): JSX.Element {
     }
   }
   async function update(cat:any){
-  const res = await fetch(`/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
+  const res = await fetch(buildUrl(`/api/admin/categories/${cat.id}`), { method:'PATCH', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
     if (!res.ok) { showToast('فشل الحفظ'); return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحفظ');
@@ -99,7 +99,7 @@ export default function CategoriesPage(): JSX.Element {
       return;
     }
     setConfirmingDeleteId(null);
-    const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids: [id] }) });
+    const r = await fetch(buildUrl('/api/admin/categories/bulk-delete'), { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids: [id] }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
     if (deletedCount < 1) { showToast('فشل الحذف'); return; }
@@ -117,7 +117,7 @@ export default function CategoriesPage(): JSX.Element {
       return;
     }
     setConfirmingBulk(false);
-    const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids }) });
+    const r = await fetch(buildUrl('/api/admin/categories/bulk-delete'), { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
     if (deletedCount < 1) { showToast('فشل الحذف'); return; }
@@ -136,7 +136,7 @@ export default function CategoriesPage(): JSX.Element {
             try {
               const siblings = (n.children||[]).map((c:any, idx:number)=> ({ id:c.id, parentId: n.id, sortOrder: idx }));
               const payload = { items: [ { id: draggedId, parentId: n.id, sortOrder: siblings.length }, ...siblings ] };
-              await fetch(`/api/admin/categories/reorder`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify(payload) });
+              await fetch(buildUrl('/api/admin/categories/reorder'), { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify(payload) });
               await Promise.all([loadList(), loadTree()]);
               showToast('تم إعادة الترتيب');
             } catch { showToast('فشل إعادة الترتيب'); }
@@ -235,7 +235,7 @@ export default function CategoriesPage(): JSX.Element {
                 reader.onload = async ()=> {
                   const data = String(reader.result||'');
                   try {
-                    const resp = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
+                    const resp = await fetch(buildUrl('/api/admin/media/upload'), { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
                     if (resp.ok) {
                       const out = await resp.json();
                       if (out.url) { setImage(out.url); showToast('تم رفع الصورة'); }
@@ -257,7 +257,7 @@ export default function CategoriesPage(): JSX.Element {
                 reader.onload = async ()=> {
                   const data = String(reader.result||'');
                   try {
-                    const resp = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
+                    const resp = await fetch(buildUrl('/api/admin/media/upload'), { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
                     if (resp.ok) { const out = await resp.json(); setImage(out.url || out.presign?.url || data); showToast('تم رفع الصورة'); }
                     else { setImage(data); showToast('تم التحميل محلياً'); }
                   } catch { setImage(data); showToast('تم التحميل محلياً'); }
