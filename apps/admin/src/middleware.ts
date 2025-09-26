@@ -5,6 +5,9 @@ export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const ua = (req.headers.get('user-agent') || '').toLowerCase();
   const isMobileUA = /(android|iphone|ipad|ipod|mobile|blackberry|iemobile|opera mini)/.test(ua);
+  // Respect Chrome mobile "Request Desktop Site": Sec-CH-UA-Mobile: ?0
+  const chMobile = req.headers.get('sec-ch-ua-mobile');
+  const requestedDesktopOnMobile = isMobileUA && chMobile === '?0';
   const forceDesktopCookie = req.cookies.get('admin_force_desktop')?.value === '1';
   // Allow login and static assets
   if (
@@ -26,7 +29,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
   // Redirect common desktop paths to /mobile equivalents for mobile UAs (unless forced desktop)
-  if (!forceDesktopCookie && isMobileUA) {
+  if (!forceDesktopCookie && isMobileUA && !requestedDesktopOnMobile) {
     if (!pathname.startsWith('/mobile')) {
       const directPrefixes = [
         '/orders','/products','/vendors','/users','/categories',
