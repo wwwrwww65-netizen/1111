@@ -179,6 +179,7 @@ jobs:
             echo "Skip db:push (prod DB mirrored)"; exit 0;
           fi
           pnpm --filter @repo/db db:push:force
+          pnpm --filter @repo/db db:migrate
 
       - name: Prisma seed
         if: github.ref == 'refs/heads/main'

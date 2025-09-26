@@ -168,6 +168,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/system/shipping-rates', label: 'أسعار التوصيل' },
       { href: '/system/payment-methods', label: 'طرق الدفع' },
       { href: '/system/carts', label: 'سلال التسوق' },
+      { href: '/system/monitoring', label: 'المراقبة' },
     ],
   },
 ];
