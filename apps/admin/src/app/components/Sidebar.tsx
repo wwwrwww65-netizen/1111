@@ -169,6 +169,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/system/payment-methods', label: 'طرق الدفع' },
       { href: '/system/carts', label: 'سلال التسوق' },
       { href: '/system/monitoring', label: 'المراقبة' },
+      { href: '/system/consent', label: 'الموافقة (Consent)' },
     ],
   },
 ];

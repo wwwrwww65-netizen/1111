@@ -3523,6 +3523,21 @@ adminRest.post('/notifications/send', async (req, res) => {
   }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'send_failed' }); }
 });
 
+// Consent config (admin)
+adminRest.get('/consent', async (_req, res) => {
+  try{
+    const row = await db.setting.findUnique({ where: { key: 'consent_config' } });
+    res.json({ ok:true, config: row?.value || { tracking:true, utm:true, personalization:true } });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'consent_get_failed' }); }
+});
+adminRest.post('/consent', async (req, res) => {
+  try{
+    const cfg = req.body?.config ?? {};
+    const up = await db.setting.upsert({ where: { key: 'consent_config' }, update: { value: cfg }, create: { key: 'consent_config', value: cfg } });
+    res.json({ ok:true, config: up.value });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'consent_set_failed' }); }
+});
+
 // Reviews module
 adminRest.get('/reviews/list', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'reviews.read'))) return res.status(403).json({ error:'forbidden' });

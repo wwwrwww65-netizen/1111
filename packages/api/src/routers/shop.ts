@@ -4,6 +4,20 @@ import { readTokenFromRequest, verifyJwt } from '../utils/jwt';
 import type { Request } from 'express'
 
 const shop = Router();
+// Public consent endpoints
+shop.get('/consent/config', async (_req, res) => {
+  try{
+    const row = await db.setting.findUnique({ where: { key: 'consent_config' } });
+    res.json({ ok:true, config: row?.value || { tracking:true, utm:true, personalization:true } });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'consent_get_failed' }); }
+});
+shop.post('/consent/accept', async (req, res) => {
+  try{
+    const val = req.body?.accept ?? { tracking:true, utm:true, personalization:true };
+    res.cookie('consent', Buffer.from(JSON.stringify(val)).toString('base64'), { httpOnly:false, sameSite:'lax', maxAge: 3600*24*365*1000 });
+    res.json({ ok:true });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'consent_accept_failed' }); }
+});
 
 // Helpers
 function requireAuth(req: any, res: any, next: any) {
