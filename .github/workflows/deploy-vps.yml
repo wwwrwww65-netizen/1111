@@ -558,6 +558,7 @@ jobs:
             done
 
       - name: Post-deploy category delete proof (always)
+        if: always()
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
