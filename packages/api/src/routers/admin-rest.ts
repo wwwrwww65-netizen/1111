@@ -4490,6 +4490,7 @@ adminRest.delete('/categories/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_delete',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
   try {
     await db.$transaction(async (tx) => {
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
       const cat = await tx.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
       if (!cat) return; // Already gone
 
@@ -4497,9 +4498,7 @@ adminRest.delete('/categories/:id', async (req, res) => {
       let replacementCategoryId: string | null = cat.parentId || null;
       if (!replacementCategoryId) {
         let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-        if (!unc) {
-          unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } });
-        }
+        if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
         replacementCategoryId = unc.id;
       }
 
@@ -4513,10 +4512,11 @@ adminRest.delete('/categories/:id', async (req, res) => {
   } catch(e:any){
     // Second-chance forced cleanup using raw SQL
     try {
+      try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
       const cat: { parentId: string|null }[] = await db.$queryRaw`SELECT "parentId" FROM "Category" WHERE id=${id} LIMIT 1`;
       const parentId = cat?.[0]?.parentId ?? null;
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
       await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentId} WHERE "parentId"=${id}`;
       await db.$executeRaw`UPDATE "Product" SET "categoryId"=${unc.id} WHERE "categoryId"=${id}`;
       await db.$executeRaw`DELETE FROM "Category" WHERE id=${id}`;
@@ -4536,9 +4536,10 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   let deleted = 0;
   try {
     await db.$transaction(async (tx) => {
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
       // Ensure replacement category once per batch
       let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+      if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
       const uncId = unc.id;
 
       // Reparent all children away from any target id
@@ -4553,8 +4554,9 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   } catch (e:any) {
     // Fallback raw pass
     try {
+      try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
       const uncId = unc.id;
       await db.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY(${ids}::text[])`;
       await db.$executeRaw`UPDATE "Product" SET "categoryId"=${uncId} WHERE "categoryId" = ANY(${ids}::text[])`;
