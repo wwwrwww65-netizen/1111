@@ -195,6 +195,21 @@ jobs:
             export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
             export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
             bash infra/scripts/deploy.sh "$PATH_ON_HOST"
+            echo '--- Prisma migrate (deploy) ---'
+            if [ -f "$PATH_ON_HOST/.env.api" ]; then
+              set -a
+              . "$PATH_ON_HOST/.env.api"
+              set +a
+            fi
+            if [ -n "${DATABASE_URL:-}" ] && [ -n "${DIRECT_URL:-}" ]; then
+              echo "Running prisma migrate deploy with DATABASE_URL=$DATABASE_URL"
+              cd "$PATH_ON_HOST/packages/db"
+              pnpm install --prod --ignore-scripts || true
+              npx prisma migrate deploy || pnpm prisma migrate deploy || true
+              cd "$PATH_ON_HOST"
+            else
+              echo 'DATABASE_URL/DIRECT_URL not set; skipping prisma migrate deploy'
+            fi
             echo '--- Install Nginx config (jeeey.conf) ---'
             if [ -f infra/nginx/jeeey.conf.tpl ]; then
               DOMAIN_ROOT="jeeey.com"
