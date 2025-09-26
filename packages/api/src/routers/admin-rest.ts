@@ -4489,27 +4489,80 @@ adminRest.delete('/categories/:id', async (req, res) => {
   const { id } = req.params;
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_delete',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
   try {
-    // Find category and decide replacement for products
-    const cat = await db.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
-    if (!cat) return res.json({ ok:true });
-    let replacementCategoryId: string | null = cat.parentId || null;
-    if (!replacementCategoryId) {
-      // Ensure an 'Uncategorized' category exists to safely reassign products
-      let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) {
-        unc = await db.category.create({ data: { name: 'غير مصنّف', slug: 'uncategorized', sortOrder: 0 } });
+    await db.$transaction(async (tx) => {
+      const cat = await tx.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
+      if (!cat) return; // Already gone
+
+      // Ensure replacement
+      let replacementCategoryId: string | null = cat.parentId || null;
+      if (!replacementCategoryId) {
+        let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
+        if (!unc) {
+          unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } });
+        }
+        replacementCategoryId = unc.id;
       }
-      replacementCategoryId = unc.id;
+
+      // Re-parent children and move products
+      await tx.category.updateMany({ where: { parentId: id }, data: { parentId: cat.parentId || null } });
+      await tx.product.updateMany({ where: { categoryId: id }, data: { categoryId: replacementCategoryId } });
+
+      // Delete
+      await tx.category.delete({ where: { id } });
+    });
+  } catch(e:any){
+    // Second-chance forced cleanup using raw SQL
+    try {
+      const cat: { parentId: string|null }[] = await db.$queryRaw`SELECT "parentId" FROM "Category" WHERE id=${id} LIMIT 1`;
+      const parentId = cat?.[0]?.parentId ?? null;
+      let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
+      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+      await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentId} WHERE "parentId"=${id}`;
+      await db.$executeRaw`UPDATE "Product" SET "categoryId"=${unc.id} WHERE "categoryId"=${id}`;
+      await db.$executeRaw`DELETE FROM "Category" WHERE id=${id}`;
+    } catch (ee:any) {
+      return res.status(400).json({ ok:false, code:'category_delete_failed', error: ee.message||e.message||'category_delete_failed' });
     }
-    // Re-parent children to the deleted category's parent (or leave as null if any future change makes it nullable)
-    await db.category.updateMany({ where: { parentId: id }, data: { parentId: cat.parentId || null } });
-    // Move products to replacement category to satisfy NOT NULL constraint
-    await db.product.updateMany({ where: { categoryId: id }, data: { categoryId: replacementCategoryId } });
-    // Delete the category now that dependencies are handled
-    await db.category.delete({ where: { id } });
-  } catch(e:any){ return res.status(400).json({ ok:false, code:'category_delete_failed', error: e.message||'category_delete_failed' }); }
+  }
   await audit(req, 'categories', 'delete', { id });
   res.json({ ok:true, success: true });
+});
+
+// Bulk delete categories with safe reassignment
+adminRest.post('/categories/bulk-delete', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_bulk_delete',{ path:req.path }); return res.status(403).json({ error:'forbidden', code:'forbidden_delete' }); }
+  const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  if (!ids.length) return res.json({ ok:true, deleted: 0 });
+  let deleted = 0;
+  for (const id of ids) {
+    try {
+      await db.$transaction(async (tx) => {
+        const cat = await tx.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
+        if (!cat) return;
+        let replacementCategoryId: string | null = cat.parentId || null;
+        if (!replacementCategoryId) {
+          let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
+          if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+          replacementCategoryId = unc.id;
+        }
+        await tx.category.updateMany({ where: { parentId: id }, data: { parentId: cat.parentId || null } });
+        await tx.product.updateMany({ where: { categoryId: id }, data: { categoryId: replacementCategoryId } });
+        await tx.category.delete({ where: { id } });
+      });
+      deleted++;
+    } catch (e:any) {
+      try {
+        let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
+        if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+        await db.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId"=${id}`;
+        await db.$executeRaw`UPDATE "Product" SET "categoryId"=${unc.id} WHERE "categoryId"=${id}`;
+        await db.$executeRaw`DELETE FROM "Category" WHERE id=${id}`;
+        deleted++;
+      } catch {}
+    }
+  }
+  await audit(req, 'categories', 'bulk_delete', { ids, deleted });
+  res.json({ ok:true, deleted });
 });
 adminRest.post('/backups/run', async (_req, res) => {
   // Enforce 30-day retention before creating a new backup
