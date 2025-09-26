@@ -3317,10 +3317,30 @@ adminRest.post('/products/analyze', async (req, res) => {
   }catch(e:any){ return res.status(500).json({ error: e.message || 'analyze_failed' }); }
 });
 adminRest.post('/integrations/test', async (req, res) => {
-  // Basic echo test for UI wiring; providers can be validated server-side later
   const { provider, config } = req.body || {};
   if (!provider || !config) return res.status(400).json({ ok:false, error:'missing' });
-  res.json({ ok: true });
+  const p = String(provider);
+  try {
+    if (p === 'google_oauth') {
+      if (!config.clientId || !config.clientSecret || !config.redirectUri) return res.status(400).json({ ok:false, error:'google_fields_required' });
+      return res.json({ ok:true });
+    }
+    if (p === 'facebook_oauth') {
+      if (!config.appId || !config.appSecret || !config.redirectUri) return res.status(400).json({ ok:false, error:'facebook_fields_required' });
+      return res.json({ ok:true });
+    }
+    if (p === 'whatsapp') {
+      if (!config.provider || !config.token || !config.phoneId || !config.template) return res.status(400).json({ ok:false, error:'whatsapp_fields_required' });
+      return res.json({ ok:true });
+    }
+    if (p === 'sms') {
+      if (!config.provider || !config.sender || !(config.accountSid||config.authToken)) return res.status(400).json({ ok:false, error:'sms_fields_required' });
+      return res.json({ ok:true });
+    }
+    return res.json({ ok:true });
+  } catch (e:any) {
+    return res.status(400).json({ ok:false, error: e.message||'integration_test_failed' });
+  }
 });
 
 // Currencies CRUD (admin)

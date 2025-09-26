@@ -47,6 +47,7 @@ export default function LoginIntegrationsPage(): JSX.Element {
 
   const [loading, setLoading] = React.useState<boolean>(false);
   const [message, setMessage] = React.useState<string>('');
+  const [err, setErr] = React.useState<string>('');
 
   const [google, setGoogle] = React.useState<IdAndConfig>({ config: { enabled: false } as GoogleConfig });
   const [facebook, setFacebook] = React.useState<IdAndConfig>({ config: { enabled: false } as FacebookConfig });
@@ -57,10 +58,20 @@ export default function LoginIntegrationsPage(): JSX.Element {
     setter((s)=> ({ ...s, config: { ...(s.config||{}), [key]: value } }));
   }
 
+  function authHeaders(): Record<string,string> {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {} as Record<string,string>;
+  }
+
   async function load(){
-    setLoading(true); setMessage('');
+    setLoading(true); setMessage(''); setErr('');
     try{
-      const j = await (await fetch(`${apiBase}/api/admin/integrations/list`, { credentials:'include' })).json();
+      const r = await fetch(`${apiBase}/api/admin/integrations/list`, { credentials:'include', headers: { ...authHeaders() } });
+      if (!r.ok) { setErr('تعذر تحميل التكاملات'); setLoading(false); return; }
+      const j = await r.json();
       const list: Array<{ id: string; provider: string; config: any }> = j.integrations || [];
       const latest = new Map<string, { id: string; config: any }>();
       for (const it of list){
@@ -76,12 +87,14 @@ export default function LoginIntegrationsPage(): JSX.Element {
   React.useEffect(()=>{ load().catch(()=>{}); },[]);
 
   async function upsert(provider: string, state: IdAndConfig){
-    setMessage('');
+    setMessage(''); setErr('');
     const body = JSON.stringify({ provider, config: state.config||{} });
     if (state.id){
-      await fetch(`${apiBase}/api/admin/integrations/${state.id}`, { method:'PUT', headers:{ 'content-type':'application/json' }, credentials:'include', body });
+      const r = await fetch(`${apiBase}/api/admin/integrations/${state.id}`, { method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body });
+      if (!r.ok) { setErr('فشل الحفظ'); return; }
     } else {
-      await fetch(`${apiBase}/api/admin/integrations`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body });
+      const r = await fetch(`${apiBase}/api/admin/integrations`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body });
+      if (!r.ok) { setErr('فشل الإضافة'); return; }
     }
     await load();
     setMessage('تم الحفظ بنجاح');
@@ -92,24 +105,25 @@ export default function LoginIntegrationsPage(): JSX.Element {
       await upsert(providerKey, { config: { ...(state.config||{}), enabled } });
       return;
     }
-    await fetch(`${apiBase}/api/admin/integrations/${state.id}/toggle`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ enabled }) });
+    const r = await fetch(`${apiBase}/api/admin/integrations/${state.id}/toggle`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ enabled }) });
+    if (!r.ok) { setErr('فشل التبديل'); return; }
     await load();
     setMessage(enabled? 'تم التفعيل' : 'تم التعطيل');
   }
 
   async function remove(state: IdAndConfig){
-    setMessage('');
+    setMessage(''); setErr('');
     if (!state.id) return;
-    await fetch(`${apiBase}/api/admin/integrations/${state.id}`, { method:'DELETE', credentials:'include' });
+    const r = await fetch(`${apiBase}/api/admin/integrations/${state.id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } });
+    if (!r.ok) { setErr('فشل الحذف'); return; }
     await load();
     setMessage('تم الحذف');
   }
 
   async function test(providerKey: string, state: IdAndConfig){
-    setMessage('');
-    const r = await fetch(`${apiBase}/api/admin/integrations/test`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ provider: providerKey, config: state.config||{} }) });
-    const ok = r.ok;
-    setMessage(ok? 'اختبار ناجح' : 'اختبار فشل');
+    setMessage(''); setErr('');
+    const r = await fetch(`${apiBase}/api/admin/integrations/test`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ provider: providerKey, config: state.config||{} }) });
+    if (r.ok) setMessage('اختبار ناجح'); else { try { const j=await r.json(); setErr(j?.error||'اختبار فشل'); } catch { setErr('اختبار فشل'); } }
   }
 
   function Section({ title, children, actions }:{ title:string; children:React.ReactNode; actions:React.ReactNode }){
@@ -144,14 +158,30 @@ export default function LoginIntegrationsPage(): JSX.Element {
   const wcfg = (whatsapp.config||{}) as WhatsAppConfig;
   const scfg = (sms.config||{}) as SmsConfig;
 
+  // Inject Facebook SDK when enabled and appId present
+  React.useEffect(()=>{
+    const appId = (facebook.config||{} as any).appId;
+    const enabled = Boolean((facebook.config||{} as any).enabled);
+    if (!enabled || !appId) return;
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if ((window as any).FB) return; // already loaded
+    (window as any).fbAsyncInit = function() {
+      try { (window as any).FB.init({ appId: appId, cookie: true, xfbml: true, version: 'v18.0' }); (window as any).FB.AppEvents?.logPageView?.(); } catch {}
+    };
+    const id = 'facebook-jssdk';
+    if (document.getElementById(id)) return;
+    const js = document.createElement('script'); js.id = id; js.src = 'https://connect.facebook.net/en_US/sdk.js';
+    const fjs = document.getElementsByTagName('script')[0];
+    fjs.parentNode?.insertBefore(js, fjs);
+  }, [facebook.config]);
+
   return (
     <main style={{ padding:16, display:'grid', gap:16 }}>
       <h1 style={{ fontWeight:800, fontSize:20 }}>تكامل تسجيل الدخول</h1>
       <p style={{ color:'var(--sub)', marginBottom:4 }}>أدِر مفاتيح الربط لمزوّدي تسجيل الدخول والرسائل (Google/Facebook/WhatsApp/SMS).</p>
 
-      {message && (
-        <div className="panel" style={{ border:'1px solid #1f2937', borderRadius:12, padding:12, color:'#22c55e' }}>{message}</div>
-      )}
+      {message && (<div className="panel" style={{ border:'1px solid #1f2937', borderRadius:12, padding:12, color:'#22c55e' }}>{message}</div>)}
+      {err && (<div className="panel" style={{ border:'1px solid #7c2d12', borderRadius:12, padding:12, color:'#fca5a5' }}>{err}</div>)}
 
       {loading && <div style={{ color:'var(--sub)' }}>جارِ التحميل…</div>}
 
