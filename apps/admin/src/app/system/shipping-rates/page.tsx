@@ -8,6 +8,10 @@ export default function ShippingRatesPage(): JSX.Element {
   const [error, setError] = React.useState('');
   const [showForm, setShowForm] = React.useState(false);
   const [editing, setEditing] = React.useState<any|null>(null);
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [allChecked, setAllChecked] = React.useState(false);
+  const [toast, setToast] = React.useState('');
+  const showToast = (m:string)=>{ setToast(m); setTimeout(()=> setToast(''), 1600); };
 
   const [zoneId, setZoneId] = React.useState('');
   const [carrier, setCarrier] = React.useState('');
@@ -52,17 +56,26 @@ export default function ShippingRatesPage(): JSX.Element {
   return (
     <div className="container">
       <main className="panel" style={{ padding:16 }}>
+        {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
           <h1 style={{ margin:0 }}>أسعار التوصيل</h1>
-          <button onClick={openCreate} className="btn">إضافة سعر</button>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="btn danger" onClick={async ()=>{
+              const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
+              for (const id of ids) { try { await fetch(`/api/admin/shipping/rates/${id}`, { method:'DELETE', credentials:'include' }); } catch {} }
+              setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد');
+            }}>حذف المحدد</button>
+            <button onClick={openCreate} className="btn">إضافة سعر</button>
+          </div>
         </div>
         {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 200 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
           <div style={{ overflowX:'auto' }}>
             <table className="table" role="table" aria-label="قائمة أسعار التوصيل">
-              <thead><tr><th>المنطقة</th><th>المشغل</th><th>الرسوم الأساسية</th><th>لكل كجم</th><th>مجاني فوق</th><th>ETA</th><th>نشط</th><th></th></tr></thead>
+              <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(r=> [r.id, v]))); }} /></th><th>المنطقة</th><th>المشغل</th><th>الرسوم الأساسية</th><th>لكل كجم</th><th>مجاني فوق</th><th>ETA</th><th>نشط</th><th></th></tr></thead>
               <tbody>
                 {rows.map(r=> (
                   <tr key={r.id}>
+                    <td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td>
                     <td>{zones.find(z=>z.id===r.zoneId)?.name || r.zoneId}</td>
                     <td>{r.carrier||'—'}</td>
                     <td>{r.baseFee}</td>

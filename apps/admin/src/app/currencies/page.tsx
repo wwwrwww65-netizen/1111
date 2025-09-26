@@ -8,6 +8,10 @@ export default function CurrenciesPage(): JSX.Element {
   const [q, setQ] = React.useState('');
   const [showForm, setShowForm] = React.useState(false);
   const [editing, setEditing] = React.useState<any|null>(null);
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [allChecked, setAllChecked] = React.useState(false);
+  const [toast, setToast] = React.useState<string>('');
+  const showToast = (m:string)=>{ setToast(m); setTimeout(()=> setToast(''), 1600); };
 
   const [name, setName] = React.useState('');
   const [code, setCode] = React.useState('');
@@ -53,7 +57,7 @@ export default function CurrenciesPage(): JSX.Element {
   async function remove(id:string) {
     if (!confirm('حذف العملة؟')) return;
     const r = await fetch(`/api/admin/currencies/${id}`, { method:'DELETE', credentials:'include' });
-    if (r.ok) await load();
+    if (r.ok) { showToast('تم الحذف'); await load(); }
   }
 
   const filtered = rows.filter(r=> !q || r.name?.toLowerCase().includes(q.toLowerCase()) || r.code?.toLowerCase().includes(q.toLowerCase()));
@@ -61,22 +65,29 @@ export default function CurrenciesPage(): JSX.Element {
   return (
     <div className="container">
       <main className="panel" style={{ padding:16 }}>
+        {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
           <h1 style={{ margin:0 }}>العملات</h1>
           <button onClick={openCreate} className="btn">إضافة عملة</button>
         </div>
         <div style={{ display:'flex', gap:8, marginBottom:12 }}>
           <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder="بحث بالاسم/الكود" className="input" style={{ maxWidth:260 }} />
+          <button className="btn danger" onClick={async ()=>{
+            const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
+            for (const id of ids) { try { await fetch(`/api/admin/currencies/${id}`, { method:'DELETE', credentials:'include' }); } catch {} }
+            setSelected({}); setAllChecked(false); showToast('تم حذف المحدد'); await load();
+          }}>حذف المحدد</button>
         </div>
         {loading ? <div>جارِ التحميل…</div> : error ? <div className="error">فشل: {error}</div> : (
           <div style={{ overflowX:'auto' }}>
             <table className="table">
               <thead><tr>
-                <th>الاسم</th><th>الكود</th><th>الرمز</th><th>الدقة</th><th>المعدل إلى الأساس</th><th>الأساس؟</th><th>مفعّلة</th><th></th>
+                <th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(r=> [r.id, v]))); }} /></th><th>الاسم</th><th>الكود</th><th>الرمز</th><th>الدقة</th><th>المعدل إلى الأساس</th><th>الأساس؟</th><th>مفعّلة</th><th></th>
               </tr></thead>
               <tbody>
                 {filtered.map(r=> (
                   <tr key={r.id}>
+                    <td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td>
                     <td>{r.name}</td>
                     <td>{r.code}</td>
                     <td>{r.symbol}</td>

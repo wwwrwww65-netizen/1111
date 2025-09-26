@@ -7,6 +7,10 @@ export default function PaymentMethodsPage(): JSX.Element {
   const [error, setError] = React.useState('');
   const [showForm, setShowForm] = React.useState(false);
   const [editing, setEditing] = React.useState<any|null>(null);
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [allChecked, setAllChecked] = React.useState(false);
+  const [toast, setToast] = React.useState('');
+  const showToast = (m:string)=>{ setToast(m); setTimeout(()=> setToast(''), 1600); };
 
   const [name, setName] = React.useState('');
   const [provider, setProvider] = React.useState('cod');
@@ -48,17 +52,26 @@ export default function PaymentMethodsPage(): JSX.Element {
   return (
     <div className="container">
       <main className="panel" style={{ padding:16 }}>
+        {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
           <h1 style={{ margin:0 }}>طرق الدفع</h1>
-          <button onClick={openCreate} className="btn">إضافة طريقة</button>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="btn danger" onClick={async ()=>{
+              const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
+              for (const id of ids) { try { await fetch(`/api/admin/payments/gateways/${id}`, { method:'DELETE', credentials:'include' }); } catch {} }
+              setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد');
+            }}>حذف المحدد</button>
+            <button onClick={openCreate} className="btn">إضافة طريقة</button>
+          </div>
         </div>
         {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 200 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
           <div style={{ overflowX:'auto' }}>
             <table className="table" role="table" aria-label="قائمة طرق الدفع">
-              <thead><tr><th>الاسم</th><th>المزوّد</th><th>الوضع</th><th>الرسوم</th><th>الحدود</th><th>نشطة</th><th></th></tr></thead>
+              <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(r=> [r.id, v]))); }} /></th><th>الاسم</th><th>المزوّد</th><th>الوضع</th><th>الرسوم</th><th>الحدود</th><th>نشطة</th><th></th></tr></thead>
               <tbody>
                 {rows.map(r=> (
                   <tr key={r.id}>
+                    <td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td>
                     <td>{r.name}</td>
                     <td>{r.provider}</td>
                     <td>{r.mode}</td>
