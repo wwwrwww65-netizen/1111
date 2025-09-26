@@ -3308,6 +3308,44 @@ adminRest.get('/currencies', async (_req, res) => {
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'list_failed' }); }
 });
 
+// Shipping Zones CRUD
+adminRest.get('/shipping/zones', async (_req, res) => {
+  try{ const zones = await db.shippingZone.findMany({ orderBy: { createdAt: 'desc' } }); res.json({ ok:true, zones }); }
+  catch(e:any){ res.status(500).json({ ok:false, error:e.message||'zones_list_failed' }); }
+});
+adminRest.post('/shipping/zones', async (req, res) => {
+  const schema = z.object({ name: z.string().min(2), countryCodes: z.array(z.string()).min(1), regions: z.any().optional(), cities: z.any().optional(), areas: z.any().optional(), isActive: z.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const zone = await db.shippingZone.create({ data }); res.json({ ok:true, zone }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'zone_create_failed' }); }
+});
+adminRest.put('/shipping/zones/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ name: z.string().min(2).optional(), countryCodes: z.array(z.string()).optional(), regions: z.any().optional(), cities: z.any().optional(), areas: z.any().optional(), isActive: z.boolean().optional() });
+  try{ const data = schema.parse(req.body||{}); const zone = await db.shippingZone.update({ where:{ id }, data }); res.json({ ok:true, zone }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'zone_update_failed' }); }
+});
+adminRest.delete('/shipping/zones/:id', async (req, res) => {
+  const { id } = req.params; try{ await db.shippingZone.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'zone_delete_failed' }); }
+});
+
+// Delivery Rates CRUD
+adminRest.get('/shipping/rates', async (req, res) => {
+  const { zoneId } = req.query as any;
+  try{ const where:any = zoneId? { zoneId } : {}; const rates = await db.deliveryRate.findMany({ where, orderBy: { createdAt: 'desc' } }); res.json({ ok:true, rates }); }
+  catch(e:any){ res.status(500).json({ ok:false, error:e.message||'rates_list_failed' }); }
+});
+adminRest.post('/shipping/rates', async (req, res) => {
+  const schema = z.object({ zoneId: z.string(), carrier: z.string().optional(), minWeightKg: z.number().optional(), maxWeightKg: z.number().optional(), baseFee: z.number(), perKgFee: z.number().optional(), minSubtotal: z.number().optional(), freeOverSubtotal: z.number().optional(), etaMinHours: z.number().int().optional(), etaMaxHours: z.number().int().optional(), offerTitle: z.string().optional(), activeFrom: z.string().datetime().optional(), activeUntil: z.string().datetime().optional(), isActive: z.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const rate = await db.deliveryRate.create({ data: { ...data, activeFrom: data.activeFrom? new Date(data.activeFrom): undefined, activeUntil: data.activeUntil? new Date(data.activeUntil): undefined } as any }); res.json({ ok:true, rate }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_create_failed' }); }
+});
+adminRest.put('/shipping/rates/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ carrier: z.string().optional(), minWeightKg: z.number().optional(), maxWeightKg: z.number().optional(), baseFee: z.number().optional(), perKgFee: z.number().optional(), minSubtotal: z.number().optional(), freeOverSubtotal: z.number().optional(), etaMinHours: z.number().int().optional(), etaMaxHours: z.number().int().optional(), offerTitle: z.string().optional(), activeFrom: z.string().datetime().optional(), activeUntil: z.string().datetime().optional(), isActive: z.boolean().optional() });
+  try{ const d = schema.parse(req.body||{}); const rate = await db.deliveryRate.update({ where:{ id }, data: { ...d, activeFrom: d.activeFrom? new Date(d.activeFrom): undefined, activeUntil: d.activeUntil? new Date(d.activeUntil): undefined } as any }); res.json({ ok:true, rate }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_update_failed' }); }
+});
+adminRest.delete('/shipping/rates/:id', async (req, res) => {
+  const { id } = req.params; try{ await db.deliveryRate.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_delete_failed' }); }
+});
 adminRest.post('/currencies', async (req, res) => {
   const schema = z.object({ code: z.string().min(2).max(6), name: z.string().min(2), symbol: z.string().min(1), precision: z.number().int().min(0).max(6).default(2), rateToBase: z.number().positive().default(1), isBase: z.boolean().default(false), isActive: z.boolean().default(true) });
   try{

@@ -54,6 +54,40 @@ try {
           "updatedAt" TIMESTAMP DEFAULT NOW()
         );
       `);
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ShippingZone" (
+          "id" TEXT PRIMARY KEY,
+          "name" TEXT NOT NULL,
+          "countryCodes" TEXT[] NOT NULL,
+          "regions" JSONB,
+          "cities" JSONB,
+          "areas" JSONB,
+          "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+          "createdAt" TIMESTAMP DEFAULT NOW(),
+          "updatedAt" TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "DeliveryRate" (
+          "id" TEXT PRIMARY KEY,
+          "zoneId" TEXT NOT NULL REFERENCES "ShippingZone"("id") ON DELETE CASCADE,
+          "carrier" TEXT,
+          "minWeightKg" DOUBLE PRECISION,
+          "maxWeightKg" DOUBLE PRECISION,
+          "baseFee" DOUBLE PRECISION NOT NULL,
+          "perKgFee" DOUBLE PRECISION,
+          "minSubtotal" DOUBLE PRECISION,
+          "freeOverSubtotal" DOUBLE PRECISION,
+          "etaMinHours" INTEGER,
+          "etaMaxHours" INTEGER,
+          "offerTitle" TEXT,
+          "activeFrom" TIMESTAMP,
+          "activeUntil" TIMESTAMP,
+          "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+          "createdAt" TIMESTAMP DEFAULT NOW(),
+          "updatedAt" TIMESTAMP DEFAULT NOW()
+        );
+      `);
     } catch {}
   };
   // Ensure schema is ready before tests start

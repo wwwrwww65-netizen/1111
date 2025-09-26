@@ -1,0 +1,88 @@
+"use client";
+import React from 'react';
+
+export default function ShippingZonesPage(): JSX.Element {
+  const [rows, setRows] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [showForm, setShowForm] = React.useState(false);
+  const [editing, setEditing] = React.useState<any|null>(null);
+
+  const [name, setName] = React.useState('');
+  const [countryCodes, setCountryCodes] = React.useState<string>('SA');
+  const [regions, setRegions] = React.useState<string>('');
+  const [cities, setCities] = React.useState<string>('');
+  const [areas, setAreas] = React.useState<string>('');
+  const [isActive, setIsActive] = React.useState(true);
+
+  async function load(){
+    setLoading(true); setError('');
+    try{ const r = await fetch('/api/admin/shipping/zones', { credentials:'include' }); const j = await r.json(); if (r.ok) setRows(j.zones||[]); else setError(j.error||'failed'); }
+    catch{ setError('network'); }
+    finally{ setLoading(false); }
+  }
+  React.useEffect(()=>{ load(); }, []);
+
+  function reset(){ setEditing(null); setName(''); setCountryCodes('SA'); setRegions(''); setCities(''); setAreas(''); setIsActive(true); }
+  function openCreate(){ reset(); setShowForm(true); }
+  function openEdit(r:any){ setEditing(r); setName(r.name||''); setCountryCodes((r.countryCodes||[]).join(',')); setRegions(JSON.stringify(r.regions||{})); setCities(JSON.stringify(r.cities||{})); setAreas(JSON.stringify(r.areas||{})); setIsActive(Boolean(r.isActive)); setShowForm(true); }
+
+  async function submit(e:React.FormEvent){
+    e.preventDefault(); setError('');
+    try{
+      const payload:any = { name, countryCodes: countryCodes.split(',').map(s=>s.trim()).filter(Boolean), isActive };
+      if (regions.trim()) payload.regions = JSON.parse(regions);
+      if (cities.trim()) payload.cities = JSON.parse(cities);
+      if (areas.trim()) payload.areas = JSON.parse(areas);
+      let r:Response; if (editing) r = await fetch(`/api/admin/shipping/zones/${editing.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+      else r = await fetch('/api/admin/shipping/zones', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error||'failed'); setShowForm(false); reset(); await load();
+    }catch(err:any){ setError(err.message||'failed'); }
+  }
+  async function remove(id:string){ if (!confirm('حذف المنطقة؟')) return; const r = await fetch(`/api/admin/shipping/zones/${id}`, { method:'DELETE', credentials:'include' }); if (r.ok) await load(); }
+
+  return (
+    <div className="container">
+      <main className="panel" style={{ padding:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <h1 style={{ margin:0 }}>مناطق الشحن</h1>
+          <button onClick={openCreate} className="btn">إضافة منطقة</button>
+        </div>
+        {loading ? <div>جارِ التحميل…</div> : error ? <div className="error">فشل: {error}</div> : (
+          <div style={{ overflowX:'auto' }}>
+            <table className="table">
+              <thead><tr><th>الاسم</th><th>الدول</th><th>مفعّلة</th><th></th></tr></thead>
+              <tbody>
+                {rows.map(r=> (
+                  <tr key={r.id}><td>{r.name}</td><td>{(r.countryCodes||[]).join(', ')}</td><td>{r.isActive? 'نعم':'لا'}</td><td>
+                    <button onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
+                    <button onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
+                  </td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {showForm && (
+          <div className="panel" style={{ marginTop:16, padding:16 }}>
+            <h2 style={{ marginTop:0 }}>{editing? 'تعديل منطقة' : 'إضافة منطقة'}</h2>
+            <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <label>الاسم<input value={name} onChange={(e)=> setName(e.target.value)} required className="input" /></label>
+              <label>الدول (رموز ISO مفصولة بفواصل)<input value={countryCodes} onChange={(e)=> setCountryCodes(e.target.value)} required className="input" /></label>
+              <label style={{ gridColumn:'1 / -1' }}>المحافظات/الأقاليم (JSON اختياري)<textarea value={regions} onChange={(e)=> setRegions(e.target.value)} rows={3} className="input" placeholder='{"الرياض": ["الدرعية","الخرج"]}' /></label>
+              <label style={{ gridColumn:'1 / -1' }}>المدن (JSON اختياري)<textarea value={cities} onChange={(e)=> setCities(e.target.value)} rows={3} className="input" /></label>
+              <label style={{ gridColumn:'1 / -1' }}>المناطق/الأحياء (JSON اختياري)<textarea value={areas} onChange={(e)=> setAreas(e.target.value)} rows={3} className="input" /></label>
+              <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّلة</label>
+              <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
+                <button type="submit" className="btn">حفظ</button>
+                <button type="button" onClick={()=> { setShowForm(false); reset(); }} className="btn btn-outline">إلغاء</button>
+              </div>
+            </form>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
