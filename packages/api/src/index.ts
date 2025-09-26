@@ -269,6 +269,13 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
+    // Ensure Shipping/Payments/Carts tables exist (idempotent)
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShippingZone" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "countryCodes" TEXT[] NOT NULL, "regions" JSONB, "cities" JSONB, "areas" JSONB, "isActive" BOOLEAN DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DeliveryRate" ("id" TEXT PRIMARY KEY, "zoneId" TEXT NOT NULL, "carrier" TEXT, "minWeightKg" DOUBLE PRECISION, "maxWeightKg" DOUBLE PRECISION, "baseFee" DOUBLE PRECISION NOT NULL, "perKgFee" DOUBLE PRECISION, "minSubtotal" DOUBLE PRECISION, "freeOverSubtotal" DOUBLE PRECISION, "etaMinHours" INTEGER, "etaMaxHours" INTEGER, "offerTitle" TEXT, "activeFrom" TIMESTAMP, "activeUntil" TIMESTAMP, "isActive" BOOLEAN DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "DeliveryRate_zone_idx" ON "DeliveryRate"("zoneId")');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PaymentGateway" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "provider" TEXT NOT NULL, "mode" TEXT NOT NULL DEFAULT \'TEST\', "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "sortOrder" INTEGER NOT NULL DEFAULT 0, "feesFixed" DOUBLE PRECISION, "feesPercent" DOUBLE PRECISION, "minAmount" DOUBLE PRECISION, "maxAmount" DOUBLE PRECISION, "credentials" JSONB, "options" JSONB, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "GuestCart" ("id" TEXT PRIMARY KEY, "sessionId" TEXT UNIQUE NOT NULL, "userAgent" TEXT, "ip" TEXT, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "GuestCartItem" ("id" TEXT PRIMARY KEY, "cartId" TEXT NOT NULL, "productId" TEXT NOT NULL, "quantity" INTEGER NOT NULL DEFAULT 1, "addedAt" TIMESTAMP DEFAULT NOW())');
     // Seed default accounts
     try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'CASH','Cash','ASSET') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
     try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'REVENUE','Sales Revenue','REVENUE') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
