@@ -557,6 +557,52 @@ jobs:
               fi
             done
 
+      - name: Post-deploy category delete proof (always)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_P ORT || 22 }}
+          timeout: 180s
+          command_timeout: 30m
+          script: |
+            set -Eeuo pipefail
+            EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
+            PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
+            echo '--- Login (local API preferred) ---'
+            BODY=/tmp/login.body
+            curl -sS -H 'content-type: application/json' -X POST http://127.0.0.1:4000/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY" || true
+            if ! grep -q '"token":' "$BODY" 2>/dev/null; then
+              curl -k -sS -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY" || true
+            fi
+            TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
+            [ -n "$TOKEN" ] || { echo 'Login failed: missing token'; head -n 40 "$BODY"; exit 1; }
+            echo '--- Create temp category ---'
+            TS=$(date +%s)
+            DATA=$(printf '{"name":"DelProbe %s","slug":"delprobe-%s"}' "$TS" "$TS")
+            CODE=$(curl -sS -w '%{http_code}' -o /tmp/cat.create -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST http://127.0.0.1:4000/api/admin/categories --data "$DATA" || true)
+            if [ "$CODE" != "200" ]; then
+              CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.create -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST https://api.jeeey.com/api/admin/categories --data "$DATA" || true)
+            fi
+            [ "$CODE" = "200" ] || { echo "Create failed: $CODE"; cat /tmp/cat.create; exit 1; }
+            ID=$(grep -o '"id":"[^"]\+"' /tmp/cat.create | head -n1 | sed 's/.*"id":"\([^"]\+\)".*/\1/') || true
+            [ -n "$ID" ] || { echo 'Create missing id'; cat /tmp/cat.create; exit 1; }
+            echo "created: $ID"
+            echo '--- Bulk delete temp category ---'
+            PAY=$(printf '{"ids":["%s"]}' "$ID")
+            CODE=$(curl -sS -w '%{http_code}' -o /tmp/cat.del -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST http://127.0.0.1:4000/api/admin/categories/bulk-delete --data "$PAY" || true)
+            if [ "$CODE" != "200" ]; then
+              CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.del -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST https://api.jeeey.com/api/admin/categories/bulk-delete --data "$PAY" || true)
+            fi
+            [ "$CODE" = "200" ] || { echo "Delete failed: $CODE"; cat /tmp/cat.del; exit 1; }
+            if ! grep -q '"deleted":' /tmp/cat.del; then echo 'Missing deleted count in response'; cat /tmp/cat.del; exit 1; fi
+            echo '--- Verify not found by search ---'
+            OUT=$(curl -sS -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:4000/api/admin/categories?search=$ID" || curl -k -sS -H "Authorization: Bearer $TOKEN" "https://api.jeeey.com/api/admin/categories?search=$ID" || true)
+            echo "$OUT" | grep -q '"categories"' || { echo 'List response malformed'; echo "$OUT"; exit 1; }
+            if echo "$OUT" | grep -q "$ID"; then echo 'Category still appears in list after deletion'; echo "$OUT"; exit 1; fi
+            echo 'Category delete proof OK'
+
       - name: Admin console production smoke (pages + login)
         env:
           ADMIN_URL: https://admin.jeeey.com
