@@ -563,7 +563,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_P ORT || 22 }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           timeout: 180s
           command_timeout: 30m
           script: |
