@@ -3333,6 +3333,25 @@ adminRest.get('/shipping/rates', async (req, res) => {
   try{ const where:any = zoneId? { zoneId } : {}; const rates = await db.deliveryRate.findMany({ where, orderBy: { createdAt: 'desc' } }); res.json({ ok:true, rates }); }
   catch(e:any){ res.status(500).json({ ok:false, error:e.message||'rates_list_failed' }); }
 });
+
+// Payment Gateways CRUD
+adminRest.get('/payments/gateways', async (_req, res) => {
+  try{ const rows = await db.paymentGateway.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }); res.json({ ok:true, gateways: rows }); }
+  catch(e:any){ res.status(500).json({ ok:false, error: e.message||'pg_list_failed' }); }
+});
+adminRest.post('/payments/gateways', async (req, res) => {
+  const schema = z.object({ name: z.string().min(2), provider: z.string().min(2), mode: z.string().default('TEST'), isActive: z.coerce.boolean().default(true), sortOrder: z.coerce.number().int().default(0), feesFixed: z.coerce.number().optional(), feesPercent: z.coerce.number().optional(), minAmount: z.coerce.number().optional(), maxAmount: z.coerce.number().optional(), credentials: z.any().optional(), options: z.any().optional() });
+  try{ const data = schema.parse(req.body||{}); const gw = await db.paymentGateway.create({ data }); res.json({ ok:true, gateway: gw }); }
+  catch(e:any){ res.status(400).json({ ok:false, error: e.message||'pg_create_failed' }); }
+});
+adminRest.put('/payments/gateways/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ name: z.string().min(2).optional(), provider: z.string().min(2).optional(), mode: z.string().optional(), isActive: z.coerce.boolean().optional(), sortOrder: z.coerce.number().int().optional(), feesFixed: z.coerce.number().optional(), feesPercent: z.coerce.number().optional(), minAmount: z.coerce.number().optional(), maxAmount: z.coerce.number().optional(), credentials: z.any().optional(), options: z.any().optional() });
+  try{ const d = schema.parse(req.body||{}); const gw = await db.paymentGateway.update({ where: { id }, data: d }); res.json({ ok:true, gateway: gw }); }
+  catch(e:any){ res.status(400).json({ ok:false, error: e.message||'pg_update_failed' }); }
+});
+adminRest.delete('/payments/gateways/:id', async (req, res) => {
+  const { id } = req.params; try{ await db.paymentGateway.delete({ where: { id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error: e.message||'pg_delete_failed' }); }
+});
 adminRest.post('/shipping/rates', async (req, res) => {
   const schema = z.object({
     zoneId: z.string(),

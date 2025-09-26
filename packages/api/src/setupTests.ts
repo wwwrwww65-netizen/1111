@@ -88,6 +88,24 @@ try {
           "updatedAt" TIMESTAMP DEFAULT NOW()
         );
       `);
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "PaymentGateway" (
+          "id" TEXT PRIMARY KEY,
+          "name" TEXT NOT NULL,
+          "provider" TEXT NOT NULL,
+          "mode" TEXT NOT NULL DEFAULT 'TEST',
+          "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+          "sortOrder" INTEGER NOT NULL DEFAULT 0,
+          "feesFixed" DOUBLE PRECISION,
+          "feesPercent" DOUBLE PRECISION,
+          "minAmount" DOUBLE PRECISION,
+          "maxAmount" DOUBLE PRECISION,
+          "credentials" JSONB,
+          "options" JSONB,
+          "createdAt" TIMESTAMP DEFAULT NOW(),
+          "updatedAt" TIMESTAMP DEFAULT NOW()
+        );
+      `);
     } catch {}
   };
   // Ensure schema is ready before tests start

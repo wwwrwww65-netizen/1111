@@ -281,6 +281,24 @@ model Payment {
   updatedAt DateTime      @updatedAt
 }
 
+// Payment Gateways / Methods configuration
+model PaymentGateway {
+  id          String   @id @default(cuid())
+  name        String   // display name
+  provider    String   // e.g., stripe, paypal, cod
+  mode        String   @default("TEST") // TEST | LIVE
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  feesFixed   Float?   // fixed fee per transaction
+  feesPercent Float?   // percentage fee e.g., 2.9
+  minAmount   Float?
+  maxAmount   Float?
+  credentials Json?    // keys/secrets
+  options     Json?    // extra options (installments, 3DS, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // Currencies for store pricing and display
 model Currency {
   id         String   @id @default(cuid())

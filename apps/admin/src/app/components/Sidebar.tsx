@@ -156,6 +156,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/2fa', label: 'التحقق بخطوتين (2FA)' },
       { href: '/system/shipping-zones', label: 'مناطق الشحن' },
       { href: '/system/shipping-rates', label: 'أسعار التوصيل' },
+      { href: '/system/payment-methods', label: 'طرق الدفع' },
     ],
   },
 ];
