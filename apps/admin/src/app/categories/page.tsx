@@ -102,8 +102,9 @@ export default function CategoriesPage(): JSX.Element {
     const r = await fetch(buildUrl('/api/admin/categories/bulk-delete'), { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids: [id] }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
-    if (deletedCount < 1) { showToast('فشل الحذف'); return; }
     await Promise.all([loadList(), loadTree()]);
+    const stillExists = rows.some((c)=> c.id === id);
+    if (deletedCount < 1 || stillExists) { showToast('فشل الحذف'); return; }
     showToast('تم الحذف');
   }
   const [confirmingBulk, setConfirmingBulk] = React.useState(false);
@@ -120,9 +121,10 @@ export default function CategoriesPage(): JSX.Element {
     const r = await fetch(buildUrl('/api/admin/categories/bulk-delete'), { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
-    if (deletedCount < 1) { showToast('فشل الحذف'); return; }
     await Promise.all([loadList(), loadTree()]);
+    const remaining = Object.keys(selected).filter(k=> selected[k]).filter(id=> rows.some(c=> c.id===id)).length;
     setSelected({}); setAllChecked(false);
+    if (deletedCount < 1 || remaining > 0) { showToast('فشل الحذف'); return; }
     showToast(`تم حذف ${deletedCount}`);
   }
 
