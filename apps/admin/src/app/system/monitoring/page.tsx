@@ -24,7 +24,9 @@ export default function MonitoringPage(): JSX.Element {
       try {
         // Lightweight runtime import without bundling socket client; assume frontend has it or use native ws
         const { io } = await import('socket.io-client');
-        s = io('/', { transports:['websocket'], timeout: 4000 });
+        // Prefer explicit API endpoint for socket server
+        const base = (typeof window!=='undefined' ? (window.location.protocol + '//' + (window.location.host.replace(/^admin\./,'api.'))) : '') || 'https://api.jeeey.com';
+        s = io(base, { path:'/socket.io', transports:['websocket'], timeout: 4000, withCredentials: true });
         s.on('connect', ()=> setSocket('ok'));
         s.on('connect_error', ()=> setSocket('down'));
         s.on('disconnect', ()=> setSocket('down'));

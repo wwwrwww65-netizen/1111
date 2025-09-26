@@ -29,15 +29,15 @@ export default function ShippingZonesPage(): JSX.Element {
 
   function reset(){ setEditing(null); setName(''); setCountryCodes('SA'); setRegions(''); setCities(''); setAreas(''); setIsActive(true); }
   function openCreate(){ reset(); setShowForm(true); }
-  function openEdit(r:any){ setEditing(r); setName(r.name||''); setCountryCodes((r.countryCodes||[]).join(',')); setRegions(JSON.stringify(r.regions||{})); setCities(JSON.stringify(r.cities||{})); setAreas(JSON.stringify(r.areas||{})); setIsActive(Boolean(r.isActive)); setShowForm(true); }
+  function openEdit(r:any){ setEditing(r); setName(r.name||''); setCountryCodes((r.countryCodes||[]).join(',')); setRegions(Array.isArray(r.regions)? r.regions.join(',') : ''); setCities(Array.isArray(r.cities)? r.cities.join(',') : ''); setAreas(Array.isArray(r.areas)? r.areas.join(',') : ''); setIsActive(Boolean(r.isActive)); setShowForm(true); }
 
   async function submit(e:React.FormEvent){
     e.preventDefault(); setError('');
     try{
       const payload:any = { name, countryCodes: countryCodes.split(',').map(s=>s.trim()).filter(Boolean), isActive };
-      if (regions.trim()) payload.regions = JSON.parse(regions);
-      if (cities.trim()) payload.cities = JSON.parse(cities);
-      if (areas.trim()) payload.areas = JSON.parse(areas);
+      if (regions.trim()) payload.regions = regions;
+      if (cities.trim()) payload.cities = cities;
+      if (areas.trim()) payload.areas = areas;
       let r:Response; if (editing) r = await fetch(`/api/admin/shipping/zones/${editing.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       else r = await fetch('/api/admin/shipping/zones', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error||'failed'); setShowForm(false); reset(); await load();
@@ -82,9 +82,9 @@ export default function ShippingZonesPage(): JSX.Element {
             <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <label>الاسم<input aria-label="اسم المنطقة" value={name} onChange={(e)=> setName(e.target.value)} required className="input" /></label>
               <label>الدول (رموز ISO مفصولة بفواصل)<input aria-label="قائمة الدول" value={countryCodes} onChange={(e)=> setCountryCodes(e.target.value)} required className="input" /></label>
-              <label style={{ gridColumn:'1 / -1' }}>المحافظات/الأقاليم (JSON اختياري)<textarea value={regions} onChange={(e)=> setRegions(e.target.value)} rows={3} className="input" placeholder='{"الرياض": ["الدرعية","الخرج"]}' /></label>
-              <label style={{ gridColumn:'1 / -1' }}>المدن (JSON اختياري)<textarea value={cities} onChange={(e)=> setCities(e.target.value)} rows={3} className="input" /></label>
-              <label style={{ gridColumn:'1 / -1' }}>المناطق/الأحياء (JSON اختياري)<textarea value={areas} onChange={(e)=> setAreas(e.target.value)} rows={3} className="input" /></label>
+              <label style={{ gridColumn:'1 / -1' }}>المحافظات/الأقاليم (أدخل أسماء مفصولة بفواصل)<textarea value={regions} onChange={(e)=> setRegions(e.target.value)} rows={2} className="input" placeholder='الرياض، مكة، الشرقية' /></label>
+              <label style={{ gridColumn:'1 / -1' }}>المدن (أدخل أسماء مفصولة بفواصل)<textarea value={cities} onChange={(e)=> setCities(e.target.value)} rows={2} className="input" placeholder='الرياض، جدة، الدمام' /></label>
+              <label style={{ gridColumn:'1 / -1' }}>المناطق/الأحياء (أدخل أسماء مفصولة بفواصل)<textarea value={areas} onChange={(e)=> setAreas(e.target.value)} rows={2} className="input" placeholder='النسيم، العليا، الصفوة' /></label>
               <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّلة</label>
               <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
                 <button aria-label="حفظ المنطقة" type="submit" className="btn">حفظ</button>
