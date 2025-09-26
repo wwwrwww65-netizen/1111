@@ -39,6 +39,11 @@ export default function AdminProducts(): JSX.Element {
     setRows(j.products||[]); setTotal(j.pagination?.total||0);
   }
   React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
+  React.useEffect(()=>{
+    const t = setTimeout(()=>{ setPage(1); load(); }, 300);
+    return ()=> clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
   const createProduct = q.admin.createProduct.useMutation();
   const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
     ? q.admin.createProductVariants.useMutation()
