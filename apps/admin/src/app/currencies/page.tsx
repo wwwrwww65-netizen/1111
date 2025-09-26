@@ -52,7 +52,10 @@ export default function CurrenciesPage(): JSX.Element {
       if (!r.ok) throw new Error(j.error||'failed');
       setShowForm(false); resetForm(); await load();
       alert('تم الحفظ');
-    }catch(err:any){ setError(err.message||'failed'); }
+    }catch(err:any){
+      setError(err.message||'failed');
+      try{ const j = JSON.parse(String(err.message)); if (j?.code) alert(`خطأ: ${j.code}`); } catch {}
+    }
   }
 
   async function remove(id:string) {

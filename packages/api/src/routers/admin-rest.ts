@@ -3360,7 +3360,7 @@ adminRest.post('/shipping/zones', async (req, res) => {
     const zone = await db.shippingZone.create({ data });
     res.json({ ok:true, zone });
   }
-  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'zone_create_failed' }); }
+  catch(e:any){ res.status(400).json({ ok:false, code:'zone_create_failed', error:e.message||'zone_create_failed' }); }
 });
 adminRest.put('/shipping/zones/:id', async (req, res) => {
   const { id } = req.params;
@@ -3378,33 +3378,33 @@ adminRest.put('/shipping/zones/:id', async (req, res) => {
     const zone = await db.shippingZone.update({ where:{ id }, data });
     res.json({ ok:true, zone });
   }
-  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'zone_update_failed' }); }
+  catch(e:any){ res.status(400).json({ ok:false, code:'zone_update_failed', error:e.message||'zone_update_failed' }); }
 });
 adminRest.delete('/shipping/zones/:id', async (req, res) => {
-  const { id } = req.params; try{ await db.shippingZone.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'zone_delete_failed' }); }
+  const { id } = req.params; try{ await db.shippingZone.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, code:'zone_delete_failed', error:e.message||'zone_delete_failed' }); }
 });
 
 // Delivery Rates CRUD
 adminRest.get('/shipping/rates', async (req, res) => {
   const { zoneId } = req.query as any;
   try{ const where:any = zoneId? { zoneId } : {}; const rates = await db.deliveryRate.findMany({ where, orderBy: { createdAt: 'desc' } }); res.json({ ok:true, rates }); }
-  catch(e:any){ res.status(500).json({ ok:false, error:e.message||'rates_list_failed' }); }
+  catch(e:any){ res.status(500).json({ ok:false, code:'rates_list_failed', error:e.message||'rates_list_failed' }); }
 });
 
 // Payment Gateways CRUD
 adminRest.get('/payments/gateways', async (_req, res) => {
   try{ const rows = await db.paymentGateway.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }); res.json({ ok:true, gateways: rows }); }
-  catch(e:any){ res.status(500).json({ ok:false, error: e.message||'pg_list_failed' }); }
+  catch(e:any){ res.status(500).json({ ok:false, code:'pg_list_failed', error: e.message||'pg_list_failed' }); }
 });
 adminRest.post('/payments/gateways', async (req, res) => {
   const schema = z.object({ name: z.string().min(2), provider: z.string().min(2), mode: z.string().default('TEST'), isActive: z.coerce.boolean().default(true), sortOrder: z.coerce.number().int().default(0), feesFixed: z.coerce.number().optional(), feesPercent: z.coerce.number().optional(), minAmount: z.coerce.number().optional(), maxAmount: z.coerce.number().optional(), credentials: z.any().optional(), options: z.any().optional() });
   try{ const data = schema.parse(req.body||{}); const gw = await db.paymentGateway.create({ data }); res.json({ ok:true, gateway: gw }); }
-  catch(e:any){ res.status(400).json({ ok:false, error: e.message||'pg_create_failed' }); }
+  catch(e:any){ res.status(400).json({ ok:false, code:'pg_create_failed', error: e.message||'pg_create_failed' }); }
 });
 adminRest.put('/payments/gateways/:id', async (req, res) => {
   const { id } = req.params; const schema = z.object({ name: z.string().min(2).optional(), provider: z.string().min(2).optional(), mode: z.string().optional(), isActive: z.coerce.boolean().optional(), sortOrder: z.coerce.number().int().optional(), feesFixed: z.coerce.number().optional(), feesPercent: z.coerce.number().optional(), minAmount: z.coerce.number().optional(), maxAmount: z.coerce.number().optional(), credentials: z.any().optional(), options: z.any().optional() });
   try{ const d = schema.parse(req.body||{}); const gw = await db.paymentGateway.update({ where: { id }, data: d }); res.json({ ok:true, gateway: gw }); }
-  catch(e:any){ res.status(400).json({ ok:false, error: e.message||'pg_update_failed' }); }
+  catch(e:any){ res.status(400).json({ ok:false, code:'pg_update_failed', error: e.message||'pg_update_failed' }); }
 });
 adminRest.delete('/payments/gateways/:id', async (req, res) => {
   const { id } = req.params; try{ await db.paymentGateway.delete({ where: { id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error: e.message||'pg_delete_failed' }); }
@@ -3467,10 +3467,10 @@ adminRest.put('/shipping/rates/:id', async (req, res) => {
     isActive: z.coerce.boolean().optional()
   });
   try{ const d = schema.parse(req.body||{}); const rate = await db.deliveryRate.update({ where:{ id }, data: d }); res.json({ ok:true, rate }); }
-  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_update_failed' }); }
+  catch(e:any){ res.status(400).json({ ok:false, code:'rate_update_failed', error:e.message||'rate_update_failed' }); }
 });
 adminRest.delete('/shipping/rates/:id', async (req, res) => {
-  const { id } = req.params; try{ await db.deliveryRate.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_delete_failed' }); }
+  const { id } = req.params; try{ await db.deliveryRate.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, code:'rate_delete_failed', error:e.message||'rate_delete_failed' }); }
 });
 adminRest.post('/currencies', async (req, res) => {
   const schema = z.object({ code: z.string().min(2).max(6), name: z.string().min(2), symbol: z.string().min(1), precision: z.coerce.number().int().min(0).max(6).default(2), rateToBase: z.coerce.number().positive().default(1), isBase: z.coerce.boolean().default(false), isActive: z.coerce.boolean().default(true) });
@@ -3482,7 +3482,7 @@ adminRest.post('/currencies', async (req, res) => {
     }
     const created = await db.currency.create({ data });
     res.json({ ok:true, currency: created });
-  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'create_failed' }); }
+  }catch(e:any){ res.status(400).json({ ok:false, code:'currency_create_failed', error: e.message||'currency_create_failed' }); }
 });
 
 adminRest.put('/currencies/:id', async (req, res) => {
@@ -3496,7 +3496,7 @@ adminRest.put('/currencies/:id', async (req, res) => {
     }
     const updated = await db.currency.update({ where: { id }, data });
     res.json({ ok:true, currency: updated });
-  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'update_failed' }); }
+  }catch(e:any){ res.status(400).json({ ok:false, code:'currency_update_failed', error: e.message||'currency_update_failed' }); }
 });
 
 adminRest.delete('/currencies/:id', async (req, res) => {
@@ -3504,7 +3504,7 @@ adminRest.delete('/currencies/:id', async (req, res) => {
   try{
     await db.currency.delete({ where: { id } });
     res.json({ ok:true });
-  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'delete_failed' }); }
+  }catch(e:any){ res.status(400).json({ ok:false, code:'currency_delete_failed', error: e.message||'currency_delete_failed' }); }
 });
 
 // Affiliate payouts minimal endpoints
