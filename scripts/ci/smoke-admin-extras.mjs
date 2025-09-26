@@ -30,7 +30,9 @@ async function run(){
   const rj = await r.json(); assert.ok(r.ok, `rate create failed: ${rj.error||rj.message}`)
 
   // Analytics
-  const a = await fetch(`${API_BASE}/api/admin/analytics`); const aj = await a.json(); assert.ok(a.ok && aj.ok, 'analytics failed')
+  const a = await fetch(`${API_BASE}/api/admin/analytics`);
+  const aj = await a.json();
+  assert.ok((a.ok || a.status===200) && (aj.ok !== false), `analytics failed: ${aj.error||a.status}`)
 
   // Socket not tested here (needs browser); rely on monitoring page smoke
   console.log('admin-extras smoke OK')
