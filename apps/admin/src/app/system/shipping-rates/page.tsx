@@ -56,9 +56,9 @@ export default function ShippingRatesPage(): JSX.Element {
           <h1 style={{ margin:0 }}>أسعار التوصيل</h1>
           <button onClick={openCreate} className="btn">إضافة سعر</button>
         </div>
-        {loading ? <div>جارِ التحميل…</div> : error ? <div className="error">فشل: {error}</div> : (
+        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 200 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
           <div style={{ overflowX:'auto' }}>
-            <table className="table">
+            <table className="table" role="table" aria-label="قائمة أسعار التوصيل">
               <thead><tr><th>المنطقة</th><th>المشغل</th><th>الرسوم الأساسية</th><th>لكل كجم</th><th>مجاني فوق</th><th>ETA</th><th>نشط</th><th></th></tr></thead>
               <tbody>
                 {rows.map(r=> (
@@ -71,8 +71,8 @@ export default function ShippingRatesPage(): JSX.Element {
                     <td>{r.etaMinHours? `${r.etaMinHours}-${r.etaMaxHours||r.etaMinHours} ساعة` : '—'}</td>
                     <td>{r.isActive? 'نعم':'لا'}</td>
                     <td>
-                      <button onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
-                      <button onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
+                      <button aria-label={`تعديل سعر ${zones.find(z=>z.id===r.zoneId)?.name||''}`} onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
+                      <button aria-label={`حذف سعر ${zones.find(z=>z.id===r.zoneId)?.name||''}`} onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
                     </td>
                   </tr>
                 ))}
@@ -84,7 +84,7 @@ export default function ShippingRatesPage(): JSX.Element {
         {showForm && (
           <div className="panel" style={{ marginTop:16, padding:16 }}>
             <h2 style={{ marginTop:0 }}>{editing? 'تعديل سعر' : 'إضافة سعر'}</h2>
-            <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }} aria-label="نموذج سعر التوصيل">
               <label>المنطقة
                 <select value={zoneId} onChange={(e)=> setZoneId(e.target.value)} required className="select">
                   <option value="">اختر منطقة</option>

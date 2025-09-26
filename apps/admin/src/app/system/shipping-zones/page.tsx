@@ -48,15 +48,15 @@ export default function ShippingZonesPage(): JSX.Element {
           <h1 style={{ margin:0 }}>مناطق الشحن</h1>
           <button onClick={openCreate} className="btn">إضافة منطقة</button>
         </div>
-        {loading ? <div>جارِ التحميل…</div> : error ? <div className="error">فشل: {error}</div> : (
+        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 180 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
           <div style={{ overflowX:'auto' }}>
-            <table className="table">
+            <table className="table" role="table" aria-label="قائمة مناطق الشحن">
               <thead><tr><th>الاسم</th><th>الدول</th><th>مفعّلة</th><th></th></tr></thead>
               <tbody>
                 {rows.map(r=> (
                   <tr key={r.id}><td>{r.name}</td><td>{(r.countryCodes||[]).join(', ')}</td><td>{r.isActive? 'نعم':'لا'}</td><td>
-                    <button onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
-                    <button onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
+                    <button aria-label={`تعديل ${r.name}`} onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
+                    <button aria-label={`حذف ${r.name}`} onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
                   </td></tr>
                 ))}
               </tbody>
@@ -68,14 +68,14 @@ export default function ShippingZonesPage(): JSX.Element {
           <div className="panel" style={{ marginTop:16, padding:16 }}>
             <h2 style={{ marginTop:0 }}>{editing? 'تعديل منطقة' : 'إضافة منطقة'}</h2>
             <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <label>الاسم<input value={name} onChange={(e)=> setName(e.target.value)} required className="input" /></label>
-              <label>الدول (رموز ISO مفصولة بفواصل)<input value={countryCodes} onChange={(e)=> setCountryCodes(e.target.value)} required className="input" /></label>
+              <label>الاسم<input aria-label="اسم المنطقة" value={name} onChange={(e)=> setName(e.target.value)} required className="input" /></label>
+              <label>الدول (رموز ISO مفصولة بفواصل)<input aria-label="قائمة الدول" value={countryCodes} onChange={(e)=> setCountryCodes(e.target.value)} required className="input" /></label>
               <label style={{ gridColumn:'1 / -1' }}>المحافظات/الأقاليم (JSON اختياري)<textarea value={regions} onChange={(e)=> setRegions(e.target.value)} rows={3} className="input" placeholder='{"الرياض": ["الدرعية","الخرج"]}' /></label>
               <label style={{ gridColumn:'1 / -1' }}>المدن (JSON اختياري)<textarea value={cities} onChange={(e)=> setCities(e.target.value)} rows={3} className="input" /></label>
               <label style={{ gridColumn:'1 / -1' }}>المناطق/الأحياء (JSON اختياري)<textarea value={areas} onChange={(e)=> setAreas(e.target.value)} rows={3} className="input" /></label>
               <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّلة</label>
               <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
-                <button type="submit" className="btn">حفظ</button>
+                <button aria-label="حفظ المنطقة" type="submit" className="btn">حفظ</button>
                 <button type="button" onClick={()=> { setShowForm(false); reset(); }} className="btn btn-outline">إلغاء</button>
               </div>
             </form>
