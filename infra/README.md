@@ -12,7 +12,7 @@ Production deployment guide (Hostinger VPS Ubuntu 25.04)
 
 3) Build & DB
 - pnpm install -r
-- pnpm --filter @repo/db db:deploy
+- pnpm --filter @repo/db db:migrate
 - pnpm --filter @repo/api build
 - pnpm --filter @repo/web build
 - pnpm --filter @repo/admin build
@@ -30,3 +30,4 @@ Production deployment guide (Hostinger VPS Ubuntu 25.04)
 
 Notes
 - Remove API_RUN_ENSURE_SCHEMA after first boot, optionally set API_ALLOW_BOOTSTRAP=1 for initial admin creation then remove.
+ - CI/CD يشغّل `db:push:force` ثم `db:migrate` لضمان توافق المخطط قبل البناء والاختبارات. إنشاء البيانات الاختبارية مُعطّل افتراضيًا في النشر.

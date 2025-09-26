@@ -12,7 +12,20 @@ Rules and Constraints
 - Sizes: if weight range exists → فري سايز (A–B كجم). Also supports XL–XS tokens.
 - Colors: normalize English to Arabic canonical names and deduplicate.
 - SEO: filter stopwords/noise; cap at 6 keywords; add synonyms for materials (e.g., صوف → شتوي/دافئ).
-- Limits: ≤ 6 images/request, ≤ 2MB per image. Timeout budget ~12–20s.
+- Limits: ≤ 6 images/request, ≤ 2MB per image. Timeout budget ~12–20s. Caching + rate-limit enabled. Base64 allowed كحل مؤقت.
+
+Admin REST additions (highlights)
+- Currencies CRUD: `/api/admin/currencies`
+- Shipping: Zones `/api/admin/shipping/zones`, Rates `/api/admin/shipping/rates`
+- Payments: Gateways `/api/admin/payments/gateways`
+- Carts overview + notify: `/api/admin/carts`, `/api/admin/carts/notify` (Socket.IO)
+- Analytics extended: `/api/admin/analytics/*` (top-products, funnels, segments, cohorts, realtime, utm)
+- Notifications send: `POST /api/admin/notifications/send`
+- Consent config (admin): `GET/POST /api/admin/consent`
+
+Public endpoints
+- Consent config: `GET /api/consent/config`
+- Consent accept: `POST /api/consent/accept` → Cookie `consent`
 
 Debug
 - Set ANALYZE_DEBUG=1 to enable minimal debug logs in the server output.
