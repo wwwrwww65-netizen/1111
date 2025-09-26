@@ -3573,6 +3573,63 @@ adminRest.get('/analytics/segments', async (req, res) => {
     return res.json({ ok:true, segments: { totalUsers, newUsers30d, guestCarts, userCarts } });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'segments_failed' }); }
 });
+
+adminRest.get('/analytics/realtime', async (_req, res) => {
+  try{
+    const since = new Date(Date.now() - 5*60*1000);
+    const names = ['page_view','add_to_cart','checkout','purchase'];
+    const out: Record<string, number> = {} as any;
+    for (const n of names) {
+      const c = await db.event.count({ where: { name: n, createdAt: { gte: since } } as any });
+      out[n] = c;
+    }
+    res.json({ ok:true, windowMin: 5, metrics: out });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'realtime_failed' }); }
+});
+
+adminRest.get('/analytics/cohorts', async (_req, res) => {
+  try{
+    // Weekly cohorts (last 8 weeks) based on user createdAt and first order in subsequent weeks
+    const rows: Array<{ week: string; users: number }>= await db.$queryRawUnsafe(`
+      SELECT to_char(date_trunc('week', "createdAt"), 'YYYY-MM-DD') AS week, COUNT(*) AS users
+      FROM "User"
+      WHERE "createdAt" >= now() - interval '8 weeks'
+      GROUP BY 1
+      ORDER BY 1
+    `);
+    const cohorts = [] as any[];
+    for (const r of rows as any[]) {
+      const weekStart = new Date(r.week);
+      const weekEnd = new Date(weekStart.getTime() + 7*24*3600*1000);
+      const week1End = new Date(weekEnd.getTime() + 7*24*3600*1000);
+      const week2End = new Date(week1End.getTime() + 7*24*3600*1000);
+      const [w1, w2] = await Promise.all([
+        db.order.count({ where: { createdAt: { gte: weekEnd, lt: week1End } } }),
+        db.order.count({ where: { createdAt: { gte: week1End, lt: week2End } } })
+      ]);
+      cohorts.push({ weekStart: r.week, newUsers: Number(r.users||0), week1Orders: w1, week2Orders: w2 });
+    }
+    res.json({ ok:true, cohorts });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'cohorts_failed' }); }
+});
+
+adminRest.get('/analytics/utm', async (_req, res) => {
+  try{
+    const items = await db.$queryRawUnsafe(`
+      SELECT
+        COALESCE((properties->>'utm_source'),'') as source,
+        COALESCE((properties->>'utm_medium'),'') as medium,
+        COALESCE((properties->>'utm_campaign'),'') as campaign,
+        COUNT(*) as cnt
+      FROM "Event"
+      WHERE properties IS NOT NULL
+      GROUP BY 1,2,3
+      ORDER BY cnt DESC
+      LIMIT 100
+    `);
+    res.json({ ok:true, items });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'utm_failed' }); }
+});
 adminRest.post('/reviews/:id/approve', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'reviews.moderate'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params; const r = await db.review.update({ where: { id }, data: { isApproved: true } });

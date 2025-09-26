@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 
-type TabKey = 'overview'|'top'|'funnels'|'segments';
+type TabKey = 'overview'|'top'|'funnels'|'segments'|'cohorts'|'realtime'|'utm';
 
 export default function SystemAnalyticsPage(): JSX.Element {
   const [tab, setTab] = React.useState<TabKey>('overview');
@@ -13,21 +13,30 @@ export default function SystemAnalyticsPage(): JSX.Element {
   const [top, setTop] = React.useState<any[]>([]);
   const [funnel, setFunnel] = React.useState<any>({});
   const [segments, setSegments] = React.useState<any>({});
+  const [cohorts, setCohorts] = React.useState<any[]>([]);
+  const [realtime, setRealtime] = React.useState<any>({});
+  const [utm, setUtm] = React.useState<any[]>([]);
 
   async function load(){
     setLoading(true); setError('');
     try{
       const qs = (from||to)? `?from=${encodeURIComponent(from||'')}&to=${encodeURIComponent(to||'')}` : '';
-      const [a, t, f, s] = await Promise.all([
+      const [a, t, f, s, c, rt, u] = await Promise.all([
         fetch(`/api/admin/analytics${qs}`, { credentials:'include' }).then(r=>r.json()),
         fetch(`/api/admin/analytics/top-products${qs}`, { credentials:'include' }).then(r=>r.json()),
         fetch(`/api/admin/analytics/funnels${qs}`, { credentials:'include' }).then(r=>r.json()),
         fetch(`/api/admin/analytics/segments${qs}`, { credentials:'include' }).then(r=>r.json()),
+        fetch(`/api/admin/analytics/cohorts${qs}`, { credentials:'include' }).then(r=>r.json()),
+        fetch(`/api/admin/analytics/realtime${qs}`, { credentials:'include' }).then(r=>r.json()),
+        fetch(`/api/admin/analytics/utm${qs}`, { credentials:'include' }).then(r=>r.json()),
       ]);
       if (a.ok) setKpis(a.kpis||{}); else setError(a.error||'failed');
       if (t.ok) setTop(t.items||[]);
       if (f.ok) setFunnel(f.funnel||{});
       if (s.ok) setSegments(s.segments||{});
+      if (c.ok) setCohorts(c.cohorts||[]);
+      if (rt.ok) setRealtime(rt.metrics||{});
+      if (u.ok) setUtm(u.items||[]);
     }catch{ setError('network'); }
     finally{ setLoading(false); }
   }
@@ -49,6 +58,9 @@ export default function SystemAnalyticsPage(): JSX.Element {
           <button role="tab" aria-selected={tab==='top'} onClick={()=> setTab('top')} className={`btn ${tab==='top'?'':'btn-outline'}`}>الأعلى مبيعاً</button>
           <button role="tab" aria-selected={tab==='funnels'} onClick={()=> setTab('funnels')} className={`btn ${tab==='funnels'?'':'btn-outline'}`}>مسارات التحويل</button>
           <button role="tab" aria-selected={tab==='segments'} onClick={()=> setTab('segments')} className={`btn ${tab==='segments'?'':'btn-outline'}`}>الشرائح</button>
+          <button role="tab" aria-selected={tab==='cohorts'} onClick={()=> setTab('cohorts')} className={`btn ${tab==='cohorts'?'':'btn-outline'}`}>Cohorts</button>
+          <button role="tab" aria-selected={tab==='realtime'} onClick={()=> setTab('realtime')} className={`btn ${tab==='realtime'?'':'btn-outline'}`}>Realtime</button>
+          <button role="tab" aria-selected={tab==='utm'} onClick={()=> setTab('utm')} className={`btn ${tab==='utm'?'':'btn-outline'}`}>UTM</button>
         </div>
 
         {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 240 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
@@ -89,6 +101,37 @@ export default function SystemAnalyticsPage(): JSX.Element {
                 <Card label="جدد (30يوم)" value={segments.newUsers30d ?? '-'} />
                 <Card label="سلال الزوار" value={segments.guestCarts ?? '-'} />
                 <Card label="سلال المستخدمين" value={segments.userCarts ?? '-'} />
+              </div>
+            )}
+            {tab==='cohorts' && (
+              <div style={{ display:'grid', gap:8 }}>
+                {cohorts.map((row:any)=> (
+                  <div key={row.weekStart} className="panel" style={{ padding:10, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                    <div>الأسبوع: {row.weekStart}</div>
+                    <div>مستخدمون جدد: {row.newUsers}</div>
+                    <div>طلبات لاحقة W+1/W+2: {row.week1Orders}/{row.week2Orders}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tab==='realtime' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12 }}>
+                <Card label="page_view (5m)" value={realtime.page_view ?? 0} />
+                <Card label="add_to_cart (5m)" value={realtime.add_to_cart ?? 0} />
+                <Card label="checkout (5m)" value={realtime.checkout ?? 0} />
+                <Card label="purchase (5m)" value={realtime.purchase ?? 0} />
+              </div>
+            )}
+            {tab==='utm' && (
+              <div style={{ overflowX:'auto' }}>
+                <table className="table" role="table" aria-label="UTM Summary">
+                  <thead><tr><th>source</th><th>medium</th><th>campaign</th><th>count</th></tr></thead>
+                  <tbody>
+                    {utm.map((r:any, idx:number)=> (
+                      <tr key={idx}><td>{r.source}</td><td>{r.medium}</td><td>{r.campaign}</td><td>{r.cnt}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
