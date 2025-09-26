@@ -4490,6 +4490,14 @@ adminRest.delete('/categories/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_delete',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
   try {
     await db.$transaction(async (tx) => {
+      // Ensure optional columns exist in legacy DBs
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[]'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "image" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "parentId" TEXT'); } catch {}
       try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
       const cat = await tx.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
       if (!cat) return; // Already gone
@@ -4512,7 +4520,16 @@ adminRest.delete('/categories/:id', async (req, res) => {
   } catch(e:any){
     // Second-chance forced cleanup using raw SQL
     try {
-      try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+      for (const col of [
+        'slug TEXT',
+        'seoTitle TEXT',
+        'seoDescription TEXT',
+        'seoKeywords TEXT[]',
+        'translations JSONB',
+        'image TEXT',
+        'parentId TEXT',
+        'sortOrder INTEGER DEFAULT 0'
+      ]) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       const cat: { parentId: string|null }[] = await db.$queryRaw`SELECT "parentId" FROM "Category" WHERE id=${id} LIMIT 1`;
       const parentId = cat?.[0]?.parentId ?? null;
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
@@ -4536,6 +4553,14 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   let deleted = 0;
   try {
     await db.$transaction(async (tx) => {
+      // Ensure optional columns exist in legacy DBs
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[]'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "image" TEXT'); } catch {}
+      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "parentId" TEXT'); } catch {}
       try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
       // Ensure replacement category once per batch
       let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
@@ -4554,7 +4579,16 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   } catch (e:any) {
     // Fallback raw pass
     try {
-      try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+      for (const col of [
+        'slug TEXT',
+        'seoTitle TEXT',
+        'seoDescription TEXT',
+        'seoKeywords TEXT[]',
+        'translations JSONB',
+        'image TEXT',
+        'parentId TEXT',
+        'sortOrder INTEGER DEFAULT 0'
+      ]) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
       if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
       const uncId = unc.id;
