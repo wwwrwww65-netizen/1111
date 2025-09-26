@@ -304,6 +304,18 @@ jobs:
           set -e
           node scripts/ci/e2e-flow.mjs
 
+      - name: Speed smoke (products fast, product CRUD fast, category delete fast)
+        env:
+          API_BASE: 'http://localhost:4000'
+          SPEED_MAX_MS_PRODUCTS: '1500'
+          SPEED_MAX_MS_CREATE: '2500'
+          SPEED_MAX_MS_DELETE: '2500'
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        run: |
+          set -e
+          node scripts/ci/smoke-speed.mjs
+
       - name: Categories CRUD smoke
         env:
           API_BASE: 'http://localhost:4000'
