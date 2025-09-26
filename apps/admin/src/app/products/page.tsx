@@ -12,7 +12,8 @@ export default function AdminProducts(): JSX.Element {
   const [status, setStatus] = React.useState('');
   const [categoryId, setCategoryId] = React.useState('');
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
-  const [total, setTotal] = React.useState(0);
+  const [total, setTotal] = React.useState<number|null>(0);
+  const [hasMore, setHasMore] = React.useState<boolean>(false);
   const q = trpc;
   const [allChecked, setAllChecked] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
@@ -38,7 +39,9 @@ export default function AdminProducts(): JSX.Element {
     // request lean payload for faster first paint
     url.searchParams.set('suggest','1');
     const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal })).json();
-    setRows(j.products||[]); setTotal(j.pagination?.total||0);
+    setRows(j.products||[]);
+    setTotal(j.pagination?.total?? null);
+    setHasMore(Boolean(j.pagination?.hasMore));
   }
   React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
   React.useEffect(()=>{
@@ -123,10 +126,14 @@ export default function AdminProducts(): JSX.Element {
         </table>
       </div>
 
-      <div className="pagination" style={{ marginTop:12 }}>
+      <div className="pagination" style={{ marginTop:12, display:'flex', alignItems:'center', gap:8 }}>
         <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1,p-1))} className="icon-btn">السابق</button>
-        <span style={{ color:'var(--sub)' }}>{page} / {totalPages}</span>
-        <button disabled={page>=totalPages} onClick={()=> setPage(p=> Math.min(totalPages,p+1))} className="icon-btn">التالي</button>
+        {total!=null ? (
+          <span style={{ color:'var(--sub)' }}>{page} / {Math.max(1, Math.ceil((total||0)/limit))}</span>
+        ) : (
+          <span style={{ color:'var(--sub)' }}>{hasMore? '...' : 'نهاية'}</span>
+        )}
+        <button disabled={total!=null ? (page>=Math.max(1, Math.ceil((total||0)/limit))) : !hasMore} onClick={()=> setPage(p=> p+1)} className="icon-btn">التالي</button>
       </div>
     </main>
   );

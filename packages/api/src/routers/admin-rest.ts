@@ -4032,9 +4032,10 @@ adminRest.get('/products', async (req, res) => {
   if (status === 'active') where.isActive = true;
   if (status === 'archived') where.isActive = false;
   if (suggest) {
-    const items = await db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, name: true, price: true, images: true, isActive:true, sku:true, stockQuantity:true } });
-    const total = await db.product.count({ where });
-    return res.json({ products: items, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+    const items = await db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit + 1, select: { id: true, name: true, price: true, images: true, isActive:true, sku:true, stockQuantity:true } });
+    const hasMore = items.length > limit;
+    const slice = hasMore ? items.slice(0, limit) : items;
+    return res.json({ products: slice, pagination: { page, limit, total: null, totalPages: null, hasMore } });
   }
   const [products, total] = await Promise.all([
     db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id:true, name:true, price:true, images:true, stockQuantity:true, isActive:true, sku:true, variants: { select: { stockQuantity:true } }, category: { select: { id: true, name: true} } } }),
