@@ -4488,11 +4488,26 @@ adminRest.patch('/categories/:id', async (req, res) => {
 adminRest.delete('/categories/:id', async (req, res) => {
   const { id } = req.params;
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_delete',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
-  // Re-parent children to null and detach products if FK exists
-  await db.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
-  try { await db.$executeRawUnsafe('UPDATE "Product" SET "categoryId"=NULL WHERE "categoryId"=$1', id as any); } catch {}
-  try { await db.category.delete({ where: { id } }); }
-  catch(e:any){ return res.status(400).json({ ok:false, code:'category_delete_failed', error: e.message||'category_delete_failed' }); }
+  try {
+    // Find category and decide replacement for products
+    const cat = await db.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
+    if (!cat) return res.json({ ok:true });
+    let replacementCategoryId: string | null = cat.parentId || null;
+    if (!replacementCategoryId) {
+      // Ensure an 'Uncategorized' category exists to safely reassign products
+      let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
+      if (!unc) {
+        unc = await db.category.create({ data: { name: 'غير مصنّف', slug: 'uncategorized', sortOrder: 0 } });
+      }
+      replacementCategoryId = unc.id;
+    }
+    // Re-parent children to the deleted category's parent (or leave as null if any future change makes it nullable)
+    await db.category.updateMany({ where: { parentId: id }, data: { parentId: cat.parentId || null } });
+    // Move products to replacement category to satisfy NOT NULL constraint
+    await db.product.updateMany({ where: { categoryId: id }, data: { categoryId: replacementCategoryId } });
+    // Delete the category now that dependencies are handled
+    await db.category.delete({ where: { id } });
+  } catch(e:any){ return res.status(400).json({ ok:false, code:'category_delete_failed', error: e.message||'category_delete_failed' }); }
   await audit(req, 'categories', 'delete', { id });
   res.json({ ok:true, success: true });
 });
