@@ -9,6 +9,7 @@ import { authenticator } from 'otplib';
 import { v2 as cloudinary } from 'cloudinary';
 import type { Readable } from 'stream';
 import { z } from 'zod';
+import { getIo } from '../io';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
 import nodemailer from 'nodemailer';
@@ -3490,9 +3491,36 @@ adminRest.post('/carts/notify', async (req, res) => {
   const schema = z.object({ targets: z.array(z.object({ userId: z.string().optional(), guestSessionId: z.string().optional() })), title: z.string().min(2), body: z.string().min(2) });
   try{
     const data = schema.parse(req.body||{});
-    // Stub: store notifications in a table or push to a queue (omitted here). Respond success.
-    res.json({ ok:true, sent: data.targets.length });
+    // Emit internal notifications over Socket.IO to web/app
+    const io = getIo();
+    if (io) {
+      for (const t of data.targets) {
+        if (t.userId) io.to(`user:${t.userId}`).emit('notification', { title: data.title, body: data.body, scope: 'user' });
+        if (t.guestSessionId) io.to(`guest:${t.guestSessionId}`).emit('notification', { title: data.title, body: data.body, scope: 'guest' });
+      }
+    }
+    res.json({ ok:true, sent: data.targets.length, channel: 'socket' });
   }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'notify_failed' }); }
+});
+
+adminRest.post('/notifications/send', async (req, res) => {
+  const schema = z.object({
+    targets: z.array(z.object({ userId: z.string().optional(), guestSessionId: z.string().optional() })).min(1),
+    title: z.string().min(2),
+    body: z.string().min(2)
+  });
+  try{
+    const data = schema.parse(req.body||{});
+    const io = getIo();
+    let sent = 0;
+    if (io) {
+      for (const t of data.targets) {
+        if (t.userId) { io.to(`user:${t.userId}`).emit('notification', { title: data.title, body: data.body, scope: 'user' }); sent++; }
+        if (t.guestSessionId) { io.to(`guest:${t.guestSessionId}`).emit('notification', { title: data.title, body: data.body, scope: 'guest' }); sent++; }
+      }
+    }
+    res.json({ ok:true, sent, channel: 'socket' });
+  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'send_failed' }); }
 });
 
 // Reviews module

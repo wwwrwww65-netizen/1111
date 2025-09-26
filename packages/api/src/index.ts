@@ -20,6 +20,7 @@ import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import http from 'http';
 import { Server as IOServer } from 'socket.io';
+import { setIo } from './io';
 
 // Optional Sentry init (guarded by env)
 let sentryEnabled = false;
@@ -319,8 +320,13 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
         credentials: true
       }
     });
+    setIo(io);
     io.on('connection', (socket) => {
       socket.emit('hello', { ok: true });
+      // Join user rooms if provided (userId or sessionId)
+      const { userId, sessionId } = socket.handshake.auth || {};
+      if (userId) socket.join(`user:${userId}`);
+      if (sessionId) socket.join(`guest:${sessionId}`);
     });
     // Broadcast drivers live locations every 10s
     setInterval(async () => {
