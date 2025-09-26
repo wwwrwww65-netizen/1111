@@ -89,6 +89,14 @@ export default function CategoriesPage(): JSX.Element {
   const [allChecked, setAllChecked] = React.useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = React.useState<string | null>(null);
   const confirmTimerRef = React.useRef<any>(null);
+  async function existsOnServer(id:string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/admin/categories?search=${encodeURIComponent(id)}`, { credentials:'include', cache:'no-store' });
+      if (!res.ok) return true;
+      const j = await res.json();
+      return Array.isArray(j?.categories) && j.categories.some((c:any)=> c.id === id);
+    } catch { return true; }
+  }
   async function remove(id:string){
     if (confirmingDeleteId !== id) {
       setConfirmingDeleteId(id);
@@ -101,8 +109,8 @@ export default function CategoriesPage(): JSX.Element {
     const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids: [id] }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
+    const stillExists = await existsOnServer(id);
     await Promise.all([loadList(), loadTree()]);
-    const stillExists = rows.some((c)=> c.id === id);
     if (deletedCount < 1 || stillExists) { showToast('فشل الحذف'); return; }
     showToast('تم الحذف');
   }
@@ -120,8 +128,9 @@ export default function CategoriesPage(): JSX.Element {
     const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
+    // Verify each id no longer exists on server
+    let remaining = 0; for (const id of ids) { const ex = await existsOnServer(id); if (ex) remaining++; }
     await Promise.all([loadList(), loadTree()]);
-    const remaining = Object.keys(selected).filter(k=> selected[k]).filter(id=> rows.some(c=> c.id===id)).length;
     setSelected({}); setAllChecked(false);
     if (deletedCount < 1 || remaining > 0) { showToast('فشل الحذف'); return; }
     showToast(`تم حذف ${deletedCount}`);

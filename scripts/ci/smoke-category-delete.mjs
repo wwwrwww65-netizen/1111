@@ -39,8 +39,8 @@ async function run(){
   if (!r.ok) throw new Error(`bulk_delete_failed: ${r.status}`)
   const del = Number(r.json?.deleted||0)
   if (del < ids.length) throw new Error(`deleted_count_mismatch: got ${del}, want ${ids.length}`)
-  // verify gone
-  let verify = await json(`${API_LOCAL}/api/admin/categories?search=SmokeCat%20${stamp}`, { headers:H })
+  // verify gone (by ids)
+  let verify = await json(`${API_LOCAL}/api/admin/categories?search=${encodeURIComponent(String(stamp))}`, { headers:H })
   if (!verify.ok) verify = await json(`${API_PUBLIC}/api/admin/categories?search=SmokeCat%20${stamp}`, { headers:H })
   const found = (verify.json?.categories||[]).filter(x=> ids.includes(x.id)).length
   if (found>0) throw new Error(`still_found_after_delete: ${found}`)
