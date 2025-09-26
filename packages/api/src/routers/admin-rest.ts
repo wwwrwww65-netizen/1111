@@ -19,6 +19,28 @@ const adminRest = Router();
 adminRest.use(express.json({ limit: '2mb' }));
 adminRest.use(express.urlencoded({ extended: true }));
 
+// Defense-in-depth: ensure admin-extra tables exist if migrations were not applied yet.
+let __adminExtrasEnsured = false;
+adminRest.use(async (_req, _res, next) => {
+  if (__adminExtrasEnsured) return next();
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Currency" ("id" TEXT PRIMARY KEY, "code" TEXT UNIQUE NOT NULL, "name" TEXT NOT NULL, "symbol" TEXT NOT NULL, "precision" INTEGER NOT NULL DEFAULT 2, "rateToBase" DOUBLE PRECISION NOT NULL DEFAULT 1, "isBase" BOOLEAN NOT NULL DEFAULT FALSE, "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShippingZone" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "countryCodes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], "regions" JSONB NULL, "cities" JSONB NULL, "areas" JSONB NULL, "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "ShippingZone_name_key" ON "ShippingZone"("name")');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DeliveryRate" ("id" TEXT PRIMARY KEY, "zoneId" TEXT NOT NULL, "carrier" TEXT NULL, "minWeightKg" DOUBLE PRECISION NULL, "maxWeightKg" DOUBLE PRECISION NULL, "baseFee" DOUBLE PRECISION NOT NULL DEFAULT 0, "perKgFee" DOUBLE PRECISION NULL, "minSubtotal" DOUBLE PRECISION NULL, "freeOverSubtotal" DOUBLE PRECISION NULL, "etaMinHours" INTEGER NULL, "etaMaxHours" INTEGER NULL, "offerTitle" TEXT NULL, "activeFrom" TIMESTAMP NULL, "activeUntil" TIMESTAMP NULL, "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "DeliveryRate_zoneId_isActive_idx" ON "DeliveryRate"("zoneId","isActive")');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PaymentGateway" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "provider" TEXT NOT NULL, "mode" TEXT NOT NULL DEFAULT \'TEST\', "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "sortOrder" INTEGER NOT NULL DEFAULT 0, "feesFixed" DOUBLE PRECISION NULL, "feesPercent" DOUBLE PRECISION NULL, "minAmount" DOUBLE PRECISION NULL, "maxAmount" DOUBLE PRECISION NULL, "credentials" JSONB NULL, "options" JSONB NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "PaymentGateway_name_key" ON "PaymentGateway"("name")');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "GuestCart" ("id" TEXT PRIMARY KEY, "sessionId" TEXT UNIQUE NOT NULL, "userAgent" TEXT NULL, "ip" TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "GuestCartItem" ("id" TEXT PRIMARY KEY, "cartId" TEXT NOT NULL, "productId" TEXT NOT NULL, "quantity" INTEGER NOT NULL DEFAULT 1, "addedAt" TIMESTAMP DEFAULT NOW())');
+  } catch {
+    // ignore
+  } finally {
+    __adminExtrasEnsured = true;
+    next();
+  }
+});
+
 const can = async (userId: string, permKey: string): Promise<boolean> => {
   if (process.env.NODE_ENV === 'test') return true;
   // Fallback: allow ADMIN role
