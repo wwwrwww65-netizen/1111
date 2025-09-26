@@ -310,8 +310,8 @@ jobs:
           SPEED_MAX_MS_PRODUCTS: '1500'
           SPEED_MAX_MS_CREATE: '2500'
           SPEED_MAX_MS_DELETE: '2500'
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           set -e
           node scripts/ci/smoke-speed.mjs

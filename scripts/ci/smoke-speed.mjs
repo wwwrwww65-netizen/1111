@@ -1,5 +1,3 @@
-import fetch from 'node-fetch'
-
 const API_BASE = process.env.API_BASE || 'http://localhost:4000'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
