@@ -90,19 +90,20 @@ export default function CategoriesPage(): JSX.Element {
   const [allChecked, setAllChecked] = React.useState(false);
   async function remove(id:string){
     if (!confirm('تأكيد الحذف؟')) return;
-    const res = await fetch(`/api/admin/categories/${id}`, { method:'DELETE', credentials:'include' });
-    if (!res.ok) { try{ const j=await res.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
+    // Prefer bulk endpoint for robust server-side handling
+    const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids: [id] }) });
+    if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحذف');
   }
   async function removeSelected(){
     const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
     if (!confirm(`حذف ${ids.length} تصنيف؟`)) return;
-    let okCount = 0;
-    for (const id of ids){ try { const r=await fetch(`/api/admin/categories/${id}`, { method:'DELETE', credentials:'include' }); if (r.ok) okCount++; } catch {} }
+    const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids }) });
+    if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
+    try { const j = await r.json(); showToast(j?.deleted? `تم حذف ${j.deleted}` : 'تم الحذف'); } catch { showToast('تم الحذف'); }
     await Promise.all([loadList(), loadTree()]);
     setSelected({}); setAllChecked(false);
-    showToast(okCount? `تم حذف ${okCount}` : 'لم يُحذف شيء');
   }
 
   function Tree({ nodes }:{ nodes:any[] }){
