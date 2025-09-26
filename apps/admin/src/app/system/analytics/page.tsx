@@ -30,13 +30,13 @@ export default function SystemAnalyticsPage(): JSX.Element {
         fetch(`/api/admin/analytics/realtime${qs}`, { credentials:'include' }).then(r=>r.json()),
         fetch(`/api/admin/analytics/utm${qs}`, { credentials:'include' }).then(r=>r.json()),
       ]);
-      if (a.ok) setKpis(a.kpis||{}); else setError(a.error||'failed');
-      if (t.ok) setTop(t.items||[]);
-      if (f.ok) setFunnel(f.funnel||{});
-      if (s.ok) setSegments(s.segments||{});
-      if (c.ok) setCohorts(c.cohorts||[]);
-      if (rt.ok) setRealtime(rt.metrics||{});
-      if (u.ok) setUtm(u.items||[]);
+      if (a.ok) setKpis(a.kpis||{}); else setKpis({});
+      if (t.ok) setTop(t.items||[]); else setTop([]);
+      if (f.ok) setFunnel(f.funnel||{}); else setFunnel({});
+      if (s.ok) setSegments(s.segments||{}); else setSegments({});
+      if (c.ok) setCohorts(c.cohorts||[]); else setCohorts([]);
+      if (rt.ok) setRealtime(rt.metrics||{}); else setRealtime({});
+      if (u.ok) setUtm(u.items||[]); else setUtm([]);
     }catch{ setError('network'); }
     finally{ setLoading(false); }
   }
