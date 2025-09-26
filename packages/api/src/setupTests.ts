@@ -38,6 +38,23 @@ try {
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "image" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "parentId" TEXT'); } catch {}
+    // Ensure Currency table exists for tests
+    try {
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Currency" (
+          "id" TEXT PRIMARY KEY,
+          "code" TEXT UNIQUE NOT NULL,
+          "name" TEXT NOT NULL,
+          "symbol" TEXT NOT NULL,
+          "precision" INTEGER NOT NULL DEFAULT 2,
+          "rateToBase" DOUBLE PRECISION NOT NULL DEFAULT 1,
+          "isBase" BOOLEAN NOT NULL DEFAULT FALSE,
+          "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+          "createdAt" TIMESTAMP DEFAULT NOW(),
+          "updatedAt" TIMESTAMP DEFAULT NOW()
+        );
+      `);
+    } catch {}
   };
   // Ensure schema is ready before tests start
   beforeAll(async () => {
