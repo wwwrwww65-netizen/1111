@@ -51,6 +51,7 @@ export default function CurrenciesPage(): JSX.Element {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error||'failed');
       setShowForm(false); resetForm(); await load();
+      alert('تم الحفظ');
     }catch(err:any){ setError(err.message||'failed'); }
   }
 

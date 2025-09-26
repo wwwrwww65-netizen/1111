@@ -246,6 +246,12 @@ jobs:
 
       - name: E2E admin check (smoke)
         run: bash scripts/ci/e2e-admin-check.sh
+      - name: Admin extras smoke (currencies/zones/rates/analytics)
+        env:
+          API_BASE: 'http://localhost:4000'
+        run: |
+          set -e
+          node scripts/ci/smoke-admin-extras.mjs
 
       - name: Admin console smoke (no client errors)
         env:

@@ -41,6 +41,7 @@ export default function ShippingZonesPage(): JSX.Element {
       let r:Response; if (editing) r = await fetch(`/api/admin/shipping/zones/${editing.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       else r = await fetch('/api/admin/shipping/zones', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error||'failed'); setShowForm(false); reset(); await load();
+      showToast('تم الحفظ');
     }catch(err:any){ setError(err.message||'failed'); }
   }
   async function remove(id:string){ if (!confirm('حذف المنطقة؟')) return; const r = await fetch(`/api/admin/shipping/zones/${id}`, { method:'DELETE', credentials:'include' }); if (r.ok) await load(); }
