@@ -4534,31 +4534,34 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids : [];
   if (!ids.length) return res.json({ ok:true, deleted: 0 });
   let deleted = 0;
-  for (const id of ids) {
+  try {
+    await db.$transaction(async (tx) => {
+      // Ensure replacement category once per batch
+      let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
+      if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+      const uncId = unc.id;
+
+      // Reparent all children away from any target id
+      await tx.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY(${ids}::text[])`;
+      // Move products from any target id to uncategorized
+      await tx.$executeRaw`UPDATE "Product" SET "categoryId"=${uncId} WHERE "categoryId" = ANY(${ids}::text[])`;
+      // Delete all target categories
+      const res: any = await tx.$executeRaw`DELETE FROM "Category" WHERE id = ANY(${ids}::text[])`;
+      // Some drivers return rowCount, some return number
+      deleted = Number((res?.count ?? res?.rowCount ?? res) || 0);
+    });
+  } catch (e:any) {
+    // Fallback raw pass
     try {
-      await db.$transaction(async (tx) => {
-        const cat = await tx.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
-        if (!cat) return;
-        let replacementCategoryId: string | null = cat.parentId || null;
-        if (!replacementCategoryId) {
-          let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-          if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
-          replacementCategoryId = unc.id;
-        }
-        await tx.category.updateMany({ where: { parentId: id }, data: { parentId: cat.parentId || null } });
-        await tx.product.updateMany({ where: { categoryId: id }, data: { categoryId: replacementCategoryId } });
-        await tx.category.delete({ where: { id } });
-      });
-      deleted++;
-    } catch (e:any) {
-      try {
-        let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-        if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
-        await db.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId"=${id}`;
-        await db.$executeRaw`UPDATE "Product" SET "categoryId"=${unc.id} WHERE "categoryId"=${id}`;
-        await db.$executeRaw`DELETE FROM "Category" WHERE id=${id}`;
-        deleted++;
-      } catch {}
+      let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
+      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized', sortOrder: 0 } }); }
+      const uncId = unc.id;
+      await db.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY(${ids}::text[])`;
+      await db.$executeRaw`UPDATE "Product" SET "categoryId"=${uncId} WHERE "categoryId" = ANY(${ids}::text[])`;
+      const res: any = await db.$executeRaw`DELETE FROM "Category" WHERE id = ANY(${ids}::text[])`;
+      deleted = Number((res?.count ?? res?.rowCount ?? res) || 0);
+    } catch (ee:any) {
+      return res.status(400).json({ ok:false, code:'category_bulk_delete_failed', error: ee.message||e.message||'category_bulk_delete_failed' });
     }
   }
   await audit(req, 'categories', 'bulk_delete', { ids, deleted });

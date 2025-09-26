@@ -8,9 +8,13 @@ function useApiBase(){
   return React.useMemo(()=> resolveApiBase(), []);
 }
 function useAuthHeaders(){
-  // HttpOnly cookie is sent automatically when credentials:'include';
-  // No need to read token from JS (unavailable by design).
-  return React.useCallback(() => ({} as Record<string,string>), []);
+  return React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {} as Record<string,string>;
+  }, []);
 }
 
 export default function CategoriesPage(): JSX.Element {
@@ -38,12 +42,12 @@ export default function CategoriesPage(): JSX.Element {
   const url = new URL(`/api/admin/categories`, window.location.origin);
     url.searchParams.set('_', String(Date.now()));
     if (search) url.searchParams.set('search', search);
-    const res = await fetch(url.toString(), { credentials:'include', cache:'no-store' });
+    const res = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
     if (!res.ok) { setRows([]); return; }
     const j = await res.json(); setRows(j.categories||[]);
   }
   async function loadTree(){
-  const res = await fetch(`/api/admin/categories/tree`, { credentials:'include', cache:'no-store' });
+  const res = await fetch(`/api/admin/categories/tree`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
     if (!res.ok) { setTree([]); return; }
     const j = await res.json(); setTree(j.tree||[]);
   }
@@ -106,7 +110,7 @@ export default function CategoriesPage(): JSX.Element {
       return;
     }
     setConfirmingDeleteId(null);
-    const r = await fetch(`${apiBase}/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids: [id] }) });
+    const r = await fetch(`${apiBase}/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids: [id] }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
     const stillExists = await existsOnServer(id);
@@ -125,7 +129,7 @@ export default function CategoriesPage(): JSX.Element {
       return;
     }
     setConfirmingBulk(false);
-    const r = await fetch(`${apiBase}/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids }) });
+    const r = await fetch(`${apiBase}/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
     // Verify each id no longer exists on server
