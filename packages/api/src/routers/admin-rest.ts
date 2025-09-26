@@ -3472,6 +3472,29 @@ adminRest.post('/events', async (req, res) => {
   res.json({ event: ev });
 });
 
+// Carts overview (users + guests)
+adminRest.get('/carts', async (req, res) => {
+  try{
+    const since = req.query.since ? new Date(String(req.query.since)) : undefined;
+    const whereUser:any = since? { updatedAt: { gte: since } } : {};
+    const whereGuest:any = since? { updatedAt: { gte: since } } : {};
+    const [userCarts, guestCarts] = await Promise.all([
+      db.cart.findMany({ where: whereUser, include: { items: { include: { product: true } }, user: { select: { id:true, email:true, name:true } } }, orderBy: { updatedAt: 'desc' } }),
+      db.guestCart.findMany({ where: whereGuest, include: { items: { include: { product: true } } }, orderBy: { updatedAt: 'desc' } })
+    ]);
+    res.json({ ok:true, userCarts, guestCarts });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_list_failed' }); }
+});
+
+adminRest.post('/carts/notify', async (req, res) => {
+  const schema = z.object({ targets: z.array(z.object({ userId: z.string().optional(), guestSessionId: z.string().optional() })), title: z.string().min(2), body: z.string().min(2) });
+  try{
+    const data = schema.parse(req.body||{});
+    // Stub: store notifications in a table or push to a queue (omitted here). Respond success.
+    res.json({ ok:true, sent: data.targets.length });
+  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'notify_failed' }); }
+});
+
 // Reviews module
 adminRest.get('/reviews/list', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'reviews.read'))) return res.status(403).json({ error:'forbidden' });

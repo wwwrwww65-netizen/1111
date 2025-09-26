@@ -106,6 +106,25 @@ try {
           "updatedAt" TIMESTAMP DEFAULT NOW()
         );
       `);
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "GuestCart" (
+          "id" TEXT PRIMARY KEY,
+          "sessionId" TEXT UNIQUE NOT NULL,
+          "userAgent" TEXT,
+          "ip" TEXT,
+          "createdAt" TIMESTAMP DEFAULT NOW(),
+          "updatedAt" TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "GuestCartItem" (
+          "id" TEXT PRIMARY KEY,
+          "cartId" TEXT NOT NULL REFERENCES "GuestCart"("id") ON DELETE CASCADE,
+          "productId" TEXT NOT NULL,
+          "quantity" INTEGER NOT NULL DEFAULT 1,
+          "addedAt" TIMESTAMP DEFAULT NOW()
+        );
+      `);
     } catch {}
   };
   // Ensure schema is ready before tests start
