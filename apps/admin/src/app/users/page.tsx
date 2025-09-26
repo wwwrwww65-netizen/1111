@@ -27,6 +27,7 @@ export default function UsersPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [roleName, setRoleName] = React.useState("MANAGER");
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [allChecked, setAllChecked] = React.useState(false);
   const [tab, setTab] = React.useState<'users'|'vendors'|'admins'|'permissions'>('users');
   const [modalOpen, setModalOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
@@ -80,6 +81,7 @@ export default function UsersPage(): JSX.Element {
           items={rows}
           isLoading={false}
           columns={[
+            { key:'_sel', title:(<input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(u=> [u.id, v]))); }} />), minWidth:40 },
             { key:'email', title:'البريد', minWidth:200 },
             { key:'name', title:'الاسم', minWidth:160 },
             { key:'phone', title:'الهاتف', minWidth:140 },
@@ -106,6 +108,7 @@ export default function UsersPage(): JSX.Element {
           )}
           renderRow={(u:any)=> (
             <>
+              <td><input type="checkbox" checked={!!selected[u.id]} onChange={()=> setSelected(s=> ({...s, [u.id]: !s[u.id]}))} /></td>
               <td>{u.email}</td>
               <td>{u.name}</td>
               <td>{u.phone||'-'}</td>
@@ -129,7 +132,7 @@ export default function UsersPage(): JSX.Element {
       {tab !== 'permissions' && (
         <div className="pagination" style={{ marginTop:12 }}>
           <button onClick={bulkAssign} className="btn">إسناد جماعي</button>
-          <button onClick={async ()=>{ const ids = rows.filter(r=>selected[r.id]).map(r=>r.id); if (!ids.length) return; const r = await fetch(`${apiBase}/api/admin/users/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) }); if (r.ok) { setSelected({}); await load(); } else { try{ const j=await r.json(); alert(j?.error||'فشل الحذف'); } catch { alert('فشل الحذف'); } } }} className="btn danger">حذف المحدد</button>
+          <button onClick={async ()=>{ const ids = rows.filter(r=>selected[r.id]).map(r=>r.id); if (!ids.length) return; const r = await fetch(`${apiBase}/api/admin/users/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) }); if (r.ok) { setSelected({}); setAllChecked(false); await load(); } else { try{ const j=await r.json(); alert(j?.error||'فشل الحذف'); } catch { alert('فشل الحذف'); } } }} className="btn danger">حذف المحدد</button>
         </div>
       )}
 

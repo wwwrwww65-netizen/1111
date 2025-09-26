@@ -14,6 +14,9 @@ export default function AdminProducts(): JSX.Element {
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [total, setTotal] = React.useState(0);
   const q = trpc;
+  const [allChecked, setAllChecked] = React.useState(false);
+  const [toast, setToast] = React.useState<string>("");
+  const showToast = (m:string)=>{ setToast(m); setTimeout(()=>setToast(""), 1600); };
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(() => {
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -54,6 +57,7 @@ export default function AdminProducts(): JSX.Element {
         <a href="/products/new" className="btn">إضافة منتج</a>
       </div>
 
+      {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
       <div className="toolbar" style={{ marginBottom:12 }}>
         <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/sku" className="input" /></div>
         <button onClick={()=>{ setPage(1); load(); }} className="btn btn-md btn-outline">بحث</button>
@@ -65,7 +69,7 @@ export default function AdminProducts(): JSX.Element {
         <button className="btn btn-md danger" onClick={async ()=>{
           const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
           const r = await fetch(`/api/admin/products/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
-          if (r.ok) { setSelected({}); await load(); }
+          if (r.ok) { setSelected({}); setAllChecked(false); await load(); showToast('تم حذف العناصر المحددة'); }
           else {
             try { const j = await r.json(); alert(j?.error||'فشل حذف العناصر'); } catch { alert('فشل حذف العناصر'); }
           }
@@ -76,7 +80,7 @@ export default function AdminProducts(): JSX.Element {
         <table className="table">
           <thead>
             <tr>
-              <th></th>
+              <th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(p=> [p.id, v]))); }} /></th>
               <th style={{minWidth:160}}>ID</th>
               <th style={{minWidth:120}}>صورة</th>
               <th style={{minWidth:220}}>الاسم</th>
@@ -103,7 +107,7 @@ export default function AdminProducts(): JSX.Element {
                   <td>
                     <a href={`/products/${p.id}`} className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
                     <a href={`/products/new?id=${p.id}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
-                    <button onClick={async ()=>{ await fetch(`/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); await load(); }} className="btn btn-md">حذف</button>
+                    <button onClick={async ()=>{ const r=await fetch(`/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); if (r.ok){ showToast('تم الحذف'); } await load(); }} className="btn btn-md">حذف</button>
                   </td>
                 </tr>
               );

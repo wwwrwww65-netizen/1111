@@ -27,7 +27,7 @@ export function useIsMobile(breakpointPx: number = 980): boolean {
   return isMobile;
 }
 
-type ColumnDef<T> = { key: keyof T | string; title: string; minWidth?: number };
+type ColumnDef<T> = { key: keyof T | string; title: string | React.ReactNode; minWidth?: number };
 
 export function ResponsiveTable<T>({
   items,

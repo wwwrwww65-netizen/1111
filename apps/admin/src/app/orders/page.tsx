@@ -17,6 +17,9 @@ export default function OrdersPage(): JSX.Element {
   const [sortDir, setSortDir] = React.useState<'asc'|'desc'>('desc');
   const [rows, setRows] = React.useState<any[]>([]);
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [allChecked, setAllChecked] = React.useState(false);
+  const [toast, setToast] = React.useState<string>("");
+  const showToast = (m:string)=>{ setToast(m); setTimeout(()=>setToast(""), 1600); };
   const [total, setTotal] = React.useState(0);
   const [drivers, setDrivers] = React.useState<Array<{id:string;name:string}>>([]);
   const [busy, setBusy] = React.useState(false);
@@ -126,6 +129,7 @@ export default function OrdersPage(): JSX.Element {
   return (
     <>
     <main className="panel" style={{ padding:16 }}>
+      {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
         <h1 style={{ margin:0 }}>الطلبات</h1>
         <div style={{ display:'flex', gap:8 }}>
@@ -163,12 +167,12 @@ export default function OrdersPage(): JSX.Element {
           <option value="asc">تصاعدي</option>
         </select>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="btn" onClick={()=> bulk('ship')}>شحن المحدد</button>
+          <button className="btn" onClick={async ()=>{ await bulk('ship'); showToast('تم شحن المحدد'); }}>شحن المحدد</button>
           <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
           <button className="btn danger" onClick={async ()=>{
             const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
             const r = await fetch(`/api/admin/orders/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
-            if (r.ok) { setSelected({}); await load(); }
+            if (r.ok) { setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد'); }
             else { try { const j=await r.json(); alert(j?.error||'فشل الحذف'); } catch { alert('فشل الحذف'); } }
           }}>حذف المحدد</button>
         </div>
@@ -191,6 +195,7 @@ export default function OrdersPage(): JSX.Element {
         items={rows}
         isLoading={busy}
         columns={[
+          { key:'_sel', title:(<input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(o=> [o.id, v]))); }} />), minWidth:40 },
           { key:'id', title:'رقم الطلب', minWidth:160 },
           { key:'createdAt', title:'تاريخ', minWidth:120 },
           { key:'user', title:'العميل', minWidth:220 },
@@ -214,8 +219,8 @@ export default function OrdersPage(): JSX.Element {
               </div>
               <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                 <a href={`/orders/${o.id}`} className="btn btn-sm">عرض</a>
-                <button onClick={()=>ship(o.id)} className="btn btn-sm">شحن</button>
-                <button onClick={()=>refund(o.id)} className="btn btn-sm">استرداد</button>
+                <button onClick={async ()=>{ await ship(o.id); showToast('تم الشحن'); }} className="btn btn-sm">شحن</button>
+                <button onClick={async ()=>{ await refund(o.id); showToast('تم الاسترداد'); }} className="btn btn-sm">استرداد</button>
               </div>
             </div>
           );
@@ -223,6 +228,7 @@ export default function OrdersPage(): JSX.Element {
         renderRow={(o:any)=>{
           const shippingState = o.shipments?.[0]?.status || (o.status==='SHIPPED'?'IN_TRANSIT':o.status==='DELIVERED'?'DELIVERED':'-');
           return <>
+            <td><input type="checkbox" checked={!!selected[o.id]} onChange={()=> setSelected(s=> ({...s, [o.id]: !s[o.id]}))} /></td>
             <td><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{o.id}</a></td>
             <td>{new Date(o.createdAt).toLocaleString()}</td>
             <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
