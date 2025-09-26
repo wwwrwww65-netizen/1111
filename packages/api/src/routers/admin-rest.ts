@@ -3334,13 +3334,42 @@ adminRest.get('/shipping/rates', async (req, res) => {
   catch(e:any){ res.status(500).json({ ok:false, error:e.message||'rates_list_failed' }); }
 });
 adminRest.post('/shipping/rates', async (req, res) => {
-  const schema = z.object({ zoneId: z.string(), carrier: z.string().optional(), minWeightKg: z.number().optional(), maxWeightKg: z.number().optional(), baseFee: z.number(), perKgFee: z.number().optional(), minSubtotal: z.number().optional(), freeOverSubtotal: z.number().optional(), etaMinHours: z.number().int().optional(), etaMaxHours: z.number().int().optional(), offerTitle: z.string().optional(), activeFrom: z.string().datetime().optional(), activeUntil: z.string().datetime().optional(), isActive: z.boolean().default(true) });
-  try{ const data = schema.parse(req.body||{}); const rate = await db.deliveryRate.create({ data: { ...data, activeFrom: data.activeFrom? new Date(data.activeFrom): undefined, activeUntil: data.activeUntil? new Date(data.activeUntil): undefined } as any }); res.json({ ok:true, rate }); }
+  const schema = z.object({
+    zoneId: z.string(),
+    carrier: z.string().optional(),
+    minWeightKg: z.coerce.number().optional(),
+    maxWeightKg: z.coerce.number().optional(),
+    baseFee: z.coerce.number().min(0),
+    perKgFee: z.coerce.number().optional(),
+    minSubtotal: z.coerce.number().optional(),
+    freeOverSubtotal: z.coerce.number().optional(),
+    etaMinHours: z.coerce.number().int().optional(),
+    etaMaxHours: z.coerce.number().int().optional(),
+    offerTitle: z.string().optional(),
+    activeFrom: z.coerce.date().optional(),
+    activeUntil: z.coerce.date().optional(),
+    isActive: z.coerce.boolean().optional().default(true)
+  });
+  try{ const data = schema.parse(req.body||{}); const rate = await db.deliveryRate.create({ data }); res.json({ ok:true, rate }); }
   catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_create_failed' }); }
 });
 adminRest.put('/shipping/rates/:id', async (req, res) => {
-  const { id } = req.params; const schema = z.object({ carrier: z.string().optional(), minWeightKg: z.number().optional(), maxWeightKg: z.number().optional(), baseFee: z.number().optional(), perKgFee: z.number().optional(), minSubtotal: z.number().optional(), freeOverSubtotal: z.number().optional(), etaMinHours: z.number().int().optional(), etaMaxHours: z.number().int().optional(), offerTitle: z.string().optional(), activeFrom: z.string().datetime().optional(), activeUntil: z.string().datetime().optional(), isActive: z.boolean().optional() });
-  try{ const d = schema.parse(req.body||{}); const rate = await db.deliveryRate.update({ where:{ id }, data: { ...d, activeFrom: d.activeFrom? new Date(d.activeFrom): undefined, activeUntil: d.activeUntil? new Date(d.activeUntil): undefined } as any }); res.json({ ok:true, rate }); }
+  const { id } = req.params; const schema = z.object({
+    carrier: z.string().optional(),
+    minWeightKg: z.coerce.number().optional(),
+    maxWeightKg: z.coerce.number().optional(),
+    baseFee: z.coerce.number().optional(),
+    perKgFee: z.coerce.number().optional(),
+    minSubtotal: z.coerce.number().optional(),
+    freeOverSubtotal: z.coerce.number().optional(),
+    etaMinHours: z.coerce.number().int().optional(),
+    etaMaxHours: z.coerce.number().int().optional(),
+    offerTitle: z.string().optional(),
+    activeFrom: z.coerce.date().optional(),
+    activeUntil: z.coerce.date().optional(),
+    isActive: z.coerce.boolean().optional()
+  });
+  try{ const d = schema.parse(req.body||{}); const rate = await db.deliveryRate.update({ where:{ id }, data: d }); res.json({ ok:true, rate }); }
   catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_update_failed' }); }
 });
 adminRest.delete('/shipping/rates/:id', async (req, res) => {
