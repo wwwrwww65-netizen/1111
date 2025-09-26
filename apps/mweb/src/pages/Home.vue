@@ -16,7 +16,6 @@
         <div class="logo" :class="{ dark: scrolled }" aria-label="شعار المتجر">jeeey</div>
         <div class="header-right">
           <button class="icon-btn" aria-label="السلة" @click="go('/cart')"><ShoppingCart :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
-          <button class="icon-btn" aria-label="المفضلة" @click="go('/products?wish=1')"><Heart :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
           <button class="icon-btn" aria-label="البحث" @click="go('/search')"><Search :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
         </div>
       </div>
@@ -92,86 +91,76 @@
         </div>
       </section>
 
-      <section class="padX padY" aria-label="الأكثر مبيعاً">
-        <h2 class="h2">الأكثر مبيعاً</h2>
-        <div class="hscroll no-scrollbar row gap3">
-          <div v-for="p in bestSellers" :key="p.title" class="prodcard">
-            <div class="prodimg-wrap">
-              <img :src="p.image" :alt="p.title" class="prodimg" loading="lazy" />
-              <button class="favbtn" aria-label="أضف إلى المفضلة" @click="toggleWish(p)"><Heart :size="16" :color="hasWish(p)? '#ef4444':'#111'" :fill="hasWish(p)? '#ef4444':'transparent'"/></button>
-              <span v-if="p.coupon" class="coupon-badge">{{ p.coupon }}</span>
-            </div>
-            <div class="info">
-              <div class="brand">{{ p.brand }}</div>
-              <div class="title clamp2">{{ p.title }}</div>
-              <div class="row center gap1 rating">
-                <Star :size="12" color="#eab308" :fill="'#eab308'" aria-hidden="true" />
-                <span class="text11 text700">{{ p.rating.toFixed(1) }}</span>
-                <span class="text11 text600">({{ p.reviews.toLocaleString() }})</span>
+      <section class="padX padY" aria-label="عروض كبرى">
+        <h2 class="h2">عروض كبرى</h2>
+        <div class="overflow no-scrollbar snap-x-start simple-row">
+          <div class="simple-row-inner">
+            <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price">
+              <div class="borderbox">
+                <img :src="p.image" :alt="p.price" class="simple-img" loading="lazy" />
               </div>
-              <div class="row center gap2 price">
-                <span class="price-new">{{ p.price }}</span>
-              </div>
-              <div class="swatches">
-                <span class="sw" style="background:#000"></span>
-                <span class="sw" style="background:#c69c6d"></span>
-                <span class="sw" style="background:#fff;border:1px solid #d1d5db"></span>
-              </div>
-              <div class="badges">
-                <span class="badge">شحن مجاني</span>
-                <span class="badge">الدفع عند الاستلام</span>
-              </div>
-              <button class="mini-btn" aria-label="إضافة سريعة للسلة" @click="quickAdd(p)"><ShoppingCart :size="12"/> أضف</button>
-            </div>
+              <div class="mt-1"><span class="price-red">{{ p.price }}</span></div>
+            </button>
           </div>
         </div>
       </section>
 
-      <section class="padX padY" aria-label="الرائج الآن">
-        <h2 class="h2">الرائج الآن</h2>
-        <div class="hscroll no-scrollbar row gap3">
-          <div v-for="p in trendingNow" :key="p.title" class="gridcard" @click="openProduct(p)" aria-label="منتج">
-            <div class="gridimg-wrap"><img :src="p.image" :alt="p.title" class="gridimg" loading="lazy" /></div>
-            <div class="ginfo">
-              <div class="brand">{{ p.brand }}</div>
-              <div class="title clamp2">{{ p.title }}</div>
-              <div class="row center gap1 rating">
-                <Star :size="12" color="#eab308" :fill="'#eab308'" />
-                <span class="text11 text700">{{ p.rating.toFixed(1) }}</span>
-                <span class="text11 text600">({{ p.reviews.toLocaleString() }})</span>
+      <section class="padX padY" aria-label="أهم الترندات">
+        <h2 class="h2">أهم الترندات</h2>
+        <div class="overflow no-scrollbar snap-x-start simple-row">
+          <div class="simple-row-inner">
+            <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price">
+              <div class="borderbox">
+                <img :src="p.image" :alt="p.price" class="simple-img" loading="lazy" />
               </div>
-              <div class="row center gap2 price">
-                <span class="price-new">{{ p.price }}</span>
-                <span v-if="p.oldPrice" class="price-old">{{ p.oldPrice }}</span>
-              </div>
-              <div class="swatches">
-                <span class="sw" style="background:#000"></span>
-                <span class="sw" style="background:#c69c6d"></span>
-                <span class="sw" style="background:#fff;border:1px solid #d1d5db"></span>
-              </div>
-              <div class="badges">
-                <span class="badge">شحن مجاني</span>
-                <span class="badge">الدفع عند الاستلام</span>
-              </div>
-            </div>
+              <div class="mt-1"><span class="price-red">{{ p.price }}</span></div>
+            </button>
           </div>
         </div>
       </section>
 
       <section class="padX padY" aria-label="من أجلك">
         <h2 class="h2">من أجلك</h2>
-        <div class="grid2 gap3">
-          <div v-for="p in forYou" :key="p.title" class="gridcard" @click="openProduct(p)">
-            <div class="gridimg-wrap"><img :src="p.image" :alt="p.title" class="gridimg" loading="lazy" /></div>
-            <div class="ginfo">
-              <div class="brand">{{ p.brand }}</div>
-              <div class="title clamp2">{{ p.title }}</div>
-              <div class="row center gap1 rating">
-                <span class="text11 text700">{{ p.rating.toFixed(1) }}</span>
-                <span class="text11 text600">({{ p.reviews.toLocaleString() }})</span>
+        <div class="masonry mt0">
+          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="masonry-item">
+            <div class="cardbox">
+              <div class="imgwrap" :class="p.imageAspect">
+                <img :src="p.image" :alt="p.title" class="absimg" loading="lazy" />
+                <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="colorstack">
+                  <div class="colorcol">
+                    <span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="clr" :style="{ background: c }"></span>
+                    <span v-if="typeof p.colorCount==='number'" class="clrcount">{{ p.colorCount }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="row center gap2 price">
-                <span class="price-new">{{ p.price }}</span>
+              <div v-if="p.overlayBannerSrc" class="bannerbar">
+                <img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="bannerimg" loading="lazy" />
+              </div>
+              <div class="contentbox">
+                <div class="inlinechip">
+                  <button class="chip trend">ترندات</button>
+                  <button class="chip store" :aria-label="'رموز متجر '+(p.brand||'')">
+                    <Store :size="14" color="#6D28D9" :stroke-width="2" />
+                    <span class="brandtxt">{{ p.brand||'' }}</span>
+                    <span class="caret">&gt;</span>
+                  </button>
+                </div>
+                <div class="row gap1 mt2">
+                  <div v-if="typeof p.discountPercent==='number'" class="disc">-%{{ p.discountPercent }}</div>
+                  <div class="prodtitle">{{ p.title }}</div>
+                </div>
+                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="bestrow">
+                  <div v-if="typeof p.bestRank==='number'" class="bestrank">#{{ p.bestRank }} الأفضل مبيعاً</div>
+                  <button v-if="p.bestRankCategory" class="bestcat" :aria-label="'اذهب إلى الفئة '+p.bestRankCategory">
+                    <span>في {{ p.bestRankCategory }}</span><span>&gt;</span>
+                  </button>
+                </div>
+                <div v-if="p.basePrice || p.soldPlus" class="pricerow">
+                  <span v-if="p.basePrice" class="price-red">{{ p.basePrice }} ريال</span>
+                  <span v-if="p.soldPlus" class="soldtxt">{{ p.soldPlus }}</span>
+                </div>
+                <button v-if="p.basePrice || p.soldPlus" class="addbtn" aria-label="أضف إلى السلة"><ShoppingCart :size="16" class="addicon" /><span class="addqty">1+</span></button>
+                <div v-if="p.couponPrice" class="couponrow"><span class="couponnew">{{ p.couponPrice }} ريال</span><span class="coupontext">/بعد الكوبون</span></div>
               </div>
             </div>
           </div>
@@ -235,9 +224,24 @@ const promoTiles = reactive([
 const midPromo = reactive({ image: 'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', alt: 'عرض منتصف الصفحة', text: 'قسائم إضافية + شحن مجاني' })
 
 const categories = ref<Cat[]>([])
-const bestSellers = ref<Prod[]>([])
-const trendingNow = ref<Prod[]>([])
-const forYou = ref<Prod[]>([])
+const bigDeals = ref<Array<{ image:string; price:string }>>([
+  { image: 'https://csspicker.dev/api/image/?q=black+midi+dress&image_type=photo', price: '179.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=brown+dress+model&image_type=photo', price: '179.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=white+dress&image_type=photo', price: '179.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=black+sleeveless+dress&image_type=photo', price: '179.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=beige+skirt&image_type=photo', price: '95.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=pink+top&image_type=photo', price: '48.00 ر.س' }
+])
+const hotTrends = ref<Array<{ image:string; price:string }>>([
+  { image: 'https://csspicker.dev/api/image/?q=black+skirt&image_type=photo', price: '66.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=white+blouse&image_type=photo', price: '95.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=white+summer+dress&image_type=photo', price: '159.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=black+blouse&image_type=photo', price: '79.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=leather+handbag&image_type=photo', price: '129.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=white+sneakers&image_type=photo', price: '139.00 ر.س' }
+])
+type ForYouShein = { image:string; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
+const forYouShein = ref<ForYouShein[]>([])
 
 function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0-9.]/g,'')); return isFinite(n)? n : 0 }
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
@@ -265,32 +269,12 @@ onMounted(async ()=>{
     ]
   }
 
-  const bs = await apiGet<any>('/api/products?sort=best&limit=12')
-  bestSellers.value = Array.isArray(bs?.items) ? bs.items.map(toProd) : [
-    { title:'MOTF Premium Collection — فستان أسود', image:'https://csspicker.dev/api/image/?q=black+midi+dress&image_type=photo', price:'179.00 ر.س', rating:4.8, reviews:1260, brand:'SHEIN' },
-    { title:'فستان بني راقٍ', image:'https://csspicker.dev/api/image/?q=brown+dress+model&image_type=photo', price:'179.00 ر.س', rating:4.7, reviews:980, brand:'MOTF' },
-    { title:'فستان أبيض كلاسيكي', image:'https://csspicker.dev/api/image/?q=white+dress&image_type=photo', price:'179.00 ر.س', rating:4.7, reviews:1120, brand:'SHEIN' },
-    { title:'فستان بلا أكمام أسود', image:'https://csspicker.dev/api/image/?q=black+sleeveless+dress&image_type=photo', price:'179.00 ر.س', rating:4.6, reviews:870, brand:'SHEIN' },
-  ]
-
-  const tr = await apiGet<any>('/api/products?sort=trending&limit=12')
-  trendingNow.value = Array.isArray(tr?.items) ? tr.items.map((p:any)=> ({ ...toProd(p), oldPrice: p.original? (p.original+' ر.س'): undefined, coupon: p.discountPercent? `-${p.discountPercent}%`: undefined })) : [
-    { title:'تنورة كاجوال', image:'https://csspicker.dev/api/image/?q=beige+skirt&image_type=photo', price:'95.00 ر.س', oldPrice:'129.00 ر.س', rating:4.5, reviews:640, coupon:'-25%', brand:'SHEIN' },
-    { title:'بلوزة وردية', image:'https://csspicker.dev/api/image/?q=pink+top&image_type=photo', price:'48.00 ر.س', rating:4.6, reviews:720, brand:'SHEIN' },
-    { title:'تنورة سوداء', image:'https://csspicker.dev/api/image/?q=black+skirt&image_type=photo', price:'66.00 ر.س', rating:4.4, reviews:410, brand:'SHEIN' },
-    { title:'بلوزة بيضاء', image:'https://csspicker.dev/api/image/?q=white+blouse&image_type=photo', price:'95.00 ر.س', rating:4.5, reviews:520, brand:'SHEIN' },
-  ]
-
-  const fy = await apiGet<any>('/api/products?sort=reco&limit=8')
-  forYou.value = Array.isArray(fy?.items) ? fy.items.map(toProd) : [
-    { title:'فستان أبيض أنيق', image:'https://csspicker.dev/api/image/?q=white+summer+dress&image_type=photo', price:'159.00 ر.س', rating:4.6, reviews:440, brand:'SHEIN' },
-    { title:'بلوزة سوداء كلاسيكية', image:'https://csspicker.dev/api/image/?q=black+blouse&image_type=photo', price:'79.00 ر.س', rating:4.5, reviews:350, brand:'SHEIN' },
-    { title:'تنورة بنية متوسطة', image:'https://csspicker.dev/api/image/?q=brown+skirt&image_type=photo', price:'99.00 ر.س', rating:4.4, reviews:220, brand:'SHEIN' },
-    { title:'قميص رجالي بسيط', image:'https://csspicker.dev/api/image/?q=men+white+shirt&image_type=photo', price:'69.00 ر.س', rating:4.3, reviews:310, brand:'SHEIN' },
-    { title:'حقيبة يد جلدية', image:'https://csspicker.dev/api/image/?q=leather+handbag&image_type=photo', price:'129.00 ر.س', rating:4.7, reviews:590, brand:'SHEIN' },
-    { title:'حذاء رياضي أبيض', image:'https://csspicker.dev/api/image/?q=white+sneakers&image_type=photo', price:'139.00 ر.س', rating:4.6, reviews:760, brand:'SHEIN' },
-    { title:'عقد ذهبي رفيع', image:'https://csspicker.dev/api/image/?q=gold+necklace&image_type=photo', price:'49.00 ر.س', rating:4.4, reviews:180, brand:'SHEIN' },
-    { title:'تنورة سوداء قصيرة', image:'https://csspicker.dev/api/image/?q=short+black+skirt&image_type=photo', price:'89.00 ر.س', rating:4.5, reviews:410, brand:'SHEIN' },
+  // Build ForYou section in SHEIN style (static placeholders for now, wired to API later)
+  forYouShein.value = [
+    { image:'https://csspicker.dev/api/image/?q=black+dress+model&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'COSMINA ملابس علوية كا ...', brand:'COSMINA', discountPercent:25, bestRank:4, bestRankCategory:'أنيق قمم نسائية', basePrice:'21.06', soldPlus:'تم بيع 100+', couponPrice:'16.85', colors:['#111111','#6B7280','#EEE5D4','#F9A8D4'], colorCount:9, imageAspect:'aspect-[4/5]' },
+    { image:'https://csspicker.dev/api/image/?q=sleeveless+top+black+white&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'بلوزة نسائية بدون كم، خصر مرتفع', brand:'Frierie CURVE', discountPercent:76, basePrice:'120.00', soldPlus:'تم بيع 410+', couponPrice:'29.00', colors:['#000000','#FFFFFF','#A3A3A3','#FECACA'], colorCount:6, imageAspect:'aspect-[5/4]' },
+    { image:'https://csspicker.dev/api/image/?q=casual+shirt+dazy&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'قميص بجيوب نسائي بسيط', brand:'Dazy', basePrice:'120.00', couponPrice:'69.00', colors:['#FFFFFF','#9CA3AF','#E5E7EB','#FDE68A'], colorCount:3, imageAspect:'aspect-[3/4]' },
+    { image:'https://csspicker.dev/api/image/?q=white+outfit+woman+outdoor&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'إطلالة أنيقة بيضاء', basePrice:'159.00', colors:['#FFFFFF','#F3F4F6','#D1D5DB','#A7F3D0'], colorCount:5, imageAspect:'aspect-[3/4]' }
   ]
 })
 
@@ -311,6 +295,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .maxwrap{max-width:768px;margin:0 auto}
 .padX{padding-inline:12px}
 .padY{padding-block:12px}
+.mt0{margin-top:0}
 .mb2{margin-bottom:8px}
 .gap1{gap:4px}
 .gap2{gap:8px}
@@ -364,6 +349,14 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .tile-img{position:absolute;right:0;top:0;width:64px;height:100%;object-fit:cover;opacity:.9}
 .tile-text{position:absolute;inset:0;right:72px;left:8px;display:flex;flex-direction:column;justify-content:center}
 
+/* Simple tiles (image + price) */
+.simple-row{--visible:4.15;--gap:6px}
+.simple-row-inner{display:flex;gap:var(--gap)}
+.simple-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
+.borderbox{border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
+.simple-img{width:100%;aspect-ratio:255/192;object-fit:cover}
+.price-red{color:#dc2626;font-weight:700;font-size:13px}
+
 .midpromo{width:100%;height:90px;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;position:relative;background:#fff}
 .mid-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .mid-overlay{position:absolute;inset:0;background:rgba(0,0,0,.1)}
@@ -394,11 +387,39 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .badges{margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .badge{display:inline-block;font-size:10px;color:#374151;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 6px}
 
-.grid2{display:grid;grid-template-columns:1fr 1fr}
-.gridcard{cursor:pointer}
-.gridimg-wrap{border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
-.gridimg{width:100%;aspect-ratio:3/4;object-fit:cover}
-.ginfo{margin-top:6px}
+/* Masonry For You */
+.masonry{column-count:2;column-gap:6px}
+.masonry-item{break-inside:avoid;margin-bottom:6px;display:inline-block;width:100%}
+.cardbox{width:100%;border:1px solid #e5e7eb;border-radius:4px;background:#fff;overflow:hidden}
+.imgwrap{position:relative;width:100%}
+.absimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.colorstack{position:absolute;bottom:8px;right:8px;display:flex;align-items:center}
+.colorcol{display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,0,0,.4);padding:2px;border-radius:999px}
+.clr{width:12px;height:12px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
+.clrcount{margin-top:2px;font-size:9px;font-weight:600;padding:0 4px;border-radius:999px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.05)}
+.bannerbar{width:100%;height:28px;position:relative}
+.bannerimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.contentbox{position:relative;padding:8px}
+.inlinechip{display:inline-flex;align-items:center;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden}
+.chip{display:inline-flex;align-items:center;padding:0 6px;height:18px;font-size:11px}
+.chip.trend{color:#fff;background:#6D28D9}
+.chip.store{background:#F3F4F6;color:#6D28D9}
+.brandtxt{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.caret{color:#6D28D9;margin-inline-start:2px}
+.mt2{margin-top:6px}
+.disc{padding:0 4px;height:16px;border-radius:3px;font-size:11px;font-weight:700;border:1px solid #FB923C;color:#F97316;display:flex;align-items:center;line-height:1.1}
+.prodtitle{font-size:12px;color:#111827;font-weight:500;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bestrow{margin-top:4px;display:inline-flex;align-items:stretch;border-radius:4px;overflow:hidden}
+.bestrank{padding:0 4px;font-size:9px;font-weight:600;display:flex;align-items:center;line-height:1.1;background:rgb(255,232,174);color:#c77210}
+.bestcat{padding:0 4px;font-size:9px;font-weight:700;display:flex;align-items:center;gap:4px;line-height:1.1;background:rgba(254,243,199,.2);color:#d58700;border:0}
+.pricerow{margin-top:4px;display:flex;align-items:center;gap:6px}
+.soldtxt{font-size:11px;color:#374151}
+.addbtn{position:absolute;left:8px;bottom:24px;display:flex;align-items:center;gap:4px;padding:2px 6px;border-radius:999px;border:1px solid #000;background:#fff}
+.addicon{color:#000}
+.addqty{font-size:11px;font-weight:700;color:#000}
+.couponrow{margin-top:4px;height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:3px;background:rgba(249,115,22,.10)}
+.couponnew{font-size:13px;font-weight:800;color:#F97316}
+.coupontext{font-size:11px;color:#F97316}
 
 .bottomnav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #e5e7eb;z-index:50}
 .navwrap{display:flex;justify-content:space-around;padding:8px 0}
