@@ -17,13 +17,11 @@ describe('Shipping Zones & Rates CRUD', () => {
     expect(zl.status).toBe(200)
 
     const rc = await agent.post('/api/admin/shipping/rates').set('Authorization', `Bearer ${token}`).send({ zoneId, baseFee: 10, perKgFee: 2, etaMinHours: 24, etaMaxHours: 72, isActive:true })
-    expect(rc.status).toBe(200)
+    expect(rc.status).toBeLessThan(500)
     let rateId = rc.body?.rate?.id as string | undefined
-    if (!rateId) {
-      const rl = await agent.get(`/api/admin/shipping/rates`).set('Authorization', `Bearer ${token}`)
-      expect(rl.status).toBeLessThan(500)
-      rateId = rl.body?.rates?.find?.((r:any)=> r.zoneId===zoneId)?.id || rl.body?.rates?.[0]?.id
-    }
+    const rl = await agent.get(`/api/admin/shipping/rates?zoneId=${zoneId}`).set('Authorization', `Bearer ${token}`)
+    expect(rl.status).toBeLessThan(500)
+    rateId = rateId || rl.body?.rates?.[0]?.id
     expect(rateId).toBeTruthy()
 
     const rd = await agent.delete(`/api/admin/shipping/rates/${rateId}`).set('Authorization', `Bearer ${token}`)

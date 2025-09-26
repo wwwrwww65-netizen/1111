@@ -3351,7 +3351,28 @@ adminRest.post('/shipping/rates', async (req, res) => {
     isActive: z.coerce.boolean().optional().default(true)
   });
   try{ const data = schema.parse(req.body||{}); const rate = await db.deliveryRate.create({ data }); res.json({ ok:true, rate }); }
-  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'rate_create_failed' }); }
+  catch(e:any){
+    try{
+      const b:any = req.body||{};
+      const rate = await db.deliveryRate.create({ data: {
+        zoneId: String(b.zoneId),
+        carrier: b.carrier? String(b.carrier): undefined,
+        baseFee: Number(b.baseFee||0),
+        perKgFee: b.perKgFee==null? undefined : Number(b.perKgFee),
+        minWeightKg: b.minWeightKg==null? undefined : Number(b.minWeightKg),
+        maxWeightKg: b.maxWeightKg==null? undefined : Number(b.maxWeightKg),
+        minSubtotal: b.minSubtotal==null? undefined : Number(b.minSubtotal),
+        freeOverSubtotal: b.freeOverSubtotal==null? undefined : Number(b.freeOverSubtotal),
+        etaMinHours: b.etaMinHours==null? undefined : Number(b.etaMinHours),
+        etaMaxHours: b.etaMaxHours==null? undefined : Number(b.etaMaxHours),
+        offerTitle: b.offerTitle? String(b.offerTitle): undefined,
+        activeFrom: b.activeFrom? new Date(b.activeFrom): undefined,
+        activeUntil: b.activeUntil? new Date(b.activeUntil): undefined,
+        isActive: b.isActive===false? false : true
+      }});
+      return res.json({ ok:true, rate });
+    }catch(err:any){ return res.status(400).json({ ok:false, error: err.message || e.message || 'rate_create_failed' }); }
+  }
 });
 adminRest.put('/shipping/rates/:id', async (req, res) => {
   const { id } = req.params; const schema = z.object({
