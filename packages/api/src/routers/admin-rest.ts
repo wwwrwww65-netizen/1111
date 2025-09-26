@@ -4032,10 +4032,32 @@ adminRest.get('/products', async (req, res) => {
   if (status === 'active') where.isActive = true;
   if (status === 'archived') where.isActive = false;
   if (suggest) {
-    const items = await db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit + 1, select: { id: true, name: true, price: true, images: true, isActive:true, sku:true, stockQuantity:true } });
+    const afterId = (req.query.afterId as string | undefined) || undefined;
+    const afterCreated = (req.query.afterCreated as string | undefined) ? new Date(String(req.query.afterCreated)) : undefined;
+    const orderBy = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
+    let items;
+    if (afterCreated) {
+      items = await db.product.findMany({
+        where: {
+          AND: [where, {
+            OR: [
+              { createdAt: { lt: afterCreated } },
+              { AND: [ { createdAt: { equals: afterCreated } }, { id: { lt: (afterId||'') } } ] }
+            ]
+          }]
+        },
+        orderBy,
+        take: limit + 1,
+        select: { id:true, name:true, price:true, images:true, isActive:true, sku:true, stockQuantity:true, createdAt:true }
+      });
+    } else {
+      items = await db.product.findMany({ where, orderBy, take: limit + 1, select: { id:true, name:true, price:true, images:true, isActive:true, sku:true, stockQuantity:true, createdAt:true } });
+    }
     const hasMore = items.length > limit;
     const slice = hasMore ? items.slice(0, limit) : items;
-    return res.json({ products: slice, pagination: { page, limit, total: null, totalPages: null, hasMore } });
+    const next = hasMore ? items[limit] : null;
+    const nextCursor = next ? { id: next.id, createdAt: next.createdAt } : null;
+    return res.json({ products: slice, pagination: { hasMore, nextCursor } });
   }
   const [products, total] = await Promise.all([
     db.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id:true, name:true, price:true, images:true, stockQuantity:true, isActive:true, sku:true, variants: { select: { stockQuantity:true } }, category: { select: { id: true, name: true} } } }),

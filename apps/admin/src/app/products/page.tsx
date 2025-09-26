@@ -14,6 +14,7 @@ export default function AdminProducts(): JSX.Element {
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [total, setTotal] = React.useState<number|null>(0);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
+  const [nextCursor, setNextCursor] = React.useState<{id:string; createdAt:string}|null>(null);
   const q = trpc;
   const [allChecked, setAllChecked] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
@@ -38,10 +39,12 @@ export default function AdminProducts(): JSX.Element {
     if (categoryId) url.searchParams.set('categoryId', categoryId);
     // request lean payload for faster first paint
     url.searchParams.set('suggest','1');
+    if (nextCursor && page>1) { url.searchParams.set('afterId', nextCursor.id); url.searchParams.set('afterCreated', nextCursor.createdAt); }
     const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal })).json();
     setRows(j.products||[]);
     setTotal(j.pagination?.total?? null);
     setHasMore(Boolean(j.pagination?.hasMore));
+    setNextCursor(j.pagination?.nextCursor||null);
   }
   React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
   React.useEffect(()=>{
