@@ -75,6 +75,12 @@ export default function AdminProductCreate(): JSX.Element {
     return s.trim();
   }
 
+  function toLatinDigitsStr(input: string): string {
+    return String(input||'')
+      .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
+      .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)));
+  }
+
   function detectCurrency(raw: string): string | undefined {
     const m = raw.match(/(﷼|ر\.س|SAR|ريال|درهم|AED|USD|\$|ج\.م|EGP|KWD|QR)/i);
     return m ? m[1] : undefined;
@@ -297,7 +303,14 @@ export default function AdminProductCreate(): JSX.Element {
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
-          const low = Number(analyzed?.price_range?.value?.low);
+          let low = Number(analyzed?.price_range?.value?.low);
+          if (!(Number.isFinite(low) && low >= 50)) {
+            const m = toLatinDigitsStr(paste).match(/(?:السعر\s*للشمال|السعرللشمال|للشمال|الشمال)[^\n\r]*?(\d+[\.,٬٫]?\d*)/i);
+            if (m) {
+              const v = Number(String(m[1]).replace(/[٬٫,]/g,'.'));
+              if (Number.isFinite(v) && v >= 50) low = v;
+            }
+          }
           if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
         } else { throw new Error('analyze_failed'); }
       } catch {
