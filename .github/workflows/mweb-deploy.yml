@@ -60,18 +60,18 @@ jobs:
 
       - name: Create release dir on VPS (native ssh)
         run: |
-          set -e
+          set -ex
           DEPLOY_PATH="${{ env.MWEB_PATH }}"
-          ssh -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "mkdir -p '$DEPLOY_PATH/releases/${GITHUB_SHA}'"
+          ssh -vvv -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "set -ex; mkdir -p '$DEPLOY_PATH/releases/${GITHUB_SHA}'"
 
       - name: Upload build to VPS (scp)
         run: |
-          set -e
-          scp -o StrictHostKeyChecking=no -P "${{ env.DEPLOY_PORT }}" -r apps/mweb/dist/* "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.MWEB_PATH }}/releases/${GITHUB_SHA}/"
+          set -ex
+          scp -v -o ConnectTimeout=10 -o StrictHostKeyChecking=no -P "${{ env.DEPLOY_PORT }}" -r apps/mweb/dist/* "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.MWEB_PATH }}/releases/${GITHUB_SHA}/"
 
       - name: Activate release (native ssh)
         run: |
-          set -e
+          set -ex
           DEPLOY_PATH="${{ env.MWEB_PATH }}"
-          ssh -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "set -e; ln -sfn '$DEPLOY_PATH/releases/${GITHUB_SHA}' '$DEPLOY_PATH/current'; ls -1dt '$DEPLOY_PATH'/releases/* | tail -n +6 | xargs -r rm -rf; (command -v sudo >/dev/null && sudo -n systemctl reload nginx) || true"
+          ssh -vvv -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "set -ex; ln -sfn '$DEPLOY_PATH/releases/${GITHUB_SHA}' '$DEPLOY_PATH/current'; ls -1dt '$DEPLOY_PATH'/releases/* | tail -n +6 | xargs -r rm -rf; (command -v sudo >/dev/null && sudo -n systemctl reload nginx) || true"
 
