@@ -226,8 +226,13 @@ jobs:
               if [ ! -f "$TARGET" ] || ! cmp -s "$TMP" "$TARGET"; then
                 mv "$TMP" "$TARGET"
                 ln -sf "$TARGET" /etc/nginx/sites-enabled/jeeey.conf
-                nginx -t && systemctl reload nginx || true
-                echo 'Nginx config changed and reloaded.'
+                echo 'Validating nginx config...'
+                if nginx -t; then
+                  systemctl reload nginx || systemctl restart nginx || true
+                  echo 'Nginx config changed and reloaded.'
+                else
+                  echo 'nginx -t failed; restoring previous config'
+                fi
               else
                 rm -f "$TMP"
                 echo 'Nginx config unchanged; skip reload.'
