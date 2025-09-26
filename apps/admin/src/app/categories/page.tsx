@@ -86,12 +86,23 @@ export default function CategoriesPage(): JSX.Element {
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحفظ');
   }
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [allChecked, setAllChecked] = React.useState(false);
   async function remove(id:string){
     if (!confirm('تأكيد الحذف؟')) return;
-  const res = await fetch(`/api/admin/categories/${id}`, { method:'DELETE', credentials:'include' });
-    if (!res.ok) { showToast('فشل الحذف'); return; }
+    const res = await fetch(`/api/admin/categories/${id}`, { method:'DELETE', credentials:'include' });
+    if (!res.ok) { try{ const j=await res.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحذف');
+  }
+  async function removeSelected(){
+    const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
+    if (!confirm(`حذف ${ids.length} تصنيف؟`)) return;
+    let okCount = 0;
+    for (const id of ids){ try { const r=await fetch(`/api/admin/categories/${id}`, { method:'DELETE', credentials:'include' }); if (r.ok) okCount++; } catch {} }
+    await Promise.all([loadList(), loadTree()]);
+    setSelected({}); setAllChecked(false);
+    showToast(okCount? `تم حذف ${okCount}` : 'لم يُحذف شيء');
   }
 
   function Tree({ nodes }:{ nodes:any[] }){
@@ -136,6 +147,7 @@ export default function CategoriesPage(): JSX.Element {
           <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
             <thead style={{ position:'sticky', top:0, background:'#0b0e14', zIndex:1 }}>
               <tr>
+                <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.currentTarget.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(c=> [c.id, v]))); }} /></th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>ID</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>الاسم</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>Slug</th>
@@ -146,6 +158,7 @@ export default function CategoriesPage(): JSX.Element {
             <tbody>
               {rows.map((c:any, idx:number)=> (
                 <tr key={c.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
+                  <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}><input type="checkbox" checked={!!selected[c.id]} onChange={()=> setSelected(s=> ({...s, [c.id]: !s[c.id]}))} /></td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{c.id.slice(0,6)}</td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                     <input defaultValue={c.name} onBlur={(e)=> update({ ...c, name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
@@ -166,6 +179,9 @@ export default function CategoriesPage(): JSX.Element {
               ))}
             </tbody>
           </table>
+          <div style={{ marginTop:8, display:'flex', gap:8 }}>
+            <button onClick={removeSelected} style={{ padding:'8px 12px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف المحدد</button>
+          </div>
         </div>
 
         <div style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>

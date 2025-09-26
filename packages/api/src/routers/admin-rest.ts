@@ -4468,9 +4468,10 @@ adminRest.delete('/categories/:id', async (req, res) => {
   // Re-parent children to null and detach products if FK exists
   await db.category.updateMany({ where: { parentId: id }, data: { parentId: null } });
   try { await db.$executeRawUnsafe('UPDATE "Product" SET "categoryId"=NULL WHERE "categoryId"=$1', id as any); } catch {}
-  await db.category.delete({ where: { id } });
+  try { await db.category.delete({ where: { id } }); }
+  catch(e:any){ return res.status(400).json({ ok:false, code:'category_delete_failed', error: e.message||'category_delete_failed' }); }
   await audit(req, 'categories', 'delete', { id });
-  res.json({ success: true });
+  res.json({ ok:true, success: true });
 });
 adminRest.post('/backups/run', async (_req, res) => {
   // Enforce 30-day retention before creating a new backup

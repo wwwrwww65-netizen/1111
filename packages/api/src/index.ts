@@ -101,7 +101,8 @@ async function ensureSchema(): Promise<void> {
       'translations JSONB',
       'sortOrder INTEGER DEFAULT 0',
       'image TEXT',
-      'parentId TEXT'
+      'parentId TEXT',
+      'isActive BOOLEAN DEFAULT TRUE'
     ]) {
       try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
     }
