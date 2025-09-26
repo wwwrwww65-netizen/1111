@@ -678,6 +678,44 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+// Shipping Zones and Delivery Rates
+model ShippingZone {
+  id            String   @id @default(cuid())
+  name          String
+  countryCodes  String[]         // e.g., ["SA", "AE"]
+  regions       Json?            // optional: governorates/provinces
+  cities        Json?            // optional: cities list or patterns
+  areas         Json?            // optional: districts/areas
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rates         DeliveryRate[]
+}
+
+model DeliveryRate {
+  id               String   @id @default(cuid())
+  zoneId           String
+  zone             ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  carrier          String?
+  minWeightKg      Float?
+  maxWeightKg      Float?
+  baseFee          Float
+  perKgFee         Float?
+  minSubtotal      Float?
+  freeOverSubtotal Float?
+  etaMinHours      Int?
+  etaMaxHours      Int?
+  offerTitle       String?
+  activeFrom       DateTime?
+  activeUntil      DateTime?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([zoneId, isActive])
+}
+
 // Events for Recommendations & Trends
 model Event {
   id        String   @id @default(cuid())
