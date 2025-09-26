@@ -116,6 +116,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     title: 'التقارير والتحليلات',
     items: [
       { href: '/analytics', label: 'التحليلات' },
+      { href: '/system/analytics', label: 'إحصاءات النظام' },
     ],
   },
   {

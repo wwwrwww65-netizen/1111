@@ -1,0 +1,109 @@
+"use client";
+import React from 'react';
+
+type TabKey = 'overview'|'top'|'funnels'|'segments';
+
+export default function SystemAnalyticsPage(): JSX.Element {
+  const [tab, setTab] = React.useState<TabKey>('overview');
+  const [from, setFrom] = React.useState<string>('');
+  const [to, setTo] = React.useState<string>('');
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [kpis, setKpis] = React.useState<any>({});
+  const [top, setTop] = React.useState<any[]>([]);
+  const [funnel, setFunnel] = React.useState<any>({});
+  const [segments, setSegments] = React.useState<any>({});
+
+  async function load(){
+    setLoading(true); setError('');
+    try{
+      const qs = (from||to)? `?from=${encodeURIComponent(from||'')}&to=${encodeURIComponent(to||'')}` : '';
+      const [a, t, f, s] = await Promise.all([
+        fetch(`/api/admin/analytics${qs}`, { credentials:'include' }).then(r=>r.json()),
+        fetch(`/api/admin/analytics/top-products${qs}`, { credentials:'include' }).then(r=>r.json()),
+        fetch(`/api/admin/analytics/funnels${qs}`, { credentials:'include' }).then(r=>r.json()),
+        fetch(`/api/admin/analytics/segments${qs}`, { credentials:'include' }).then(r=>r.json()),
+      ]);
+      if (a.ok) setKpis(a.kpis||{}); else setError(a.error||'failed');
+      if (t.ok) setTop(t.items||[]);
+      if (f.ok) setFunnel(f.funnel||{});
+      if (s.ok) setSegments(s.segments||{});
+    }catch{ setError('network'); }
+    finally{ setLoading(false); }
+  }
+  React.useEffect(()=>{ load(); }, []);
+
+  return (
+    <div className="container">
+      <main className="panel" style={{ padding:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h1 style={{ margin:0 }}>الإحصاءات (النظام)</h1>
+          <div className="toolbar" style={{ display:'flex', gap:8 }}>
+            <input type="datetime-local" value={from} onChange={(e)=> setFrom(e.target.value)} className="input" />
+            <input type="datetime-local" value={to} onChange={(e)=> setTo(e.target.value)} className="input" />
+            <button onClick={load} className="btn btn-outline">تصفية</button>
+          </div>
+        </div>
+        <div style={{ marginTop:12, display:'flex', gap:8 }} role="tablist" aria-label="تبويبات الإحصاءات">
+          <button role="tab" aria-selected={tab==='overview'} onClick={()=> setTab('overview')} className={`btn ${tab==='overview'?'':'btn-outline'}`}>نظرة عامة</button>
+          <button role="tab" aria-selected={tab==='top'} onClick={()=> setTab('top')} className={`btn ${tab==='top'?'':'btn-outline'}`}>الأعلى مبيعاً</button>
+          <button role="tab" aria-selected={tab==='funnels'} onClick={()=> setTab('funnels')} className={`btn ${tab==='funnels'?'':'btn-outline'}`}>مسارات التحويل</button>
+          <button role="tab" aria-selected={tab==='segments'} onClick={()=> setTab('segments')} className={`btn ${tab==='segments'?'':'btn-outline'}`}>الشرائح</button>
+        </div>
+
+        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 240 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
+          <section style={{ marginTop:12 }}>
+            {tab==='overview' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12 }}>
+                <Card label="المستخدمون" value={kpis.users ?? '-'} />
+                <Card label="نشطون" value={kpis.usersActive ?? '-'} />
+                <Card label="الطلبات" value={kpis.orders ?? '-'} />
+                <Card label="الإيرادات" value={kpis.revenue ?? '-'} />
+                <Card label="مشاهدات الصفحات" value={kpis.pageViews ?? '-'} />
+              </div>
+            )}
+            {tab==='top' && (
+              <div style={{ display:'grid', gap:8 }}>
+                {top.map((it)=> (
+                  <div key={it.productId} className="panel" style={{ padding:10, display:'flex', alignItems:'center', gap:10 }}>
+                    <img src={(it.product?.images?.[0]||'').toString()} alt={it.product?.name||''} style={{ width:42, height:42, objectFit:'cover', borderRadius:8 }} />
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:600 }}>{it.product?.name||it.productId}</div>
+                      <div style={{ color:'var(--sub)', fontSize:12 }}>الكمية: {it.qty}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tab==='funnels' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12 }}>
+                <Card label="جلسات" value={funnel.sessions ?? '-'} />
+                <Card label="إضافة للسلة" value={funnel.addToCart ?? '-'} />
+                <Card label="الدفع" value={funnel.checkouts ?? '-'} />
+                <Card label="مشتريات" value={funnel.purchased ?? '-'} />
+              </div>
+            )}
+            {tab==='segments' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12 }}>
+                <Card label="عدد المستخدمين" value={segments.totalUsers ?? '-'} />
+                <Card label="جدد (30يوم)" value={segments.newUsers30d ?? '-'} />
+                <Card label="سلال الزوار" value={segments.guestCarts ?? '-'} />
+                <Card label="سلال المستخدمين" value={segments.userCarts ?? '-'} />
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Card({ label, value }: { label: string; value: any }): JSX.Element {
+  return (
+    <div className="panel" style={{ padding:12 }}>
+      <div style={{ color:'var(--sub)' }}>{label}</div>
+      <div style={{ fontSize:22, fontWeight:700 }}>{value}</div>
+    </div>
+  );
+}
+

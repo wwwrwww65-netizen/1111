@@ -3513,6 +3513,66 @@ adminRest.get('/reviews/list', async (req, res) => {
   ]);
   res.json({ reviews: rows, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
 });
+
+// Extended Analytics
+adminRest.get('/analytics', async (req, res) => {
+  try{
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const usersTotal = await db.user.count();
+    const usersActive = await db.user.count({ where: from && to ? { updatedAt: { gte: from, lte: to } } : {} });
+    const ordersTotal = await db.order.count({ where: from && to ? { createdAt: { gte: from, lte: to } } : {} });
+    const revAgg = await db.order.aggregate({ _sum: { total: true }, where: from && to ? { createdAt: { gte: from, lte: to } } : {} });
+    const revenue = Number(revAgg._sum.total || 0);
+    const eventsPageViews = await db.event.count({ where: { name: 'page_view', ...(from && to ? { createdAt: { gte: from, lte: to } } : {}) as any } as any });
+    return res.json({ ok:true, kpis: { users: usersTotal, usersActive, orders: ordersTotal, revenue, pageViews: eventsPageViews } });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'analytics_failed' }); }
+});
+
+adminRest.get('/analytics/top-products', async (req, res) => {
+  try{
+    const limit = Math.min(Number(req.query.limit||10), 50);
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const rows = await db.$queryRawUnsafe(`
+      SELECT oi."productId" as "productId", SUM(oi.quantity) as qty
+      FROM "OrderItem" oi
+      JOIN "Order" o ON o.id=oi."orderId"
+      ${from && to ? 'WHERE o."createdAt" BETWEEN $1 AND $2' : ''}
+      GROUP BY oi."productId"
+      ORDER BY qty DESC
+      LIMIT ${limit}
+    `, ...(from && to ? [from, to] : []));
+    const productIds = (rows as any[]).map(r=> String(r.productId));
+    const products = await db.product.findMany({ where: { id: { in: productIds } }, select: { id:true, name:true, images:true } });
+    const map = new Map(products.map(p=> [p.id, p]));
+    const out = (rows as any[]).map(r=> ({ productId: String(r.productId), qty: Number(r.qty||0), product: map.get(String(r.productId))||null }));
+    return res.json({ ok:true, items: out });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'top_products_failed' }); }
+});
+
+adminRest.get('/analytics/funnels', async (req, res) => {
+  try{
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const whereRange:any = from && to ? { gte: from, lte: to } : undefined;
+    const sessions = await db.guestCart.count({ where: whereRange? { updatedAt: whereRange } : {} });
+    const addToCart = await db.guestCartItem.count({ where: whereRange? { addedAt: whereRange } : {} });
+    const checkouts = await db.order.count({ where: whereRange? { createdAt: whereRange } : {} });
+    const purchased = checkouts; // simplification
+    return res.json({ ok:true, funnel: { sessions, addToCart, checkouts, purchased } });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'funnels_failed' }); }
+});
+
+adminRest.get('/analytics/segments', async (req, res) => {
+  try{
+    const totalUsers = await db.user.count();
+    const newUsers30d = await db.user.count({ where: { createdAt: { gte: new Date(Date.now()-30*24*3600*1000) } } });
+    const guestCarts = await db.guestCart.count();
+    const userCarts = await db.cart.count();
+    return res.json({ ok:true, segments: { totalUsers, newUsers30d, guestCarts, userCarts } });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'segments_failed' }); }
+});
 adminRest.post('/reviews/:id/approve', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'reviews.moderate'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params; const r = await db.review.update({ where: { id }, data: { isApproved: true } });
