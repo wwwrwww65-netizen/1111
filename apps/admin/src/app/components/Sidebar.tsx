@@ -17,6 +17,12 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     ],
   },
   {
+    title: 'المستخدمون',
+    items: [
+      { href: '/users', label: 'المستخدمون' },
+    ],
+  },
+  {
     title: 'الكتالوج',
     items: [
       { href: '/products', label: 'المنتجات' },
@@ -39,6 +45,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/logistics/delivery', label: 'التوصيل إلى العميل' },
       { href: '/shipments', label: 'الشحنات' },
       { href: '/drivers', label: 'السائقون' },
+      { href: '/carriers', label: 'الناقلون' },
     ],
   },
   {
@@ -61,6 +68,8 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/finance/returns-impact', label: 'أثر المرتجعات' },
       { href: '/payments', label: 'المدفوعات' },
       { href: '/currencies', label: 'العملات' },
+      { href: '/finance/gateways', label: 'بوابات الدفع' },
+      { href: '/wallet/management', label: 'المحافظ' },
     ],
   },
   {
