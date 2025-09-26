@@ -29,6 +29,8 @@ export default function VendorsPage(): JSX.Element {
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
   const [busy, setBusy] = React.useState(false);
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [allChecked, setAllChecked] = React.useState(false);
   React.useEffect(()=>{ setLoading(true); fetch(`/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }).then(async r=>{ if(!r.ok) throw new Error('load_failed'); return r.json(); }).then(j=>setRows(j.vendors||[])).catch((e)=>{ console.error('vendors_list_failed', e); setRows([]); }).finally(()=> setLoading(false)); },[]);
   async function save() {
     if (busy) return;
@@ -90,12 +92,28 @@ export default function VendorsPage(): JSX.Element {
           <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.phone} onChange={(e)=> setVisibleCols(v=> ({ ...v, phone: e.currentTarget.checked }))} /> هاتف</label>
           <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={visibleCols.code} onChange={(e)=> setVisibleCols(v=> ({ ...v, code: e.currentTarget.checked }))} /> كود</label>
           </div>
-          <div style={{ color:'var(--sub)', fontSize:12 }}>{rows.length} نتيجة</div>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <button className="btn danger" onClick={async ()=>{
+              const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
+              let ok = false;
+              try {
+                const r = await fetch(`/api/admin/vendors/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
+                ok = r.ok;
+              } catch {}
+              if (!ok) {
+                for (const id of ids) { try { await fetch(`/api/admin/vendors/${id}`, { method:'DELETE', credentials:'include', headers:{ ...authHeaders() } }); } catch {} }
+                ok = true;
+              }
+              if (ok) { setSelected({}); setAllChecked(false); showToast('تم حذف المحدد'); const listRes = await fetch(`/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await listRes.json(); setRows(j.vendors||[]); }
+            }}>حذف المحدد</button>
+            <div style={{ color:'var(--sub)', fontSize:12 }}>{rows.length} نتيجة</div>
+          </div>
         </div>
         <ResponsiveTable
           items={rows.filter((v)=> !search || v.name?.toLowerCase().includes(search.toLowerCase()) || v.vendorCode?.toLowerCase().includes(search.toLowerCase()))}
           isLoading={loading}
           columns={[
+            { key:'_sel', title:(<input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(v=> [v.id, v]))); }} />), minWidth:40 },
             { key:'name', title:'الاسم', minWidth:200 },
             ...(visibleCols.email ? [{ key:'contactEmail', title:'البريد', minWidth:200 }] : [] as any),
             ...(visibleCols.phone ? [{ key:'phone', title:'الهاتف', minWidth:140 }] : [] as any),
@@ -112,16 +130,18 @@ export default function VendorsPage(): JSX.Element {
               <div style={{ color:'var(--sub)', fontSize:12 }}>{v.phone||'-'}</div>
               <div style={{ display:'flex', gap:6 }}>
                 <a className="btn btn-sm" href={`/vendors/${v.id}`}>عرض</a>
+                <button className="btn btn-sm danger" onClick={async ()=>{ await fetch(`/api/admin/vendors/${v.id}`, { method:'DELETE', credentials:'include', headers:{ ...authHeaders() } }); showToast('تم الحذف'); const listRes = await fetch(`/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await listRes.json(); setRows(j.vendors||[]); }}>حذف</button>
               </div>
             </div>
           )}
           renderRow={(v:any)=> (
             <>
+              <td><input type="checkbox" checked={!!selected[v.id]} onChange={()=> setSelected(s=> ({...s, [v.id]: !s[v.id]}))} /></td>
               <td><div style={{ display:'flex', alignItems:'center', gap:8 }}><span className="badge">{v.vendorCode||'NO-CODE'}</span><span>{v.name}</span></div></td>
               {visibleCols.email && (<td>{v.contactEmail||'-'}</td>)}
               {visibleCols.phone && (<td>{v.phone||'-'}</td>)}
               {visibleCols.code && (<td>{v.vendorCode||'-'}</td>)}
-              <td><a className="btn btn-sm" href={`/vendors/${v.id}`}>عرض</a></td>
+              <td><div style={{ display:'flex', gap:6 }}><a className="btn btn-sm" href={`/vendors/${v.id}`}>عرض</a><button className="btn btn-sm danger" onClick={async ()=>{ await fetch(`/api/admin/vendors/${v.id}`, { method:'DELETE', credentials:'include', headers:{ ...authHeaders() } }); showToast('تم الحذف'); const listRes = await fetch(`/api/admin/vendors/list`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await listRes.json(); setRows(j.vendors||[]); }}>حذف</button></div></td>
             </>
           )}
         />
