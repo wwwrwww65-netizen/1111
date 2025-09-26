@@ -88,22 +88,42 @@ export default function CategoriesPage(): JSX.Element {
   }
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [allChecked, setAllChecked] = React.useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = React.useState<string | null>(null);
+  const confirmTimerRef = React.useRef<any>(null);
   async function remove(id:string){
-    if (!confirm('تأكيد الحذف؟')) return;
-    // Prefer bulk endpoint for robust server-side handling
+    if (confirmingDeleteId !== id) {
+      setConfirmingDeleteId(id);
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(()=> setConfirmingDeleteId(null), 4000);
+      showToast('اضغط حذف مرة أخرى لتأكيد العملية');
+      return;
+    }
+    setConfirmingDeleteId(null);
     const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids: [id] }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
+    let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
+    if (deletedCount < 1) { showToast('فشل الحذف'); return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحذف');
   }
+  const [confirmingBulk, setConfirmingBulk] = React.useState(false);
   async function removeSelected(){
     const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
-    if (!confirm(`حذف ${ids.length} تصنيف؟`)) return;
+    if (!confirmingBulk) {
+      setConfirmingBulk(true);
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(()=> setConfirmingBulk(false), 4000);
+      showToast(`اضغط حذف مرة أخرى لتأكيد حذف ${ids.length}`);
+      return;
+    }
+    setConfirmingBulk(false);
     const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ ids }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
-    try { const j = await r.json(); showToast(j?.deleted? `تم حذف ${j.deleted}` : 'تم الحذف'); } catch { showToast('تم الحذف'); }
+    let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
+    if (deletedCount < 1) { showToast('فشل الحذف'); return; }
     await Promise.all([loadList(), loadTree()]);
     setSelected({}); setAllChecked(false);
+    showToast(`تم حذف ${deletedCount}`);
   }
 
   function Tree({ nodes }:{ nodes:any[] }){
