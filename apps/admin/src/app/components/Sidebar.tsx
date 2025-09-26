@@ -60,6 +60,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/finance/pnl', label: 'تحليل الأرباح (P&L)' },
       { href: '/finance/returns-impact', label: 'أثر المرتجعات' },
       { href: '/payments', label: 'المدفوعات' },
+      { href: '/currencies', label: 'العملات' },
     ],
   },
   {

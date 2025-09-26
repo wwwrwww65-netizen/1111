@@ -3300,6 +3300,49 @@ adminRest.post('/integrations/test', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Currencies CRUD (admin)
+adminRest.get('/currencies', async (_req, res) => {
+  try{
+    const list = await db.currency.findMany({ orderBy: { code: 'asc' } });
+    res.json({ ok:true, currencies: list });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'list_failed' }); }
+});
+
+adminRest.post('/currencies', async (req, res) => {
+  const schema = z.object({ code: z.string().min(2).max(6), name: z.string().min(2), symbol: z.string().min(1), precision: z.number().int().min(0).max(6).default(2), rateToBase: z.number().positive().default(1), isBase: z.boolean().default(false), isActive: z.boolean().default(true) });
+  try{
+    const data = schema.parse(req.body||{});
+    if (data.isBase) {
+      await db.currency.updateMany({ where: { isBase: true }, data: { isBase: false } });
+      data.rateToBase = 1;
+    }
+    const created = await db.currency.create({ data });
+    res.json({ ok:true, currency: created });
+  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'create_failed' }); }
+});
+
+adminRest.put('/currencies/:id', async (req, res) => {
+  const { id } = req.params;
+  const schema = z.object({ name: z.string().min(2).optional(), symbol: z.string().min(1).optional(), precision: z.number().int().min(0).max(6).optional(), rateToBase: z.number().positive().optional(), isBase: z.boolean().optional(), isActive: z.boolean().optional() });
+  try{
+    const data = schema.parse(req.body||{});
+    if (data.isBase === true) {
+      await db.currency.updateMany({ where: { isBase: true }, data: { isBase: false } });
+      data.rateToBase = 1;
+    }
+    const updated = await db.currency.update({ where: { id }, data });
+    res.json({ ok:true, currency: updated });
+  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'update_failed' }); }
+});
+
+adminRest.delete('/currencies/:id', async (req, res) => {
+  const { id } = req.params;
+  try{
+    await db.currency.delete({ where: { id } });
+    res.json({ ok:true });
+  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'delete_failed' }); }
+});
+
 // Affiliate payouts minimal endpoints
 adminRest.get('/affiliates/ledger', async (_req, res) => {
   try{

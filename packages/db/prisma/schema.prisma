@@ -281,6 +281,20 @@ model Payment {
   updatedAt DateTime      @updatedAt
 }
 
+// Currencies for store pricing and display
+model Currency {
+  id         String   @id @default(cuid())
+  code       String   @unique // e.g., SAR, USD, EUR
+  name       String
+  symbol     String   // e.g., ر.س, $
+  precision  Int      @default(2)
+  rateToBase Float    @default(1) // conversion to base currency
+  isBase     Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 // Finance: Expenses (admin-side operational expenses)
 model Expense {
   id          String   @id @default(cuid())
