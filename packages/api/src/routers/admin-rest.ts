@@ -37,20 +37,25 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     const token = conf.token; const phoneId = conf.phoneId;
     if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
-    const lang = String((languageCode||'ar')).toLowerCase()==='arabic' ? 'ar' : String(languageCode||'ar');
+    const langIn = String((languageCode||'ar')).toLowerCase()==='arabic' ? 'ar' : String(languageCode||'ar');
     const to = String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`;
-    const components: any[] = [];
+    const candidates = Array.from(new Set([langIn, 'ar_SA', 'ar', 'en']));
     const params = Array.isArray(bodyParams) ? bodyParams : (bodyParams ? [bodyParams] : []);
-    components.push({ type:'body', parameters: params.map((p:any)=> ({ type:'text', text: String(p) })) });
-    if (buttonSubType && typeof buttonParam === 'string' && buttonParam.trim()){
-      components.push({ type:'button', sub_type: String(buttonSubType), index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: String(buttonParam) }] });
+    const tried: Array<{ lang:string; status:number; body:string }> = [];
+    for (const lang of candidates){
+      const components: any[] = [];
+      components.push({ type:'body', parameters: params.map((p:any)=> ({ type:'text', text: String(p) })) });
+      if (buttonSubType && typeof buttonParam === 'string' && buttonParam.trim()){
+        components.push({ type:'button', sub_type: String(buttonSubType), index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: String(buttonParam) }] });
+      }
+      const payload: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+      const text = await r.text().catch(()=> '');
+      await audit(req,'whatsapp','send',{ to, template, lang, status: r.status });
+      if (r.ok) return res.json({ ok:true, status: r.status, lang });
+      tried.push({ lang, status: r.status, body: text.slice(0,400) });
     }
-    const payload: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
-    const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
-    const text = await r.text().catch(()=> '');
-    await audit(req,'whatsapp','send',{ to, template, lang, status: r.status });
-    if (!r.ok) return res.status(502).json({ ok:false, status: r.status, error:text.slice(0,1000) });
-    return res.json({ ok:true, status: r.status });
+    return res.status(502).json({ ok:false, status: 404, error: JSON.stringify({ tried }) });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
 });
 
