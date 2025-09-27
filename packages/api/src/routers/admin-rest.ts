@@ -6,6 +6,33 @@ import { Parser as CsvParser } from 'json2csv';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
 import { authenticator } from 'otplib';
+// Admin: Send WhatsApp templated message (test) with button/body params
+adminRest.post('/whatsapp/send', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
+    const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams } = req.body || {};
+    if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
+    const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy:{ createdAt:'desc' } });
+    const conf = (cfg as any)?.config || {};
+    const token = conf.token; const phoneId = conf.phoneId;
+    if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
+    const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+    const lang = String((languageCode||'ar')).toLowerCase()==='arabic' ? 'ar' : String(languageCode||'ar');
+    const to = String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`;
+    const components: any[] = [];
+    const params = Array.isArray(bodyParams) ? bodyParams : (bodyParams ? [bodyParams] : []);
+    components.push({ type:'body', parameters: params.map((p:any)=> ({ type:'text', text: String(p) })) });
+    if (buttonSubType && typeof buttonParam === 'string' && buttonParam.trim()){
+      components.push({ type:'button', sub_type: String(buttonSubType), index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: String(buttonParam) }] });
+    }
+    const payload: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
+    const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+    const text = await r.text().catch(()=> '');
+    await audit(req,'whatsapp','send',{ to, template, lang, status: r.status });
+    if (!r.ok) return res.status(502).json({ ok:false, status: r.status, error:text.slice(0,1000) });
+    return res.json({ ok:true, status: r.status });
+  } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
+});
 import { v2 as cloudinary } from 'cloudinary';
 import type { Readable } from 'stream';
 import { z } from 'zod';

@@ -143,6 +143,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/integrations', label: 'التكاملات' },
       { href: '/integrations/tracking', label: 'تتبع وتحليلات' },
       { href: '/integrations/login', label: 'تكامل تسجيل الدخول' },
+      { href: '/integrations/whatsapp-send', label: 'إرسال واتساب تجريبي' },
       { href: '/integrations/ai', label: 'تكاملات الذكاء الاصطناعي' },
     ],
   },
