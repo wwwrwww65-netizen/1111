@@ -19,6 +19,11 @@ async function ensureOtpTable(): Promise<void> {
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "OtpCode_phone_idx" ON "OtpCode"(phone)');
+    // Harden schema for legacy deployments where column casing may differ
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "channel" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "consumed" BOOLEAN DEFAULT FALSE'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP DEFAULT NOW()'); } catch {}
   } catch {}
 }
 
@@ -190,6 +195,7 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     const code = generateOtpCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
     const id = Math.random().toString(36).slice(2);
+    // insert with safe column names (double-quoted) for case sensitivity
     await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel, "expiresAt") VALUES ($1,$2,$3,$4,$5)', id, phone, code, channel, expiresAt);
     const text = `رمز التأكيد: ${code}`;
     let sent = false;
@@ -216,9 +222,10 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     const phone = String(req.body?.phone || '').trim();
     const code = String(req.body?.code || '').trim();
     if (!phone || !code) return res.status(400).json({ ok:false, error:'phone_code_required' });
-    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "OtpCode" WHERE phone=$1 AND code=$2 AND consumed=false ORDER BY "createdAt" DESC LIMIT 1', phone, code)) as any[])[0];
+    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "OtpCode" WHERE phone=$1 AND code=$2 AND (consumed=false OR consumed IS NULL) ORDER BY "createdAt" DESC NULLS LAST LIMIT 1', phone, code)) as any[])[0];
     if (!row) return res.status(400).json({ ok:false, error:'invalid_code' });
-    if (new Date(row.expiresat || row.expiresAt) < new Date()) return res.status(400).json({ ok:false, error:'expired_code' });
+    const exp = row.expiresAt || row.expiresat || row.expires_at;
+    if (!exp || new Date(exp) < new Date()) return res.status(400).json({ ok:false, error:'expired_code' });
     try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET consumed=true WHERE id=$1', row.id); } catch {}
     // Upsert user by phone
     const normalized = phone.replace(/\s+/g,'');
