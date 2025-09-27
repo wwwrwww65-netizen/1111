@@ -119,7 +119,8 @@ onMounted(async ()=>{
   const ch = String(route.query.ch||'')
   if (!auto) return
   try{
-    const local = phone.value.replace(/\D/g,'')
+    let local = phone.value.replace(/\D/g,'')
+    if (local.startsWith('0')) local = local.replace(/^0+/, '')
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: ch || 'whatsapp' })
@@ -166,7 +167,8 @@ async function resend(){
   errorText.value = ''
   try{
     resending.value = true
-    const local = phone.value.replace(/\D/g,'')
+    let local = phone.value.replace(/\D/g,'')
+    if (local.startsWith('0')) local = local.replace(/^0+/, '')
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: 'whatsapp' })
@@ -181,7 +183,8 @@ async function onSubmit(){
   errorText.value = ''
   try{
     verifying.value = true
-    const local = phone.value.replace(/\D/g,'')
+    let local = phone.value.replace(/\D/g,'')
+    if (local.startsWith('0')) local = local.replace(/^0+/, '')
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
