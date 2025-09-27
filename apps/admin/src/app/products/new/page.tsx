@@ -318,6 +318,9 @@ export default function AdminProductCreate(): JSX.Element {
             }
           }
           if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
+          // Auto-apply safe fields: name and purchase price only
+          const autoName = analyzed?.name?.value ? String(analyzed.name.value).slice(0,60) : '';
+          if (autoName) setName(autoName);
         } else { throw new Error('analyze_failed'); }
       } catch {
         // Fallback to legacy parse endpoint
@@ -1047,7 +1050,7 @@ export default function AdminProductCreate(): JSX.Element {
                     </table>
                   </div>
                 ) : (
-                  <div style={{ marginTop:8, color:'var(--sub)' }}>اختر مقاسات وألوان ثم اضغط “توليد التباينات”.</div>
+                  <div style={{ marginTop:8, color:'var(--sub)' }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات".</div>
                 )}
               </div>
             </>
