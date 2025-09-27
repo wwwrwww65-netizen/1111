@@ -38,23 +38,33 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   if (!token || !phoneId) return false;
   try {
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+    const candidates = Array.from(new Set([String(languageCode), 'ar_SA', 'ar', 'en']));
+    const toVariants = Array.from(new Set([String(phone), phone.startsWith('+') ? phone : `+${phone}`]));
+    // Try template with multiple languages and to formats
     if (template) {
-      const body = {
-        messaging_product: 'whatsapp',
-        to: String(phone),
-        type: 'template',
-        template: { name: String(template), language: { code: String(languageCode) } as any,
-          components: [{ type: 'body', parameters: [{ type: 'text', text }] }] },
-      } as any;
-      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-      if (!r.ok) { try { console.error('WA template send failed', await r.text()) } catch {} }
-      return r.ok;
-    } else {
-      const body = { messaging_product: 'whatsapp', to: String(phone), type: 'text', text: { body: text } } as any;
-      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-      if (!r.ok) { try { console.error('WA text send failed', await r.text()) } catch {} }
-      return r.ok;
+      for (const to of toVariants) {
+        for (const lang of candidates) {
+          const body = {
+            messaging_product: 'whatsapp',
+            to,
+            type: 'template',
+            template: { name: String(template), language: { code: String(lang) } as any,
+              components: [{ type: 'body', parameters: [{ type: 'text', text }] }] },
+          } as any;
+          const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+          if (r.ok) return true;
+          try { console.error('WA template send failed', lang, to, await r.text()) } catch {}
+        }
+      }
     }
+    // Fallback to plain text
+    for (const to of toVariants) {
+      const body = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } } as any;
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      if (r.ok) return true;
+      try { console.error('WA text send failed', to, await r.text()) } catch {}
+    }
+    return false;
   } catch { return false; }
 }
 
