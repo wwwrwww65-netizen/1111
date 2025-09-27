@@ -11,6 +11,8 @@ export default function WhatsAppSendPage(): JSX.Element {
   const [buttonIndex, setButtonIndex] = React.useState('0');
   const [buttonParam, setButtonParam] = React.useState('');
   const [bodyParams, setBodyParams] = React.useState<string>('123456');
+  const [headerType, setHeaderType] = React.useState('');
+  const [headerParam, setHeaderParam] = React.useState('');
   const [msg, setMsg] = React.useState('');
   const [color, setColor] = React.useState('#22c55e');
   const [loading, setLoading] = React.useState(false);
@@ -33,6 +35,8 @@ export default function WhatsAppSendPage(): JSX.Element {
         buttonSubType: buttonSubType || undefined,
         buttonIndex: Number(buttonIndex||0),
         buttonParam: buttonParam || undefined,
+        headerType: headerType || undefined,
+        headerParam: headerParam || undefined,
         bodyParams: (bodyParams||'').split(',').map(s=>s.trim()).filter(Boolean),
       };
       const r = await fetch(`${apiBase}/api/admin/whatsapp/send`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
@@ -74,6 +78,14 @@ export default function WhatsAppSendPage(): JSX.Element {
         <div>
           <label>Button Param</label>
           <input value={buttonParam} onChange={e=> setButtonParam(e.target.value)} placeholder="https://m.jeeey.com/verify" style={{ width:'100%', height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+        </div>
+        <div>
+          <label>Header Type</label>
+          <input value={headerType} onChange={e=> setHeaderType(e.target.value)} placeholder="none | text | image | video | document" style={{ width:'100%', height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+        </div>
+        <div>
+          <label>Header Param</label>
+          <input value={headerParam} onChange={e=> setHeaderParam(e.target.value)} placeholder="Header text or media URL" style={{ width:'100%', height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
         </div>
       </div>
       <div>
