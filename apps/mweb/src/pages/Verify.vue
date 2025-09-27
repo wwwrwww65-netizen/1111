@@ -188,7 +188,10 @@ async function onSubmit(){
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
-    if (r && r.ok){ router.push('/') } else { errorText.value = 'رمز غير صحيح أو منتهي' }
+    if (r && r.ok){
+      const ret = String(route.query.return || '/account')
+      router.push(ret)
+    } else { errorText.value = 'رمز غير صحيح أو منتهي' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
 </script>
