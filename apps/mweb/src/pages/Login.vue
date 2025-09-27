@@ -123,18 +123,11 @@ const ok = ref(false)
 
 async function requestOtp(){
   msg.value = ''; ok.value = false; sent.value = false;
-  if (showError.value){ msg.value = 'رقم هاتف غير صحيح'; return }
-  try{
-    sending.value = true
-    const local = phone.value.replace(/\D/g,'')
-    const dial = country.value.dial.replace(/\D/g,'')
-    const e164 = local.startsWith(dial) ? local : (dial + local)
-    const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: 'whatsapp' })
-    if (r && (r.ok || r.sent)) {
-      sent.value = true; ok.value = true; msg.value = 'تم إرسال الرمز عبر واتساب'
-      setTimeout(()=> router.push({ path:'/verify', query:{ phone: e164, dial: country.value.dial, auto: '1' } }), 300)
-    } else { msg.value = 'تعذر إرسال الرمز. تحقق من الرقم/القالب.' }
-  } catch { msg.value = 'خطأ في الشبكة' } finally { sending.value = false }
+  // تحوّل فوريًا إلى صفحة إدخال الرمز، وسنحاول الإرسال هناك تلقائياً
+  const local = phone.value.replace(/\D/g,'')
+  const dial = country.value.dial.replace(/\D/g,'')
+  const e164 = local.startsWith(dial) ? local : (dial + local)
+  router.push({ path:'/verify', query:{ phone: e164, dial: country.value.dial, auto: '1' } })
 }
 
 async function verifyOtp(){
