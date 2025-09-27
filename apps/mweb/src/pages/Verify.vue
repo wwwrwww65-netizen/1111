@@ -113,6 +113,19 @@ const errorText = ref<string>('')
 const verifying = ref<boolean>(false)
 
 onMounted(()=>{ tick() })
+// Auto request on arrive if query auto=1
+onMounted(async ()=>{
+  const auto = String(route.query.auto||'') === '1'
+  if (!auto) return
+  try{
+    const local = phone.value.replace(/\D/g,'')
+    const dial = String(countryDial.value||'').replace(/\D/g,'')
+    const e164 = local.startsWith(dial) ? local : (dial + local)
+    const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: 'whatsapp' })
+    if (r && (r.ok || r.sent)) { timeLeft.value = 60; canResend.value = false; if (!timeLeft.value) tick(); }
+    else { errorText.value = 'تعذر إرسال الرمز. تحقق من القالب/اللغة.' }
+  } catch { errorText.value = 'خطأ في الشبكة' }
+})
 function tick(){ if (timeLeft.value>0){ setTimeout(()=>{ timeLeft.value--; tick() }, 1000) } else { canResend.value = true } }
 
 function onChange(idx:number, v:string){
