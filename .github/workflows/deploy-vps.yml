@@ -231,13 +231,7 @@ jobs:
             fi
             echo '--- Ensure HTTPS (certbot if configured) ---'
             CERT_EMAIL='${{ secrets.CERTBOT_EMAIL || vars.CERTBOT_EMAIL }}'
-            if [ -n "$CERT_EMAIL" ]; then
-              set +e
-              CERTBOT_EMAIL="$CERT_EMAIL" PROJECT_DIR="$ROOT" bash "$ROOT/infra/deploy/ensure-https.sh"
-              set -e
-            else
-              echo 'CERTBOT_EMAIL not set; skipping certbot/self-signed step.'
-            fi
+            [ -n "$CERT_EMAIL" ] && ( set +e; CERTBOT_EMAIL="$CERT_EMAIL" PROJECT_DIR="$ROOT" bash "$ROOT/infra/deploy/ensure-https.sh"; set -e ) || echo 'CERTBOT_EMAIL not set; skipping certbot/self-signed step.'
 
       - name: Post-deploy smoke (health, login, static, services)
         uses: appleboy/ssh-action@v1.0.3
