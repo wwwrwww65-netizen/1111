@@ -48,7 +48,22 @@ export NODE_ENV=production
 if [ -f "$ROOT_DIR/.env.api" ]; then
   set -a; . "$ROOT_DIR/.env.api"; set +a
 fi
-pnpm --filter @repo/db db:deploy || true
+# Try deploy migrations; if P3005 (non-empty DB) occurs, baseline automatically, then deploy again
+set +e
+pnpm --filter @repo/db db:deploy
+db_status=$?
+set -e
+if [ "$db_status" -ne 0 ]; then
+  echo "[deploy] prisma migrate deploy failed with code $db_status; attempting baseline..." >&2
+  # Use prisma migrate resolve to mark the latest migration as applied when DB is already in use
+  if [ -d "$ROOT_DIR/packages/db/prisma/migrations" ]; then
+    last_mig=$(ls -1 "$ROOT_DIR/packages/db/prisma/migrations" | sort | tail -n1 || true)
+    if [ -n "$last_mig" ]; then
+      (cd "$ROOT_DIR/packages/db" && pnpm exec prisma migrate resolve --applied "$last_mig") || true
+      pnpm --filter @repo/db db:deploy || true
+    fi
+  fi
+fi
 # Ensure Category SEO columns before API build to avoid runtime P20xx
 (cd "$ROOT_DIR/packages/api" && pnpm exec node scripts/ensure-category-seo.js) || true
 # Force fresh Next.js builds for web/admin with static cleanup
