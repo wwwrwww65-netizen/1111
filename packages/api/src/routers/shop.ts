@@ -21,9 +21,14 @@ async function ensureOtpTable(): Promise<void> {
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "OtpCode_phone_idx" ON "OtpCode"(phone)');
     // Harden schema for legacy deployments where column casing may differ
     try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMP'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "channel" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "consumed" BOOLEAN DEFAULT FALSE'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP DEFAULT NOW()'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP DEFAULT NOW()'); } catch {}
+    // Drop NOT NULL to allow flexible inserts, then we backfill
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ALTER COLUMN "expiresAt" DROP NOT NULL'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "OtpCode" ALTER COLUMN "expires_at" DROP NOT NULL'); } catch {}
   } catch {}
 }
 
@@ -195,8 +200,11 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     const code = generateOtpCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
     const id = Math.random().toString(36).slice(2);
-    // insert with safe column names (double-quoted) for case sensitivity
-    await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel, "expiresAt") VALUES ($1,$2,$3,$4,$5)', id, phone, code, channel, expiresAt);
+    // insert minimal required columns first to avoid NOT NULL across legacy schemas
+    await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel) VALUES ($1,$2,$3,$4)', id, phone, code, channel);
+    // then backfill expiry into both naming variants if present
+    try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expiresAt"=$2, "updatedAt"=NOW() WHERE id=$1', id, expiresAt); } catch {}
+    try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expires_at"=$2, "updatedAt"=NOW() WHERE id=$1', id, expiresAt); } catch {}
     const text = `رمز التأكيد: ${code}`;
     let sent = false;
     let used: 'whatsapp' | 'sms' | '' = '';
