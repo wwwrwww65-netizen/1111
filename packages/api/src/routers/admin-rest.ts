@@ -22,7 +22,14 @@ adminRest.use(express.urlencoded({ extended: true }));
 // Admin: Send WhatsApp templated message (test) with button/body params
 adminRest.post('/whatsapp/send', async (req, res) => {
   try{
-    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
+    // Resolve user from request (cookie or header)
+    let userId: string | null = null;
+    try {
+      const token = readTokenFromRequest(req);
+      if (token) { const p: any = (require('../utils/jwt') as any).verifyJwt(token); userId = p?.userId || null; }
+    } catch {}
+    const u = (req as any).user || (userId ? { userId } : null);
+    if (!u || !(await can(u.userId, 'analytics.read'))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
     const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams } = req.body || {};
     if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
     const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy:{ createdAt:'desc' } });
