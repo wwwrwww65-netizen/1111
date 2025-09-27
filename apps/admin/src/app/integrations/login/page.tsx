@@ -28,6 +28,8 @@ type WhatsAppConfig = {
   buttonSubType?: string; // url | quick_reply | phone_number
   buttonIndex?: string; // '0', '1', '2'
   buttonParam?: string; // URL param if template URL has {{1}}
+  headerType?: string; // none | text | image | video | document
+  headerParam?: string; // header text or media link
 };
 
 type SmsConfig = {
@@ -244,6 +246,8 @@ export default function LoginIntegrationsPage(): JSX.Element {
               <Field label="Button Type (optional)" value={wcfg.buttonSubType||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'buttonSubType', v)} placeholder="url | quick_reply | phone_number" />
               <Field label="Button Index (0-2)" value={wcfg.buttonIndex||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'buttonIndex', v)} placeholder="0" />
               <Field label="Button Param (URL param)" value={wcfg.buttonParam||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'buttonParam', v)} placeholder="https://m.jeeey.com/verify" />
+              <Field label="Header Type (optional)" value={wcfg.headerType||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'headerType', v)} placeholder="none | text | image | video | document" />
+              <Field label="Header Param" value={wcfg.headerParam||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'headerParam', v)} placeholder="Header text or media URL" />
             </div>
           </Section>
 
