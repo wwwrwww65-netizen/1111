@@ -29,7 +29,7 @@ export function normalizeArabic(input: string): string {
 export function cleanMarketingNoise(input: string): string {
   const noise = [
     'لايفوتك','العرض محدود','جديد اليوم','حاجة فخمة','شغل خارجي','تميز','تخفيض','خصم','عرض','افضل','الأفضل','حصري','مجاني','شحن مجاني',
-    'free','sale','offer','best','amazing','awesome','premium','original','new','🔥','👇','💎','🤩','👌','🥰','🤤','🤑','✨','-'
+    'free','sale','offer','best','amazing','awesome','premium','original','new','🔥','👇','💎','🤩','👌','🥰','🤤','🤑','✨','-','%','٪','خصومات','وصلنا','وصل حديثاً','سعر خاص'
   ];
   let s = String(input || '');
   for (const w of noise) s = s.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), ' ');
@@ -49,7 +49,9 @@ const COLOR_MAP: Record<string, string> = {
   // English to Arabic
   'red': 'أحمر', 'blue': 'أزرق', 'green': 'أخضر', 'black': 'أسود', 'white': 'أبيض', 'yellow': 'أصفر',
   'brown': 'بني', 'beige': 'بيج', 'gray': 'رمادي', 'grey': 'رمادي', 'pink': 'وردي', 'purple': 'بنفسجي',
-  'navy': 'كحلي', 'sky': 'سماوي', 'turquoise': 'فيروزي', 'maroon': 'عنابي', 'gold': 'ذهبي', 'silver': 'فضي'
+  'navy': 'كحلي', 'sky': 'سماوي', 'turquoise': 'فيروزي', 'maroon': 'عنابي', 'gold': 'ذهبي', 'silver': 'فضي',
+  // More common shades
+  'cream': 'كريمي', 'olive': 'زيتي', 'mustard': 'خردلي', 'teal': 'زمردي', 'camel': 'جملي'
 };
 
 export function extractColors(text: string): string[] {
@@ -72,8 +74,13 @@ export function extractSizes(text: string): string[] {
   if (range) sizes.add(`فري سايز (${range[1]}–${range[2]} كجم)`);
   if (/فري\s*سايز/i.test(s)) sizes.add('فري سايز');
   // Labeled sizes
-  const tokens = s.match(/\b(XXL|XL|L|M|S|XS|XXS|\d{2})\b/gi) || [];
+  const tokens = s.match(/\b(XXXL|XXL|XL|L|M|S|XS|XXS|\d{2})\b/gi) || [];
   for (const t of tokens) sizes.add(t.toUpperCase());
+  // Arabic sizes words
+  if (/كبير\s*جداً|كبير جدا/i.test(s)) sizes.add('XL');
+  if (/كبير/i.test(s)) sizes.add('L');
+  if (/متوسط/i.test(s)) sizes.add('M');
+  if (/صغير/i.test(s)) sizes.add('S');
   return Array.from(sizes);
 }
 
@@ -86,18 +93,20 @@ export function extractPrices(text: string): { sale?: number; cost?: number } {
   // Supports thousand separators and decimals: 1,299.50 or 1299 or 1\u00A0299
   const num = '[0-9]{1,3}(?:[\u202F\u00A0\s,][0-9]{3})*(?:[\.,][0-9]{1,2})?|[0-9]+(?:[\.,][0-9]{1,2})?';
   const token = '(?:﷼|ريال|sar|aed|usd|rs|qr|egp|kwd)?';
-  const saleRx = new RegExp(`(?:سعر\\s*البيع|sale|price)[^\n]*?(${num})\s*${token}`, 'i');
+  const saleRx = new RegExp(`(?:سعر\\s*البيع|سعر\\s*المنتج|sale|price)[^\n]*?(${num})\s*${token}`, 'i');
   const northRx = new RegExp(`(?:للشمال|السعر\\s*للشمال)[^\n]*?(${num})\s*${token}`, 'i');
   const southRx = new RegExp(`(?:جنوبي|الجنوب|عمله\\s*جنوبي)[^\n]*?(${num})\s*${token}`, 'i');
   const oldRx = new RegExp(`(?:قديم|القديم)[^\n]*?(${num})\s*${token}`, 'i');
+  const costRx = new RegExp(`(?:سعر\\s*الشراء|التكلفه|التكلفة|جمله|جملة)[^\n]*?(${num})\s*${token}`, 'i');
   const clean = text.replace(/[\u202F\u00A0]/g, ' ');
   const toNum = (v?: string) => v ? Number(String(v).replace(/[\s,]/g, '').replace(',', '.')) : undefined;
   const sale = toNum(clean.match(saleRx)?.[1]);
   const north = toNum(clean.match(northRx)?.[1]);
   const south = toNum(clean.match(southRx)?.[1]);
   const old = toNum(clean.match(oldRx)?.[1]);
+  const costLine = toNum(clean.match(costRx)?.[1]);
   // Prefer old > north > south > sale for purchase/cost
-  const cost = old ?? north ?? south ?? undefined;
+  const cost = old ?? north ?? south ?? costLine ?? undefined;
   return { sale, cost };
 }
 
@@ -107,7 +116,7 @@ export function extractStock(text: string): number | undefined {
 }
 
 export function extractKeywords(text: string): string[] {
-  const stop = new Set(['و','في','من','على','الى','إلى','عن','هو','هي','هذا','هذه','ذلك','تلك','مع','او','أو']);
+  const stop = new Set(['و','في','من','على','الى','إلى','عن','هو','هي','هذا','هذه','ذلك','تلك','مع','او','أو','تم','يوجد','متوفر','عرض','خصم','الجديد','اليوم','سعر','الشراء','البيع']);
   const norm = normalizeArabic(text.toLowerCase()).replace(/[^\p{Script=Arabic}a-z\s]/gu, ' ');
   const words = norm.split(/\s+/).filter(Boolean);
   const freq = new Map<string, number>();
@@ -119,10 +128,10 @@ export function extractKeywords(text: string): string[] {
 }
 
 export function composeSeoName(clean: string, fallback: string): string {
-  const typeMatch = clean.match(/(فنيله|فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|hoodie|sweater|jacket|coat|dress|shirt|blouse)/i);
+  const typeMatch = clean.match(/(فنيله|فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|عبايه|عباية|hoodie|sweater|jacket|coat|dress|shirt|blouse|abaya)/i);
   const normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1]) : '';
   const gender = clean.match(/(نسائي|رجالي|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
-  const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1] || '';
+  const mat = clean.match(/(صوف|قطن|جلد|لينن|denim|leather|cotton|wool|بوليستر|كتان)/i)?.[1] || '';
   const feat = /كم\s*كامل/i.test(clean) ? 'كم كامل' : '';
   const parts = [normalizedType && gender ? `${normalizedType} ${gender}` : (normalizedType || gender), mat || feat].filter(Boolean);
   const base = parts.join(' ').trim();
