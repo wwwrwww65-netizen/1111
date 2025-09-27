@@ -30,7 +30,7 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     } catch {}
     const u = (req as any).user || (userId ? { userId } : null);
     if (!u || !(await can(u.userId, 'analytics.read'))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
-    const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams } = req.body || {};
+    const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams, headerType, headerParam } = req.body || {};
     if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
     const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy:{ createdAt:'desc' } });
     const conf = (cfg as any)?.config || {};
@@ -44,6 +44,20 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     const tried: Array<{ lang:string; status:number; body:string }> = [];
     for (const lang of candidates){
       const components: any[] = [];
+      // Header component if required by template
+      if (headerType && String(headerType).toLowerCase() !== 'none'){
+        const ht = String(headerType).toLowerCase();
+        if (ht === 'text') {
+          if (!headerParam) { tried.push({ lang, status: 400, body: 'missing header text' }); continue; }
+          components.push({ type:'header', parameters:[{ type:'text', text: String(headerParam) }] });
+        } else if (ht === 'image' || ht === 'video' || ht === 'document') {
+          if (!headerParam) { tried.push({ lang, status: 400, body: `missing header media link for ${ht}` }); continue; }
+          const pkey = ht as 'image'|'video'|'document';
+          const mediaParam: any = {}; mediaParam[pkey] = { link: String(headerParam) };
+          components.push({ type:'header', parameters:[{ type: pkey, ...mediaParam }] });
+        }
+      }
+      // Body params (ordered)
       components.push({ type:'body', parameters: params.map((p:any)=> ({ type:'text', text: String(p) })) });
       if (buttonSubType && typeof buttonParam === 'string' && buttonParam.trim()){
         components.push({ type:'button', sub_type: String(buttonSubType), index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: String(buttonParam) }] });
