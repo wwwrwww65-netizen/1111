@@ -3319,7 +3319,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       const northInline = preNum.match(/(?:السعر\s*للشمال|السعرللشمال)[^\n\r]*?(\d+[\.,٬٫]?\d*)/i);
       if (northInline) {
         const v = Number(String(northInline[1]).replace(/[٬٫,]/g,'.'));
-        if (!Number.isNaN(v)) priceNums.push(v);
+        if (!Number.isNaN(v) && v >= 80) priceNums.push(v);
       }
       for (const ln of lines) {
         const mentionsSouth = /جنوبي/i.test(ln);
@@ -3328,17 +3328,17 @@ adminRest.post('/products/analyze', async (req, res) => {
         const prefer = priceLine && (mentionsNorth || /قديم|مشابه/i.test(ln) || (!mentionsSouth && /السعر/i.test(ln)));
         if (!prefer) continue;
         const m = ln.match(/(\d+[\.,٬٫]?\d*)/g);
-        if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v)) priceNums.push(v); });
+        if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v) && v >= 80) priceNums.push(v); });
       }
       if (!priceNums.length) {
         // Try zero-shot strongest PRICE sentence
         if (zsc && Array.isArray(zsc.PRICE) && zsc.PRICE.length) {
           const best = zsc.PRICE[0]?.label || '';
           const m = best.match(/(\d+[\.,٬٫]?\d*)/g);
-          if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v)) priceNums.push(v); });
+          if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v) && v >= 80) priceNums.push(v); });
         }
-        if (typeof extracted.purchasePrice === 'number' && Number.isFinite(Number(extracted.purchasePrice))) priceNums.push(Number(extracted.purchasePrice));
-        if (typeof extracted.salePrice === 'number' && Number.isFinite(Number(extracted.salePrice))) priceNums.push(Number(extracted.salePrice));
+        if (typeof extracted.purchasePrice === 'number' && Number.isFinite(Number(extracted.purchasePrice)) && Number(extracted.purchasePrice) >= 80) priceNums.push(Number(extracted.purchasePrice));
+        if (typeof extracted.salePrice === 'number' && Number.isFinite(Number(extracted.salePrice)) && Number(extracted.salePrice) >= 80) priceNums.push(Number(extracted.salePrice));
       }
       // Final heuristic fallback: pick numeric tokens >= 80 from entire text
       if (!priceNums.length) {
