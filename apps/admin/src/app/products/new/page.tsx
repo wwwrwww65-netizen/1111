@@ -303,6 +303,12 @@ export default function AdminProductCreate(): JSX.Element {
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
+          if (Array.isArray(aj?.warnings) && aj.warnings.length) {
+            showToast(`تحليل جزئي: ${aj.warnings.join(', ')}`, 'warn');
+          }
+          if (aj?.ok === false && Array.isArray(aj?.errors) && aj.errors.length) {
+            showToast(`فشل التحليل: ${aj.errors.join(', ')}`, 'err');
+          }
           let low = Number(analyzed?.price_range?.value?.low);
           if (!(Number.isFinite(low) && low >= 50)) {
             const m = toLatinDigitsStr(paste).match(/(?:السعر\s*للشمال|السعرللشمال|للشمال|الشمال)[^\n\r]*?(\d+[\.,٬٫]?\d*)/i);
