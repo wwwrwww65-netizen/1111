@@ -123,8 +123,14 @@ onMounted(async ()=>{
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: ch || 'whatsapp' })
-    if (r && (r.ok || r.sent)) { timeLeft.value = 60; canResend.value = false; if (!timeLeft.value) tick(); }
-    else { errorText.value = 'تعذر إرسال الرمز. تأكد أن القالب Approved ولغته صحيحة (ar أو ar_SA).'; }
+    if (r && (r.ok || r.sent)) {
+      timeLeft.value = 60; canResend.value = false; if (!timeLeft.value) tick();
+      if ((r as any).channelUsed === 'sms') {
+        errorText.value = 'تم الإرسال عبر SMS (قالب واتساب غير متاح).';
+      }
+    } else {
+      errorText.value = 'تعذر إرسال الرمز. تأكد أن قالب واتساب Approved ولغته صحيحة، أو فعّل SMS.';
+    }
   } catch { errorText.value = 'خطأ في الشبكة' }
 })
 function tick(){ if (timeLeft.value>0){ setTimeout(()=>{ timeLeft.value--; tick() }, 1000) } else { canResend.value = true } }

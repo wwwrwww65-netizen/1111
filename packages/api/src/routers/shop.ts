@@ -173,16 +173,19 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel, "expiresAt") VALUES ($1,$2,$3,$4,$5)', id, phone, code, channel, expiresAt);
     const text = `رمز التأكيد: ${code}`;
     let sent = false;
+    let used: 'whatsapp' | 'sms' | '' = '';
     // Try WhatsApp first
     if (channel === 'whatsapp' || channel === 'both') {
-      sent = await sendWhatsappOtp(phone, text);
+      const ok = await sendWhatsappOtp(phone, text);
+      if (ok) { sent = true; used = 'whatsapp'; }
     }
     // Fallback to SMS if WA failed or channel is sms
     if (!sent && (channel === 'sms' || channel === 'whatsapp' || channel === 'both')) {
-      sent = await sendSmsOtp(phone, text);
+      const ok2 = await sendSmsOtp(phone, text);
+      if (ok2) { sent = true; used = 'sms'; }
     }
     if (!sent) { console.warn('[OTP] send failed', { phone, channel }); return res.status(502).json({ ok:false, error:'send_failed' }); }
-    return res.json({ ok:true, sent:true, expiresInSec: 300 });
+    return res.json({ ok:true, sent:true, channelUsed: used, expiresInSec: 300 });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_request_failed' }); }
 });
 
