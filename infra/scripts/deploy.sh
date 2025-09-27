@@ -82,12 +82,6 @@ if [ -d "$ROOT_DIR/apps/mweb" ]; then
   fi
 fi
 
-# WhatsApp self-test (non-blocking): send OTP to owner to verify template delivery
-if [ -d "$ROOT_DIR/packages/api" ]; then
-  echo "[deploy] WhatsApp self-test to +967777310606"
-  (cd "$ROOT_DIR/packages/api" && pnpm exec node scripts/wa-selftest.js "+967777310606") || true
-fi
-
 # IMPORTANT: Do NOT create or seed any data on deploy.
 # To allow controlled admin seeding, explicitly set DEPLOY_ALLOW_SEEDING=1 (defaults to disabled)
 if [ "${DEPLOY_ALLOW_SEEDING:-0}" = "1" ]; then
@@ -173,32 +167,5 @@ systemctl restart ecom-admin || true
 if command -v nginx >/dev/null 2>&1; then
   nginx -t >/dev/null 2>&1 && nginx -s reload || true
 fi
-
-# Wait for API health on localhost:4000 (up to 30s)
-echo "[deploy] Waiting for API health..."
-ok_flag=0
-for i in $(seq 1 30); do
-  if curl -sS http://127.0.0.1:4000/health | grep -q '"ok":true'; then
-    echo "[deploy] API is healthy"
-    ok_flag=1
-    break
-  fi
-  sleep 1
-done
-if [ "$ok_flag" -ne 1 ]; then
-  echo "[deploy] API health timed out; printing last logs for ecom-api" >&2
-  journalctl -u ecom-api --no-pager -n 200 2>/dev/null | sed 's/.*/[ecom-api-log] &/' || true
-fi
-
-# Public API OTP self-test (non-blocking): simulate UI flow with YE code + local number
-echo "[deploy] OTP request self-test via API (+967777310606)"
-# Try local API first (behind Nginx):
-curl -sS -X POST "http://127.0.0.1:4000/api/auth/otp/request" \
-  -H "Content-Type: application/json" \
-  -d '{"phone":"+967777310606","channel":"whatsapp"}' | sed 's/.*/[otp-selftest-local] &/' || true
-# Fallback to public API to catch edge routing issues
-curl -sS -X POST "https://api.jeeey.com/api/auth/otp/request" \
-  -H "Content-Type: application/json" \
-  -d '{"phone":"+967777310606","channel":"whatsapp"}' | sed 's/.*/[otp-selftest-public] &/' || true
 
 echo "Deploy completed."
