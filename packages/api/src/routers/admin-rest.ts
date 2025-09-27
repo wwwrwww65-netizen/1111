@@ -3233,11 +3233,20 @@ adminRest.post('/products/analyze', async (req, res) => {
     const clamp = (s:string, n:number)=> s.length>n ? s.slice(0,n) : s;
     const synonymsMap: Record<string,string[]> = { 'صوف': ['شتوي','دافئ'], 'قطن': ['خفيف','صيفي'], 'جلد': ['فاخر'], 'فنيلة': ['توب','بلوزة'] };
     const arabicStop: string[] = Array.isArray((sw as any)?.ar) ? (sw as any).ar : ['و','في','من','الى','على','عن','هو','هي','هذا','هذه','ذلك','تلك','ثم','كما','قد','لقد','مع','حسب','أو','أي','ما','لا','لم','لن','إن','أن','كان','كانت','يكون','يمكن','فقط','متوفر','متوفرة','جديد','جديدة','عرض','السعر','كمية','الكبرى','الصغرى','لون','الوان','لونين'];
-    // Text pass (rule-based + stopwords)
+    // Text pass (rule-based + optional zero-shot classification)
     if (typeof text === 'string' && text.trim()) {
       const pre = normalizeSpaces(cleanSymbols(stripEmojis(text||'')));
       const preNum = toLatinDigits(pre);
       const extracted = parseProductText(pre) || {};
+      // Zero-shot classification of sentences (optional, works if transformers available)
+      let zsc: Record<string, Array<{label:string;score:number}>> | null = null;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const cls = require('../utils/classify');
+        if (cls && typeof cls.classifySentences === 'function') {
+          zsc = await cls.classifySentences(pre, ['PRICE','SIZE','MATERIAL','FEATURE','COLOR','NOISE']);
+        }
+      } catch {}
       // Name generation with priority: <type> <attr> من <material> — <feature>
       const typeMatch = pre.match(/(^|\s)(فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|قميص|فستان|هودي|سويتر|بلوفر)(?=\s|$)/i);
       const materialMatch = pre.match(/(^|\s)(صوف|قطن|جلد|لينن|denim|leather|cotton|wool)(?=\s|$)/i);
@@ -3322,6 +3331,12 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v)) priceNums.push(v); });
       }
       if (!priceNums.length) {
+        // Try zero-shot strongest PRICE sentence
+        if (zsc && Array.isArray(zsc.PRICE) && zsc.PRICE.length) {
+          const best = zsc.PRICE[0]?.label || '';
+          const m = best.match(/(\d+[\.,٬٫]?\d*)/g);
+          if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v)) priceNums.push(v); });
+        }
         if (typeof extracted.purchasePrice === 'number' && Number.isFinite(Number(extracted.purchasePrice))) priceNums.push(Number(extracted.purchasePrice));
         if (typeof extracted.salePrice === 'number' && Number.isFinite(Number(extracted.salePrice))) priceNums.push(Number(extracted.salePrice));
       }
