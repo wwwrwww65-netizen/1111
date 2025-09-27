@@ -126,10 +126,10 @@ onMounted(async ()=>{
     if (r && (r.ok || r.sent)) {
       timeLeft.value = 60; canResend.value = false; if (!timeLeft.value) tick();
       if ((r as any).channelUsed === 'sms') {
-        errorText.value = 'تم الإرسال عبر SMS (قالب واتساب غير متاح).';
+        errorText.value = 'تم الإرسال عبر SMS تلقائياً.';
       }
     } else {
-      errorText.value = 'تعذر إرسال الرمز. تأكد أن قالب واتساب Approved ولغته صحيحة، أو فعّل SMS.';
+      errorText.value = 'تعذر إرسال الرمز عبر واتساب. سنحاول SMS تلقائياً أو أعد المحاولة بعد لحظات.';
     }
   } catch { errorText.value = 'خطأ في الشبكة' }
 })
