@@ -16,6 +16,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     env:
       DEPLOY_HOST: ${{ secrets.SSH_HOST || secrets.VPS_HOST || secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.SSH_USER || secrets.VPS_USER || secrets.DEPLOY_USER }}
@@ -64,10 +65,11 @@ jobs:
           DEPLOY_PATH="${{ env.MWEB_PATH }}"
           ssh -vvv -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "set -ex; mkdir -p '$DEPLOY_PATH/releases/${GITHUB_SHA}'"
 
-      - name: Upload build to VPS (scp)
+      - name: Upload build to VPS (rsync diff)
         run: |
           set -ex
-          scp -v -o ConnectTimeout=10 -o StrictHostKeyChecking=no -P "${{ env.DEPLOY_PORT }}" -r apps/mweb/dist/* "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.MWEB_PATH }}/releases/${GITHUB_SHA}/"
+          RSYNC_RSH="ssh -p '${{ env.DEPLOY_PORT }}' -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3"
+          rsync -az --delete --info=stats1,progress2 -e "$RSYNC_RSH" apps/mweb/dist/ "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.MWEB_PATH }}/releases/${GITHUB_SHA}/"
 
       - name: Activate release (native ssh)
         run: |
