@@ -81,8 +81,32 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
 async function sendSmsOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('sms');
   if (!cfg || !cfg.enabled) return false;
-  // Placeholder: integrate real SMS provider (Twilio/Vonage) here using cfg
-  try { console.log('[SMS OTP] to', phone, text); return true; } catch { return false; }
+  try {
+    const prov = String(cfg.provider||'').toLowerCase();
+    const to = phone.startsWith('+') ? phone : `+${phone}`;
+    if (prov === 'twilio' && cfg.accountSid && cfg.authToken && cfg.sender){
+      const sid = String(cfg.accountSid);
+      const token = String(cfg.authToken);
+      const from = String(cfg.sender);
+      const body = new URLSearchParams({ To: to, From: from, Body: text });
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+        method:'POST',
+        headers: { 'Authorization': 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      if (!r.ok) { try { console.error('Twilio send failed', await r.text()); } catch {} }
+      return r.ok;
+    }
+    if (prov === 'vonage' && cfg.accountSid && cfg.authToken && cfg.sender){
+      // Using Vonage SMS API (legacy): https://rest.nexmo.com/sms/json
+      const params = new URLSearchParams({ api_key: String(cfg.accountSid), api_secret: String(cfg.authToken), to: to.replace('+',''), from: String(cfg.sender), text });
+      const r = await fetch('https://rest.nexmo.com/sms/json', { method:'POST', headers: { 'Content-Type':'application/x-www-form-urlencoded' }, body: params });
+      if (!r.ok) { try { console.error('Vonage send failed', await r.text()); } catch {} }
+      return r.ok;
+    }
+    console.warn('[SMS OTP] provider not configured with required credentials');
+    return false;
+  } catch { return false; }
 }
 // Public consent endpoints
 shop.get('/consent/config', async (_req, res) => {
@@ -125,13 +149,15 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel, "expiresAt") VALUES ($1,$2,$3,$4,$5)', id, phone, code, channel, expiresAt);
     const text = `رمز التأكيد: ${code}`;
     let sent = false;
-    let tried = false;
-    if (channel === 'whatsapp') { tried = true; sent = await sendWhatsappOtp(phone, text); }
-    if (!sent && channel === 'sms') { tried = true; sent = await sendSmsOtp(phone, text); }
-    if (!sent) {
-      console.warn('[OTP] send failed', { phone, channel });
-      return res.status(502).json({ ok:false, error:'send_failed' });
+    // Try WhatsApp first
+    if (channel === 'whatsapp' || channel === 'both') {
+      sent = await sendWhatsappOtp(phone, text);
     }
+    // Fallback to SMS if WA failed or channel is sms
+    if (!sent && (channel === 'sms' || channel === 'whatsapp' || channel === 'both')) {
+      sent = await sendSmsOtp(phone, text);
+    }
+    if (!sent) { console.warn('[OTP] send failed', { phone, channel }); return res.status(502).json({ ok:false, error:'send_failed' }); }
     return res.json({ ok:true, sent:true, expiresInSec: 300 });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_request_failed' }); }
 });
