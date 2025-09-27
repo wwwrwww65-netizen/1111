@@ -35,6 +35,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('whatsapp');
   if (!cfg || !cfg.enabled) return false;
   const token = cfg.token; const phoneId = cfg.phoneId; const template = cfg.template; const languageCode = cfg.languageCode || 'ar';
+  const buttonSubType = cfg.buttonSubType; const buttonIndex = Number(cfg.buttonIndex||0); const buttonParam = cfg.buttonParam;
   if (!token || !phoneId) return false;
   try {
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
@@ -44,13 +45,16 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
     if (template) {
       for (const to of toVariants) {
         for (const lang of candidates) {
-          const body = {
+          const body: any = {
             messaging_product: 'whatsapp',
             to,
             type: 'template',
             template: { name: String(template), language: { code: String(lang) } as any,
               components: [{ type: 'body', parameters: [{ type: 'text', text }] }] },
           } as any;
+          if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number') && typeof buttonParam === 'string' && buttonParam.trim()){
+            body.template.components.push({ type:'button', sub_type: buttonSubType, index: String(buttonIndex||0), parameters:[{ type: 'text', text: String(buttonParam) }] });
+          }
           const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
           if (r.ok) return true;
           try { console.error('WA template send failed', lang, to, await r.text()) } catch {}

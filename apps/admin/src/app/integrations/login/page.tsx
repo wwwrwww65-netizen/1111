@@ -25,6 +25,9 @@ type WhatsAppConfig = {
   phoneId?: string;  // sender/phone id
   template?: string; // template name/id
   languageCode?: string; // e.g. ar, en
+  buttonSubType?: string; // url | quick_reply | phone_number
+  buttonIndex?: string; // '0', '1', '2'
+  buttonParam?: string; // URL param if template URL has {{1}}
 };
 
 type SmsConfig = {
@@ -237,7 +240,10 @@ export default function LoginIntegrationsPage(): JSX.Element {
               <Field label="Access Token" value={wcfg.token||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'token', v)} placeholder="EAAG..." />
               <Field label="Phone/Sender ID" value={wcfg.phoneId||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'phoneId', v)} placeholder="1234567890" />
               <Field label="Template" value={wcfg.template||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'template', v)} placeholder="otp_template" />
-              <Field label="Language Code" value={wcfg.languageCode||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'languageCode', v)} placeholder="ar | en" />
+              <Field label="Language Code" value={wcfg.languageCode||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'languageCode', v)} placeholder="ar | ar_SA" />
+              <Field label="Button Type (optional)" value={wcfg.buttonSubType||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'buttonSubType', v)} placeholder="url | quick_reply | phone_number" />
+              <Field label="Button Index (0-2)" value={wcfg.buttonIndex||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'buttonIndex', v)} placeholder="0" />
+              <Field label="Button Param (URL param)" value={wcfg.buttonParam||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'buttonParam', v)} placeholder="https://m.jeeey.com/verify" />
             </div>
           </Section>
 
