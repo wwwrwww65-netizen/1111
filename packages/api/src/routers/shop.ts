@@ -48,36 +48,46 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
     const candidates = Array.from(new Set([String(languageCode), 'ar_SA', 'ar', 'en']));
     const e164 = String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`;
     const toVariants = Array.from(new Set([e164]));
-    // Try template with multiple languages and to formats
+    // Try template with multiple languages and component permutations
     if (template) {
       for (const to of toVariants) {
         for (const lang of candidates) {
-          const body: any = {
-            messaging_product: 'whatsapp',
-            to,
-            type: 'template',
-            template: { name: String(template), language: { code: String(lang), policy: 'deterministic' } as any,
-              components: [] },
-          } as any;
-          // Optional header if configured in integration
-          if (headerType && String(headerType).toLowerCase() !== 'none'){
+          // Build component variants to avoid invalid-parameter errors when header/body varies across templates
+          const buildHeader = (): any | null => {
+            if (!headerType || String(headerType).toLowerCase() === 'none') return null;
             const ht = String(headerType).toLowerCase();
-            if (ht === 'text' && headerParam){
-              body.template.components.push({ type:'header', parameters:[{ type:'text', text: String(headerParam) }] });
-            } else if ((ht === 'image' || ht === 'video' || ht === 'document') && headerParam){
+            if (ht === 'text' && headerParam) return { type:'header', parameters:[{ type:'text', text: String(headerParam) }] };
+            if ((ht === 'image' || ht === 'video' || ht === 'document') && headerParam){
               const pkey = ht as 'image'|'video'|'document';
               const mediaParam: any = {}; mediaParam[pkey] = { link: String(headerParam) };
-              body.template.components.push({ type:'header', parameters:[{ type: pkey, ...mediaParam }] });
+              return { type:'header', parameters:[{ type: pkey, ...mediaParam }] };
             }
+            return null;
+          };
+          const headerComp = buildHeader();
+          const bodyComp = { type:'body', parameters:[{ type:'text', text }] } as any;
+          const variants: any[] = [];
+          // 1) header + body
+          if (headerComp) variants.push([headerComp, bodyComp]);
+          // 2) body only
+          variants.push([bodyComp]);
+          // 3) header only (some templates put code in header)
+          if (headerComp) variants.push([headerComp]);
+
+          for (const comps of variants) {
+            const payload: any = {
+              messaging_product: 'whatsapp',
+              to,
+              type: 'template',
+              template: { name: String(template), language: { code: String(lang), policy: 'deterministic' }, components: comps },
+            };
+            if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number') && typeof buttonParam === 'string' && buttonParam.trim()){
+              payload.template.components.push({ type:'button', sub_type: buttonSubType, index: String(buttonIndex||0), parameters:[{ type: 'text', text: String(buttonParam) }] });
+            }
+            const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+            if (r.ok) return true;
+            try { console.error('WA template send failed', lang, to, JSON.stringify(comps), await r.text()) } catch {}
           }
-          // Body single param (OTP)
-          body.template.components.push({ type: 'body', parameters: [{ type: 'text', text }] });
-          if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number') && typeof buttonParam === 'string' && buttonParam.trim()){
-            body.template.components.push({ type:'button', sub_type: buttonSubType, index: String(buttonIndex||0), parameters:[{ type: 'text', text: String(buttonParam) }] });
-          }
-          const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-          if (r.ok) return true;
-          try { console.error('WA template send failed', lang, to, await r.text()) } catch {}
         }
       }
     }
