@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fetch from 'node-fetch'
 
 const API = process.env.API_BASE || 'http://localhost:4000'
-const text = `🤩جديديناءغيرر🔥🔥🔥\n\nدلع واناقة💃🏼\n\nفنائل  نسائي يتميز ب:\n\nتشكيله جديده 🥰\n     زرارات انيقه \n✨قماش صوف  🤤\n      كم كامل\n✨2الوان   \n\n✨خارجي \n\n✨المقاسات. \nمن وزن40 حتى وزن 60\n\n💱السعرللشمال 850/فقط🤑🤑\n💱السعر عمله جنوبي3000 /فقط🤑🤑\n\nمتوووفر بكمية كبيرة`;
+const text = `*جديد* *طقم طقم نسائي قطعتين احلا ماركه راقي* *يتميز ثلاث قطع منفصله* *فستان نسائي طويل مورد كلوش امبريلا* *جاكت كم طويل حرير تركي مزين بي الامام بكرستال فضي وفتحه من الخلف زرار* *حزام خصر منفصل* *شكل جديد ومميز* *5اللوان تحححفه* *تشكيله الترند الجديد* *قماش الجاكت حرير تركي الأصلي قماش الفستان حرير باربي الأصلي* *مقاسات L_Xl يلبس *من وزن 40الى وزن 70* *السعر* *عمله قديم 3500* *عمله جديد 11000* *الكل يعرض متوفر بكميات*`;
 
 // Login to get token (JSON login)
 const loginRes = await fetch(`${API}/api/admin/auth/login`, {
@@ -23,15 +23,15 @@ const j = await r.json()
 const a = j?.analyzed || {}
 
 assert.ok(a?.name?.value, 'name missing')
-assert.ok(/فنيلة|فنيله|فنائل/.test(String(a.name.value)), 'name should contain فنيلة')
+assert.ok(/طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل/.test(String(a.name.value)), 'name should contain a known type')
 assert.ok(String(a.name.value).length <= 60, 'name length should be <= 60')
 assert.ok(a?.description?.value, 'description missing')
 // sizes should be in sizes field, not description
 assert.ok(!( /40\s*[–-]?\s*60|40\s*إلى\s*60/.test(a.description.value) ), 'sizes should not be in description')
 console.log('price_low debug:', a?.price_range?.value?.low)
 assert.ok(
-  a?.price_range?.value?.low !== undefined && Number.isFinite(Number(a.price_range.value.low)),
-  'price low missing'
+  a?.price_range?.value?.low !== undefined && Number.isFinite(Number(a.price_range.value.low)) && Number(a.price_range.value.low) === 3500,
+  'price low should prefer old price 3500'
 )
 
 console.log('analyze smoke OK:', {

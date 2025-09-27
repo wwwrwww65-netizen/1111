@@ -3248,13 +3248,13 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
       } catch {}
       // Name generation with priority: <type> <attr> من <material> — <feature>
-      const typeMatch = pre.match(/(^|\s)(فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|قميص|فستان|هودي|سويتر|بلوفر)(?=\s|$)/i);
-      const materialMatch = pre.match(/(^|\s)(صوف|قطن|جلد|لينن|denim|leather|cotton|wool)(?=\s|$)/i);
+      const typeMatch = pre.match(/(^|\s)(طقم|فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|جاكت|قميص|فستان|هودي|سويتر|بلوفر|set)(?=\s|$)/i);
+      const materialMatch = pre.match(/(^|\s)(حرير|باربي|صوف|قطن|جلد|لينن|denim|leather|cotton|wool|silk|satin|polyester)(?=\s|$)/i);
       const attrMatch = pre.match(/(^|\s)(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)(?=\s|$)/i);
       const featureMatch = pre.match(/(^|\s)(أزرار (?:انيقه|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه)(?=\s|$)/i);
       let normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[2]) ? 'فنيلة' : typeMatch[2].replace(/ه$/,'ة')) : '';
       if (!normalizedType && /(فنائل|فنيله|فنيلة)/i.test(pre)) normalizedType = 'فنيلة';
-      let material = materialMatch ? (materialMatch[2].toLowerCase()==='wool'?'صوف':materialMatch[2].toLowerCase()==='cotton'?'قطن':materialMatch[2]) : '';
+      let material = materialMatch ? (():string=>{ const m = materialMatch[2].toLowerCase(); if (m==='wool') return 'صوف'; if (m==='cotton') return 'قطن'; if (m==='silk' || m==='حرير') return 'حرير'; if (m==='satin') return 'ساتان'; if (m==='polyester') return 'بوليستر'; if (m==='باربي') return 'حرير باربي'; return materialMatch[2]; })() : '';
       if (material) {
         // أضف "ال" للتعبير العربي الطبيعي
         if (!/^ال/.test(material)) material = `الصوف` === material ? material : (material === 'صوف' ? 'الصوف' : material === 'قطن' ? 'القطن' : material);
@@ -3286,7 +3286,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       const sentence2 = mats.length? `${mats.join('، ')}.` : '';
       // لا نذكر المقاسات في الوصف (تُعرض في حقلها)
       let sz = '';
-      const wMatch = preNum.match(/وزن\s*(\d{2,3})[^\d]{0,8}(?:حتى|إلى|الى|-|–)\s*(\d{2,3})/i);
+      const wMatch = preNum.replace(/[_/\\-]+/g,' ').match(/وزن\s*(\d{2,3})[^\d]{0,16}?(?:حتى|إلى|الى|-|–)\s*(?:وزن)?\s*(\d{2,3})/i);
       // تجاهل نص المقاسات المقروءة
       // لا نذكر المخزون/الكمية في الوصف
       const sentence3 = '';
