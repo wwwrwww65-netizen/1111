@@ -24,6 +24,7 @@ const manualRoutes = [
   { path: '/address', component: () => import('./pages/Address.vue') },
   { path: '/register', component: () => import('./pages/Register.vue') },
   { path: '/forgot', component: () => import('./pages/Forgot.vue') },
+  { path: '/verify', component: () => import('./pages/Verify.vue') },
   { path: '/pay/processing', component: () => import('./pages/PayProcessing.vue') },
   { path: '/pay/success', component: () => import('./pages/PaySuccess.vue') },
   { path: '/pay/failure', component: () => import('./pages/PayFailure.vue') },

@@ -150,7 +150,10 @@ async function requestOtp(){
   try{
     sending.value = true
     const r = await apiPost('/api/auth/otp/request', { phone: phone.value, channel: 'whatsapp' })
-    if (r && (r.ok || r.sent)) { sent.value = true; ok.value = true; msg.value = 'تم إرسال الرمز عبر واتساب' } else { msg.value = 'تعذر إرسال الرمز' }
+    if (r && (r.ok || r.sent)) {
+      sent.value = true; ok.value = true; msg.value = 'تم إرسال الرمز عبر واتساب'
+      setTimeout(()=> router.push({ path:'/verify', query:{ phone: phone.value, dial: country.value.dial } }), 400)
+    } else { msg.value = 'تعذر إرسال الرمز' }
   } catch { msg.value = 'خطأ في الشبكة' } finally { sending.value = false }
 }
 
