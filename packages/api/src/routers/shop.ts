@@ -34,13 +34,19 @@ async function getLatestIntegration(provider: string): Promise<any|null> {
 async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('whatsapp');
   if (!cfg || !cfg.enabled) return false;
-  const token = cfg.token; const phoneId = cfg.phoneId; const template = cfg.template; const languageCode = cfg.languageCode || 'ar';
+  const token = cfg.token; const phoneId = cfg.phoneId; const template = cfg.template; let languageCode = cfg.languageCode || 'ar';
+  // Normalize language naming like "arabic" => "ar"
+  if (typeof languageCode === 'string'){
+    const lc = String(languageCode).toLowerCase();
+    if (lc === 'arabic') languageCode = 'ar';
+  }
   const buttonSubType = cfg.buttonSubType; const buttonIndex = Number(cfg.buttonIndex||0); const buttonParam = cfg.buttonParam;
   if (!token || !phoneId) return false;
   try {
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
     const candidates = Array.from(new Set([String(languageCode), 'ar_SA', 'ar', 'en']));
-    const toVariants = Array.from(new Set([String(phone), phone.startsWith('+') ? phone : `+${phone}`]));
+    const e164 = String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`;
+    const toVariants = Array.from(new Set([e164]));
     // Try template with multiple languages and to formats
     if (template) {
       for (const to of toVariants) {
@@ -49,7 +55,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
             messaging_product: 'whatsapp',
             to,
             type: 'template',
-            template: { name: String(template), language: { code: String(lang) } as any,
+            template: { name: String(template), language: { code: String(lang), policy: 'deterministic' } as any,
               components: [{ type: 'body', parameters: [{ type: 'text', text }] }] },
           } as any;
           if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number') && typeof buttonParam === 'string' && buttonParam.trim()){

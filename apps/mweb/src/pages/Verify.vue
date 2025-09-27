@@ -123,7 +123,7 @@ onMounted(async ()=>{
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: 'whatsapp' })
     if (r && (r.ok || r.sent)) { timeLeft.value = 60; canResend.value = false; if (!timeLeft.value) tick(); }
-    else { errorText.value = 'تعذر إرسال الرمز. تحقق من القالب/اللغة.' }
+    else { errorText.value = 'تعذر إرسال الرمز. تأكد أن القالب Approved ولغته صحيحة (ar أو ar_SA).'; }
   } catch { errorText.value = 'خطأ في الشبكة' }
 })
 function tick(){ if (timeLeft.value>0){ setTimeout(()=>{ timeLeft.value--; tick() }, 1000) } else { canResend.value = true } }

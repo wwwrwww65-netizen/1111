@@ -3354,8 +3354,10 @@ adminRest.post('/otp/test', async (req, res) => {
     const token = conf.token; const phoneId = conf.phoneId; const template = conf.template; const languageCode = conf.languageCode || 'ar';
     if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
-    const candidates = Array.from(new Set([String(languageCode), 'ar_SA', 'ar', 'en']));
-    const toVariants = Array.from(new Set([String(phone), String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`]));
+    let lang = String(languageCode||'ar');
+    if (lang.toLowerCase() === 'arabic') lang = 'ar';
+    const candidates = Array.from(new Set([lang, 'ar_SA', 'ar', 'en']));
+    const toVariants = Array.from(new Set([String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`]));
     const tried: Array<{ lang: string; to: string; status: number; body: string } > = [];
     // Prefer template
     if (template) {
@@ -3365,7 +3367,7 @@ adminRest.post('/otp/test', async (req, res) => {
             messaging_product: 'whatsapp',
             to,
             type: 'template',
-            template: { name: String(template), language: { code: String(lang) }, components: [{ type:'body', parameters:[{ type:'text', text: '123456' }] }] },
+            template: { name: String(template), language: { code: String(lang), policy: 'deterministic' }, components: [{ type:'body', parameters:[{ type:'text', text: '123456' }] }] },
           } as any;
           const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
           const text = await r.text().catch(()=> '');
