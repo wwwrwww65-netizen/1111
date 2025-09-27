@@ -44,6 +44,15 @@ jobs:
       - name: Build mweb
         run: pnpm --filter mweb build
 
+      - name: OTP Smoke on mweb (Playwright)
+        env:
+          MWEB_URL: https://m.jeeey.com
+          OTP_PHONE: 967777310606
+        run: |
+          set -e
+          pnpm add -D @playwright/test@1.48.2 playwright@1.48.2 || true
+          node scripts/ci/smoke-mweb-otp.mjs | cat
+
       - name: Check required secrets
         run: |
           set -e
