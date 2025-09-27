@@ -301,7 +301,16 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     const email = `phone+${normalized}@local`;
     const user = await db.user.upsert({ where: { email }, update: { phone: normalized }, create: { email, name: normalized, phone: normalized, password: '' } } as any);
     const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
-    res.cookie('auth_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 3600*24*30*1000 });
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
+    const isProd = (process.env.NODE_ENV || 'production') === 'production';
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      domain: cookieDomain,
+      sameSite: isProd ? 'none' : 'lax',
+      secure: isProd,
+      maxAge: 3600 * 24 * 30 * 1000,
+      path: '/',
+    });
     return res.json({ ok:true, token });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_verify_failed' }); }
 });
