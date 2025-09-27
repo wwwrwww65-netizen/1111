@@ -1,14 +1,16 @@
 <template>
-  <div dir="rtl" class="container" style="padding-top:68px">
-    <h1 style="margin:12px 0">إنشاء حساب</h1>
-    <form class="card" @submit.prevent="onSubmit" style="display:grid;gap:10px;padding:12px">
-      <input v-model="name" class="input" placeholder="الاسم" required />
-      <input v-model="email" type="email" class="input" placeholder="البريد الإلكتروني" required />
-      <input v-model="password" type="password" class="input" placeholder="كلمة المرور" required />
-      <button class="btn" style="width:100%">تسجيل</button>
-      <div v-if="msg" class="badge" :class="{ ok, err: !ok }">{{ msg }}</div>
-      <a href="/login" style="text-align:center;text-decoration:none">لديك حساب؟ تسجيل الدخول</a>
-    </form>
+  <div dir="rtl" class="min-h-screen bg-white">
+    <main class="max-w-md mx-auto px-4 py-6 space-y-4">
+      <h1 class="text-2xl font-bold text-gray-900">إنشاء حساب</h1>
+      <form @submit.prevent="onSubmit" class="grid gap-3">
+        <input v-model="name" class="h-11 rounded-[12px] border border-gray-200 px-3 bg-white text-[13px] text-gray-900 focus:outline-none focus:border-gray-800" placeholder="الاسم" required />
+        <input v-model="email" type="email" class="h-11 rounded-[12px] border border-gray-200 px-3 bg-white text-[13px] text-gray-900 focus:outline-none focus:border-gray-800" placeholder="البريد الإلكتروني" required />
+        <input v-model="password" type="password" class="h-11 rounded-[12px] border border-gray-200 px-3 bg-white text-[13px] text-gray-900 focus:outline-none focus:border-gray-800" placeholder="كلمة المرور" required />
+        <button class="w-full h-11 rounded-[6px] text-[13px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]" :style="{ backgroundColor: '#8a1538' }">تسجيل</button>
+        <div v-if="msg" class="px-3 py-2 rounded-[8px] text-center text-[13px]" :class="ok ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-800'">{{ msg }}</div>
+        <a href="/login" class="text-center text-[13px] text-blue-600">لديك حساب؟ تسجيل الدخول</a>
+      </form>
+    </main>
   </div>
 </template>
 
@@ -48,10 +50,5 @@ async function onSubmit(){
 }
 </script>
 
-<style scoped>
-.input{height:44px;border-radius:12px;border:1px solid var(--muted-2);padding:0 12px}
-.badge{padding:6px 10px;border-radius:8px;text-align:center}
-.ok{background:#e0f2fe;color:#0369a1}
-.err{background:#fee2e2;color:#991b1b}
-</style>
+<style scoped></style>
 

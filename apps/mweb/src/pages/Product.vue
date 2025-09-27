@@ -1,99 +1,102 @@
 <template>
-  <div class="product shein-root" dir="rtl">
+  <div class="bg-white pb-24" dir="rtl">
     <!-- Header -->
-    <div class="head">
-      <div class="left">
-        <div class="cartwrap" @click="router.push('/cart')" aria-label="السلة">
+    <div class="flex items-center justify-between p-3 border-b border-gray-200">
+      <div class="flex items-center gap-3">
+        <div class="relative inline-flex" @click="router.push('/cart')" aria-label="السلة">
           <ShoppingCart :size="24" />
-          <span v-if="cart.count" class="badge">{{ cart.count }}</span>
+          <span v-if="cart.count" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 border border-white">{{ cart.count }}</span>
         </div>
-        <button class="icon" aria-label="مشاركة" @click="share"><Share :size="24" /></button>
-        <button class="icon" aria-label="بحث" @click="router.push('/search')"><Search :size="24" /></button>
+        <button class="bg-transparent border-0" aria-label="مشاركة" @click="share"><Share :size="24" /></button>
+        <button class="bg-transparent border-0" aria-label="بحث" @click="router.push('/search')"><Search :size="24" /></button>
       </div>
-      <div class="logo">jeeey</div>
-      <div class="right">
-        <button class="icon" aria-label="القائمة"><Menu :size="24" /></button>
-        <div class="caret">›</div>
+      <div class="text-[20px] font-extrabold tracking-widest">jeeey</div>
+      <div class="flex items-center gap-3">
+        <button class="bg-transparent border-0" aria-label="القائمة"><Menu :size="24" /></button>
+        <div class="text-gray-400">›</div>
       </div>
     </div>
 
     <!-- Product Image with overlays -->
-    <div class="hero">
-      <img :src="activeImg" :alt="title" class="hero-img" loading="lazy" />
-      <div class="hero-count">{{ images.length }} / {{ activeIdx+1 }}</div>
-      <div class="hero-badge">
-        <div class="b1">استطالة% 50</div>
-        <div class="b2">S • VERIFIED</div>
+    <div class="relative">
+      <img :src="activeImg" :alt="title" class="w-full h-96 object-cover" loading="lazy" />
+      <div class="absolute bottom-3 left-3 text-white text-[12px]">{{ images.length }} / {{ activeIdx+1 }}</div>
+      <div class="absolute bottom-3 right-3 bg-white/90 px-3 py-1.5 rounded-[6px]">
+        <div class="text-[12px] font-bold">استطالة% 50</div>
+        <div class="text-[11px] text-orange-500">S • VERIFIED</div>
       </div>
     </div>
 
     <!-- Info -->
-    <div class="box">
-      <div class="row space">
-        <span class="chip purple">تنزيلات</span>
-        <span class="slogan">الموضة في متناول الجميع</span>
+    <div class="p-3">
+      <div class="flex items-center justify-between">
+        <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
+        <span class="text-violet-400 text-[12px]">الموضة في متناول الجميع</span>
       </div>
 
-      <div class="prices">
-        <div class="row mid">
-          <span class="now">{{ price }}</span>
-          <span v-if="original" class="old">{{ original }}</span>
-          <span class="after">بعد تطبيق الكوبون.</span>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-orange-500 font-extrabold text-[18px]">{{ price }}</span>
+          <span v-if="original" class="text-gray-400 line-through">{{ original }}</span>
+          <span class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
         </div>
-        <div class="coupon-box">خصم 20%: بدون حد أدنى للشراء</div>
-        <div class="club">
+        <div class="border border-orange-300 text-orange-700 rounded-[6px] px-2 py-1 text-[12px] my-1.5">خصم 20%: بدون حد أدنى للشراء</div>
+        <div class="flex items-center justify-between bg-orange-50 rounded-[6px] px-2 py-1.5">
           <span>وفر بخصم {{ clubSave }} على هذا المنتج بعد الانضمام.</span>
-          <div class="clubtag"><span class="S">S</span><span class="name">jeeey CLUB</span></div>
-        </div>
-      </div>
-
-      <div class="title-row">
-        <span class="chip purple">تنزيلات</span>
-      </div>
-      <h1 class="ttl">{{ title }}</h1>
-      <p class="desc">تصميم راقية الدانتيل قطع السمكة</p>
-      <div class="rate-row">
-        <span class="rnum">{{ avgRating.toFixed(2) }}</span>
-        <StarIcon :size="16" class="ystar" />
-        <span class="rcnt">(+{{ reviews.length || 500 }})</span>
-      </div>
-
-      <div class="best">
-        <span class="rank">#5</span>
-        <span class="besttxt">الأفضل مبيعاً في عطلة فساتين ماكسي للنساء</span>
-      </div>
-
-      <div class="variants">
-        <div class="row gap">
-          <img v-for="(img,i) in images.slice(0,3)" :key="'v'+i" :src="img" class="vimg" :alt="'variant '+i" />
-        </div>
-      </div>
-
-      <div class="sizes">
-        <div class="row space">
-          <span class="lbl">مقاس</span>
-          <div class="row gap small">
-            <span class="blue">الافتراضي</span>
-            <span class="muted">مرجع المقاس</span>
+          <div class="inline-flex items-center gap-1.5">
+            <span class="bg-orange-500 text-white rounded-full px-1.5 py-0.5 text-[11px]">S</span>
+            <span class="font-bold">jeeey CLUB</span>
           </div>
         </div>
-        <div class="row gap">
-          <button v-for="s in sizes" :key="s" class="sz" :class="{ on: size===s }" @click="size=s">{{ s }}</button>
+      </div>
+
+      <div class="mt-1">
+        <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
+      </div>
+      <h1 class="text-[16px] font-bold my-1.5">{{ title }}</h1>
+      <p class="text-gray-600 text-[12px] mb-1.5">تصميم راقية الدانتيل قطع السمكة</p>
+      <div class="flex items-center gap-1.5">
+        <span class="font-semibold">{{ avgRating.toFixed(2) }}</span>
+        <StarIcon :size="16" class="text-yellow-400" />
+        <span class="text-gray-600">(+{{ reviews.length || 500 }})</span>
+      </div>
+
+      <div class="flex items-center gap-1.5 my-2">
+        <span class="bg-orange-500 text-white rounded-[6px] px-1.5 py-0.5 text-[12px]">#5</span>
+        <span class="text-[12px]">الأفضل مبيعاً في عطلة فساتين ماكسي للنساء</span>
+      </div>
+
+      <div class="mt-2">
+        <div class="flex items-center gap-2">
+          <img v-for="(img,i) in images.slice(0,3)" :key="'v'+i" :src="img" class="w-12 h-12 rounded-[6px] border border-gray-200 object-cover" :alt="'variant '+i" />
         </div>
       </div>
 
-      <div class="fit">
-        <span class="orange bold">96%</span>
-        <span class="muted">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
-        <div class="muted small" style="margin-top:4px">ليس مقياسك؟ اخبرنا ما هو مقياسك</div>
+      <div class="mt-2">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold">مقاس</span>
+          <div class="flex items-center gap-2 text-[12px]">
+            <span class="text-blue-600">الافتراضي</span>
+            <span class="text-gray-600">مرجع المقاس</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-1">
+          <button v-for="s in sizes" :key="s" class="min-w-[50px] border border-gray-300 rounded-[6px] px-2 py-2 bg-white" :class="{ 'border-black': size===s }" @click="size=s">{{ s }}</button>
+        </div>
+      </div>
+
+      <div class="my-2 text-[13px]">
+        <span class="text-orange-500 font-bold">96%</span>
+        <span class="text-gray-600">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
+        <div class="text-gray-600 text-[12px] mt-1">ليس مقياسك؟ اخبرنا ما هو مقياسك</div>
       </div>
     </div>
 
     <!-- Bottom Actions -->
-    <div class="actions">
-      <button class="addtocart" @click="addToCart">أضف إلى عربة التسوق بنجاح</button>
-      <button class="square" aria-label="المفضلة"><HeartIcon :size="20" /></button>
-      <button class="square" aria-label="المقاسات"><RulerIcon :size="20" /></button>
+    <div class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2">
+      <button class="flex-1 h-12 rounded-[8px] bg-black text-white" @click="addToCart">أضف إلى عربة التسوق بنجاح</button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المفضلة"><HeartIcon :size="20" /></button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات"><RulerIcon :size="20" /></button>
     </div>
   </div>
 </template>
