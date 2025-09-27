@@ -28,6 +28,7 @@ const buildAllowedOrigins = (): string[] => {
     origins.push(`https://www.${root}`);
     origins.push(`https://admin.${root}`);
     origins.push(`https://api.${root}`);
+    origins.push(`https://m.${root}`);
   }
   // In non-prod, include local defaults as well
   if (process.env.NODE_ENV !== 'production') {
@@ -98,11 +99,9 @@ export const applySecurityMiddleware = (app: Express) => {
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 15552000, includeSubDomains: true, preload: true } : false,
   }));
 
-  // CORS (avoid duplicating headers with NGINX in production)
-  if (process.env.NODE_ENV !== 'production') {
-    app.use(cors(corsOptions));
-    app.options('*', cors(corsOptions));
-  }
+  // CORS (enable in all environments; NGINX should not duplicate Access-Control-Allow-* for API vhost)
+  app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
 
   // Rate limiting (disable in production to avoid proxy validation issues)
   if (process.env.NODE_ENV !== 'production') {
