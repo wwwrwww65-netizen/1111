@@ -40,9 +40,19 @@
         </div>
       </section>
 
-      <button class="login-btn" :aria-label="isTyping? 'التأكيد عبر واتساب':'تسجيل الدخول'">
-        {{ isTyping ? 'التأكيد عبر واتساب' : 'تسجيل الدخول' }}
-      </button>
+      <div style="display:grid;gap:8px">
+        <button class="login-btn" :disabled="sending" @click="requestOtp" aria-label="أرسل الرمز عبر واتساب">
+          {{ sending ? 'جار الإرسال…' : 'أرسل الرمز عبر واتساب' }}
+        </button>
+        <div v-if="sent" class="t11 text600" style="text-align:center">تم إرسال الرمز. أدخله بالأسفل.</div>
+        <div v-if="sent" style="display:grid;gap:8px;grid-template-columns:1fr auto">
+          <input v-model="code" placeholder="أدخل الرمز" class="phone-input" style="direction:ltr" />
+          <button class="login-btn" :disabled="verifying" @click="verifyOtp" aria-label="تحقق">
+            {{ verifying ? 'جار التحقق…' : 'تحقق' }}
+          </button>
+        </div>
+        <div v-if="msg" class="t11" :style="{color: ok? '#16a34a':'#dc2626', textAlign:'center'}">{{ msg }}</div>
+      </div>
 
       <div class="or-row">
         <div class="hr" /><div class="t11 text600">أو</div><div class="hr" />
@@ -109,6 +119,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Gift, Star, Globe, ChevronDown, AlertCircle, Facebook, ArrowRight } from 'lucide-vue-next'
+import { apiPost } from '@/lib/api'
 
 type Country = { code: string; name: string; dial: string }
 const countries: Country[] = [
@@ -125,5 +136,33 @@ const showError = computed(()=> isTyping.value && digitsOnly.value.length < 8)
 const router = useRouter()
 function goBack(){ try{ router.back() } catch{} }
 function onPhone(e: Event){ phone.value = (e.target as HTMLInputElement).value || '' }
+
+const sending = ref(false)
+const sent = ref(false)
+const verifying = ref(false)
+const code = ref('')
+const msg = ref('')
+const ok = ref(false)
+
+async function requestOtp(){
+  msg.value = ''; ok.value = false; sent.value = false;
+  if (showError.value){ msg.value = 'رقم هاتف غير صحيح'; return }
+  try{
+    sending.value = true
+    const r = await apiPost('/api/auth/otp/request', { phone: phone.value, channel: 'whatsapp' })
+    if (r && (r.ok || r.sent)) { sent.value = true; ok.value = true; msg.value = 'تم إرسال الرمز عبر واتساب' } else { msg.value = 'تعذر إرسال الرمز' }
+  } catch { msg.value = 'خطأ في الشبكة' } finally { sending.value = false }
+}
+
+async function verifyOtp(){
+  msg.value = ''; ok.value = false;
+  if (!code.value.trim()){ msg.value = 'أدخل الرمز'; return }
+  try{
+    verifying.value = true
+    const r = await apiPost('/api/auth/otp/verify', { phone: phone.value, code: code.value })
+    if (r && r.ok){ ok.value = true; msg.value = 'تم تسجيل الدخول بنجاح'; setTimeout(()=> router.push('/'), 500) }
+    else { msg.value = 'رمز غير صحيح أو منتهي' }
+  } catch { msg.value = 'خطأ في الشبكة' } finally { verifying.value = false }
+}
 </script>
 
