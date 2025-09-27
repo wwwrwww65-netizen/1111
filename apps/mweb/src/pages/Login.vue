@@ -126,10 +126,11 @@ async function requestOtp(){
   if (showError.value){ msg.value = 'رقم هاتف غير صحيح'; return }
   try{
     sending.value = true
-    const r = await apiPost('/api/auth/otp/request', { phone: phone.value, channel: 'whatsapp' })
+    const normalized = phone.value.replace(/\D/g,'')
+    const r = await apiPost('/api/auth/otp/request', { phone: normalized, channel: 'whatsapp' })
     if (r && (r.ok || r.sent)) {
       sent.value = true; ok.value = true; msg.value = 'تم إرسال الرمز عبر واتساب'
-      setTimeout(()=> router.push({ path:'/verify', query:{ phone: phone.value, dial: country.value.dial } }), 400)
+      setTimeout(()=> router.push({ path:'/verify', query:{ phone: normalized, dial: country.value.dial } }), 400)
     } else { msg.value = 'تعذر إرسال الرمز' }
   } catch { msg.value = 'خطأ في الشبكة' } finally { sending.value = false }
 }

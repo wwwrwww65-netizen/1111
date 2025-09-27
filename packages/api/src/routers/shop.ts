@@ -47,10 +47,12 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
           components: [{ type: 'body', parameters: [{ type: 'text', text }] }] },
       } as any;
       const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { try { console.error('WA template send failed', await r.text()) } catch {} }
       return r.ok;
     } else {
       const body = { messaging_product: 'whatsapp', to: String(phone), type: 'text', text: { body: text } } as any;
       const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { try { console.error('WA text send failed', await r.text()) } catch {} }
       return r.ok;
     }
   } catch { return false; }

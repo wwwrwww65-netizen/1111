@@ -146,7 +146,8 @@ async function resend(){
   errorText.value = ''
   try{
     resending.value = true
-    const r = await apiPost('/api/auth/otp/request', { phone: phone.value, channel: 'whatsapp' })
+    const normalized = phone.value.replace(/\D/g,'')
+    const r = await apiPost('/api/auth/otp/request', { phone: normalized, channel: 'whatsapp' })
     if (r && (r.ok || r.sent)){
       timeLeft.value = 60; canResend.value = false; tick()
     } else { errorText.value = 'تعذر إرسال الرمز' }
@@ -158,7 +159,8 @@ async function onSubmit(){
   errorText.value = ''
   try{
     verifying.value = true
-    const r = await apiPost('/api/auth/otp/verify', { phone: phone.value, code: code.value.join('') })
+    const normalized = phone.value.replace(/\D/g,'')
+    const r = await apiPost('/api/auth/otp/verify', { phone: normalized, code: code.value.join('') })
     if (r && r.ok){ router.push('/') } else { errorText.value = 'رمز غير صحيح أو منتهي' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
