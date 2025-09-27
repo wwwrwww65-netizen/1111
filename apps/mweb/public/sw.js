@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mweb-v3';
+const CACHE_NAME = 'mweb-v4';
 const ASSETS = [
   '/',
   '/index.html'
