@@ -32,6 +32,75 @@ async function ensureOtpTable(): Promise<void> {
   } catch {}
 }
 
+async function insertOtpRow(phone: string, code: string, channel: string, expiresAt: Date): Promise<string> {
+  const id = Math.random().toString(36).slice(2);
+  try {
+    // Introspect table columns
+    const cols: any[] = (await db.$queryRawUnsafe(
+      "SELECT column_name, is_nullable, data_type, column_default FROM information_schema.columns WHERE table_name='OtpCode' AND table_schema='public'"
+    )) as any[];
+    const now = new Date();
+    const known: Record<string, any> = {
+      id,
+      phone,
+      code,
+      channel,
+      expiresAt,
+      expires_at: expiresAt,
+      consumed: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    // Helper for generic defaults
+    const defaultFor = (dt: string) => {
+      const t = String(dt || '').toLowerCase();
+      if (t.includes('timestamp')) return now;
+      if (t.includes('boolean')) return false;
+      if (t.includes('double') || t.includes('numeric') || t.includes('real')) return 0;
+      if (t.includes('integer') || t.includes('smallint') || t.includes('bigint')) return 0;
+      return '';
+    };
+    const insertCols: string[] = [];
+    const values: any[] = [];
+    // Include all NOT NULL columns without default first, plus our known set
+    for (const c of cols) {
+      const name = c.column_name as string;
+      const isNullable = String(c.is_nullable || '').toUpperCase() === 'YES';
+      const hasDefault = c.column_default != null;
+      let val: any;
+      if (name in known) val = known[name];
+      else if (!isNullable && !hasDefault) val = defaultFor(String(c.data_type||''));
+      else continue;
+      insertCols.push('"' + name + '"');
+      values.push(val);
+    }
+    // Ensure at minimum our essential columns are included
+    const essentials = ['id','phone','code','channel'];
+    for (const e of essentials) {
+      if (!insertCols.includes('"'+e+'"')) { insertCols.push('"'+e+'"'); values.push(known[e]); }
+    }
+    // Build parameterized insert
+    const params = values.map((_, i) => `$${i+1}`).join(',');
+    const colsSql = insertCols.join(',');
+    const sql = `INSERT INTO "OtpCode" (${colsSql}) VALUES (${params})`;
+    await db.$executeRawUnsafe(sql, ...values);
+    // Best-effort backfill to both expiry fields
+    try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expiresAt"=$2, "updatedAt"=NOW() WHERE id=$1', id, expiresAt); } catch {}
+    try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expires_at"=$2, "updatedAt"=NOW() WHERE id=$1', id, expiresAt); } catch {}
+    return id;
+  } catch (e) {
+    // Fallback to minimal insert of known subset
+    try {
+      await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel) VALUES ($1,$2,$3,$4)', id, phone, code, channel);
+      try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expiresAt"=$2 WHERE id=$1', id, expiresAt); } catch {}
+      try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expires_at"=$2 WHERE id=$1', id, expiresAt); } catch {}
+      return id;
+    } catch {
+      throw e;
+    }
+  }
+}
+
 function generateOtpCode(): string { return String(Math.floor(100000 + Math.random() * 900000)); }
 
 async function getLatestIntegration(provider: string): Promise<any|null> {
@@ -199,21 +268,14 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     if (!phone) return res.status(400).json({ ok:false, error:'phone_required' });
     const code = generateOtpCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    const id = Math.random().toString(36).slice(2);
-    // insert minimal required columns first to avoid NOT NULL across legacy schemas
-    await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel) VALUES ($1,$2,$3,$4)', id, phone, code, channel);
-    // then backfill expiry into both naming variants if present
-    try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expiresAt"=$2, "updatedAt"=NOW() WHERE id=$1', id, expiresAt); } catch {}
-    try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET "expires_at"=$2, "updatedAt"=NOW() WHERE id=$1', id, expiresAt); } catch {}
+    const id = await insertOtpRow(phone, code, channel, expiresAt);
     const text = `رمز التأكيد: ${code}`;
     let sent = false;
     let used: 'whatsapp' | 'sms' | '' = '';
-    // Try WhatsApp first
     if (channel === 'whatsapp' || channel === 'both') {
       const ok = await sendWhatsappOtp(phone, text);
       if (ok) { sent = true; used = 'whatsapp'; }
     }
-    // Fallback to SMS if WA failed or channel is sms
     if (!sent && (channel === 'sms' || channel === 'whatsapp' || channel === 'both')) {
       const ok2 = await sendSmsOtp(phone, text);
       if (ok2) { sent = true; used = 'sms'; }
@@ -230,12 +292,11 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     const phone = String(req.body?.phone || '').trim();
     const code = String(req.body?.code || '').trim();
     if (!phone || !code) return res.status(400).json({ ok:false, error:'phone_code_required' });
-    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "OtpCode" WHERE phone=$1 AND code=$2 AND (consumed=false OR consumed IS NULL) ORDER BY "createdAt" DESC NULLS LAST LIMIT 1', phone, code)) as any[])[0];
+    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "OtpCode" WHERE phone=$1 AND code=$2 AND (consumed=false OR consumed IS NULL) ORDER BY COALESCE("createdAt", NOW()) DESC LIMIT 1', phone, code)) as any[])[0];
     if (!row) return res.status(400).json({ ok:false, error:'invalid_code' });
     const exp = row.expiresAt || row.expiresat || row.expires_at;
     if (!exp || new Date(exp) < new Date()) return res.status(400).json({ ok:false, error:'expired_code' });
     try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET consumed=true WHERE id=$1', row.id); } catch {}
-    // Upsert user by phone
     const normalized = phone.replace(/\s+/g,'');
     const email = `phone+${normalized}@local`;
     const user = await db.user.upsert({ where: { email }, update: { phone: normalized }, create: { email, name: normalized, phone: normalized, password: '' } } as any);
