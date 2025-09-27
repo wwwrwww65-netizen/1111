@@ -187,10 +187,11 @@ async function onSubmit(){
     if (local.startsWith('0')) local = local.replace(/^0+/, '')
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
-    const r = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
+    const r: any = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
     if (r && r.ok){
       const ret = String(route.query.return || '/account')
-      router.push(ret)
+      if (r.newUser) router.push({ path: '/complete-profile', query: { return: ret } })
+      else router.push(ret)
     } else { errorText.value = 'رمز غير صحيح أو منتهي' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }

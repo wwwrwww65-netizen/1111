@@ -1,0 +1,59 @@
+<template>
+  <div class="min-h-screen bg-white" dir="rtl">
+    <header class="w-full py-4 flex items-center justify-between px-4">
+      <button aria-label="رجوع" @click="goBack"><ArrowRight class="w-6 h-6 text-gray-800" /></button>
+      <h1 class="text-xl font-extrabold" :style="{ color: primary }">jeeey</h1>
+      <div class="w-6"></div>
+    </header>
+    <main class="max-w-md mx-auto px-4 py-6 space-y-4">
+      <h2 class="text-lg font-bold">اكمال إنشاء الحساب</h2>
+      <div>
+        <label class="block text-[12px] text-gray-700 mb-1">الاسم الرباعي</label>
+        <input v-model="fullName" class="w-full h-11 px-3 rounded-[4px] border border-gray-200 text-[13px]" placeholder="مثال: محمد أحمد علي سعيد" />
+      </div>
+      <div>
+        <label class="block text-[12px] text-gray-700 mb-1">كلمة السر</label>
+        <input type="password" v-model="password" class="w-full h-11 px-3 rounded-[4px] border border-gray-200 text-[13px]" placeholder="••••••••" />
+      </div>
+      <div>
+        <label class="block text-[12px] text-gray-700 mb-1">تأكيد كلمة السر</label>
+        <input type="password" v-model="confirm" class="w-full h-11 px-3 rounded-[4px] border border-gray-200 text-[13px]" placeholder="••••••••" />
+      </div>
+      <div v-if="error" class="text-[12px] text-red-600">{{ error }}</div>
+      <button :disabled="submitting || !valid" @click="onSubmit" class="w-full h-11 rounded-[4px] text-[13px] font-semibold flex items-center justify-center" :style="{ backgroundColor: primary, color: 'white', opacity: valid?1:.6 }">
+        {{ submitting ? 'جار الحفظ…' : 'تسجيل' }}
+      </button>
+    </main>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { ArrowRight } from 'lucide-vue-next'
+import { apiPost } from '@/lib/api'
+const primary = '#8a1538'
+const router = useRouter()
+const route = useRoute()
+function goBack(){ try{ router.back() } catch{} }
+const fullName = ref('')
+const password = ref('')
+const confirm = ref('')
+const error = ref('')
+const submitting = ref(false)
+const valid = computed(()=> fullName.value.trim().length>=4 && password.value.length>=6 && password.value===confirm.value)
+async function onSubmit(){
+  if (!valid.value){ error.value = 'تحقق من البيانات'; return }
+  error.value = ''
+  try{
+    submitting.value = true
+    const r = await apiPost('/api/me/complete', { fullName: fullName.value.trim(), password: password.value, confirm: confirm.value })
+    if (r && (r as any).ok){
+      const ret = String(route.query.return||'/account')
+      router.push(ret)
+    } else {
+      error.value = 'تعذر إكمال إنشاء الحساب'
+    }
+  } catch { error.value = 'خطأ في الشبكة' } finally { submitting.value = false }
+}
+</script>
