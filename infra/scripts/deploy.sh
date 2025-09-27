@@ -169,6 +169,21 @@ systemctl restart ecom-api || true
 systemctl restart ecom-web || true
 systemctl restart ecom-admin || true
 
+# Reload nginx (if present) to avoid stale upstreams and 502s
+if command -v nginx >/dev/null 2>&1; then
+  nginx -t >/dev/null 2>&1 && nginx -s reload || true
+fi
+
+# Wait for API health on localhost:4000 (up to 30s)
+echo "[deploy] Waiting for API health..."
+for i in $(seq 1 30); do
+  if curl -sS http://127.0.0.1:4000/health | grep -q '"ok":true'; then
+    echo "[deploy] API is healthy"
+    break
+  fi
+  sleep 1
+done
+
 # Public API OTP self-test (non-blocking): simulate UI flow with YE code + local number
 echo "[deploy] OTP request self-test via API (+967777310606)"
 # Try local API first (behind Nginx):
