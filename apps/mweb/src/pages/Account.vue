@@ -22,14 +22,29 @@ import ActivitySummaryRow from '@/components/account/ActivitySummaryRow.vue'
 import OrderStatusRow from '@/components/account/OrderStatusRow.vue'
 import ServicesGrid from '@/components/ServicesGrid.vue'
 import PromoProductCard from '@/components/account/PromoProductCard.vue'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
+import { apiGet } from '@/lib/api'
 const props = defineProps<{ userName?: string }>()
 const user = useUser()
 const username = computed(()=> props.userName || user.username || 'jeeey')
 const router = useRouter()
 function go(path:string){ router.push(path) }
+
+onMounted(async ()=>{
+  try{
+    const me = await apiGet<any>('/api/me')
+    if (me && me.user) {
+      user.isLoggedIn = true
+      if (me.user.name) user.username = String(me.user.name)
+    } else {
+      user.isLoggedIn = false
+    }
+  }catch{
+    user.isLoggedIn = false
+  }
+})
 </script>
 
 <style scoped>
