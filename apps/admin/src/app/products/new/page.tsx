@@ -345,7 +345,15 @@ export default function AdminProductCreate(): JSX.Element {
         sizes: analyzed?.sizes?.value || [],
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
-        purchasePrice: (analyzed?.price_range?.value?.low ?? undefined)
+        purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
+        reasons: {
+          name: analyzed?.name?.reason,
+          description: analyzed?.description?.reason,
+          sizes: analyzed?.sizes?.reason,
+          colors: analyzed?.colors?.reason,
+          price: analyzed?.price_range?.reason,
+          tags: analyzed?.tags?.reason,
+        }
       };
       const confidence:any = {
         name: Number(analyzed?.name?.confidence ?? 0.8),
@@ -700,24 +708,33 @@ export default function AdminProductCreate(): JSX.Element {
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)<input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" /></label>
+                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)
+                    <input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" />
+                    {!review.name && extracted?.reasons?.name && <div style={{ fontSize:12, color:'#ef4444' }}>{extracted.reasons.name}</div>}
+                  </label>
                   <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
-                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%)<textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} className="input" /></label>
+                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%)
+                    <textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} className="input" />
+                    {!review.shortDesc && extracted?.reasons?.description && <div style={{ fontSize:12, color:'#ef4444' }}>{extracted.reasons.description}</div>}
+                  </label>
                   <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%)<textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
                   <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%)</div>
                       <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)}))} className="input" />
+                      {(!review.sizes || review.sizes.length===0) && extracted?.reasons?.sizes && <div style={{ fontSize:12, color:'#ef4444' }}>{extracted.reasons.sizes}</div>}
                     </div>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%)</div>
                       <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)}))} className="input" />
+                      {(!review.colors || review.colors.length===0) && extracted?.reasons?.colors && <div style={{ fontSize:12, color:'#ef4444' }}>{extracted.reasons.colors}</div>}
                     </div>
                   </div>
                   <div style={{ gridColumn:'1 / -1' }}>
                     <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO)</div>
                     <input value={(review.keywords||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, keywords: e.target.value.split(',').map((k:string)=>k.trim()).filter(Boolean)}))} className="input" />
+                    {(!review.keywords || review.keywords.length===0) && extracted?.reasons?.tags && <div style={{ fontSize:12, color:'#ef4444' }}>{extracted.reasons.tags}</div>}
                   </div>
                 </div>
                 <div style={{ marginTop:12, borderTop:'1px solid #1c2333', paddingTop:12 }}>

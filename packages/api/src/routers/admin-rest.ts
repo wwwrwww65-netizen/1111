@@ -3364,7 +3364,16 @@ adminRest.post('/products/analyze', async (req, res) => {
       }catch(e:any){ warnings.push('image_colors_failed'); }
     }
     if (hexes.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...hexes])); sources.colors = { source:'vision', confidence:0.7 }; }
-    const result:any = Object.fromEntries(Object.entries(out).map(([k,v])=> [k, { value:v, ...(sources as any)[k] || { source:'rules', confidence:0.3 } }]));
+    // Attach per-field reasons if missing
+    const reasons: Record<string,string|undefined> = {
+      name: out.name ? undefined : 'لم يتم العثور على نوع/صفة/خامة كافية في النص.',
+      description: out.description ? undefined : 'النص قصير أو غير كافٍ لتوليد وصف.',
+      sizes: (out.sizes && out.sizes.length) ? undefined : 'لم يتم العثور على نمط مقاسات معروف (مثل فري سايز/XL/M).',
+      colors: (out.colors && out.colors.length) ? undefined : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.',
+      price_range: out.price_range ? undefined : 'لم يتم العثور على سطر سعر واضح. أضف سطر السعر (الشمال/قديم/مشابه).',
+      tags: (out.tags && out.tags.length) ? undefined : 'لا توجد كلمات مفتاحية كافية بعد إزالة الضوضاء.',
+    };
+    const result:any = Object.fromEntries(Object.entries(out).map(([k,v])=> [k, { value:v, reason: reasons[k], ...(sources as any)[k] || { source:'rules', confidence:0.3 } }]));
     if (process.env.ANALYZE_DEBUG === '1') {
       // minimal debug log
       try { console.debug('[analyze.debug]', { textPresent: Boolean((req.body||{}).text), colorsLen: (out.colors||[]).length, sizesLen: (out.sizes||[]).length, price: out.price_range }); } catch {}
