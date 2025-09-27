@@ -133,7 +133,7 @@ async function requestOtp(){
     if (r && (r.ok || r.sent)) {
       sent.value = true; ok.value = true; msg.value = 'تم إرسال الرمز عبر واتساب'
       setTimeout(()=> router.push({ path:'/verify', query:{ phone: e164, dial: country.value.dial } }), 400)
-    } else { msg.value = 'تعذر إرسال الرمز' }
+    } else { msg.value = 'تعذر إرسال الرمز. تحقق من الرقم/القالب.' }
   } catch { msg.value = 'خطأ في الشبكة' } finally { sending.value = false }
 }
 
