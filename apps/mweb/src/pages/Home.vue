@@ -82,11 +82,13 @@
       <section class="padX padY" aria-label="الفئات">
         <h2 class="h2">الفئات</h2>
         <div class="cat-scroll no-scrollbar">
-          <div class="cat-grid">
-            <button v-for="(c,i) in categories" :key="c.name + '-' + i" class="catbtn" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
-              <div class="catimg-wrap"><img :src="c.image" :alt="c.name" class="catimg" loading="lazy" /></div>
-              <div class="catname">{{ c.name }}</div>
-            </button>
+          <div class="cat-cols">
+            <div v-for="(col,ci) in catCols" :key="'col-'+ci" class="cat-col">
+              <button v-for="(c,ri) in col" :key="c.name + '-' + ci + '-' + ri" class="catbtn" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
+                <div class="catimg-wrap"><img :src="c.image" :alt="c.name" class="catimg" loading="lazy" /></div>
+                <div class="catname">{{ c.name }}</div>
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -279,9 +281,19 @@ onMounted(async ()=>{
 })
 
 const rows = 3
-const catRows = computed(()=>{
-  const perRow = Math.ceil((categories.value?.length||0) / rows) || 1
-  return Array.from({ length: rows }, (_, i) => categories.value.slice(i * perRow, (i + 1) * perRow))
+const catCols = computed(()=>{
+  const list = categories.value || []
+  const cols = Math.ceil(list.length / rows) || 1
+  const out: any[] = []
+  for (let c=0;c<cols;c++){
+    const col: any[] = []
+    for (let r=0;r<rows;r++){
+      const idx = c*rows + r
+      if (idx < list.length) col.push(list[idx])
+    }
+    out.push(col)
+  }
+  return out
 })
 
 function hasWish(p: Prod){ return wishlist.has(p.id || p.title) }
@@ -321,7 +333,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 
 .tabsbar{position:fixed;left:0;right:0;z-index:40;transition:background .2s}
 .tabsbar.scrolled{background:rgba(255,255,255,.95)}
-.tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px}
+.tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px;border-bottom:none}
 .tabbtn{background:transparent;border:none;padding:0 0 4px 0;cursor:pointer;white-space:nowrap;font-size:14px;color:#fff}
 .tabbtn.dark{color:#374151}
 .tabbtn.active{font-weight:700;color:#111}
@@ -360,6 +372,8 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 /* Unified categories scroll: 3 rows move together */
 .cat-scroll{overflow-x:auto;scrollbar-width:none}
 .cat-scroll::-webkit-scrollbar{display:none}
+.cat-cols{display:flex;gap:12px}
+.cat-col{display:flex;flex-direction:column;gap:6px}
 .cat-grid{display:grid;grid-auto-flow:column;grid-auto-columns:calc(100% - 24px);gap:12px;padding-bottom:2px}
 .cat-grid{--rows:3}
 .cat-grid{grid-template-rows:repeat(var(--rows),auto)}
