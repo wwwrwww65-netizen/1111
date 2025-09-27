@@ -79,6 +79,18 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
           // 4) empty components (for templates without params)
           variants.push([]);
 
+          // Button variants: if integration defines button, use it; otherwise try url and quick_reply automatically
+          const buttonCandidates: Array<{ sub_type: 'url'|'quick_reply'|'phone_number'; index: string; param: string }|null> = [];
+          if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number')){
+            const bp = (typeof buttonParam === 'string' && buttonParam.trim()) ? String(buttonParam) : String(paramValue);
+            buttonCandidates.push({ sub_type: buttonSubType, index: String(buttonIndex||0), param: bp });
+          }
+          // Auto attempts
+          buttonCandidates.push({ sub_type: 'url', index: '0', param: String(paramValue) });
+          buttonCandidates.push({ sub_type: 'quick_reply', index: '0', param: String(paramValue) });
+          // Also try with no button (for templates that don't require buttons)
+          buttonCandidates.push(null);
+
           for (const comps of variants) {
             const payload: any = {
               messaging_product: 'whatsapp',
@@ -86,14 +98,15 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
               type: 'template',
               template: { name: String(template), language: { code: String(lang), policy: 'deterministic' }, components: comps },
             };
-            // If template expects a button parameter, use integration param if provided, otherwise fall back to OTP digits
-            if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number')){
-              const btnParam = (typeof buttonParam === 'string' && buttonParam.trim()) ? String(buttonParam) : String(paramValue);
-              payload.template.components.push({ type:'button', sub_type: buttonSubType, index: String(buttonIndex||0), parameters:[{ type: 'text', text: btnParam }] });
+            for (const btn of buttonCandidates) {
+              const toSend = JSON.parse(JSON.stringify(payload));
+              if (btn) {
+                toSend.template.components.push({ type:'button', sub_type: btn.sub_type, index: btn.index, parameters:[{ type: 'text', text: btn.param }] });
+              }
+              const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(toSend) });
+              if (r.ok) return true;
+              try { console.error('WA template send failed', lang, to, JSON.stringify(toSend.template.components), await r.text()) } catch {}
             }
-            const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
-            if (r.ok) return true;
-            try { console.error('WA template send failed', lang, to, JSON.stringify(comps), await r.text()) } catch {}
           }
         }
       }
