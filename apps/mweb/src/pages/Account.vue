@@ -34,16 +34,15 @@ function go(path:string){ router.push(path) }
 
 onMounted(async ()=>{
   try{
+    // Try to load session from API; this requires the auth_token cookie sent with credentials
     const me = await apiGet<any>('/api/me')
     if (me && me.user) {
       user.isLoggedIn = true
       if (me.user.name) user.username = String(me.user.name)
-    } else {
-      user.isLoggedIn = false
+      return
     }
-  }catch{
-    user.isLoggedIn = false
-  }
+  }catch{}
+  user.isLoggedIn = false
 })
 </script>
 

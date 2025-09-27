@@ -7,7 +7,7 @@
         <div class="title">تسجيل الدخول / تسجيل</div>
         <div class="sub">انضم للاستفادة من جميع المزايا</div>
         <div class="cta-row">
-          <button class="btn secondary" @click="go('/login')">تسجيل الدخول</button>
+          <button class="btn secondary" @click="loginNow">تسجيل الدخول</button>
           <button class="btn primary" @click="go('/register')">إنشاء حساب</button>
         </div>
       </div>
@@ -81,6 +81,10 @@ import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
 const router = useRouter()
 function go(path: string){ router.push(path) }
+function loginNow(){
+  const ret = (typeof window!=='undefined') ? (location.pathname + location.search) : '/account'
+  router.push({ path: '/login', query: { return: ret } })
+}
 </script>
 
 <style scoped>
