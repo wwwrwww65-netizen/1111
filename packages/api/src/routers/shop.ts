@@ -86,8 +86,10 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
               type: 'template',
               template: { name: String(template), language: { code: String(lang), policy: 'deterministic' }, components: comps },
             };
-            if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number') && typeof buttonParam === 'string' && buttonParam.trim()){
-              payload.template.components.push({ type:'button', sub_type: buttonSubType, index: String(buttonIndex||0), parameters:[{ type: 'text', text: String(buttonParam) }] });
+            // If template expects a button parameter, use integration param if provided, otherwise fall back to OTP digits
+            if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number')){
+              const btnParam = (typeof buttonParam === 'string' && buttonParam.trim()) ? String(buttonParam) : String(paramValue);
+              payload.template.components.push({ type:'button', sub_type: buttonSubType, index: String(buttonIndex||0), parameters:[{ type: 'text', text: btnParam }] });
             }
             const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
             if (r.ok) return true;
