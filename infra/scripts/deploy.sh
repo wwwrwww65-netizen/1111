@@ -176,13 +176,19 @@ fi
 
 # Wait for API health on localhost:4000 (up to 30s)
 echo "[deploy] Waiting for API health..."
+ok_flag=0
 for i in $(seq 1 30); do
   if curl -sS http://127.0.0.1:4000/health | grep -q '"ok":true'; then
     echo "[deploy] API is healthy"
+    ok_flag=1
     break
   fi
   sleep 1
 done
+if [ "$ok_flag" -ne 1 ]; then
+  echo "[deploy] API health timed out; printing last logs for ecom-api" >&2
+  journalctl -u ecom-api --no-pager -n 200 2>/dev/null | sed 's/.*/[ecom-api-log] &/' || true
+fi
 
 # Public API OTP self-test (non-blocking): simulate UI flow with YE code + local number
 echo "[deploy] OTP request self-test via API (+967777310606)"
