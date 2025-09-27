@@ -169,4 +169,10 @@ systemctl restart ecom-api || true
 systemctl restart ecom-web || true
 systemctl restart ecom-admin || true
 
+# Public API OTP self-test (non-blocking): simulate UI flow with YE code + local number
+echo "[deploy] OTP request self-test via API (+967777310606)"
+curl -sS -X POST "https://api.jeeey.com/api/auth/otp/request" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+967777310606","channel":"whatsapp"}' | sed 's/.*/[otp-selftest] &/' || true
+
 echo "Deploy completed."
