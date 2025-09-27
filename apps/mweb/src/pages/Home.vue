@@ -178,7 +178,7 @@
         <button class="navbtn" aria-label="الفئات" @click="go('/categories')"><LayoutGrid :size="24" class="mx-auto mb-1" /><div class="navtext">الفئات</div></button>
         <button class="navbtn" aria-label="جديد/بحث" @click="go('/search')"><Search :size="24" class="mx-auto mb-1" /><div class="navtext">جديد</div></button>
         <button class="navbtn" aria-label="الحقيبة" @click="go('/cart')"><div class="cart-icon"><ShoppingBag :size="24" class="mx-auto mb-1" /><span v-if="cart.count>0" class="badge-count">{{ cart.count }}</span></div><div class="navtext">الحقيبة</div></button>
-        <button class="navbtn" aria-label="حسابي" @click="go('/login')"><User :size="24" class="mx-auto mb-1" /><div class="navtext">حسابي</div></button>
+        <button class="navbtn" aria-label="حسابي" @click="go('/account')"><User :size="24" class="mx-auto mb-1" /><div class="navtext">حسابي</div></button>
       </div>
     </nav>
   </div>
