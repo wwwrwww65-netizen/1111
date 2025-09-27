@@ -3251,7 +3251,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       const typeMatch = pre.match(/(^|\s)(طقم|فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|جاكت|قميص|فستان|هودي|سويتر|بلوفر|set)(?=\s|$)/i);
       const materialMatch = pre.match(/(^|\s)(حرير|باربي|صوف|قطن|جلد|لينن|denim|leather|cotton|wool|silk|satin|polyester)(?=\s|$)/i);
       const attrMatch = pre.match(/(^|\s)(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)(?=\s|$)/i);
-      const featureMatch = pre.match(/(^|\s)(أزرار (?:انيقه|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه)(?=\s|$)/i);
+      const featureMatch = pre.match(/(^|\s)(أزرار (?:انيقه|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه|كلوش|امبريلا|مورد|مطبوع)(?=\s|$)/i);
       let normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[2]) ? 'فنيلة' : typeMatch[2].replace(/ه$/,'ة')) : '';
       if (!normalizedType && /(فنائل|فنيله|فنيلة)/i.test(pre)) normalizedType = 'فنيلة';
       let material = materialMatch ? (():string=>{ const m = materialMatch[2].toLowerCase(); if (m==='wool') return 'صوف'; if (m==='cotton') return 'قطن'; if (m==='silk' || m==='حرير') return 'حرير'; if (m==='satin') return 'ساتان'; if (m==='polyester') return 'بوليستر'; if (m==='باربي') return 'حرير باربي'; return materialMatch[2]; })() : '';
@@ -3267,7 +3267,12 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (/^صيفي$/i.test(attr)) attr = 'صيفية';
       }
       let feature = featureMatch ? featureMatch[2] : '';
-      feature = /زرارات|أزرار/i.test(feature) ? 'أزرار أنيقة' : (/كم كامل/i.test(pre)? 'كم كامل' : feature);
+      const featureTags: string[] = [];
+      if (/زرارات|أزرار/i.test(pre)) featureTags.push('أزرار أنيقة');
+      if (/كم\s*كامل/i.test(pre)) featureTags.push('كم كامل');
+      if (/كلوش|امبريلا/i.test(pre)) featureTags.push('قصة كلوش');
+      if (/مورد|مطبوع/i.test(pre)) featureTags.push('نقشة مورد');
+      if (!feature && featureTags.length) feature = featureTags[0];
       const namePrefix = [ normalizedType, attr, material ? `من ${material}` : '' ].filter(Boolean).join(' ').trim();
       const genName = [ namePrefix, feature ].filter(Boolean).join(' ').trim();
       if (genName) { out.name = clamp(genName, 60); sources.name = { source:'rules', confidence:0.8 }; }
@@ -3277,8 +3282,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       // لا نعيد ذكر اسم المنتج أو نوعه أو المقاسات داخل الوصف
       if (material) introParts.push(`مصنوع من ${material}`);
       const introFeatures: string[] = [];
-      if (/زرارات|أزرار/i.test(pre)) introFeatures.push('أزرار أنيقة');
-      if (/كم كامل/i.test(pre)) introFeatures.push('كم كامل');
+      if (featureTags.length) introFeatures.push(...featureTags);
       const intro = normalizeSpaces(`${introParts.join(' ')}${introFeatures.length ? ' مع ' + introFeatures.join(' و') : ''}.`);
       const mats: string[] = [];
       if (/\b2\s*الوان|لونين\b/i.test(pre)) mats.push('متوفرة بلونين');
@@ -3292,7 +3296,19 @@ adminRest.post('/products/analyze', async (req, res) => {
       const sentence3 = '';
       // Always exactly three concise sentences
       const sentences = [intro, sentence2 || '', sentence3 || ''].map(s=> s.trim()).filter(Boolean);
-      const finalDesc = normalizeSpaces(sentences.slice(0,3).join(' '));
+      let finalDesc = normalizeSpaces(sentences.slice(0,3).join(' '));
+      // Anti-duplication: if description too similar to name or too short, compose alternative
+      const tokenize = (s:string)=> String(s||'').toLowerCase().replace(/[^\p{Script=Arabic}a-z\s]/gu,' ').split(/\s+/).filter(w=>w.length>=3);
+      const jaccard = (a:string,b:string)=>{ const A = new Set(tokenize(a)); const B = new Set(tokenize(b)); if (!A.size || !B.size) return 0; let inter=0; A.forEach(x=>{ if (B.has(x)) inter++; }); return inter / (A.size + B.size - inter); };
+      const tooShort = (finalDesc||'').length < 40;
+      const tooSimilar = jaccard(out.name||'', finalDesc||'') > 0.6;
+      if (tooShort || tooSimilar) {
+        const alt: string[] = [];
+        if (material) alt.push(`مصنوع من ${material} بملمس مريح.`); else alt.push('تصميم أنيق بخامات مريحة.');
+        if (featureTags.length) alt.push(`يوفر ${featureTags.join(' و')} لإطلالة مميزة.`); else alt.push('تفاصيل متقنة تمنح لمسة راقية.');
+        alt.push('ملائم للاستخدام اليومي والمناسبات.');
+        finalDesc = normalizeSpaces(alt.join(' '));
+      }
       if (finalDesc) { out.description = finalDesc; sources.description = { source:'rules', confidence:0.85 }; }
       // Sizes field (normalized)
       if (wMatch) { out.sizes = [`فري سايز (${Math.min(Number(wMatch[1]),Number(wMatch[2]))}–${Math.max(Number(wMatch[1]),Number(wMatch[2]))} كجم)`]; sources.sizes = { source:'rules', confidence:0.8 }; }
