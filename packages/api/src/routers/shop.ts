@@ -65,7 +65,10 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
             return null;
           };
           const headerComp = buildHeader();
-          const bodyComp = { type:'body', parameters:[{ type:'text', text }] } as any;
+          // Prefer sending only the OTP digits to match templates expecting {{1}}
+          const digits = (text.match(/\d+/g) || []).join('').slice(0, 12);
+          const paramValue = digits.length > 0 ? digits : text;
+          const bodyComp = { type:'body', parameters:[{ type:'text', text: paramValue }] } as any;
           const variants: any[] = [];
           // 1) header + body
           if (headerComp) variants.push([headerComp, bodyComp]);
@@ -73,6 +76,8 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
           variants.push([bodyComp]);
           // 3) header only (some templates put code in header)
           if (headerComp) variants.push([headerComp]);
+          // 4) empty components (for templates without params)
+          variants.push([]);
 
           for (const comps of variants) {
             const payload: any = {
