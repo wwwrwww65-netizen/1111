@@ -127,7 +127,7 @@ async function requestOtp(){
   const local = phone.value.replace(/\D/g,'')
   const dial = country.value.dial.replace(/\D/g,'')
   const e164 = local.startsWith(dial) ? local : (dial + local)
-  router.push({ path:'/verify', query:{ phone: e164, dial: country.value.dial, auto: '1' } })
+  router.push({ path:'/verify', query:{ phone: e164, dial: country.value.dial, auto: '1', ch: 'both' } })
 }
 
 async function verifyOtp(){
