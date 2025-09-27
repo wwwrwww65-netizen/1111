@@ -95,7 +95,7 @@
 
       <section class="padX padY" aria-label="عروض كبرى">
         <h2 class="h2">عروض كبرى</h2>
-        <div class="overflow no-scrollbar snap-x-start simple-row">
+        <div class="overflow no-scrollbar snap-x-start simple-row hscroll">
           <div class="simple-row-inner">
             <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price">
               <div class="borderbox">
@@ -109,7 +109,7 @@
 
       <section class="padX padY" aria-label="أهم الترندات">
         <h2 class="h2">أهم الترندات</h2>
-        <div class="overflow no-scrollbar snap-x-start simple-row">
+        <div class="overflow no-scrollbar snap-x-start simple-row hscroll">
           <div class="simple-row-inner">
             <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price">
               <div class="borderbox">
@@ -333,7 +333,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 
 .tabsbar{position:fixed;left:0;right:0;z-index:40;transition:background .2s}
 .tabsbar.scrolled{background:rgba(255,255,255,.95)}
-.tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px;border-bottom:none}
+.tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px;border-bottom:0}
 .tabbtn{background:transparent;border:none;padding:0 0 4px 0;cursor:pointer;white-space:nowrap;font-size:14px;color:#fff}
 .tabbtn.dark{color:#374151}
 .tabbtn.active{font-weight:700;color:#111}
@@ -372,8 +372,9 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 /* Unified categories scroll: 3 rows move together */
 .cat-scroll{overflow-x:auto;scrollbar-width:none}
 .cat-scroll::-webkit-scrollbar{display:none}
-.cat-cols{display:flex;gap:12px}
-.cat-col{display:flex;flex-direction:column;gap:6px}
+.cat-cols{display:flex;gap:8px;padding-bottom:2px}
+.cat-col{display:flex;flex-direction:column;gap:4px}
+.catbtn{width:90px}
 .cat-grid{display:grid;grid-auto-flow:column;grid-auto-columns:calc(100% - 24px);gap:12px;padding-bottom:2px}
 .cat-grid{--rows:3}
 .cat-grid{grid-template-rows:repeat(var(--rows),auto)}
