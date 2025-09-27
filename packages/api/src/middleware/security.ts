@@ -43,6 +43,16 @@ export const corsOptions = {
     const allowed = buildAllowedOrigins();
     if (!origin) return callback(null, true); // non-browser or same-origin
     if (allowed.includes(origin)) return callback(null, true);
+    // Allow any subdomain under COOKIE_DOMAIN root (e.g., m.jeeey.com) when COOKIE_DOMAIN is set
+    try {
+      const cookieDomain = process.env.COOKIE_DOMAIN || '';
+      const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
+      if (root) {
+        const u = new URL(origin);
+        const host = u.hostname || '';
+        if (host === root || host.endsWith('.' + root)) return callback(null, true);
+      }
+    } catch {}
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
