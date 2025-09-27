@@ -331,10 +331,10 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .logo{font-size:16px;font-weight:700;color:#fff}
 .logo.dark{color:#111827}
 
-.tabsbar{position:fixed;left:0;right:0;z-index:40;transition:background .2s}
-.tabsbar.scrolled{background:rgba(255,255,255,.95)}
-.tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px;border-bottom:0}
-.tabbtn{background:transparent;border:none;padding:0 0 4px 0;cursor:pointer;white-space:nowrap;font-size:14px;color:#fff}
+.tabsbar{position:fixed;left:0;right:0;z-index:40;transition:background .2s;border-bottom:0;box-shadow:none}
+.tabsbar.scrolled{background:rgba(255,255,255,.95);border-bottom:0;box-shadow:none}
+.tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px;border-bottom:0;box-shadow:none}
+.tabbtn{background:transparent;border:none;padding:0 0 4px 0;cursor:pointer;white-space:nowrap;font-size:14px;color:#fff;position:relative}
 .tabbtn.dark{color:#374151}
 .tabbtn.active{font-weight:700;color:#111}
 .tab-underline{position:absolute;left:0;right:0;bottom:-2px;height:2px;background:transparent;display:block}
@@ -356,7 +356,8 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .coupon-code{font-size:10px;color:#065f46}
 
 .strip{background:#fff;padding:12px}
-.hscroll{display:flex;overflow-x:auto}
+.hscroll{display:flex;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+.hscroll::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
 .tile{position:relative;width:192px;height:68px;flex-shrink:0;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
 .tile-img{position:absolute;right:0;top:0;width:64px;height:100%;object-fit:cover;opacity:.9}
 .tile-text{position:absolute;inset:0;right:72px;left:8px;display:flex;flex-direction:column;justify-content:center}
@@ -368,6 +369,10 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .borderbox{border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
 .simple-img{width:100%;aspect-ratio:255/192;object-fit:cover}
 .price-red{color:#dc2626;font-weight:700;font-size:13px}
+
+/* Hide any visible scrollbars for containers marked no-scrollbar */
+.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
+.no-scrollbar::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
 
 /* Unified categories scroll: 3 rows move together */
 .cat-scroll{overflow-x:auto;scrollbar-width:none}
