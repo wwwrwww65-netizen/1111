@@ -35,6 +35,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('whatsapp');
   if (!cfg || !cfg.enabled) return false;
   const token = cfg.token; const phoneId = cfg.phoneId; const template = cfg.template; let languageCode = cfg.languageCode || 'ar';
+  const headerType = cfg.headerType; const headerParam = cfg.headerParam;
   // Normalize language naming like "arabic" => "ar"
   if (typeof languageCode === 'string'){
     const lc = String(languageCode).toLowerCase();
@@ -56,8 +57,21 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
             to,
             type: 'template',
             template: { name: String(template), language: { code: String(lang), policy: 'deterministic' } as any,
-              components: [{ type: 'body', parameters: [{ type: 'text', text }] }] },
+              components: [] },
           } as any;
+          // Optional header if configured in integration
+          if (headerType && String(headerType).toLowerCase() !== 'none'){
+            const ht = String(headerType).toLowerCase();
+            if (ht === 'text' && headerParam){
+              body.template.components.push({ type:'header', parameters:[{ type:'text', text: String(headerParam) }] });
+            } else if ((ht === 'image' || ht === 'video' || ht === 'document') && headerParam){
+              const pkey = ht as 'image'|'video'|'document';
+              const mediaParam: any = {}; mediaParam[pkey] = { link: String(headerParam) };
+              body.template.components.push({ type:'header', parameters:[{ type: pkey, ...mediaParam }] });
+            }
+          }
+          // Body single param (OTP)
+          body.template.components.push({ type: 'body', parameters: [{ type: 'text', text }] });
           if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number') && typeof buttonParam === 'string' && buttonParam.trim()){
             body.template.components.push({ type:'button', sub_type: buttonSubType, index: String(buttonIndex||0), parameters:[{ type: 'text', text: String(buttonParam) }] });
           }
