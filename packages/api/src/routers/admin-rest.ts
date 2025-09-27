@@ -3220,6 +3220,8 @@ adminRest.post('/products/analyze', async (req, res) => {
   try{
     const { text, images } = req.body || {};
     const out:any = { name:null, description:null, brand:null, tags:[], sizes:[], colors:[], price_range:null, attributes:[], seo:{ title:null, description:null, keywords:[] } };
+    const warnings: string[] = [];
+    const errors: string[] = [];
     const sources:any = {};
     // Helpers
     const stripEmojis = (s:string)=> s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]/gu, ' ');
@@ -3359,7 +3361,7 @@ adminRest.post('/products/analyze', async (req, res) => {
             if (typeof hex === 'string') hexes.push(hex);
           });
         }
-      }catch{}
+      }catch(e:any){ warnings.push('image_colors_failed'); }
     }
     if (hexes.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...hexes])); sources.colors = { source:'vision', confidence:0.7 }; }
     const result:any = Object.fromEntries(Object.entries(out).map(([k,v])=> [k, { value:v, ...(sources as any)[k] || { source:'rules', confidence:0.3 } }]));
@@ -3367,8 +3369,8 @@ adminRest.post('/products/analyze', async (req, res) => {
       // minimal debug log
       try { console.debug('[analyze.debug]', { textPresent: Boolean((req.body||{}).text), colorsLen: (out.colors||[]).length, sizesLen: (out.sizes||[]).length, price: out.price_range }); } catch {}
     }
-    return res.json({ ok:true, analyzed: result });
-  }catch(e:any){ return res.status(500).json({ error: e.message || 'analyze_failed' }); }
+    return res.json({ ok:true, analyzed: result, warnings, errors });
+  }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
 adminRest.post('/integrations/test', async (req, res) => {
   const { provider, config } = req.body || {};
