@@ -81,9 +81,9 @@
 
       <section class="padX padY" aria-label="الفئات">
         <h2 class="h2">الفئات</h2>
-        <div v-for="(row,idx) in catRows" :key="idx" class="hscroll no-scrollbar snap-x-start mb2">
-          <div class="row gap3">
-            <button v-for="c in row" :key="c.name + idx" class="catbtn snap-item" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
+        <div class="cat-scroll no-scrollbar">
+          <div class="cat-grid">
+            <button v-for="(c,i) in categories" :key="c.name + '-' + i" class="catbtn" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
               <div class="catimg-wrap"><img :src="c.image" :alt="c.name" class="catimg" loading="lazy" /></div>
               <div class="catname">{{ c.name }}</div>
             </button>
@@ -356,6 +356,14 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .borderbox{border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
 .simple-img{width:100%;aspect-ratio:255/192;object-fit:cover}
 .price-red{color:#dc2626;font-weight:700;font-size:13px}
+
+/* Unified categories scroll: 3 rows move together */
+.cat-scroll{overflow-x:auto;scrollbar-width:none}
+.cat-scroll::-webkit-scrollbar{display:none}
+.cat-grid{display:grid;grid-auto-flow:column;grid-auto-columns:calc(100% - 24px);gap:12px;padding-bottom:2px}
+.cat-grid{--rows:3}
+.cat-grid{grid-template-rows:repeat(var(--rows),auto)}
+.catbtn{display:block}
 
 .midpromo{width:100%;height:90px;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;position:relative;background:#fff}
 .mid-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
