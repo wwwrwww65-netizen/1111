@@ -24,6 +24,7 @@ type WhatsAppConfig = {
   token?: string;    // access token
   phoneId?: string;  // sender/phone id
   template?: string; // template name/id
+  languageCode?: string; // e.g. ar, en
 };
 
 type SmsConfig = {
@@ -236,6 +237,7 @@ export default function LoginIntegrationsPage(): JSX.Element {
               <Field label="Access Token" value={wcfg.token||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'token', v)} placeholder="EAAG..." />
               <Field label="Phone/Sender ID" value={wcfg.phoneId||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'phoneId', v)} placeholder="1234567890" />
               <Field label="Template" value={wcfg.template||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'template', v)} placeholder="otp_template" />
+              <Field label="Language Code" value={wcfg.languageCode||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'languageCode', v)} placeholder="ar | en" />
             </div>
           </Section>
 

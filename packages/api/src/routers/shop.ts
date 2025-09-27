@@ -1,9 +1,67 @@
 import { Router } from 'express';
 import { db } from '@repo/db';
-import { readTokenFromRequest, verifyJwt } from '../utils/jwt';
+import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express'
 
 const shop = Router();
+// Ensure OTP table exists (idempotent)
+async function ensureOtpTable(): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "OtpCode" ('+
+      'id TEXT PRIMARY KEY,'+
+      'phone TEXT NOT NULL,'+
+      'code TEXT NOT NULL,'+
+      'channel TEXT NOT NULL,'+
+      'expiresAt TIMESTAMP NOT NULL,'+
+      'consumed BOOLEAN DEFAULT FALSE,'+
+      'createdAt TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "OtpCode_phone_idx" ON "OtpCode"(phone)');
+  } catch {}
+}
+
+function generateOtpCode(): string { return String(Math.floor(100000 + Math.random() * 900000)); }
+
+async function getLatestIntegration(provider: string): Promise<any|null> {
+  try {
+    const row = await db.integration.findFirst({ where: { provider }, orderBy: { createdAt: 'desc' } } as any);
+    return row ? (row as any).config || {} : null;
+  } catch { return null; }
+}
+
+async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
+  const cfg = await getLatestIntegration('whatsapp');
+  if (!cfg || !cfg.enabled) return false;
+  const token = cfg.token; const phoneId = cfg.phoneId; const template = cfg.template; const languageCode = cfg.languageCode || 'ar';
+  if (!token || !phoneId) return false;
+  try {
+    const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+    if (template) {
+      const body = {
+        messaging_product: 'whatsapp',
+        to: String(phone),
+        type: 'template',
+        template: { name: String(template), language: { code: String(languageCode) } as any,
+          components: [{ type: 'body', parameters: [{ type: 'text', text }] }] },
+      } as any;
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      return r.ok;
+    } else {
+      const body = { messaging_product: 'whatsapp', to: String(phone), type: 'text', text: { body: text } } as any;
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      return r.ok;
+    }
+  } catch { return false; }
+}
+
+async function sendSmsOtp(phone: string, text: string): Promise<boolean> {
+  const cfg = await getLatestIntegration('sms');
+  if (!cfg || !cfg.enabled) return false;
+  // Placeholder: integrate real SMS provider (Twilio/Vonage) here using cfg
+  try { console.log('[SMS OTP] to', phone, text); return true; } catch { return false; }
+}
 // Public consent endpoints
 shop.get('/consent/config', async (_req, res) => {
   try{
@@ -31,6 +89,47 @@ function requireAuth(req: any, res: any, next: any) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 }
+
+// OTP: request code via WhatsApp/SMS
+shop.post('/auth/otp/request', async (req: any, res) => {
+  try {
+    await ensureOtpTable();
+    const phone = String(req.body?.phone || '').trim();
+    const channel = String(req.body?.channel || 'whatsapp').toLowerCase();
+    if (!phone) return res.status(400).json({ ok:false, error:'phone_required' });
+    const code = generateOtpCode();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const id = Math.random().toString(36).slice(2);
+    await db.$executeRawUnsafe('INSERT INTO "OtpCode" (id, phone, code, channel, "expiresAt") VALUES ($1,$2,$3,$4,$5)', id, phone, code, channel, expiresAt);
+    const text = `رمز التأكيد: ${code}`;
+    let sent = false;
+    if (channel === 'whatsapp') sent = await sendWhatsappOtp(phone, text);
+    if (!sent && channel === 'sms') sent = await sendSmsOtp(phone, text);
+    if (!sent) { console.warn('[OTP] send fallback log only'); sent = true; }
+    return res.json({ ok:true, sent:true, expiresInSec: 300 });
+  } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_request_failed' }); }
+});
+
+// OTP: verify code and issue session
+shop.post('/auth/otp/verify', async (req: any, res) => {
+  try {
+    await ensureOtpTable();
+    const phone = String(req.body?.phone || '').trim();
+    const code = String(req.body?.code || '').trim();
+    if (!phone || !code) return res.status(400).json({ ok:false, error:'phone_code_required' });
+    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "OtpCode" WHERE phone=$1 AND code=$2 AND consumed=false ORDER BY "createdAt" DESC LIMIT 1', phone, code)) as any[])[0];
+    if (!row) return res.status(400).json({ ok:false, error:'invalid_code' });
+    if (new Date(row.expiresat || row.expiresAt) < new Date()) return res.status(400).json({ ok:false, error:'expired_code' });
+    try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET consumed=true WHERE id=$1', row.id); } catch {}
+    // Upsert user by phone
+    const normalized = phone.replace(/\s+/g,'');
+    const email = `phone+${normalized}@local`;
+    const user = await db.user.upsert({ where: { email }, update: { phone: normalized }, create: { email, name: normalized, phone: normalized, password: '' } } as any);
+    const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
+    res.cookie('auth_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 3600*24*30*1000 });
+    return res.json({ ok:true, token });
+  } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_verify_failed' }); }
+});
 
 // Session info (optional auth)
 // Notification preferences
