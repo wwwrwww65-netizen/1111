@@ -299,6 +299,7 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET consumed=true WHERE id=$1', row.id); } catch {}
     const normalized = phone.replace(/\s+/g,'');
     const email = `phone+${normalized}@local`;
+    const existing = await db.user.findUnique({ where: { email } as any });
     const user = await db.user.upsert({ where: { email }, update: { phone: normalized }, create: { email, name: normalized, phone: normalized, password: '' } } as any);
     const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
     const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
@@ -311,7 +312,7 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
       maxAge: 3600 * 24 * 30 * 1000,
       path: '/',
     });
-    return res.json({ ok:true, token });
+    return res.json({ ok:true, token, newUser: !existing });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_verify_failed' }); }
 });
 
@@ -344,6 +345,28 @@ shop.get('/me', async (req: any, res) => {
   } catch {
     return res.json({ user: null });
   }
+});
+
+// Authenticated: complete profile (name/password)
+shop.post('/me/complete', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId;
+    const { fullName, password, confirm } = req.body || {};
+    const name = String(fullName||'').trim();
+    const pass = String(password||'');
+    const conf = String(confirm||'');
+    if (!name || !pass || pass !== conf) return res.status(400).json({ ok:false, error:'invalid_payload' });
+    // Note: storing plain text is not recommended; if bcrypt available, hash it
+    try{
+      const bcrypt = require('bcryptjs');
+      const salt = bcrypt.genSaltSync(10);
+      const hash = bcrypt.hashSync(pass, salt);
+      await db.user.update({ where: { id: userId }, data: { name, password: hash } } as any);
+    }catch{
+      await db.user.update({ where: { id: userId }, data: { name, password: pass } } as any);
+    }
+    return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'complete_failed' }); }
 });
 
 // Public: products list (basic)
