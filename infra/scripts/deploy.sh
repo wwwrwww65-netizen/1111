@@ -82,6 +82,12 @@ if [ -d "$ROOT_DIR/apps/mweb" ]; then
   fi
 fi
 
+# WhatsApp self-test (non-blocking): send OTP to owner to verify template delivery
+if [ -d "$ROOT_DIR/packages/api" ]; then
+  echo "[deploy] WhatsApp self-test to +967777310606"
+  (cd "$ROOT_DIR/packages/api" && pnpm exec node scripts/wa-selftest.js "+967777310606") || true
+fi
+
 # IMPORTANT: Do NOT create or seed any data on deploy.
 # To allow controlled admin seeding, explicitly set DEPLOY_ALLOW_SEEDING=1 (defaults to disabled)
 if [ "${DEPLOY_ALLOW_SEEDING:-0}" = "1" ]; then
