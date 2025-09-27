@@ -3343,6 +3343,51 @@ adminRest.post('/integrations/test', async (req, res) => {
   }
 });
 
+// Admin: WhatsApp OTP live test (sends a real message using current config)
+adminRest.post('/otp/test', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'otp','forbidden_test',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
+    const { phone } = req.body || {};
+    if (!phone) return res.status(400).json({ ok:false, error:'phone_required' });
+    const cfg: any = await db.integration.findFirst({ where: { provider: 'whatsapp' }, orderBy: { createdAt: 'desc' } });
+    const conf = (cfg as any)?.config || {};
+    const token = conf.token; const phoneId = conf.phoneId; const template = conf.template; const languageCode = conf.languageCode || 'ar';
+    if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
+    const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+    const candidates = Array.from(new Set([String(languageCode), 'ar_SA', 'ar', 'en']));
+    const toVariants = Array.from(new Set([String(phone), String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`]));
+    const tried: Array<{ lang: string; to: string; status: number; body: string } > = [];
+    // Prefer template
+    if (template) {
+      for (const to of toVariants) {
+        for (const lang of candidates) {
+          const body = {
+            messaging_product: 'whatsapp',
+            to,
+            type: 'template',
+            template: { name: String(template), language: { code: String(lang) }, components: [{ type:'body', parameters:[{ type:'text', text: '123456' }] }] },
+          } as any;
+          const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+          const text = await r.text().catch(()=> '');
+          tried.push({ lang, to, status: r.status, body: text.slice(0,500) });
+          if (r.ok) { await audit(req,'otp','test_send',{ to, lang }); return res.json({ ok:true, mode:'template', to, lang, status: r.status }); }
+        }
+      }
+    }
+    // Fallback plain text
+    for (const to of toVariants) {
+      const body = { messaging_product:'whatsapp', to, type:'text', text:{ body: 'OTP test: 123456' } } as any;
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      const text = await r.text().catch(()=> '');
+      tried.push({ lang: 'text', to, status: r.status, body: text.slice(0,500) });
+      if (r.ok) { await audit(req,'otp','test_send_text',{ to }); return res.json({ ok:true, mode:'text', to, status: r.status }); }
+    }
+    return res.status(502).json({ ok:false, error:'whatsapp_send_failed', tried });
+  } catch (e:any) {
+    return res.status(500).json({ ok:false, error: e.message||'otp_test_failed' });
+  }
+});
+
 // Currencies CRUD (admin)
 adminRest.get('/currencies', async (_req, res) => {
   try{
