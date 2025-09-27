@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { routes as genRoutes } from './routes.generated';
 import App from './App.vue';
 import './tokens.css';
+import './tailwind.css';
 import './styles.css';
 import { injectTracking } from './tracking';
 import { useCart } from './store/cart'
