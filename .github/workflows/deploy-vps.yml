@@ -223,7 +223,10 @@ jobs:
               TMP="/tmp/jeeey.conf.$$"
               echo "$TPL" | sed "s/jeeey.com/${DOMAIN_ROOT}/g" > "$TMP"
               TARGET="/etc/nginx/sites-available/jeeey.conf"
-              if [ ! -f "$TARGET" ] || ! cmp -s "$TMP" "$TARGET"; then
+              # Compare via md5 to avoid non-zero exit from cmp under action wrapper
+              NEW_SUM=$(md5sum "$TMP" | awk '{print $1}')
+              OLD_SUM=$(md5sum "$TARGET" 2>/dev/null | awk '{print $1}')
+              if [ ! -f "$TARGET" ] || [ "$NEW_SUM" != "$OLD_SUM" ]; then
                 mv "$TMP" "$TARGET"
                 ln -sf "$TARGET" /etc/nginx/sites-enabled/jeeey.conf
                 echo 'Validating nginx config...'
