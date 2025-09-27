@@ -171,8 +171,13 @@ systemctl restart ecom-admin || true
 
 # Public API OTP self-test (non-blocking): simulate UI flow with YE code + local number
 echo "[deploy] OTP request self-test via API (+967777310606)"
+# Try local API first (behind Nginx):
+curl -sS -X POST "http://127.0.0.1:4000/api/auth/otp/request" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+967777310606","channel":"whatsapp"}' | sed 's/.*/[otp-selftest-local] &/' || true
+# Fallback to public API to catch edge routing issues
 curl -sS -X POST "https://api.jeeey.com/api/auth/otp/request" \
   -H "Content-Type: application/json" \
-  -d '{"phone":"+967777310606","channel":"whatsapp"}' | sed 's/.*/[otp-selftest] &/' || true
+  -d '{"phone":"+967777310606","channel":"whatsapp"}' | sed 's/.*/[otp-selftest-public] &/' || true
 
 echo "Deploy completed."
