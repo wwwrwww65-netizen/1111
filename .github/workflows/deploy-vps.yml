@@ -115,6 +115,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 15m
@@ -152,6 +153,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 15m
@@ -176,6 +178,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           source: "app.tar.gz"
@@ -187,6 +190,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 240s
           command_timeout: 20m
@@ -239,6 +243,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 240s
           command_timeout: 20m
@@ -372,6 +377,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           timeout: 240s
           command_timeout: 15m
@@ -420,6 +426,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           timeout: 180s
           command_timeout: 60m
@@ -506,6 +513,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           timeout: 240s
           command_timeout: 15m
@@ -525,6 +533,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           timeout: 240s
           command_timeout: 20m
@@ -559,6 +568,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           timeout: 240s
           command_timeout: 15m
@@ -618,6 +628,7 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           timeout: 180s
           command_timeout: 20m
           script: |
