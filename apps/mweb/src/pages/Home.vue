@@ -8,13 +8,13 @@
     </style>
 
     <div class="header" :class="{ scrolled }" aria-label="رأس الصفحة">
-      <div class="maxwrap header-inner">
-        <div class="header-left">
+        <div class="maxwrap header-inner">
+          <div class="header-left row gap1">
           <button class="icon-btn" aria-label="القائمة" @click="go('/categories')"><Menu :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
           <button class="icon-btn" aria-label="الإشعارات" @click="go('/notifications')"><Bell :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
         </div>
         <div class="logo" :class="{ dark: scrolled }" aria-label="شعار المتجر">jeeey</div>
-        <div class="header-right">
+          <div class="header-right row gap1">
           <button class="icon-btn" aria-label="السلة" @click="go('/cart')"><ShoppingCart :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
           <button class="icon-btn" aria-label="البحث" @click="go('/search')"><Search :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
         </div>
@@ -138,12 +138,12 @@
               </div>
               <div class="contentbox">
                 <div class="inlinechip">
-                  <button class="chip trend">ترندات</button>
-                  <button class="chip store" :aria-label="'رموز متجر '+(p.brand||'')">
+                  <span class="chip trend">ترندات</span>
+                  <span class="chip store" :aria-label="'رموز متجر '+(p.brand||'')">
                     <Store :size="14" color="#6D28D9" :stroke-width="2" />
                     <span class="brandtxt">{{ p.brand||'' }}</span>
                     <span class="caret">&gt;</span>
-                  </button>
+                  </span>
                 </div>
                 <div class="row gap1 mt2">
                   <div v-if="typeof p.discountPercent==='number'" class="disc">-%{{ p.discountPercent }}</div>
