@@ -6,6 +6,19 @@ import { Parser as CsvParser } from 'json2csv';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
 import { authenticator } from 'otplib';
+import { v2 as cloudinary } from 'cloudinary';
+import type { Readable } from 'stream';
+import { z } from 'zod';
+import { getIo } from '../io';
+import { db } from '@repo/db';
+import { fbSendEvents, hashEmail } from '../services/fb';
+import nodemailer from 'nodemailer';
+
+const adminRest = Router();
+// Ensure body parsers explicitly for this router
+adminRest.use(express.json({ limit: '2mb' }));
+adminRest.use(express.urlencoded({ extended: true }));
+
 // Admin: Send WhatsApp templated message (test) with button/body params
 adminRest.post('/whatsapp/send', async (req, res) => {
   try{
@@ -33,18 +46,6 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     return res.json({ ok:true, status: r.status });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
 });
-import { v2 as cloudinary } from 'cloudinary';
-import type { Readable } from 'stream';
-import { z } from 'zod';
-import { getIo } from '../io';
-import { db } from '@repo/db';
-import { fbSendEvents, hashEmail } from '../services/fb';
-import nodemailer from 'nodemailer';
-
-const adminRest = Router();
-// Ensure body parsers explicitly for this router
-adminRest.use(express.json({ limit: '2mb' }));
-adminRest.use(express.urlencoded({ extended: true }));
 
 // Defense-in-depth: ensure admin-extra tables exist if migrations were not applied yet.
 let __adminExtrasEnsured = false;
