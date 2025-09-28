@@ -266,7 +266,17 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: ${{ env.DATABASE_URL }}
           DIRECT_URL: ${{ env.DIRECT_URL }}
-        run: pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
+        run: |
+          set -e
+          # Ensure schema is applied just before tests (mirror prod structure)
+          pnpm --filter @repo/db db:push:force
+          if [ -n "${{ secrets.PROD_DB_SCHEMA_SQL }}" ]; then
+            echo "Apply PROD_DB_SCHEMA_SQL supplement (pre-tests)"
+            sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
+            PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
+            echo "${{ secrets.PROD_DB_SCHEMA_SQL }}" | psql "$PGURI" -v ON_ERROR_STOP=1 || true
+          fi
+          pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
 
       - name: E2E admin check (smoke)
         run: bash scripts/ci/e2e-admin-check.sh
