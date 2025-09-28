@@ -304,6 +304,7 @@ export default function AdminProductCreate(): JSX.Element {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
           if (aj?.meta?.deepseekUsed) { showToast('تم استخدام DeepSeek تلقائياً لتحسين النتائج', 'ok'); }
+          else if (aj?.meta?.deepseekAttempted) { showToast('تم تشغيل DeepSeek ولكن لم يُعدّل النتائج', 'ok'); }
           if (Array.isArray(aj?.warnings) && aj.warnings.length) {
             showToast(`تحليل جزئي: ${aj.warnings.join(', ')}`, 'warn');
           }

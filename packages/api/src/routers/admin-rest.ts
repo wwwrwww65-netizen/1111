@@ -3402,6 +3402,7 @@ adminRest.post('/products/analyze', async (req, res) => {
     }
     if (hexes.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...hexes])); sources.colors = { source:'vision', confidence:0.7 }; }
     // Optional DeepSeek correction (post-processing) when quality is low and key is configured
+    let deepseekAttempted = false;
     try {
       const aiEnabled = true; // could be toggled via integration config
       const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(() => null) as any
@@ -3422,8 +3423,10 @@ adminRest.post('/products/analyze', async (req, res) => {
         return Math.max(0, s)
       })()
       const inCI = String(process.env.CI || '').toLowerCase() === 'true'
-      const usedMeta = { deepseekUsed: false }
-      if (aiEnabled && userWants && dsKey && (qualityScore < 0.7 || reqForce) && !inCI) {
+      const usedMeta = { deepseekUsed: false, deepseekAttempted: false }
+      // Allow force to bypass CI guard; otherwise only run when quality is low and not CI
+      if (aiEnabled && userWants && dsKey && (reqForce || (qualityScore < 0.7 && !inCI))) {
+        usedMeta.deepseekAttempted = true; deepseekAttempted = true
         const ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
         if (ds) {
           usedMeta.deepseekUsed = true
@@ -3453,7 +3456,7 @@ adminRest.post('/products/analyze', async (req, res) => {
     }
     // Attach meta.deepseekUsed by recomputing based on sources
     const deepseekUsed = Object.values(sources||{}).some((s:any)=> String(s?.source).toLowerCase()==='ai')
-    return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed } });
+    return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted } });
   }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
 adminRest.post('/integrations/test', async (req, res) => {
