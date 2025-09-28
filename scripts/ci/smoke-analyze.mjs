@@ -28,7 +28,8 @@ if (process.env.DEEPSEEK_API_KEY) {
 }
 
 assert.ok(a?.name?.value, 'name missing')
-assert.ok(/طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل/.test(String(a.name.value)), 'name should contain a known type')
+const TYPE_RE = /(طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل|جلابية|جلابيه|جلاب|عباية|عبايه)/i
+assert.ok(TYPE_RE.test(String(a.name.value)), 'name should contain a known type')
 assert.ok(String(a.name.value).length <= 60, 'name length should be <= 60')
 assert.ok(a?.description?.value, 'description missing')
 // sizes should be in sizes field, not description
