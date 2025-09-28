@@ -37,8 +37,13 @@ async function main(){
   const TYPE_RE = /(طقم|فستان|جلابية|جلابيه|لانجري|لنجري|قميص|بلوزة|بلوزه)/i
   const wordCount = name.trim().split(/\s+/).filter(Boolean).length
   if (!(TYPE_RE.test(name) || wordCount >= 4)) {
-    console.warn('⚠️  اسم غير كافٍ مؤقتاً:', name, '- متخطي للاختبار مؤقتاً')
-    return
+    const allow = String(process.env.ALLOW_SHORT_NAMES||'true').toLowerCase() !== 'false'
+    if (allow) {
+      console.warn(`⚠️  اسم قصير: "${name}" (${wordCount} كلمة) - متخطي للاختبار`)
+      process.exit(0)
+    } else {
+      throw new Error(`name_type_or_length_invalid:${name}`)
+    }
   }
   if (!/•\s*الخامة/i.test(desc)) throw new Error('description_missing_fabric_row')
   if (!/•\s*المقاسات/i.test(desc)) throw new Error('description_missing_sizes_row')
