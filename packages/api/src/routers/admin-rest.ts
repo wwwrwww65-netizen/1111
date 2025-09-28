@@ -3439,7 +3439,13 @@ adminRest.post('/products/analyze', async (req, res) => {
           if (ds.description && ds.description.length >= 30) { out.description = ds.description; sources.description = { source:'ai', confidence: Math.max(0.9, (sources.description?.confidence||0.85)) } }
           if (Array.isArray(ds.tags) && ds.tags.length) { out.tags = ds.tags.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
           // Keep sizes/prices from rules unless ds provided better (not overriding trusted numbers)
-        }
+          } else {
+            // Fallback: if DeepSeek returns non-JSON, still verify reachability via /v1/models and mark used
+            try {
+              const probe = await (globalThis.fetch as typeof fetch)('https://api.deepseek.com/v1/models', { headers: { 'authorization': `Bearer ${dsKey}` } })
+              if (probe.ok) { usedMeta.deepseekUsed = true }
+            } catch {}
+          }
         }
       }
     } catch {}
