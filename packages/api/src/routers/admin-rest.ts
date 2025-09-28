@@ -3442,6 +3442,43 @@ adminRest.post('/products/analyze', async (req, res) => {
             if (Array.isArray(p.keywords)) { out.tags = p.keywords.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
             if (typeof p.price === 'number' && p.price > 100) { (out as any).price_range = { low: p.price, high: p.price }; (sources as any).price_range = { source:'ai', confidence: 0.8 } }
             if (typeof p.stock === 'number' && p.stock >= 0) { (out as any).stock = p.stock; (sources as any).stock = { source:'ai', confidence: 0.6 } }
+            // Enrich too-short names (e.g., "لانجري") from raw text features to satisfy 8–12 words
+            try {
+              const raw = String((req.body as any)?.text || '')
+              const currentName = String(out.name || p.name || '')
+              const wordCount = (s:string)=> (s.trim().split(/\s+/).filter(Boolean).length)
+              if (!currentName || currentName.length < 12 || wordCount(currentName) < 4) {
+                const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
+                const isDress = /(فستان|فسان)/i.test(raw)
+                const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
+                const baseType = isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان'))
+                const feats: string[] = []
+                if (/(تول|تل)/i.test(raw)) feats.push('تول')
+                if (/شفاف/i.test(raw)) feats.push('شفاف')
+                if (/(كلوش|كلووش)/i.test(raw) && baseType==='لانجري') feats.push('كلوش')
+                if (/(صدريه|صدرية)/i.test(raw)) feats.push('بصدريه')
+                if (/(جبير|جلير)/i.test(raw)) feats.push('جبير')
+                if (/حزام\s*منفصل/i.test(raw)) feats.push('وحزام منفصل')
+                if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
+                if (/(مطرز|تطريز)/i.test(raw) && baseType!=='لانجري') feats.push('مطرز')
+                if (/(كريستال|كرستال)/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
+                if (/(سهرة|مناسب\s*للمناسبات)/i.test(raw) && baseType==='فستان') feats.unshift('سهرة')
+                if (/(مثير|مثيير|بارز)/i.test(raw) && baseType==='لانجري') feats.push('بتصميم جذاب')
+                const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
+                const ensureWords = (s:string)=>{
+                  const ws = s.trim().split(/\s+/)
+                  if (ws.length >= 8) return s
+                  // try to pad with safe existing cues without اختراع
+                  const pads: string[] = []
+                  if ((/ناع(م|مة)/i.test(raw))) pads.push('بملمس ناعم')
+                  if (/مبطن|بطانة/i.test(raw) && !ws.includes('مبطن')) pads.push('ومبطن لراحة')
+                  if (/خامة/i.test(raw) && !ws.includes('خامة')) pads.push('وخامة مريحة')
+                  return (s + ' ' + pads.join(' ')).trim()
+                }
+                const finalName = ensureWords(enriched).slice(0, 60)
+                if (finalName && wordCount(finalName) >= 4) { out.name = finalName; sources.name = { source:'ai', confidence: 0.9 } }
+              }
+            } catch {}
           } else {
             const d: any = ds
             if (d.name && d.name.length >= 3) { out.name = d.name; sources.name = { source:'ai', confidence: Math.max(0.85, (sources.name?.confidence||0.8)) } }
