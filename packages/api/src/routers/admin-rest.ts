@@ -3401,11 +3401,14 @@ adminRest.post('/products/analyze', async (req, res) => {
     }
     if (hexes.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...hexes])); sources.colors = { source:'vision', confidence:0.7 }; }
     // Attach per-field reasons if missing
+    // Use raw text to detect plural-colors mention without relying on local variables' scope
+    const rawTextForNotes = String(((req as any).body?.text) || '');
+    const mentionsPluralColors = /\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(rawTextForNotes);
     const reasons: Record<string,string|undefined> = {
       name: out.name ? undefined : 'لم يتم العثور على نوع/صفة/خامة كافية في النص.',
       description: out.description ? undefined : 'النص قصير أو غير كافٍ لتوليد وصف.',
       sizes: (out.sizes && out.sizes.length) ? undefined : 'لم يتم العثور على نمط مقاسات معروف (مثل فري سايز/XL/M).',
-      colors: (out.colors && out.colors.length) ? undefined : (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(preNum)? 'ذُكر وجود عدة ألوان دون تسميتها.' : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.'),
+      colors: (out.colors && out.colors.length) ? undefined : (mentionsPluralColors ? 'ذُكر وجود عدة ألوان دون تسميتها.' : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.'),
       price_range: out.price_range ? undefined : 'لم يتم العثور على سطر سعر واضح. أضف سطر السعر (الشمال/قديم/مشابه).',
       tags: (out.tags && out.tags.length) ? undefined : 'لا توجد كلمات مفتاحية كافية بعد إزالة الضوضاء.',
     };
