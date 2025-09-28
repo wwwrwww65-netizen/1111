@@ -68,7 +68,7 @@ jobs:
             if printf '%s' "$KEY_CONTENT" | grep -q '\\n'; then KEY_CONTENT=$(printf '%s' "$KEY_CONTENT" | sed 's/\\r//g; s/\\n/\n/g'); fi
             printf '%s' "$KEY_CONTENT" | tr -d '\r' > ~/.ssh/deploy_key
             chmod 600 ~/.ssh/deploy_key
-            echo "SSH_KEY_PATH=~/.ssh/deploy_key" >> "$GITHUB_ENV"
+            echo "SSH_KEY_PATH=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
           fi
       - name: Write SSH key for preflight (if provided)
         shell: bash
@@ -128,8 +128,9 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key_path: ${{ env.SSH_KEY_PATH }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          # ensure only one method is used: prefer key_path; supply key only if needed
+          key: ${{ secrets.SSH_PRIVATE_KEY && '' }}
+          password: ${{ secrets.SSH_PASSWORD && '' }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           command_timeout: 15m
@@ -193,8 +194,6 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key_path: ${{ env.SSH_KEY_PATH }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           source: "app.tar.gz"
