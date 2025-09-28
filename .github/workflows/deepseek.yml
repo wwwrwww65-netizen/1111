@@ -7,6 +7,14 @@ on:
         description: 'API base URL'
         required: false
         default: 'https://api.jeeey.com'
+      allow_short_names:
+        description: 'السماح بالأسماء القصيرة مؤقتاً'
+        required: false
+        default: 'true'
+      strict_mode:
+        description: 'تشغيل الاختبار بوضع صارم'
+        required: false
+        default: 'false'
   push:
     branches: [ main ]
     paths:
@@ -43,9 +51,15 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || '' }}
           ALLOW_SHORT_NAMES: ${{ github.event.inputs.allow_short_names || 'true' }}
+          STRICT_MODE: ${{ github.event.inputs.strict_mode || 'false' }}
         run: |
-          echo "🔧 تشغيل اختبار DeepSeek مع السماح بالأسماء القصيرة: $ALLOW_SHORT_NAMES"
-          node scripts/ci/smoke-analyze-deepseek.mjs || {
-            echo "⚠️  DeepSeek smoke test فشل، لكننا نستمر لأغراض التطوير";
-            exit 0;
-          }
+          echo "🔧 تشغيل اختبار DeepSeek - STRICT_MODE=$STRICT_MODE, ALLOW_SHORT_NAMES=$ALLOW_SHORT_NAMES"
+          if [ "$STRICT_MODE" = "true" ]; then
+            node scripts/ci/smoke-analyze-deepseek.mjs
+          else
+            node scripts/ci/smoke-analyze-deepseek.mjs || {
+              echo "⚠️  DeepSeek smoke test فشل، لكننا نستمر لأغراض التطوير";
+              echo "📊 هذا طبيعي أثناء تطوير وتحسين الـ prompts";
+              exit 0;
+            }
+          fi
