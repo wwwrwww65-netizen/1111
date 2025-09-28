@@ -43,7 +43,16 @@ export async function callDeepseek(opts: {
       temperature: 0.2,
       max_tokens: 500
     }
-    const res = await (globalThis.fetch as typeof fetch)('https://api.deepseek.com/chat/completions', {
+    const endpoints = [
+      'https://api.deepseek.com/v1/chat/completions',
+      'https://api.deepseek.ai/v1/chat/completions',
+      'https://api.deepseek.com/chat/completions'
+    ]
+    let res: Response | null = null
+    let lastErr: any = null
+    for (const url of endpoints){
+      try{
+        res = await (globalThis.fetch as typeof fetch)(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -52,11 +61,21 @@ export async function callDeepseek(opts: {
       body: JSON.stringify(payload),
       signal: ctrl.signal
     })
-    if (!res.ok) return null
+        if (res.ok) break
+      }catch(e){ lastErr = e; res = null }
+    }
+    if (!res || !res.ok) return null
     const j = await res.json().catch(() => null) as any
-    const content = j?.choices?.[0]?.message?.content || ''
+    const rawContent = j?.choices?.[0]?.message?.content || ''
+    let content = String(rawContent || '')
+    // Attempt to extract JSON if wrapped in code fences or with leading text
+    const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
+    if (fenceMatch) content = fenceMatch[1]
+    const firstBrace = content.indexOf('{')
+    const lastBrace = content.lastIndexOf('}')
+    const slice = (firstBrace>=0 && lastBrace>firstBrace) ? content.slice(firstBrace, lastBrace+1) : content
     let parsed: any = null
-    try { parsed = JSON.parse(content) } catch { return null }
+    try { parsed = JSON.parse(slice) } catch { return null }
     const out = DeepseekOutputSchema.safeParse(parsed)
     return out.success ? out.data : null
   } catch { return null } finally { clearTimeout(t) }
