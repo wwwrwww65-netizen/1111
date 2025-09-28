@@ -161,14 +161,23 @@ jobs:
           if [ -z "${SSH_PRIVATE_KEY}" ] || [ -z "${VPS_HOST}" ] || [ -z "${VPS_USER}" ] || [ -z "${PROD_DB_USER}" ] || [ -z "${PROD_DB_PASS}" ] || [ -z "${PROD_DB_NAME}" ]; then
             echo "Skip prod DB clone (incomplete secrets)"; exit 0;
           fi
-          if ! printf "%s" "${SSH_PRIVATE_KEY}" | grep -q 'BEGIN'; then
-            echo "Skip prod DB clone (invalid SSH key format)"; exit 0;
-          fi
           sudo apt-get update -y && sudo apt-get install -y postgresql-client openssh-client
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          # Normalize private key (handle \n-escaped, base64, CRLF)
+          KEY_CONTENT="${SSH_PRIVATE_KEY}"
+          if printf '%s' "${KEY_CONTENT}" | grep -q '\\n'; then
+            KEY_CONTENT=$(printf '%s' "${KEY_CONTENT}" | sed 's/\\r//g; s/\\n/\n/g')
+          fi
+          if ! printf '%s' "${KEY_CONTENT}" | grep -q 'BEGIN'; then
+            # try base64 decode if secret provided in base64
+            DECODED=$(printf '%s' "${SSH_PRIVATE_KEY}" | base64 -d 2>/dev/null || true)
+            if printf '%s' "${DECODED}" | grep -q 'BEGIN'; then KEY_CONTENT="${DECODED}"; fi
+          fi
+          printf '%s' "${KEY_CONTENT}" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i ~/.ssh/id_rsa -p "${VPS_PORT:-22}" ${VPS_USER:-root}@${VPS_HOST} \
+          eval "$(ssh-agent -s)" >/dev/null 2>&1
+          ssh-add ~/.ssh/id_rsa >/dev/null 2>&1 || true
+          ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ConnectTimeout=15 -i ~/.ssh/id_rsa -p "${VPS_PORT:-22}" ${VPS_USER:-root}@${VPS_HOST} \
             "PGPASSWORD='${PROD_DB_PASS}' pg_dump -U '${PROD_DB_USER}' -h 127.0.0.1 -p 5432 -d '${PROD_DB_NAME}' --no-owner --no-privileges" > prod.sql || {
               echo "Skip prod DB clone (SSH/pg_dump failed)"; exit 0;
             }
