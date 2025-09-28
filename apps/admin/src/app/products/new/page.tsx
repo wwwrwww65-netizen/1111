@@ -306,8 +306,8 @@ export default function AdminProductCreate(): JSX.Element {
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
-          if (aj?.meta?.deepseekUsed) { showToast('تم استخدام DeepSeek تلقائياً لتحسين النتائج', 'ok'); }
-          else if (aj?.meta?.deepseekAttempted) { showToast('تم تشغيل DeepSeek ولكن لم يُعدّل النتائج', 'ok'); }
+          if (aj?.meta?.deepseekUsed) { showToast('تم استخدام DeepSeek لتحسين النتائج', 'ok'); }
+          else if (aj?.meta?.deepseekAttempted) { showToast(`تمت محاولة DeepSeek${aj?.meta?.reason? ' ('+aj.meta.reason+')':''}`, 'ok'); }
           if (Array.isArray(aj?.warnings) && aj.warnings.length) {
             showToast(`تحليل جزئي: ${aj.warnings.join(', ')}`, 'warn');
           }
@@ -354,6 +354,14 @@ export default function AdminProductCreate(): JSX.Element {
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
+        sources: {
+          name: analyzed?.name?.source || 'rules',
+          description: analyzed?.description?.source || 'rules',
+          sizes: analyzed?.sizes?.source || 'rules',
+          colors: analyzed?.colors?.source || 'rules',
+          price_range: analyzed?.price_range?.source || 'rules',
+          tags: analyzed?.tags?.source || 'rules'
+        },
         reasons: {
           name: analyzed?.name?.reason,
           description: analyzed?.description?.reason,
@@ -401,6 +409,7 @@ export default function AdminProductCreate(): JSX.Element {
         palettes,
         mapping,
         confidence,
+        sources: extracted.sources,
         reasons: extracted.reasons || {}
       } as any;
       setReview(reviewObj);
