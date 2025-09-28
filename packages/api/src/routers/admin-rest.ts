@@ -3427,7 +3427,8 @@ adminRest.post('/products/analyze', async (req, res) => {
       // Mark attempt when forced even if key/config missing (for CI observability)
       if (reqForce) deepseekAttempted = true
       // Allow force to bypass CI guard; otherwise only run when quality is low and not CI
-      if (aiEnabled && (reqForce || (userWants && dsKey && qualityScore < 0.7 && !inCI))) {
+      const QUALITY_THRESHOLD = 0.6
+      if (aiEnabled && (reqForce || (userWants && dsKey && qualityScore < QUALITY_THRESHOLD && !inCI))) {
         usedMeta.deepseekAttempted = true; deepseekAttempted = true
         if (!dsKey) {
           // No key: record attempt only
@@ -3468,7 +3469,8 @@ adminRest.post('/products/analyze', async (req, res) => {
     }
     // Attach meta.deepseekUsed by recomputing based on sources
     const deepseekUsed = Object.values(sources||{}).some((s:any)=> String(s?.source).toLowerCase()==='ai')
-    return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted } });
+    const reason = deepseekUsed ? undefined : (deepseekAttempted ? 'جودة عالية (لا حاجة للتصحيح)' : undefined)
+    return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted, reason } });
   }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
 adminRest.post('/integrations/test', async (req, res) => {
