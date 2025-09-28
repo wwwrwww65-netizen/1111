@@ -90,16 +90,22 @@ export async function callDeepseek(opts: {
     try { parsed = JSON.parse(slice) } catch { return null }
     const out = DeepseekOutputSchema.safeParse(parsed)
     if (!out.success) return null
-    // Post-sanitize to enforce user rules on description
+    // Post-sanitize to enforce user rules on description and name
     const data = { ...out.data }
+    const rawText = String((input as any)?.text || '')
+    const norm = (s:string)=> String(s||'').normalize('NFKC').replace(/[\u064B-\u065F]/g,'').replace(/\u0640/g,'')
+    const has = (re:RegExp)=> re.test(rawText)
+    const colorWords = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|وردي|بيج|رمادي|ذهبي|فضي|ذهبيه|فضيه|Gold|Silver|Black|White|Red|Blue|Green|Purple|Pink|Beige|Gray)/gi
+    const sizeTokens = /\b(XXL|XL|L|M|S|XS|\d{2})\b/gi
+    const priceTokens = /(سعر|العمله|العملة|ريال|﷼|\$|USD|EGP|AED|KWD|QR)[^\.\n]*/gi
     if (typeof data.description === 'string' && data.description) {
       const originalName = String(data.name||'').trim()
       const nameTerms = originalName.split(/\s+/).filter(Boolean)
       let desc = data.description
       // remove colors/sizes/prices/currency tokens from description
-      desc = desc.replace(/\b(?:أسود|أحمر|أبيض|بنفسجي|أزرق|أخضر|رمادي|بيج|Pink|Red|Black|White|Blue|Green|Purple)\b/gi,'')
-                 .replace(/\b(?:XS|S|M|L|XL|XXL|\d{2})\b/g,'')
-                 .replace(/(?:سعر|العملة|ريال|﷼|\$|USD|EGP|AED|KWD|QR)[^\.\n]*/gi,'')
+      desc = desc.replace(colorWords,'')
+                 .replace(sizeTokens,'')
+                 .replace(priceTokens,'')
       // remove name lexemes from description
       for (const term of nameTerms) {
         if (term.length < 3) continue
@@ -109,6 +115,35 @@ export async function callDeepseek(opts: {
       // normalize punctuation/spaces
       desc = desc.replace(/\s*،\s*/g, '، ').replace(/\s*\.\s*/g, '. ').replace(/\s{2,}/g,' ').replace(/^،\s*/,'').trim()
       data.description = desc
+    }
+    // Sanitize/compose name: ensure type noun present and strip colors/sizes/prices
+    if (typeof data.name === 'string') {
+      let name = data.name || ''
+      name = name.replace(colorWords,'').replace(sizeTokens,'').replace(priceTokens,'').replace(/\s{2,}/g,' ').trim()
+      const typeFromText = (()=>{
+        if (/(فستان|فستان\s*طويل|فسان)/i.test(rawText)) return 'فستان'
+        if (/(جلابيه|جلابية)/i.test(rawText)) return 'جلابية'
+        if (/(عبايه|عباية)/i.test(rawText)) return 'عباية'
+        if (/(قميص)/i.test(rawText)) return 'قميص'
+        if (/(بلوزه|بلوزة)/i.test(rawText)) return 'بلوزة'
+        return ''
+      })()
+      const hasTypeInName = /(فستان|جلابية|عباية|قميص|بلوزة)/.test(name)
+      const longFlag = /(طويله|طويل)/i.test(rawText)
+      const embFlag = /(تطريز|مطرز)/i.test(rawText)
+      const crystalFlag = /كريستال|كرستال/i.test(rawText)
+      const occasionFlag = /(مناسب\s*للمناسبات|سهرة)/i.test(rawText)
+      if (!hasTypeInName) {
+        const base = typeFromText || 'فستان'
+        const parts: string[] = [base]
+        if (base === 'فستان' && longFlag) parts.push('طويل')
+        if (embFlag) parts.push('مطرز')
+        if (crystalFlag) parts.push('بالكريستال')
+        if (base === 'فستان' && occasionFlag) parts.splice(1, 0, 'سهرة')
+        name = parts.join(' ').replace(/\s{2,}/g,' ').trim()
+      }
+      if (!name) name = typeFromText || 'فستان'
+      data.name = name.slice(0,60)
     }
     return data
   } catch { return null } finally { clearTimeout(t) }
