@@ -266,15 +266,20 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: ${{ env.DATABASE_URL }}
           DIRECT_URL: ${{ env.DIRECT_URL }}
+          CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
         run: |
           set -e
-          # Ensure schema is applied just before tests (mirror prod structure)
-          pnpm --filter @repo/db db:push:force
-          if [ -n "${{ secrets.PROD_DB_SCHEMA_SQL }}" ]; then
-            echo "Apply PROD_DB_SCHEMA_SQL supplement (pre-tests)"
-            sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
-            PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
-            echo "${{ secrets.PROD_DB_SCHEMA_SQL }}" | psql "$PGURI" -v ON_ERROR_STOP=1 || true
+          if [ "${CLONE_PROD_DB}" = "1" ]; then
+            echo "Using mirrored PROD DB for tests (no db:push)."
+          else
+            echo "Ensure schema (db:push) before tests."
+            pnpm --filter @repo/db db:push:force
+            if [ -n "${{ secrets.PROD_DB_SCHEMA_SQL }}" ]; then
+              echo "Apply PROD_DB_SCHEMA_SQL supplement (pre-tests)"
+              sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
+              PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
+              echo "${{ secrets.PROD_DB_SCHEMA_SQL }}" | psql "$PGURI" -v ON_ERROR_STOP=1 || true
+            fi
           fi
           pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
 
