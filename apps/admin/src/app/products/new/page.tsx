@@ -149,26 +149,11 @@ export default function AdminProductCreate(): JSX.Element {
     return best;
   }
 
-  function extractKeywords(t: string): string[] {
-    const normalizeArabic = (s:string)=> s
-      .replace(/[\u064B-\u065F]/g,'') // diacritics
-      .replace(/\u0640/g,'') // tatweel
-      .replace(/[إأآا]/g,'ا')
-      .replace(/ى/g,'ي')
-      .replace(/ة/g,'ه');
-    const collapse = (s:string)=> s.replace(/(.)\1{2,}/g, '$1$1');
-    const raw = normalizeArabic(collapse(t.toLowerCase()));
-    const words = raw.replace(/[^\p{Script=Arabic}a-z\s]/gu,' ') // keep arabic/latin letters only
-      .split(/\s+/).filter(Boolean);
-    const freq = new Map<string,number>();
-    for (const w0 of words) {
-      const w = normalizeArabic(w0);
-      if (w.length<3) continue;
-      if (stopwords.has(w)) continue;
-      freq.set(w, (freq.get(w)||0)+1);
-    }
-    const sorted = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]).map(([w])=>w);
-    return sorted.slice(0,10);
+  function extractKeywords(t: string, productName: string): string[] {
+    const stopWords = new Set(['تول','شفاف','ربطة','أكمام','فقط','عمله','بلصدر']);
+    const words = String(t||'').split(/\s+/).filter(w => w.length>2 && !stopWords.has(w));
+    const filtered = words.filter(w => !String(productName||'').includes(w));
+    return Array.from(new Set(filtered)).slice(0,6);
   }
 
   function extractFromText(raw: string): any {

@@ -69,15 +69,19 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 export function extractColors(text: string): string[] {
-  const found = new Set<string>();
-  const s = text.toLowerCase();
-  const keys = Object.keys(COLOR_MAP);
-  for (const k of keys) {
-    const rx = new RegExp(`(?:^|\n|\b)${k}(?:\b|\s|,|\.|$)`, 'gi');
-    if (rx.test(s)) found.add(COLOR_MAP[k]);
-  }
-  // Phrase indicates plurality but not a specific color — do not add as color token
-  return Array.from(found);
+  const colorMap: Record<string, string> = {
+    'اسود': 'أسود', 'احمر': 'أحمر', 'ازرق': 'أزرق', 'اخضر': 'أخضر',
+    'ابيض': 'أبيض', 'بنفسجي': 'بنفسجي', 'ذهبي': 'ذهبي', 'فضي': 'فضي',
+    'نمري': 'نمري', 'وردي': 'وردي', 'برتقالي': 'برتقالي'
+  };
+  const foundColors: string[] = [];
+  const s = String(text || '').toLowerCase();
+  Object.keys(colorMap).forEach((color) => {
+    if (s.includes(color)) {
+      foundColors.push(colorMap[color]);
+    }
+  });
+  return foundColors.length > 0 ? Array.from(new Set(foundColors)) : [];
 }
 
 export function extractSizes(text: string): string[] {
@@ -134,16 +138,40 @@ export function extractStock(text: string): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
-export function extractKeywords(text: string): string[] {
-  const stop = new Set(['و','في','من','على','الى','إلى','عن','هو','هي','هذا','هذه','ذلك','تلك','مع','او','أو','تم','يوجد','متوفر','عرض','خصم','الجديد','اليوم','سعر','الشراء','البيع','المقاسات','عملة','قديم','قديمة','جديد','جديدة','يفوتك','الأقوى','الاقوى','التفاصيل']);
-  const norm = normalizeArabic(text.toLowerCase()).replace(/[^\p{Script=Arabic}a-z\s]/gu, ' ');
-  const words = norm.split(/\s+/).filter(Boolean);
-  const freq = new Map<string, number>();
-  for (const w of words) {
-    if (w.length < 3 || stop.has(w)) continue;
-    freq.set(w, (freq.get(w) || 0) + 1);
+export function extractKeywords(text: string, productName: string): string[] {
+  const stopWords = new Set(['تول','شفاف','ربطة','أكمام','فقط','عمله','بلصدر']);
+  const words = String(text || '')
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !stopWords.has(word));
+  const filtered = words.filter((w) => !String(productName || '').includes(w));
+  const unique = Array.from(new Set(filtered));
+  return unique.slice(0, 6);
+}
+
+export function sanitizeDescription(description: string): string {
+  const forbiddenPatterns = [
+    /\b(مقاسات?|مقاس)\b/gi,
+    /\b(الوان?|لون)\b/gi,
+    /\b(سعر|السعر|عمله)\b/gi,
+    /\b(M|L|XL|XXL|LX)\b/g
+  ];
+  let cleanDesc = String(description || '');
+  forbiddenPatterns.forEach((pattern) => {
+    cleanDesc = cleanDesc.replace(pattern, '');
+  });
+  return cleanDesc.replace(/\s+/g, ' ').replace(/\s*\.\s*/g, '. ').trim();
+}
+
+export function extractProductName(text: string): string {
+  const productTypes = ['جلابيه', 'فسان', 'لانجيري', 'شورت', 'بلوزة', 'تنورة', 'قميص'];
+  const features = ['شيفون', 'تطريز', 'ذهب', 'كرستال', 'مطرز', 'طويل', 'نمري', 'مبطن', 'شفاف'];
+  const s = String(text || '');
+  const foundType = productTypes.find((type) => s.includes(type));
+  const foundFeatures = features.filter((feature) => s.includes(feature));
+  if (foundType && foundFeatures.length > 0) {
+    return `${foundType} ${foundFeatures.slice(0, 2).join(' و ')}`;
   }
-  return Array.from(freq.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([w]) => w);
+  return foundType || 'منتج';
 }
 
 export function composeSeoName(clean: string, fallback: string): string {
@@ -165,10 +193,12 @@ export function parseProductText(raw: string) {
   const { sale, cost } = extractPrices(cleaned);
   const stock = extractStock(cleaned);
   const currency = detectCurrencyToken(raw || '') || (/ريال|﷼/i.test(raw || '') ? 'ريال' : null);
-  const name = composeSeoName(cleaned, '');
-  const shortDesc = cleaned.slice(0, 160);
-  const longDesc = cleaned.length < 80 ? cleaned : cleaned.slice(0, 300);
-  const keywords = extractKeywords(cleaned);
+  const name = extractProductName(cleaned);
+  const shortDescRaw = cleaned.slice(0, 160);
+  const longDescRaw = cleaned.length < 80 ? cleaned : cleaned.slice(0, 300);
+  const shortDesc = sanitizeDescription(shortDescRaw);
+  const longDesc = sanitizeDescription(longDescRaw);
+  const keywords = extractKeywords(cleaned, name);
   const confidence = {
     name: name ? 0.9 : 0.5,
     shortDesc: shortDesc ? 0.8 : 0.2,
