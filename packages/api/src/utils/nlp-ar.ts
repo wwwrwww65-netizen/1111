@@ -39,7 +39,7 @@ export function cleanMarketingNoise(input: string): string {
 }
 
 export function baseClean(input: string): string {
-  const collapseRepeats = (t:string)=> t.replace(/(.)\1{2,}/g, '$1');
+  const collapseRepeats = (t:string)=> t.replace(/([A-Za-z\u0600-\u06FF])\1{2,}/g, '$1$1');
   // Common typo fixes
   const fixTypos = (t:string)=> t
     .replace(/\bبلصدر\b/gi, 'بالصدر')
