@@ -340,6 +340,13 @@ jobs:
           set -e
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:4000/api/admin/auth/login -H 'content-type: application/json' --data '{"email":"admin@example.com","password":"admin123","remember":true}') || true
           if [ "$STATUS" != "200" ]; then echo "Login smoke failed with status $STATUS"; exit 1; fi
+      - name: Analyze + DeepSeek (forced)
+        env:
+          API_BASE: 'http://localhost:4000'
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -e
+          node -e "const f=async()=>{const fetch=(await import('node-fetch')).default; const base=process.env.API_BASE; const login=await fetch(`${base}/api/admin/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'admin@example.com',password:'admin123',remember:true})}); if(!login.ok) throw new Error('login'); const tok=(await login.json()).token; const headers={ 'content-type':'application/json', Authorization:`Bearer ${tok}`}; const text='طقم نسائي كم كامل صوف السعر للشمال 85 ريال قديم 95، مقاسات L XL.'; const r=await fetch(`${base}/api/admin/products/analyze?forceDeepseek=1`,{method:'POST',headers,body:JSON.stringify({text,images:[]})}); const j=await r.json(); if(!r.ok) throw new Error('analyze_failed'); if(!j?.meta?.deepseekAttempted) throw new Error('deepseek_not_attempted'); console.log('DeepSeek forced OK:', j.meta); }; f().catch(e=>{ console.error(e); process.exit(1); });"
       - name: Admin extras smoke (currencies/zones/rates/analytics)
         env:
           API_BASE: 'http://localhost:4000'
