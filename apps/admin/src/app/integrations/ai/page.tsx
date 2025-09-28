@@ -82,7 +82,7 @@ export default function AiIntegrations(): JSX.Element {
       const j = await r.json().catch(()=>({}));
       if (r.ok && j?.ok){ setTMsg('DeepSeek يعمل بنجاح'); }
       else if (j?.error === 'missing_key'){ setTErr('لم يتم ضبط مفتاح DeepSeek. أدخله ثم احفظ.'); }
-      else { setTErr('اختبار فشل'); }
+      else { setTErr(`اختبار فشل: ${j?.error||r.status}`); }
     } catch { setTErr('اختبار فشل'); } finally { setTLoading(false); }
   }
 

@@ -3492,10 +3492,16 @@ adminRest.get('/integrations/deepseek/health', async (req, res) => {
     const apiKey = conf['DEEPSEEK_API_KEY'] || process.env.DEEPSEEK_API_KEY
     const model = conf['DEEPSEEK_MODEL'] || 'deepseek-chat'
     if (!apiKey) return res.status(400).json({ ok:false, error:'missing_key' })
-    const result = await callDeepseek({ apiKey, model, input: { text: 'ping', base: { name:'اختبار', description:'نص للاختبار' } }, timeoutMs: 6000 })
-    if (result) return res.json({ ok:true, model, returned:true })
-    // If DeepSeek returns non-JSON but endpoint reachable, still mark reachable=false for clarity
-    return res.status(502).json({ ok:false, error:'no_valid_response' })
+    // Try a minimal call; consider HTTP 200 a reachability success even if parsing fails
+    let httpOk = false; let parsedOk = false; let errMsg = ''
+    try {
+      const ds = await callDeepseek({ apiKey, model, input: { text: 'ping', base: { name:'اختبار', description:'نص للاختبار' } }, timeoutMs: 6000 })
+      parsedOk = !!ds
+      httpOk = parsedOk // callDeepseek only returns on 200; if null, could be 200 with unparsable JSON
+      if (!parsedOk) errMsg = 'no_valid_response'
+    } catch(e:any){ errMsg = e?.message||'request_failed' }
+    if (parsedOk) return res.json({ ok:true, model, returned:true })
+    return res.status(httpOk? 200: 502).json({ ok:false, error: errMsg||'unknown' })
   } catch (e:any) {
     return res.status(500).json({ ok:false, error: e.message || 'deepseek_health_failed' })
   }
