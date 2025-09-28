@@ -31,7 +31,8 @@ export async function callDeepseek(opts: {
       '- حسّن الاسم ≤ 60 حرفاً، بلا رموز/ضوضاء، وأبرز الهوية (خليجي/ربطة خصر/تطريز/كريستال) إن وُجدت.',
       '- اكتب وصفاً مهنياً من 2–3 جمل يركّز على الخامة/التشطيب/الراحة/الاستخدام.',
       '- استنتج سياق الاستخدام من النص: إن ذُكرت سهرة/مناسبات فاذكر المناسبات، إن ذُكر يومي/عملي/كاجوال فاذكر اليومي، وإلا تجنّب العبارات النمطية.',
-      '- استخرج price_range.low من "قديم" أو "الشمال" عند وجودهما (تجاهل < 80).',
+      '- استخرج price_range.low من "قديم" أو "الشمال" عند وجودهما (تجاهل ≤ 100).',
+      '- تجاهل الأرقام المرتبطة بالوزن/المقاسات (مثل: يلبس إلى وزن 80) عند تحديد السعر.',
       '- حرّر الوسوم ≤ 6 كلمات دقيقة ذات صلة.',
       '',
       'لا تفعل (DO NOT):',
@@ -100,6 +101,7 @@ export async function callDeepseek(opts: {
     const colorWords = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|وردي|بيج|رمادي|ذهبي|فضي|ذهبيه|فضيه|Gold|Silver|Black|White|Red|Blue|Green|Purple|Pink|Beige|Gray)/gi
     const sizeTokens = /\b(XXL|XL|L|M|S|XS|\d{2})\b/gi
     const priceTokens = /(سعر|العمله|العملة|ريال|﷼|\$|USD|EGP|AED|KWD|QR)[^\.\n]*/gi
+    const weightContext = /(وزن|يلبس\s*الى|يلبس\s*إلى|حتى\s*وزن)/i
     if (typeof data.description === 'string' && data.description) {
       const originalName = String(data.name||'').trim()
       const nameTerms = originalName.split(/\s+/).filter(Boolean)
@@ -123,6 +125,7 @@ export async function callDeepseek(opts: {
       let name = data.name || ''
       name = name.replace(colorWords,'').replace(sizeTokens,'').replace(priceTokens,'').replace(/\s{2,}/g,' ').trim()
       const typeFromText = (()=>{
+        if (/(لانجري|لنجري|lingerie)/i.test(rawText)) return 'لانجري'
         if (/(فستان|فستان\s*طويل|فسان)/i.test(rawText)) return 'فستان'
         if (/(جلابيه|جلابية)/i.test(rawText)) return 'جلابية'
         if (/(عبايه|عباية)/i.test(rawText)) return 'عباية'
@@ -130,7 +133,7 @@ export async function callDeepseek(opts: {
         if (/(بلوزه|بلوزة)/i.test(rawText)) return 'بلوزة'
         return ''
       })()
-      const hasTypeInName = /(فستان|جلابية|عباية|قميص|بلوزة)/.test(name)
+      const hasTypeInName = /(فستان|جلابية|عباية|قميص|بلوزة|لانجري)/.test(name)
       const longFlag = /(طويله|طويل)/i.test(rawText)
       const embFlag = /(تطريز|مطرز)/i.test(rawText)
       const crystalFlag = /كريستال|كرستال/i.test(rawText)
@@ -142,11 +145,32 @@ export async function callDeepseek(opts: {
         if (embFlag) parts.push('مطرز')
         if (crystalFlag) parts.push('بالكريستال')
         if (base === 'فستان' && occasionFlag) parts.splice(1, 0, 'سهرة')
+        if (base === 'لانجري' && /(4\s*قطع|اربع(?:ه|ة)?\s*قطع|كلسون|حزام\s*منفصل|طقم)/i.test(rawText)) parts.unshift('طقم')
         name = parts.join(' ').replace(/\s{2,}/g,' ').trim()
       }
       if (!name) name = typeFromText || 'فستان'
       data.name = name.slice(0,60)
     }
+    // Derive/fix price_range from raw text: prefer "قديم" > "للشمال" > "سعر البيع"; ignore weight numbers; require > 100
+    try {
+      const text = rawText
+      const num = (s:string)=> Number(String(s).replace(/[٬٫,]/g,'.'))
+      const old = text.match(/(?:قديم|القديم)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
+      const north = text.match(/(?:للشمال|الشمال)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
+      const sale = text.match(/(?:سعر\s*البيع|السعر\s*البيع|السعر)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
+      const pick = old?.[1] ? num(old[1]) : (north?.[1] ? num(north[1]) : (sale?.[1] ? num(sale[1]) : undefined))
+      const hasWeightNum = weightContext.test(text) && /\b(\d{2,3})\b/.test(text)
+      if (data.price_range && typeof data.price_range.low === 'number') {
+        const low = Number(data.price_range.low)
+        if (!Number.isFinite(low) || low <= 100 || hasWeightNum) {
+          delete (data as any).price_range
+        }
+      }
+      if (!data.price_range && pick!==undefined && Number.isFinite(pick) && pick>100) {
+        const high = sale?.[1] ? num(sale[1]) : pick
+        ;(data as any).price_range = { low: pick, high: Number.isFinite(high)? Number(high): pick }
+      }
+    } catch {}
     return data
   } catch { return null } finally { clearTimeout(t) }
 }

@@ -3459,12 +3459,14 @@ adminRest.post('/products/analyze', async (req, res) => {
                 // Compose name (ensure type first, no colors)
                 const isDress = /(فستان|فسان)/i.test(raw)
                 const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-                const baseType = isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان')
+                const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
+                const baseType = isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان'))
                 const attrs: string[] = []
                 if (/(طويله|طويل)/i.test(raw) && baseType==='فستان') attrs.push('طويل')
                 if (/(تطريز|مطرز)/i.test(raw)) attrs.push('مطرز')
-                if (/كريستال|كرستال/i.test(raw)) attrs.push('بالكريستال')
-                if (/مناسب\s*للمناسبات|سهرة/i.test(raw) && baseType==='فستان') attrs.unshift('سهرة')
+                if (/كريستال|كرستال/i.test(raw) && baseType!=='لانجري') attrs.push('بالكريستال')
+                if (/(مناسب\s*للمناسبات|سهرة)/i.test(raw) && baseType==='فستان') attrs.unshift('سهرة')
+                if (baseType==='لانجري' && /(4\s*قطع|اربع(?:ه|ة)?\s*قطع|كلسون|حزام\s*منفصل|طقم)/i.test(raw)) attrs.unshift('طقم')
                 const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim().slice(0,60)
                 // Compose description (بدون تكرار الاسم/مرادفاته وبدون ألوان/مقاسات/أسعار)
                 const hasChiffon = /شيفون/i.test(raw)
@@ -3477,12 +3479,13 @@ adminRest.post('/products/analyze', async (req, res) => {
                 if (hasLining) s1Parts.push('مبطنة لراحة أعلى')
                 s1Parts.push('تشطيب متقن')
                 if (hasEmb || hasCrystal) s1Parts.push(hasCrystal ? 'وتفاصيل مزينة بالكريستال' : 'وتفاصيل مطرزة')
-                const s1 = (s1Parts.join(' ').replace(/\s{2,}/g,' ').trim() || 'تشطيب متقن وخامة مريحة') + '، تمنح إحساساً مريحاً ومظهراً أنيقاً.'
+                // للسياق الحسي: امتنع عن جملة عامة في اللانجري
+                const s1 = (s1Parts.join(' ').replace(/\s{2,}/g,' ').trim() || 'تشطيب متقن وخامة مريحة') + (/(لانجري|لنجري|lingerie)/i.test(raw) ? '.' : '، تمنح إحساساً مريحاً ومظهراً أنيقاً.')
                 // اختر سياق الاستخدام بناء على النص
                 const isOccasion = /(مناسب\s*للمناسبات|مناسبات|سهرة|عرس|زفاف|حفلات)/i.test(raw)
                 const isDaily = /(يومي|عملي|كاجوال)/i.test(raw)
                 const usage = isOccasion ? 'ملائم للمناسبات.' : (isDaily ? 'ملائم للاستخدام اليومي.' : '')
-                const s2 = `تصميم عملي${hasLongSleeve ? ' بأكمام طويلة' : ''}${usage? ' ' + usage : ''}`
+                const s2 = (/(لانجري|لنجري|lingerie)/i.test(raw) ? '' : `تصميم عملي${hasLongSleeve ? ' بأكمام طويلة' : ''}${usage? ' ' + usage : ''}`)
                 const synthesizedDesc = `${s1} ${s2}`.replace(/\s{2,}/g,' ').trim()
                 if (synthesizedName) { out.name = synthesizedName; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
                 if (synthesizedDesc) { out.description = synthesizedDesc; (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) } }
