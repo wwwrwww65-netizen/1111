@@ -330,7 +330,6 @@ adminRest.post('/maintenance/ensure-logistics', async (_req, res) => {
     return res.status(500).json({ error: e.message || 'ensure_logistics_failed' });
   }
 });
-
 // Maintenance: bootstrap pickup legs for an order (idempotent)
 adminRest.post('/maintenance/bootstrap-pickup', async (req, res) => {
   try {
@@ -661,7 +660,6 @@ adminRest.post('/inventory/adjust', async (req, res) => {
     res.status(500).json({ error: e.message || 'inventory_adjust_failed' });
   }
 });
-
 adminRest.get('/inventory/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error:'forbidden' });
@@ -998,7 +996,6 @@ adminRest.get('/marketing/coupons/:code/report', async (req, res) => {
     res.json({ code: safe, count: orders.length, revenue, orders });
   } catch (e:any) { res.status(500).json({ error: e.message||'coupon_report_failed' }); }
 });
-
 // =====================
 // Image CDN & CWV: optimized media URLs
 // =====================
@@ -1337,7 +1334,6 @@ adminRest.get('/orders/:id', async (req, res) => {
     res.status(500).json({ error: e.message || 'order_detail_failed' });
   }
 });
-
 // Refund order payment (Stripe mock/prod)
 adminRest.post('/orders/:id/refund', async (req, res) => {
   try {
@@ -1681,7 +1677,6 @@ adminRest.get('/finance/suppliers-ledger', async (req, res) => {
     return res.json({ ledger: withBal });
   } catch (e:any) { res.status(500).json({ error: e.message||'suppliers_ledger_failed' }); }
 });
-
 // Finance: Gateways logs (derived from payments)
 adminRest.get('/finance/gateways/logs', async (req, res) => {
   try {
@@ -2741,7 +2736,7 @@ adminRest.get('/tickets', async (req, res) => {
   if (status) where.status = status;
   if (search) where.OR = [ { subject: { contains: search, mode: 'insensitive' } } ];
   const [tickets, total] = await Promise.all([
-    db.supportTicket.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true } }, assignee: { select: { email: true } } } }),
+    db.supportTicket.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true } }, assignee: { select: { email: true } } }),
     db.supportTicket.count({ where }),
   ]);
   res.json({ tickets, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
@@ -3049,7 +3044,6 @@ adminRest.get('/vendors/:id/orders/detail', async (req, res) => {
     res.json({ lines });
   } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_order_detail_failed' }); }
 });
-
 adminRest.get('/vendors/:id/orders/export/xls', async (req, res) => {
   try {
     const { id } = req.params; const safeId = id.replace(/'/g, "''");
@@ -3251,7 +3245,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       const typeMatch = pre.match(/(^|\s)(طقم|فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|جاكت|قميص|فستان|هودي|سويتر|بلوفر|set)(?=\s|$)/i);
       const materialMatch = pre.match(/(^|\s)(حرير|باربي|صوف|قطن|جلد|لينن|denim|leather|cotton|wool|silk|satin|polyester)(?=\s|$)/i);
       const attrMatch = pre.match(/(^|\s)(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)(?=\s|$)/i);
-      const featureMatch = pre.match(/(^|\s)(أزرار (?:انيقه|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه|كلوش|امبريلا|مورد|مطبوع)(?=\s|$)/i);
+      const featureMatch = pre.match(/(^|\s)(أزرار (?:انيقه|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه|كلوش|امبريلا|مورد|مطبوع|ربطه\s*خصر|ربطة\s*خصر|اكمام\s*طويله|أكمام\s*طويلة)(?=\s|$)/i);
       let normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[2]) ? 'فنيلة' : typeMatch[2].replace(/ه$/,'ة')) : '';
       if (!normalizedType && /(فنائل|فنيله|فنيلة)/i.test(pre)) normalizedType = 'فنيلة';
       let material = materialMatch ? (():string=>{ const m = materialMatch[2].toLowerCase(); if (m==='wool') return 'صوف'; if (m==='cotton') return 'قطن'; if (m==='silk' || m==='حرير') return 'حرير'; if (m==='satin') return 'ساتان'; if (m==='polyester') return 'بوليستر'; if (m==='باربي') return 'حرير باربي'; return materialMatch[2]; })() : '';
@@ -3272,6 +3266,8 @@ adminRest.post('/products/analyze', async (req, res) => {
       if (/كم\s*كامل/i.test(pre)) featureTags.push('كم كامل');
       if (/كلوش|امبريلا/i.test(pre)) featureTags.push('قصة كلوش');
       if (/مورد|مطبوع/i.test(pre)) featureTags.push('نقشة مورد');
+      if (/ربطة\s*خصر|ربطه\s*خصر/i.test(pre)) featureTags.push('ربطة خصر');
+      if (/(أكمام|اكمام)\s*طويل(ه|ة)/i.test(pre)) featureTags.push('أكمام طويلة');
       if (!feature && featureTags.length) feature = featureTags[0];
       const namePrefix = [ normalizedType, attr, material ? `من ${material}` : '' ].filter(Boolean).join(' ').trim();
       const genName = [ namePrefix, feature ].filter(Boolean).join(' ').trim();
@@ -3285,7 +3281,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       if (featureTags.length) introFeatures.push(...featureTags);
       const intro = normalizeSpaces(`${introParts.join(' ')}${introFeatures.length ? ' مع ' + introFeatures.join(' و') : ''}.`);
       const mats: string[] = [];
-      if (/\b2\s*الوان|لونين\b/i.test(pre)) mats.push('متوفرة بلونين');
+      if (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(pre)) mats.push('متوفرة بعدة ألوان');
       if (/خارجي/i.test(pre)) mats.push('مناسبة للإطلالة الخارجية');
       const sentence2 = mats.length? `${mats.join('، ')}.` : '';
       // لا نذكر المقاسات في الوصف (تُعرض في حقلها)
@@ -3400,7 +3396,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       name: out.name ? undefined : 'لم يتم العثور على نوع/صفة/خامة كافية في النص.',
       description: out.description ? undefined : 'النص قصير أو غير كافٍ لتوليد وصف.',
       sizes: (out.sizes && out.sizes.length) ? undefined : 'لم يتم العثور على نمط مقاسات معروف (مثل فري سايز/XL/M).',
-      colors: (out.colors && out.colors.length) ? undefined : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.',
+      colors: (out.colors && out.colors.length) ? undefined : (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(pre)? 'ذُكر وجود عدة ألوان دون تسميتها.' : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.'),
       price_range: out.price_range ? undefined : 'لم يتم العثور على سطر سعر واضح. أضف سطر السعر (الشمال/قديم/مشابه).',
       tags: (out.tags && out.tags.length) ? undefined : 'لا توجد كلمات مفتاحية كافية بعد إزالة الضوضاء.',
     };
@@ -3741,7 +3737,6 @@ adminRest.post('/notifications/send', async (req, res) => {
     res.json({ ok:true, sent, channel: 'socket' });
   }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'send_failed' }); }
 });
-
 // Consent config (admin)
 adminRest.get('/consent', async (_req, res) => {
   try{
@@ -4409,7 +4404,6 @@ adminRest.delete('/attributes/brands/:id', async (req, res) => {
   await db.attributeBrand.delete({ where: { id } });
   res.json({ success: true });
 });
-
 // Categories
 async function ensureCategorySeo(){
   try {

@@ -32,12 +32,26 @@ export function cleanMarketingNoise(input: string): string {
     'free','sale','offer','best','amazing','awesome','premium','original','new','🔥','👇','💎','🤩','👌','🥰','🤤','🤑','✨','-','%','٪','خصومات','وصلنا','وصل حديثاً','سعر خاص'
   ];
   let s = String(input || '');
+  // Remove bullets/asterisks formatting
+  s = s.replace(/[\*•·]+/g, ' ');
   for (const w of noise) s = s.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), ' ');
   return s;
 }
 
 export function baseClean(input: string): string {
-  return normalizeWhitespace(cleanMarketingNoise(stripEmojis(arabicIndicToLatinDigits(stripHtml(input)))));
+  const collapseRepeats = (t:string)=> t.replace(/(.)\1{2,}/g, '$1');
+  // Common typo fixes
+  const fixTypos = (t:string)=> t
+    .replace(/\bبلصدر\b/gi, 'بالصدر')
+    .replace(/\bبلاظافه\b|\bبالظافه\b/gi, 'بالإضافة')
+    .replace(/\bالاقوي\b/gi, 'الأقوى');
+  let s = stripHtml(input);
+  s = arabicIndicToLatinDigits(s);
+  s = stripEmojis(s);
+  s = cleanMarketingNoise(s);
+  s = collapseRepeats(s);
+  s = fixTypos(s);
+  return normalizeWhitespace(s);
 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -121,7 +135,7 @@ export function extractStock(text: string): number | undefined {
 }
 
 export function extractKeywords(text: string): string[] {
-  const stop = new Set(['و','في','من','على','الى','إلى','عن','هو','هي','هذا','هذه','ذلك','تلك','مع','او','أو','تم','يوجد','متوفر','عرض','خصم','الجديد','اليوم','سعر','الشراء','البيع']);
+  const stop = new Set(['و','في','من','على','الى','إلى','عن','هو','هي','هذا','هذه','ذلك','تلك','مع','او','أو','تم','يوجد','متوفر','عرض','خصم','الجديد','اليوم','سعر','الشراء','البيع','المقاسات','عملة','قديم','قديمة','جديد','جديدة','يفوتك','الأقوى','الاقوى','التفاصيل']);
   const norm = normalizeArabic(text.toLowerCase()).replace(/[^\p{Script=Arabic}a-z\s]/gu, ' ');
   const words = norm.split(/\s+/).filter(Boolean);
   const freq = new Map<string, number>();
