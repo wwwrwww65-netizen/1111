@@ -57,6 +57,19 @@ jobs:
           echo "SSH_HOST=${VPS_HOST}" >> "$GITHUB_ENV"
           echo "SSH_USER=${VPS_USER:-root}" >> "$GITHUB_ENV"
           echo "SSH_PORT=${VPS_PORT:-22}" >> "$GITHUB_ENV"
+      - name: Normalize SSH key to file (for appleboy actions)
+        shell: bash
+        run: |
+          set -e
+          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            mkdir -p ~/.ssh
+            umask 177
+            KEY_CONTENT="${{ secrets.SSH_PRIVATE_KEY }}"
+            if printf '%s' "$KEY_CONTENT" | grep -q '\\n'; then KEY_CONTENT=$(printf '%s' "$KEY_CONTENT" | sed 's/\\r//g; s/\\n/\n/g'); fi
+            printf '%s' "$KEY_CONTENT" | tr -d '\r' > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            echo "SSH_KEY_PATH=~/.ssh/deploy_key" >> "$GITHUB_ENV"
+          fi
       - name: Write SSH key for preflight (if provided)
         shell: bash
         run: |
@@ -114,6 +127,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
@@ -152,6 +166,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
@@ -177,6 +192,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
@@ -189,6 +205,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
@@ -242,6 +259,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
@@ -350,6 +368,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
@@ -376,6 +395,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
@@ -425,6 +445,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
@@ -466,6 +487,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           timeout: 180s
@@ -512,6 +534,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
@@ -532,6 +555,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
@@ -567,6 +591,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
@@ -627,6 +652,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           password: ${{ secrets.SSH_PASSWORD }}
           timeout: 180s
