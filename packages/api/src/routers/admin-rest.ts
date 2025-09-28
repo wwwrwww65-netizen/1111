@@ -3462,10 +3462,9 @@ adminRest.post('/products/analyze', async (req, res) => {
                 // Compose description
                 const descParts: string[] = []
                 if (feats.length) descParts.push(feats.join('، '))
-                if (Array.isArray(out.sizes) && out.sizes.length) descParts.push(`يتوفر بمقاسات ${out.sizes.join(', ')}`)
-                if (Array.isArray(out.colors) && out.colors.length) descParts.push(`ألوان متاحة: ${out.colors.join(', ')}`)
-                descParts.push('إطلالة راقية تناسب الاستخدام اليومي والمناسبات.')
-                const synthesizedDesc = descParts.join('. ').replace(/\.\s*\./g,'. ')
+                // لا تذكر ألوان/مقاسات/أسعار في الوصف وفق المتطلبات
+                descParts.push('تشطيب متقن وخامة مريحة تمنح إطلالة راقية مناسبة للاستخدام اليومي والمناسبات.')
+                const synthesizedDesc = descParts.join('، ').replace(/\s+,/g, ',').trim()
                 if (synthesizedName) { out.name = synthesizedName; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
                 if (synthesizedDesc) { out.description = synthesizedDesc; (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) } }
                 // Enrich sizes (normalize M/L/XL) even if rules parsed them
