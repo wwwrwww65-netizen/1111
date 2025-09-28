@@ -34,7 +34,9 @@ async function main(){
   const a = j?.analyzed || {}
   const name = String(a?.name?.value||'')
   const desc = String(a?.description?.value||'')
-  if (name.split(/\s+/).length < 4) throw new Error(`name_too_short:${name}`)
+  const TYPE_RE = /(طقم|فستان|جلابية|جلابيه|لانجري|لنجري|قميص|بلوزة|بلوزه)/i
+  const wordCount = name.trim().split(/\s+/).filter(Boolean).length
+  if (!(TYPE_RE.test(name) || wordCount >= 4)) throw new Error(`name_type_or_length_invalid:${name}`)
   if (!/•\s*الخامة/i.test(desc)) throw new Error('description_missing_fabric_row')
   if (!/•\s*المقاسات/i.test(desc)) throw new Error('description_missing_sizes_row')
   if (!/•\s*الألوان|•\s*الالوان/i.test(desc)) throw new Error('description_missing_colors_row')
