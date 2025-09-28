@@ -3178,7 +3178,7 @@ adminRest.post('/integrations/:id/toggle', async (req, res) => {
 // Product parse/generate helpers
 import { parseProductText } from '../utils/nlp-ar';
 import getColors from 'get-image-colors';
-import { callDeepseek, callDeepseekPreview } from '../utils/deepseek';
+import { callDeepseek, callDeepseekPreview, enforceLongNamePreview } from '../utils/deepseek';
 import sw from 'stopword';
 
 adminRest.post('/products/parse', async (req, res) => {
@@ -3429,7 +3429,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           // No key: record attempt only
         } else {
         const ds = deepseekOnly
-          ? await callDeepseekPreview({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||'') }, timeoutMs: 15000 })
+          ? await enforceLongNamePreview({ apiKey: dsKey, model: dsModel, text: String((req.body||{}).text||''), timeoutMs: 15000, attempts: 3 })
           : await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
         if (ds) {
           usedMeta.deepseekUsed = true
