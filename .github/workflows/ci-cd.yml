@@ -269,17 +269,22 @@ jobs:
           CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
         run: |
           set -e
+          sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
+          PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
           if [ "${CLONE_PROD_DB}" = "1" ]; then
-            echo "Using mirrored PROD DB for tests (no db:push)."
+            echo "Using mirrored PROD DB for tests (no db:push). Verifying schema..."
+            # Fallback to db:push if core tables are missing (clone failed or empty)
+            if ! psql "$PGURI" -At -c "SELECT 1 FROM information_schema.tables WHERE table_name='User' LIMIT 1" | grep -q 1; then
+              echo "Clone check failed (User table missing). Running prisma db push as fallback."
+              pnpm --filter @repo/db db:push:force
+            fi
           else
             echo "Ensure schema (db:push) before tests."
             pnpm --filter @repo/db db:push:force
-            if [ -n "${{ secrets.PROD_DB_SCHEMA_SQL }}" ]; then
-              echo "Apply PROD_DB_SCHEMA_SQL supplement (pre-tests)"
-              sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
-              PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
-              echo "${{ secrets.PROD_DB_SCHEMA_SQL }}" | psql "$PGURI" -v ON_ERROR_STOP=1 || true
-            fi
+          fi
+          if [ -n "${{ secrets.PROD_DB_SCHEMA_SQL }}" ]; then
+            echo "Apply PROD_DB_SCHEMA_SQL supplement (pre-tests)"
+            echo "${{ secrets.PROD_DB_SCHEMA_SQL }}" | psql "$PGURI" -v ON_ERROR_STOP=1 || true
           fi
           pnpm --filter @repo/api test -- --ci --reporters=default --reporters=summary
 
