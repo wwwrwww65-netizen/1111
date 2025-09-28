@@ -3459,12 +3459,20 @@ adminRest.post('/products/analyze', async (req, res) => {
                 // Compose name
                 const nameParts = feats.filter(Boolean)
                 const synthesizedName = (nameParts.length ? nameParts.slice(0,2).join(' ') : (out.name || 'منتج')).slice(0,60)
-                // Compose description
-                const descParts: string[] = []
-                if (feats.length) descParts.push(feats.join('، '))
-                // لا تذكر ألوان/مقاسات/أسعار في الوصف وفق المتطلبات
-                descParts.push('تشطيب متقن وخامة مريحة تمنح إطلالة راقية مناسبة للاستخدام اليومي والمناسبات.')
-                const synthesizedDesc = descParts.join('، ').replace(/\s+,/g, ',').trim()
+                // Compose description (بدون تكرار الاسم/مرادفاته وبدون ألوان/مقاسات/أسعار)
+                const hasChiffon = /شيفون/i.test(raw)
+                const hasLining = /(مبطن|بطانة)/i.test(raw)
+                const hasEmb = /(تطريز|مطرز)/i.test(raw)
+                const hasCrystal = /كرستال|كريستال/i.test(raw)
+                const hasLongSleeve = /(أكمام|كم).*(طويله|طويل)/i.test(raw)
+                const s1Parts: string[] = []
+                if (hasChiffon) s1Parts.push('خامة شيفون')
+                if (hasLining) s1Parts.push('مبطنة لراحة أعلى')
+                s1Parts.push('تشطيب متقن')
+                if (hasEmb || hasCrystal) s1Parts.push(hasCrystal ? 'وتفاصيل مزينة بالكريستال' : 'وتفاصيل مطرزة')
+                const s1 = (s1Parts.join(' ').replace(/\s{2,}/g,' ').trim() || 'تشطيب متقن وخامة مريحة') + '، تمنح إحساساً مريحاً ومظهراً أنيقاً.'
+                const s2 = `تصميم عملي${hasLongSleeve ? ' بأكمام طويلة' : ''} يمنح إطلالة راقية مناسبة للاستخدام اليومي والمناسبات.`
+                const synthesizedDesc = `${s1} ${s2}`.replace(/\s{2,}/g,' ').trim()
                 if (synthesizedName) { out.name = synthesizedName; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
                 if (synthesizedDesc) { out.description = synthesizedDesc; (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) } }
                 // Enrich sizes (normalize M/L/XL) even if rules parsed them
