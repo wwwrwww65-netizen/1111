@@ -3478,7 +3478,11 @@ adminRest.post('/products/analyze', async (req, res) => {
                 s1Parts.push('تشطيب متقن')
                 if (hasEmb || hasCrystal) s1Parts.push(hasCrystal ? 'وتفاصيل مزينة بالكريستال' : 'وتفاصيل مطرزة')
                 const s1 = (s1Parts.join(' ').replace(/\s{2,}/g,' ').trim() || 'تشطيب متقن وخامة مريحة') + '، تمنح إحساساً مريحاً ومظهراً أنيقاً.'
-                const s2 = `تصميم عملي${hasLongSleeve ? ' بأكمام طويلة' : ''} يمنح إطلالة راقية مناسبة للاستخدام اليومي والمناسبات.`
+                // اختر سياق الاستخدام بناء على النص
+                const isOccasion = /(مناسب\s*للمناسبات|مناسبات|سهرة|عرس|زفاف|حفلات)/i.test(raw)
+                const isDaily = /(يومي|عملي|كاجوال)/i.test(raw)
+                const usage = isOccasion ? 'ملائم للمناسبات.' : (isDaily ? 'ملائم للاستخدام اليومي.' : '')
+                const s2 = `تصميم عملي${hasLongSleeve ? ' بأكمام طويلة' : ''}${usage? ' ' + usage : ''}`
                 const synthesizedDesc = `${s1} ${s2}`.replace(/\s{2,}/g,' ').trim()
                 if (synthesizedName) { out.name = synthesizedName; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
                 if (synthesizedDesc) { out.description = synthesizedDesc; (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) } }
