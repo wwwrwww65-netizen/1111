@@ -3468,6 +3468,31 @@ adminRest.post('/products/analyze', async (req, res) => {
                 const synthesizedDesc = descParts.join('. ').replace(/\.\s*\./g,'. ')
                 if (synthesizedName) { out.name = synthesizedName; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
                 if (synthesizedDesc) { out.description = synthesizedDesc; (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) } }
+                // Enrich sizes (normalize M/L/XL) even if rules parsed them
+                try {
+                  const sizesRaw = Array.from(new Set((raw.match(/\b(XXL|XL|LX|L|M|S|XS)\b/gi) || []).map(s=> s.toUpperCase().replace('LX','XL'))))
+                  if (sizesRaw.length) { out.sizes = sizesRaw; (sources as any).sizes = { source:'ai', confidence: Math.max(0.7, (sources as any).sizes?.confidence||0.6) } }
+                } catch {}
+                // Enrich colors from Arabic tokens (e.g., اسود، احمر، بنفسجي)
+                try {
+                  const colorMap: Record<string,string> = {
+                    'اسود':'أسود','أسود':'أسود','ابيض':'أبيض','أبيض':'أبيض','احمر':'أحمر','أحمر':'أحمر','ازرق':'أزرق','أزرق':'أزرق','اخضر':'أخضر','أخضر':'أخضر','اصفر':'أصفر','أصفر':'أصفر','بنفسجي':'بنفسجي','بني':'بني','بيج':'بيج','رمادي':'رمادي','كحلي':'كحلي','وردي':'وردي'
+                  }
+                  const found = Array.from(new Set((raw.match(/(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|بني|بيج|رمادي|كحلي|وردي)/gi) || []).map(v=> colorMap[v] || v)))
+                  if (found.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...found])); (sources as any).colors = { source:'ai', confidence: Math.max(0.65, (sources as any).colors?.confidence||0.6) } }
+                } catch {}
+                // Enrich keywords: simple Arabic token filter without noise
+                try {
+                  const noDiacritics = (s:string)=> s.normalize('NFKD').replace(/[\u064B-\u065F]/g,'').replace(/\u0640/g,'')
+                  const norm = noDiacritics(raw.toLowerCase())
+                  const noise = new Set(['*','ال','بل','بلصدر','السعر','قديمة','قديمه','جديدة','جديده','الاقوى','العرض','فقط','عمله','عملة','التفاصيل','تحححفه','بنمط','خليجي','طرف','الي\s*د','مزودة','اضافه','اضافة','ب'])
+                  // Avoid Unicode property classes for compatibility: keep Arabic letters via explicit range
+                  const words = norm.replace(/[^\u0600-\u06FFa-z0-9\s]/g,' ').split(/\s+/).filter(w=> w && w.length>=3 && !noise.has(w))
+                  const freq = new Map<string,number>()
+                  for (const w of words) freq.set(w, (freq.get(w)||0)+1)
+                  const top = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]).slice(0,6).map(([w])=> w)
+                  if (top.length) { out.tags = top; (sources as any).tags = { source:'ai', confidence: 0.6 } }
+                } catch {}
               }
             } catch {}
           }
