@@ -1,4 +1,3 @@
-import fetch from 'node-fetch'
 import { z } from 'zod'
 
 export const DeepseekOutputSchema = z.object({
@@ -44,7 +43,7 @@ export async function callDeepseek(opts: {
       temperature: 0.2,
       max_tokens: 500
     }
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
+    const res = await (globalThis.fetch as typeof fetch)('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',

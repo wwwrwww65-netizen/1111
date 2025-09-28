@@ -3419,7 +3419,8 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (!out.tags || (out.tags as string[]).length === 0) s -= 0.2
         return Math.max(0, s)
       })()
-      if (aiEnabled && userWants && dsKey && qualityScore < 0.7) {
+      const inCI = String(process.env.CI || '').toLowerCase() === 'true'
+      if (aiEnabled && userWants && dsKey && qualityScore < 0.7 && !inCI) {
         const ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
         if (ds) {
           if (ds.name && ds.name.length >= 3) { out.name = ds.name; sources.name = { source:'ai', confidence: Math.max(0.85, (sources.name?.confidence||0.8)) } }

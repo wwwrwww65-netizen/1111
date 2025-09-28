@@ -198,6 +198,12 @@ jobs:
           fi
           pnpm --filter @repo/db db:push:force
           pnpm --filter @repo/db db:migrate
+          if [ -n "${{ secrets.PROD_DB_SCHEMA_SQL }}" ]; then
+            echo "Apply PROD_DB_SCHEMA_SQL supplement"
+            sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
+            PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
+            echo "${{ secrets.PROD_DB_SCHEMA_SQL }}" | psql "$PGURI" -v ON_ERROR_STOP=1 || true
+          fi
 
       - name: Prisma seed
         if: github.ref == 'refs/heads/main'
