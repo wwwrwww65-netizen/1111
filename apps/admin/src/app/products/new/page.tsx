@@ -30,6 +30,15 @@ export default function AdminProductCreate(): JSX.Element {
   const [deepseekOn, setDeepseekOn] = React.useState<boolean>(true);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiDeepseekOn'); if (v!==null) setDeepseekOn(v==='1'); } catch {} },[]);
   React.useEffect(()=>{ try{ localStorage.setItem('aiDeepseekOn', deepseekOn? '1':'0'); } catch {} },[deepseekOn]);
+  const [lastMeta, setLastMeta] = React.useState<any>(null);
+
+  function SourceBadge({ src }: { src?: string }){
+    const s = String(src||'rules').toLowerCase();
+    const isAi = s === 'ai';
+    return (
+      <span style={{ marginInlineStart:8, fontSize:11, padding:'2px 6px', borderRadius:999, border:'1px solid var(--muted2)', color: isAi? '#22c55e':'#9ca3af' }}>{isAi? 'AI':'Rules'}</span>
+    );
+  }
   
   function Section({ title, subtitle, toolbar, children }:{ title:string; subtitle?:string; toolbar?:React.ReactNode; children:React.ReactNode }){
     return (
@@ -306,6 +315,7 @@ export default function AdminProductCreate(): JSX.Element {
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
+          setLastMeta(aj?.meta||null);
           if (aj?.meta?.deepseekUsed) { showToast('تم استخدام DeepSeek لتحسين النتائج', 'ok'); }
           else if (aj?.meta?.deepseekAttempted) { showToast(`تمت محاولة DeepSeek${aj?.meta?.reason? ' ('+aj.meta.reason+')':''}`, 'ok'); }
           if (Array.isArray(aj?.warnings) && aj.warnings.length) {
@@ -410,7 +420,8 @@ export default function AdminProductCreate(): JSX.Element {
         mapping,
         confidence,
         sources: extracted.sources,
-        reasons: extracted.reasons || {}
+        reasons: extracted.reasons || {},
+        sources: extracted.sources
       } as any;
       setReview(reviewObj);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
@@ -731,31 +742,31 @@ export default function AdminProductCreate(): JSX.Element {
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%)
+                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%) <SourceBadge src={review.sources?.name} />
                     <input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" />
                     {!review.name && review?.reasons?.name && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.name}</div>}
                   </label>
-                  <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%)<input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
+                  <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%) <SourceBadge src={review.sources?.price_range} /><input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
-                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%)
+                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%) <SourceBadge src={review.sources?.description} />
                     <textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} className="input" />
                     {!review.shortDesc && review?.reasons?.description && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.description}</div>}
                   </label>
-                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%)<textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
+                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
                   <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                     <div>
-                      <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%)</div>
+                      <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%) <SourceBadge src={review.sources?.sizes} /></div>
                       <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)}))} className="input" />
                       {(!review.sizes || review.sizes.length===0) && review?.reasons?.sizes && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.sizes}</div>}
                     </div>
                     <div>
-                      <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%)</div>
+                      <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%) <SourceBadge src={review.sources?.colors} /></div>
                       <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)}))} className="input" />
                       {(!review.colors || review.colors.length===0) && review?.reasons?.colors && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.colors}</div>}
                     </div>
                   </div>
                   <div style={{ gridColumn:'1 / -1' }}>
-                    <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO)</div>
+                    <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO) <SourceBadge src={review.sources?.tags} /></div>
                     <input value={(review.keywords||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, keywords: e.target.value.split(',').map((k:string)=>k.trim()).filter(Boolean)}))} className="input" />
                     {(!review.keywords || review.keywords.length===0) && review?.reasons?.tags && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.tags}</div>}
                   </div>
