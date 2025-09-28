@@ -435,6 +435,46 @@ export default function AdminProductCreate(): JSX.Element {
     } finally { setBusy(false); }
   }
 
+  async function handleDeepseekOnlyPreview(filesForPalette: File[]): Promise<void> {
+    setError('');
+    try {
+      setBusy(true);
+      const b64Images: string[] = [];
+      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
+        method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+      });
+      const aj = await resp.json().catch(()=>({}));
+      if (!resp.ok) { setError('فشل تحليل DeepSeek'); showToast('فشل تحليل DeepSeek', 'err'); return; }
+      const analyzed = aj?.analyzed || {};
+      const reviewObj:any = {
+        name: String(analyzed?.name?.value||'').slice(0,60),
+        shortDesc: String(analyzed?.description?.value||'').slice(0,160),
+        longDesc: String(analyzed?.description?.value||''),
+        purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
+        sizes: analyzed?.sizes?.value || [],
+        colors: analyzed?.colors?.value || [],
+        keywords: analyzed?.tags?.value || [],
+        confidence: {
+          name: Number(analyzed?.name?.confidence ?? 0.85),
+          shortDesc: Number(analyzed?.description?.confidence ?? 0.85),
+          longDesc: Number(analyzed?.description?.confidence ?? 0.85),
+          sizes: Number(analyzed?.sizes?.confidence ?? 0.7),
+          colors: Number(analyzed?.colors?.confidence ?? 0.6),
+          purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6)
+        },
+        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai' }
+      };
+      setReview(reviewObj);
+      showToast('تم تحليل DeepSeek (معاينة)', 'ok');
+      setActiveMobileTab('review');
+    } catch {
+      setError('فشل تحليل DeepSeek');
+      showToast('فشل تحليل DeepSeek', 'err');
+    } finally { setBusy(false); }
+  }
+
   const [type, setType] = React.useState<'simple'|'variable'>('simple');
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -698,6 +738,7 @@ export default function AdminProductCreate(): JSX.Element {
           </label>
           <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
           <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
+          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
           <button type="button" onClick={()=>{
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);

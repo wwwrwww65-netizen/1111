@@ -498,7 +498,6 @@ adminRest.post('/maintenance/fix-auth-columns', async (_req, res) => {
     return res.status(500).json({ ok: false, error: e?.message || 'failed' });
   }
 });
-
 // Maintenance: create admin user with given credentials
 adminRest.post('/maintenance/create-admin', async (req, res) => {
   try {
@@ -1495,7 +1494,6 @@ adminRest.post('/payments/refund', async (req, res) => {
     res.status(500).json({ error: e.message || 'refund_failed' });
   }
 });
-
 // Finance: Expenses
 adminRest.get('/finance/expenses', async (req, res) => {
   try {
@@ -1973,17 +1971,15 @@ adminRest.post('/logistics/delivery/assign', async (req, res) => {
 adminRest.post('/logistics/delivery/proof', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
-    const { orderId, signatureBase64, photoBase64 } = req.body||{};
+    const { orderId, signatureBase64, photoUrl } = req.body||{};
     if (!orderId) return res.status(400).json({ error:'orderId_required' });
-    let signatureUrl: string|undefined; let photoUrl: string|undefined;
+    let signatureUrl: string|undefined;
     if (signatureBase64) {
       // store as media asset
       try { const saved = await db.mediaAsset.create({ data: { url: signatureBase64, type: 'image' } }); signatureUrl = saved.url; } catch {}
       try { await db.signature.create({ data: { orderId, imageUrl: signatureUrl||signatureBase64, signedBy: u.userId } }); } catch {}
     }
-    if (photoBase64) {
-      try { const saved = await db.mediaAsset.create({ data: { url: photoBase64, type: 'image' } }); photoUrl = saved.url; } catch {}
-    }
+    if (photoUrl) { try { await db.mediaAsset.create({ data: { url: photoUrl, type: 'image' } }); } catch {} }
     // mark order delivered
     await db.order.update({ where: { id: orderId }, data: { status: 'DELIVERED' } });
     // mark related DELIVERY shipment legs completed (if any)
@@ -1991,12 +1987,11 @@ adminRest.post('/logistics/delivery/proof', async (req, res) => {
       await db.shipmentLeg.updateMany({ where: { orderId, legType: 'DELIVERY' as any }, data: { status: 'COMPLETED', completedAt: new Date() as any } as any });
     } catch {}
     // audit + notify stubs
-    await audit(req as any, 'logistics.delivery', 'delivered', { orderId, signature: Boolean(signatureBase64), photo: Boolean(photoBase64) });
+    await audit(req as any, 'logistics.delivery', 'delivered', { orderId, signature: Boolean(signatureBase64), photo: Boolean(photoUrl) });
     try { console.log('[notify] order_delivered', { orderId }); } catch {}
     return res.json({ success: true, signatureUrl, photoUrl });
   } catch (e:any) { res.status(500).json({ error: e.message||'proof_failed' }); }
 });
-
 adminRest.get('/logistics/delivery/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
@@ -2489,12 +2484,11 @@ adminRest.get('/orders/:id/invoice.pdf', async (req, res) => {
     doc.end();
   } catch (e:any) { res.status(500).json({ error: e.message||'invoice_failed' }); }
 });
-
 // Generate PDF shipping label for shipment
 adminRest.get('/shipments/:id/label.pdf', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'orders.read'))) return res.status(403).json({ error:'forbidden' });
-    const { id } = req.params; const s: any = await db.shipment.findUnique({ where: { id }, include: { order: { include: { user: true } } } } as any);
+    const { id } = req.params; const s: any = await db.shipment.findUnique({ where: { id }, include: { order: { include: { user: true } } } as any });
     if (!s) return res.status(404).json({ error:'not_found' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="label-${id}.pdf"`);
@@ -3412,6 +3406,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       // Default ON if not explicitly set and key exists; allow request to force DeepSeek via query/body
       const userWants = ((conf['AI_ENABLE_DEEPSEEK_CORRECTOR'] ?? 'on').toString().toLowerCase() === 'on') && !!dsKey
       const reqForce: boolean = Boolean((req.query?.forceDeepseek ?? (req.body as any)?.forceDeepseek) ? true : false)
+      const deepseekOnly: boolean = String((req.query as any)?.deepseekOnly || '').trim() === '1'
       const qualityScore = (() => {
         let s = 1
         const nm = String(out.name||'')
@@ -4866,7 +4861,6 @@ adminRest.delete('/categories/:id', async (req, res) => {
   await audit(req, 'categories', 'delete', { id });
   res.json({ ok:true, success: true });
 });
-
 // Bulk delete categories with safe reassignment
 adminRest.post('/categories/bulk-delete', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_bulk_delete',{ path:req.path }); return res.status(403).json({ error:'forbidden', code:'forbidden_delete' }); }
@@ -5081,7 +5075,7 @@ adminRest.post('/notifications/send', async (req, res) => {
         // TODO: integrate SMS provider; for now, log
       }
     } catch {}
-    await audit(req,'notifications','send',{ channel, to });
+    await audit(req, 'notifications', 'send', { channel, to });
     res.json({ success:true });
   } catch (e:any) { res.status(500).json({ error: e.message||'send_failed' }); }
 });
