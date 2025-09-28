@@ -2736,7 +2736,16 @@ adminRest.get('/tickets', async (req, res) => {
   if (status) where.status = status;
   if (search) where.OR = [ { subject: { contains: search, mode: 'insensitive' } } ];
   const [tickets, total] = await Promise.all([
-    db.supportTicket.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true } }, assignee: { select: { email: true } } }),
+    db.supportTicket.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: skip,
+      take: limit,
+      include: {
+        user: { select: { email: true } },
+        assignee: { select: { email: true } }
+      }
+    }),
     db.supportTicket.count({ where }),
   ]);
   res.json({ tickets, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
@@ -3396,7 +3405,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       name: out.name ? undefined : 'لم يتم العثور على نوع/صفة/خامة كافية في النص.',
       description: out.description ? undefined : 'النص قصير أو غير كافٍ لتوليد وصف.',
       sizes: (out.sizes && out.sizes.length) ? undefined : 'لم يتم العثور على نمط مقاسات معروف (مثل فري سايز/XL/M).',
-      colors: (out.colors && out.colors.length) ? undefined : (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(pre)? 'ذُكر وجود عدة ألوان دون تسميتها.' : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.'),
+      colors: (out.colors && out.colors.length) ? undefined : (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(preNum)? 'ذُكر وجود عدة ألوان دون تسميتها.' : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.'),
       price_range: out.price_range ? undefined : 'لم يتم العثور على سطر سعر واضح. أضف سطر السعر (الشمال/قديم/مشابه).',
       tags: (out.tags && out.tags.length) ? undefined : 'لا توجد كلمات مفتاحية كافية بعد إزالة الضوضاء.',
     };
