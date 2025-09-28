@@ -3424,9 +3424,14 @@ adminRest.post('/products/analyze', async (req, res) => {
       })()
       const inCI = String(process.env.CI || '').toLowerCase() === 'true'
       const usedMeta = { deepseekUsed: false, deepseekAttempted: false }
+      // Mark attempt when forced even if key/config missing (for CI observability)
+      if (reqForce) deepseekAttempted = true
       // Allow force to bypass CI guard; otherwise only run when quality is low and not CI
-      if (aiEnabled && userWants && dsKey && (reqForce || (qualityScore < 0.7 && !inCI))) {
+      if (aiEnabled && (reqForce || (userWants && dsKey && qualityScore < 0.7 && !inCI))) {
         usedMeta.deepseekAttempted = true; deepseekAttempted = true
+        if (!dsKey) {
+          // No key: record attempt only
+        } else {
         const ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
         if (ds) {
           usedMeta.deepseekUsed = true
@@ -3434,6 +3439,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           if (ds.description && ds.description.length >= 30) { out.description = ds.description; sources.description = { source:'ai', confidence: Math.max(0.9, (sources.description?.confidence||0.85)) } }
           if (Array.isArray(ds.tags) && ds.tags.length) { out.tags = ds.tags.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
           // Keep sizes/prices from rules unless ds provided better (not overriding trusted numbers)
+        }
         }
       }
     } catch {}
