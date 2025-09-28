@@ -3451,11 +3451,24 @@ adminRest.post('/products/analyze', async (req, res) => {
                 const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
                 const isDress = /(فستان|فسان)/i.test(raw)
                 const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-                const baseType = isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان'))
+                const isSet = /(طقم)/i.test(raw)
+                const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان')))
                 const feats: string[] = []
+                // gender
+                if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
+                else if (/(رجالي|رجالية)/i.test(raw)) feats.push('رجالي')
+                // material
+                if (/صوف|wool/i.test(raw)) feats.push('صوف')
+                if (/قطن|cotton/i.test(raw)) feats.push('قطن')
+                if (/حرير|silk/i.test(raw)) feats.push('حرير')
+                if (/شيفون|chiffon/i.test(raw)) feats.push('شيفون')
+                if (/دنيم|denim/i.test(raw)) feats.push('دنيم')
+                if (/جلد|leather/i.test(raw)) feats.push('جلد')
+                // sleeves / cut
+                if (/كم\s*كامل/i.test(raw)) feats.push('كم كامل')
+                if (/(كلوش|كلووش)/i.test(raw) && baseType!=='لانجري') feats.push('قصة كلّوش')
                 if (/(تول|تل)/i.test(raw)) feats.push('تول')
                 if (/شفاف/i.test(raw)) feats.push('شفاف')
-                if (/(كلوش|كلووش)/i.test(raw) && baseType==='لانجري') feats.push('كلوش')
                 if (/(صدريه|صدرية)/i.test(raw)) feats.push('بصدريه')
                 if (/(جبير|جلير)/i.test(raw)) feats.push('جبير')
                 if (/حزام\s*منفصل/i.test(raw)) feats.push('وحزام منفصل')
@@ -3467,7 +3480,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
                 const ensureWords = (s:string)=>{
                   const ws = s.trim().split(/\s+/)
-                  if (ws.length >= 8) return s
+                  if (ws.length >= 4) return s
                   // try to pad with safe existing cues without اختراع
                   const pads: string[] = []
                   if ((/ناع(م|مة)/i.test(raw))) pads.push('بملمس ناعم')
