@@ -67,7 +67,9 @@ jobs:
             KEY_CONTENT="${{ secrets.SSH_PRIVATE_KEY }}"
             if printf '%s' "$KEY_CONTENT" | grep -q '\\n'; then KEY_CONTENT=$(printf '%s' "$KEY_CONTENT" | sed 's/\\r//g; s/\\n/\n/g'); fi
             printf '%s' "$KEY_CONTENT" | tr -d '\r' > "$GITHUB_WORKSPACE/.ssh/deploy_key"
-            chmod 600 "$GITHUB_WORKSPACE/.ssh/deploy_key"
+            # appleboy container may run as a different user; allow read access
+            chmod 755 "$GITHUB_WORKSPACE/.ssh"
+            chmod 644 "$GITHUB_WORKSPACE/.ssh/deploy_key"
             echo "SSH_KEY_PATH=$GITHUB_WORKSPACE/.ssh/deploy_key" >> "$GITHUB_ENV"
           fi
       - name: Write SSH key for preflight (if provided)
