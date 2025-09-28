@@ -435,21 +435,21 @@ export default function AdminProductCreate(): JSX.Element {
       const analyzed = aj?.analyzed || {};
       const reviewObj:any = {
         name: String(analyzed?.name?.value||'').slice(0,60),
-        shortDesc: String(analyzed?.description?.value||'').slice(0,160),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sizes: analyzed?.sizes?.value || [],
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
+        stock: (analyzed?.stock?.value ?? undefined),
         confidence: {
           name: Number(analyzed?.name?.confidence ?? 0.85),
-          shortDesc: Number(analyzed?.description?.confidence ?? 0.85),
           longDesc: Number(analyzed?.description?.confidence ?? 0.85),
           sizes: Number(analyzed?.sizes?.confidence ?? 0.7),
           colors: Number(analyzed?.colors?.confidence ?? 0.6),
-          purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6)
+          purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6),
+          stock: Number(analyzed?.stock?.confidence ?? 0.5)
         },
-        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai' }
+        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
       setReview(reviewObj);
       showToast('تم تحليل DeepSeek (معاينة)', 'ok');
@@ -728,7 +728,7 @@ export default function AdminProductCreate(): JSX.Element {
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);
               setName(limitedName);
-              setDescription([review.shortDesc, review.longDesc].filter(Boolean).join('\n\n'));
+              setDescription(String(review.longDesc||''));
               if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
               if (review.stock!==undefined) setStockQuantity(review.stock);
               if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
@@ -774,10 +774,7 @@ export default function AdminProductCreate(): JSX.Element {
                   </label>
                   <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%) <SourceBadge src={review.sources?.price_range} /><input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
-                  <label style={{ gridColumn:'1 / -1' }}>وصف قصير (ثقة {Math.round((review.confidence?.shortDesc||0)*100)}%) <SourceBadge src={review.sources?.description} />
-                    <textarea value={review.shortDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, shortDesc:e.target.value}))} rows={3} className="input" />
-                    {!review.shortDesc && review?.reasons?.description && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.description}</div>}
-                  </label>
+                  
                   <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
                   <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                     <div>

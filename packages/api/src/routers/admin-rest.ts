@@ -3178,7 +3178,7 @@ adminRest.post('/integrations/:id/toggle', async (req, res) => {
 // Product parse/generate helpers
 import { parseProductText } from '../utils/nlp-ar';
 import getColors from 'get-image-colors';
-import { callDeepseek } from '../utils/deepseek';
+import { callDeepseek, callDeepseekPreview } from '../utils/deepseek';
 import sw from 'stopword';
 
 adminRest.post('/products/parse', async (req, res) => {
@@ -3428,12 +3428,26 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (!dsKey) {
           // No key: record attempt only
         } else {
-        const ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
+        const ds = deepseekOnly
+          ? await callDeepseekPreview({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||'') }, timeoutMs: 15000 })
+          : await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
         if (ds) {
           usedMeta.deepseekUsed = true
-          if (ds.name && ds.name.length >= 3) { out.name = ds.name; sources.name = { source:'ai', confidence: Math.max(0.85, (sources.name?.confidence||0.8)) } }
-          if (ds.description && ds.description.length >= 30) { out.description = ds.description; sources.description = { source:'ai', confidence: Math.max(0.9, (sources.description?.confidence||0.85)) } }
-          if (Array.isArray(ds.tags) && ds.tags.length) { out.tags = ds.tags.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
+          if (deepseekOnly) {
+            const p: any = ds
+            if (p.name && p.name.length >= 8) { out.name = p.name; sources.name = { source:'ai', confidence: 0.9 } }
+            if (p.description && p.description.length >= 12) { out.description = p.description; sources.description = { source:'ai', confidence: 0.9 } }
+            if (Array.isArray(p.colors)) { out.colors = p.colors; (sources as any).colors = { source:'ai', confidence: 0.7 } }
+            if (Array.isArray(p.sizes)) { out.sizes = p.sizes; (sources as any).sizes = { source:'ai', confidence: 0.7 } }
+            if (Array.isArray(p.keywords)) { out.tags = p.keywords.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
+            if (typeof p.price === 'number' && p.price > 100) { (out as any).price_range = { low: p.price, high: p.price }; (sources as any).price_range = { source:'ai', confidence: 0.8 } }
+            if (typeof p.stock === 'number' && p.stock >= 0) { (out as any).stock = p.stock; (sources as any).stock = { source:'ai', confidence: 0.6 } }
+          } else {
+            const d: any = ds
+            if (d.name && d.name.length >= 3) { out.name = d.name; sources.name = { source:'ai', confidence: Math.max(0.85, (sources.name?.confidence||0.8)) } }
+            if (d.description && d.description.length >= 30) { out.description = d.description; sources.description = { source:'ai', confidence: Math.max(0.9, (sources.description?.confidence||0.85)) } }
+            if (Array.isArray(d.tags) && d.tags.length) { out.tags = d.tags.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
+          }
           // Keep sizes/prices from rules unless ds provided better (not overriding trusted numbers)
           } else {
             // Fallback: if DeepSeek returns non-JSON, still verify reachability via /v1/models and mark used
@@ -3461,7 +3475,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 if (/(تطريز|مطرز)/i.test(raw)) attrs.push('مطرز')
                 if (/كريستال|كرستال/i.test(raw) && baseType!=='لانجري') attrs.push('بالكريستال')
                 if (/(مناسب\s*للمناسبات|سهرة)/i.test(raw) && baseType==='فستان') attrs.unshift('سهرة')
-                if (baseType==='لانجري' && /(4\s*قطع|اربع(?:ه|ة)?\s*قطع|كلسون|حزام\s*منفصل|طقم)/i.test(raw)) attrs.unshift('طقم')
+                // removed auto-adding "طقم" to avoid forcing set naming
                 const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim().slice(0,60)
                 // Compose description (بدون تكرار الاسم/مرادفاته وبدون ألوان/مقاسات/أسعار)
                 const hasChiffon = /شيفون/i.test(raw)

@@ -168,3 +168,86 @@ export async function callDeepseek(opts: {
     return data
   } catch { return null } finally { clearTimeout(t) }
 }
+
+export async function callDeepseekPreview(opts: {
+  apiKey: string
+  model: string
+  input: { text: string }
+  timeoutMs?: number
+}): Promise<{
+  name?: string
+  description?: string
+  price?: number
+  colors?: string[]
+  sizes?: string[]
+  keywords?: string[]
+  stock?: number
+} | null> {
+  const { apiKey, model, input } = opts
+  const timeoutMs = Math.min(Math.max(opts.timeoutMs ?? 15000, 3000), 20000)
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const systemPrompt = [
+      'أنت مساعد متخصص في تحليل منتجات الملابس العربية. استخرج بدقة النتيجة وفق التنسيق التالي:',
+      '',
+      'المطلوب:',
+      '1) name: اسم طويل وشامل (8-12 كلمة) يلخص أبرز المواصفات.',
+      '2) description: جدول منظم (سطر لكل بند) كالتالي:',
+      '   • الخامة: [نوع القماش وجودته]',
+      '   • الصناعة: [مكان الصنع ومستوى الجودة]',
+      '   • التصميم: [النمط والقطع والإضافات]',
+      '   • الألوان: [جميع الألوان المذكورة]',
+      '   • المقاسات: [جميع المقاسات المذكورة]',
+      '   • الميزات: [أبرز 3 مميزات]',
+      '   - [أي حقل إضافي موجود في النص]: [قيمته]',
+      '3) price: استخرج فقط السعر الشمالي/القديم (عمله قديم/ريال قديم/سعر شمال/عملة قديمة). تجاهل أي أسعار أخرى.',
+      '4) colors: جميع الألوان المحددة.',
+      '5) sizes: جميع المقاسات.',
+      '6) keywords: 4-6 كلمات سيو.',
+      '7) stock (اختياري): إذا وجد رقم واضح للمخزون.',
+      '',
+      'قيود:',
+      '- الاسم طويل ووصفي بلا رموز.',
+      '- الوصف جدول (قائمة نقطية)، بلا أسعار/مقاسات/ألوان إلا داخل الجدول.',
+      '- السعر: شمالي/قديم فقط.',
+      '',
+      'أعد JSON فقط بهذه الحقول: {"name":string,"description":string,"price":number?,"colors":string[]?,"sizes":string[]?,"keywords":string[]?,"stock":number?}'
+    ].join('\n')
+    const payload = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify({ text: input.text }) }
+      ],
+      temperature: 0,
+      max_tokens: 700
+    }
+    const endpoints = [
+      'https://api.deepseek.com/v1/chat/completions',
+      'https://api.deepseek.ai/v1/chat/completions',
+      'https://api.deepseek.com/chat/completions'
+    ]
+    let res: Response | null = null
+    for (const url of endpoints) {
+      try {
+        res = await (globalThis.fetch as typeof fetch)(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal
+        })
+        if (res.ok) break
+      } catch {}
+    }
+    if (!res || !res.ok) return null
+    const j = await res.json().catch(() => null) as any
+    let content = String(j?.choices?.[0]?.message?.content || '')
+    const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
+    if (fenceMatch) content = fenceMatch[1]
+    const firstBrace = content.indexOf('{')
+    const lastBrace = content.lastIndexOf('}')
+    const slice = (firstBrace>=0 && lastBrace>firstBrace) ? content.slice(firstBrace, lastBrace+1) : content
+    try { return JSON.parse(slice) } catch { return null }
+  } catch { return null } finally { clearTimeout(t) }
+}
