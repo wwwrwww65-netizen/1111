@@ -157,12 +157,21 @@ jobs:
           CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
         run: |
           if [ "${CLONE_PROD_DB}" != "1" ]; then echo "Skip prod DB clone (CLONE_PROD_DB!=1)"; exit 0; fi
+          # Validate required secrets before attempting SSH
+          if [ -z "${SSH_PRIVATE_KEY}" ] || [ -z "${VPS_HOST}" ] || [ -z "${VPS_USER}" ] || [ -z "${PROD_DB_USER}" ] || [ -z "${PROD_DB_PASS}" ] || [ -z "${PROD_DB_NAME}" ]; then
+            echo "Skip prod DB clone (incomplete secrets)"; exit 0;
+          fi
+          if ! printf "%s" "${SSH_PRIVATE_KEY}" | grep -q 'BEGIN'; then
+            echo "Skip prod DB clone (invalid SSH key format)"; exit 0;
+          fi
           sudo apt-get update -y && sudo apt-get install -y postgresql-client openssh-client
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p "${VPS_PORT:-22}" ${VPS_USER:-root}@${VPS_HOST} \
-            "PGPASSWORD='${PROD_DB_PASS}' pg_dump -U '${PROD_DB_USER}' -h 127.0.0.1 -p 5432 -d '${PROD_DB_NAME}' --no-owner --no-privileges" > prod.sql
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i ~/.ssh/id_rsa -p "${VPS_PORT:-22}" ${VPS_USER:-root}@${VPS_HOST} \
+            "PGPASSWORD='${PROD_DB_PASS}' pg_dump -U '${PROD_DB_USER}' -h 127.0.0.1 -p 5432 -d '${PROD_DB_NAME}' --no-owner --no-privileges" > prod.sql || {
+              echo "Skip prod DB clone (SSH/pg_dump failed)"; exit 0;
+            }
           echo "Reset target schema";
           PGPASSWORD=password psql -U user -h localhost -p 5432 -d ecom_db -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
           echo "Restore plain SQL dump";
