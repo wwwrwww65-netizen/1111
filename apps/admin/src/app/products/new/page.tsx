@@ -27,6 +27,9 @@ export default function AdminProductCreate(): JSX.Element {
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
   const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
   const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
+  const [deepseekOn, setDeepseekOn] = React.useState<boolean>(true);
+  React.useEffect(()=>{ try{ const v = localStorage.getItem('aiDeepseekOn'); if (v!==null) setDeepseekOn(v==='1'); } catch {} },[]);
+  React.useEffect(()=>{ try{ localStorage.setItem('aiDeepseekOn', deepseekOn? '1':'0'); } catch {} },[deepseekOn]);
   
   function Section({ title, subtitle, toolbar, children }:{ title:string; subtitle?:string; toolbar?:React.ReactNode; children:React.ReactNode }){
     return (
@@ -669,7 +672,11 @@ export default function AdminProductCreate(): JSX.Element {
         title="Paste & Generate"
         subtitle="الصق مواصفات المنتج وسيتم تحليلها واقتراح الحقول تلقائياً."
         toolbar={<>
-          <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+            <input type="checkbox" checked={deepseekOn} onChange={(e)=> setDeepseekOn(e.target.checked)} />
+            <span>DeepSeek</span>
+          </label>
+          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
           <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
           <button type="button" onClick={()=>{
               if (!review) return;
