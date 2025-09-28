@@ -25,14 +25,26 @@ export async function callDeepseek(opts: {
   const t = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
     const systemPrompt = [
-      'أنت مصحّح عربي لبيانات منتج. اعد صياغة فقط الحقول الناقصة/الضعيفة بصيغة عربية فصيحة.',
-      'قيود صارمة:',
-      '- الاسم ≤ 60 حرفاً، بلا ضوضاء/رموز. عزّز الهوية (مثلاً: خليجي/ربطة خصر/تطريز) إن وُجدت.',
-      '- الوصف 2–3 جمل موجزة، لا تكرر الاسم أو مفرداته/مرادفاته، ولا تذكر الأسعار أو المقاسات أو المخزون أو الألوان. ركّز على الخامة/التشطيب/الاستخدام فقط.',
-      '- السعر: فضّل "قديم" كتكلفة للـ low، تجاهل الأرقام < 80.',
-      '- المقاسات: استنتج فري سايز من مدى الوزن إن وجد (حقل منفصل، لا تضفه للوصف).',
-      '- الوسوم ≤ 6، ذات صلة، بلا تسويق عام.',
-      'أعد JSON فقط بالمخطط المحدد.'
+      'أنت محرّر عربي لبيانات منتج. عدّل فقط الحقول الناقصة/الضعيفة دون اختراع حقول جديدة.',
+      '',
+      'افعل (DO):',
+      '- حسّن الاسم ≤ 60 حرفاً، بلا رموز/ضوضاء، وأبرز الهوية (خليجي/ربطة خصر/تطريز/كريستال) إن وُجدت.',
+      '- اكتب وصفاً مهنياً من 2–3 جمل يركّز على الخامة/التشطيب/الراحة/الاستخدام.',
+      '- استخرج price_range.low من "قديم" أو "الشمال" عند وجودهما (تجاهل < 80).',
+      '- حرّر الوسوم ≤ 6 كلمات دقيقة ذات صلة.',
+      '',
+      'لا تفعل (DO NOT):',
+      '- لا تكرر الاسم أو مفرداته/مرادفاته في الوصف.',
+      '- لا تذكر أسعار أو عملات أو مخزون أو ألوان أو مقاسات داخل الوصف.',
+      '- لا تنتج نصاً حرّاً خارج JSON، ولا تضف حقولاً غير معرّفة في المخطط.',
+      '',
+      'مخطط JSON الصارم (حقول اختيارية لكن القيم يجب أن تطابق النوع عند الإرجاع):',
+      '{"name": string?, "description": string?, "tags": string[]?, "sizes": string[]?, "price_range": {"low": number, "high": number}? , "notes": string?, "confidence": number?, "reasons": Record<string,string>? }',
+      '',
+      'مثال إخراج صالح:',
+      '{"name":"جلابية خليجية مطرزة بالكريستال مع ربطة خصر","description":"خامة شيفون مبطنة بلمسة مريحة وتشطيب متقن يمنح إطلالة أنيقة مناسبة للاستخدام اليومي والمناسبات. تفاصيل دقيقة تلفت الانتباه مع إحساس خفيف بالحركة.","tags":["جلابية خليجية","تطريز","كريستال","شيفون","مبطن","أكمام طويلة"],"price_range":{"low":4000,"high":12500}}',
+      '',
+      'أعد JSON فقط، بدون شروح أو أسطر زائدة.'
     ].join('\n')
     const payload = {
       model,
@@ -40,7 +52,7 @@ export async function callDeepseek(opts: {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: JSON.stringify(input) }
       ],
-      temperature: 0.2,
+      temperature: 0,
       max_tokens: 500
     }
     const endpoints = [
@@ -77,6 +89,27 @@ export async function callDeepseek(opts: {
     let parsed: any = null
     try { parsed = JSON.parse(slice) } catch { return null }
     const out = DeepseekOutputSchema.safeParse(parsed)
-    return out.success ? out.data : null
+    if (!out.success) return null
+    // Post-sanitize to enforce user rules on description
+    const data = { ...out.data }
+    if (typeof data.description === 'string' && data.description) {
+      const originalName = String(data.name||'').trim()
+      const nameTerms = originalName.split(/\s+/).filter(Boolean)
+      let desc = data.description
+      // remove colors/sizes/prices/currency tokens from description
+      desc = desc.replace(/\b(?:أسود|أحمر|أبيض|بنفسجي|أزرق|أخضر|رمادي|بيج|Pink|Red|Black|White|Blue|Green|Purple)\b/gi,'')
+                 .replace(/\b(?:XS|S|M|L|XL|XXL|\d{2})\b/g,'')
+                 .replace(/(?:سعر|العملة|ريال|﷼|\$|USD|EGP|AED|KWD|QR)[^\.\n]*/gi,'')
+      // remove name lexemes from description
+      for (const term of nameTerms) {
+        if (term.length < 3) continue
+        const re = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`, 'gi')
+        desc = desc.replace(re, '').replace(/\s{2,}/g,' ').trim()
+      }
+      // normalize punctuation/spaces
+      desc = desc.replace(/\s*،\s*/g, '، ').replace(/\s*\.\s*/g, '. ').replace(/\s{2,}/g,' ').replace(/^،\s*/,'').trim()
+      data.description = desc
+    }
+    return data
   } catch { return null } finally { clearTimeout(t) }
 }
