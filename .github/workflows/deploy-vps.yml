@@ -62,13 +62,13 @@ jobs:
         run: |
           set -e
           if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
-            mkdir -p ~/.ssh
+            mkdir -p "$GITHUB_WORKSPACE/.ssh"
             umask 177
             KEY_CONTENT="${{ secrets.SSH_PRIVATE_KEY }}"
             if printf '%s' "$KEY_CONTENT" | grep -q '\\n'; then KEY_CONTENT=$(printf '%s' "$KEY_CONTENT" | sed 's/\\r//g; s/\\n/\n/g'); fi
-            printf '%s' "$KEY_CONTENT" | tr -d '\r' > ~/.ssh/deploy_key
-            chmod 600 ~/.ssh/deploy_key
-            echo "SSH_KEY_PATH=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
+            printf '%s' "$KEY_CONTENT" | tr -d '\r' > "$GITHUB_WORKSPACE/.ssh/deploy_key"
+            chmod 600 "$GITHUB_WORKSPACE/.ssh/deploy_key"
+            echo "SSH_KEY_PATH=$GITHUB_WORKSPACE/.ssh/deploy_key" >> "$GITHUB_ENV"
           fi
       - name: Write SSH key for preflight (if provided)
         shell: bash
