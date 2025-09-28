@@ -1,0 +1,45 @@
+name: DeepSeek Preview CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: 'API base URL'
+        required: false
+        default: 'https://api.jeeey.com'
+  push:
+    branches: [ main ]
+    paths:
+      - 'packages/api/**'
+      - 'apps/admin/**'
+      - 'scripts/ci/smoke-analyze-deepseek.mjs'
+      - '.github/workflows/deepseek.yml'
+
+jobs:
+  deepseek-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@8.6.10 --activate
+
+      - name: Install deps (root only)
+        run: pnpm install --frozen-lockfile=false
+
+      - name: DeepSeek Preview Smoke
+        env:
+          API_BASE: ${{ github.event.inputs.api_base || 'https://api.jeeey.com' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || '' }}
+        run: node scripts/ci/smoke-analyze-deepseek.mjs

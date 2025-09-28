@@ -16,7 +16,7 @@ async function main(){
   if (!token) throw new Error('no_token')
   const headers = { 'content-type':'application/json', Authorization: `Bearer ${token}` }
   const text = 'طقم نسائي كم كامل صوف السعر للشمال 85 ريال قديم 95، مقاسات L XL.'
-  const resp = await fetch(`${API}/api/admin/products/analyze?forceDeepseek=1`, {
+  const resp = await fetch(`${API}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
     method: 'POST', headers, body: JSON.stringify({ text, images: [] })
   })
   const j = await resp.json().catch(()=> ({}))
@@ -30,7 +30,15 @@ async function main(){
     console.log('السبب:', j?.meta?.reason || 'جودة عالية')
     process.exit(0)
   }
-  console.log('DeepSeek forced analyze OK:', j.meta)
+  // Basic assertions for preview formatting
+  const a = j?.analyzed || {}
+  const name = String(a?.name?.value||'')
+  const desc = String(a?.description?.value||'')
+  if (name.split(/\s+/).length < 4) throw new Error(`name_too_short:${name}`)
+  if (!/•\s*الخامة/i.test(desc)) throw new Error('description_missing_fabric_row')
+  if (!/•\s*المقاسات/i.test(desc)) throw new Error('description_missing_sizes_row')
+  if (!/•\s*الألوان|•\s*الالوان/i.test(desc)) throw new Error('description_missing_colors_row')
+  console.log('DeepSeek forced preview OK:', { meta: j.meta, name, hasTable:true })
 }
 
 main().catch((e)=> { console.error(e); process.exit(1); })
