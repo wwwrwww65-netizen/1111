@@ -3407,8 +3407,8 @@ adminRest.post('/products/analyze', async (req, res) => {
       const aiEnabled = true; // could be toggled via integration config
       const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(() => null) as any
       const conf = (cfg?.config || {}) as Record<string, string>
-      const dsKey = conf['DEEPSEEK_API_KEY'] || process.env.DEEPSEEK_API_KEY
-      const dsModel = conf['DEEPSEEK_MODEL'] || 'deepseek-chat'
+      const dsKey = process.env.DEEPSEEK_API_KEY || conf['DEEPSEEK_API_KEY']
+      const dsModel = conf['DEEPSEEK_MODEL'] || process.env.DEEPSEEK_MODEL || 'deepseek-chat'
       // Default ON if not explicitly set and key exists; allow request to force DeepSeek via query/body
       const userWants = ((conf['AI_ENABLE_DEEPSEEK_CORRECTOR'] ?? 'on').toString().toLowerCase() === 'on') && !!dsKey
       const reqForce: boolean = Boolean((req.query?.forceDeepseek ?? (req.body as any)?.forceDeepseek) ? true : false)

@@ -21,7 +21,10 @@ async function main(){
   })
   const j = await resp.json().catch(()=> ({}))
   if (!resp.ok){ throw new Error(`analyze_failed_${resp.status}:${JSON.stringify(j)}`) }
-  if (!j?.meta?.deepseekAttempted){ throw new Error('deepseek_not_attempted') }
+  if (!j?.meta?.deepseekAttempted){
+    console.error('analyze_meta_debug:', JSON.stringify(j?.meta||{}))
+    throw new Error('deepseek_not_attempted')
+  }
   console.log('DeepSeek forced analyze OK:', j.meta)
 }
 

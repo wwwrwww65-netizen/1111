@@ -309,6 +309,8 @@ jobs:
           node scripts/ci/admin-console-smoke.mjs
           kill -9 $(cat /tmp/admin.pid) 2>/dev/null || true
       - name: Start API (background)
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           set -e
           node packages/api/dist/index.js & echo $! > /tmp/api.pid
