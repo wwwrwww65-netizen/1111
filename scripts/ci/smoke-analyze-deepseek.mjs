@@ -25,6 +25,10 @@ async function main(){
     console.error('analyze_meta_debug:', JSON.stringify(j?.meta||{}))
     throw new Error('deepseek_not_attempted')
   }
+  if (process.env.DEEPSEEK_API_KEY && !j?.meta?.deepseekUsed){
+    console.error('analyze_meta_debug_used_false:', JSON.stringify(j?.meta||{}))
+    throw new Error('deepseek_not_used')
+  }
   console.log('DeepSeek forced analyze OK:', j.meta)
 }
 
