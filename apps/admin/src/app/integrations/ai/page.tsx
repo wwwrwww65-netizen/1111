@@ -40,6 +40,9 @@ export default function AiIntegrations(): JSX.Element {
   const [list, setList] = React.useState<any[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [msg, setMsg] = React.useState('');
+  const [tMsg, setTMsg] = React.useState('');
+  const [tErr, setTErr] = React.useState('');
+  const [tLoading, setTLoading] = React.useState(false);
 
   async function load(){
     const j = await (await fetch(`${apiBase}/api/admin/integrations/list`, { credentials:'include' })).json();
@@ -50,6 +53,10 @@ export default function AiIntegrations(): JSX.Element {
     }
     const next: Record<string,string> = {};
     [...AI_KEYS, ...PLACEMENTS].forEach(r=> next[r.key] = String(lastByKey.get(r.key)||''));
+    // Default-enable DeepSeek corrector if a key exists and not explicitly toggled
+    if ((next['DEEPSEEK_API_KEY']||'').trim() && !next['AI_ENABLE_DEEPSEEK_CORRECTOR']) {
+      next['AI_ENABLE_DEEPSEEK_CORRECTOR'] = 'on';
+    }
     setValues(next);
   }
   React.useEffect(()=>{ load().catch(()=>{}); },[]);
@@ -66,6 +73,17 @@ export default function AiIntegrations(): JSX.Element {
       setMsg('تم الحفظ بنجاح');
       await load();
     } finally { setSaving(false); }
+  }
+
+  async function testDeepseek(){
+    setTErr(''); setTMsg(''); setTLoading(true);
+    try{
+      const r = await fetch(`${apiBase}/api/admin/integrations/deepseek/health`, { credentials:'include' });
+      const j = await r.json().catch(()=>({}));
+      if (r.ok && j?.ok){ setTMsg('DeepSeek يعمل بنجاح'); }
+      else if (j?.error === 'missing_key'){ setTErr('لم يتم ضبط مفتاح DeepSeek. أدخله ثم احفظ.'); }
+      else { setTErr('اختبار فشل'); }
+    } catch { setTErr('اختبار فشل'); } finally { setTLoading(false); }
   }
 
   return (
@@ -127,7 +145,10 @@ export default function AiIntegrations(): JSX.Element {
 
       <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:16 }}>
         <button onClick={save} disabled={saving} className="btn">{saving? 'يحفظ…' : 'حفظ'}</button>
+        <button onClick={testDeepseek} disabled={tLoading} className="btn" style={{ background:'#0ea5e9' }}>{tLoading? 'يختبر…' : 'اختبار DeepSeek'}</button>
         {msg && <span style={{ color:'#22c55e' }}>{msg}</span>}
+        {tMsg && <span style={{ color:'#22c55e' }}>{tMsg}</span>}
+        {tErr && <span style={{ color:'#ef4444' }}>{tErr}</span>}
       </div>
 
       <h2 style={{ fontWeight:800, fontSize:16, marginTop:24, marginBottom:8 }}>آخر الإعدادات</h2>

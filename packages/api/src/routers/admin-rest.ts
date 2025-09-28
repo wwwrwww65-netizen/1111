@@ -3408,7 +3408,8 @@ adminRest.post('/products/analyze', async (req, res) => {
       const conf = (cfg?.config || {}) as Record<string, string>
       const dsKey = conf['DEEPSEEK_API_KEY'] || process.env.DEEPSEEK_API_KEY
       const dsModel = conf['DEEPSEEK_MODEL'] || 'deepseek-chat'
-      const userWants = (conf['AI_ENABLE_DEEPSEEK_CORRECTOR'] || '').toString().toLowerCase() === 'on'
+      // Default ON if not explicitly set and key exists
+      const userWants = ((conf['AI_ENABLE_DEEPSEEK_CORRECTOR'] ?? 'on').toString().toLowerCase() === 'on') && !!dsKey
       const qualityScore = (() => {
         let s = 1
         const nm = String(out.name||'')
@@ -3474,6 +3475,22 @@ adminRest.post('/integrations/test', async (req, res) => {
     return res.json({ ok:true });
   } catch (e:any) {
     return res.status(400).json({ ok:false, error: e.message||'integration_test_failed' });
+  }
+});
+
+// DeepSeek health check
+adminRest.get('/integrations/deepseek/health', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'integrations','deepseek_health_forbidden',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
+    const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(()=>null) as any
+    const conf = (cfg?.config || {}) as Record<string,string>
+    const apiKey = conf['DEEPSEEK_API_KEY'] || process.env.DEEPSEEK_API_KEY
+    const model = conf['DEEPSEEK_MODEL'] || 'deepseek-chat'
+    if (!apiKey) return res.status(400).json({ ok:false, error:'missing_key' })
+    const result = await callDeepseek({ apiKey, model, input: { text: 'ping', base: { name:'اختبار', description:'نص للاختبار' } }, timeoutMs: 6000 })
+    return res.json({ ok: !!result, model, returned: !!result })
+  } catch (e:any) {
+    return res.status(500).json({ ok:false, error: e.message || 'deepseek_health_failed' })
   }
 });
 
