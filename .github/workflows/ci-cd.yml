@@ -318,8 +318,19 @@ jobs:
           done
           curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/health | grep -q 200
 
-      - name: API login smoke (local)
+      - name: Ensure admin for analyze smoke
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         run: |
+          set -e
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"remember\":true}") || true
+          if [ "$STATUS" != "200" ]; then
+            if [ -z "$MAINTENANCE_SECRET" ]; then echo "MAINTENANCE_SECRET missing; cannot bootstrap admin"; exit 1; fi
+            curl -s -X POST http://localhost:4000/api/admin/maintenance/create-admin -H "x-maintenance-secret: $MAINTENANCE_SECRET" -H 'content-type: application/json' --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"name\":\"Admin\"}" | sed -n '1,40p'
+            sleep 1
+          fi
       - name: Analyze endpoint smoke (local)
         env:
           API_BASE: 'http://localhost:4000'
