@@ -15,12 +15,17 @@ const loginJson = await loginRes.json().catch(()=> ({}))
 const token = loginJson?.token || ''
 const authHeader = token ? { Authorization: `Bearer ${token}` } : {}
 
-const r = await fetch(`${API}/api/admin/products/analyze`, {
+const r = await fetch(`${API}/api/admin/products/analyze?forceDeepseek=1`, {
   method: 'POST', headers: { 'content-type':'application/json', ...authHeader }, body: JSON.stringify({ text })
 })
 if (!r.ok) throw new Error(`analyze_failed: ${r.status}`)
 const j = await r.json()
 const a = j?.analyzed || {}
+
+assert.ok(j?.analyzed, 'analyze produced no output')
+if (process.env.DEEPSEEK_API_KEY) {
+  if (!j?.meta || j.meta.deepseekUsed !== true) throw new Error('deepseek_not_used_when_forced')
+}
 
 assert.ok(a?.name?.value, 'name missing')
 assert.ok(/طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل/.test(String(a.name.value)), 'name should contain a known type')

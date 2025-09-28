@@ -3408,8 +3408,9 @@ adminRest.post('/products/analyze', async (req, res) => {
       const conf = (cfg?.config || {}) as Record<string, string>
       const dsKey = conf['DEEPSEEK_API_KEY'] || process.env.DEEPSEEK_API_KEY
       const dsModel = conf['DEEPSEEK_MODEL'] || 'deepseek-chat'
-      // Default ON if not explicitly set and key exists
+      // Default ON if not explicitly set and key exists; allow request to force DeepSeek via query/body
       const userWants = ((conf['AI_ENABLE_DEEPSEEK_CORRECTOR'] ?? 'on').toString().toLowerCase() === 'on') && !!dsKey
+      const reqForce: boolean = Boolean((req.query?.forceDeepseek ?? (req.body as any)?.forceDeepseek) ? true : false)
       const qualityScore = (() => {
         let s = 1
         const nm = String(out.name||'')
@@ -3421,9 +3422,11 @@ adminRest.post('/products/analyze', async (req, res) => {
         return Math.max(0, s)
       })()
       const inCI = String(process.env.CI || '').toLowerCase() === 'true'
-      if (aiEnabled && userWants && dsKey && qualityScore < 0.7 && !inCI) {
+      const usedMeta = { deepseekUsed: false }
+      if (aiEnabled && userWants && dsKey && (qualityScore < 0.7 || reqForce) && !inCI) {
         const ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
         if (ds) {
+          usedMeta.deepseekUsed = true
           if (ds.name && ds.name.length >= 3) { out.name = ds.name; sources.name = { source:'ai', confidence: Math.max(0.85, (sources.name?.confidence||0.8)) } }
           if (ds.description && ds.description.length >= 30) { out.description = ds.description; sources.description = { source:'ai', confidence: Math.max(0.9, (sources.description?.confidence||0.85)) } }
           if (Array.isArray(ds.tags) && ds.tags.length) { out.tags = ds.tags.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
@@ -3448,7 +3451,9 @@ adminRest.post('/products/analyze', async (req, res) => {
       // minimal debug log
       try { console.debug('[analyze.debug]', { textPresent: Boolean((req.body||{}).text), colorsLen: (out.colors||[]).length, sizesLen: (out.sizes||[]).length, price: out.price_range }); } catch {}
     }
-    return res.json({ ok:true, analyzed: result, warnings, errors });
+    // Attach meta.deepseekUsed by recomputing based on sources
+    const deepseekUsed = Object.values(sources||{}).some((s:any)=> String(s?.source).toLowerCase()==='ai')
+    return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed } });
   }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
 adminRest.post('/integrations/test', async (req, res) => {
@@ -3488,7 +3493,9 @@ adminRest.get('/integrations/deepseek/health', async (req, res) => {
     const model = conf['DEEPSEEK_MODEL'] || 'deepseek-chat'
     if (!apiKey) return res.status(400).json({ ok:false, error:'missing_key' })
     const result = await callDeepseek({ apiKey, model, input: { text: 'ping', base: { name:'اختبار', description:'نص للاختبار' } }, timeoutMs: 6000 })
-    return res.json({ ok: !!result, model, returned: !!result })
+    if (result) return res.json({ ok:true, model, returned:true })
+    // If DeepSeek returns non-JSON but endpoint reachable, still mark reachable=false for clarity
+    return res.status(502).json({ ok:false, error:'no_valid_response' })
   } catch (e:any) {
     return res.status(500).json({ ok:false, error: e.message || 'deepseek_health_failed' })
   }

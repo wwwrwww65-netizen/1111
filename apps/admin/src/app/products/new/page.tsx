@@ -290,7 +290,7 @@ export default function AdminProductCreate(): JSX.Element {
     };
   }
 
-  async function handleAnalyze(filesForPalette: File[]): Promise<void> {
+  async function handleAnalyze(filesForPalette: File[], forceDeepseek = false): Promise<void> {
     setError('');
     try {
       setBusy(true);
@@ -299,10 +299,11 @@ export default function AdminProductCreate(): JSX.Element {
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
       let analyzed: any = {};
       try{
-        const resp = await fetch(`${apiBase}/api/admin/products/analyze`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
+        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
+          if (aj?.meta?.deepseekUsed) { showToast('تم استخدام DeepSeek تلقائياً لتحسين النتائج', 'ok'); }
           if (Array.isArray(aj?.warnings) && aj.warnings.length) {
             showToast(`تحليل جزئي: ${aj.warnings.join(', ')}`, 'warn');
           }
@@ -668,6 +669,7 @@ export default function AdminProductCreate(): JSX.Element {
         subtitle="الصق مواصفات المنتج وسيتم تحليلها واقتراح الحقول تلقائياً."
         toolbar={<>
           <button type="button" onClick={()=>handleAnalyze(files)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
+          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
           <button type="button" onClick={()=>{
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);
