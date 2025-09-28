@@ -3184,6 +3184,7 @@ adminRest.post('/integrations/:id/toggle', async (req, res) => {
 // Product parse/generate helpers
 import { parseProductText } from '../utils/nlp-ar';
 import getColors from 'get-image-colors';
+import { callDeepseek } from '../utils/deepseek';
 import sw from 'stopword';
 
 adminRest.post('/products/parse', async (req, res) => {
@@ -3400,6 +3401,34 @@ adminRest.post('/products/analyze', async (req, res) => {
       }catch(e:any){ warnings.push('image_colors_failed'); }
     }
     if (hexes.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...hexes])); sources.colors = { source:'vision', confidence:0.7 }; }
+    // Optional DeepSeek correction (post-processing) when quality is low and key is configured
+    try {
+      const aiEnabled = true; // could be toggled via integration config
+      const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(() => null) as any
+      const conf = (cfg?.config || {}) as Record<string, string>
+      const dsKey = conf['DEEPSEEK_API_KEY'] || process.env.DEEPSEEK_API_KEY
+      const dsModel = conf['DEEPSEEK_MODEL'] || 'deepseek-chat'
+      const userWants = (conf['AI_ENABLE_DEEPSEEK_CORRECTOR'] || '').toString().toLowerCase() === 'on'
+      const qualityScore = (() => {
+        let s = 1
+        const nm = String(out.name||'')
+        const ds = String(out.description||'')
+        if (nm.length < 10) s -= 0.3
+        const sim = (a:string,b:string)=>{ const A=new Set(String(a).toLowerCase().split(/\s+/)); const B=new Set(String(b).toLowerCase().split(/\s+/)); if(!A.size||!B.size) return 0; let i=0; A.forEach(x=>B.has(x)&&i++); return i/(A.size+B.size-i) }
+        if (ds.length < 40 || sim(nm, ds) > 0.6) s -= 0.3
+        if (!out.tags || (out.tags as string[]).length === 0) s -= 0.2
+        return Math.max(0, s)
+      })()
+      if (aiEnabled && userWants && dsKey && qualityScore < 0.7) {
+        const ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
+        if (ds) {
+          if (ds.name && ds.name.length >= 3) { out.name = ds.name; sources.name = { source:'ai', confidence: Math.max(0.85, (sources.name?.confidence||0.8)) } }
+          if (ds.description && ds.description.length >= 30) { out.description = ds.description; sources.description = { source:'ai', confidence: Math.max(0.9, (sources.description?.confidence||0.85)) } }
+          if (Array.isArray(ds.tags) && ds.tags.length) { out.tags = ds.tags.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
+          // Keep sizes/prices from rules unless ds provided better (not overriding trusted numbers)
+        }
+      }
+    } catch {}
     // Attach per-field reasons if missing
     // Use raw text to detect plural-colors mention without relying on local variables' scope
     const rawTextForNotes = String(((req as any).body?.text) || '');

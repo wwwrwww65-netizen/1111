@@ -16,6 +16,8 @@ const AI_KEYS: AiKey[] = [
   { key: 'CURSOR_AI_MODEL', label: 'Cursor AI Model', placeholder: 'cursor-large' },
   { key: 'CURSOR_AI_TEMPERATURE', label: 'Cursor AI Temperature', placeholder: '0.2' },
   { key: 'CURSOR_AI_MAX_TOKENS', label: 'Cursor AI Max Tokens', placeholder: '4096' },
+  { key: 'DEEPSEEK_API_KEY', label: 'DeepSeek API Key' },
+  { key: 'DEEPSEEK_MODEL', label: 'DeepSeek Model', placeholder: 'deepseek-chat' },
 ];
 
 const PLACEMENTS = [
@@ -29,6 +31,7 @@ const PLACEMENTS = [
   { key: 'AI_ENABLE_CURSOR_AUTOFIX_CI', label: 'Cursor: إصلاح تلقائي للأخطاء في CI (اقتراحات فقط)' },
   { key: 'AI_ENABLE_CURSOR_DESIGN_SYNC', label: 'Cursor: مزامنة تصميم (Figma → كود) تحت الطلب' },
   { key: 'AI_ENABLE_CURSOR_DOCS_SUMMARY', label: 'Cursor: تلخيص الوثائق وسجلات الأخطاء' },
+  { key: 'AI_ENABLE_DEEPSEEK_CORRECTOR', label: 'DeepSeek: مصحّح التحليل بعد القواعد' },
 ];
 
 export default function AiIntegrations(): JSX.Element {
