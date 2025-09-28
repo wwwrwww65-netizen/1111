@@ -77,7 +77,16 @@ export default function AiIntegrations(): JSX.Element {
         {AI_KEYS.map(row => (
           <div key={row.key} style={{ display:'grid', gap:6 }}>
             <label style={{ fontWeight:700 }}>{row.label}</label>
-            <input value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} placeholder={row.placeholder||''} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+            {row.key === 'DEEPSEEK_MODEL' ? (
+              <select value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }}>
+                <option value="">اختر…</option>
+                <option value="deepseek-chat">deepseek-chat</option>
+                <option value="deepseek-coder">deepseek-coder</option>
+                <option value="deepseek-chat-lite">deepseek-chat-lite</option>
+              </select>
+            ) : (
+              <input value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} placeholder={row.placeholder||''} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+            )}
           </div>
         ))}
       </section>
