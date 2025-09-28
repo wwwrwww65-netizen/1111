@@ -35,7 +35,7 @@ async function login() {
 
 async function createAndVerifyCategory() {
   const name = `SmokeCat_${Date.now()}`;
-  const res = await call('/api/admin/categories', { method: 'POST', body: JSON.stringify({ name }) });
+  const res = await call('/api/admin/categories', { method: 'POST', body: JSON.stringify({ name, slug: name.toLowerCase(), description: '' }) });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(`create_failed_${res.status}:${t}`);

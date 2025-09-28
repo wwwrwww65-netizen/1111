@@ -4608,6 +4608,8 @@ adminRest.post('/categories', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req,'categories','forbidden_create',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
+    // Ensure legacy/prod-mirrored schemas are relaxed/compatible before insert
+    await ensureCategorySeo();
     // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
     const id = (typeof (global as any).crypto?.randomUUID === 'function')
       ? (global as any).crypto.randomUUID()
