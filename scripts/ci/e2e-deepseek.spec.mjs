@@ -43,24 +43,30 @@ async function main(){
 
     // Intercept analyze API to verify DeepSeek usage
     await page.route('**/api/admin/products/analyze**', route => route.continue())
-    const analyzeReq = page.waitForRequest(req => /\/api\/admin\/products\/analyze/.test(req.url()))
-    const analyzeResp = page.waitForResponse(res => /\/api\/admin\/products\/analyze/.test(res.url()))
+    const analyzeReqP = page.waitForRequest(
+      req => /\/api\/admin\/products\/analyze/.test(req.url()),
+      { timeout: 25000 }
+    ).catch(()=>null)
+    const analyzeRespP = page.waitForResponse(
+      res => /\/api\/admin\/products\/analyze/.test(res.url()),
+      { timeout: 25000 }
+    ).catch(()=>null)
 
-    // Click Analyze/Preview button
+    // Click Analyze/Preview button (fire the request)
     const analyzeBtn = await page.$('button:has-text("تحليل / معاينة"), button:has-text("تحليل"), button:has-text("Analyze")')
     if (!analyzeBtn) throw new Error('analyze_button_not_found')
     await analyzeBtn.click()
 
-    // Wait for result to render; look for key fields
+    // Ensure backend flagged DeepSeek usage via network response first
+    const resp = await analyzeRespP
+    if (!resp) throw new Error('analyze_network_timeout')
+    const data = await resp.json().catch(()=>null)
+    if (!data || data.ok !== true) throw new Error('analyze_response_invalid')
+    if (!data?.meta?.deepseekUsed) throw new Error('deepseek_used_flag_missing')
+
+    // Then validate the rendered UI
     await page.waitForSelector('text=السعر', { timeout: 25000 })
     const content = await page.content()
-
-    // Ensure backend flagged DeepSeek usage
-    try {
-      const [req, resp] = await Promise.all([analyzeReq, analyzeResp])
-      const data = await resp.json()
-      if (!data?.meta?.deepseekUsed) throw new Error('deepseek_used_flag_missing')
-    } catch {}
 
     // Assertions: price 3500 preferred, digits must be English
     if (!/3500/.test(content)) throw new Error('e2e_price_old_not_applied')
