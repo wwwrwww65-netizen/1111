@@ -87,6 +87,17 @@ async function main(){
       if (!me2 || !me2.user || !me2.user.name || /\d{6,}/.test(String(me2.user.name))){
         throw new Error('complete_profile_not_applied')
       }
+      // Verify admin sees the user (optional, robustness)
+      const adminLogin = await fetch(`${API_BASE}/api/admin/auth/login`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, remember: true }) })
+      if (adminLogin.ok){
+        const tok = (await adminLogin.json())?.token
+        if (tok){
+          const list = await fetch(`${API_BASE}/api/admin/users/list?limit=5&search=مستخدم%20اختبار`, { headers: { 'authorization': `Bearer ${tok}` } })
+          if (!list.ok) {
+            console.warn('admin_users_list_failed:', list.status)
+          }
+        }
+      }
     }
 
     // Diagnostics: dump cookies and attempt whoami from within page
