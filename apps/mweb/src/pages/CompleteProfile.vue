@@ -41,7 +41,7 @@ const password = ref('')
 const confirm = ref('')
 const error = ref('')
 const submitting = ref(false)
-const valid = computed(()=> fullName.value.trim().length>=4 && password.value.length>=6 && password.value===confirm.value)
+const valid = computed(()=> fullName.value.trim().length>=2 && password.value.length>=6 && password.value===confirm.value)
 async function onSubmit(){
   if (!valid.value){ error.value = 'تحقق من البيانات'; return }
   error.value = ''

@@ -203,7 +203,9 @@ async function onSubmit(){
         }
       }catch{}
       const ret = String(route.query.return || '/account')
-      const incomplete = !!(me && me.user && (!me.user.name || String(me.user.name||'').trim().length < 2))
+      const rawName = String(me?.user?.name||'').trim()
+      const isDigitName = /^\d{6,}$/.test(rawName)
+      const incomplete = !!(me && me.user && (!rawName || isDigitName))
       if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
       else router.push(ret)
     } else { errorText.value = 'رمز غير صحيح أو منتهي' }
