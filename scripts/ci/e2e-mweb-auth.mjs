@@ -30,20 +30,6 @@ async function main(){
         }
       }catch{}
     })
-    // Faster and more stable: log in via API to issue auth cookie, then open /account
-    const loginResp = await fetch(`${API_BASE}/api/admin/auth/login`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, remember: true })
-    })
-    if (!loginResp.ok) throw new Error(`api_login_failed:${loginResp.status}`)
-    const loginJson = await loginResp.json().catch(()=>null)
-    const token = loginJson?.token
-    if (!token) throw new Error('api_login_no_token')
-    // Share cookie across subdomains (api + mweb) and allow cross-site requests
-    await ctx.addCookies([
-      { name:'auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
-      { name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
-    ])
     await page.goto(`${MWEB_BASE}/login`, { waitUntil:'domcontentloaded', timeout: 60000 })
     // Fill number (random local to avoid colliding with existing admin/user)
     const rand = String(Math.floor(Math.random()*9000000) + 1000000)
