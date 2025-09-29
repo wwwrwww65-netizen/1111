@@ -72,10 +72,10 @@ async function main(){
     try{
       const apiPage = await ctx.newPage()
       await apiPage.goto(`${API_BASE}/health`, { waitUntil:'domcontentloaded', timeout: 60000 })
-      const token = await apiPage.evaluate(async(base, phone, code) => {
+      const token = await apiPage.evaluate(async({ base, phone, code }) => {
         const r = await fetch(`${base}/api/auth/otp/verify`, { method:'POST', credentials:'include', headers:{'content-type':'application/json'}, body: JSON.stringify({ phone, code }) })
         try{ const j = await r.json(); return j?.token || null }catch{ return null }
-      }, API_BASE, e164, code)
+      }, { base: API_BASE, phone: e164, code })
       await apiPage.close()
       if (token) {
         sessionToken = token
@@ -117,11 +117,11 @@ async function main(){
     console.log('cookies:', JSON.stringify(cookies, null, 2))
 
     // 6) whoami should return user
-    const me = await page.evaluate(async(base, tok)=>{
+    const me = await page.evaluate(async({ base, tok })=>{
       const headers = tok ? { 'authorization': `Bearer ${tok}` } : {}
       const res = await fetch(`${base}/api/me`, { credentials:'include', headers })
       return res.ok ? res.json() : null
-    }, API_BASE, sessionToken)
+    }, { base: API_BASE, tok: sessionToken })
     console.log('whoami:', JSON.stringify(me||{}, null, 2))
     if (!me || !me.user){
       console.error('whoami_missing_user: whoami returned null user. Diagnostics:')
