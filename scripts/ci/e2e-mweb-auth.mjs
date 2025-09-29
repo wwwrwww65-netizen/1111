@@ -87,25 +87,15 @@ async function main(){
         page.waitForURL(/\/account(\?|$)/, { timeout: 20000 }),
         page.click('button:has-text("تسجيل")')
       ])
-      // Ensure whoami reflects updated name
+      // Ensure whoami reflects updated name and role is USER (not ADMIN)
       const me2 = await page.evaluate(async(base)=>{
         const r = await fetch(`${base}/api/me`, { credentials:'include' });
         return r.ok ? r.json() : null
       }, API_BASE)
-      if (!me2 || !me2.user || !me2.user.name || /\d{6,}/.test(String(me2.user.name))){
+      if (!me2 || !me2.user || !me2.user.name || /\d{6,}/.test(String(me2.user.name)) || String(me2.user.role||'').toUpperCase()==='ADMIN'){
         throw new Error('complete_profile_not_applied')
       }
-      // Verify admin sees the user (optional, robustness)
-      const adminLogin = await fetch(`${API_BASE}/api/admin/auth/login`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, remember: true }) })
-      if (adminLogin.ok){
-        const tok = (await adminLogin.json())?.token
-        if (tok){
-          const list = await fetch(`${API_BASE}/api/admin/users/list?limit=5&search=مستخدم%20اختبار`, { headers: { 'authorization': `Bearer ${tok}` } })
-          if (!list.ok) {
-            console.warn('admin_users_list_failed:', list.status)
-          }
-        }
-      }
+      // Do not perform any admin login calls to avoid polluting cookies
     }
 
     // Diagnostics: dump cookies and attempt whoami from within page
