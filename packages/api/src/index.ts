@@ -3,6 +3,24 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   require('dotenv/config');
 } catch {}
+// Attempt to load server-level env files (e.g., /var/www/ecom/.env.api) if present
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const fs = require('fs');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const dotenv = require('dotenv');
+  const candidatePaths: Array<string|undefined> = [
+    process.env.ENV_FILE,
+    '/var/www/ecom/.env.api',
+    '/srv/ecom/.env.api',
+    '/var/www/ecom/.env',
+    '/srv/ecom/.env'
+  ];
+  for (const p of candidatePaths) {
+    if (!p) continue;
+    try { if (fs.existsSync(p)) { dotenv.config({ path: p }); } } catch {}
+  }
+} catch {}
 import express from 'express';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
