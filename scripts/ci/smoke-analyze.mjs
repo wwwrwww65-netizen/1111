@@ -1,8 +1,7 @@
 // Quick smoke test for /api/admin/products/analyze
 import assert from 'node:assert/strict'
-import fetch from 'node-fetch'
 
-const API = process.env.API_BASE || 'http://localhost:4000'
+const API = process.env.API_BASE || 'https://api.jeeey.com'
 const text = `*جديد* *طقم طقم نسائي قطعتين احلا ماركه راقي* *يتميز ثلاث قطع منفصله* *فستان نسائي طويل مورد كلوش امبريلا* *جاكت كم طويل حرير تركي مزين بي الامام بكرستال فضي وفتحه من الخلف زرار* *حزام خصر منفصل* *شكل جديد ومميز* *5اللوان تحححفه* *تشكيله الترند الجديد* *قماش الجاكت حرير تركي الأصلي قماش الفستان حرير باربي الأصلي* *مقاسات L_Xl يلبس *من وزن 40الى وزن 70* *السعر* *عمله قديم 3500* *عمله جديد 11000* *الكل يعرض متوفر بكميات*`;
 
 // Login to get token (JSON login)
