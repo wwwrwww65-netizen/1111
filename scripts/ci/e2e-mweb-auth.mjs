@@ -69,7 +69,7 @@ async function main(){
     const hook = await hookResp.json().catch(()=>null)
     const code = String(hook?.code||'').padStart(6,'0').slice(0,6)
     // Fill OTP inputs robustly: fill each input sequentially to trigger onInput per box
-    const inputs = await page.$$('input[maxlength="1"]')
+    const inputs = await page.$$('input[maxlength="1"][inputmode="numeric"]')
     if (inputs.length < 6) throw new Error(`otp_inputs_missing:${inputs.length}`)
     for (let i=0;i<6;i++){
       await inputs[i].fill(code[i]||'0')

@@ -304,6 +304,12 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
     const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
     const isProd = (process.env.NODE_ENV || 'production') === 'production';
+    // Clear any previous cookies (avoid old admin/user token collisions)
+    try {
+      res.clearCookie('auth_token', { domain: cookieDomain, path: '/' });
+      const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
+      if (root) res.clearCookie('auth_token', { domain: `api.${root}`, path: '/' });
+    } catch {}
     // Primary cookie on root/domain
     res.cookie('auth_token', token, {
       httpOnly: true,
