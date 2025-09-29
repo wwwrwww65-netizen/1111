@@ -82,7 +82,8 @@ async function main(){
     const isComplete = /\/complete-profile(\?|$)/.test(page.url())
     if (isComplete){
       await page.fill('input[placeholder="مثال: محمد أحمد علي سعيد"]', 'مستخدم اختبار')
-      // Password left empty by design
+      await page.fill('input[type="password"]:nth-of-type(1)', 'Test#1234')
+      await page.fill('input[type="password"]:nth-of-type(2)', 'Test#1234')
       await Promise.all([
         page.waitForURL(/\/account(\?|$)/, { timeout: 20000 }),
         page.click('button:has-text("تسجيل")')
