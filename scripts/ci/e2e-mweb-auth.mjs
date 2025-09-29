@@ -20,8 +20,8 @@ async function main(){
     const loginJson = await loginResp.json().catch(()=>null)
     const token = loginJson?.token
     if (!token) throw new Error('api_login_no_token')
-    const base = new URL(MWEB_BASE)
-    await ctx.addCookies([{ name:'auth_token', value: token, domain: base.hostname, path:'/', secure: base.protocol==='https:', httpOnly: true, sameSite: 'Lax' }])
+    // Share cookie across subdomains (api + mweb) and allow cross-site requests
+    await ctx.addCookies([{ name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }])
     await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded', timeout: 60000 })
     const cookies = await ctx.cookies()
     const hasAuth = cookies.some(c=> c.name==='auth_token')

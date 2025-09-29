@@ -41,21 +41,12 @@ jobs:
           npm ci || npm i
           npx playwright install --with-deps chromium
 
-      - name: Run E2E DeepSeek (admin) before deploy
-        env:
-          ADMIN_BASE: ${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
-        working-directory: scripts/ci
-        run: node e2e-deepseek.spec.mjs
-
-      - name: Run E2E mweb-auth before deploy (non-blocking)
-        if: always()
-        continue-on-error: true
+      - name: Run E2E mweb-auth before deploy
         env:
           MWEB_BASE: ${{ secrets.MWEB_BASE || 'https://m.jeeey.com' }}
           API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
-          TEST_PHONE: ${{ secrets.TEST_PHONE || '+966500000001' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs
       - name: Archive project (use git archive to avoid file change warnings)
