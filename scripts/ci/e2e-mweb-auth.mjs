@@ -44,8 +44,10 @@ async function main(){
       { name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
     ])
     await page.goto(`${MWEB_BASE}/login`, { waitUntil:'domcontentloaded', timeout: 60000 })
-    // Fill number and navigate to verify
-    await page.fill('input[placeholder="أدخل رقم هاتفك"]', '500000001')
+    // Fill number (random local to avoid colliding with existing admin/user)
+    const rand = String(Math.floor(Math.random()*9000000) + 1000000)
+    const localPhone = '77' + rand.slice(0,7) // 9 digits
+    await page.fill('input[placeholder="أدخل رقم هاتفك"]', localPhone)
     const reqP = page.waitForRequest(r=>/\/api\/auth\/otp\/request/.test(r.url()), { timeout: 60000 })
     const navP = page.waitForURL(/\/verify(\?|$)/, { timeout: 60000 })
     await page.click('button:has-text("التأكيد عبر واتساب"), button:has-text("تسجيل الدخول")')
