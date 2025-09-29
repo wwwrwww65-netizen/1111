@@ -3440,6 +3440,45 @@ adminRest.post('/products/analyze', async (req, res) => {
             if (Array.isArray(p.keywords)) { out.tags = p.keywords.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
             if (typeof p.price === 'number' && p.price > 100) { (out as any).price_range = { low: p.price, high: p.price }; (sources as any).price_range = { source:'ai', confidence: 0.8 } }
             if (typeof p.stock === 'number' && p.stock >= 0) { (out as any).stock = p.stock; (sources as any).stock = { source:'ai', confidence: 0.6 } }
+            // Normalize digits to English and enforce general colors/price rules on preview results
+            try {
+              const raw = String((req.body as any)?.text || '')
+              const toLatinDigits = (s:string)=> s
+                .replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660))
+                .replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0)-0x06F0))
+                .replace(/[٬٫,]/g,'.')
+              if (typeof out.name === 'string') out.name = toLatinDigits(out.name)
+              if (typeof out.description === 'string') out.description = toLatinDigits(out.description)
+              if (Array.isArray(out.colors)) out.colors = (out.colors as string[]).map((c)=> toLatinDigits(String(c)))
+              if (Array.isArray(out.sizes)) out.sizes = (out.sizes as string[]).map((s)=> toLatinDigits(String(s)))
+              // General colors phrase in raw text takes precedence (e.g., "أربعة ألوان" / "4 ألوان")
+              const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
+              const gm = raw.match(generalColorsRe)
+              if (gm) {
+                const num = gm[1] ? Number(toLatinDigits(gm[1])) : 4
+                out.colors = [ `${num} ألوان` ]
+                ;(sources as any).colors = { source:'rules', confidence: 0.85 }
+              }
+              // Price priority from raw text regardless of p.price if p.price <= 100 or weight context present
+              const weightCtx = /(وزن|يلبس\s*الى|يلبس\s*إلى|حتى\s*وزن)/i
+              const pickNum = (s?:string)=>{ if(!s) return undefined; const m = toLatinDigits(s).match(/\d+(?:\.\d+)?/); return m? Number(m[0]): undefined }
+              const t = toLatinDigits(raw)
+              const get = (re:RegExp)=>{ const m = t.match(re); return m && pickNum(m[1]) }
+              const old = get(/(?:(?:عمل(?:ة|ه)\s*)?(?:قديم|القديم)|ريال\s*قديم|سعر\s*شمال)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+              const north = get(/(?:للشمال|الشمال)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+              const buy = get(/(?:سعر\s*الشراء)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+              const firstAny = get(/\b(?:السعر|سعر)\b[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+              const candidates = [old, north, buy, firstAny].filter((v)=> typeof v === 'number') as number[]
+              let chosen = candidates[0]
+              if ((chosen === undefined || chosen <= 100) && weightCtx.test(t)) {
+                const gt = candidates.find((v)=> v>100)
+                if (gt !== undefined) chosen = gt
+              }
+              if (typeof chosen === 'number' && chosen>0) {
+                (out as any).price_range = { low: chosen, high: chosen }
+                ;(sources as any).price_range = { source:'rules', confidence: 0.85 }
+              }
+            } catch {}
             // Enrich too-short names (e.g., "لانجري") from raw text features to satisfy 8–12 words
             try {
               const raw = String((req.body as any)?.text || '')
