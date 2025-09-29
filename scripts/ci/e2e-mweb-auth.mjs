@@ -73,7 +73,7 @@ async function main(){
     const hookResp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': maintSecret } })
     if (!hookResp.ok) {
       throw new Error(`otp_hook_failed:${hookResp.status} (ensure MAINTENANCE_SECRET is set in workflow secrets)`) }
-    const hook = await hookResp.json().catch(()=>null)
+    hook = await hookResp.json().catch(()=>null)
     const code = String(hook?.code||'').padStart(6,'0').slice(0,6)
     // Fill OTP inputs robustly: fill each input sequentially to trigger onInput per box
     const inputs = await page.$$('input[maxlength="1"][inputmode="numeric"]')
