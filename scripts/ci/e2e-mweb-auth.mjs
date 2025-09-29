@@ -93,7 +93,14 @@ async function main(){
       await new Promise(r=>setTimeout(r, 500))
     }
     const vr = await verifyRespP; const rd = await redirectP;
-    if (!vr && !rd && !cookieOk) throw new Error('otp_verify_no_signal')
+    if (!vr && !rd && !cookieOk) {
+      // Final probe before failing
+      const meFinal = await page.evaluate(async(base)=>{
+        const r = await fetch(`${base}/api/me`, { credentials:'include' });
+        if (!r.ok) return null; try{ return await r.json() }catch{return null}
+      }, API_BASE)
+      if (!meFinal || !meFinal.user) throw new Error('otp_verify_no_signal')
+    }
     // Expect redirect to complete-profile if new or incomplete
     await page.waitForURL(/\/complete-profile(\?|$)|\/account(\?|$)/, { timeout: 20000 })
     // If on complete-profile, fill only name (simulate your case) and submit
