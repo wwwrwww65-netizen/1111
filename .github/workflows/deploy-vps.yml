@@ -35,20 +35,7 @@ jobs:
           pnpm --filter @repo/api build
           pnpm --filter admin build
 
-      - name: Install Playwright (E2E dependencies)
-        working-directory: scripts/ci
-        run: |
-          npm ci || npm i
-          npx playwright install --with-deps chromium
-
-      - name: Run E2E mweb-auth before deploy
-        env:
-          MWEB_BASE: ${{ secrets.MWEB_BASE || 'https://m.jeeey.com' }}
-          API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
-        working-directory: scripts/ci
-        run: node e2e-mweb-auth.mjs
+      # E2E auth moved to dedicated workflow
       - name: Archive project (use git archive to avoid file change warnings)
         run: |
           git config --global core.autocrlf false
