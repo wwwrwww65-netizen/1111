@@ -3485,6 +3485,46 @@ adminRest.post('/products/analyze', async (req, res) => {
                 ;(sources as any).price_range = { source:'rules', confidence: 0.85 }
               }
             } catch {}
+            // Domain correction: if text indicates أدوات مائدة/ملاعق, override clothing outputs
+            try {
+              const rawText = String((req.body as any)?.text || '')
+              const isTableware = /(ملاعق|ملعقة|شوكة|سكاكين|سكين|طقم\s*ملاعق|أدوات\s*مائدة|صحون|صحن|أطباق|قدور|قدر|كاسات|كوب|اكواب|أكواب)/i.test(rawText)
+              if (isTableware) {
+                const hasStainless = /(ستانلس|stainless|فولاذ|ستيل)/i.test(rawText)
+                const baseName = hasStainless ? 'طقم ملاعق طعام ستانلس ستيل' : 'طقم ملاعق طعام'
+                out.name = baseName
+                sources.name = { source:'rules', confidence: 0.95 }
+                // Colors (if any mentioned)
+                if (!Array.isArray(out.colors) || out.colors.length===0) {
+                  const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ذهبي|فضي|رمادي|بيج|كحلي)/gi
+                  const found = Array.from(new Set((rawText.match(colorLex)||[])))
+                  if (found.length) { out.colors = found; (sources as any).colors = { source:'rules', confidence: 0.8 } }
+                }
+                // Pieces from text
+                const big = rawText.match(/(\d+)\s*ملاع(?:ق|ق?ة)?\s*كب(?:ير|يرة)/i)
+                const small = rawText.match(/(\d+)\s*ملاع(?:ق|ق?ة)?\s*صغ(?:ير|يرة)/i)
+                const pieces: string[] = []
+                if (big) pieces.push(`${big[1]} ملاعق كبيرة`)
+                if (small) pieces.push(`${small[1]} ملاعق صغيرة`)
+                const piecesLine = pieces.length? pieces.join('، ') : 'عدة قطع'
+                const matLine = hasStainless ? 'ستانلس ستيل مقاوم للصدأ' : 'معدن آمن للطعام'
+                out.description = [
+                  `• الخامة: ${matLine}`,
+                  '• الصناعة: جودة تصنيع عالية',
+                  '• التصميم: متين وسهل التنظيف',
+                  `• الألوان: ${(Array.isArray(out.colors)&&out.colors.length)? out.colors.join('، ') : 'متعدد'}`,
+                  `• القطع: ${piecesLine}`,
+                  '• الميزات: مقاوم للصدأ - مناسب للمطابخ والمناسبات'
+                ].join('\n')
+                sources.description = { source:'rules', confidence: 0.9 }
+                // Sizes not applicable
+                out.sizes = []
+                sources.sizes = { source:'rules', confidence: 0.9 }
+                // SEO
+                out.seo = { title: out.name, description: (out.description||'').slice(0,160), keywords: Array.isArray(out.tags)? out.tags : [] }
+                sources.seo = { source:'rules', confidence: 0.8 }
+              }
+            } catch {}
             // Enrich too-short names (e.g., "لانجري") from raw text features to satisfy 8–12 words
             try {
               const raw = String((req.body as any)?.text || '')
