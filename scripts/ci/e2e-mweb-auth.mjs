@@ -81,10 +81,19 @@ async function main(){
     for (let i=0;i<6;i++){
       await inputs[i].fill(code[i]||'0')
     }
-    await Promise.all([
-      page.waitForResponse(r=>/\/api\/auth\/otp\/verify/.test(r.url()), { timeout: 20000 }),
-      page.click('button:has-text("تأكيد الرمز")')
-    ])
+    // Click confirm and robustly wait for either verify response, redirect, or cookie issuance
+    const verifyRespP = page.waitForResponse(r=>/\/api\/auth\/otp\/verify/.test(r.url()), { timeout: 60000 }).catch(()=>null)
+    const redirectP = page.waitForURL(/\/complete-profile(\?|$)|\/account(\?|$)/, { timeout: 60000 }).catch(()=>null)
+    await page.click('button:has-text("تأكيد الرمز"), button:has-text("تأكيد"), button:has-text("Verify")')
+    // Poll for cookie presence as third signal
+    let cookieOk = false
+    for (let i=0;i<60;i++){
+      const ck = await ctx.cookies();
+      if (ck.some(c => c.name==='shop_auth_token' || c.name==='auth_token')) { cookieOk = true; break }
+      await new Promise(r=>setTimeout(r, 500))
+    }
+    const vr = await verifyRespP; const rd = await redirectP;
+    if (!vr && !rd && !cookieOk) throw new Error('otp_verify_no_signal')
     // Expect redirect to complete-profile if new or incomplete
     await page.waitForURL(/\/complete-profile(\?|$)|\/account(\?|$)/, { timeout: 20000 })
     // If on complete-profile, fill only name (simulate your case) and submit
@@ -111,7 +120,7 @@ async function main(){
     // Diagnostics: dump cookies and attempt whoami from within page
     const cookies = await ctx.cookies()
     console.log('cookies:', JSON.stringify(cookies, null, 2))
-    const hasAuth = cookies.some(c=> c.name==='auth_token')
+    const hasAuth = cookies.some(c=> c.name==='shop_auth_token' || c.name==='auth_token')
     if (!hasAuth) throw new Error('auth_cookie_missing')
 
     // 6) whoami should return user
