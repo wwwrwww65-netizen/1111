@@ -104,10 +104,44 @@ async function insertOtpRow(phone: string, code: string, channel: string, expire
 function generateOtpCode(): string { return String(Math.floor(100000 + Math.random() * 900000)); }
 
 async function getLatestIntegration(provider: string): Promise<any|null> {
+  // Prefer DB-configured integration when present and enabled
   try {
     const row = await db.integration.findFirst({ where: { provider }, orderBy: { createdAt: 'desc' } } as any);
-    return row ? (row as any).config || {} : null;
-  } catch { return null; }
+    const cfg = row ? ((row as any).config || {}) : null;
+    if (cfg && (cfg.enabled === undefined || !!cfg.enabled)) return cfg;
+  } catch {}
+  // Env-based fallback to guarantee delivery if DB is not populated yet
+  try {
+    if (provider === 'whatsapp') {
+      const token = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_CLOUD_TOKEN || '';
+      const phoneId = process.env.WHATSAPP_PHONE_ID || '';
+      const template = process.env.WHATSAPP_TEMPLATE || '';
+      const languageCode = process.env.WHATSAPP_LANGUAGE || 'ar';
+      const headerType = process.env.WHATSAPP_HEADER_TYPE || 'none';
+      const headerParam = process.env.WHATSAPP_HEADER_PARAM || '';
+      const buttonSubType = process.env.WHATSAPP_BUTTON_TYPE || '';
+      const buttonIndex = process.env.WHATSAPP_BUTTON_INDEX || '0';
+      const buttonParam = process.env.WHATSAPP_BUTTON_PARAM || '';
+      if (token && phoneId) {
+        return { enabled: true, token, phoneId, template, languageCode, headerType, headerParam, buttonSubType, buttonIndex, buttonParam };
+      }
+    }
+    if (provider === 'sms') {
+      const accountSid = process.env.TWILIO_ACCOUNT_SID || '';
+      const authToken = process.env.TWILIO_AUTH_TOKEN || '';
+      const sender = process.env.TWILIO_SMS_FROM || '';
+      if (accountSid && authToken && sender) {
+        return { enabled: true, provider: 'twilio', accountSid, authToken, sender };
+      }
+      const vonageKey = process.env.VONAGE_API_KEY || process.env.NEXMO_API_KEY || '';
+      const vonageSecret = process.env.VONAGE_API_SECRET || process.env.NEXMO_API_SECRET || '';
+      const vonageFrom = process.env.VONAGE_FROM || process.env.NEXMO_FROM || '';
+      if (vonageKey && vonageSecret && vonageFrom) {
+        return { enabled: true, provider: 'nexmo', apiKey: vonageKey, apiSecret: vonageSecret, from: vonageFrom };
+      }
+    }
+  } catch {}
+  return null;
 }
 
 async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
