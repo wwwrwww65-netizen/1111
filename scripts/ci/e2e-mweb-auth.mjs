@@ -33,7 +33,6 @@ async function main(){
     // Diagnostics: dump cookies and attempt whoami from within page
     const cookies = await ctx.cookies()
     save('cookies.json', cookies)
-    const cookies = await ctx.cookies()
     const hasAuth = cookies.some(c=> c.name==='auth_token')
     if (!hasAuth) throw new Error('auth_cookie_missing')
 
