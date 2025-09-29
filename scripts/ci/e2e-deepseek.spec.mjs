@@ -21,8 +21,17 @@ async function main(){
     const loginJson = await loginResp.json()
     const token = loginJson?.token
     if (!token) throw new Error('api_login_no_token')
-    // Set auth cookie used by admin middleware
-    await ctx.addCookies([{ name: 'auth_token', value: token, url: ADMIN_BASE, path: '/', httpOnly: true }])
+    // Set auth cookie used by admin middleware (use domain/path to avoid Playwright URL requirement issues)
+    const base = new URL(ADMIN_BASE)
+    await ctx.addCookies([{
+      name: 'auth_token',
+      value: token,
+      domain: base.hostname,
+      path: '/',
+      secure: base.protocol === 'https:',
+      httpOnly: true,
+      sameSite: 'Lax'
+    }])
     await page.goto(`${ADMIN_BASE}/`, { waitUntil: 'networkidle' })
 
     // Go to new product page
