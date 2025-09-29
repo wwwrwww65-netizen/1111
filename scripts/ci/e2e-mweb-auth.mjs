@@ -71,10 +71,19 @@ async function main(){
     try{
       const apiPage = await ctx.newPage()
       await apiPage.goto(`${API_BASE}/health`, { waitUntil:'domcontentloaded', timeout: 60000 })
-      await apiPage.evaluate(async(base, phone, code) => {
-        await fetch(`${base}/api/auth/otp/verify`, { method:'POST', credentials:'include', headers:{'content-type':'application/json'}, body: JSON.stringify({ phone, code }) })
+      const token = await apiPage.evaluate(async(base, phone, code) => {
+        const r = await fetch(`${base}/api/auth/otp/verify`, { method:'POST', credentials:'include', headers:{'content-type':'application/json'}, body: JSON.stringify({ phone, code }) })
+        try{ const j = await r.json(); return j?.token || null }catch{ return null }
       }, API_BASE, e164, code)
       await apiPage.close()
+      if (token) {
+        await ctx.addCookies([
+          { name:'shop_auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
+          { name:'shop_auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
+          { name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
+          { name:'auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
+        ])
+      }
     }catch{}
     // Navigate to account and rely on whoami
     await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded', timeout: 60000 })
