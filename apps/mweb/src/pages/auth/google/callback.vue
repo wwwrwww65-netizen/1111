@@ -11,7 +11,11 @@ import { API_BASE } from '@/lib/api'
 onMounted(()=>{
   try{
     const qs = typeof window !== 'undefined' ? (window.location.search || '') : ''
-    const url = `${API_BASE}/api/auth/google/callback${qs}`
+    const loc = typeof window !== 'undefined' ? window.location : null
+    const ru = loc ? encodeURIComponent(`${loc.origin}${loc.pathname}`) : ''
+    const join = qs && qs.includes('?') ? '' : ''
+    const sep = qs ? '&' : '?'
+    const url = `${API_BASE}/api/auth/google/callback${qs}${sep}ru=${ru}`
     window.location.replace(url)
   }catch{
     // best effort fallback

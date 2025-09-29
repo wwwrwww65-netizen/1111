@@ -575,6 +575,7 @@ shop.get('/auth/google/callback', async (req, res) => {
     const code = String(req.query.code||'');
     const stateRaw = String(req.query.state||'');
     const state = (()=>{ try{ return JSON.parse(Buffer.from(stateRaw, 'base64url').toString('utf8')) }catch{ return { next:'/account' } } })();
+    const ru = String(req.query.ru||'');
     if (!code) return res.status(400).json({ error:'missing_code' });
     const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId });
     if (clientSecret) body.set('client_secret', clientSecret);
@@ -604,7 +605,8 @@ shop.get('/auth/google/callback', async (req, res) => {
     }catch{}
     const mwebBase = process.env.MWEB_BASE_URL || 'https://m.jeeey.com';
     const next = String(state?.next||'/account');
-    return res.redirect(`${mwebBase}${next.startsWith('/')?next:'/'+next}`);
+    const dest = ru ? `${ru}` : `${mwebBase}${next.startsWith('/')?next:'/'+next}`;
+    return res.redirect(dest);
   }catch(e:any){ return res.status(500).json({ error: e.message||'google_callback_failed' }) }
 });
 
