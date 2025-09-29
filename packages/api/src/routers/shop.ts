@@ -605,7 +605,13 @@ shop.get('/auth/google/callback', async (req, res) => {
     }catch{}
     const mwebBase = process.env.MWEB_BASE_URL || 'https://m.jeeey.com';
     const next = String(state?.next||'/account');
-    const dest = ru ? `${ru}` : `${mwebBase}${next.startsWith('/')?next:'/'+next}`;
+    let dest = ru ? `${ru}` : `${mwebBase}${next.startsWith('/')?next:'/'+next}`;
+    // Append token for client-side cookie fallback if third-party cookies are blocked
+    try{
+      const u = new URL(dest);
+      u.searchParams.set('t', token);
+      dest = u.toString();
+    }catch{}
     return res.redirect(dest);
   }catch(e:any){ return res.status(500).json({ error: e.message||'google_callback_failed' }) }
 });

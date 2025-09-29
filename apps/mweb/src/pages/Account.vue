@@ -38,6 +38,13 @@ function go(path:string){ router.push(path) }
 onMounted(async ()=>{
   try{
     // Try to load session from API; this requires the auth_token cookie sent with credentials
+    const sp = new URLSearchParams(typeof window!=='undefined'?location.search:'')
+    const t = sp.get('t')||''
+    // If token present in URL (from OAuth callback), persist it via a same-site cookie and strip from URL
+    if (t) {
+      try{ document.cookie = `auth_token=${encodeURIComponent(t)};path=/;domain=.jeeey.com;max-age=${60*60*24*30};SameSite=None;Secure` }catch{}
+      try{ const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null,'',u.toString()) }catch{}
+    }
     const me = await apiGet<any>('/api/me?ts='+Date.now())
     if (me && me.user) {
       user.isLoggedIn = true
