@@ -2372,7 +2372,6 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
     res.json({ driver: d, kpis: { assigned, delivered, pending, totalEarned, totalDue }, orders: assignedOrders });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_overview_failed' }); }
 });
-
 // Carriers
 adminRest.get('/carriers', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
@@ -3068,7 +3067,6 @@ adminRest.get('/vendors/:id/orders/export/xls', async (req, res) => {
     return res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_orders_export_failed' }); }
 });
-
 adminRest.get('/vendors/:id/orders/export/pdf', async (req, res) => {
   try {
     const { id } = req.params; const safeId = id.replace(/'/g, "''");
@@ -3523,7 +3521,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 const attrs: string[] = []
                 if (/(طويله|طويل)/i.test(raw) && baseType==='فستان') attrs.push('طويل')
                 if (/(تطريز|مطرز)/i.test(raw)) attrs.push('مطرز')
-                if (/كريستال|كرستال/i.test(raw) && baseType!=='لانجري') attrs.push('بالكريستال')
+                if (/كرستال|كريستال/i.test(raw) && baseType!=='لانجري') attrs.push('بالكريستال')
                 if (/(مناسب\s*للمناسبات|سهرة)/i.test(raw) && baseType==='فستان') attrs.unshift('سهرة')
                 // removed auto-adding "طقم" to avoid forcing set naming
                 const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim().slice(0,60)
@@ -3612,6 +3610,106 @@ adminRest.post('/products/analyze', async (req, res) => {
       }
     } catch {}
 
+    // Global enrichment: ensure description (table format), colors, sizes, and price are present
+    try {
+      const raw = String(((req as any).body?.text) || '')
+      const ensureColors = ((): string[] => {
+        const colorMap: Record<string,string> = {
+          'اسود':'أسود','أسود':'أسود','ابيض':'أبيض','أبيض':'أبيض','احمر':'أحمر','أحمر':'أحمر','ازرق':'أزرق','أزرق':'أزرق','اخضر':'أخضر','أخضر':'أخضر','اصفر':'أصفر','أصفر':'أصفر','بنفسجي':'بنفسجي','بني':'بني','بيج':'بيج','رمادي':'رمادي','كحلي':'كحلي','وردي':'وردي','ذهبي':'ذهبي','فضي':'فضي'
+        }
+        const found = Array.from(new Set((raw.match(/(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|بني|بيج|رمادي|كحلي|وردي|ذهبي|فضي)/gi) || []).map(v=> colorMap[v] || v)))
+        const merged = Array.from(new Set([...(out.colors||[]), ...found]))
+        return merged
+      })()
+      if (!out.colors || (out.colors as string[]).length === 0) { (out as any).colors = ensureColors; (sources as any).colors = { source:'ai', confidence: 0.65 } }
+
+      const ensureSizes = ((): string[] => {
+        const tokens = Array.from(new Set((raw.match(/\b(XXL|XL|LX|L|M|S|XS|XXS|3XL|4XL)\b/gi) || []).map(s=> s.toUpperCase().replace('LX','XL'))))
+        // Simple Arabic size hints
+        const arabicHints: Array<{ re: RegExp; add: string }> = [
+          { re:/فري\s*سايز|مقاس\s*واحد/i, add:'FREE' },
+        ]
+        for (const h of arabicHints){ if (h.re.test(raw)) tokens.push(h.add) }
+        const merged = Array.from(new Set([...(out.sizes||[] as string[]), ...tokens]))
+        return merged
+      })()
+      if (!out.sizes || (out.sizes as string[]).length === 0) { (out as any).sizes = ensureSizes; (sources as any).sizes = { source:'ai', confidence: 0.65 } }
+
+      const ensurePriceRange = ((): { low:number; high:number } | undefined => {
+        const num = (s:string)=> Number(String(s).replace(/[٬٫,]/g,'.'))
+        const old = raw.match(/(?:قديم|القديم)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
+        const north = raw.match(/(?:للشمال|الشمال)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
+        const sale = raw.match(/(?:سعر\s*البيع|السعر\s*البيع|السعر)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
+        const pick = old?.[1] ? num(old[1]) : (north?.[1] ? num(north[1]) : (sale?.[1] ? num(sale[1]) : undefined))
+        if (pick!==undefined && Number.isFinite(pick) && pick>10) {
+          const high = sale?.[1] ? num(sale[1]) : pick
+          return { low: pick, high: Number.isFinite(high)? Number(high): pick }
+        }
+        return undefined
+      })()
+      if (!out.price_range && ensurePriceRange) { (out as any).price_range = ensurePriceRange; (sources as any).price_range = { source:'ai', confidence: 0.75 } }
+
+      const material = ((): string => {
+        const mats: Array<{ re: RegExp; val: string }> = [
+          { re:/شيفون/i, val:'شيفون' },
+          { re:/تول|تل/i, val:'تول' },
+          { re:/قطن|cotton/i, val:'قطن' },
+          { re:/صوف|wool/i, val:'صوف' },
+          { re:/حرير|silk/i, val:'حرير' },
+          { re:/دنيم|denim/i, val:'دنيم' },
+          { re:/جلد|leather/i, val:'جلد' },
+        ]
+        const found = mats.find(m=> m.re.test(raw))?.val
+        return found ? `${found} عالي الجودة` : 'خامة مريحة متقنة'
+      })()
+
+      const industry = ((): string => {
+        if (/محلي|محلية/i.test(raw)) return 'تصنيع محلي متقن'
+        if (/تركيا|تركي|صيني|الصين|باكستان|فيتنام|بنجلاديش/i.test(raw)) return 'جودة تصنيع عالية'
+        return 'جودة تصنيع عالية'
+      })()
+
+      const design = ((): string => {
+        const feats: string[] = []
+        if (/(شرقي|خليجي)/i.test(raw)) feats.push('شرقي خليجي')
+        if (/(تطريز|مطرز|سيم\s*ذهبي|ذهبي)/i.test(raw)) feats.push('بتطريز ذهبي')
+        if (/كرستال|كريستال/i.test(raw)) feats.push('مزين بالكريستال')
+        if (/شفاف/i.test(raw)) feats.push('شفاف')
+        if (/(أكمام|كم).*(طويل|طويله)/i.test(raw)) feats.push('بأكمام طويلة')
+        if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
+        return feats.length ? feats.join(' ') : 'تصميم أنيق وعصري'
+      })()
+
+      const featuresLine = ((): string => {
+        const feats: string[] = []
+        if (/مريح|راحة/i.test(raw)) feats.push('مريح للارتداء')
+        if (/عملي/i.test(raw)) feats.push('عملي للاستخدام')
+        if (/انيق|أنيق/i.test(raw)) feats.push('أنيق للمناسبات')
+        if (!feats.length) feats.push('مريح','عملي','أنيق')
+        return Array.from(new Set(feats)).slice(0,3).join(' - ')
+      })()
+
+      const toArabicList = (arr?: string[]): string => {
+        const xs = (arr||[]).filter(Boolean)
+        return xs.join('، ')
+      }
+
+      const hasTable = typeof out.description === 'string' && /•\s*الخامة:/i.test(String(out.description))
+      if (!hasTable) {
+        const colorsForList = (Array.isArray(out.colors) && (out.colors as string[]).length) ? (out.colors as string[]) : ensureColors
+        const sizesForList = (Array.isArray(out.sizes) && (out.sizes as string[]).length) ? (out.sizes as string[]) : ensureSizes
+        const desc = [
+          `• الخامة: ${material}`,
+          `• الصناعة: ${industry}`,
+          `• التصميم: ${design}`,
+          `• الألوان: ${toArabicList(colorsForList)}`,
+          `• المقاسات: ${toArabicList(sizesForList)}`,
+          `• الميزات: ${featuresLine}`
+        ].join('\n')
+        ;(out as any).description = desc
+        (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) }
+      }
+    } catch {}
     // Global enforcement: ensure product name is not generic or too short in ANY mode
     try {
       const raw = String(((req as any).body?.text) || '')
@@ -3956,7 +4054,6 @@ adminRest.delete('/currencies/:id', async (req, res) => {
     res.json({ ok:true });
   }catch(e:any){ res.status(400).json({ ok:false, code:'currency_delete_failed', error: e.message||'currency_delete_failed' }); }
 });
-
 // Affiliate payouts minimal endpoints
 adminRest.get('/affiliates/ledger', async (_req, res) => {
   try{
