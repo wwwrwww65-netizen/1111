@@ -148,23 +148,45 @@ jobs:
             ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
             mkdir -p "$ROOT"
             F="$ROOT/.env.api"
-            # Prefer GitHub Secrets for stable values; fallback to generated
-            J="${{ secrets.JWT_SECRET || '' }}"; if [ -z "$J" ]; then J=$(openssl rand -hex 32 || cat /proc/sys/kernel/random/uuid); fi
-            M="${{ secrets.MAINTENANCE_SECRET || '' }}"; if [ -z "$M" ]; then M="deploy-$(date +%s)"; fi
+            # Strictly mirror from Secrets/Vars; fail if critical secrets missing
+            : "${{ secrets.JWT_SECRET }}" "${{ secrets.COOKIE_DOMAIN }}" "${{ secrets.PUBLIC_API_BASE }}" "${{ secrets.MWEB_BASE_URL }}"
             {
               echo "NODE_ENV=production"
-              echo "COOKIE_DOMAIN=${{ vars.COOKIE_DOMAIN || secrets.COOKIE_DOMAIN || '.jeeey.com' }}"
-              echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS || secrets.CORS_ALLOW_ORIGINS || 'https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://m.jeeey.com,https://api.jeeey.com' }}"
-              echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com"
-              echo "NEXT_PUBLIC_APP_URL=https://jeeey.com"
-              echo "JWT_SECRET=${J}"
-              echo "MAINTENANCE_SECRET=${M}"
-              SENTRY="${{ secrets.SENTRY_DSN }}"; if [ -n "$SENTRY" ]; then echo "SENTRY_DSN=$SENTRY"; fi
-              STRIPE="${{ secrets.STRIPE_SECRET_KEY }}"; if [ -n "$STRIPE" ]; then echo "STRIPE_SECRET_KEY=$STRIPE"; fi
-              STRIPE_WH="${{ secrets.STRIPE_WEBHOOK_SECRET }}"; if [ -n "$STRIPE_WH" ]; then echo "STRIPE_WEBHOOK_SECRET=$STRIPE_WH"; fi
-              CLOUD="${{ secrets.CLOUDINARY_URL }}"; if [ -n "$CLOUD" ]; then echo "CLOUDINARY_URL=$CLOUD"; fi
-              DB="${{ secrets.DATABASE_URL }}"; if [ -n "$DB" ]; then echo "DATABASE_URL=$DB"; fi
-              DU="${{ secrets.DIRECT_URL }}"; if [ -n "$DU" ]; then echo "DIRECT_URL=$DU"; fi
+              echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
+              echo "PUBLIC_API_BASE=${{ secrets.PUBLIC_API_BASE || vars.PUBLIC_API_BASE }}"
+              echo "MWEB_BASE_URL=${{ secrets.MWEB_BASE_URL || vars.MWEB_BASE_URL }}"
+              echo "CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || vars.CORS_ALLOW_ORIGINS }}"
+              echo "NEXT_PUBLIC_ADMIN_URL=${{ secrets.NEXT_PUBLIC_ADMIN_URL || vars.NEXT_PUBLIC_ADMIN_URL }}"
+              echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || vars.NEXT_PUBLIC_APP_URL }}"
+              echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
+              echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET }}"
+              [ -n "${{ secrets.SENTRY_DSN }}" ] && echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}"
+              [ -n "${{ secrets.STRIPE_SECRET_KEY }}" ] && echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}"
+              [ -n "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ] && echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
+              [ -n "${{ secrets.CLOUDINARY_URL }}" ] && echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}"
+              [ -n "${{ secrets.DATABASE_URL }}" ] && echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+              [ -n "${{ secrets.DIRECT_URL }}" ] && echo "DIRECT_URL=${{ secrets.DIRECT_URL }}"
+              # Google OAuth
+              [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ] && echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}"
+              [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ] && echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+              [ -n "${{ secrets.GOOGLE_REDIRECT_URI }}" ] && echo "GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}"
+              # WhatsApp
+              [ -n "${{ secrets.WHATSAPP_TOKEN }}" ] && echo "WHATSAPP_TOKEN=${{ secrets.WHATSAPP_TOKEN }}"
+              [ -n "${{ secrets.WHATSAPP_PHONE_ID }}" ] && echo "WHATSAPP_PHONE_ID=${{ secrets.WHATSAPP_PHONE_ID }}"
+              [ -n "${{ secrets.WHATSAPP_TEMPLATE }}" ] && echo "WHATSAPP_TEMPLATE=${{ secrets.WHATSAPP_TEMPLATE }}"
+              [ -n "${{ secrets.WHATSAPP_LANGUAGE }}" ] && echo "WHATSAPP_LANGUAGE=${{ secrets.WHATSAPP_LANGUAGE }}"
+              [ -n "${{ secrets.WHATSAPP_HEADER_TYPE }}" ] && echo "WHATSAPP_HEADER_TYPE=${{ secrets.WHATSAPP_HEADER_TYPE }}"
+              [ -n "${{ secrets.WHATSAPP_HEADER_PARAM }}" ] && echo "WHATSAPP_HEADER_PARAM=${{ secrets.WHATSAPP_HEADER_PARAM }}"
+              [ -n "${{ secrets.WHATSAPP_BUTTON_TYPE }}" ] && echo "WHATSAPP_BUTTON_TYPE=${{ secrets.WHATSAPP_BUTTON_TYPE }}"
+              [ -n "${{ secrets.WHATSAPP_BUTTON_INDEX }}" ] && echo "WHATSAPP_BUTTON_INDEX=${{ secrets.WHATSAPP_BUTTON_INDEX }}"
+              [ -n "${{ secrets.WHATSAPP_BUTTON_PARAM }}" ] && echo "WHATSAPP_BUTTON_PARAM=${{ secrets.WHATSAPP_BUTTON_PARAM }}"
+              # SMS
+              [ -n "${{ secrets.TWILIO_ACCOUNT_SID }}" ] && echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}"
+              [ -n "${{ secrets.TWILIO_AUTH_TOKEN }}" ] && echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}"
+              [ -n "${{ secrets.TWILIO_SMS_FROM }}" ] && echo "TWILIO_SMS_FROM=${{ secrets.TWILIO_SMS_FROM }}"
+              [ -n "${{ secrets.VONAGE_API_KEY }}" ] && echo "VONAGE_API_KEY=${{ secrets.VONAGE_API_KEY }}"
+              [ -n "${{ secrets.VONAGE_API_SECRET }}" ] && echo "VONAGE_API_SECRET=${{ secrets.VONAGE_API_SECRET }}"
+              [ -n "${{ secrets.VONAGE_FROM }}" ] && echo "VONAGE_FROM=${{ secrets.VONAGE_FROM }}"
             } > "$F.new"
             mv "$F.new" "$F"
             chmod 600 "$F"
@@ -188,10 +210,11 @@ jobs:
             ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
             F="$ROOT/.env.web"
             {
-              echo "NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || secrets.NEXT_PUBLIC_APP_URL || 'https://jeeey.com' }}"
-              echo "NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL || secrets.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jeeey.com' }}"
-              echo "NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || secrets.NEXT_PUBLIC_API_BASE_URL || 'https://api.jeeey.com' }}"
-              echo "NEXT_PUBLIC_TRPC_URL=${{ vars.NEXT_PUBLIC_TRPC_URL || secrets.NEXT_PUBLIC_TRPC_URL || 'https://api.jeeey.com/trpc' }}"
+              echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || vars.NEXT_PUBLIC_APP_URL }}"
+              echo "NEXT_PUBLIC_ADMIN_URL=${{ secrets.NEXT_PUBLIC_ADMIN_URL || vars.NEXT_PUBLIC_ADMIN_URL }}"
+              echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL || vars.NEXT_PUBLIC_API_BASE_URL }}"
+              echo "NEXT_PUBLIC_TRPC_URL=${{ secrets.NEXT_PUBLIC_TRPC_URL || vars.NEXT_PUBLIC_TRPC_URL }}"
+              echo "VITE_API_BASE=${{ secrets.NEXT_PUBLIC_API_BASE_URL || vars.NEXT_PUBLIC_API_BASE_URL }}"
             } > "$F.new"
             mv "$F.new" "$F"
             chmod 600 "$F"
