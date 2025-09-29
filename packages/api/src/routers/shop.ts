@@ -370,18 +370,22 @@ shop.post('/me/complete', requireAuth, async (req: any, res) => {
     const userId = req.user.userId;
     const { fullName, password, confirm } = req.body || {};
     const name = String(fullName||'').trim();
-    const pass = String(password||'');
+    const passRaw = String(password||'');
     const conf = String(confirm||'');
-    if (!name || !pass || pass !== conf) return res.status(400).json({ ok:false, error:'invalid_payload' });
-    // Note: storing plain text is not recommended; if bcrypt available, hash it
-    try{
-      const bcrypt = require('bcryptjs');
-      const salt = bcrypt.genSaltSync(10);
-      const hash = bcrypt.hashSync(pass, salt);
-      await db.user.update({ where: { id: userId }, data: { name, password: hash } } as any);
-    }catch{
-      await db.user.update({ where: { id: userId }, data: { name, password: pass } } as any);
+    if (!name) return res.status(400).json({ ok:false, error:'invalid_name' });
+    const updateData: any = { name };
+    if (passRaw) {
+      if (passRaw.length < 6 || passRaw !== conf) return res.status(400).json({ ok:false, error:'invalid_password' });
+      try{
+        const bcrypt = require('bcryptjs');
+        const salt = bcrypt.genSaltSync(10);
+        const hash = bcrypt.hashSync(passRaw, salt);
+        updateData.password = hash;
+      }catch{
+        updateData.password = passRaw;
+      }
     }
+    await db.user.update({ where: { id: userId }, data: updateData } as any);
     return res.json({ ok:true });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'complete_failed' }); }
 });

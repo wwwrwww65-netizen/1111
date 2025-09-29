@@ -42,13 +42,21 @@ const password = ref('')
 const confirm = ref('')
 const error = ref('')
 const submitting = ref(false)
-const valid = computed(()=> fullName.value.trim().length>=2 && password.value.length>=6 && password.value===confirm.value)
+// Password optional: if provided must be >=6 and match confirm
+const valid = computed(()=> {
+  const n = fullName.value.trim().length>=2
+  const hasPass = password.value.length>0 || confirm.value.length>0
+  const p = !hasPass || (password.value.length>=6 && password.value===confirm.value)
+  return n && p
+})
 async function onSubmit(){
   if (!valid.value){ error.value = 'تحقق من البيانات'; return }
   error.value = ''
   try{
     submitting.value = true
-    const r: any = await apiPost('/api/me/complete', { fullName: fullName.value.trim(), password: password.value, confirm: confirm.value })
+    const payload: any = { fullName: fullName.value.trim() }
+    if (password.value) { payload.password = password.value; payload.confirm = confirm.value }
+    const r: any = await apiPost('/api/me/complete', payload)
     if (r && r.ok){
       // Refresh session user and hydrate store
       try{
@@ -65,7 +73,8 @@ async function onSubmit(){
       router.push(ret)
     } else {
       const msg = String((r && (r.error||r.message)) || '')
-      if (msg.includes('invalid_payload')) error.value = 'تحقق من الاسم وكلمة السر (التأكيد مطابق وطول ≥ 6)'
+      if (msg.includes('invalid_name')) error.value = 'الاسم مطلوب (حرفان أو أكثر)'
+      else if (msg.includes('invalid_password')) error.value = 'كلمة السر إن أُدخلت يجب أن تكون ≥6 ومطابقة للتأكيد'
       else error.value = 'تعذر إكمال إنشاء الحساب'
     }
   } catch { error.value = 'خطأ في الشبكة' } finally { submitting.value = false }
