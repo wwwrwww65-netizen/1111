@@ -37,6 +37,7 @@ jobs:
           MWEB_BASE: ${{ secrets.MWEB_BASE || 'https://m.jeeey.com' }}
           API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
           TEST_PHONE: ${{ secrets.TEST_PHONE || '+966500000001' }}
+          OUT_DIR: scripts/ci/test-artifacts
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs
 

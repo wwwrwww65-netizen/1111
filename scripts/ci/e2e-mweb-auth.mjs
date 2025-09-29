@@ -8,7 +8,7 @@ const TEST_PHONE = process.env.TEST_PHONE || '+966500000001'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 
-const OUT_DIR = process.env.OUT_DIR || path.resolve('scripts/ci/test-artifacts')
+const OUT_DIR = process.env.OUT_DIR || path.resolve('./test-artifacts')
 function ensureOut(){ try{ fs.mkdirSync(OUT_DIR, { recursive: true }) }catch{} }
 function save(name, data){ ensureOut(); const p = path.join(OUT_DIR, name); fs.writeFileSync(p, typeof data==='string'? data : JSON.stringify(data, null, 2)); console.log('Saved:', p) }
 
@@ -27,7 +27,10 @@ async function main(){
     const token = loginJson?.token
     if (!token) throw new Error('api_login_no_token')
     // Share cookie across subdomains (api + mweb) and allow cross-site requests
-    await ctx.addCookies([{ name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }])
+    await ctx.addCookies([
+      { name:'auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
+      { name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
+    ])
     await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded', timeout: 60000 })
 
     // Diagnostics: dump cookies and attempt whoami from within page
