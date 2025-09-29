@@ -32,14 +32,14 @@ const manualRoutes = [
   { path: '/legal/terms', component: () => import('./pages/LegalTerms.vue') },
   { path: '/legal/privacy', component: () => import('./pages/LegalPrivacy.vue') },
   { path: '/legal/shipping', component: () => import('./pages/LegalShipping.vue') },
-  { path: '/legal/returns', component: () => import('./pages/LegalReturns.vue') },
-  { path: '/legal/payments', component: () => import('./pages/LegalPayments.vue') }
+  { path: '/legal/returns', component: () => import('./pages/LegalReturns.vue') }
   ,{ path: '/order/track', component: () => import('./pages/OrderTrack.vue') }
   ,{ path: '/returns', component: () => import('./pages/Returns.vue') }
   ,{ path: '/help', component: () => import('./pages/Help.vue') }
   ,{ path: '/contact', component: () => import('./pages/Contact.vue') }
   ,{ path: '/points', component: () => import('./pages/Points.vue') }
   ,{ path: '/prefs', component: () => import('./pages/Prefs.vue') }
+  ,{ path: '/auth/google/callback', component: () => import('./pages/auth/google/callback.vue') }
   ,{ path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }
 ];
 const routes = [...manualRoutes, ...genRoutes];
