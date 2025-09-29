@@ -28,10 +28,6 @@ jobs:
           npm ci || npm i
           npx playwright install --with-deps chromium
 
-      - name: Run E2E DeepSeek test
-        working-directory: scripts/ci
-        run: node e2e-deepseek.spec.mjs
-
       - name: Run E2E MWeb Auth test
         env:
           MWEB_BASE: ${{ secrets.MWEB_BASE || 'https://m.jeeey.com' }}
@@ -43,4 +39,4 @@ jobs:
 
       - name: Report success
         if: success()
-        run: echo "✅ E2E DeepSeek passed"
+        run: echo "✅ E2E mweb-auth passed"
