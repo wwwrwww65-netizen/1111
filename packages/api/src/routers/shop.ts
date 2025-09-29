@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import { db } from '@repo/db';
 import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express'
@@ -142,6 +143,19 @@ async function getLatestIntegration(provider: string): Promise<any|null> {
     }
   } catch {}
   return null;
+}
+
+async function getGoogleOAuthConfig(): Promise<{ clientId: string; clientSecret?: string; redirectUri: string } | null> {
+  try{
+    const row = await db.integration.findFirst({ where: { provider: 'google_oauth' }, orderBy: { createdAt: 'desc' } } as any);
+    const cfg: any = row ? ((row as any).config || {}) : {};
+    const clientId = cfg.clientId || process.env.GOOGLE_CLIENT_ID || '';
+    const clientSecret = cfg.clientSecret || process.env.GOOGLE_CLIENT_SECRET || '';
+    const publicApi = process.env.PUBLIC_API_BASE || process.env.API_BASE_URL || 'https://api.jeeey.com';
+    const redirectUri = cfg.redirectUri || process.env.GOOGLE_REDIRECT_URI || `${publicApi}/api/auth/google/callback`;
+    if (!clientId || !redirectUri) return null;
+    return { clientId, clientSecret, redirectUri };
+  }catch{ return null }
 }
 
 async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
@@ -538,6 +552,60 @@ shop.get('/tracking/keys', async (_req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'tracking_keys_failed' });
   }
+});
+
+// Google OAuth login
+shop.get('/auth/google/login', async (req, res) => {
+  try{
+    const cfg = await getGoogleOAuthConfig();
+    if (!cfg) return res.status(400).json({ error:'google_not_configured' });
+    const { clientId, redirectUri } = cfg;
+    const state = Buffer.from(JSON.stringify({ next: String(req.query.next||'/account') })).toString('base64url');
+    const scope = encodeURIComponent('openid email profile');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}`;
+    return res.redirect(authUrl);
+  }catch(e:any){ return res.status(500).json({ error: e.message||'google_login_failed' }) }
+});
+
+shop.get('/auth/google/callback', async (req, res) => {
+  try{
+    const cfg = await getGoogleOAuthConfig();
+    if (!cfg) return res.status(400).json({ error:'google_not_configured' });
+    const { clientId, clientSecret, redirectUri } = cfg;
+    const code = String(req.query.code||'');
+    const stateRaw = String(req.query.state||'');
+    const state = (()=>{ try{ return JSON.parse(Buffer.from(stateRaw, 'base64url').toString('utf8')) }catch{ return { next:'/account' } } })();
+    if (!code) return res.status(400).json({ error:'missing_code' });
+    const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId });
+    if (clientSecret) body.set('client_secret', clientSecret);
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body });
+    const tok = await tokenRes.json().catch(()=>({}));
+    const idToken = tok.id_token as string|undefined;
+    if (!idToken) return res.status(400).json({ error:'invalid_token' });
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({ idToken, audience: clientId });
+    const payload: any = ticket.getPayload() || {};
+    const email = String(payload.email||'').toLowerCase();
+    const name = String(payload.name||'') || String(payload.given_name||'') || 'User';
+    if (!email) return res.status(400).json({ error:'email_required' });
+    const existing = await db.user.findUnique({ where: { email } as any });
+    const user = await db.user.upsert({ where: { email }, update: { name }, create: { email, name, phone: '', password: '' } } as any);
+    const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
+    const isProd = (process.env.NODE_ENV || 'production') === 'production';
+    res.cookie('shop_auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+    res.cookie('auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+    try{
+      const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
+      if (root) {
+        res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+        res.cookie('auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+      }
+    }catch{}
+    const mwebBase = process.env.MWEB_BASE_URL || 'https://m.jeeey.com';
+    const next = String(state?.next||'/account');
+    return res.redirect(`${mwebBase}${next.startsWith('/')?next:'/'+next}`);
+  }catch(e:any){ return res.status(500).json({ error: e.message||'google_callback_failed' }) }
 });
 
 // Cart endpoints (auth-required)

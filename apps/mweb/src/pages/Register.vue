@@ -68,7 +68,7 @@
 
       <!-- Social buttons -->
       <div class="space-y-2">
-        <button class="w-full h-11 rounded-[4px] border border-gray-200 bg-white text-[13px] font-semibold text-gray-900 flex items-center justify-center gap-2 transition-transform duration-200 hover:scale-[1.02]" aria-label="التسجيل عبر جوجل">
+        <button class="w-full h-11 rounded-[4px] border border-gray-200 bg-white text-[13px] font-semibold text-gray-900 flex items-center justify-center gap-2 transition-transform duration-200 hover:scale-[1.02]" aria-label="التسجيل عبر جوجل" @click="loginWithGoogle">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.3 0 6.2 1.1 8.5 3.2l6.3-6.3C34.7 2.6 29.8 1 24 1 14.6 1 6.6 6.2 2.7 14l7.8 6.1C12.2 14.5 17.6 9.5 24 9.5z"/>
             <path fill="#FBBC05" d="M46.5 24c0-1.6-.1-2.7-.4-4H24v8h12.7c-.6 3-2.3 5.6-4.9 7.3l7.5 5.8C43.8 37.4 46.5 31.3 46.5 24z"/>
@@ -97,6 +97,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Gift, Star, Globe, ChevronDown, AlertCircle, Facebook, ArrowRight } from 'lucide-vue-next'
+import { googleLoginUrl } from '@/lib/api'
 
 type Country = { code: string; name: string; dial: string }
 const countries: Country[] = [
@@ -114,6 +115,12 @@ const primary = '#8a1538'
 const router = useRouter()
 function goBack(){ try{ router.back() } catch{} }
 function onPhone(e: Event){ phone.value = (e.target as HTMLInputElement).value || '' }
+
+function loginWithGoogle(){
+  const ret = typeof window !== 'undefined' ? (new URLSearchParams(location.search).get('return') || '/account') : '/account'
+  const url = googleLoginUrl(ret)
+  window.location.href = url
+}
 </script>
 
 <style scoped></style>
