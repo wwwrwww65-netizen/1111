@@ -340,9 +340,15 @@ export async function callDeepseekPreview(opts: {
       const parsedNum = typeof parsed.price === 'number' ? parsed.price : toNum(String(parsed.price||''))
       if (typeof chosen === 'number' && (!parsedNum || parsedNum !== chosen)) parsed.price = chosen
 
-      // Colors: preserve general phrases like "4 ألوان/٤ ألوان/ألوان متعددة/أربعة ألوان/اربعه الوان"
-      const generalPhraseMatch = t.match(/\b(?:4\s*ألوان|٤\s*ألوان|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان|أربعة\s*ألوان|اربعه\s*الوان)\b/i)
-      if (generalPhraseMatch) parsed.colors = [generalPhraseMatch[0]]
+      // Colors: prefer general phrases over specific tokens even with trailing adjectives
+      const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
+      const gMatch = t.match(generalColorsRe)
+      if (gMatch) {
+        let label = gMatch[0]
+        const num = gMatch[1] ? Number(gMatch[1]) : (/أرب(?:ع|عة)|اربعه/i.test(label) ? 4 : undefined)
+        if (typeof num === 'number') label = `${num} ألوان`
+        parsed.colors = [label]
+      }
 
       // Keywords: drop trivial stopwords and very short tokens
       if (Array.isArray(parsed.keywords)) {
