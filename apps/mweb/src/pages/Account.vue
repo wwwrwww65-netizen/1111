@@ -38,7 +38,7 @@ function go(path:string){ router.push(path) }
 onMounted(async ()=>{
   try{
     // Try to load session from API; this requires the auth_token cookie sent with credentials
-    const me = await apiGet<any>('/api/me')
+    const me = await apiGet<any>('/api/me?ts='+Date.now())
     if (me && me.user) {
       user.isLoggedIn = true
       if (me.user.name || me.user.email || me.user.phone) {

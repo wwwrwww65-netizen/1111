@@ -194,7 +194,7 @@ async function onSubmit(){
       // Fetch session and hydrate user store before redirect
       let me: any = null
       try{
-        me = await apiGet<any>('/api/me')
+        me = await apiGet<any>('/api/me?ts='+Date.now())
         if (me && me.user){
           user.isLoggedIn = true
           if (me.user.name || me.user.email || me.user.phone){
