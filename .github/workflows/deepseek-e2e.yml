@@ -41,13 +41,6 @@ jobs:
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs
 
-      - name: Upload E2E artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-artifacts
-          path: scripts/ci/test-artifacts
-
       - name: Report success
         if: success()
         run: echo "✅ E2E DeepSeek passed"
