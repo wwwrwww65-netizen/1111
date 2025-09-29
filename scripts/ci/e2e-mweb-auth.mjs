@@ -57,11 +57,11 @@ async function main(){
     const dial = '+967'
     const e164 = dial.replace(/\D/g,'') + localPhone.replace(/\D/g,'')
     // Poll OTP hook with fallback to trigger request if missing
-    const ms = process.env.MAINTENANCE_SECRET||''
+    const maintSecret = process.env.MAINTENANCE_SECRET||''
     let hook = null
     for (let i=0;i<12;i++){
       try{
-        const resp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': ms } })
+        const resp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': maintSecret } })
         if (resp.ok){ hook = await resp.json().catch(()=>null); if (hook && hook.code) break }
       }catch{}
       if (i===2){
@@ -70,8 +70,7 @@ async function main(){
       await new Promise(r=>setTimeout(r, 1000))
     }
     if (!hook || !hook.code) throw new Error('otp_code_unavailable')
-    const ms = process.env.MAINTENANCE_SECRET||''
-    const hookResp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': ms } })
+    const hookResp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': maintSecret } })
     if (!hookResp.ok) {
       throw new Error(`otp_hook_failed:${hookResp.status} (ensure MAINTENANCE_SECRET is set in workflow secrets)`) }
     const hook = await hookResp.json().catch(()=>null)
