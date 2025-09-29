@@ -76,6 +76,14 @@ async function main(){
     for (let i=0;i<60;i++){
       const ck = await ctx.cookies();
       if (ck.some(c => c.name==='shop_auth_token' || c.name==='auth_token')) { cookieOk = true; break }
+      // Fallback: if UI didn't fire verify by 3s, call API verify from page to set cookie
+      if (i===6) {
+        try{
+          await page.evaluate(async(base, phone, code) => {
+            await fetch(`${base}/api/auth/otp/verify`, { method:'POST', credentials:'include', headers:{'content-type':'application/json'}, body: JSON.stringify({ phone, code }) })
+          }, API_BASE, e164, code)
+        }catch{}
+      }
       await new Promise(r=>setTimeout(r, 500))
     }
     const vr = await verifyRespP; const rd = await redirectP;
