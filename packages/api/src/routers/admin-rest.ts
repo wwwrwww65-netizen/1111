@@ -3244,25 +3244,23 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
       } catch {}
       // Name generation with priority: <type> <attr> من <material> — <feature>
-      const typeMatch = pre.match(/(^|\s)(طقم|فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|جاكت|قميص|فستان|هودي|سويتر|بلوفر|set)(?=\s|$)/i);
-      const materialMatch = pre.match(/(^|\s)(حرير|باربي|صوف|قطن|جلد|لينن|denim|leather|cotton|wool|silk|satin|polyester)(?=\s|$)/i);
-      const attrMatch = pre.match(/(^|\s)(نسائي|رجالي|شتوي|صيفي|موحد|خارجي)(?=\s|$)/i);
-      const featureMatch = pre.match(/(^|\s)(أزرار (?:انيقه|أنيقة)|زرارات انيقه|كم كامل|ياقة|ياقه|كلوش|امبريلا|مورد|مطبوع|ربطه\s*خصر|ربطة\s*خصر|اكمام\s*طويله|أكمام\s*طويلة)(?=\s|$)/i);
-      let normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[2]) ? 'فنيلة' : typeMatch[2].replace(/ه$/,'ة')) : '';
+      const isTableware = /(ملاعق|ملعقة|شوكة|سكاكين|سكين|طقم\s*ملاعق|أدوات\s*مائدة|صحون|صحن|أطباق|قدور|قدر|كاسات|كوب|اكواب|أكواب)/i.test(pre);
+      const typeMatch = isTableware ? null : pre.match(/(^|\s)(طقم|فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|جاكت|قميص|فستان|هودي|سويتر|بلوفر|set)(?=\s|$)/i);
+      let normalizedType = isTableware ? 'أدوات مائدة' : (typeMatch ? (/فنائل/i.test(typeMatch[2]) ? 'فنيلة' : typeMatch[2].replace(/ه$/,'ة')) : '');
       if (!normalizedType && /(فنائل|فنيله|فنيلة)/i.test(pre)) normalizedType = 'فنيلة';
-      let material = materialMatch ? (():string=>{ const m = materialMatch[2].toLowerCase(); if (m==='wool') return 'صوف'; if (m==='cotton') return 'قطن'; if (m==='silk' || m==='حرير') return 'حرير'; if (m==='satin') return 'ساتان'; if (m==='polyester') return 'بوليستر'; if (m==='باربي') return 'حرير باربي'; return materialMatch[2]; })() : '';
+      let material = typeMatch ? (():string=>{ const m = typeMatch[2].toLowerCase(); if (m==='wool') return 'صوف'; if (m==='cotton') return 'قطن'; if (m==='silk' || m==='حرير') return 'حرير'; if (m==='satin') return 'ساتان'; if (m==='polyester') return 'بوليستر'; if (m==='باربي') return 'حرير باربي'; return typeMatch[2]; })() : '';
       if (material) {
         // أضف "ال" للتعبير العربي الطبيعي
         if (!/^ال/.test(material)) material = `الصوف` === material ? material : (material === 'صوف' ? 'الصوف' : material === 'قطن' ? 'القطن' : material);
       }
-      let attr = attrMatch ? (attrMatch[2].replace('موحد','فري سايز')) : '';
+      let attr = typeMatch ? (typeMatch[2].replace('موحد','فري سايز')) : '';
       const feminineType = /ة$/.test(normalizedType);
       if (feminineType) {
         if (/^نسائي$/i.test(attr)) attr = 'نسائية';
         if (/^شتوي$/i.test(attr)) attr = 'شتوية';
         if (/^صيفي$/i.test(attr)) attr = 'صيفية';
       }
-      let feature = featureMatch ? featureMatch[2] : '';
+      let feature = typeMatch ? typeMatch[2] : '';
       const featureTags: string[] = [];
       if (/زرارات|أزرار/i.test(pre)) featureTags.push('أزرار أنيقة');
       if (/كم\s*كامل/i.test(pre)) featureTags.push('كم كامل');
@@ -3271,7 +3269,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       if (/ربطة\s*خصر|ربطه\s*خصر/i.test(pre)) featureTags.push('ربطة خصر');
       if (/(أكمام|اكمام)\s*طويل(ه|ة)/i.test(pre)) featureTags.push('أكمام طويلة');
       if (!feature && featureTags.length) feature = featureTags[0];
-      const namePrefix = [ normalizedType, attr, material ? `من ${material}` : '' ].filter(Boolean).join(' ').trim();
+      const namePrefix = [ normalizedType, attr, (material && !isTableware) ? `من ${material}` : '' ].filter(Boolean).join(' ').trim();
       const genName = [ namePrefix, feature ].filter(Boolean).join(' ').trim();
       if (genName) { out.name = clamp(genName, 60); sources.name = { source:'rules', confidence:0.8 }; }
       else if (extracted.name) { out.name = clamp(extracted.name, 60); sources.name = { source:'rules', confidence:0.6 }; }
@@ -3281,10 +3279,10 @@ adminRest.post('/products/analyze', async (req, res) => {
       if (material) introParts.push(`مصنوع من ${material}`);
       const introFeatures: string[] = [];
       if (featureTags.length) introFeatures.push(...featureTags);
-      const intro = normalizeSpaces(`${introParts.join(' ')}${introFeatures.length ? ' مع ' + introFeatures.join(' و') : ''}.`);
+      const intro = normalizeSpaces(`${introParts.join(' ')}${(introFeatures.length && !isTableware) ? ' مع ' + introFeatures.join(' و') : ''}.`);
       const mats: string[] = [];
-      if (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(pre)) mats.push('متوفرة بعدة ألوان');
-      if (/خارجي/i.test(pre)) mats.push('مناسبة للإطلالة الخارجية');
+      if (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(pre)) mats.push('متوفر بعدة ألوان');
+      if (!isTableware && /خارجي/i.test(pre)) mats.push('مناسبة للإطلالة الخارجية');
       const sentence2 = mats.length? `${mats.join('، ')}.` : '';
       // لا نذكر المقاسات في الوصف (تُعرض في حقلها)
       let sz = '';
@@ -3309,12 +3307,20 @@ adminRest.post('/products/analyze', async (req, res) => {
       }
       if (finalDesc) { out.description = finalDesc; sources.description = { source:'rules', confidence:0.85 }; }
       // Sizes field (normalized)
-      if (wMatch) { out.sizes = [`فري سايز (${Math.min(Number(wMatch[1]),Number(wMatch[2]))}–${Math.max(Number(wMatch[1]),Number(wMatch[2]))} كجم)`]; sources.sizes = { source:'rules', confidence:0.8 }; }
+      if (!isTableware && wMatch) { out.sizes = [`فري سايز (${Math.min(Number(wMatch[1]),Number(wMatch[2]))}–${Math.max(Number(wMatch[1]),Number(wMatch[2]))} كجم)`]; sources.sizes = { source:'rules', confidence:0.8 }; }
       else if (Array.isArray(extracted.sizes) && extracted.sizes.length) {
         const cleanedSizes = (extracted.sizes as string[]).filter(s=> !/^\s*\d+(?:[\.,]\d+)?\s*$/.test(String(s)));
         if (cleanedSizes.length) { out.sizes = cleanedSizes; sources.sizes = { source:'rules', confidence:0.7 }; }
       }
       if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = Array.from(new Set(extracted.colors)); sources.colors = { source:'rules', confidence:0.4 }; }
+      // Preserve general color phrases from raw text if present
+      const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
+      const gMatch = pre.match(generalColorsRe)
+      if (gMatch) {
+        const label = gMatch[1] ? `${gMatch[1]} ألوان` : gMatch[0]
+        out.colors = [label]
+        sources.colors = { source:'rules', confidence:0.8 }
+      }
       if (Array.isArray(extracted.keywords)) {
         const noise = new Set<string>(['وزن','فقط','متوفر','متوفرة','متوووفر','دلع','اناقة','أنَاقة','واناقه','جديد','جديدة','جديديناءغيرر','لون','الوان','لونين']);
         const filtered = (extracted.keywords||[])
@@ -4228,7 +4234,7 @@ adminRest.get('/reviews/list', async (req, res) => {
   if (status === 'pending') where.isApproved = false;
   if (search) where.OR = [ { comment: { contains: search, mode: 'insensitive' } } ];
   const [rows, total] = await Promise.all([
-    db.review.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true, name: true } }, product: { select: { name: true } } } }),
+    db.review.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true, name: true } }, product: { select: { name: true } } }),
     db.review.count({ where })
   ]);
   res.json({ reviews: rows, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
@@ -4418,7 +4424,6 @@ adminRest.delete('/reviews/:id', async (req, res) => {
   const { id } = req.params; await db.review.delete({ where: { id } }); await audit(req, 'reviews', 'delete', { id });
   res.json({ success: true });
 });
-
 // Auth: login/logout + sessions
 adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit({ windowMs: 60_000, max: 10 }) : ((_req:any,_res:any,next:any)=>next())) as any, async (req, res) => {
   try {

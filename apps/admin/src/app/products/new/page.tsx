@@ -735,6 +735,14 @@ export default function AdminProductCreate(): JSX.Element {
               if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
               const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
               const cList: string[] = Array.isArray(review.colors)? review.colors : [];
+              // Auto-add images from palettes mapping if provided
+              try{
+                const palettes = (review as any).palettes || [];
+                const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+                const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+                const merged = Array.from(new Set([...cur, ...urls]));
+                setImages(merged.join(', '));
+              }catch{}
               const rows: typeof variantRows = [];
               const baseSale = undefined;
               const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
