@@ -310,8 +310,17 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
       if (root) res.clearCookie('auth_token', { domain: `api.${root}`, path: '/' });
     } catch {}
-    // Primary cookie on root/domain (shop-specific name to avoid admin collisions)
+    // Primary cookie on root/domain (shop-specific name)
     res.cookie('shop_auth_token', token, {
+      httpOnly: true,
+      domain: cookieDomain,
+      sameSite: isProd ? 'none' : 'lax',
+      secure: isProd,
+      maxAge: 3600 * 24 * 30 * 1000,
+      path: '/',
+    });
+    // Also write fallback auth_token for legacy readers to ensure /api/me uses the USER token (overrides any old admin token on API domain)
+    res.cookie('auth_token', token, {
       httpOnly: true,
       domain: cookieDomain,
       sameSite: isProd ? 'none' : 'lax',
@@ -324,6 +333,14 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
       if (root) {
         res.cookie('shop_auth_token', token, {
+          httpOnly: true,
+          domain: `api.${root}`,
+          sameSite: isProd ? 'none' : 'lax',
+          secure: isProd,
+          maxAge: 3600 * 24 * 30 * 1000,
+          path: '/',
+        });
+        res.cookie('auth_token', token, {
           httpOnly: true,
           domain: `api.${root}`,
           sameSite: isProd ? 'none' : 'lax',
