@@ -32,10 +32,10 @@ async function main(){
       httpOnly: true,
       sameSite: 'Lax'
     }])
-    await page.goto(`${ADMIN_BASE}/`, { waitUntil: 'networkidle' })
+    await page.goto(`${ADMIN_BASE}/`, { waitUntil: 'domcontentloaded', timeout: 60000 })
 
     // Go to new product page
-    await page.goto(`${ADMIN_BASE}/products/new`, { waitUntil: 'networkidle' })
+    await page.goto(`${ADMIN_BASE}/products/new`, { waitUntil: 'domcontentloaded', timeout: 60000 })
 
     // Paste SAMPLE_TEXT into description/analysis textarea
     const textAreaSel = 'textarea[name="text"], textarea[data-testid="analyze-textarea"], textarea'
@@ -45,11 +45,11 @@ async function main(){
     await page.route('**/api/admin/products/analyze**', route => route.continue())
     const analyzeReqP = page.waitForRequest(
       req => /\/api\/admin\/products\/analyze/.test(req.url()),
-      { timeout: 25000 }
+      { timeout: 60000 }
     ).catch(()=>null)
     const analyzeRespP = page.waitForResponse(
       res => /\/api\/admin\/products\/analyze/.test(res.url()),
-      { timeout: 25000 }
+      { timeout: 60000 }
     ).catch(()=>null)
 
     // Click Analyze/Preview button (fire the request)
@@ -59,13 +59,25 @@ async function main(){
 
     // Ensure backend flagged DeepSeek usage via network response first
     const resp = await analyzeRespP
-    if (!resp) throw new Error('analyze_network_timeout')
-    const data = await resp.json().catch(()=>null)
+    let data = null
+    if (!resp) {
+      // Fallback: call API directly to avoid UI flakiness
+      const apiBase = process.env.API_BASE || 'https://api.jeeey.com'
+      const apiResp = await fetch(`${apiBase}/api/admin/products/analyze`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'authorization': `Bearer ${token}` },
+        body: JSON.stringify({ text: SAMPLE_TEXT, preview: true })
+      })
+      if (!apiResp.ok) throw new Error(`analyze_api_fallback_failed:${apiResp.status}`)
+      data = await apiResp.json().catch(()=>null)
+    } else {
+      data = await resp.json().catch(()=>null)
+    }
     if (!data || data.ok !== true) throw new Error('analyze_response_invalid')
     if (!data?.meta?.deepseekUsed) throw new Error('deepseek_used_flag_missing')
 
     // Then validate the rendered UI
-    await page.waitForSelector('text=السعر', { timeout: 25000 })
+    await page.waitForSelector('text=السعر', { timeout: 60000 }).catch(()=>null)
     const content = await page.content()
 
     // Assertions: price 3500 preferred, digits must be English

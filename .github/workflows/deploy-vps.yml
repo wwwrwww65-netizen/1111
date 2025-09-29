@@ -95,6 +95,7 @@ jobs:
             chmod 755 "$GITHUB_WORKSPACE/.ssh"
             chmod 644 "$GITHUB_WORKSPACE/.ssh/deploy_key"
             echo "SSH_KEY_PATH=$GITHUB_WORKSPACE/.ssh/deploy_key" >> "$GITHUB_ENV"
+            echo "HAVE_SSH=1" >> "$GITHUB_ENV"
           fi
       - name: Write SSH key for preflight (if provided)
         shell: bash
@@ -114,6 +115,7 @@ jobs:
           echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> "$GITHUB_ENV"
 
       - name: Check SSH reachability (preflight with retries and handshake)
+        if: ${{ env.HAVE_SSH == '1' }}
         shell: bash
         run: |
           set -e
@@ -149,6 +151,7 @@ jobs:
           fi
 
       - name: Prepare API env file on server
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -189,6 +192,7 @@ jobs:
             chmod 600 "$F"
 
       - name: Prepare WEB env file on server
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -215,6 +219,7 @@ jobs:
             chmod 600 "$F"
 
       - name: Copy to server
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -226,6 +231,7 @@ jobs:
           target: "/root/"
 
       - name: Remote deploy
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -280,6 +286,7 @@ jobs:
             [ -n "$CERT_EMAIL" ] && ( set +e; CERTBOT_EMAIL="$CERT_EMAIL" PROJECT_DIR="$ROOT" bash "$ROOT/infra/deploy/ensure-https.sh"; set -e ) || echo 'CERTBOT_EMAIL not set; skipping certbot/self-signed step.'
 
       - name: Post-deploy smoke (health, login, static, services)
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -389,6 +396,7 @@ jobs:
             fi
             set -e
       - name: Post-deploy verify registration page and no 0.0.0.0
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -416,6 +424,7 @@ jobs:
               echo 'Found 0.0.0.0 in admin build output'; exit 1; fi
 
       - name: Post-deploy admin login end-to-end trace
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -576,6 +585,7 @@ jobs:
             node -e "process.env.ADMIN_EMAIL='${EMAIL}';process.env.ADMIN_PASSWORD='${PASS}';" scripts/ci/smoke-category-delete.mjs
 
       - name: External HTTPS smoke tests (retry)
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
