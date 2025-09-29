@@ -11,6 +11,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 async function main(){
   const browser = await chromium.launch({ headless: true })
   const ctx = await browser.newContext()
+  await ctx.clearCookies()
   const page = await ctx.newPage()
   try{
     // Network logs (requests/responses)
@@ -45,15 +46,20 @@ async function main(){
     await page.goto(`${MWEB_BASE}/login`, { waitUntil:'domcontentloaded', timeout: 60000 })
     // Fill number and navigate to verify
     await page.fill('input[placeholder="أدخل رقم هاتفك"]', '500000001')
-    await Promise.all([
-      page.waitForURL(/\/verify(\?|$)/, { timeout: 60000 }),
-      page.click('button:has-text("التأكيد عبر واتساب"), button:has-text("تسجيل الدخول")')
-    ])
+    const reqP = page.waitForRequest(r=>/\/api\/auth\/otp\/request/.test(r.url()), { timeout: 60000 })
+    const navP = page.waitForURL(/\/verify(\?|$)/, { timeout: 60000 })
+    await page.click('button:has-text("التأكيد عبر واتساب"), button:has-text("تسجيل الدخول")')
+    const [otpReq] = await Promise.all([reqP, navP])
+    // Derive the exact phone used from request body
+    let e164 = ''
+    try{
+      const body = otpReq.postDataJSON ? otpReq.postDataJSON() : JSON.parse(otpReq.postData()||'{}')
+      e164 = String(body?.phone||'')
+    }catch{ e164 = '' }
+    if (!e164) throw new Error('otp_request_missing_phone')
     // Wait for OTP request response to complete
     await page.waitForResponse(r=>/\/api\/auth\/otp\/request/.test(r.url()) && r.status()===200, { timeout: 20000 })
     // Fetch OTP using test hook (requires MAINTENANCE_SECRET)
-    const dial = '+966'
-    const e164 = dial.replace(/\D/g,'') + '500000001'
     const ms = process.env.MAINTENANCE_SECRET||''
     const hookResp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': ms } })
     if (!hookResp.ok) {
