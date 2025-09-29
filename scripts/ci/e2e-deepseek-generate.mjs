@@ -35,11 +35,20 @@ async function main(){
     await page.waitForSelector('text=Review', { timeout: 60000 })
     // Click توليد to fill fields
     await page.click('button:has-text("توليد")')
-    // Assert fields are filled (name, description, colors, sizes/images optional by type)
+    // Assert fields are filled (name, description) and domain is tableware (not dress)
     const nameVal = await page.inputValue('input:below(:text("اسم المنتج"))')
     if (!nameVal || nameVal.length < 3) throw new Error('name_not_filled')
+    if (/فستان/i.test(nameVal)) throw new Error('wrong_domain_name_dress_detected')
+    if (!/(ملاعق|أدوات\s*مائدة)/i.test(nameVal)) throw new Error('tableware_cue_missing_in_name')
     const descVal = await page.inputValue('textarea:below(:text("الوصف"))')
     if (!descVal || descVal.length < 10) throw new Error('description_not_filled')
+    // Sizes should be empty for tableware
+    const sizesInputSel = 'input:below(:text("المقاسات"))'
+    const sizesPresent = await page.$(sizesInputSel)
+    if (sizesPresent) {
+      const sz = await page.inputValue(sizesInputSel).catch(()=> '')
+      if (sz && sz.trim().length>0) throw new Error('sizes_should_be_empty_for_tableware')
+    }
     // Colors present in variable mode if any
     // Ensure manual fields untouched: SKU stays empty, vendor/category/sale price required not auto-set
     const skuVal = await page.inputValue('input:below(:text("SKU"))').catch(()=> '')
