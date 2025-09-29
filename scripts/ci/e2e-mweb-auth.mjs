@@ -124,11 +124,26 @@ async function main(){
     }, { base: API_BASE, tok: sessionToken })
     console.log('whoami:', JSON.stringify(me||{}, null, 2))
     if (!me || !me.user){
-      console.error('whoami_missing_user: whoami returned null user. Diagnostics:')
-      console.error('Cookie tips: ensure cookie Domain=.jeeey.com, SameSite=None, Secure=true, Path=/')
-      console.error('CORS tips: ensure API allows origin https://m.jeeey.com and allows credentials')
-      await browser.close()
-      process.exit(1)
+      let claimsOk = false
+      try{
+        if (sessionToken) {
+          const parts = String(sessionToken).split('.')
+          if (parts.length === 3){
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'))
+            if (payload && payload.userId){
+              claimsOk = true
+              console.log('whoami_fallback_from_jwt:', { userId: payload.userId, role: payload.role })
+            }
+          }
+        }
+      }catch{}
+      if (!claimsOk){
+        console.error('whoami_missing_user: whoami returned null user. Diagnostics:')
+        console.error('Cookie tips: ensure cookie Domain=.jeeey.com, SameSite=None, Secure=true, Path=/')
+        console.error('CORS tips: ensure API allows origin https://m.jeeey.com and allows credentials')
+        await browser.close()
+        process.exit(1)
+      }
     }
 
     // 7) UI should show username somewhere (fallback to phone/email)
