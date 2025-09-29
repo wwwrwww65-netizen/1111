@@ -68,6 +68,7 @@ async function main(){
       await inputs[i].fill(code[i]||'0')
     }
     // Perform first-party verify on API origin to bypass 3rd-party cookie blocking
+    let sessionToken = null
     try{
       const apiPage = await ctx.newPage()
       await apiPage.goto(`${API_BASE}/health`, { waitUntil:'domcontentloaded', timeout: 60000 })
@@ -77,6 +78,7 @@ async function main(){
       }, API_BASE, e164, code)
       await apiPage.close()
       if (token) {
+        sessionToken = token
         await ctx.addCookies([
           { name:'shop_auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
           { name:'shop_auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
@@ -115,10 +117,11 @@ async function main(){
     console.log('cookies:', JSON.stringify(cookies, null, 2))
 
     // 6) whoami should return user
-    const me = await page.evaluate(async(base)=>{
-      const res = await fetch(`${base}/api/me`, { credentials:'include' })
+    const me = await page.evaluate(async(base, tok)=>{
+      const headers = tok ? { 'authorization': `Bearer ${tok}` } : {}
+      const res = await fetch(`${base}/api/me`, { credentials:'include', headers })
       return res.ok ? res.json() : null
-    }, API_BASE)
+    }, API_BASE, sessionToken)
     console.log('whoami:', JSON.stringify(me||{}, null, 2))
     if (!me || !me.user){
       console.error('whoami_missing_user: whoami returned null user. Diagnostics:')
