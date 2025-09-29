@@ -39,6 +39,7 @@ jobs:
           API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs
 

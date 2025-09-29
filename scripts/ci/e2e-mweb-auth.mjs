@@ -49,11 +49,17 @@ async function main(){
       page.waitForURL(/\/verify(\?|$)/, { timeout: 60000 }),
       page.click('button:has-text("التأكيد عبر واتساب"), button:has-text("تسجيل الدخول")')
     ])
-    // Fetch OTP using test hook
+    // Wait for OTP request response to complete
+    await page.waitForResponse(r=>/\/api\/auth\/otp\/request/.test(r.url()) && r.status()===200, { timeout: 20000 })
+    // Fetch OTP using test hook (requires MAINTENANCE_SECRET)
     const dial = '+966'
     const e164 = dial.replace(/\D/g,'') + '500000001'
-    const hook = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': process.env.MAINTENANCE_SECRET||'' } }).then(r=>r.ok?r.json():null).catch(()=>null)
-    const code = hook?.code || '000000'
+    const ms = process.env.MAINTENANCE_SECRET||''
+    const hookResp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': ms } })
+    if (!hookResp.ok) {
+      throw new Error(`otp_hook_failed:${hookResp.status} (ensure MAINTENANCE_SECRET is set in workflow secrets)`) }
+    const hook = await hookResp.json().catch(()=>null)
+    const code = String(hook?.code||'').padStart(6,'0').slice(0,6)
     // Fill 6 inputs
     for (let i=0;i<6;i++){
       await page.fill(`input:nth-of-type(${i+1})`, String(code[i]||'0'))
