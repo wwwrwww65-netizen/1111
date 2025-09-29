@@ -47,8 +47,8 @@ assert.ok(
 )
 
 // Validate digits are English (no Arabic/Indic numerals)
-const arabicDigits = /[\u0660-\u0669\u06F0-\u06F9]/
-if (arabicDigits.test(JSON.stringify(a))) {
+const ARABIC_DIGITS = /[\u0660-\u0669\u06F0-\u06F9]/
+if (ARABIC_DIGITS.test(JSON.stringify(a))) {
   throw new Error('non_english_digits_detected')
 }
 
@@ -78,22 +78,15 @@ const keywords = a?.keywords?.value || []
 console.log(`🔑 الكلمات المفتاحية:`, keywords.slice(0, 5))
 
 // التحقق من الأرقام الإنجليزية فقط
-const arabicDigits = /[\u0660-\u0669\u06F0-\u06F9]/
-if (arabicDigits.test(JSON.stringify(a))) {
+if (ARABIC_DIGITS.test(JSON.stringify(a))) {
   throw new Error('non_english_digits_detected')
 }
 
-// تقرير النجاح
-console.log('✅ analyze smoke OK:', {
+// تقرير مبسط للنجاح
+console.log('✅ analyze smoke OK (summary):', {
   name: a.name.value,
-  name_length: nameWordCount,
   low: a.price_range.value.low,
   colors: (a.colors?.value||[]).slice(0,3),
   sizes: (a.sizes?.value||[]).slice(0,3),
-  has_table: hasTableFormat,
   deepseek_used: j?.meta?.deepseekUsed
 })
-
-console.log('🎯 DeepSeek يعمل بشكل', 
-  nameWordCount >= 8 && hasTableFormat ? 'ممتاز' : 'جيد لكن يحتاج تحسين'
-)
