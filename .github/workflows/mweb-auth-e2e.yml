@@ -43,3 +43,31 @@ jobs:
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs
 
+  e2e-admin-generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: e2e-mweb-auth
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        working-directory: scripts/ci
+        run: |
+          npm ci || npm i
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E DeepSeek Generate
+        env:
+          ADMIN_BASE: ${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}
+          API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        working-directory: scripts/ci
+        run: node e2e-deepseek-generate.mjs
+
