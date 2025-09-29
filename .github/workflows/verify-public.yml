@@ -21,17 +21,17 @@ jobs:
       - name: Prime known_hosts
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
           mkdir -p ~/.ssh
           if [ -n "$VPS_HOST" ]; then ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true; fi
 
       - name: Run HTTPS/API checks from VPS (avoids runner egress issues)
         env:
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
           set -e
           HOST="${VPS_HOST:-}"

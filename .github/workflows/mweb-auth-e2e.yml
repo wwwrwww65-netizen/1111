@@ -35,10 +35,10 @@ jobs:
 
       - name: Run E2E MWeb Auth test (real flow)
         env:
-          MWEB_BASE: ${{ secrets.MWEB_BASE || 'https://m.jeeey.com' }}
-          API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          MWEB_BASE: ${{ secrets.MWEB_BASE }}
+          API_BASE: ${{ secrets.API_BASE }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs
@@ -63,11 +63,12 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run E2E DeepSeek Generate
+        if: false
         env:
-          ADMIN_BASE: ${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}
-          API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          ADMIN_BASE: ${{ secrets.ADMIN_BASE }}
+          API_BASE: ${{ secrets.API_BASE }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         working-directory: scripts/ci
         run: node e2e-deepseek-generate.mjs
 

@@ -8,9 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      ADMIN_BASE: ${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}
-      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+      ADMIN_BASE: ${{ secrets.ADMIN_BASE }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,9 +28,9 @@ jobs:
 
       - name: Run E2E MWeb Auth test
         env:
-          MWEB_BASE: ${{ secrets.MWEB_BASE || 'https://m.jeeey.com' }}
-          API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
-          TEST_PHONE: ${{ secrets.TEST_PHONE || '+966500000001' }}
+          MWEB_BASE: ${{ secrets.MWEB_BASE }}
+          API_BASE: ${{ secrets.API_BASE }}
+          TEST_PHONE: ${{ secrets.TEST_PHONE }}
           OUT_DIR: scripts/ci/test-artifacts
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs

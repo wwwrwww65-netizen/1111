@@ -127,10 +127,11 @@ jobs:
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> $GITHUB_ENV
           echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET }}" >> $GITHUB_ENV
 
-      - name: Set DATABASE URLs (prefer local CI service)
+      - name: Set DATABASE URLs (from Secrets only)
         run: |
-          echo "DATABASE_URL=${{ vars.CI_DB_URL || secrets.CI_DB_URL || 'postgresql://user:password@localhost:5432/ecom_db?schema=public' }}" >> $GITHUB_ENV
-          echo "DIRECT_URL=${{ vars.CI_DB_URL || secrets.CI_DB_URL || 'postgresql://user:password@localhost:5432/ecom_db?schema=public' }}" >> $GITHUB_ENV
+          : "${{ secrets.CI_DB_URL }}"
+          echo "DATABASE_URL=${{ secrets.CI_DB_URL }}" >> $GITHUB_ENV
+          echo "DIRECT_URL=${{ secrets.CI_DB_URL }}" >> $GITHUB_ENV
           echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
       - name: Reset CI database schema (ephemeral)
@@ -322,8 +323,8 @@ jobs:
 
       - name: Ensure admin for analyze smoke
         env:
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
         run: |
           set -e
@@ -346,8 +347,8 @@ jobs:
         env:
           API_BASE: 'http://localhost:4000'
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           set -e
           node scripts/ci/smoke-analyze-deepseek.mjs
