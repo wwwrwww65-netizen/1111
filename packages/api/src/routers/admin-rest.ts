@@ -3614,24 +3614,55 @@ adminRest.post('/products/analyze', async (req, res) => {
     try {
       const raw = String(((req as any).body?.text) || '')
       const ensureColors = ((): string[] => {
-        const colorMap: Record<string,string> = {
-          'اسود':'أسود','أسود':'أسود','ابيض':'أبيض','أبيض':'أبيض','احمر':'أحمر','أحمر':'أحمر','ازرق':'أزرق','أزرق':'أزرق','اخضر':'أخضر','أخضر':'أخضر','اصفر':'أصفر','أصفر':'أصفر','بنفسجي':'بنفسجي','بني':'بني','بيج':'بيج','رمادي':'رمادي','كحلي':'كحلي','وردي':'وردي','ذهبي':'ذهبي','فضي':'فضي'
+        const generalPhrases = [
+          /\b(?:4\s*ألوان|٤\s*ألوان)\b/i,
+          /\bألوان\s*متعددة\b/i,
+          /\bألوان\s*متنوعة\b/i,
+          /\bعدة\s*ألوان\b/i
+        ]
+        const general = generalPhrases.map(re=> (raw.match(re)||[])[0]).filter(Boolean)[0]
+        if (general) return Array.from(new Set([...(out.colors||[] as string[]), general]))
+
+        const normalize = (s:string)=> s.replace(/\s{2,}/g,' ').replace(/\s*[-–—]\s*/g,'-').trim()
+        const pushAll = (acc:Set<string>, text:string)=>{
+          text.split(/[،;,\n]+/).map(t=> normalize(t)).filter(Boolean).forEach(t=> acc.add(t))
         }
-        const found = Array.from(new Set((raw.match(/(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|بني|بيج|رمادي|كحلي|وردي|ذهبي|فضي)/gi) || []).map(v=> colorMap[v] || v)))
-        const merged = Array.from(new Set([...(out.colors||[]), ...found]))
-        return merged
+        const acc = new Set<string>(out.colors||[])
+        // Known/common color vocabulary (Arabic + variants)
+        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ورديه|ذهبي|فضي|اوف\s*-?\s*وايت|أوف\s*-?\s*وايت)/gi
+        const lexFound = raw.match(colorLex) || []
+        lexFound.forEach(w=> acc.add(normalize(w.replace(/ورديه/i,'وردي'))))
+        // After "الألوان:" list
+        const listMatch = raw.match(/الألوان\s*[:\-]\s*([^\n]+)/i)
+        if (listMatch) pushAll(acc, listMatch[1])
+        // "باللون/لون <phrase>"
+        const byColor = Array.from(raw.matchAll(/(?:باللون|لون)\s+([^\s،\.]+(?:\s+[^\s،\.]+)?)/gi))
+        byColor.forEach(m=> acc.add(normalize(m[1])))
+        return Array.from(acc)
       })()
       if (!out.colors || (out.colors as string[]).length === 0) { (out as any).colors = ensureColors; (sources as any).colors = { source:'ai', confidence: 0.65 } }
 
       const ensureSizes = ((): string[] => {
-        const tokens = Array.from(new Set((raw.match(/\b(XXL|XL|LX|L|M|S|XS|XXS|3XL|4XL)\b/gi) || []).map(s=> s.toUpperCase().replace('LX','XL'))))
-        // Simple Arabic size hints
-        const arabicHints: Array<{ re: RegExp; add: string }> = [
-          { re:/فري\s*سايز|مقاس\s*واحد/i, add:'FREE' },
-        ]
-        for (const h of arabicHints){ if (h.re.test(raw)) tokens.push(h.add) }
-        const merged = Array.from(new Set([...(out.sizes||[] as string[]), ...tokens]))
-        return merged
+        const acc = new Set<string>(out.sizes||[])
+        const norm = (s:string)=> s.toUpperCase().replace(/\s+/g,'')
+        // X-based sizes: XS, S, M, L, XL, XXL ... up to 6X, with or without spaces
+        const xMatches = raw.match(/\b(?:[2-9]?\s*X{1,6}\s*(?:S|L)|XS|S|M|L|XL|XXL|XXXL|XXXXL|XXXXXL|XXXXXXL)\b/gi) || []
+        xMatches.forEach(s=> acc.add(norm(s).replace('LX','XL')))
+        // Numeric sizes (e.g., 38-44)
+        const rangeRe = /(\b\d{2})\s*(?:الى|إلى|to|[-–—])\s*(\d{2}\b)/gi
+        for (const m of raw.matchAll(rangeRe)){
+          const a = Number(m[1]); const b = Number(m[2])
+          if (Number.isFinite(a) && Number.isFinite(b)){
+            const lo = Math.min(a,b), hi = Math.max(a,b)
+            if (lo>=20 && hi<=60 && hi-lo<=20){ for (let v=lo; v<=hi; v++) acc.add(String(v)) }
+          }
+        }
+        // Standalone numeric sizes within plausible apparel range 20–60
+        const numMatches = raw.match(/\b(\d{2})\b/g) || []
+        numMatches.forEach(n=> { const v = Number(n); if (v>=20 && v<=60) acc.add(String(v)) })
+        // Arabic hints
+        if (/فري\s*سايز|مقاس\s*واحد/i.test(raw)) acc.add('FREE')
+        return Array.from(acc)
       })()
       if (!out.sizes || (out.sizes as string[]).length === 0) { (out as any).sizes = ensureSizes; (sources as any).sizes = { source:'ai', confidence: 0.65 } }
 
