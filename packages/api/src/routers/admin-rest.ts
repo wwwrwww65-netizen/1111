@@ -3611,6 +3611,35 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
       }
     } catch {}
+
+    // Global enforcement: ensure product name is not generic or too short in ANY mode
+    try {
+      const raw = String(((req as any).body?.text) || '')
+      const genericOnly = new Set(['فستان','لانجري','لنجري','جلابية','جلابيه','عباية','قميص','بلوزة','بلوزه'])
+      const wc = (s:string)=> s.trim().split(/\s+/).filter(Boolean).length
+      const curName = String(out.name||'').trim()
+      const needsEnrich = !curName || wc(curName) < 4 || genericOnly.has(curName)
+      if (needsEnrich) {
+        const isSet = /(طقم)/i.test(raw)
+        const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
+        const isDress = /(فستان|فسان)/i.test(raw)
+        const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
+        const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : (curName||'فستان'))))
+        const feats:string[] = []
+        if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
+        else if (/(رجالي|رجالية)/i.test(raw)) feats.push('رجالي')
+        if (/صوف|wool/i.test(raw)) feats.push('صوف')
+        if (/قطن|cotton/i.test(raw)) feats.push('قطن')
+        if (/حرير|silk/i.test(raw)) feats.push('حرير')
+        if (/شيفون|chiffon/i.test(raw)) feats.push('شيفون')
+        if (/تطريز|مطرز/i.test(raw) && baseType!=='لانجري') feats.push('مطرز')
+        if (/كرستال|كريستال/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
+        if (/كم\s*كامل/i.test(raw)) feats.push('كم كامل')
+        if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
+        const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
+        if (wc(enriched) >= 4) { out.name = enriched.slice(0,60); (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
+      }
+    } catch {}
     // Attach per-field reasons if missing
     // Use raw text to detect plural-colors mention without relying on local variables' scope
     const rawTextForNotes = String(((req as any).body?.text) || '');
