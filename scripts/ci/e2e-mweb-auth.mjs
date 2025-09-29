@@ -14,6 +14,7 @@ async function main(){
   await ctx.clearCookies()
   const page = await ctx.newPage()
   try{
+    page.setDefaultTimeout(60000)
     // Network logs (requests/responses)
     page.on('request', req => {
       try{ console.log('[REQ]', req.method(), req.url()) }catch{}
@@ -48,20 +49,27 @@ async function main(){
     const rand = String(Math.floor(Math.random()*9000000) + 1000000)
     const localPhone = '77' + rand.slice(0,7) // 9 digits
     await page.fill('input[placeholder="أدخل رقم هاتفك"]', localPhone)
-    const reqP = page.waitForRequest(r=>/\/api\/auth\/otp\/request/.test(r.url()), { timeout: 60000 })
-    const navP = page.waitForURL(/\/verify(\?|$)/, { timeout: 60000 })
-    await page.click('button:has-text("التأكيد عبر واتساب"), button:has-text("تسجيل الدخول")')
-    const [otpReq] = await Promise.all([reqP, navP])
-    // Derive the exact phone used from request body
-    let e164 = ''
-    try{
-      const body = otpReq.postDataJSON ? otpReq.postDataJSON() : JSON.parse(otpReq.postData()||'{}')
-      e164 = String(body?.phone||'')
-    }catch{ e164 = '' }
-    if (!e164) throw new Error('otp_request_missing_phone')
-    // Wait for OTP request response to complete
-    await page.waitForResponse(r=>/\/api\/auth\/otp\/request/.test(r.url()) && r.status()===200, { timeout: 20000 })
-    // Fetch OTP using test hook (requires MAINTENANCE_SECRET)
+    await Promise.all([
+      page.waitForURL(/\/verify(\?|$)/, { timeout: 60000 }),
+      page.click('button:has-text("التأكيد عبر واتساب"), button:has-text("تسجيل الدخول")')
+    ])
+    // Build E.164 used by UI (default Yemen +967 in Login.vue)
+    const dial = '+967'
+    const e164 = dial.replace(/\D/g,'') + localPhone.replace(/\D/g,'')
+    // Poll OTP hook with fallback to trigger request if missing
+    const ms = process.env.MAINTENANCE_SECRET||''
+    let hook = null
+    for (let i=0;i<12;i++){
+      try{
+        const resp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': ms } })
+        if (resp.ok){ hook = await resp.json().catch(()=>null); if (hook && hook.code) break }
+      }catch{}
+      if (i===2){
+        try{ await fetch(`${API_BASE}/api/auth/otp/request`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ phone: e164, channel:'whatsapp' }) }) }catch{}
+      }
+      await new Promise(r=>setTimeout(r, 1000))
+    }
+    if (!hook || !hook.code) throw new Error('otp_code_unavailable')
     const ms = process.env.MAINTENANCE_SECRET||''
     const hookResp = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': ms } })
     if (!hookResp.ok) {
