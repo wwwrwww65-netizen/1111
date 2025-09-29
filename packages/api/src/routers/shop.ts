@@ -310,8 +310,8 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
       if (root) res.clearCookie('auth_token', { domain: `api.${root}`, path: '/' });
     } catch {}
-    // Primary cookie on root/domain
-    res.cookie('auth_token', token, {
+    // Primary cookie on root/domain (shop-specific name to avoid admin collisions)
+    res.cookie('shop_auth_token', token, {
       httpOnly: true,
       domain: cookieDomain,
       sameSite: isProd ? 'none' : 'lax',
@@ -323,7 +323,7 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     try {
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
       if (root) {
-        res.cookie('auth_token', token, {
+        res.cookie('shop_auth_token', token, {
           httpOnly: true,
           domain: `api.${root}`,
           sameSite: isProd ? 'none' : 'lax',
