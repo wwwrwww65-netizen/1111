@@ -1,0 +1,37 @@
+name: DeepSeek E2E (Admin UI)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  e2e-admin-deepseek:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ADMIN_BASE: ${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        working-directory: scripts/ci
+        run: |
+          npm ci || npm i
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E DeepSeek test
+        working-directory: scripts/ci
+        run: node e2e-deepseek.spec.mjs
+
+      - name: Report success
+        if: success()
+        run: echo "✅ E2E DeepSeek passed"
