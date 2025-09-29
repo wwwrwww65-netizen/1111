@@ -38,7 +38,9 @@ onMounted(async ()=>{
     const me = await apiGet<any>('/api/me')
     if (me && me.user) {
       user.isLoggedIn = true
-      if (me.user.name) user.username = String(me.user.name)
+      if (me.user.name || me.user.email || me.user.phone) {
+        user.username = String(me.user.name || me.user.email || me.user.phone)
+      }
       return
     }
   }catch{}

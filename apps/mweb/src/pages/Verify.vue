@@ -86,11 +86,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowRight, AlertCircle, Gift, Star, Check } from 'lucide-vue-next'
-import { apiPost } from '@/lib/api'
+import { apiPost, apiGet } from '@/lib/api'
+import { useUser } from '@/store/user'
 
 const primary = '#8a1538'
 const router = useRouter()
 const route = useRoute()
+const user = useUser()
 
 const countryDial = ref<string>(route.query.dial ? String(route.query.dial) : '+966')
 const phone = ref<string>(route.query.phone ? String(route.query.phone) : '')
@@ -189,6 +191,16 @@ async function onSubmit(){
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r: any = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
     if (r && r.ok){
+      // Fetch session and hydrate user store before redirect
+      try{
+        const me = await apiGet<any>('/api/me')
+        if (me && me.user){
+          user.isLoggedIn = true
+          if (me.user.name || me.user.email || me.user.phone){
+            user.username = String(me.user.name || me.user.email || me.user.phone)
+          }
+        }
+      }catch{}
       const ret = String(route.query.return || '/account')
       if (r.newUser) router.push({ path: '/complete-profile', query: { return: ret } })
       else router.push(ret)
