@@ -82,6 +82,12 @@ async function main(){
           await page.evaluate(async(base, phone, code) => {
             await fetch(`${base}/api/auth/otp/verify`, { method:'POST', credentials:'include', headers:{'content-type':'application/json'}, body: JSON.stringify({ phone, code }) })
           }, API_BASE, e164, code)
+          // Probe whoami immediately to solidify cookie
+          const meProbe = await page.evaluate(async(base)=>{
+            const r = await fetch(`${base}/api/me`, { credentials:'include' });
+            if (!r.ok) return null; try{ return await r.json() }catch{return null}
+          }, API_BASE)
+          if (meProbe && meProbe.user) { cookieOk = true; break }
         }catch{}
       }
       await new Promise(r=>setTimeout(r, 500))
