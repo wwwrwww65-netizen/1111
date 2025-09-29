@@ -146,7 +146,7 @@ async function getLatestIntegration(provider: string): Promise<any|null> {
 
 async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('whatsapp');
-  if (!cfg || !cfg.enabled) return false;
+  if (!cfg || cfg.enabled === false) return false; // treat missing enabled as true
   const token = cfg.token; const phoneId = cfg.phoneId; const template = cfg.template; let languageCode = cfg.languageCode || 'ar';
   const headerType = cfg.headerType; const headerParam = cfg.headerParam;
   // Normalize language naming like "arabic" => "ar"
