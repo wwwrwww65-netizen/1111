@@ -8,18 +8,16 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: app
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - name: Setup PostgreSQL (no Docker)
+        uses: shogo82148/actions-setup-postgresql@v1
+        with:
+          postgresql-version: '15'
+      - name: Init database
+        run: |
+          psql -U postgres -h localhost -p 5432 -c "ALTER USER postgres WITH PASSWORD 'postgres';" || true
+          psql -U postgres -h localhost -p 5432 -tc "SELECT 1 FROM pg_database WHERE datname = 'app'" | grep -q 1 || psql -U postgres -h localhost -p 5432 -c "CREATE DATABASE app;"
       - uses: pnpm/action-setup@v2
         with:
           version: 8
