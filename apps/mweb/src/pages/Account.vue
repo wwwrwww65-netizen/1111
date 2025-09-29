@@ -1,5 +1,8 @@
 <template>
-  <main class="account" dir="rtl" lang="ar" v-if="user.isLoggedIn">
+  <div v-if="!hydrated" class="account-loading" dir="rtl" lang="ar">
+    <section class="box" style="margin-top:24px">جاري التحميل…</section>
+  </div>
+  <main class="account" dir="rtl" lang="ar" v-else-if="user.isLoggedIn">
     <ProfileHeroCard />
     <ClubStatsStrip />
     <ActivitySummaryRow />
@@ -22,7 +25,7 @@ import ActivitySummaryRow from '@/components/account/ActivitySummaryRow.vue'
 import OrderStatusRow from '@/components/account/OrderStatusRow.vue'
 import ServicesGrid from '@/components/ServicesGrid.vue'
 import PromoProductCard from '@/components/account/PromoProductCard.vue'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
 import { apiGet } from '@/lib/api'
@@ -41,15 +44,20 @@ onMounted(async ()=>{
       if (me.user.name || me.user.email || me.user.phone) {
         user.username = String(me.user.name || me.user.email || me.user.phone)
       }
+      hydrated.value = true
       return
     }
   }catch{}
   user.isLoggedIn = false
+  hydrated.value = true
 })
+
+const hydrated = ref(false)
 </script>
 
 <style scoped>
 .account{background:#f5f6f8;min-height:100dvh}
 .box{margin:0 12px}
+.account-loading{background:#f5f6f8;min-height:100dvh;display:flex;align-items:flex-start;justify-content:stretch}
 </style>
 
