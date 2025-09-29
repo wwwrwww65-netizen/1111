@@ -283,7 +283,77 @@ export async function callDeepseekPreview(opts: {
     const firstBrace = content.indexOf('{')
     const lastBrace = content.lastIndexOf('}')
     const slice = (firstBrace>=0 && lastBrace>firstBrace) ? content.slice(firstBrace, lastBrace+1) : content
-    try { return JSON.parse(slice) } catch { return null }
+    let parsed: any = null
+    try { parsed = JSON.parse(slice) } catch { return null }
+    // Post-process preview: enforce English digits, correct price selection, preserve general color phrases
+    try {
+      const raw = String(input.text || '')
+      const normalizeDigits = (s: string): string => {
+        if (!s) return s
+        const map: Record<string, string> = {
+          '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9',
+          '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'
+        }
+        return String(s).replace(/[٠-٩۰-۹]/g, d => map[d] || d)
+      }
+      const normAll = (val: any): any => {
+        if (typeof val === 'string') return normalizeDigits(val)
+        if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? normalizeDigits(v) : v)
+        return val
+      }
+      // Normalize digits in key fields
+      parsed.name = normAll(parsed.name)
+      parsed.description = normAll(parsed.description)
+      parsed.colors = normAll(parsed.colors)
+      parsed.sizes = normAll(parsed.sizes)
+      parsed.keywords = normAll(parsed.keywords)
+
+      // Price priority: old/north -> buy -> first/lowest; ignore weights
+      const t = normalizeDigits(raw)
+      const weightContext = /(وزن|يلبس\s*الى|يلبس\s*إلى|حتى\s*وزن)/i
+      const toNum = (s?: string): number | undefined => {
+        if (!s) return undefined
+        const m = String(s).match(/\d+(?:\.\d+)?/)
+        return m ? Number(m[0]) : undefined
+      }
+      const get = (re: RegExp) => {
+        const m = t.match(re)
+        return m && toNum(m[1])
+      }
+      const old = get(/(?:(?:عمل(?:ة|ه)\s*)?(?:قديم|القديم)|ريال\s*قديم|سعر\s*شمال)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+      const north = get(/(?:للشمال|الشمال)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+      const buy = get(/(?:سعر\s*الشراء)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+      const firstAny = get(/\b(?:السعر|سعر)\b[^\d]{0,12}(\d+(?:\.\d+)?)/i)
+      const candidates: Array<number|undefined> = [old ?? undefined, north ?? undefined, buy ?? undefined, firstAny ?? undefined]
+      let chosen = candidates.find(v => typeof v === 'number') as number | undefined
+      if ((chosen === undefined || chosen <= 100) && weightContext.test(t)) {
+        // try to find any number > 100 among candidates
+        const gt = candidates.find(v => typeof v === 'number' && (v as number) > 100) as number | undefined
+        if (gt !== undefined) chosen = gt
+      }
+      // If multiple prices appear in text and none chosen, pick lowest > 100 as fallback
+      if (chosen === undefined) {
+        const allNums = Array.from(t.matchAll(/\b(\d+(?:\.\d+)?)\b/g)).map(m => Number(m[1]))
+        const plausible = allNums.filter(n => n > 100)
+        if (plausible.length) chosen = Math.min(...plausible)
+      }
+      const parsedNum = typeof parsed.price === 'number' ? parsed.price : toNum(String(parsed.price||''))
+      if (typeof chosen === 'number' && (!parsedNum || parsedNum !== chosen)) parsed.price = chosen
+
+      // Colors: preserve general phrases like "4 ألوان/٤ ألوان/ألوان متعددة/أربعة ألوان/اربعه الوان"
+      const generalPhraseMatch = t.match(/\b(?:4\s*ألوان|٤\s*ألوان|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان|أربعة\s*ألوان|اربعه\s*الوان)\b/i)
+      if (generalPhraseMatch) parsed.colors = [generalPhraseMatch[0]]
+
+      // Keywords: drop trivial stopwords and very short tokens
+      if (Array.isArray(parsed.keywords)) {
+        const stop = new Set(['على','نوع','وصل','كل','الى','إلى','ال','من','في','او','أو','مع'])
+        parsed.keywords = parsed.keywords
+          .map((k: any) => String(k||'').trim())
+          .filter((k: string) => k.length >= 3 && !stop.has(k))
+          .slice(0, 8)
+      }
+    } catch {}
+    return parsed
   } catch { return null } finally { clearTimeout(t) }
 }
 
