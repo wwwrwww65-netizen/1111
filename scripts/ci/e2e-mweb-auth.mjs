@@ -42,7 +42,28 @@ async function main(){
       { name:'auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
       { name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
     ])
-    await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded', timeout: 60000 })
+    await page.goto(`${MWEB_BASE}/login`, { waitUntil:'domcontentloaded', timeout: 60000 })
+    // Fill number and navigate to verify
+    await page.fill('input[placeholder="أدخل رقم هاتفك"]', '500000001')
+    await Promise.all([
+      page.waitForURL(/\/verify(\?|$)/, { timeout: 60000 }),
+      page.click('button:has-text("التأكيد عبر واتساب"), button:has-text("تسجيل الدخول")')
+    ])
+    // Fetch OTP using test hook
+    const dial = '+966'
+    const e164 = dial.replace(/\D/g,'') + '500000001'
+    const hook = await fetch(`${API_BASE}/api/test/otp/latest?phone=${e164}`, { headers: { 'x-maintenance-secret': process.env.MAINTENANCE_SECRET||'' } }).then(r=>r.ok?r.json():null).catch(()=>null)
+    const code = hook?.code || '000000'
+    // Fill 6 inputs
+    for (let i=0;i<6;i++){
+      await page.fill(`input:nth-of-type(${i+1})`, String(code[i]||'0'))
+    }
+    await Promise.all([
+      page.waitForResponse(r=>/\/api\/auth\/otp\/verify/.test(r.url()), { timeout: 20000 }),
+      page.click('button:has-text("تأكيد الرمز")')
+    ])
+    // Expect redirect to complete-profile if new or incomplete
+    await page.waitForURL(/\/complete-profile(\?|$)|\/account(\?|$)/, { timeout: 20000 })
 
     // Diagnostics: dump cookies and attempt whoami from within page
     const cookies = await ctx.cookies()

@@ -44,6 +44,14 @@ onMounted(async ()=>{
       if (me.user.name || me.user.email || me.user.phone) {
         user.username = String(me.user.name || me.user.email || me.user.phone)
       }
+      // If profile incomplete (no name), guide to complete-profile
+      const name = String(me.user.name||'').trim()
+      if (!name){
+        const ret = (typeof window!=='undefined') ? (location.pathname + location.search) : '/account'
+        router.push({ path: '/complete-profile', query: { return: ret } })
+        hydrated.value = true
+        return
+      }
       hydrated.value = true
       return
     }

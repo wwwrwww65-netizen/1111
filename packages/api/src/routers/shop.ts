@@ -316,6 +316,23 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_verify_failed' }); }
 });
 
+// Test-only: latest OTP code for a phone (protected by maintenance secret)
+shop.get('/test/otp/latest', async (req: any, res) => {
+  try {
+    const secret = String(req.headers['x-maintenance-secret']||'')
+    const expected = process.env.MAINTENANCE_SECRET || ''
+    if (!expected || secret !== expected) return res.status(403).json({ error: 'forbidden' })
+    const phone = String(req.query?.phone||'').trim()
+    if (!phone) return res.status(400).json({ error: 'phone_required' })
+    await ensureOtpTable()
+    const row: any = ((await db.$queryRawUnsafe('SELECT code, "createdAt" FROM "OtpCode" WHERE phone=$1 ORDER BY COALESCE("createdAt", NOW()) DESC LIMIT 1', phone)) as any[])[0]
+    if (!row) return res.status(404).json({ error: 'not_found' })
+    return res.json({ code: String(row.code||''), createdAt: row.createdAt })
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message||'failed' })
+  }
+})
+
 // Session info (optional auth)
 // Notification preferences
 shop.get('/me/preferences', requireAuth, async (req: any, res) => {

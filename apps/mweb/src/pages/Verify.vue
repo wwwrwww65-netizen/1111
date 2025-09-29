@@ -192,8 +192,9 @@ async function onSubmit(){
     const r: any = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
     if (r && r.ok){
       // Fetch session and hydrate user store before redirect
+      let me: any = null
       try{
-        const me = await apiGet<any>('/api/me')
+        me = await apiGet<any>('/api/me')
         if (me && me.user){
           user.isLoggedIn = true
           if (me.user.name || me.user.email || me.user.phone){
@@ -202,7 +203,8 @@ async function onSubmit(){
         }
       }catch{}
       const ret = String(route.query.return || '/account')
-      if (r.newUser) router.push({ path: '/complete-profile', query: { return: ret } })
+      const incomplete = !!(me && me.user && (!me.user.name || String(me.user.name||'').trim().length < 2))
+      if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
       else router.push(ret)
     } else { errorText.value = 'رمز غير صحيح أو منتهي' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
