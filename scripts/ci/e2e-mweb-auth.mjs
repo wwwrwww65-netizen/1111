@@ -70,6 +70,24 @@ async function main(){
     ])
     // Expect redirect to complete-profile if new or incomplete
     await page.waitForURL(/\/complete-profile(\?|$)|\/account(\?|$)/, { timeout: 20000 })
+    // If on complete-profile, fill only name (simulate your case) and submit
+    const isComplete = /\/complete-profile(\?|$)/.test(page.url())
+    if (isComplete){
+      await page.fill('input[placeholder="مثال: محمد أحمد علي سعيد"]', 'مستخدم اختبار')
+      // Password left empty by design
+      await Promise.all([
+        page.waitForURL(/\/account(\?|$)/, { timeout: 20000 }),
+        page.click('button:has-text("تسجيل")')
+      ])
+      // Ensure whoami reflects updated name
+      const me2 = await page.evaluate(async(base)=>{
+        const r = await fetch(`${base}/api/me`, { credentials:'include' });
+        return r.ok ? r.json() : null
+      }, API_BASE)
+      if (!me2 || !me2.user || !me2.user.name || /\d{6,}/.test(String(me2.user.name))){
+        throw new Error('complete_profile_not_applied')
+      }
+    }
 
     // Diagnostics: dump cookies and attempt whoami from within page
     const cookies = await ctx.cookies()
