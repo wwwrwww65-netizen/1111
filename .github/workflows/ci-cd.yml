@@ -142,6 +142,8 @@ jobs:
           if [ -z "$DATABASE_URL" ]; then echo "Skip DB reset (DATABASE_URL is empty)"; exit 0; fi
           sudo apt-get update -y && sudo apt-get install -y postgresql-client || true
           PGURI="$DATABASE_URL"; [[ "$PGURI" == *\?* ]] && PGURI="${PGURI%%\?*}"
+          # Force TCP host if URL is bare database name to avoid socket fallback
+          if [[ "$PGURI" != postgresql*://* ]]; then echo "Invalid DATABASE_URL"; exit 1; fi
           echo "Resetting schema 'public' on CI DB..."
           # Proactively drop any conflicting index that previous runs or manual SQL might have created
           psql "$PGURI" -v ON_ERROR_STOP=1 -c 'DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class WHERE relname = ''Category_slug_key'') THEN EXECUTE ''DROP INDEX IF EXISTS "Category_slug_key"''; END IF; END $$;' || true
