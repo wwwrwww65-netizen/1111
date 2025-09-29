@@ -167,7 +167,7 @@ jobs:
             {
               echo "NODE_ENV=production"
               echo "COOKIE_DOMAIN=${{ vars.COOKIE_DOMAIN || secrets.COOKIE_DOMAIN || '.jeeey.com' }}"
-              echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS || secrets.CORS_ALLOW_ORIGINS || 'https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://api.jeeey.com' }}"
+              echo "CORS_ALLOW_ORIGINS=${{ vars.CORS_ALLOW_ORIGINS || secrets.CORS_ALLOW_ORIGINS || 'https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://m.jeeey.com,https://api.jeeey.com' }}"
               echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com"
               echo "NEXT_PUBLIC_APP_URL=https://jeeey.com"
               echo "JWT_SECRET=${J}"
