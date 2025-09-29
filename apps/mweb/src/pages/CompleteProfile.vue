@@ -31,7 +31,8 @@
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
-import { apiPost } from '@/lib/api'
+import { apiPost, apiGet } from '@/lib/api'
+import { useUser } from '@/store/user'
 const primary = '#8a1538'
 const router = useRouter()
 const route = useRoute()
@@ -47,12 +48,25 @@ async function onSubmit(){
   error.value = ''
   try{
     submitting.value = true
-    const r = await apiPost('/api/me/complete', { fullName: fullName.value.trim(), password: password.value, confirm: confirm.value })
-    if (r && (r as any).ok){
+    const r: any = await apiPost('/api/me/complete', { fullName: fullName.value.trim(), password: password.value, confirm: confirm.value })
+    if (r && r.ok){
+      // Refresh session user and hydrate store
+      try{
+        const me = await apiGet<any>('/api/me')
+        if (me && me.user){
+          const u = useUser()
+          u.isLoggedIn = true
+          if (me.user.name || me.user.email || me.user.phone){
+            u.username = String(me.user.name || me.user.email || me.user.phone)
+          }
+        }
+      }catch{}
       const ret = String(route.query.return||'/account')
       router.push(ret)
     } else {
-      error.value = 'تعذر إكمال إنشاء الحساب'
+      const msg = String((r && (r.error||r.message)) || '')
+      if (msg.includes('invalid_payload')) error.value = 'تحقق من الاسم وكلمة السر (التأكيد مطابق وطول ≥ 6)'
+      else error.value = 'تعذر إكمال إنشاء الحساب'
     }
   } catch { error.value = 'خطأ في الشبكة' } finally { submitting.value = false }
 }
