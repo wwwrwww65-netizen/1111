@@ -153,9 +153,15 @@ jobs:
             {
               echo "NODE_ENV=production"
               echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
-              : "${{ secrets.PUBLIC_API_BASE }}" "${{ secrets.MWEB_BASE_URL }}"
-              echo "PUBLIC_API_BASE=${{ secrets.PUBLIC_API_BASE }}"
-              echo "MWEB_BASE_URL=${{ secrets.MWEB_BASE_URL }}"
+              # Derive PUBLIC_API_BASE and MWEB_BASE_URL from existing public secrets if not explicitly set
+              API_BASE_VAL='${{ secrets.PUBLIC_API_BASE }}'
+              [ -z "$API_BASE_VAL" ] && API_BASE_VAL='${{ secrets.NEXT_PUBLIC_API_BASE_URL }}'
+              MWEB_BASE_VAL='${{ secrets.MWEB_BASE_URL }}'
+              [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_MWEB_URL }}'
+              [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_APP_URL }}'
+              : "$API_BASE_VAL" "$MWEB_BASE_VAL"
+              echo "PUBLIC_API_BASE=$API_BASE_VAL"
+              echo "MWEB_BASE_URL=$MWEB_BASE_VAL"
               echo "CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || vars.CORS_ALLOW_ORIGINS }}"
               echo "NEXT_PUBLIC_ADMIN_URL=${{ secrets.NEXT_PUBLIC_ADMIN_URL || vars.NEXT_PUBLIC_ADMIN_URL }}"
               echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || vars.NEXT_PUBLIC_APP_URL }}"

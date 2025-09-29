@@ -127,16 +127,16 @@ jobs:
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> $GITHUB_ENV
           echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET }}" >> $GITHUB_ENV
 
-      - name: Set DATABASE URLs (from CI Secrets only)
+      - name: Set DATABASE URLs (from Secrets only)
         run: |
-          : "${{ secrets.CI_DATABASE_URL }}" "${{ secrets.CI_DIRECT_URL }}"
-          echo "DATABASE_URL=${{ secrets.CI_DATABASE_URL }}" >> $GITHUB_ENV
-          echo "DIRECT_URL=${{ secrets.CI_DIRECT_URL || secrets.CI_DATABASE_URL }}" >> $GITHUB_ENV
+          : "${{ secrets.DATABASE_URL }}" "${{ secrets.DIRECT_URL }}"
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> $GITHUB_ENV
+          echo "DIRECT_URL=${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}" >> $GITHUB_ENV
           echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}" >> $GITHUB_ENV
 
       - name: Reset CI database schema (ephemeral)
         env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           if [ "${{ secrets.CI_ALLOW_DB_RESET }}" != "1" ]; then echo "Skip DB reset (CI_ALLOW_DB_RESET!=1)"; exit 0; fi
           if [ -z "$DATABASE_URL" ]; then echo "Skip DB reset (DATABASE_URL is empty)"; exit 0; fi
@@ -269,8 +269,8 @@ jobs:
       - name: Run API tests
         env:
           NODE_ENV: test
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          DIRECT_URL: ${{ env.DIRECT_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
           CLONE_PROD_DB: ${{ vars.CLONE_PROD_DB }}
         run: |
           set -e
