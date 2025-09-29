@@ -60,10 +60,10 @@ async function main(){
       throw new Error(`otp_hook_failed:${hookResp.status} (ensure MAINTENANCE_SECRET is set in workflow secrets)`) }
     const hook = await hookResp.json().catch(()=>null)
     const code = String(hook?.code||'').padStart(6,'0').slice(0,6)
-    // Fill 6 inputs
-    for (let i=0;i<6;i++){
-      await page.fill(`input:nth-of-type(${i+1})`, String(code[i]||'0'))
-    }
+    // Fill OTP inputs robustly: focus first input and type the 6 digits (component auto-advances focus)
+    await page.waitForSelector('input[maxlength="1"]', { timeout: 10000 })
+    await page.focus('input[maxlength="1"]')
+    await page.type('input[maxlength="1"]', code, { delay: 50 })
     await Promise.all([
       page.waitForResponse(r=>/\/api\/auth\/otp\/verify/.test(r.url()), { timeout: 20000 }),
       page.click('button:has-text("تأكيد الرمز")')

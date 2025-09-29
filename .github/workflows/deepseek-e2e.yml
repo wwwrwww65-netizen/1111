@@ -2,8 +2,6 @@ name: DeepSeek E2E (Admin UI)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   e2e-admin-deepseek:
