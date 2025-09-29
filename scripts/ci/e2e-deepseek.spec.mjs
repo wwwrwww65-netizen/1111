@@ -12,12 +12,18 @@ async function main(){
   const ctx = await browser.newContext()
   const page = await ctx.newPage()
   try {
-    // Login
-    await page.goto(`${ADMIN_BASE}/login`, { waitUntil: 'networkidle' })
-    await page.fill('input[name="email"]', ADMIN_EMAIL)
-    await page.fill('input[name="password"]', ADMIN_PASSWORD)
-    await page.click('button:has-text("تسجيل"), button:has-text("Login")')
-    await page.waitForURL(/\/dashboard|\/$/,{ timeout: 20000 })
+    // API login to get token and set cookie directly to bypass selector differences
+    const loginResp = await fetch(`${process.env.API_BASE||'https://api.jeeey.com'}/api/admin/auth/login`, {
+      method: 'POST', headers: { 'content-type':'application/json' },
+      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, remember: true })
+    })
+    if (!loginResp.ok) throw new Error(`api_login_failed:${loginResp.status}`)
+    const loginJson = await loginResp.json()
+    const token = loginJson?.token
+    if (!token) throw new Error('api_login_no_token')
+    // Set auth cookie used by admin middleware
+    await ctx.addCookies([{ name: 'auth_token', value: token, url: ADMIN_BASE, path: '/', httpOnly: true }])
+    await page.goto(`${ADMIN_BASE}/`, { waitUntil: 'networkidle' })
 
     // Go to new product page
     await page.goto(`${ADMIN_BASE}/products/new`, { waitUntil: 'networkidle' })
