@@ -3694,7 +3694,10 @@ adminRest.post('/products/analyze', async (req, res) => {
         return xs.join('، ')
       }
 
-      const hasTable = typeof out.description === 'string' && /•\s*الخامة:/i.test(String(out.description))
+      const hasTable = ((): boolean => {
+        const d = (out as any).description
+        return (typeof d === 'string' && /•\s*الخامة:/i.test(d))
+      })()
       if (!hasTable) {
         const colorsForList = (Array.isArray(out.colors) && (out.colors as string[]).length) ? (out.colors as string[]) : ensureColors
         const sizesForList = (Array.isArray(out.sizes) && (out.sizes as string[]).length) ? (out.sizes as string[]) : ensureSizes
@@ -3707,7 +3710,9 @@ adminRest.post('/products/analyze', async (req, res) => {
           `• الميزات: ${featuresLine}`
         ].join('\n')
         ;(out as any).description = desc
-        (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) }
+        const prevConf = Number(((sources as any).description?.confidence) || 0)
+        const newConf = Math.max(0.85, prevConf || 0.8)
+        ;(sources as any).description = { source:'ai', confidence: newConf }
       }
     } catch {}
     // Global enforcement: ensure product name is not generic or too short in ANY mode
