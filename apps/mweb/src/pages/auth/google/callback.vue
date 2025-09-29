@@ -12,8 +12,12 @@ onMounted(()=>{
   try{
     const qs = typeof window !== 'undefined' ? (window.location.search || '') : ''
     const loc = typeof window !== 'undefined' ? window.location : null
-    const ru = loc ? encodeURIComponent(`${loc.origin}${loc.pathname}`) : ''
-    const join = qs && qs.includes('?') ? '' : ''
+    // Decode state to get desired next path (defaults to /account)
+    const sp = new URLSearchParams(qs)
+    const s = sp.get('state') || ''
+    let next = '/account'
+    try{ const obj = JSON.parse(atob(s.replace(/-/g,'+').replace(/_/g,'/'))); if (obj && typeof obj.next === 'string' && obj.next) next = obj.next.startsWith('/')? obj.next : ('/' + obj.next) }catch{}
+    const ru = loc ? encodeURIComponent(`${loc.origin}${next}`) : ''
     const sep = qs ? '&' : '?'
     const url = `${API_BASE}/api/auth/google/callback${qs}${sep}ru=${ru}`
     window.location.replace(url)
