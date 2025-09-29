@@ -3632,10 +3632,18 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (/قطن|cotton/i.test(raw)) feats.push('قطن')
         if (/حرير|silk/i.test(raw)) feats.push('حرير')
         if (/شيفون|chiffon/i.test(raw)) feats.push('شيفون')
-        if (/تطريز|مطرز/i.test(raw) && baseType!=='لانجري') feats.push('مطرز')
-        if (/كرستال|كريستال/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
+        if (/(تطريز|مطرز)/i.test(raw) && baseType!=='لانجري') feats.push('مطرز')
+        if (/(كرستال|كريستال)/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
         if (/كم\s*كامل/i.test(raw)) feats.push('كم كامل')
         if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
+        // Lingerie-specific cues to avoid generic single-word names
+        if (/(تول|تل)/i.test(raw)) feats.push('تول')
+        if (/شفاف/i.test(raw)) feats.push('شفاف')
+        if (/(صدريه|صدرية)/i.test(raw)) feats.push('بصدريه')
+        if (/(جبير|جلير)/i.test(raw)) feats.push('جبير')
+        if (/حزام\s*منفصل/i.test(raw)) feats.push('وحزام منفصل')
+        if (/(نمري|نمر)/i.test(raw)) feats.push('نمري')
+        if (/(\b4\s*قطع|أربع\s*قطع|٤\s*قطع)/i.test(raw)) feats.push('٤ قطع')
         const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
         if (wc(enriched) >= 4) { out.name = enriched.slice(0,60); (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
       }
