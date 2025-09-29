@@ -1,50 +1,40 @@
-name: DeepSeek Preview CI
+name: DeepSeek Analysis Smoke
 
 on:
   workflow_dispatch:
-    inputs:
-      api_base:
-        description: 'API base URL'
-        required: false
-        default: 'https://api.jeeey.com'
-      allow_short_names:
-        description: 'السماح بالأسماء القصيرة مؤقتاً'
-        required: false
-        default: 'true'
-      strict_mode:
-        description: 'تشغيل الاختبار بوضع صارم'
-        required: false
-        default: 'false'
   push:
     branches: [ main ]
-    paths:
-      - 'packages/api/**'
-      - 'apps/admin/**'
-      - 'scripts/ci/smoke-analyze-deepseek.mjs'
-      - '.github/workflows/deepseek.yml'
+  schedule:
+    - cron: '0 */6 * * *'
 
 jobs:
-  deepseek-preview:
+  smoke-deepseek:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      API_BASE: ${{ secrets.API_BASE || 'https://api.jeeey.com' }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
 
-      - name: Install pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@8.6.10 --activate
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
 
-      - name: Install deps (root only)
-        run: pnpm install --frozen-lockfile=false
+      - name: Install deps (workspace)
+        run: pnpm -w install --frozen-lockfile
 
-      - name: DeepSeek Preview Smoke (temporarily bypassed)
-        run: |
-          echo "✅ DeepSeek يعمل - الاختبارات معطلة للتحسين"
-          exit 0
+      - name: Run DeepSeek smoke test
+        run: node scripts/ci/smoke-analyze.mjs
+
+      - name: Report success
+        if: success()
+        run: echo "✅ DeepSeek smoke passed"

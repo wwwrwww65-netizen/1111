@@ -15,7 +15,7 @@ const loginJson = await loginRes.json().catch(()=> ({}))
 const token = loginJson?.token || ''
 const authHeader = token ? { Authorization: `Bearer ${token}` } : {}
 
-const r = await fetch(`${API}/api/admin/products/analyze?forceDeepseek=1`, {
+const r = await fetch(`${API}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
   method: 'POST', headers: { 'content-type':'application/json', ...authHeader }, body: JSON.stringify({ text })
 })
 if (!r.ok) throw new Error(`analyze_failed: ${r.status}`)
@@ -24,7 +24,10 @@ const a = j?.analyzed || {}
 
 assert.ok(j?.analyzed, 'analyze produced no output')
 if (process.env.DEEPSEEK_API_KEY) {
-  if (!j?.meta || j.meta.deepseekUsed !== true) throw new Error('deepseek_not_used_when_forced')
+  if (!j?.meta || j.meta.deepseekUsed !== true) {
+    console.error('DeepSeek meta:', j?.meta)
+    throw new Error('deepseek_not_used_when_forced')
+  }
 }
 
 assert.ok(a?.name?.value, 'name missing')
@@ -43,6 +46,23 @@ assert.ok(
   a?.price_range?.value?.low !== undefined && Number.isFinite(Number(a.price_range.value.low)) && Number(a.price_range.value.low) === 3500,
   'price low should prefer old price 3500'
 )
+
+// Validate digits are English (no Arabic/Indic numerals)
+const arabicDigits = /[\u0660-\u0669\u06F0-\u06F9]/
+if (arabicDigits.test(JSON.stringify(a))) {
+  throw new Error('non_english_digits_detected')
+}
+
+// Colors: if a general phrase like "5 الوان/5 ألوان/ألوان متعددة" exists, preserve as-is
+const colors = a?.colors?.value || []
+if (colors.length) {
+  const joined = colors.join(' ')
+  const general = /(\b\d+\s*ألوان\b|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)/i
+  const hasGeneralInText = general.test(text)
+  if (hasGeneralInText && !general.test(joined)) {
+    throw new Error('general_colors_phrase_not_preserved')
+  }
+}
 
 console.log('analyze smoke OK:', {
   name: a.name.value,
