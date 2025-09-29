@@ -153,8 +153,9 @@ jobs:
             {
               echo "NODE_ENV=production"
               echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
-              echo "PUBLIC_API_BASE=${{ secrets.PUBLIC_API_BASE || vars.PUBLIC_API_BASE }}"
-              echo "MWEB_BASE_URL=${{ secrets.MWEB_BASE_URL || vars.MWEB_BASE_URL }}"
+              : "${{ secrets.PUBLIC_API_BASE }}" "${{ secrets.MWEB_BASE_URL }}"
+              echo "PUBLIC_API_BASE=${{ secrets.PUBLIC_API_BASE }}"
+              echo "MWEB_BASE_URL=${{ secrets.MWEB_BASE_URL }}"
               echo "CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || vars.CORS_ALLOW_ORIGINS }}"
               echo "NEXT_PUBLIC_ADMIN_URL=${{ secrets.NEXT_PUBLIC_ADMIN_URL || vars.NEXT_PUBLIC_ADMIN_URL }}"
               echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || vars.NEXT_PUBLIC_APP_URL }}"
