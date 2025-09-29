@@ -4234,7 +4234,7 @@ adminRest.get('/reviews/list', async (req, res) => {
   if (status === 'pending') where.isApproved = false;
   if (search) where.OR = [ { comment: { contains: search, mode: 'insensitive' } } ];
   const [rows, total] = await Promise.all([
-    db.review.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: { select: { email: true, name: true } }, product: { select: { name: true } } }),
+    db.review.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { user: true, product: true } }),
     db.review.count({ where })
   ]);
   res.json({ reviews: rows, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
