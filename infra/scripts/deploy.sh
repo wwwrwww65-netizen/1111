@@ -157,6 +157,13 @@ if [ -d "$ROOT_DIR/packages/api" ]; then
     if [ -n "$API_JS" ] && [ -f "$API_JS" ]; then
       sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $API_JS|" /etc/systemd/system/ecom-api.service || true
       sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|" /etc/systemd/system/ecom-api.service || true
+      # Ensure EnvironmentFile is loaded for API process
+      mkdir -p /etc/systemd/system/ecom-api.service.d
+      cat > /etc/systemd/system/ecom-api.service.d/override.conf <<EOF
+[Service]
+EnvironmentFile=$ROOT_DIR/.env.api
+WorkingDirectory=$ROOT_DIR
+EOF
       systemctl daemon-reload || true
     fi
   fi

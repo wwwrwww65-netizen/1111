@@ -304,17 +304,14 @@ jobs:
           script: |
             set -Eeuxo pipefail
             ROOT="${{ github.event.inputs.path || '/var/www/ecom' }}"
-            echo '--- Restart API service ---'
+            echo '--- Restart API service and wait health (4000) ---'
             systemctl reset-failed ecom-api || true
-            systemctl try-restart ecom-api || true
-            echo '--- API local health (4000) ---'
+            systemctl restart ecom-api || true
             okapi=0
-            for i in $(seq 1 40); do
+            for i in $(seq 1 60); do
               code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health || true)
-              if [ "$code" = "200" ]; then
-                echo "api local ok: $code"; okapi=1; break
-              fi
-              sleep 1
+              if [ "$code" = "200" ]; then echo "api local ok: $code"; okapi=1; break; fi
+              sleep 2
             done
             if [ "$okapi" != "1" ]; then
               echo 'API did not become ready locally. Recent logs:'
