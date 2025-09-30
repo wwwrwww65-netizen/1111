@@ -325,12 +325,22 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     const text = `رمز التأكيد: ${code}`;
     let sent = false;
     let used: 'whatsapp' | 'sms' | '' = '';
+    const normalizeE164 = (p: string): string => {
+      const trimmed = String(p).replace(/\s+/g,'');
+      if (/^\+\d{6,15}$/.test(trimmed)) return trimmed;
+      // Basic heuristic: if starts with 0 and env COUNTRY_CODE set, replace leading 0
+      const cc = (process.env.DEFAULT_COUNTRY_CODE || '').replace(/^\+?/,'+');
+      if (cc && /^0\d+/.test(trimmed)) return cc + trimmed.replace(/^0/, '');
+      if (cc && /^\d{6,}$/.test(trimmed)) return cc + trimmed;
+      return trimmed.startsWith('+') ? trimmed : `+${trimmed}`;
+    };
+    const targetPhone = normalizeE164(phone);
     if (channel === 'whatsapp' || channel === 'both') {
-      const ok = await sendWhatsappOtp(phone, text);
+      const ok = await sendWhatsappOtp(targetPhone, text);
       if (ok) { sent = true; used = 'whatsapp'; }
     }
     if (!sent && (channel === 'sms' || channel === 'whatsapp' || channel === 'both')) {
-      const ok2 = await sendSmsOtp(phone, text);
+      const ok2 = await sendSmsOtp(targetPhone, text);
       if (ok2) { sent = true; used = 'sms'; }
     }
     if (!sent) { console.warn('[OTP] send failed', { phone, channel }); return res.status(502).json({ ok:false, error:'send_failed' }); }
@@ -582,14 +592,19 @@ shop.get('/auth/google/callback', async (req, res) => {
     const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
     const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
     const isProd = (process.env.NODE_ENV || 'production') === 'production';
-    res.cookie('shop_auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+    // Write domain cookie
+    try { res.cookie('shop_auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
+    // Also write api subdomain cookie to ensure /api/me sees it when third-party blocked
     try{
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
-      if (root) {
-        res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
-      }
+      if (root) res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
     }catch{}
-    const mwebBase = process.env.MWEB_BASE_URL || 'https://m.jeeey.com';
+    // Host-only fallback for strict environments
+    try { res.cookie('shop_auth_token', token, { httpOnly:true, sameSite: 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
+    // Dynamic mweb base inferred from referer if present
+    let mwebBase = process.env.MWEB_BASE_URL || '';
+    try { if (!mwebBase && req.headers.referer) { const u = new URL(String(req.headers.referer)); mwebBase = `${u.protocol}//${u.host.replace('api.','m.')}`; } } catch {}
+    if (!mwebBase) mwebBase = 'https://m.jeeey.com';
     const next = String(state?.next||'/account');
     let dest = ru ? `${ru}` : `${mwebBase}${next.startsWith('/')?next:'/'+next}`;
     // Append token for client-side cookie fallback if third-party cookies are blocked
