@@ -1,0 +1,81 @@
+name: Full Live E2E
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  live-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        working-directory: scripts/ci
+        run: |
+          npm ci || npm i
+          npx playwright install --with-deps chromium
+
+      - name: Define endpoints
+        id: defs
+        run: |
+          echo "API_BASE=${{ secrets.API_BASE || 'https://api.jeeey.com' }}" >> $GITHUB_ENV
+          echo "MWEB_BASE=${{ secrets.MWEB_BASE || 'https://m.jeeey.com' }}" >> $GITHUB_ENV
+          echo "ADMIN_BASE=${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}" >> $GITHUB_ENV
+
+      - name: Health checks (live)
+        run: |
+          set -e
+          for host in "$API_BASE/health" "$MWEB_BASE" "$ADMIN_BASE"; do
+            echo "Checking $host"
+            ok=0
+            for i in $(seq 1 40); do
+              code=$(curl -k -s -o /dev/null -w '%{http_code}' "$host" || true)
+              if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ]; then ok=1; echo "OK: $host ($code)"; break; fi
+              echo "waiting ($i): $host -> $code"; sleep 3
+            done
+            if [ "$ok" != "1" ]; then echo "FAILED: $host"; exit 1; fi
+          done
+
+      - name: Run E2E MWeb Auth (OTP)
+        env:
+          MWEB_BASE: ${{ env.MWEB_BASE }}
+          API_BASE: ${{ env.API_BASE }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+        working-directory: scripts/ci
+        run: node e2e-mweb-auth.mjs
+
+      - name: Admin login and whoami (cookie-based)
+        env:
+          API_BASE: ${{ env.API_BASE }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          set -e
+          curl -sS -c /tmp/cj.txt -b /tmp/cj.txt -H 'content-type: application/json' \
+            -X POST -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"remember\":true}" \
+            "$API_BASE/api/admin/auth/login" >/tmp/login.json || (cat /tmp/login.json || true; exit 1)
+          whoami=$(curl -sS -b /tmp/cj.txt "$API_BASE/api/admin/auth/whoami")
+          echo "$whoami" | jq . || echo "$whoami"
+          echo "$whoami" | grep -q '"role": "ADMIN"' || (echo "whoami not ADMIN"; exit 1)
+
+      - name: WhatsApp test (optional)
+        if: ${{ secrets.WHATSAPP_TEST_PHONE != '' }}
+        env:
+          API_BASE: ${{ env.API_BASE }}
+          WHATSAPP_TEST_PHONE: ${{ secrets.WHATSAPP_TEST_PHONE }}
+        run: |
+          set -e
+          body=$(jq -n --arg phone "$WHATSAPP_TEST_PHONE" --arg tmpl "${{ secrets.WHATSAPP_TEMPLATE || 'otp_template' }}" '{phone:$phone, template:$tmpl, languageCode:"ar"}')
+          resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj.txt -X POST "$API_BASE/api/admin/whatsapp/send" -d "$body")
+          echo "$resp" | jq . || echo "$resp"
+          echo "$resp" | grep -q 'messageId' || (echo "No messageId in response"; exit 1)
+
