@@ -45,8 +45,24 @@ jobs:
             systemctl daemon-reload
             systemctl restart ecom-api || true
 
-      - name: Subscribe webhook to messages
-        if: ${{ env.WABA_ID != '' }}
+      - name: Wait API health after restart
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || vars.VPS_USER || 'root' }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || vars.VPS_PORT || 22 }}
+          script: |
+            set -e
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health || true)
+              [ "$code" = "200" ] && { echo ok; exit 0; }
+              sleep 1
+            done
+            echo 'API not healthy'; exit 1
+
+      - name: Subscribe App webhook to messages (APP_ID)
+        if: ${{ env.APP_ID != '' }}
         run: |
           set -e
           curl -sS -X POST \
@@ -54,7 +70,14 @@ jobs:
             -F "callback_url=${API_BASE}/api/webhooks/whatsapp" \
             -F "verify_token=${VERIFY_TOKEN}" \
             -F "fields=messages" \
-            "https://graph.facebook.com/v17.0/${WABA_ID}/subscriptions?access_token=${TOKEN}" | sed -n '1,120p'
+            "https://graph.facebook.com/v17.0/${APP_ID}/subscriptions?access_token=${TOKEN}" | sed -n '1,200p'
+
+      - name: Subscribe WABA to app (subscribed_apps)
+        if: ${{ env.WABA_ID != '' }}
+        run: |
+          set -e
+          curl -sS -X POST "https://graph.facebook.com/v17.0/${WABA_ID}/subscribed_apps?access_token=${TOKEN}" \
+            -F "subscribed_fields=messages" | sed -n '1,120p'
 
       - name: Test webhook verify
         run: |
