@@ -207,10 +207,11 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
           variants.push([]);
 
           // Button variants: if integration defines button, use it; otherwise try url and quick_reply automatically
-          const buttonCandidates: Array<{ sub_type: 'url'|'quick_reply'|'phone_number'; index: string; param: string }|null> = [];
+          const buttonCandidates: Array<{ sub_type: 'url'|'quick_reply'|'phone_number'; index: string; param?: string }|null> = [];
           if (buttonSubType && (buttonSubType === 'url' || buttonSubType === 'quick_reply' || buttonSubType === 'phone_number')){
-            const bp = (typeof buttonParam === 'string' && buttonParam.trim()) ? String(buttonParam) : String(paramValue);
-            buttonCandidates.push({ sub_type: buttonSubType, index: String(buttonIndex||0), param: bp });
+            let bp = (typeof buttonParam === 'string' && buttonParam.trim()) ? String(buttonParam) : String(paramValue);
+            if (buttonSubType === 'url') bp = String(bp).slice(0, 15);
+            buttonCandidates.push({ sub_type: buttonSubType, index: String(buttonIndex||0), param: buttonSubType==='quick_reply'? undefined : bp });
           }
           // Auto attempts
           buttonCandidates.push({ sub_type: 'url', index: '0', param: String(paramValue) });
@@ -228,7 +229,12 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
             for (const btn of buttonCandidates) {
               const toSend = JSON.parse(JSON.stringify(payload));
               if (btn) {
-                toSend.template.components.push({ type:'button', sub_type: btn.sub_type, index: btn.index, parameters:[{ type: 'text', text: btn.param }] });
+                if (btn.sub_type === 'quick_reply') {
+                  toSend.template.components.push({ type:'button', sub_type: btn.sub_type, index: btn.index });
+                } else if (btn.sub_type === 'url' || btn.sub_type === 'phone_number') {
+                  const ptxt = String(btn.param||'').slice(0, btn.sub_type==='url'?15:128);
+                  toSend.template.components.push({ type:'button', sub_type: btn.sub_type, index: btn.index, parameters:[{ type: 'text', text: ptxt }] });
+                }
               }
               const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(toSend) });
               const raw = await r.text().catch(()=> '');
