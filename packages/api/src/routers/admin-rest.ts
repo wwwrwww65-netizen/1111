@@ -67,13 +67,14 @@ adminRest.post('/whatsapp/send', async (req, res) => {
       // If template defines a URL button in Meta configuration, API requires a parameter.
       // Auto-provide it if not sent in the request.
       try {
+        // Ensure at most ONE button component in the payload
+        payload.template.components = (payload.template.components || []).filter((c:any)=> String(c?.type).toLowerCase() !== 'button');
         const needsButton = true; // safe default; Meta doesn't expose schema here
         if (needsButton) {
           const paramValue = (Array.isArray(bodyParams) && bodyParams.length ? String(bodyParams[0]) : '123456').slice(0, 15);
-          // For URL buttons, Meta expects a short param appended to a preconfigured URL, not a full URL
           const btnType = String(buttonSubType || 'url');
           const btnParam = String(buttonParam || paramValue).slice(0, 15);
-          payload.template.components.push({ type:'button', sub_type: btnType as any, index: String(Number(buttonIndex)||0), parameters: [{ type:'text', text: btnParam }] });
+          payload.template.components.push({ type:'button', sub_type: btnType as any, index: '0', parameters: [{ type:'text', text: btnParam }] });
         }
       } catch {}
       const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payload) });
