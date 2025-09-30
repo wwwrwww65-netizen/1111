@@ -480,6 +480,20 @@ shop.get('/me', async (req: any, res) => {
   }
 });
 
+// Test helper: login via email (maintenance-protected) to simulate Google/OTP flow end state
+shop.post('/test/login', async (req: any, res) => {
+  try{
+    const secret = String(req.headers['x-maintenance-secret']||'');
+    if (!secret || secret !== (process.env.MAINTENANCE_SECRET||'')) return res.status(403).json({ error:'forbidden' });
+    const email = String(req.body?.email||'').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error:'email_required' });
+    const name = (req.body?.name && String(req.body.name).trim()) || (email.split('@')[0]||'User');
+    const user = await db.user.upsert({ where: { email }, update: { name }, create: { email, name, password: '' } } as any);
+    const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
+    res.json({ ok:true, token });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'test_login_failed' }); }
+});
+
 // Authenticated: complete profile (name/password)
 shop.post('/me/complete', requireAuth, async (req: any, res) => {
   try{
