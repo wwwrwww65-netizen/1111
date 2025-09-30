@@ -72,13 +72,22 @@ async function main(){
 
     // 2) Google simulated login: call maintenance test login to get token, then persist and reload
     const testEmail = `e2e+${Date.now()}@local`;
-    const testLogin = await fetch(`${API_BASE}/api/test/login`, { method:'POST', headers:{ 'content-type':'application/json', 'x-maintenance-secret': MAINTENANCE_SECRET }, body: JSON.stringify({ email: testEmail, name:'Tester' }) }).then(r=>r.json()).catch(()=>null)
-    await expectOk(testLogin && testLogin.token, 'google_sim_token_missing')
-    const token = testLogin.token
+    const rLogin = await fetch(`${API_BASE}/api/test/login`, { method:'POST', headers:{ 'content-type':'application/json', 'x-maintenance-secret': MAINTENANCE_SECRET }, body: JSON.stringify({ email: testEmail, name:'Tester' }) }).catch(()=>null)
+    let loginBody = null; let loginStatus = 0; let token = ''
+    if (rLogin) {
+      loginStatus = rLogin.status
+      const raw = await rLogin.text().catch(()=> '')
+      loginBody = (()=>{ try { return JSON.parse(raw) } catch { return raw } })()
+      token = (loginBody && loginBody.token) ? String(loginBody.token) : ''
+    }
+    await expectOk(!!token, `google_sim_token_missing: status=${loginStatus} body=${JSON.stringify(loginBody).slice(0,200)}`)
     await page.evaluate((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token)
     // Server-side verification only (avoid page constraints entirely)
     const srv = await fetch(`${API_BASE}/api/test/me`, { method:'POST', headers:{ 'content-type':'application/json', 'x-maintenance-secret': MAINTENANCE_SECRET }, body: JSON.stringify({ token }) }).then(r=>r.json()).catch(()=>null)
     let me2 = (srv && srv.user) ? srv : null
+    if (!me2 || !me2.user) {
+      console.error(`diag: /api/test/me failed status/obj =>`, JSON.stringify(srv||{},null,2))
+    }
     if (!me2 || !me2.user) {
       // Node-side forced token path
       try {
