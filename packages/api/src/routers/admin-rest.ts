@@ -64,6 +64,16 @@ adminRest.post('/whatsapp/send', async (req, res) => {
         components.push({ type:'button', sub_type: String(buttonSubType), index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: String(buttonParam) }] });
       }
       const payload: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
+      // If template defines a URL button in Meta configuration, API requires a parameter.
+      // Auto-provide it if not sent in the request.
+      try {
+        const needsButton = true; // safe default; Meta doesn't expose schema here
+        if (needsButton) {
+          const paramValue = Array.isArray(bodyParams) && bodyParams.length ? String(bodyParams[0]) : '123456';
+          const urlParam = String(buttonParam || (process.env.MWEB_BASE_URL || 'https://m.jeeey.com') + '/verify');
+          payload.template.components.push({ type:'button', sub_type: String(buttonSubType || 'url'), index: String(Number(buttonIndex)||0), parameters: [{ type:'text', text: urlParam }] });
+        }
+      } catch {}
       const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payload) });
       const raw = await r.text().catch(()=> '');
       let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
