@@ -126,6 +126,31 @@ adminRest.post('/whatsapp/send', async (req, res) => {
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
 });
 
+// Admin: Diagnose a recipient phone deliverability via WhatsApp Cloud Contacts API
+adminRest.post('/whatsapp/diagnose', async (req, res) => {
+  try{
+    const t = readAdminTokenFromRequest(req) || readTokenFromRequest(req);
+    let payload: any = null; try { payload = verifyToken(t as any); } catch {}
+    if (!payload || String((payload.role||'')).toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
+    const { phone } = req.body || {};
+    if (!phone) return res.status(400).json({ ok:false, error:'phone_required' });
+    const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy: { createdAt:'desc' } });
+    const conf = (cfg as any)?.config || {};
+    const token = conf.token; const phoneId = conf.phoneId;
+    if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
+    const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/contacts`;
+    // Contacts API expects international number without '+'
+    const msisdn = String(phone).replace(/[^0-9]/g,'').replace(/^0+/, '');
+    const body = { blocking: 'wait', contacts: [ msisdn ], force_check: true } as any;
+    const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
+    const raw = await r.text().catch(()=> '');
+    let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
+    const contact = parsed?.contacts?.[0] || null;
+    // Example contact: { input: '967777310606', wa_id: '967777310606', status: 'valid'|'invalid' }
+    return res.json({ ok: r.ok, status: r.status, contact: contact || null, response: parsed || raw });
+  } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'diagnose_failed' }); }
+});
+
 // Admin: recent notification logs (last 50)
 adminRest.get('/notifications/logs', async (req, res) => {
   try{
