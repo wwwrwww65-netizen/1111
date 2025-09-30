@@ -4522,24 +4522,27 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
         return res.status(401).json({ error: 'invalid_credentials' });
       }
     }
-    const ok = await bcrypt.compare(password || '', user.password);
+    // Ensure non-null user for TypeScript
+    if (!user) return res.status(401).json({ error: 'invalid_credentials' });
+    const ensuredUser = user as { id: string; email: string; password: string; role: string };
+    const ok = await bcrypt.compare(password || '', ensuredUser.password);
     if (!ok) {
-      try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed' } }); } catch {}
+      try { await db.auditLog.create({ data: { userId: ensuredUser.id, module: 'auth', action: 'login_failed' } }); } catch {}
       return res.status(401).json({ error: 'invalid_credentials' });
     }
     // 2FA requirement disabled for login UI (kept endpoints for later enablement)
     const jwt = require('jsonwebtoken');
-    const role = (user as any).role || 'ADMIN';
+    const role = (ensuredUser as any).role || 'ADMIN';
     const secret = process.env.JWT_SECRET || 'jeeey_fallback_secret_change_me';
-    const token = jwt.sign({ userId: user.id, email: user.email, role }, secret, { expiresIn: remember ? '30d' : '1d' });
+    const token = jwt.sign({ userId: ensuredUser.id, email: ensuredUser.email, role }, secret, { expiresIn: remember ? '30d' : '1d' });
     let sessionId: string | undefined;
     try {
-      const session = await db.session.create({ data: { userId: user.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000) } });
+      const session = await db.session.create({ data: { userId: ensuredUser.id, userAgent: req.headers['user-agent'] as string | undefined, ip: req.ip, expiresAt: new Date(Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000) } });
       sessionId = session.id;
     } catch (e) {
       console.warn('session_create_failed', (e as any)?.message || e);
     }
-    try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
+    try { await db.auditLog.create({ data: { userId: ensuredUser.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
     setAuthCookies(res, token, !!remember);
     return res.json({ success: true, token, sessionId });
   } catch (e: any) {
