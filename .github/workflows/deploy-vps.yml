@@ -622,6 +622,34 @@ jobs:
               fi
             done
 
+      - name: WhatsApp live smoke (strict template)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 180s
+          command_timeout: 10m
+          debug: true
+          script_stop: true
+          script: |
+            set -e
+            API=${{ secrets.API_BASE || 'https://api.jeeey.com' }}
+            PHONE='${{ secrets.WHATSAPP_TEST_PHONE || '' }}'
+            TMPL='${{ secrets.WHATSAPP_TEMPLATE || 'otp_verification_code' }}'
+            if [ -z "$PHONE" ]; then echo 'WHATSAPP_TEST_PHONE not set; skipping WA smoke'; exit 0; fi
+            # Admin login cookie
+            EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
+            PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
+            curl -sS -c /tmp/cj -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -X POST "$API/api/admin/auth/login" >/dev/null
+            body=$(printf '{"phone":"%s","template":"%s","languageCode":"ar","bodyParams":["123456"],"buttonSubType":"url","buttonIndex":0,"buttonParam":"123456","strict":true}' "$PHONE" "$TMPL")
+            resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send" -d "$body")
+            echo "$resp" | grep -q 'messageId' || { echo "WA smoke failed: $resp"; exit 1; }
+
       - name: Post-deploy category delete proof (always)
         if: always()
         uses: appleboy/ssh-action@v1.0.3
