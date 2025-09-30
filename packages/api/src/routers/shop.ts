@@ -461,8 +461,20 @@ shop.get('/me', async (req: any, res) => {
       try { payload = verifyJwt(t); break; } catch { continue; }
     }
     if (!payload) return res.json({ user: null });
-    const user = await db.user.findUnique({ where: { id: payload.userId }, select: { id:true, email:true, name:true, role:true } });
-    return res.json({ user });
+    let user = await db.user.findUnique({ where: { id: payload.userId }, select: { id:true, email:true, name:true, role:true } });
+    if (!user && payload.email && String(payload.role||'USER').toUpperCase() === 'USER') {
+      // Fallback: create or link by email to avoid guest state when token is valid but user record missing
+      const emailNorm = String(payload.email).toLowerCase();
+      const exists = await db.user.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } as any, select: { id:true, email:true, name:true, role:true } });
+      if (exists) user = exists;
+      else {
+        try {
+          const created = await db.user.create({ data: { email: emailNorm, name: emailNorm.split('@')[0] || 'User', password: '' } });
+          user = { id: created.id, email: created.email, name: created.name, role: (created as any).role || 'USER' } as any;
+        } catch {}
+      }
+    }
+    return res.json({ user: user || null });
   } catch {
     return res.json({ user: null });
   }
