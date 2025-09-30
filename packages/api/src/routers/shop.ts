@@ -385,7 +385,13 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     const targetPhone = normalizeE164(phone);
     if (channel === 'whatsapp' || channel === 'both') {
       const ok = await sendWhatsappOtp(targetPhone, text);
-      if (ok) { sent = true; used = 'whatsapp'; }
+      if (ok) {
+        sent = true; used = 'whatsapp';
+        // Optionally send SMS alongside WhatsApp to guarantee delivery
+        if (String(process.env.OTP_SMS_WITH_WA||'').trim() === '1') {
+          try { await sendSmsOtp(targetPhone, text); } catch {}
+        }
+      }
     }
     if (!sent && (channel === 'sms' || channel === 'whatsapp' || channel === 'both')) {
       const ok2 = await sendSmsOtp(targetPhone, text);

@@ -80,5 +80,14 @@ jobs:
           body=$(jq -n --arg phone "$phone_e164" --arg tmpl "$tmpl" --argjson bodyParams '["123456"]' '{phone:$phone, template:$tmpl, languageCode:"ar", bodyParams:$bodyParams, buttonSubType:"url", buttonIndex:0, buttonParam:"123456", strict:true}')
           resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj.txt -X POST "$API_BASE/api/admin/whatsapp/send" -d "$body")
           echo "$resp" | jq . || echo "$resp"
-          echo "$resp" | grep -q 'messageId' || (echo "No messageId in response"; exit 1)
+          mid=$(echo "$resp" | grep -o '"messageId":"[^"]\+"' | head -n1 | sed 's/.*"messageId":"\([^"]\+\)".*/\1/')
+          [ -n "$mid" ] || (echo "No messageId in response"; exit 1)
+          echo "messageId=$mid"
+          # Poll webhook visibility for 30s to detect delivered/read status
+          sleep 3
+          for i in $(seq 1 10); do
+            logs=$(curl -sS -b /tmp/cj.txt "$API_BASE/api/admin/notifications/logs" || true)
+            echo "$logs" | grep -q "$mid" && echo "$logs" | grep -Eq 'DELIVERED|READ' && { echo "DELIVERED/READ detected"; break; }
+            sleep 3
+          done
 
