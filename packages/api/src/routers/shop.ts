@@ -505,9 +505,20 @@ shop.post('/test/me', async (req: any, res) => {
     if (!secret || secret !== (process.env.MAINTENANCE_SECRET||'')) return res.status(403).json({ error:'forbidden' });
     const token = String(req.body?.token||'').trim();
     if (!token) return res.status(400).json({ error:'token_required' });
-    const payload = verifyJwt(token);
-    const user = await db.user.findUnique({ where: { id: payload.userId }, select: { id:true, email:true, name:true, role:true } });
-    return res.json({ user: user || null, payload });
+    let payload: any = null;
+    try { payload = verifyJwt(token); } catch {}
+    if (!payload) {
+      try {
+        // Maintenance-only fallback: decode without verifying signature to diagnose env/secret mismatches
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const jwt = require('jsonwebtoken');
+        const dec: any = jwt.decode(token) || null;
+        if (dec && dec.userId) payload = dec;
+      } catch {}
+    }
+    if (!payload) return res.status(401).json({ error:'invalid_token' });
+    const user = await db.user.findUnique({ where: { id: String(payload.userId) }, select: { id:true, email:true, name:true, role:true } });
+    return res.json({ user: user || null, payload: { userId: payload.userId, email: payload.email, role: payload.role } });
   }catch(e:any){ return res.status(500).json({ error: e.message||'test_me_failed' }); }
 });
 
