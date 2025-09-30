@@ -714,3 +714,27 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
   - Seeding is disabled by default. To opt-in for controlled bootstrap set `DEPLOY_ALLOW_SEEDING=1`.
 
 This README is the source of truth for configuration and recovery steps for production parity, deployments, and admin logistics features.
+
+## 🔁 CI Dev Mirror (jeeey.local over HTTPS)
+
+Workflow: `.github/workflows/dev-mirror.yml`
+
+What it does:
+- Spins up Postgres (service) and builds API/Web/Admin.
+- Starts API on :4000, Web on :3000, Admin on :3001.
+- Generates a self-signed certificate for `jeeey.local` and subdomains (`api.jeeey.local`, `admin.jeeey.local`, `www.jeeey.local`, `m.jeeey.local`).
+- Runs NGINX in Docker mapping 8443→443 (and 8080→80) to proxy these domains to the local services.
+- Executes HTTPS smoke checks via `curl --resolve` to validate cookies/CORS/domains similar to production.
+
+Environment mapping used by the mirror job:
+- `COOKIE_DOMAIN=.jeeey.local`
+- `NEXT_PUBLIC_APP_URL=https://jeeey.local`
+- `NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.local`
+- `NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.local`
+- `NEXT_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `VITE_API_BASE=https://api.jeeey.local`
+- `EXPO_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `DATABASE_URL`, `DIRECT_URL` → CI Postgres service
+- `JWT_SECRET`, `MAINTENANCE_SECRET` → Secrets if available, else CI defaults
+
+Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `main`.

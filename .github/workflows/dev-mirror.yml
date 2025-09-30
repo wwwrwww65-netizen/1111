@@ -1,0 +1,239 @@
+name: Dev Mirror (HTTPS + NGINX + jeeey.local)
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  NEXT_DISABLE_ESLINT: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ecom_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U user -d ecom_db"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable corepack & pnpm
+        run: |
+          corepack enable || true
+          corepack prepare pnpm@8.6.10 --activate || true
+
+      - name: Install deps (no frozen)
+        run: |
+          pnpm config set node-linker hoisted
+          pnpm config set package-import-method copy
+          pnpm install --no-frozen-lockfile --ignore-scripts
+
+      - name: Configure prod-like env (mirror)
+        run: |
+          echo "NODE_ENV=production" >> $GITHUB_ENV
+          echo "COOKIE_DOMAIN=.jeeey.local" >> $GITHUB_ENV
+          echo "CORS_ALLOW_ORIGINS=https://jeeey.local,https://www.jeeey.local,https://admin.jeeey.local,https://m.jeeey.local" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_APP_URL=https://jeeey.local" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.local" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.local" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc" >> $GITHUB_ENV
+          echo "EXPO_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc" >> $GITHUB_ENV
+          echo "VITE_API_BASE=https://api.jeeey.local" >> $GITHUB_ENV
+          echo "DATABASE_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
+          echo "DIRECT_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
+          # Use repo secret if present, else test value for CI only
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'ci_dev_mirror_secret' }}" >> $GITHUB_ENV
+          echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET || 'ci_maint' }}" >> $GITHUB_ENV
+          echo "INTERNAL_API_URL=https://api.jeeey.local" >> $GITHUB_ENV
+
+      - name: Prisma generate/push (ephemeral DB)
+        run: |
+          pnpm --filter @repo/db db:generate
+          pnpm --filter @repo/db db:push
+
+      - name: Build API/Web/Admin
+        run: |
+          pnpm --filter @repo/api build
+          pnpm --filter web build
+          pnpm --filter admin build
+
+      - name: Start API (bg, :4000)
+        run: |
+          node packages/api/dist/index.js >/tmp/api.log 2>&1 & echo $! > /tmp/api.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health || true)
+            [ "$code" = "200" ] && break; sleep 1;
+          done
+          curl -sS http://127.0.0.1:4000/health | cat
+
+      - name: Start Web (bg, :3000)
+        run: |
+          node apps/web/.next/standalone/apps/web/server.js >/tmp/web.log 2>&1 & echo $! > /tmp/web.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || true)
+            [ "$code" = "200" ] && break; sleep 1;
+          done
+          curl -sSI http://127.0.0.1:3000 | sed -n '1,10p'
+
+      - name: Start Admin (bg, :3001)
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.NEXT_PUBLIC_API_BASE_URL }}
+          INTERNAL_API_URL: ${{ env.INTERNAL_API_URL }}
+        run: |
+          node apps/admin/.next/standalone/apps/admin/server.js >/tmp/admin.log 2>&1 & echo $! > /tmp/admin.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)
+            [ "$code" = "200" ] && break; sleep 1;
+          done
+          curl -sSI http://127.0.0.1:3001/login | sed -n '1,10p'
+
+      - name: Generate self-signed cert for jeeey.local and *.jeeey.local
+        run: |
+          set -e
+          mkdir -p tmp/certs tmp/nginx
+          cat > tmp/certs/jeeey.local.openssl.cnf <<'CONF'
+          [ req ]
+          distinguished_name = req_distinguished_name
+          x509_extensions = v3_req
+          prompt = no
+          [ req_distinguished_name ]
+          CN = jeeey.local
+          [ v3_req ]
+          subjectAltName = @alt_names
+          [ alt_names ]
+          DNS.1 = jeeey.local
+          DNS.2 = www.jeeey.local
+          DNS.3 = api.jeeey.local
+          DNS.4 = admin.jeeey.local
+          DNS.5 = m.jeeey.local
+          CONF
+          openssl req -x509 -nodes -days 7 -newkey rsa:2048 \
+            -keyout tmp/certs/jeeey.local.key \
+            -out tmp/certs/jeeey.local.crt \
+            -config tmp/certs/jeeey.local.openssl.cnf
+
+      - name: Write NGINX config (proxy jeeey.local → local ports)
+        run: |
+          cat > tmp/nginx/default.conf <<'NGINX'
+          map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+          server { listen 80; server_name jeeey.local www.jeeey.local admin.jeeey.local api.jeeey.local m.jeeey.local; return 301 https://$host$request_uri; }
+
+          server {
+            listen 443 ssl;
+            server_name api.jeeey.local;
+            ssl_certificate /etc/nginx/certs/jeeey.local.crt;
+            ssl_certificate_key /etc/nginx/certs/jeeey.local.key;
+            add_header Access-Control-Allow-Origin "$http_origin" always;
+            add_header Access-Control-Allow-Credentials "true" always;
+            add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+            location /socket.io/ {
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+              proxy_set_header Host $host;
+              proxy_pass http://127.0.0.1:4000;
+            }
+            location / {
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Proto https;
+              proxy_pass http://127.0.0.1:4000;
+            }
+          }
+
+          server {
+            listen 443 ssl;
+            server_name admin.jeeey.local;
+            ssl_certificate /etc/nginx/certs/jeeey.local.crt;
+            ssl_certificate_key /etc/nginx/certs/jeeey.local.key;
+            location / {
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Proto https;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+              proxy_pass http://127.0.0.1:3001;
+            }
+            location /api/admin/ {
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Proto https;
+              proxy_pass http://127.0.0.1:3001;
+            }
+          }
+
+          server {
+            listen 443 ssl;
+            server_name jeeey.local www.jeeey.local;
+            ssl_certificate /etc/nginx/certs/jeeey.local.crt;
+            ssl_certificate_key /etc/nginx/certs/jeeey.local.key;
+            location / {
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Proto https;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection $connection_upgrade;
+              proxy_pass http://127.0.0.1:3000;
+            }
+          }
+          NGINX
+
+      - name: Start NGINX (docker) on host ports 8080/8443
+        run: |
+          docker run -d --name mirror-nginx \
+            -p 8080:80 -p 8443:443 \
+            -v ${{ github.workspace }}/tmp/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
+            -v ${{ github.workspace }}/tmp/certs:/etc/nginx/certs:ro \
+            nginx:alpine
+          sleep 2
+          docker logs mirror-nginx 2>&1 | tail -n +1 | cat || true
+
+      - name: Smoke via HTTPS jeeey.local (cookies/CORS)
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        run: |
+          set -e
+          # API health
+          curl -k --resolve api.jeeey.local:8443:127.0.0.1 https://api.jeeey.local:8443/health | cat
+          # Admin login (JSON) through admin domain (proxy to API)
+          CJ=/tmp/cj.$$; rm -f "$CJ"
+          code=$(curl -k -s -o /dev/null -w '%{http_code}' --resolve admin.jeeey.local:8443:127.0.0.1 \
+            -H 'content-type: application/json' -X POST \
+            https://admin.jeeey.local:8443/api/admin/auth/login \
+            --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"remember\":true}" || true)
+          echo "admin login status: $code"; [ "$code" = "200" ] || exit 1
+          # Web root
+          curl -k -sSI --resolve jeeey.local:8443:127.0.0.1 https://jeeey.local:8443/ | sed -n '1,20p'
+
+      - name: Stop background servers
+        if: always()
+        run: |
+          kill -9 $(cat /tmp/api.pid) 2>/dev/null || true
+          kill -9 $(cat /tmp/web.pid) 2>/dev/null || true
+          kill -9 $(cat /tmp/admin.pid) 2>/dev/null || true
+          docker rm -f mirror-nginx 2>/dev/null || true
+
