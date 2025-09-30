@@ -51,7 +51,7 @@ async function main(){
           { name:'shop_auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
         ])
         await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded' })
-        me1 = await page.evaluate(async(base,t)=>{ const r=await fetch(`${base}/api/me`, { headers:{ Authorization: `Bearer ${t}` } }); return r.ok? r.json(): null }, API_BASE, token)
+        me1 = await page.evaluate(async(args)=>{ const { base, t } = args; const r=await fetch(`${base}/api/me`, { headers:{ Authorization: `Bearer ${t}` } }); return r.ok? r.json(): null }, { base: API_BASE, t: token })
       }
     }
     await expectOk(me1 && me1.user, 'me_after_otp_null')
