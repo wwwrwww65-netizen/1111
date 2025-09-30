@@ -46,3 +46,15 @@ export const readTokenFromRequest = (req: any): string | null => {
   return null;
 };
 
+// Admin-only token reader: ignores shop cookie to avoid USER token shadowing ADMIN
+export const readAdminTokenFromRequest = (req: any): string | null => {
+  // Prefer explicit admin cookie
+  const cookieToken = req?.cookies?.auth_token as string | undefined;
+  if (cookieToken) return cookieToken;
+  // Accept Authorization header if present
+  const header = req?.headers?.authorization as string | undefined;
+  if (header?.startsWith('Bearer ')) return header.replace('Bearer ', '');
+  // Do NOT read shop_auth_token here
+  return null;
+};
+

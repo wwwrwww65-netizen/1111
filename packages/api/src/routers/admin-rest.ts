@@ -1,6 +1,6 @@
 import express, { Router, Request, Response } from 'express';
 import { verifyToken, createToken } from '../middleware/auth';
-import { readTokenFromRequest } from '../utils/jwt';
+import { readTokenFromRequest, readAdminTokenFromRequest } from '../utils/jwt';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import { Parser as CsvParser } from 'json2csv';
 import rateLimit from 'express-rate-limit';
@@ -153,7 +153,7 @@ adminRest.use((req: Request, res: Response, next) => {
     return next();
   }
   try {
-    const token = readTokenFromRequest(req) as string | null;
+    const token = readAdminTokenFromRequest(req) as string | null;
     // If no token:
     if (!token) {
       // In tests: must reject to satisfy E2E expectations
@@ -4543,10 +4543,10 @@ adminRest.post('/auth/logout', async (req, res) => {
 
 adminRest.get('/auth/whoami', async (req, res) => {
   try {
-    // Try to read token directly (bypasses admin auth gate for diagnostics)
-    const { readTokenFromRequest } = require('../utils/jwt');
+    // Try to read admin token directly (bypasses admin auth gate for diagnostics)
+    const { readAdminTokenFromRequest } = require('../utils/jwt');
     const { verifyToken } = require('../middleware/auth');
-    const t = readTokenFromRequest(req);
+    const t = readAdminTokenFromRequest(req);
     if (!t) return res.status(401).json({ authenticated: false, error: 'No token provided' });
     const payload = verifyToken(t);
     return res.json({ authenticated: true, user: payload });
