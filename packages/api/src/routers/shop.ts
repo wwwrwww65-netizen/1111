@@ -494,7 +494,7 @@ shop.post('/test/login', async (req: any, res) => {
     const name = (req.body?.name && String(req.body.name).trim()) || (email.split('@')[0]||'User');
     const user = await db.user.upsert({ where: { email }, update: { name }, create: { email, name, password: '' } } as any);
     const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
-    res.json({ ok:true, token });
+    res.json({ ok:true, token, user: { id: user.id, email: user.email, name: user.name, role: (user as any).role || 'USER' } });
   }catch(e:any){ return res.status(500).json({ error: e.message||'test_login_failed' }); }
 });
 
