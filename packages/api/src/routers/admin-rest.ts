@@ -22,14 +22,15 @@ adminRest.use(express.urlencoded({ extended: true }));
 // Admin: Send WhatsApp templated message (test) with button/body params
 adminRest.post('/whatsapp/send', async (req, res) => {
   try{
-    // Resolve user from request (cookie or header)
-    let userId: string | null = null;
+    // Resolve admin user from request (ignore shop user token)
+    let payload: any = null;
     try {
-      const token = readTokenFromRequest(req);
-      if (token) { const p: any = (require('../utils/jwt') as any).verifyJwt(token); userId = p?.userId || null; }
+      const token = readAdminTokenFromRequest(req);
+      if (token) { payload = verifyToken(token); }
     } catch {}
-    const u = (req as any).user || (userId ? { userId } : null);
-    if (!u || !(await can(u.userId, 'analytics.read'))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
+    const u = (req as any).user || (payload ? { userId: payload.userId, role: payload.role } : null);
+    const isAdmin = Boolean((u as any)?.role === 'ADMIN' || (payload?.role === 'ADMIN'));
+    if (!u || (!isAdmin && !(await can((u as any).userId, 'analytics.read')))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
     const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams, headerType, headerParam } = req.body || {};
     if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
     const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy:{ createdAt:'desc' } });
