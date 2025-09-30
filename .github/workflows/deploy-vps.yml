@@ -229,7 +229,7 @@ jobs:
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
           timeout: 180s
           source: "app.tar.gz"
-          target: "/tmp/"
+          target: ${{ github.event.inputs.path || '/var/www/ecom' }}
           overwrite: true
 
       - name: Remote deploy
@@ -250,7 +250,7 @@ jobs:
             set -ex
             PATH_ON_HOST=${{ github.event.inputs.path || '/var/www/ecom' }}
             mkdir -p "$PATH_ON_HOST"
-            tar -xzf /tmp/app.tar.gz -C "$PATH_ON_HOST"
+            tar -xzf "$PATH_ON_HOST/app.tar.gz" -C "$PATH_ON_HOST"
             cd "$PATH_ON_HOST"
             export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
             export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
