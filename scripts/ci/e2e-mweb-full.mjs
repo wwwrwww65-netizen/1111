@@ -51,8 +51,11 @@ async function main(){
           { name:'shop_auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
         ])
         await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded' })
-        // Ask API to read forced token for diagnostics
-        me1 = await page.evaluate(async(args)=>{ const { base, t, sec } = args; const r=await fetch(`${base}/api/me?t=${encodeURIComponent(t)}`, { headers:{ 'x-maintenance-secret': sec } }); return r.ok? r.json(): null }, { base: API_BASE, t: token, sec: MAINTENANCE_SECRET })
+        // Ask API to read forced token for diagnostics (Node-side to avoid page CORS)
+        try{
+          const resp = await fetch(`${API_BASE}/api/me?t=${encodeURIComponent(token)}`, { headers:{ 'x-maintenance-secret': MAINTENANCE_SECRET } })
+          if (resp.ok) { me1 = await resp.json().catch(()=>null) }
+        }catch{}
       }
     }
     await expectOk(me1 && me1.user, 'me_after_otp_null')
