@@ -2365,8 +2365,8 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
       db.order.count({ where: { assignedDriverId: id, status: { in: ['PENDING','PAID','SHIPPED'] } } }),
       db.order.count({ where: { assignedDriverId: id, status: 'DELIVERED' } }),
       db.order.count({ where: { assignedDriverId: id, status: 'PENDING' } }),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED','PAID'] } } } }).then(r=> r._sum.amount || 0),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING','SHIPPED'] } } } }).then(r=> r._sum.amount || 0),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED','PAID'] } } } ).then(r=> r._sum.amount || 0),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING','SHIPPED'] } } } ).then(r=> r._sum.amount || 0),
       db.order.findMany({ where: { assignedDriverId: id }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, status: true, total: true, createdAt: true } })
     ]);
     res.json({ driver: d, kpis: { assigned, delivered, pending, totalEarned, totalDue }, orders: assignedOrders });
@@ -2719,6 +2719,7 @@ adminRest.get('/settings/list', async (req, res) => {
 });
 // Tickets module
 adminRest.get('/tickets', async (req, res) => {
+  try{ await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "SupportTicket" (id TEXT PRIMARY KEY, subject TEXT, "userId" TEXT, priority TEXT, "orderId" TEXT, status TEXT DEFAULT \"OPEN\", messages JSONB DEFAULT \"[]\", "createdAt" TIMESTAMP DEFAULT NOW())'); }catch{}
   const u = (req as any).user; if (!(await can(u.userId, 'tickets.read'))) return res.status(403).json({ error:'forbidden' });
   const page = Number(req.query.page ?? 1);
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
@@ -2751,6 +2752,7 @@ adminRest.get('/tickets/:id', async (req, res) => {
   res.json({ ticket: t });
 });
 adminRest.post('/tickets', async (req, res) => {
+  try{ await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "SupportTicket" (id TEXT PRIMARY KEY, subject TEXT, "userId" TEXT, priority TEXT, "orderId" TEXT, status TEXT DEFAULT \"OPEN\", messages JSONB DEFAULT \"[]\", "createdAt" TIMESTAMP DEFAULT NOW())'); }catch{}
   const u = (req as any).user; if (!(await can(u.userId, 'tickets.create'))) return res.status(403).json({ error:'forbidden' });
   const { subject, userId, priority, orderId } = req.body || {};
   const t = await db.supportTicket.create({ data: { subject, userId, priority, orderId, messages: [] } });
@@ -3314,7 +3316,7 @@ adminRest.post('/products/analyze', async (req, res) => {
       }
       if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = Array.from(new Set(extracted.colors)); sources.colors = { source:'rules', confidence:0.4 }; }
       // Preserve general color phrases from raw text if present
-      const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
+      const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|ة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
       const gMatch = pre.match(generalColorsRe)
       if (gMatch) {
         const label = gMatch[1] ? `${gMatch[1]} ألوان` : gMatch[0]
@@ -3557,7 +3559,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 if (/حزام\s*منفصل/i.test(raw)) feats.push('وحزام منفصل')
                 if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
                 if (/(مطرز|تطريز)/i.test(raw) && baseType!=='لانجري') feats.push('مطرز')
-                if (/(كريستال|كرستال)/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
+                if (/(كرستال|كريستال)/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
                 if (/(سهرة|مناسب\s*للمناسبات)/i.test(raw) && baseType==='فستان') feats.unshift('سهرة')
                 if (/(مثير|مثيير|بارز)/i.test(raw) && baseType==='لانجري') feats.push('بتصميم جذاب')
                 const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
@@ -5270,13 +5272,16 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   res.json({ ok:true, deleted });
 });
 adminRest.post('/backups/run', async (_req, res) => {
+  try{
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "BackupJob" (id TEXT PRIMARY KEY, status TEXT, location TEXT, "sizeBytes" BIGINT, "createdAt" TIMESTAMP DEFAULT NOW())');
+  }catch{}
   // Enforce 30-day retention before creating a new backup
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   await db.backupJob.deleteMany({ where: { createdAt: { lt: cutoff } } });
   const size = Math.floor(Math.random() * 5_000_000) + 500_000; // 0.5MB - 5.5MB (demo)
   const b = await db.backupJob.create({ data: { status: 'COMPLETED', location: `local://backup/${Date.now()}.dump`, sizeBytes: size } });
   await audit(_req as any, 'backups', 'run', { id: b.id, size });
-  res.json({ backup: b });
+  res.json({ ok:true, job: b })
 });
 adminRest.get('/backups/list', async (_req, res) => {
   // Enforce retention on list as well
