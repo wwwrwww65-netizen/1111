@@ -163,6 +163,8 @@ jobs:
               echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}"
               echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
               echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}"
+              echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}"
+              echo "DEEPSEEK_MODEL=${{ secrets.DEEPSEEK_MODEL }}"
               echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
               echo "DIRECT_URL=${{ secrets.DIRECT_URL }}"
               echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}"
