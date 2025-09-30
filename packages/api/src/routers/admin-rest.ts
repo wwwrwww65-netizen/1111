@@ -4494,19 +4494,33 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
       twoFactorCode = twoFactorCode || kv['twofactor'] || kv['code'];
     }
     if (!email || !password) return res.status(400).json({ error: 'invalid_credentials' });
-    let user = await db.user.findUnique({ where: { email }, select: { id: true, email: true, password: true, role: true } });
-    if (!user && email === 'admin@example.com') {
-      // Auto-create admin if missing to unblock login (minimal columns only)
+    const emailNorm = String(email).trim().toLowerCase();
+    let user = await db.user.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } as any, select: { id: true, email: true, password: true, role: true } });
+    // Auto-create admin using configured credentials, or fallback demo admin
+    const cfgAdminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const cfgAdminPass = process.env.ADMIN_PASSWORD || '';
+    if (!user && (emailNorm === cfgAdminEmail || emailNorm === 'admin@example.com')) {
       const bcrypt = require('bcryptjs');
-      const hash = await bcrypt.hash('admin123', 10);
-      user = await db.user.create({ data: { email, password: hash, name: 'Admin', role: 'ADMIN' } });
-      try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'auto_admin_created' } }); } catch {}
+      const toHash = emailNorm === cfgAdminEmail && cfgAdminPass ? cfgAdminPass : 'admin123';
+      const hash = await bcrypt.hash(toHash, 10);
+      // Use normalized, unique email
+      user = await db.user.create({ data: { email: emailNorm, password: hash, name: 'Admin', role: 'ADMIN', isVerified: true, failedLoginAttempts: 0 } });
+      try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'auto_admin_created', details: { email: emailNorm } } }); } catch {}
     }
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
     const bcrypt = require('bcryptjs');
-    if (!user.password || typeof user.password !== 'string') {
-      try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { reason: 'no_password' } } }); } catch {}
-      return res.status(401).json({ error: 'invalid_credentials' });
+    if (!user.password || typeof user.password !== 'string' || user.password.length === 0) {
+      // Allow first-time binding to configured ADMIN credentials
+      if (emailNorm === cfgAdminEmail && cfgAdminPass && password === cfgAdminPass) {
+        try {
+          const hash = await bcrypt.hash(cfgAdminPass, 10);
+          await db.user.update({ where: { id: user.id }, data: { password: hash, role: (user as any).role || 'ADMIN' } });
+          user = await db.user.findUnique({ where: { id: user.id }, select: { id:true, email:true, password:true, role:true } });
+        } catch {}
+      } else {
+        try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { reason: 'no_password' } } }); } catch {}
+        return res.status(401).json({ error: 'invalid_credentials' });
+      }
     }
     const ok = await bcrypt.compare(password || '', user.password);
     if (!ok) {
