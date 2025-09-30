@@ -37,7 +37,13 @@ jobs:
             set -e
             ROOT=${{ vars.DEPLOY_PATH || '/var/www/ecom' }}
             echo "WHATSAPP_VERIFY_TOKEN=${VERIFY_TOKEN}" >> "$ROOT/.env.api"
-            systemctl try-restart ecom-api || true
+            mkdir -p /etc/systemd/system/ecom-api.service.d
+            cat > /etc/systemd/system/ecom-api.service.d/whatsapp.conf <<EOF
+            [Service]
+            Environment=WHATSAPP_VERIFY_TOKEN=${VERIFY_TOKEN}
+            EOF
+            systemctl daemon-reload
+            systemctl restart ecom-api || true
 
       - name: Subscribe webhook to messages
         if: ${{ env.WABA_ID != '' }}
