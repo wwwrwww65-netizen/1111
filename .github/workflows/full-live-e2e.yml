@@ -22,7 +22,7 @@ jobs:
         working-directory: scripts/ci
         run: |
           npm ci || npm i
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
 
       - name: Define endpoints
         id: defs
