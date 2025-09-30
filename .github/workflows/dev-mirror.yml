@@ -59,10 +59,10 @@ jobs:
           echo "CORS_ALLOW_ORIGINS=https://jeeey.local,https://www.jeeey.local,https://admin.jeeey.local,https://m.jeeey.local" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_APP_URL=https://jeeey.local" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.local" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.local" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc" >> $GITHUB_ENV
-          echo "EXPO_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc" >> $GITHUB_ENV
-          echo "VITE_API_BASE=https://api.jeeey.local" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:4000" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_TRPC_URL=http://127.0.0.1:4000/trpc" >> $GITHUB_ENV
+          echo "EXPO_PUBLIC_TRPC_URL=http://127.0.0.1:4000/trpc" >> $GITHUB_ENV
+          echo "VITE_API_BASE=http://127.0.0.1:4000" >> $GITHUB_ENV
           echo "DATABASE_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
           echo "DIRECT_URL=postgresql://user:password@localhost:5432/ecom_db?schema=public" >> $GITHUB_ENV
           # Use repo secret if present, else test value for CI only
@@ -90,10 +90,23 @@ jobs:
           done
           curl -sS http://127.0.0.1:4000/health | cat
 
+      - name: Ensure admin exists (maintenance)
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          MAINTENANCE_SECRET: ${{ env.MAINTENANCE_SECRET }}
+        run: |
+          set -e
+          if [ -n "${MAINTENANCE_SECRET}" ]; then
+            curl -sS -X POST -H "x-maintenance-secret: ${MAINTENANCE_SECRET}" -H 'content-type: application/json' \
+              -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\",\"name\":\"Admin\"}" \
+              http://127.0.0.1:4000/api/admin/maintenance/create-admin | head -n 2 || true
+          fi
+
       - name: Start Web (bg, :3000)
         working-directory: apps/web
         run: |
-          pnpm run start -- -p 3000 -H 127.0.0.1 >/tmp/web.log 2>&1 & echo $! > /tmp/web.pid
+          pnpm exec next start . -p 3000 -H 127.0.0.1 >/tmp/web.log 2>&1 & echo $! > /tmp/web.pid
           ok=0
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || true)
@@ -110,7 +123,7 @@ jobs:
           PORT: '3001'
           HOSTNAME: '127.0.0.1'
         run: |
-          pnpm run start -- -p 3001 -H 127.0.0.1 >/tmp/admin.log 2>&1 & echo $! > /tmp/admin.pid
+          pnpm exec next start . -p 3001 -H 127.0.0.1 >/tmp/admin.log 2>&1 & echo $! > /tmp/admin.pid
           ok=0
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)
