@@ -735,6 +735,46 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
 
 This README is the source of truth for configuration and recovery steps for production parity, deployments, and admin logistics features.
 
+## 📞 WhatsApp (Cloud API) — الإعداد والاختبارات الحية
+
+- المتغيرات المطلوبة (Secrets/Vars):
+  - WHATSAPP_TOKEN (توكن الوصول من Meta Cloud)
+  - WHATSAPP_PHONE_ID (معرّف رقم واتساب السحابي)
+  - WHATSAPP_BUSINESS_ACCOUNT_ID (WABA)
+  - FB_APP_ID و APP_SECRET (للاشتراك على مستوى التطبيق)
+  - اختيارية للاختبار: WHATSAPP_TEST_PHONE (E.164 أو msisdn بدون +)
+  - اختيارية: WHATSAPP_TEMPLATE (اسم القالب، الافتراضي: otp_verification_code)
+  - التحقق من الويبهوك: WHATSAPP_VERIFY_TOKEN (يُخزن على الخادم)
+
+- ربط الويبهوك (Webhook):
+  1) نقطة التحقق: GET `https://api.jeeey.com/api/webhooks/whatsapp` تدعم `hub.mode=subscribe`, `hub.verify_token`, `hub.challenge`.
+  2) ورْكفلو جاهز: `Bind WhatsApp Webhook` (يدويًا من Actions).
+     - أدخل `verify_token` وسيقوم بما يلي:
+       - حقن `WHATSAPP_VERIFY_TOKEN` في خدمة `ecom-api` وإعادة التشغيل.
+       - الاشتراك على مستوى التطبيق: `/{APP_ID}/subscriptions` (يتطلب `APP_ID|APP_SECRET`).
+       - تفعيل `/{WABA_ID}/subscribed_apps` (باستخدام `WHATSAPP_TOKEN`).
+       - التحقق الآلي بأن GET verify يعيد 200.
+
+- تنسيق الرقم:
+  - الإرسال يستخدم msisdn (أرقام فقط بدون +). مثال: `+967739632892` يصبح `967739632892`.
+
+- إرسال القالب (Strict):
+  - REST إداري: `POST /api/admin/whatsapp/send`
+    - الحقول: `phone`, `template`, `languageCode`, `bodyParams`, `buttonSubType`, `buttonIndex`, `buttonParam`, `strict`.
+    - عند `strict: true` يفشل الطلب إذا كانت اللغة/القالب/الزر غير مطابقة (لا يسقط لنص).
+    - قيود Meta: زر `url` يتطلب `buttonParam` ≤ 15 حرفًا. زر `quick_reply` بدون parameters.
+  - تشخيص: `POST /api/admin/whatsapp/diagnose` يعيد `wa_id` و`status` من Contacts API.
+
+- لُب الإرسال للمستخدم (OTP):
+  - `/api/auth/otp/request` يرسل عبر واتساب، وإن ضبطت `OTP_SMS_WITH_WA=1` سيُرسل أيضًا SMS بالتوازي لضمان الوصول (تأكد من مفاتيح Twilio/Vonage).
+
+- سجلات التسليم:
+  - `NotificationLog` يخزّن `messageId` و`status`. عند ربط الويبهوك ستُحدّث الحالات إلى `DELIVERED/READ`.
+
+- اختبارات حية في CI/CD:
+  - `Full Live E2E`: خطوة “WhatsApp test (live)” تُرسل القالب باسم/لغة صحيحين وتتحقق من `messageId`، وتتحرى `DELIVERED/READ` إذا الويبهوك مفعّل.
+  - `Deploy to VPS (SSH)`: فعّل سر `WHATSAPP_TEST_PHONE` لتعمل خطوة “WhatsApp live smoke (strict)” تلقائيًا بعد النشر.
+
 ## 🔁 CI Dev Mirror (jeeey.local over HTTPS)
 
 Workflow: `.github/workflows/dev-mirror.yml`
