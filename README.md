@@ -338,6 +338,26 @@ For support and questions:
   - تنقية `next` بحيث يسمح بمسارات نفس الأصل فقط.
   - `resolveApiBase()` يزيل لاحقة `/trpc` إن وُجدت في `NEXT_PUBLIC_API_BASE_URL`.
 
+#### CSP/CORS وPWA (اعتمادات نهائية لنجاح تسجيل الدخول في mweb)
+
+- CORS (Nginx + API):
+  - تمرير رأس التوثيق إلى الـ API: `proxy_set_header Authorization $http_authorization;` ضمن كتلة خادم API في `infra/nginx/jeeey.conf.tpl`.
+  - السماح للرأس المخصص في الـ preflight: `add_header Access-Control-Allow-Headers "Content-Type, Authorization, X-Shop-Client" always;` لمنع خطأ: "Request header field x-shop-client is not allowed...".
+
+- CSP (سياسة أمان المحتوى):
+  - ملاحظة: التوجيه `frame-ancestors` في `<meta http-equiv="Content-Security-Policy">` يتجاهله المتصفح؛ يجب ضبطه كرأس HTTP في Nginx عند الحاجة.
+  - السماح بتحميل `web-vitals` من CDN عبر إضافة `https://unpkg.com` إلى `script-src` في `apps/mweb/index.html`.
+
+- PWA (الأيقونات):
+  - تصحيح المسارات في `apps/mweb/public/manifest.webmanifest` إلى `/icon-192.png` و`/icon-512.png` وإضافة الملفات لمنع 404 من المتصفح.
+
+- mweb التوكن والهيدرز:
+  - الواجهة ترسل `Authorization: Bearer <token>` دائماً من `localStorage.shop_token`.
+  - `/api/me` تقرأ التوكن من `Authorization` أو الكوكيز (`shop_auth_token`/`auth_token`) أو بارامتر `t` بعد عودة Google.
+
+- Service Worker:
+  - أخطاء مثل `Failed to convert value to 'Response'` تختفي بعد نجاح CORS. لفرض التحديث امسح الكاش أو نفّذ Hard Refresh.
+
 - النشر (Deploy to VPS) يتحقق تلقائياً من:
   - صحة `/register` (200) وخلو HTML/مخرجات build من أي روابط `0.0.0.0`.
   - مسار دخول الأدمن end-to-end (تسجيل الدخول، ضبط الكوكي، whoami).
