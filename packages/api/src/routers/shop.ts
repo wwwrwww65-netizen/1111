@@ -598,18 +598,15 @@ shop.get('/auth/google/callback', async (req, res) => {
     const isProd = (process.env.NODE_ENV || 'production') === 'production';
     // Write domain cookie
     try { res.cookie('shop_auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
-    try { res.cookie('auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
     // Also write api subdomain cookie to ensure /api/me sees it when third-party blocked
     try{
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
       if (root) {
         res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
-        res.cookie('auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
       }
     }catch{}
     // Host-only fallback for strict environments
     try { res.cookie('shop_auth_token', token, { httpOnly:true, sameSite: 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
-    try { res.cookie('auth_token', token, { httpOnly:true, sameSite: 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
     // Dynamic mweb base inferred from referer if present
     let mwebBase = process.env.MWEB_BASE_URL || '';
     try { if (!mwebBase && req.headers.referer) { const u = new URL(String(req.headers.referer)); mwebBase = `${u.protocol}//${u.host.replace('api.','m.')}`; } } catch {}
