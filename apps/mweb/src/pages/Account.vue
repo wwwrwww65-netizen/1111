@@ -75,6 +75,7 @@ onMounted(async ()=>{
     if (t) {
       writeCookie('auth_token', t)
       writeCookie('shop_auth_token', t)
+      try{ localStorage.setItem('shop_token', t) }catch{}
       try{ const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null,'',u.toString()) }catch{}
     }
 

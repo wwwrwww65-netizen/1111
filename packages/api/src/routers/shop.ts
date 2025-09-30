@@ -635,13 +635,14 @@ shop.get('/auth/google/callback', async (req, res) => {
     }catch{}
     // Host-only fallback for strict environments
     try { res.cookie('shop_auth_token', token, { httpOnly:true, sameSite: 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
+    // Persist token for SPA fallback (localStorage) via URL param
     // Dynamic mweb base inferred from referer if present
     let mwebBase = process.env.MWEB_BASE_URL || '';
     try { if (!mwebBase && req.headers.referer) { const u = new URL(String(req.headers.referer)); mwebBase = `${u.protocol}//${u.host.replace('api.','m.')}`; } } catch {}
     if (!mwebBase) mwebBase = 'https://m.jeeey.com';
     const next = String(state?.next||'/account');
     let dest = ru ? `${ru}` : `${mwebBase}${next.startsWith('/')?next:'/'+next}`;
-    // Append token for client-side cookie fallback if third-party cookies are blocked
+    // Append token for client-side fallback (SPA will store in localStorage)
     try{
       const u = new URL(dest);
       u.searchParams.set('t', token);
