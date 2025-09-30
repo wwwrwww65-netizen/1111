@@ -57,6 +57,15 @@ jobs:
           PAB="${{ secrets.PUBLIC_API_BASE }}"; if [ -n "$PAB" ] && ! grep -q '^PUBLIC_API_BASE=' "$F"; then echo "PUBLIC_API_BASE=$PAB" >> "$F"; fi
           MBB="${{ secrets.MWEB_BASE_URL }}"; if [ -n "$MBB" ] && ! grep -q '^MWEB_BASE_URL=' "$F"; then echo "MWEB_BASE_URL=$MBB" >> "$F"; fi
           VAB="${{ secrets.VITE_API_BASE }}"; if [ -n "$VAB" ] && ! grep -q '^VITE_API_BASE=' "$F"; then echo "VITE_API_BASE=$VAB" >> "$F"; fi
+          # WhatsApp Cloud API
+          WTK="${{ secrets.WHATSAPP_CLOUD_TOKEN || secrets.WHATSAPP_TOKEN }}"; if [ -n "$WTK" ]; then grep -q '^WHATSAPP_TOKEN=' "$F" && sed -i "s|^WHATSAPP_TOKEN=.*|WHATSAPP_TOKEN=$WTK|" "$F" || echo "WHATSAPP_TOKEN=$WTK" >> "$F"; fi
+          WPID="${{ secrets.WHATSAPP_PHONE_ID }}"; if [ -n "$WPID" ]; then grep -q '^WHATSAPP_PHONE_ID=' "$F" && sed -i "s|^WHATSAPP_PHONE_ID=.*|WHATSAPP_PHONE_ID=$WPID|" "$F" || echo "WHATSAPP_PHONE_ID=$WPID" >> "$F"; fi
+          WTPL="${{ secrets.WHATSAPP_TEMPLATE }}"; if [ -n "$WTPL" ]; then grep -q '^WHATSAPP_TEMPLATE=' "$F" && sed -i "s|^WHATSAPP_TEMPLATE=.*|WHATSAPP_TEMPLATE=$WTPL|" "$F" || echo "WHATSAPP_TEMPLATE=$WTPL" >> "$F"; fi
+          WLANG="${{ secrets.WHATSAPP_LANGUAGE }}"; if [ -n "$WLANG" ]; then grep -q '^WHATSAPP_LANGUAGE=' "$F" && sed -i "s|^WHATSAPP_LANGUAGE=.*|WHATSAPP_LANGUAGE=$WLANG|" "$F" || echo "WHATSAPP_LANGUAGE=$WLANG" >> "$F"; fi
+          # Google OAuth (Shop)
+          GID="${{ secrets.GOOGLE_CLIENT_ID }}"; if [ -n "$GID" ]; then grep -q '^GOOGLE_CLIENT_ID=' "$F" && sed -i "s|^GOOGLE_CLIENT_ID=.*|GOOGLE_CLIENT_ID=$GID|" "$F" || echo "GOOGLE_CLIENT_ID=$GID" >> "$F"; fi
+          GSC="${{ secrets.GOOGLE_CLIENT_SECRET }}"; if [ -n "$GSC" ]; then grep -q '^GOOGLE_CLIENT_SECRET=' "$F" && sed -i "s|^GOOGLE_CLIENT_SECRET=.*|GOOGLE_CLIENT_SECRET=$GSC|" "$F" || echo "GOOGLE_CLIENT_SECRET=$GSC" >> "$F"; fi
+          GRU="${{ secrets.GOOGLE_REDIRECT_URI }}"; if [ -n "$GRU" ]; then grep -q '^GOOGLE_REDIRECT_URI=' "$F" && sed -i "s|^GOOGLE_REDIRECT_URI=.*|GOOGLE_REDIRECT_URI=$GRU|" "$F" || echo "GOOGLE_REDIRECT_URI=$GRU" >> "$F"; fi
           ls -l "$F" | cat
           ENVF
 
