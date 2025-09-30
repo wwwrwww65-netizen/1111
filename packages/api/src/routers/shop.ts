@@ -5,6 +5,19 @@ import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express'
 
 const shop = Router();
+// WhatsApp Webhook Verification (GET)
+shop.get('/webhooks/whatsapp', (req: any, res) => {
+  try{
+    const mode = String(req.query['hub.mode']||'');
+    const token = String(req.query['hub.verify_token']||'');
+    const challenge = String(req.query['hub.challenge']||'');
+    const expected = process.env.WHATSAPP_VERIFY_TOKEN || '';
+    if (mode === 'subscribe' && token && expected && token === expected) {
+      return res.status(200).send(challenge || 'OK');
+    }
+    return res.status(403).json({ ok:false });
+  }catch{ return res.status(403).json({ ok:false }) }
+});
 // Ensure OTP table exists (idempotent)
 async function ensureOtpTable(): Promise<void> {
   try {

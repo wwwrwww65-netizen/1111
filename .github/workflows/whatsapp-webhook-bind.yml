@@ -1,0 +1,59 @@
+name: Bind WhatsApp Webhook
+
+on:
+  workflow_dispatch:
+    inputs:
+      verify_token:
+        description: Verify token to set for webhook
+        required: true
+      app_id:
+        description: Meta App ID (optional)
+        required: false
+      waba_id:
+        description: WhatsApp Business Account ID (optional)
+        required: false
+
+jobs:
+  bind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Define vars
+        run: |
+          echo "API_BASE=${{ secrets.API_BASE || 'https://api.jeeey.com' }}" >> $GITHUB_ENV
+          echo "PHONE_ID=${{ secrets.WHATSAPP_PHONE_ID }}" >> $GITHUB_ENV
+          echo "TOKEN=${{ secrets.WHATSAPP_TOKEN }}" >> $GITHUB_ENV
+          echo "VERIFY_TOKEN=${{ github.event.inputs.verify_token }}" >> $GITHUB_ENV
+          echo "APP_ID=${{ github.event.inputs.app_id || secrets.FB_APP_ID }}" >> $GITHUB_ENV
+          echo "WABA_ID=${{ github.event.inputs.waba_id || secrets.WHATSAPP_BUSINESS_ACCOUNT_ID }}" >> $GITHUB_ENV
+
+      - name: Set server verify token (env)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || vars.VPS_USER || 'root' }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || vars.VPS_PORT || 22 }}
+          script: |
+            set -e
+            ROOT=${{ vars.DEPLOY_PATH || '/var/www/ecom' }}
+            echo "WHATSAPP_VERIFY_TOKEN=${VERIFY_TOKEN}" >> "$ROOT/.env.api"
+            systemctl try-restart ecom-api || true
+
+      - name: Subscribe webhook to messages
+        if: ${{ env.WABA_ID != '' }}
+        run: |
+          set -e
+          curl -sS -X POST \
+            -F "object=whatsapp_business_account" \
+            -F "callback_url=${API_BASE}/api/webhooks/whatsapp" \
+            -F "verify_token=${VERIFY_TOKEN}" \
+            -F "fields=messages" \
+            "https://graph.facebook.com/v17.0/${WABA_ID}/subscriptions?access_token=${TOKEN}" | sed -n '1,120p'
+
+      - name: Test webhook verify
+        run: |
+          set -e
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${API_BASE}/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=12345")
+          echo "verify status: $code"
+          [ "$code" = "200" ] || { echo 'Webhook verify failed'; exit 1; }
+
