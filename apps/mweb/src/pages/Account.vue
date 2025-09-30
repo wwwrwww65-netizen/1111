@@ -36,24 +36,58 @@ const router = useRouter()
 function go(path:string){ router.push(path) }
 
 onMounted(async ()=>{
+  // Helpers
+  const getApexDomain = (): string | null => {
+    try{
+      const host = location.hostname // e.g., m.jeeey.com
+      if (host === 'localhost' || /^(\d+\.){3}\d+$/.test(host)) return null
+      const parts = host.split('.')
+      if (parts.length < 2) return null
+      const apex = parts.slice(-2).join('.')
+      return apex
+    }catch{ return null }
+  }
+  const writeCookie = (name: string, value: string): void => {
+    try{
+      const apex = getApexDomain()
+      const isHttps = typeof location !== 'undefined' && location.protocol === 'https:'
+      const sameSite = isHttps ? 'None' : 'Lax'
+      const secure = isHttps ? ';Secure' : ''
+      const domainPart = apex ? `;domain=.${apex}` : ''
+      document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60*60*24*30}${domainPart};SameSite=${sameSite}${secure}`
+    }catch{}
+  }
+  const meWithRetry = async (retries = 2): Promise<any|null> => {
+    for (let i=0;i<=retries;i++){
+      try{
+        const me = await apiGet<any>('/api/me?ts=' + Date.now())
+        if (me && me.user) return me
+      }catch{}
+      await new Promise(res=> setTimeout(res, 250))
+    }
+    return null
+  }
+
   try{
-    // Try to load session from API; this requires the auth_token cookie sent with credentials
-    const sp = new URLSearchParams(typeof window!=='undefined'?location.search:'')
-    const t = sp.get('t')||''
-    // If token present in URL (from OAuth callback), persist it via a same-site cookie and strip from URL
+    // Capture token from URL (OAuth callback) and persist cookies before requesting /api/me
+    const sp = new URLSearchParams(typeof window!=='undefined' ? location.search : '')
+    const t = sp.get('t') || ''
     if (t) {
-      try{ document.cookie = `auth_token=${encodeURIComponent(t)};path=/;domain=.jeeey.com;max-age=${60*60*24*30};SameSite=None;Secure` }catch{}
+      writeCookie('auth_token', t)
+      writeCookie('shop_auth_token', t)
       try{ const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null,'',u.toString()) }catch{}
     }
-    const me = await apiGet<any>('/api/me?ts='+Date.now())
+
+    const me = await meWithRetry(2)
     if (me && me.user) {
       user.isLoggedIn = true
       if (me.user.name || me.user.email || me.user.phone) {
         user.username = String(me.user.name || me.user.email || me.user.phone)
       }
-      // If profile incomplete (no name), guide to complete-profile
+      // If profile incomplete (no or weak name), guide to complete-profile
       const name = String(me.user.name||'').trim()
-      if (!name){
+      const incomplete = !name || name.length < 2 || /^\d+$/.test(name)
+      if (incomplete){
         const ret = (typeof window!=='undefined') ? (location.pathname + location.search) : '/account'
         router.push({ path: '/complete-profile', query: { return: ret } })
         hydrated.value = true
@@ -63,6 +97,7 @@ onMounted(async ()=>{
       return
     }
   }catch{}
+
   user.isLoggedIn = false
   hydrated.value = true
 })

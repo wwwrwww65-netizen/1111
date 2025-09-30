@@ -183,6 +183,36 @@ async function resend(){
 async function onSubmit(){
   if (!codeFilled.value){ shake.value = true; setTimeout(()=> shake.value=false, 450); return }
   errorText.value = ''
+  // Helpers
+  const getApexDomain = (): string | null => {
+    try{
+      const host = location.hostname
+      if (host === 'localhost' || /^(\d+\.){3}\d+$/.test(host)) return null
+      const parts = host.split('.')
+      if (parts.length < 2) return null
+      return parts.slice(-2).join('.')
+    }catch{ return null }
+  }
+  const writeCookie = (name: string, value: string): void => {
+    try{
+      const apex = getApexDomain()
+      const isHttps = typeof location !== 'undefined' && location.protocol === 'https:'
+      const sameSite = isHttps ? 'None' : 'Lax'
+      const secure = isHttps ? ';Secure' : ''
+      const domainPart = apex ? `;domain=.${apex}` : ''
+      document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60*60*24*30}${domainPart};SameSite=${sameSite}${secure}`
+    }catch{}
+  }
+  const meWithRetry = async (retries = 2): Promise<any|null> => {
+    for (let i=0;i<=retries;i++){
+      try{
+        const me = await apiGet<any>('/api/me?ts=' + Date.now())
+        if (me && me.user) return me
+      }catch{}
+      await new Promise(res=> setTimeout(res, 250))
+    }
+    return null
+  }
   try{
     verifying.value = true
     let local = phone.value.replace(/\D/g,'')
@@ -191,23 +221,27 @@ async function onSubmit(){
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r: any = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
     if (r && r.ok){
+      // If token returned, persist locally to avoid any Set-Cookie timing issues
+      if (r.token) {
+        writeCookie('auth_token', r.token)
+        writeCookie('shop_auth_token', r.token)
+      }
       // Fetch session and hydrate user store before redirect
-      let me: any = null
-      try{
-        me = await apiGet<any>('/api/me?ts='+Date.now())
-        if (me && me.user){
-          user.isLoggedIn = true
-          if (me.user.name || me.user.email || me.user.phone){
-            user.username = String(me.user.name || me.user.email || me.user.phone)
-          }
-        }
-      }catch{}
+      const me = await meWithRetry(2)
       const ret = String(route.query.return || '/account')
-      const rawName = String(me?.user?.name||'').trim()
-      const isDigitName = /^\d{6,}$/.test(rawName)
-      const incomplete = !!(me && me.user && (!rawName || isDigitName))
-      if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
-      else router.push(ret)
+      if (me && me.user){
+        user.isLoggedIn = true
+        if (me.user.name || me.user.email || me.user.phone){
+          user.username = String(me.user.name || me.user.email || me.user.phone)
+        }
+        const rawName = String(me.user.name||'').trim()
+        const incomplete = !rawName || rawName.length < 2 || /^\d+$/.test(rawName)
+        if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
+        else router.push(ret)
+      } else {
+        // As a fallback, still go to account (Account.vue will retry and route to complete-profile if needed)
+        router.push(ret)
+      }
     } else { errorText.value = 'رمز غير صحيح أو منتهي' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
