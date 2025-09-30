@@ -39,7 +39,7 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
     const langIn = String((languageCode||'ar')).toLowerCase()==='arabic' ? 'ar' : String(languageCode||'ar');
-    const to = String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`;
+    const to = String(phone).replace(/[^0-9]/g,'').replace(/^0+/, '');
     const candidates = Array.from(new Set([langIn, 'ar_SA', 'ar', 'en']));
     const params = Array.isArray(bodyParams) ? bodyParams : (bodyParams ? [bodyParams] : []);
     const tried: Array<{ lang:string; status:number; body:string }> = [];
@@ -122,6 +122,19 @@ adminRest.post('/whatsapp/send', async (req, res) => {
       }
       tried.push({ lang, status: r.status, body: raw.slice(0,400) });
     }
+    // As a last resort, try plain text message
+    try{
+      const url2 = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+      const payloadText = { messaging_product:'whatsapp', to, type:'text', text:{ body: (Array.isArray(bodyParams) && bodyParams[0]) ? String(bodyParams[0]) : 'رمز التأكيد' } };
+      const rt = await fetch(url2, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payloadText) });
+      const rawt = await rt.text().catch(()=> '');
+      let parsedt: any = null; try { parsedt = rawt ? JSON.parse(rawt) : null; } catch {}
+      const mid = parsedt?.messages?.[0]?.id || null;
+      if (rt.ok && mid){
+        try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, String(template)+'(text-fallback)', JSON.stringify({ bodyParams }), 'SENT', mid, JSON.stringify({})) } catch {}
+        return res.json({ ok:true, status: rt.status, lang: candidates[0], to, phoneId, messageId: mid, response: parsedt||rawt, fallback: 'text' });
+      }
+    } catch {}
     return res.status(502).json({ ok:false, status: 404, error: JSON.stringify({ tried }) });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
 });

@@ -173,8 +173,9 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   try {
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
     const candidates = Array.from(new Set([String(languageCode), 'ar_SA', 'ar', 'en']));
-    const e164 = String(phone).startsWith('+') ? String(phone) : `+${String(phone)}`;
-    const toVariants = Array.from(new Set([e164]));
+    // WhatsApp Cloud expects international number without '+' (MSISDN)
+    const msisdn = String(phone).replace(/[^0-9]/g, '').replace(/^0+/, '');
+    const toVariants = Array.from(new Set([msisdn]));
     // Try template with multiple languages and component permutations
     if (template) {
       for (const to of toVariants) {
