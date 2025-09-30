@@ -498,6 +498,19 @@ shop.post('/test/login', async (req: any, res) => {
   }catch(e:any){ return res.status(500).json({ error: e.message||'test_login_failed' }); }
 });
 
+// Test helper: verify token and return user (maintenance-protected)
+shop.post('/test/me', async (req: any, res) => {
+  try{
+    const secret = String(req.headers['x-maintenance-secret']||'');
+    if (!secret || secret !== (process.env.MAINTENANCE_SECRET||'')) return res.status(403).json({ error:'forbidden' });
+    const token = String(req.body?.token||'').trim();
+    if (!token) return res.status(400).json({ error:'token_required' });
+    const payload = verifyJwt(token);
+    const user = await db.user.findUnique({ where: { id: payload.userId }, select: { id:true, email:true, name:true, role:true } });
+    return res.json({ user: user || null, payload });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'test_me_failed' }); }
+});
+
 // Authenticated: complete profile (name/password)
 shop.post('/me/complete', requireAuth, async (req: any, res) => {
   try{

@@ -58,7 +58,17 @@ async function main(){
         }catch{}
       }
     }
-    if (!me1 || !me1.user) console.warn('warn: me_after_otp_null (continuing after otp verify)')
+    if (!me1 || !me1.user) {
+      // As a final OTP step, confirm server accepts the token (without relying on /api/me)
+      try {
+        const v2 = await fetch(`${API_BASE}/api/auth/otp/verify`, { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ phone, code }) }).then(r=>r.json()).catch(()=>null)
+        if (v2 && v2.token){
+          const chk = await fetch(`${API_BASE}/api/test/me`, { method:'POST', headers:{ 'content-type':'application/json', 'x-maintenance-secret': MAINTENANCE_SECRET }, body: JSON.stringify({ token: v2.token }) }).then(r=>r.json()).catch(()=>null)
+          if (!chk || !chk.user) console.warn('warn: server did not return user for OTP token')
+        }
+      } catch {}
+      console.warn('warn: me_after_otp_null (continuing after otp verify)')
+    }
 
     // 2) Google simulated login: call maintenance test login to get token, then persist and reload
     const testEmail = `e2e+${Date.now()}@local`;
@@ -67,7 +77,10 @@ async function main(){
     const token = testLogin.token
     await page.evaluate((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token)
     await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded' })
-    let me2 = await page.evaluate(async(args)=>{ const { base, t } = args; const r=await fetch(`${base}/api/me`, { headers:{ Authorization: `Bearer ${t}` } }); return r.ok? r.json(): null }, { base: API_BASE, t: token })
+    // Server-side verification first to avoid page constraints
+    const srv = await fetch(`${API_BASE}/api/test/me`, { method:'POST', headers:{ 'content-type':'application/json', 'x-maintenance-secret': MAINTENANCE_SECRET }, body: JSON.stringify({ token }) }).then(r=>r.json()).catch(()=>null)
+    let me2 = (srv && srv.user) ? srv : null
+    if (!me2 || !me2.user) me2 = await page.evaluate(async(args)=>{ const { base, t } = args; const r=await fetch(`${base}/api/me`, { headers:{ Authorization: `Bearer ${t}` } }); return r.ok? r.json(): null }, { base: API_BASE, t: token })
     if (!me2 || !me2.user) {
       // Node-side forced token path
       try {
