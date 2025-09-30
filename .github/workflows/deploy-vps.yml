@@ -148,18 +148,18 @@ jobs:
             ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
             mkdir -p "$ROOT"
             F="$ROOT/.env.api"
-            # Strictly mirror from Secrets/Vars; fail if critical secrets missing
-            : "${{ secrets.JWT_SECRET }}" "${{ secrets.COOKIE_DOMAIN }}" "${{ secrets.PUBLIC_API_BASE }}" "${{ secrets.MWEB_BASE_URL }}"
+            # Derive base URLs first (allow fallbacks), then enforce required
+            API_BASE_VAL='${{ secrets.PUBLIC_API_BASE }}'
+            [ -z "$API_BASE_VAL" ] && API_BASE_VAL='${{ secrets.NEXT_PUBLIC_API_BASE_URL }}'
+            MWEB_BASE_VAL='${{ secrets.MWEB_BASE_URL }}'
+            [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_MWEB_URL }}'
+            [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_APP_URL }}'
+            : "${{ secrets.JWT_SECRET }}" "${{ secrets.COOKIE_DOMAIN }}" "$API_BASE_VAL" "$MWEB_BASE_VAL"
+            # Build file with optional keys without failing on unset using set +e around tests
+            set +e
             {
               echo "NODE_ENV=production"
               echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
-              # Derive PUBLIC_API_BASE and MWEB_BASE_URL from existing public secrets if not explicitly set
-              API_BASE_VAL='${{ secrets.PUBLIC_API_BASE }}'
-              [ -z "$API_BASE_VAL" ] && API_BASE_VAL='${{ secrets.NEXT_PUBLIC_API_BASE_URL }}'
-              MWEB_BASE_VAL='${{ secrets.MWEB_BASE_URL }}'
-              [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_MWEB_URL }}'
-              [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_APP_URL }}'
-              : "$API_BASE_VAL" "$MWEB_BASE_VAL"
               echo "PUBLIC_API_BASE=$API_BASE_VAL"
               echo "MWEB_BASE_URL=$MWEB_BASE_VAL"
               echo "CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || vars.CORS_ALLOW_ORIGINS }}"
@@ -195,6 +195,7 @@ jobs:
               [ -n "${{ secrets.VONAGE_API_SECRET }}" ] && echo "VONAGE_API_SECRET=${{ secrets.VONAGE_API_SECRET }}"
               [ -n "${{ secrets.VONAGE_FROM }}" ] && echo "VONAGE_FROM=${{ secrets.VONAGE_FROM }}"
             } > "$F.new"
+            set -e
             mv "$F.new" "$F"
             chmod 600 "$F"
 
