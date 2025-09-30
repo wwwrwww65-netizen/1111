@@ -135,7 +135,6 @@ jobs:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
           key_path: ${{ env.SSH_KEY_PATH }}
-          # ensure only one method is used: prefer key_path; supply key only if needed
           key: ${{ secrets.SSH_PRIVATE_KEY && '' }}
           password: ${{ secrets.SSH_PASSWORD && '' }}
           port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
@@ -148,15 +147,8 @@ jobs:
             ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
             mkdir -p "$ROOT"
             F="$ROOT/.env.api"
-            # Derive base URLs first (allow fallbacks), then enforce required
-            API_BASE_VAL='${{ secrets.PUBLIC_API_BASE }}'
-            [ -z "$API_BASE_VAL" ] && API_BASE_VAL='${{ secrets.NEXT_PUBLIC_API_BASE_URL }}'
-            MWEB_BASE_VAL='${{ secrets.MWEB_BASE_URL }}'
-            [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_MWEB_URL }}'
-            [ -z "$MWEB_BASE_VAL" ] && MWEB_BASE_VAL='${{ secrets.NEXT_PUBLIC_APP_URL }}'
-            : "${{ secrets.JWT_SECRET }}" "${{ secrets.COOKIE_DOMAIN }}" "$API_BASE_VAL" "$MWEB_BASE_VAL"
-            # Build file with optional keys without failing on unset using set +e around tests
-            set +e
+            API_BASE_VAL='${{ secrets.PUBLIC_API_BASE || secrets.NEXT_PUBLIC_API_BASE_URL || 'https://api.jeeey.com' }}'
+            MWEB_BASE_VAL='${{ secrets.MWEB_BASE_URL || secrets.NEXT_PUBLIC_MWEB_URL || secrets.NEXT_PUBLIC_APP_URL || 'https://m.jeeey.com' }}'
             {
               echo "NODE_ENV=production"
               echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
@@ -167,35 +159,31 @@ jobs:
               echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || vars.NEXT_PUBLIC_APP_URL }}"
               echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
               echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET }}"
-              [ -n "${{ secrets.SENTRY_DSN }}" ] && echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}"
-              [ -n "${{ secrets.STRIPE_SECRET_KEY }}" ] && echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}"
-              [ -n "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ] && echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
-              [ -n "${{ secrets.CLOUDINARY_URL }}" ] && echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}"
-              [ -n "${{ secrets.DATABASE_URL }}" ] && echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
-              [ -n "${{ secrets.DIRECT_URL }}" ] && echo "DIRECT_URL=${{ secrets.DIRECT_URL }}"
-              # Google OAuth
-              [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ] && echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}"
-              [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ] && echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}"
-              [ -n "${{ secrets.GOOGLE_REDIRECT_URI }}" ] && echo "GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}"
-              # WhatsApp
-              [ -n "${{ secrets.WHATSAPP_TOKEN }}" ] && echo "WHATSAPP_TOKEN=${{ secrets.WHATSAPP_TOKEN }}"
-              [ -n "${{ secrets.WHATSAPP_PHONE_ID }}" ] && echo "WHATSAPP_PHONE_ID=${{ secrets.WHATSAPP_PHONE_ID }}"
-              [ -n "${{ secrets.WHATSAPP_TEMPLATE }}" ] && echo "WHATSAPP_TEMPLATE=${{ secrets.WHATSAPP_TEMPLATE }}"
-              [ -n "${{ secrets.WHATSAPP_LANGUAGE }}" ] && echo "WHATSAPP_LANGUAGE=${{ secrets.WHATSAPP_LANGUAGE }}"
-              [ -n "${{ secrets.WHATSAPP_HEADER_TYPE }}" ] && echo "WHATSAPP_HEADER_TYPE=${{ secrets.WHATSAPP_HEADER_TYPE }}"
-              [ -n "${{ secrets.WHATSAPP_HEADER_PARAM }}" ] && echo "WHATSAPP_HEADER_PARAM=${{ secrets.WHATSAPP_HEADER_PARAM }}"
-              [ -n "${{ secrets.WHATSAPP_BUTTON_TYPE }}" ] && echo "WHATSAPP_BUTTON_TYPE=${{ secrets.WHATSAPP_BUTTON_TYPE }}"
-              [ -n "${{ secrets.WHATSAPP_BUTTON_INDEX }}" ] && echo "WHATSAPP_BUTTON_INDEX=${{ secrets.WHATSAPP_BUTTON_INDEX }}"
-              [ -n "${{ secrets.WHATSAPP_BUTTON_PARAM }}" ] && echo "WHATSAPP_BUTTON_PARAM=${{ secrets.WHATSAPP_BUTTON_PARAM }}"
-              # SMS
-              [ -n "${{ secrets.TWILIO_ACCOUNT_SID }}" ] && echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}"
-              [ -n "${{ secrets.TWILIO_AUTH_TOKEN }}" ] && echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}"
-              [ -n "${{ secrets.TWILIO_SMS_FROM }}" ] && echo "TWILIO_SMS_FROM=${{ secrets.TWILIO_SMS_FROM }}"
-              [ -n "${{ secrets.VONAGE_API_KEY }}" ] && echo "VONAGE_API_KEY=${{ secrets.VONAGE_API_KEY }}"
-              [ -n "${{ secrets.VONAGE_API_SECRET }}" ] && echo "VONAGE_API_SECRET=${{ secrets.VONAGE_API_SECRET }}"
-              [ -n "${{ secrets.VONAGE_FROM }}" ] && echo "VONAGE_FROM=${{ secrets.VONAGE_FROM }}"
+              echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}"
+              echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}"
+              echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
+              echo "CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}"
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+              echo "DIRECT_URL=${{ secrets.DIRECT_URL }}"
+              echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}"
+              echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+              echo "GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}"
+              echo "WHATSAPP_TOKEN=${{ secrets.WHATSAPP_TOKEN }}"
+              echo "WHATSAPP_PHONE_ID=${{ secrets.WHATSAPP_PHONE_ID }}"
+              echo "WHATSAPP_TEMPLATE=${{ secrets.WHATSAPP_TEMPLATE }}"
+              echo "WHATSAPP_LANGUAGE=${{ secrets.WHATSAPP_LANGUAGE }}"
+              echo "WHATSAPP_HEADER_TYPE=${{ secrets.WHATSAPP_HEADER_TYPE }}"
+              echo "WHATSAPP_HEADER_PARAM=${{ secrets.WHATSAPP_HEADER_PARAM }}"
+              echo "WHATSAPP_BUTTON_TYPE=${{ secrets.WHATSAPP_BUTTON_TYPE }}"
+              echo "WHATSAPP_BUTTON_INDEX=${{ secrets.WHATSAPP_BUTTON_INDEX }}"
+              echo "WHATSAPP_BUTTON_PARAM=${{ secrets.WHATSAPP_BUTTON_PARAM }}"
+              echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}"
+              echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}"
+              echo "TWILIO_SMS_FROM=${{ secrets.TWILIO_SMS_FROM }}"
+              echo "VONAGE_API_KEY=${{ secrets.VONAGE_API_KEY }}"
+              echo "VONAGE_API_SECRET=${{ secrets.VONAGE_API_SECRET }}"
+              echo "VONAGE_FROM=${{ secrets.VONAGE_FROM }}"
             } > "$F.new"
-            set -e
             mv "$F.new" "$F"
             chmod 600 "$F"
 
