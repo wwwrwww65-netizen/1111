@@ -442,9 +442,25 @@ shop.put('/me/preferences', requireAuth, async (req: any, res) => {
 });
 shop.get('/me', async (req: any, res) => {
   try {
-    const token = readTokenFromRequest(req);
-    if (!token) return res.json({ user: null });
-    const payload = verifyJwt(token);
+    // Try multiple token sources in a robust order: Authorization header, then cookies
+    const candidates: string[] = [];
+    try {
+      const header = (req?.headers?.authorization as string|undefined) || '';
+      if (header.startsWith('Bearer ')) candidates.push(header.slice(7));
+    } catch {}
+    try {
+      const shopCookie = req?.cookies?.shop_auth_token as string|undefined;
+      if (shopCookie) candidates.push(shopCookie);
+    } catch {}
+    try {
+      const adminCookie = req?.cookies?.auth_token as string|undefined;
+      if (adminCookie) candidates.push(adminCookie);
+    } catch {}
+    let payload: any = null;
+    for (const t of candidates) {
+      try { payload = verifyJwt(t); break; } catch { continue; }
+    }
+    if (!payload) return res.json({ user: null });
     const user = await db.user.findUnique({ where: { id: payload.userId }, select: { id:true, email:true, name:true, role:true } });
     return res.json({ user });
   } catch {
