@@ -85,7 +85,11 @@ async function main(){
           { name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
           { name:'auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
         ])
-        try { await ctx.addInitScript((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token) } catch {}
+        try {
+          await ctx.addInitScript((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token)
+          await page.evaluate((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token)
+        } catch {}
+        try { await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded', timeout: 60000 }) } catch {}
       }
     }catch{}
     // Navigate to account and rely on whoami
