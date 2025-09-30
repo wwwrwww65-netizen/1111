@@ -1,0 +1,63 @@
+name: Sync Env to VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      key:
+        description: "ENV key to set (e.g., JWT_SECRET_FALLBACKS)"
+        required: true
+      value:
+        description: "Value to set"
+        required: true
+      path:
+        description: "Remote project path"
+        required: false
+        default: "/var/www/ecom"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Prepare SSH key
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          umask 177
+          printf "%s\n" "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Write env and restart API (with fallbacks)
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER || vars.VPS_USER || 'root' }}
+          VPS_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT || '22' }}
+        run: |
+          set -e
+          if [ -z "${VPS_HOST}" ]; then echo 'VPS_HOST not set'; exit 1; fi
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" bash -lc "'
+            set -e
+            ROOT=\"${{ github.event.inputs.path }}\"
+            [ -z \"$ROOT\" ] && ROOT=/var/www/ecom
+            mkdir -p \"$ROOT\"
+            F=\"$ROOT/.env.api\"
+            touch \"$F\"
+            # remove existing key if present (safe)
+            KEY=\"${{ github.event.inputs.key }}\"
+            VAL=\"${{ github.event.inputs.value }}\"
+            sed -i \"/^${KEY}=.*/d\" \"$F\"
+            printf '%s\n' \"${KEY}=${VAL}\" >> \"$F\"
+            chmod 600 \"$F\"
+            echo \"Wrote ${KEY} to $F\"
+            # restart ecom-api with fallbacks
+            if command -v systemctl >/dev/null 2>&1; then
+              systemctl daemon-reload || true
+              systemctl restart ecom-api || systemctl try-restart ecom-api || true
+            elif command -v service >/dev/null 2>&1; then
+              service ecom-api restart || true
+            else
+              # naive fallback: kill node api process; it will be brought up by supervisor if configured
+              pkill -f \"packages/api/dist/index.js\" || true
+            fi
+            echo done
+          '"
