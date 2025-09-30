@@ -23,17 +23,29 @@ export const getJwtSecret = (): string => {
   return secret;
 };
 
+const getJwtSecrets = (): string[] => {
+  const primary = getJwtSecret();
+  const fallbacksRaw = process.env.JWT_SECRET_FALLBACKS || process.env.JWT_SECRET_ALT || '';
+  const extras = fallbacksRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => !!s && s !== primary);
+  return [primary, ...extras];
+};
+
 export const signJwt = (payload: Omit<JWTPayload, 'iat' | 'exp'>, expiresIn: string | number = '7d'): string => {
   return jwt.sign(payload, getJwtSecret(), { expiresIn });
 };
 
 export const verifyJwt = (token: string): JWTPayload => {
-  try {
-    const decoded = jwt.verify(token, getJwtSecret());
-    return JWTPayloadSchema.parse(decoded);
-  } catch {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
+  const secrets = getJwtSecrets();
+  for (const s of secrets) {
+    try {
+      const decoded = jwt.verify(token, s);
+      return JWTPayloadSchema.parse(decoded);
+    } catch {}
   }
+  throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
 };
 
 export const readTokenFromRequest = (req: any): string | null => {

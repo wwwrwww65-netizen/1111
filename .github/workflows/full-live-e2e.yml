@@ -76,7 +76,8 @@ jobs:
           set -e
           phone_e164="$WHATSAPP_TEST_PHONE"
           tmpl="${WHATSAPP_TEMPLATE:-otp_template}"
-          body=$(jq -n --arg phone "$phone_e164" --arg tmpl "$tmpl" '{phone:$phone, template:$tmpl, languageCode:"ar"}')
+          # Pass a sample code parameter for templates expecting {{1}}
+          body=$(jq -n --arg phone "$phone_e164" --arg tmpl "$tmpl" --argjson bodyParams '["123456"]' '{phone:$phone, template:$tmpl, languageCode:"ar", bodyParams:$bodyParams}')
           resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj.txt -X POST "$API_BASE/api/admin/whatsapp/send" -d "$body")
           echo "$resp" | jq . || echo "$resp"
           echo "$resp" | grep -q 'messageId' || (echo "No messageId in response"; exit 1)
