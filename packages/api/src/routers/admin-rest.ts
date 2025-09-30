@@ -64,11 +64,13 @@ adminRest.post('/whatsapp/send', async (req, res) => {
         components.push({ type:'button', sub_type: String(buttonSubType), index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: String(buttonParam) }] });
       }
       const payload: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
-      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
-      const text = await r.text().catch(()=> '');
-      await audit(req,'whatsapp','send',{ to, template, lang, status: r.status });
-      if (r.ok) return res.json({ ok:true, status: r.status, lang });
-      tried.push({ lang, status: r.status, body: text.slice(0,400) });
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payload) });
+      const raw = await r.text().catch(()=> '');
+      let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
+      const messageId = parsed?.messages?.[0]?.id || null;
+      await audit(req,'whatsapp','send',{ to, template, lang, status: r.status, messageId });
+      if (r.ok) return res.json({ ok:true, status: r.status, lang, to, phoneId, messageId, response: parsed || raw });
+      tried.push({ lang, status: r.status, body: raw.slice(0,400) });
     }
     return res.status(502).json({ ok:false, status: 404, error: JSON.stringify({ tried }) });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }

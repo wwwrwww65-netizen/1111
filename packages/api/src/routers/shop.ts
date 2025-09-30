@@ -230,9 +230,13 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
               if (btn) {
                 toSend.template.components.push({ type:'button', sub_type: btn.sub_type, index: btn.index, parameters:[{ type: 'text', text: btn.param }] });
               }
-              const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(toSend) });
-              if (r.ok) return true;
-              try { console.error('WA template send failed', lang, to, JSON.stringify(toSend.template.components), await r.text()) } catch {}
+              const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(toSend) });
+              const raw = await r.text().catch(()=> '');
+              if (r.ok) {
+                try { const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id; console.log('WA template sent', { to, lang, msgId }); } catch {}
+                return true;
+              }
+              try { console.error('WA template send failed', lang, to, JSON.stringify(toSend.template.components), raw) } catch {}
             }
           }
         }
@@ -241,9 +245,10 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
     // Fallback to plain text
     for (const to of toVariants) {
       const body = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } } as any;
-      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-      if (r.ok) return true;
-      try { console.error('WA text send failed', to, await r.text()) } catch {}
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(body) });
+      const raw = await r.text().catch(()=> '');
+      if (r.ok) { try { const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id; console.log('WA text sent', { to, msgId }); } catch {}; return true; }
+      try { console.error('WA text send failed', to, raw) } catch {}
     }
     return false;
   } catch { return false; }
