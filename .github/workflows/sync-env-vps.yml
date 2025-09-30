@@ -10,10 +10,6 @@ on:
         description: "Value to set (leave empty for blank)"
         required: false
         default: ""
-      path:
-        description: "Remote project path"
-        required: false
-        default: "/var/www/ecom"
 
 jobs:
   sync:
@@ -36,5 +32,4 @@ jobs:
         run: |
           set -e
           if [ -z "${VPS_HOST}" ]; then echo 'VPS_HOST not set'; exit 1; fi
-          DEST="${{ github.event.inputs.path || '/var/www/ecom' }}"
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "bash -lc 'set -e; ROOT=\"$DEST\"; if [ -z \"$ROOT\" ]; then ROOT=/var/www/ecom; fi; mkdir -p \"$ROOT\"; F=\"$ROOT/.env.api\"; touch \"$F\"; KEY=\"${{ github.event.inputs.key }}\"; VAL=\"${{ github.event.inputs.value }}\"; sed -i \"/^${KEY}=.*/d\" \"$F\"; printf \"%s\\n\" \"${KEY}=${VAL}\" >> \"$F\"; chmod 600 \"$F\"; if command -v systemctl >/dev/null 2>&1; then systemctl daemon-reload || true; systemctl restart ecom-api || systemctl try-restart ecom-api || true; elif command -v service >/dev/null 2>&1; then service ecom-api restart || true; fi; echo done'"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "bash -lc 'set -e; ROOT=/var/www/ecom; mkdir -p \"$ROOT\"; F=\"$ROOT/.env.api\"; touch \"$F\"; KEY=\"${{ github.event.inputs.key }}\"; VAL=\"${{ github.event.inputs.value }}\"; sed -i \"/^${KEY}=.*/d\" \"$F\"; printf \"%s\\n\" \"${KEY}=${VAL}\" >> \"$F\"; chmod 600 \"$F\"; if command -v systemctl >/dev/null 2>&1; then systemctl daemon-reload || true; systemctl restart ecom-api || systemctl try-restart ecom-api || true; elif command -v service >/dev/null 2>&1; then service ecom-api restart || true; fi; echo done'"
