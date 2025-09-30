@@ -67,14 +67,16 @@ jobs:
           echo "$whoami" | jq . || echo "$whoami"
           echo "$whoami" | grep -q '"role": "ADMIN"' || (echo "whoami not ADMIN"; exit 1)
 
-      - name: WhatsApp test (optional)
-        if: ${{ secrets.WHATSAPP_TEST_PHONE != '' }}
+      - name: WhatsApp test (live)
         env:
           API_BASE: ${{ env.API_BASE }}
-          WHATSAPP_TEST_PHONE: ${{ secrets.WHATSAPP_TEST_PHONE }}
+          WHATSAPP_TEST_PHONE: "+96777310606"
+          WHATSAPP_TEMPLATE: "verify_code"
         run: |
           set -e
-          body=$(jq -n --arg phone "$WHATSAPP_TEST_PHONE" --arg tmpl "${{ secrets.WHATSAPP_TEMPLATE || 'otp_template' }}" '{phone:$phone, template:$tmpl, languageCode:"ar"}')
+          phone_e164="$WHATSAPP_TEST_PHONE"
+          tmpl="${WHATSAPP_TEMPLATE:-otp_template}"
+          body=$(jq -n --arg phone "$phone_e164" --arg tmpl "$tmpl" '{phone:$phone, template:$tmpl, languageCode:"ar"}')
           resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj.txt -X POST "$API_BASE/api/admin/whatsapp/send" -d "$body")
           echo "$resp" | jq . || echo "$resp"
           echo "$resp" | grep -q 'messageId' || (echo "No messageId in response"; exit 1)
