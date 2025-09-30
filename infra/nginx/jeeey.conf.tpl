@@ -65,6 +65,15 @@ server {
     proxy_pass http://127.0.0.1:4000;
     if ($request_method = OPTIONS) { return 204; }
   }
+
+  # WhatsApp Cloud webhook (delivery/read statuses)
+  location /api/webhooks/whatsapp {
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:4000;
+  }
 }
 
 # Admin over HTTPS (Next.js 3001)

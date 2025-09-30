@@ -236,7 +236,11 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
                 try {
                   const parsed = raw ? JSON.parse(raw) : null;
                   const msgId = parsed?.messages?.[0]?.id;
-                  if (msgId) { console.log('WA template sent', { to, lang, msgId }); return true; }
+                  if (msgId) {
+                    try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, template||'', text, 'SENT', msgId, JSON.stringify({ lang, components: toSend.template.components })) } catch {}
+                    console.log('WA template sent', { to, lang, msgId });
+                    return true;
+                  }
                 } catch {}
                 // Treat 200 without messageId as uncertain -> try next variant or fallback
               }
@@ -251,12 +255,45 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
       const body = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } } as any;
       const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(body) });
       const raw = await r.text().catch(()=> '');
-      if (r.ok) { try { const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id; if (msgId) { console.log('WA text sent', { to, msgId }); return true; } } catch {}; }
+      if (r.ok) {
+        try {
+          const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id;
+        if (msgId) {
+            try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, 'text', text, 'SENT', msgId, JSON.stringify({})) } catch {}
+            console.log('WA text sent', { to, msgId });
+            return true;
+          }
+        } catch {}
+      }
       try { console.error('WA text send failed', to, raw) } catch {}
     }
     return false;
   } catch { return false; }
 }
+
+// WhatsApp Cloud inbound webhook: delivery/read statuses
+shop.post('/webhooks/whatsapp', async (req: any, res) => {
+  try{
+    const body = req.body || {};
+    const entries = Array.isArray(body.entry) ? body.entry : [];
+    for (const entry of entries) {
+      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      for (const ch of changes) {
+        const value = (ch || {}).value || {};
+        const statuses = Array.isArray(value.statuses) ? value.statuses : [];
+        for (const st of statuses) {
+          const messageId = String(st.id || '');
+          const status = String(st.status || '').toUpperCase();
+          const error = st.errors ? JSON.stringify(st.errors).slice(0, 500) : null;
+          if (messageId) {
+            try { await db.$executeRawUnsafe('UPDATE "NotificationLog" SET status=$2, error=$3, "updatedAt"=NOW() WHERE "messageId"=$1', messageId, status, error); } catch {}
+          }
+        }
+      }
+    }
+    return res.json({ ok:true });
+  }catch(e:any){ return res.status(200).json({ ok:false, error: e.message||'ignored' }); }
+});
 
 async function sendSmsOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('sms');

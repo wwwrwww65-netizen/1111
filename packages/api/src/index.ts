@@ -288,10 +288,13 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       'body TEXT,'+
       'status TEXT NOT NULL DEFAULT \'SENT\','+
       'error TEXT,'+
+      '"messageId" TEXT,'+
+      'meta JSONB,'+
       'createdAt TIMESTAMP DEFAULT NOW()'+
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_messageId_idx" ON "NotificationLog"("messageId")'); } catch {}
     // Ensure Currency table exists (Prisma-compatible)
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Currency" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "code" TEXT NOT NULL, "symbol" TEXT NOT NULL, "precision" INTEGER NOT NULL DEFAULT 2, "rateToBase" DOUBLE PRECISION NOT NULL DEFAULT 1, "isBase" BOOLEAN NOT NULL DEFAULT FALSE, "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Currency_code_key" ON "Currency"("code")');

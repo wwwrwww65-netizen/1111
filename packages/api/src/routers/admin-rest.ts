@@ -82,6 +82,9 @@ adminRest.post('/whatsapp/send', async (req, res) => {
       let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
       const messageId = parsed?.messages?.[0]?.id || null;
       await audit(req,'whatsapp','send',{ to, template, lang, status: r.status, messageId });
+      try {
+        await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, String(template), JSON.stringify({ bodyParams }), String(r.ok && messageId ? 'SENT' : 'FAILED'), messageId || '', JSON.stringify({ lang, response: parsed||raw }))
+      } catch {}
       if (r.ok && messageId) {
         // Optional SMS fallback to guarantee delivery if WA not visible on handset
         try {
@@ -105,6 +108,18 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     }
     return res.status(502).json({ ok:false, status: 404, error: JSON.stringify({ tried }) });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
+});
+
+// Admin: recent notification logs (last 50)
+adminRest.get('/notifications/logs', async (req, res) => {
+  try{
+    const token = readTokenFromRequest(req);
+    let role = '';
+    try { role = (verifyJwt(token) as any)?.role || ''; } catch {}
+    if (String(role).toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
+    const rows: any[] = (await db.$queryRawUnsafe('SELECT "createdAt", channel, target, title, status, "messageId", error FROM "NotificationLog" ORDER BY "createdAt" DESC LIMIT 50')) as any[];
+    return res.json({ ok:true, logs: rows });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'failed' }) }
 });
 
 // Defense-in-depth: ensure admin-extra tables exist if migrations were not applied yet.
