@@ -65,7 +65,7 @@ jobs:
             "$API_BASE/api/admin/auth/login" >/tmp/login.json || (cat /tmp/login.json || true; exit 1)
           whoami=$(curl -sS -b /tmp/cj.txt "$API_BASE/api/admin/auth/whoami")
           echo "$whoami" | jq . || echo "$whoami"
-          echo "$whoami" | grep -q '"role": "ADMIN"' || (echo "whoami not ADMIN"; exit 1)
+          echo "$whoami" | jq -e '.user.role=="ADMIN"' >/dev/null || (echo "whoami not ADMIN"; exit 1)
 
       - name: WhatsApp test (live)
         env:
