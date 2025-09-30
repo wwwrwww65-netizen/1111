@@ -290,6 +290,7 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       'error TEXT,'+
       '"messageId" TEXT,'+
       'meta JSONB,'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW(),'+
       'createdAt TIMESTAMP DEFAULT NOW()'+
       ')'
     );

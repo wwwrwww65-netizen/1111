@@ -113,10 +113,11 @@ adminRest.post('/whatsapp/send', async (req, res) => {
 // Admin: recent notification logs (last 50)
 adminRest.get('/notifications/logs', async (req, res) => {
   try{
-    const token = readTokenFromRequest(req);
-    let role = '';
-    try { role = (verifyJwt(token) as any)?.role || ''; } catch {}
-    if (String(role).toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
+    const token = readAdminTokenFromRequest(req) || readTokenFromRequest(req);
+    let payload: any = null;
+    try { payload = verifyToken(token as any); } catch {}
+    const role = String((payload?.role)||'');
+    if (role.toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
     const rows: any[] = (await db.$queryRawUnsafe('SELECT "createdAt", channel, target, title, status, "messageId", error FROM "NotificationLog" ORDER BY "createdAt" DESC LIMIT 50')) as any[];
     return res.json({ ok:true, logs: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'failed' }) }
