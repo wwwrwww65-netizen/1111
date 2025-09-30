@@ -67,7 +67,7 @@ async function main(){
     const token = testLogin.token
     await page.evaluate((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token)
     await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded' })
-    const me2 = await page.evaluate(async(base,t)=>{ const r=await fetch(`${base}/api/me`, { headers:{ Authorization: `Bearer ${t}` } }); return r.ok? r.json(): null }, API_BASE, token)
+    const me2 = await page.evaluate(async(args)=>{ const { base, t } = args; const r=await fetch(`${base}/api/me`, { headers:{ Authorization: `Bearer ${t}` } }); return r.ok? r.json(): null }, { base: API_BASE, t: token })
     await expectOk(me2 && me2.user, 'me_after_google_sim_null')
 
     console.log('E2E auth OK')
