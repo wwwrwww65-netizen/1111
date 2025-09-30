@@ -649,6 +649,13 @@ jobs:
             body=$(printf '{"phone":"%s","template":"%s","languageCode":"ar","bodyParams":["123456"],"buttonSubType":"url","buttonIndex":0,"buttonParam":"123456","strict":true}' "$PHONE" "$TMPL")
             resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send" -d "$body")
             echo "$resp" | grep -q 'messageId' || { echo "WA smoke failed: $resp"; exit 1; }
+            mid=$(echo "$resp" | grep -o '"messageId":"[^"]\+"' | head -n1 | sed 's/.*"messageId":"\([^"]\+\)".*/\1/')
+            # poll status directly if webhook not yet bound
+            for i in $(seq 1 5); do
+              st=$(curl -sS -b /tmp/cj "$API/api/admin/whatsapp/status?id=$mid" || true)
+              echo "$st" | grep -Eq 'DELIVERED|READ|SENT' && break
+              sleep 3
+            done
 
       - name: Post-deploy category delete proof (always)
         if: always()

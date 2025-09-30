@@ -31,7 +31,8 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     const u = (req as any).user || (payload ? { userId: payload.userId, role: payload.role } : null);
     const isAdmin = Boolean((u as any)?.role === 'ADMIN' || (payload?.role === 'ADMIN'));
     if (!u || (!isAdmin && !(await can((u as any).userId, 'analytics.read')))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
-    const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams, headerType, headerParam, strict=false } = req.body || {};
+    const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams, headerType, headerParam } = req.body || {};
+    const strict = String(process.env.WHATSAPP_STRICT_DEFAULT||'').trim()==='1' ? true : !!(req.body?.strict);
     if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
     const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy:{ createdAt:'desc' } });
     const conf = (cfg as any)?.config || {};
@@ -139,6 +140,29 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     }
     return res.status(502).json({ ok:false, status: 404, error: JSON.stringify({ tried }) });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
+});
+
+// Admin: message status by id (poll without webhook)
+adminRest.get('/whatsapp/status', async (req, res) => {
+  try{
+    const t = readAdminTokenFromRequest(req) || readTokenFromRequest(req);
+    let payload: any = null; try { payload = verifyToken(t as any); } catch {}
+    if (!payload || String((payload.role||'')).toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
+    const messageId = String(req.query.id||'').trim();
+    if (!messageId) return res.status(400).json({ ok:false, error:'message_id_required' });
+    const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy: { createdAt:'desc' } });
+    const conf = (cfg as any)?.config || {};
+    const token = conf.token;
+    if (!token) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
+    const r = await fetch(`https://graph.facebook.com/v17.0/${encodeURIComponent(messageId)}?fields=message_status`, { headers:{ 'Authorization': `Bearer ${token}` } });
+    const raw = await r.text().catch(()=> '');
+    let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
+    const status = parsed?.message_status || (parsed?.status) || null;
+    if (status) {
+      try { await db.$executeRawUnsafe('UPDATE "NotificationLog" SET status=$2, "updatedAt"=NOW() WHERE "messageId"=$1', messageId, String(status).toUpperCase()); } catch {}
+    }
+    return res.json({ ok: r.ok, status: r.status, message_status: status, response: parsed || raw });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'status_failed' }); }
 });
 
 // Admin: Diagnose a recipient phone deliverability via WhatsApp Cloud Contacts API
