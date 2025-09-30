@@ -85,6 +85,7 @@ async function main(){
           { name:'auth_token', value: token, domain: 'jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' },
           { name:'auth_token', value: token, domain: 'api.jeeey.com', path:'/', secure: true, httpOnly: true, sameSite: 'None' }
         ])
+        try { await ctx.addInitScript((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token) } catch {}
       }
     }catch{}
     // Navigate to account and rely on whoami

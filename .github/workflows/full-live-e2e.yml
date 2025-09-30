@@ -50,6 +50,8 @@ jobs:
           MWEB_BASE: ${{ env.MWEB_BASE }}
           API_BASE: ${{ env.API_BASE }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+          # Pass API token into the page as well, if available (optional)
+          TEST_API_TOKEN: ${{ secrets.TEST_API_TOKEN }}
         working-directory: scripts/ci
         run: node e2e-mweb-auth.mjs
 
