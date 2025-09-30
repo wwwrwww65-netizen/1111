@@ -2,8 +2,6 @@ name: MWeb Auth E2E
 
 on:
   workflow_dispatch:
-  push:
-    branches: []
 
 jobs:
   e2e-mweb-auth:

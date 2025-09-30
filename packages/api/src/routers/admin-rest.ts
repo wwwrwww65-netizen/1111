@@ -69,7 +69,7 @@ adminRest.post('/whatsapp/send', async (req, res) => {
       let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
       const messageId = parsed?.messages?.[0]?.id || null;
       await audit(req,'whatsapp','send',{ to, template, lang, status: r.status, messageId });
-      if (r.ok) return res.json({ ok:true, status: r.status, lang, to, phoneId, messageId, response: parsed || raw });
+      if (r.ok && messageId) return res.json({ ok:true, status: r.status, lang, to, phoneId, messageId, response: parsed || raw });
       tried.push({ lang, status: r.status, body: raw.slice(0,400) });
     }
     return res.status(502).json({ ok:false, status: 404, error: JSON.stringify({ tried }) });

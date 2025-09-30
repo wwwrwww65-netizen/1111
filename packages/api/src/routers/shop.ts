@@ -233,8 +233,12 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
               const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(toSend) });
               const raw = await r.text().catch(()=> '');
               if (r.ok) {
-                try { const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id; console.log('WA template sent', { to, lang, msgId }); } catch {}
-                return true;
+                try {
+                  const parsed = raw ? JSON.parse(raw) : null;
+                  const msgId = parsed?.messages?.[0]?.id;
+                  if (msgId) { console.log('WA template sent', { to, lang, msgId }); return true; }
+                } catch {}
+                // Treat 200 without messageId as uncertain -> try next variant or fallback
               }
               try { console.error('WA template send failed', lang, to, JSON.stringify(toSend.template.components), raw) } catch {}
             }
@@ -247,7 +251,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
       const body = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } } as any;
       const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(body) });
       const raw = await r.text().catch(()=> '');
-      if (r.ok) { try { const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id; console.log('WA text sent', { to, msgId }); } catch {}; return true; }
+      if (r.ok) { try { const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id; if (msgId) { console.log('WA text sent', { to, msgId }); return true; } } catch {}; }
       try { console.error('WA text send failed', to, raw) } catch {}
     }
     return false;
@@ -594,13 +598,18 @@ shop.get('/auth/google/callback', async (req, res) => {
     const isProd = (process.env.NODE_ENV || 'production') === 'production';
     // Write domain cookie
     try { res.cookie('shop_auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
+    try { res.cookie('auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
     // Also write api subdomain cookie to ensure /api/me sees it when third-party blocked
     try{
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
-      if (root) res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+      if (root) {
+        res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+        res.cookie('auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+      }
     }catch{}
     // Host-only fallback for strict environments
     try { res.cookie('shop_auth_token', token, { httpOnly:true, sameSite: 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
+    try { res.cookie('auth_token', token, { httpOnly:true, sameSite: 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
     // Dynamic mweb base inferred from referer if present
     let mwebBase = process.env.MWEB_BASE_URL || '';
     try { if (!mwebBase && req.headers.referer) { const u = new URL(String(req.headers.referer)); mwebBase = `${u.protocol}//${u.host.replace('api.','m.')}`; } } catch {}
