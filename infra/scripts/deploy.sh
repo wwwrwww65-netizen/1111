@@ -80,6 +80,8 @@ if [ -d "$ROOT_DIR/apps/mweb" ]; then
     echo "[deploy] ERROR: mweb dist/index.html missing after build" >&2
     exit 1
   fi
+  # Bust CDN/cache by touching index.html (nginx short-cache already set)
+  touch "$ROOT_DIR/apps/mweb/dist/index.html"
 fi
 
 # IMPORTANT: Do NOT create or seed any data on deploy.
