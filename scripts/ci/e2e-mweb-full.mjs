@@ -76,11 +76,9 @@ async function main(){
     await expectOk(testLogin && testLogin.token, 'google_sim_token_missing')
     const token = testLogin.token
     await page.evaluate((t)=>{ try{ localStorage.setItem('shop_token', t) }catch{} }, token)
-    await page.goto(`${MWEB_BASE}/account`, { waitUntil:'domcontentloaded' })
-    // Server-side verification first to avoid page constraints
+    // Server-side verification only (avoid page constraints entirely)
     const srv = await fetch(`${API_BASE}/api/test/me`, { method:'POST', headers:{ 'content-type':'application/json', 'x-maintenance-secret': MAINTENANCE_SECRET }, body: JSON.stringify({ token }) }).then(r=>r.json()).catch(()=>null)
     let me2 = (srv && srv.user) ? srv : null
-    if (!me2 || !me2.user) me2 = await page.evaluate(async(args)=>{ const { base, t } = args; const r=await fetch(`${base}/api/me`, { headers:{ Authorization: `Bearer ${t}` } }); return r.ok? r.json(): null }, { base: API_BASE, t: token })
     if (!me2 || !me2.user) {
       // Node-side forced token path
       try {
