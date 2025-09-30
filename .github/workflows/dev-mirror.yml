@@ -68,7 +68,7 @@ jobs:
           # Use repo secret if present, else test value for CI only
           echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'ci_dev_mirror_secret' }}" >> $GITHUB_ENV
           echo "MAINTENANCE_SECRET=${{ secrets.MAINTENANCE_SECRET || 'ci_maint' }}" >> $GITHUB_ENV
-          echo "INTERNAL_API_URL=https://api.jeeey.local" >> $GITHUB_ENV
+          echo "INTERNAL_API_URL=http://127.0.0.1:4000" >> $GITHUB_ENV
 
       - name: Prisma generate/push (ephemeral DB)
         run: |
@@ -93,7 +93,7 @@ jobs:
       - name: Start Web (bg, :3000)
         working-directory: apps/web
         run: |
-          pnpm dlx next start -p 3000 -H 127.0.0.1 >/tmp/web.log 2>&1 & echo $! > /tmp/web.pid
+          pnpm run start -- -p 3000 -H 127.0.0.1 >/tmp/web.log 2>&1 & echo $! > /tmp/web.pid
           ok=0
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || true)
@@ -110,7 +110,7 @@ jobs:
           PORT: '3001'
           HOSTNAME: '127.0.0.1'
         run: |
-          pnpm start >/tmp/admin.log 2>&1 & echo $! > /tmp/admin.pid
+          pnpm run start -- -p 3001 -H 127.0.0.1 >/tmp/admin.log 2>&1 & echo $! > /tmp/admin.pid
           ok=0
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)

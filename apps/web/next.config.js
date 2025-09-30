@@ -3,7 +3,7 @@ const nextConfig = {
   transpilePackages: ["@repo/ui"],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  outputFileTracing: false,
+  // Remove invalid key for Next 15 runner
   images: {
     unoptimized: true,
     remotePatterns: [
