@@ -39,7 +39,7 @@ jobs:
             ok=0
             for i in $(seq 1 40); do
               code=$(curl -k -s -o /dev/null -w '%{http_code}' "$host" || true)
-              if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ]; then ok=1; echo "OK: $host ($code)"; break; fi
+              if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then ok=1; echo "OK: $host ($code)"; break; fi
               echo "waiting ($i): $host -> $code"; sleep 3
             done
             if [ "$ok" != "1" ]; then echo "FAILED: $host"; exit 1; fi
