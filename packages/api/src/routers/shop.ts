@@ -367,28 +367,11 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
       maxAge: 3600 * 24 * 30 * 1000,
       path: '/',
     });
-    // Also write fallback auth_token for legacy readers to ensure /api/me uses the USER token (overrides any old admin token on API domain)
-    res.cookie('auth_token', token, {
-      httpOnly: true,
-      domain: cookieDomain,
-      sameSite: isProd ? 'none' : 'lax',
-      secure: isProd,
-      maxAge: 3600 * 24 * 30 * 1000,
-      path: '/',
-    });
     // Also set cookie specifically for api subdomain to avoid mixed old tokens
     try {
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
       if (root) {
         res.cookie('shop_auth_token', token, {
-          httpOnly: true,
-          domain: `api.${root}`,
-          sameSite: isProd ? 'none' : 'lax',
-          secure: isProd,
-          maxAge: 3600 * 24 * 30 * 1000,
-          path: '/',
-        });
-        res.cookie('auth_token', token, {
           httpOnly: true,
           domain: `api.${root}`,
           sameSite: isProd ? 'none' : 'lax',
@@ -595,12 +578,10 @@ shop.get('/auth/google/callback', async (req, res) => {
     const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
     const isProd = (process.env.NODE_ENV || 'production') === 'production';
     res.cookie('shop_auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
-    res.cookie('auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
     try{
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
       if (root) {
         res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
-        res.cookie('auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
       }
     }catch{}
     const mwebBase = process.env.MWEB_BASE_URL || 'https://m.jeeey.com';
