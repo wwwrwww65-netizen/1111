@@ -42,6 +42,9 @@ jobs:
               "COOKIE_DOMAIN=.jeeey.com" \
               "NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com" \
               "NEXT_PUBLIC_APP_URL=https://jeeey.com" \
+              "PUBLIC_API_BASE=https://api.jeeey.com" \
+              "MWEB_BASE_URL=https://m.jeeey.com" \
+              "VITE_API_BASE=https://api.jeeey.com" \
               "JWT_SECRET=$JR" \
               "MAINTENANCE_SECRET=$MS" \
               > "$F"
@@ -49,6 +52,11 @@ jobs:
           fi
           DB="${{ secrets.DATABASE_URL }}"; if [ -n "$DB" ] && ! grep -q '^DATABASE_URL=' "$F"; then echo "DATABASE_URL=$DB" >> "$F"; fi
           DU="${{ secrets.DIRECT_URL }}"; if [ -n "$DU" ] && ! grep -q '^DIRECT_URL=' "$F"; then echo "DIRECT_URL=$DU" >> "$F"; fi
+          DCC="${{ secrets.DEFAULT_COUNTRY_CODE }}"; if [ -n "$DCC" ] && ! grep -q '^DEFAULT_COUNTRY_CODE=' "$F"; then echo "DEFAULT_COUNTRY_CODE=$DCC" >> "$F"; fi
+          JSF="${{ secrets.JWT_SECRET_FALLBACKS }}"; if [ -n "$JSF" ] && ! grep -q '^JWT_SECRET_FALLBACKS=' "$F"; then echo "JWT_SECRET_FALLBACKS=$JSF" >> "$F"; fi
+          PAB="${{ secrets.PUBLIC_API_BASE }}"; if [ -n "$PAB" ] && ! grep -q '^PUBLIC_API_BASE=' "$F"; then echo "PUBLIC_API_BASE=$PAB" >> "$F"; fi
+          MBB="${{ secrets.MWEB_BASE_URL }}"; if [ -n "$MBB" ] && ! grep -q '^MWEB_BASE_URL=' "$F"; then echo "MWEB_BASE_URL=$MBB" >> "$F"; fi
+          VAB="${{ secrets.VITE_API_BASE }}"; if [ -n "$VAB" ] && ! grep -q '^VITE_API_BASE=' "$F"; then echo "VITE_API_BASE=$VAB" >> "$F"; fi
           ls -l "$F" | cat
           ENVF
 
