@@ -78,6 +78,8 @@ app.use((_req, res, next) => {
 });
 // Behind NGINX, trust only loopback to satisfy express-rate-limit without being overly permissive
 app.set('trust proxy', 'loopback');
+// Ensure cookies are parsed early so /api/me and auth flows can read tokens
+app.use(cookieParser());
 // Ensure critical DB schema tweaks are applied (idempotent)
 async function ensureSchema(): Promise<void> {
   try {
