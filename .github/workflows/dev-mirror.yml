@@ -239,15 +239,29 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
         run: |
           set -e
-          # API health
+          # Local sanity checks first
+          curl -sS http://127.0.0.1:4000/health | cat
+          code_admin_local=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)
+          echo "admin local /login: $code_admin_local"
+          # API health via NGINX
           curl -k --resolve api.jeeey.local:8443:127.0.0.1 https://api.jeeey.local:8443/health | cat
-          # Admin login (JSON) through admin domain (proxy to API)
+          # Admin login (JSON) through admin domain (proxy to local API)
           CJ=/tmp/cj.$$; rm -f "$CJ"
           code=$(curl -k -s -o /dev/null -w '%{http_code}' --resolve admin.jeeey.local:8443:127.0.0.1 \
             -H 'content-type: application/json' -X POST \
             https://admin.jeeey.local:8443/api/admin/auth/login \
             --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"remember\":true}" || true)
-          echo "admin login status: $code"; [ "$code" = "200" ] || exit 1
+          echo "admin login (via nginx) status: $code"
+          if [ "$code" != "200" ]; then
+            echo '--- admin.log (tail) ---'; tail -n 120 /tmp/admin.log || true
+            echo '--- web.log (tail) ---'; tail -n 80 /tmp/web.log || true
+            echo 'Retry: admin login directly to local API'
+            code_local=$(curl -s -o /dev/null -w '%{http_code}' -H 'content-type: application/json' -X POST \
+              http://127.0.0.1:4000/api/admin/auth/login \
+              --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"remember\":true}" || true)
+            echo "admin login (local API) status: $code_local"
+            [ "$code_local" = "200" ] || exit 1
+          fi
           # Web root
           curl -k -sSI --resolve jeeey.local:8443:127.0.0.1 https://jeeey.local:8443/ | sed -n '1,20p'
 
