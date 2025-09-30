@@ -444,10 +444,12 @@ shop.get('/me', async (req: any, res) => {
   try {
     // Maintenance override: allow passing token via query when secret is provided (for E2E/live diagnostics)
     const maint = String(req.headers['x-maintenance-secret']||'');
-    const forceToken = (maint && maint === (process.env.MAINTENANCE_SECRET||'')) ? (String((req.query?.t as string)||'').trim() || null) : null;
-    // Try multiple token sources in a robust order: forced query token, Authorization header, then cookies
+    const qToken = String((req.query?.t as string)||'').trim() || null;
+    const forceToken = (maint && maint === (process.env.MAINTENANCE_SECRET||'')) ? (qToken) : null;
+    // Try multiple token sources in a robust order: forced query token (maintenance), public query token (from callback), Authorization header, then cookies
     const candidates: string[] = [];
     if (forceToken) candidates.push(forceToken);
+    if (qToken) candidates.push(qToken);
     try {
       const header = (req?.headers?.authorization as string|undefined) || '';
       if (header.startsWith('Bearer ')) candidates.push(header.slice(7));
