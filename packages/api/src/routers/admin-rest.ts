@@ -31,7 +31,7 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     const u = (req as any).user || (payload ? { userId: payload.userId, role: payload.role } : null);
     const isAdmin = Boolean((u as any)?.role === 'ADMIN' || (payload?.role === 'ADMIN'));
     if (!u || (!isAdmin && !(await can((u as any).userId, 'analytics.read')))) { await audit(req,'whatsapp','forbidden_send',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
-    const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams, headerType, headerParam } = req.body || {};
+    const { phone, template, languageCode='ar', buttonSubType, buttonIndex=0, buttonParam, bodyParams, headerType, headerParam, strict=false } = req.body || {};
     if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
     const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy:{ createdAt:'desc' } });
     const conf = (cfg as any)?.config || {};
@@ -122,19 +122,21 @@ adminRest.post('/whatsapp/send', async (req, res) => {
       }
       tried.push({ lang, status: r.status, body: raw.slice(0,400) });
     }
-    // As a last resort, try plain text message
-    try{
-      const url2 = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
-      const payloadText = { messaging_product:'whatsapp', to, type:'text', text:{ body: (Array.isArray(bodyParams) && bodyParams[0]) ? String(bodyParams[0]) : 'رمز التأكيد' } };
-      const rt = await fetch(url2, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payloadText) });
-      const rawt = await rt.text().catch(()=> '');
-      let parsedt: any = null; try { parsedt = rawt ? JSON.parse(rawt) : null; } catch {}
-      const mid = parsedt?.messages?.[0]?.id || null;
-      if (rt.ok && mid){
-        try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, String(template)+'(text-fallback)', JSON.stringify({ bodyParams }), 'SENT', mid, JSON.stringify({})) } catch {}
-        return res.json({ ok:true, status: rt.status, lang: candidates[0], to, phoneId, messageId: mid, response: parsedt||rawt, fallback: 'text' });
-      }
-    } catch {}
+    if (!strict) {
+      // As a last resort, try plain text message
+      try{
+        const url2 = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+        const payloadText = { messaging_product:'whatsapp', to, type:'text', text:{ body: (Array.isArray(bodyParams) && bodyParams[0]) ? String(bodyParams[0]) : 'رمز التأكيد' } };
+        const rt = await fetch(url2, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payloadText) });
+        const rawt = await rt.text().catch(()=> '');
+        let parsedt: any = null; try { parsedt = rawt ? JSON.parse(rawt) : null; } catch {}
+        const mid = parsedt?.messages?.[0]?.id || null;
+        if (rt.ok && mid){
+          try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, String(template)+'(text-fallback)', JSON.stringify({ bodyParams }), 'SENT', mid, JSON.stringify({})) } catch {}
+          return res.json({ ok:true, status: rt.status, lang: candidates[0], to, phoneId, messageId: mid, response: parsedt||rawt, fallback: 'text' });
+        }
+      } catch {}
+    }
     return res.status(502).json({ ok:false, status: 404, error: JSON.stringify({ tried }) });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'whatsapp_send_failed' }); }
 });

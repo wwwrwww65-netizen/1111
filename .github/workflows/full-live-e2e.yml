@@ -71,13 +71,13 @@ jobs:
         env:
           API_BASE: ${{ env.API_BASE }}
           WHATSAPP_TEST_PHONE: "+96777310606"
-          WHATSAPP_TEMPLATE: "verify_code"
+          WHATSAPP_TEMPLATE: "otp_verification_code"
         run: |
           set -e
           phone_e164="$WHATSAPP_TEST_PHONE"
           tmpl="${WHATSAPP_TEMPLATE:-otp_template}"
           # Pass a sample code parameter for templates expecting {{1}}
-          body=$(jq -n --arg phone "$phone_e164" --arg tmpl "$tmpl" --argjson bodyParams '["123456"]' '{phone:$phone, template:$tmpl, languageCode:"ar", bodyParams:$bodyParams}')
+          body=$(jq -n --arg phone "$phone_e164" --arg tmpl "$tmpl" --argjson bodyParams '["123456"]' '{phone:$phone, template:$tmpl, languageCode:"ar", bodyParams:$bodyParams, buttonSubType:"url", buttonIndex:0, buttonParam:"123456", strict:true}')
           resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj.txt -X POST "$API_BASE/api/admin/whatsapp/send" -d "$body")
           echo "$resp" | jq . || echo "$resp"
           echo "$resp" | grep -q 'messageId' || (echo "No messageId in response"; exit 1)
