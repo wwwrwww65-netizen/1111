@@ -2365,8 +2365,8 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
       db.order.count({ where: { assignedDriverId: id, status: { in: ['PENDING','PAID','SHIPPED'] } } }),
       db.order.count({ where: { assignedDriverId: id, status: 'DELIVERED' } }),
       db.order.count({ where: { assignedDriverId: id, status: 'PENDING' } }),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED','PAID'] } } } ).then(r=> r._sum.amount || 0),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING','SHIPPED'] } } } ).then(r=> r._sum.amount || 0),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED','PAID'] } } } }).then(r=> Number(r._sum.amount||0)),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING','SHIPPED'] } } } }).then(r=> Number(r._sum.amount||0)),
       db.order.findMany({ where: { assignedDriverId: id }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, status: true, total: true, createdAt: true } })
     ]);
     res.json({ driver: d, kpis: { assigned, delivered, pending, totalEarned, totalDue }, orders: assignedOrders });
