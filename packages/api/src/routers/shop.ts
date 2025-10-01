@@ -174,7 +174,7 @@ async function getGoogleOAuthConfig(): Promise<{ clientId: string; clientSecret?
 async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('whatsapp');
   if (!cfg || cfg.enabled === false) return false; // treat missing enabled as true
-  const token = cfg.token; const phoneId = cfg.phoneId; const template = cfg.template; let languageCode = cfg.languageCode || 'ar';
+  const token = cfg.token; const phoneId = cfg.phoneId; let template = cfg.template || 'otp_login_code'; let languageCode = cfg.languageCode || 'ar';
   const headerType = cfg.headerType; const headerParam = cfg.headerParam;
   // Normalize language naming like "arabic" => "ar"
   if (typeof languageCode === 'string'){
@@ -189,6 +189,19 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
     // WhatsApp Cloud expects international number without '+' (MSISDN)
     const msisdn = String(phone).replace(/[^0-9]/g, '').replace(/^0+/, '');
     const toVariants = Array.from(new Set([msisdn]));
+    // Try template with exact introspection from WABA if available
+    // Read wabaId from integration/env for introspection
+    const wabaId = cfg.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
+    let introspectedComponents: any[] | null = null;
+    if (wabaId && template) {
+      try {
+        const q = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(wabaId))}/message_templates?name=${encodeURIComponent(String(template))}`;
+        const meta = await fetch(q, { headers:{ 'Authorization': `Bearer ${token}` } }).then(r=>r.json()).catch(()=>null) as any;
+        // Prefer Arabic if present, else first
+        const tpl = Array.isArray(meta?.data) ? (meta.data.find((d:any)=> String(d?.language||'').toLowerCase().startsWith('ar')) || meta.data[0]) : null;
+        introspectedComponents = Array.isArray(tpl?.components) ? tpl.components : null;
+      } catch {}
+    }
     // Try template with multiple languages and component permutations
     if (template) {
       for (const to of toVariants) {
@@ -210,15 +223,35 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
           const digits = (text.match(/\d+/g) || []).join('').slice(0, 12);
           const paramValue = digits.length > 0 ? digits : text;
           const bodyComp = { type:'body', parameters:[{ type:'text', text: paramValue }] } as any;
-          const variants: any[] = [];
-          // 1) header + body
-          if (headerComp) variants.push([headerComp, bodyComp]);
-          // 2) body only
-          variants.push([bodyComp]);
-          // 3) header only (some templates put code in header)
-          if (headerComp) variants.push([headerComp]);
-          // 4) empty components (for templates without params)
-          variants.push([]);
+          let variants: any[] = [];
+          if (Array.isArray(introspectedComponents) && introspectedComponents.length){
+            // Build exact components order based on introspected template
+            const comps: any[] = [];
+            for (const c of introspectedComponents){
+              const t = String(c?.type||'').toLowerCase();
+              if (t === 'header') {
+                if (c.format === 'TEXT') comps.push({ type:'header', parameters:[{ type:'text', text: paramValue }] });
+                else comps.push({ type:'header' });
+              } else if (t === 'body') {
+                const varCount = Number(c.example?.body_text?.[0]?.length || (c.text?.match(/{{\d+}}/g)||[]).length || 1);
+                const plist = Array.from({ length: Math.max(1,varCount) }).map((_,i)=> ({ type:'text', text: String(i===0?paramValue:paramValue) }));
+                comps.push({ type:'body', parameters: plist });
+              } else if (t === 'button') {
+                const sub = String(c.sub_type||'').toLowerCase();
+                if (sub === 'url') comps.push({ type:'button', sub_type:'url', index: String(c.index||'0'), parameters:[{ type:'text', text: String(paramValue).slice(0,15) }] });
+                else if (sub === 'quick_reply') comps.push({ type:'button', sub_type:'quick_reply', index: String(c.index||'0') });
+                else if (sub === 'phone_number') comps.push({ type:'button', sub_type:'phone_number', index: String(c.index||'0'), parameters:[{ type:'text', text: String(paramValue).slice(0,128) }] });
+              }
+            }
+            variants = [comps];
+          } else {
+            // Fallback permutations when introspection unavailable
+            variants = [];
+            if (headerComp) variants.push([headerComp, bodyComp]);
+            variants.push([bodyComp]);
+            if (headerComp) variants.push([headerComp]);
+            variants.push([]);
+          }
 
           // Button variants: if integration defines button, use it; otherwise try url and quick_reply automatically
           const buttonCandidates: Array<{ sub_type: 'url'|'quick_reply'|'phone_number'; index: string; param?: string }|null> = [];
