@@ -81,10 +81,10 @@ rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Build db/api via package scripts (ensures tsc and prisma are available in context)
 # Build DB: use local binaries to avoid PATH issues
-(cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/prisma generate 2>/dev/null || npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma"))
-(cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/tsc -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
+(cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/prisma generate 2>/dev/null || pnpm dlx prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma"))
+(cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/tsc -p tsconfig.json || pnpm dlx typescript@5.3.3 -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
 # Build API: clean then compile with local tsc
-(cd "$ROOT_DIR/packages/api" && (./node_modules/.bin/rimraf dist || rm -rf dist) && (./node_modules/.bin/tsc -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
+(cd "$ROOT_DIR/packages/api" && (./node_modules/.bin/rimraf dist || rm -rf dist) && (./node_modules/.bin/tsc -p tsconfig.json || pnpm dlx typescript@5.3.3 -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
 # Next.js builds
 pnpm --filter web build
 pnpm --filter admin build
