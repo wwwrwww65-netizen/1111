@@ -18,6 +18,7 @@ export default function WhatsAppSendPage(): JSX.Element {
   const [loading, setLoading] = React.useState(false);
   const [strict, setStrict] = React.useState(true);
   const [details, setDetails] = React.useState<any>(null);
+  const [mid, setMid] = React.useState<string>('');
 
   function authHeaders(): Record<string,string> {
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -49,6 +50,7 @@ export default function WhatsAppSendPage(): JSX.Element {
         setColor('#22c55e');
         setMsg(`OK ${r.status}${mid? ` | messageId=${mid}`:''}`);
         setDetails(j||text||'');
+        setMid(String(mid||''));
       } else {
         const err = j?.error || text || 'error';
         setColor('#ef4444');
@@ -56,6 +58,26 @@ export default function WhatsAppSendPage(): JSX.Element {
         setDetails(j||text||'');
       }
     } catch(e:any){ setColor('#ef4444'); setMsg(e.message||'network_error'); } finally { setLoading(false); }
+  }
+
+  async function checkStatus(){
+    if (!mid) { setMsg('لا يوجد messageId'); return; }
+    try{
+      const r = await fetch(`${apiBase}/api/admin/whatsapp/status?id=${encodeURIComponent(mid)}`, { credentials:'include', headers: { ...authHeaders() } });
+      const t = await r.text(); let j:any=null; try{ j = t? JSON.parse(t): null } catch{}
+      if (r.ok){ setColor('#22c55e'); setMsg(`STATUS ${r.status}: ${j?.message_status||'unknown'}`); setDetails(j||t||''); }
+      else { setColor('#ef4444'); setMsg(`ERR ${r.status}`); setDetails(j||t||''); }
+    } catch(e:any){ setColor('#ef4444'); setMsg(e.message||'network_error'); }
+  }
+
+  async function diagnoseContact(){
+    try{
+      const payload = { phone: phone.replace(/\D/g,'') };
+      const r = await fetch(`${apiBase}/api/admin/whatsapp/diagnose`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+      const t = await r.text(); let j:any=null; try{ j = t? JSON.parse(t): null } catch{}
+      if (r.ok){ setColor('#22c55e'); setMsg(`CONTACT OK ${r.status}`); setDetails(j||t||''); }
+      else { setColor('#ef4444'); setMsg(`CONTACT ERR ${r.status}`); setDetails(j||t||''); }
+    } catch(e:any){ setColor('#ef4444'); setMsg(e.message||'network_error'); }
   }
 
   return (
@@ -112,6 +134,8 @@ export default function WhatsAppSendPage(): JSX.Element {
       </div>
       <div>
         <button onClick={send} disabled={loading} className="btn">{loading? 'جارٍ الإرسال…' : 'Send'}</button>
+        <button onClick={checkStatus} disabled={!mid} className="btn" style={{ marginInlineStart:8, background:'#374151' }}>Check Status</button>
+        <button onClick={diagnoseContact} className="btn" style={{ marginInlineStart:8, background:'#0ea5e9' }}>Diagnose Contact</button>
       </div>
     </main>
   );
