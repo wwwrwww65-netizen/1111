@@ -1,12 +1,9 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
-
-export const db = prisma;
+import { db } from '@repo/db';
 
 export async function ensureSchemaSafe(): Promise<void> {
   try {
     // Remove unsafe DEFAULT expressions that reference columns (Postgres 0A000)
-    await prisma.$executeRawUnsafe(`
+    await db.$executeRawUnsafe(`
       DO $$
       DECLARE r RECORD;
       BEGIN
