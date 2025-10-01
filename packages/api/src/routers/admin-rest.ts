@@ -3116,7 +3116,9 @@ adminRest.post('/vendors', async (req, res) => {
     // Ensure vendorCode before its index and guard index creation on pg_catalog
     try { await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "vendorCode" TEXT'); } catch {}
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Vendor_name_key" ON "Vendor"("name")');
-    await db.$executeRawUnsafe(`DO $$ BEGIN IF to_regclass('public."Vendor_vendorCode_key"') IS NULL THEN CREATE UNIQUE INDEX "Vendor_vendorCode_key" ON "Vendor"("vendorCode"); END IF; END $$;`);
+    try {
+      await db.$executeRawUnsafe(`DO $$ BEGIN IF to_regclass('public."Vendor_vendorCode_key"') IS NULL THEN CREATE UNIQUE INDEX "Vendor_vendorCode_key" ON "Vendor"("vendorCode"); END IF; END $$;`);
+    } catch {}
           await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
           await db.$executeRawUnsafe("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Product_vendorId_fkey') THEN ALTER TABLE \"Product\" ADD CONSTRAINT \"Product_vendorId_fkey\" FOREIGN KEY (\"vendorId\") REFERENCES \"Vendor\"(\"id\") ON DELETE SET NULL; END IF; END $$;");
           // Retry once after bootstrap
