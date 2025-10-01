@@ -22,6 +22,11 @@ if [ "$rc" -ne 0 ] && [ "$rc" -ne 24 ]; then
 fi
 
 cd "$ROOT_DIR"
+# Sanitize .env.api (remove non-breaking spaces) and ensure it's present
+if [ -f "$ROOT_DIR/.env.api" ]; then
+  # remove UTF-8 NBSP if present
+  sed -i 's/\xC2\xA0//g' "$ROOT_DIR/.env.api" || true
+fi
 corepack enable || true
 corepack prepare pnpm@8.6.10 --activate || true
 export npm_config_ignore_scripts=true
@@ -171,6 +176,21 @@ fi
 systemctl restart ecom-api || true
 systemctl restart ecom-web || true
 systemctl restart ecom-admin || true
+
+# If systemd is unavailable, fallback to PM2/node for API
+if ! command -v systemctl >/dev/null 2>&1; then
+  if command -v pm2 >/dev/null 2>&1; then
+    # Update env for pm2 processes
+    pm2 list >/dev/null 2>&1 || pm2 save || true
+    pm2 restart all --update-env || true
+  else
+    # Run API directly (best-effort)
+    if [ -f "$ROOT_DIR/packages/api/dist/index.js" ]; then
+      pkill -f 'packages/api/dist/index.js' || true
+      nohup node "$ROOT_DIR/packages/api/dist/index.js" >/var/log/ecom-api.out 2>&1 &
+    fi
+  fi
+fi
 
 # Reload nginx (if present) to avoid stale upstreams and 502s
 if command -v nginx >/dev/null 2>&1; then
