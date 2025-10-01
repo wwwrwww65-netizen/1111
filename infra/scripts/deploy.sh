@@ -142,6 +142,69 @@ cat > /etc/systemd/system/ecom-web.service.d/override.conf <<'EOF'
 Environment=PORT=3000
 EOF
 systemctl daemon-reload || true
+# Create systemd unit files if missing (ensure services exist and auto-restart)
+if command -v systemctl >/dev/null 2>&1; then
+  if [ ! -f /etc/systemd/system/ecom-api.service ]; then
+    cat > /etc/systemd/system/ecom-api.service <<EOF
+[Unit]
+Description=Ecom API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$ROOT_DIR
+EnvironmentFile=$ROOT_DIR/.env.api
+ExecStart=/usr/bin/node $ROOT_DIR/packages/api/dist/index.js
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload || true
+    systemctl enable ecom-api || true
+  fi
+  if [ ! -f /etc/systemd/system/ecom-admin.service ] && [ -n "$ADMIN_JS" ]; then
+    cat > /etc/systemd/system/ecom-admin.service <<EOF
+[Unit]
+Description=Ecom Admin (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$ROOT_DIR
+Environment=PORT=3001
+ExecStart=/usr/bin/node $ADMIN_JS
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload || true
+    systemctl enable ecom-admin || true
+  fi
+  if [ ! -f /etc/systemd/system/ecom-web.service ] && [ -n "$WEB_JS" ]; then
+    cat > /etc/systemd/system/ecom-web.service <<EOF
+[Unit]
+Description=Ecom Web (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$ROOT_DIR
+Environment=PORT=3000
+ExecStart=/usr/bin/node $WEB_JS
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload || true
+    systemctl enable ecom-web || true
+  fi
+fi
 # Ensure API process uses deployed dist and sees env
 if [ -d "$ROOT_DIR/packages/api" ]; then
   if [ -f "$ROOT_DIR/.env.api" ]; then
