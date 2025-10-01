@@ -81,7 +81,7 @@ rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Build db/api via package scripts (ensures tsc and prisma are available in context)
 # Build DB: use local binaries to avoid PATH issues
-(cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/prisma generate 2>/dev/null || pnpm dlx prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma"))
+(cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/prisma generate 2>/dev/null || pnpm --package=prisma@5.14.0 dlx prisma generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma"))
 (cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/tsc -p tsconfig.json || pnpm --package=typescript@5.3.3 dlx tsc -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
 # Build API: clean then compile with local tsc
 (cd "$ROOT_DIR/packages/api" && (./node_modules/.bin/rimraf dist || rm -rf dist) && (./node_modules/.bin/tsc -p tsconfig.json || pnpm --package=typescript@5.3.3 dlx tsc -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
@@ -92,8 +92,8 @@ fi
 if [ ! -x "$ROOT_DIR/apps/admin/node_modules/.bin/next" ]; then
   (cd "$ROOT_DIR/apps/admin" && pnpm install --no-frozen-lockfile --prod=false) || true
 fi
-pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && ./node_modules/.bin/next build)
-pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && ./node_modules/.bin/next build)
+pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && (./node_modules/.bin/next build || pnpm --package=next@14.2.15 dlx next build))
+pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && (./node_modules/.bin/next build || pnpm --package=next@14.2.32 dlx next build))
 # Ensure Category SEO columns after DB/API are compiled and Prisma client exists
 (cd "$ROOT_DIR/packages/api" && node scripts/ensure-category-seo.js) || true
 # Build mobile web (m.jeeey.com) if present (Vite) - REQUIRED
