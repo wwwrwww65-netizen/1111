@@ -2,8 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Arabic-friendly display font similar to design */
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
+/* Tajawal font is self-hosted via next/font in layout; remove external Google Fonts import */
 
 @layer base {
   :root {
