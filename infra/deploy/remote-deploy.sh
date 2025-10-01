@@ -36,7 +36,9 @@ echo "[deploy] Building database client and packages..."
 export NODE_ENV=production
 export NEXT_CACHE_DISABLED=1
 export TURBO_FORCE=1
-pnpm --filter @repo/db build | cat
+# Build DB using local binaries to avoid PATH/ENOENT issues
+( cd packages/db && ./node_modules/.bin/prisma generate ) | cat
+( cd packages/db && ./node_modules/.bin/tsc -p tsconfig.json ) | cat
 # Clean admin/web caches to avoid stale artifacts, then build explicitly
 (
   cd apps/admin 2>/dev/null || true
@@ -48,7 +50,9 @@ pnpm --filter @repo/db build | cat
 ) || true
 pnpm --filter admin build | cat
 pnpm --filter web build | cat
-pnpm --filter @repo/api build | cat
+# Build API via local tsc
+( cd packages/api && ./node_modules/.bin/rimraf dist || rm -rf dist )
+( cd packages/api && ./node_modules/.bin/tsc -p tsconfig.json ) | cat
 
 echo "[deploy] Running Prisma migrations (deploy/push)..."
 # Source DB URLs from API env if not present
