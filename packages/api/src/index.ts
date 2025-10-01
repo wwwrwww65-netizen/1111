@@ -102,7 +102,9 @@ async function ensureSchema(): Promise<void> {
     // Ensure vendorCode column exists before creating its index
     try { await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "vendorCode" TEXT'); } catch {}
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Vendor_name_key" ON "Vendor"("name")');
-    await db.$executeRawUnsafe(`DO $$ BEGIN IF to_regclass('public."Vendor_vendorCode_key"') IS NULL THEN CREATE UNIQUE INDEX "Vendor_vendorCode_key" ON "Vendor"("vendorCode"); END IF; END $$;`);
+    try {
+      await db.$executeRawUnsafe(`DO $$ BEGIN IF to_regclass('public."Vendor_vendorCode_key"') IS NULL THEN CREATE UNIQUE INDEX "Vendor_vendorCode_key" ON "Vendor"("vendorCode"); END IF; END $$;`);
+    } catch {}
     await db.$executeRawUnsafe('ALTER TABLE "ProductVariant" ADD COLUMN IF NOT EXISTS "purchasePrice" DOUBLE PRECISION');
     await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
     // Ensure FK from Product.vendorId -> Vendor.id
