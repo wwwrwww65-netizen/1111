@@ -182,7 +182,7 @@ adminRest.post('/whatsapp/send-smart', async (req, res) => {
     const t = readAdminTokenFromRequest(req) || readTokenFromRequest(req);
     let payload: any = null; try { payload = verifyToken(t as any); } catch {}
     if (!payload || String((payload.role||'')).toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
-    const { phone, template, languageCode='ar', bodyParams, strict=true } = req.body || {};
+    const { phone, template, languageCode='ar', bodyParams, strict=true, buttonSubType, buttonIndex=0, buttonParam, headerType, headerParam } = req.body || {};
     if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
     const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy: { createdAt:'desc' } });
     const conf = (cfg as any)?.config || {};
@@ -208,6 +208,8 @@ adminRest.post('/whatsapp/send-smart', async (req, res) => {
     if (headerDef && headerDef.format === 'TEXT') {
       const p = params[0] || '123456';
       components.push({ type:'header', parameters:[{ type:'text', text: String(p) }] });
+    } else if (!headerDef && headerType && String(headerType).toLowerCase() === 'text' && headerParam) {
+      components.push({ type:'header', parameters:[{ type:'text', text: String(headerParam) }] });
     }
     // body
     const bodyDef = compDef.find((c:any)=>String(c?.type).toLowerCase()==='body');
@@ -218,7 +220,7 @@ adminRest.post('/whatsapp/send-smart', async (req, res) => {
     } else if (params.length) {
       components.push({ type:'body', parameters: [{ type:'text', text: String(params[0]) }] });
     }
-    // buttons
+    // buttons from template
     const btnDefs = compDef.filter((c:any)=>String(c?.type).toLowerCase()==='button');
     if (Array.isArray(btnDefs) && btnDefs.length) {
       for (let i=0;i<btnDefs.length;i++){
@@ -229,7 +231,23 @@ adminRest.post('/whatsapp/send-smart', async (req, res) => {
           components.push({ type:'button', sub_type:'url', index: String(i), parameters:[{ type:'text', text: p }] });
         } else if (sub === 'quick_reply') {
           components.push({ type:'button', sub_type:'quick_reply', index: String(i) });
+        } else if (sub === 'phone_number') {
+          const p = String(params[0]||'123456').slice(0,128);
+          components.push({ type:'button', sub_type:'phone_number', index: String(i), parameters:[{ type:'text', text: p }] });
         }
+      }
+    }
+    // UI overrides for button if provided
+    if (buttonSubType) {
+      const sub = String(buttonSubType).toLowerCase();
+      const idx = String(Number(buttonIndex)||0);
+      const truncated = sub==='url' ? String(buttonParam||params[0]||'123456').slice(0,15) : sub==='phone_number' ? String(buttonParam||params[0]||'123456').slice(0,128) : undefined;
+      // Remove any existing button at same index to avoid duplicates
+      for (let i=components.length-1;i>=0;i--){ const c:any = components[i]; if (c && c.type==='button' && String(c.index)===idx) components.splice(i,1); }
+      if (sub === 'url' || sub === 'phone_number') {
+        components.push({ type:'button', sub_type: sub, index: idx, parameters:[{ type:'text', text: String(truncated||'') }] });
+      } else if (sub === 'quick_reply') {
+        components.push({ type:'button', sub_type: sub, index: idx });
       }
     }
     const payloadSend: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
