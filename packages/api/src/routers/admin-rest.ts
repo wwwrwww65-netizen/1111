@@ -154,7 +154,7 @@ adminRest.get('/whatsapp/health', async (req, res) => {
     if (!token) return res.status(400).json({ ok:false, error:'missing_token' });
     if (!phoneId) return res.status(400).json({ ok:false, error:'missing_phone_id' });
     // Validate sending capability (no actual send): call phone-number info
-    const infoUrl = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}`;
+    const infoUrl = `https://graph.facebook.com/v15.0/${encodeURIComponent(String(phoneId))}`;
     const ri = await fetch(infoUrl, { headers:{ 'Authorization': `Bearer ${token}` } });
     const rawi = await ri.text().catch(()=> ''); let inf: any=null; try { inf = rawi? JSON.parse(rawi): null; } catch {}
     const okInfo = ri.ok && (inf?.id === String(phoneId));
@@ -162,7 +162,7 @@ adminRest.get('/whatsapp/health', async (req, res) => {
     let templateOk: boolean | null = null;
     if (wabaId) {
       try {
-        const q = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(wabaId))}/message_templates?limit=1`;
+        const q = `https://graph.facebook.com/v15.0/${encodeURIComponent(String(wabaId))}/message_templates?limit=1`;
         const rt = await fetch(q, { headers:{ 'Authorization': `Bearer ${token}` } });
         const rawt = await rt.text().catch(()=> ''); let jt:any=null; try{ jt = rawt? JSON.parse(rawt): null; } catch {}
         templateOk = rt.ok && Array.isArray(jt?.data);
@@ -189,11 +189,11 @@ adminRest.post('/whatsapp/send-smart', async (req, res) => {
     const to = String(phone).replace(/[^0-9]/g,'').replace(/^0+/, '');
     if (!/^\d{8,15}$/.test(to)) return res.status(400).json({ ok:false, error:'invalid_msisdn' });
     const lang = String(languageCode||'ar');
-    const urlMsg = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+    const urlMsg = `https://graph.facebook.com/v15.0/${encodeURIComponent(String(phoneId))}/messages`;
     let compDef: any[] = [];
     if (wabaId) {
       try {
-        const q = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(wabaId))}/message_templates?name=${encodeURIComponent(String(template))}&access_token=${encodeURIComponent(String(token))}`;
+        const q = `https://graph.facebook.com/v15.0/${encodeURIComponent(String(wabaId))}/message_templates?name=${encodeURIComponent(String(template))}&access_token=${encodeURIComponent(String(token))}`;
         const meta = await fetch(q).then(r=>r.json()).catch(()=>null) as any;
         const tpl = Array.isArray(meta?.data) ? meta.data.find((d:any)=>String(d?.language?.toLowerCase?.()||'')===String(lang).toLowerCase()) || meta.data[0] : null;
         compDef = Array.isArray(tpl?.components) ? tpl.components : [];
@@ -294,7 +294,7 @@ adminRest.post('/whatsapp/diagnose', async (req, res) => {
       const first = await tryContacts(phoneId);
       if (first.ok) return res.json({ ok:true, status:first.status, phoneId, contact:first.contact, response:first.response });
       // Verify phoneId object exists
-      try { const info = await fetch(`https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}?fields=id`, { headers:{ 'Authorization': `Bearer ${token}` } }); if (info.status===200) return res.status(first.status).json({ ok:false, status:first.status, phoneId, contact:null, response:first.response }); } catch {}
+      try { const info = await fetch(`https://graph.facebook.com/v15.0/${encodeURIComponent(String(phoneId))}?fields=id`, { headers:{ 'Authorization': `Bearer ${token}` } }); if (info.status===200) return res.status(first.status).json({ ok:false, status:first.status, phoneId, contact:null, response:first.response }); } catch {}
     }
     // Resolve via WABA phone_numbers
     if (wabaId) {

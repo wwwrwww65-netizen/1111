@@ -184,7 +184,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const buttonSubType = cfg.buttonSubType; const buttonIndex = Number(cfg.buttonIndex||0); const buttonParam = cfg.buttonParam;
   if (!token || !phoneId) return false;
   try {
-    const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+    const url = `https://graph.facebook.com/v15.0/${encodeURIComponent(String(phoneId))}/messages`;
     const candidates = Array.from(new Set([String(languageCode), 'ar_SA', 'ar', 'en']));
     // WhatsApp Cloud expects international number without '+' (MSISDN)
     const msisdn = String(phone).replace(/[^0-9]/g, '').replace(/^0+/, '');
@@ -195,7 +195,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
     let introspectedComponents: any[] | null = null;
     if (wabaId && template) {
       try {
-        const q = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(wabaId))}/message_templates?name=${encodeURIComponent(String(template))}`;
+        const q = `https://graph.facebook.com/v15.0/${encodeURIComponent(String(wabaId))}/message_templates?name=${encodeURIComponent(String(template))}`;
         const meta = await fetch(q, { headers:{ 'Authorization': `Bearer ${token}` } }).then(r=>r.json()).catch(()=>null) as any;
         // Prefer Arabic if present, else first
         const tpl = Array.isArray(meta?.data) ? (meta.data.find((d:any)=> String(d?.language||'').toLowerCase().startsWith('ar')) || meta.data[0]) : null;
