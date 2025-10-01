@@ -141,6 +141,70 @@ adminRest.get('/whatsapp/status', async (req, res) => {
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'status_failed' }); }
 });
 
+// Admin: smart send based on template definition (avoids Invalid parameter)
+adminRest.post('/whatsapp/send-smart', async (req, res) => {
+  try{
+    const t = readAdminTokenFromRequest(req) || readTokenFromRequest(req);
+    let payload: any = null; try { payload = verifyToken(t as any); } catch {}
+    if (!payload || String((payload.role||'')).toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
+    const { phone, template, languageCode='ar', bodyParams } = req.body || {};
+    if (!phone || !template) return res.status(400).json({ ok:false, error:'phone_template_required' });
+    const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy: { createdAt:'desc' } });
+    const conf = (cfg as any)?.config || {};
+    const token = conf.token; const phoneId = conf.phoneId; const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || conf.wabaId;
+    if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
+    const to = String(phone).replace(/[^0-9]/g,'').replace(/^0+/, '');
+    const lang = String(languageCode||'ar');
+    const urlMsg = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
+    let compDef: any[] = [];
+    if (wabaId) {
+      try {
+        const q = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(wabaId))}/message_templates?name=${encodeURIComponent(String(template))}&access_token=${encodeURIComponent(String(token))}`;
+        const meta = await fetch(q).then(r=>r.json()).catch(()=>null) as any;
+        const tpl = Array.isArray(meta?.data) ? meta.data.find((d:any)=>String(d?.language?.toLowerCase?.()||'')===String(lang).toLowerCase()) || meta.data[0] : null;
+        compDef = Array.isArray(tpl?.components) ? tpl.components : [];
+      } catch {}
+    }
+    const components: any[] = [];
+    const params = Array.isArray(bodyParams) && bodyParams.length ? bodyParams.map((v:any)=>String(v)) : ['123456'];
+    // header
+    const headerDef = compDef.find((c:any)=>String(c?.type).toLowerCase()==='header');
+    if (headerDef && headerDef.format === 'TEXT') {
+      const p = params[0] || '123456';
+      components.push({ type:'header', parameters:[{ type:'text', text: String(p) }] });
+    }
+    // body
+    const bodyDef = compDef.find((c:any)=>String(c?.type).toLowerCase()==='body');
+    if (bodyDef) {
+      const varCount = Number(bodyDef.example?.body_text?.[0]?.length || bodyDef.text?.match(/{{\d+}}/g)?.length || params.length || 1);
+      const bodyList = Array.from({ length: varCount }).map((_,i)=> ({ type:'text', text: String(params[i] || params[0] || '123456') }));
+      components.push({ type:'body', parameters: bodyList });
+    } else if (params.length) {
+      components.push({ type:'body', parameters: [{ type:'text', text: String(params[0]) }] });
+    }
+    // buttons
+    const btnDefs = compDef.filter((c:any)=>String(c?.type).toLowerCase()==='button');
+    if (Array.isArray(btnDefs) && btnDefs.length) {
+      for (let i=0;i<btnDefs.length;i++){
+        const b = btnDefs[i];
+        const sub = String(b?.sub_type||'').toLowerCase();
+        if (sub === 'url') {
+          const p = String(params[0]||'123456').slice(0,15);
+          components.push({ type:'button', sub_type:'url', index: String(i), parameters:[{ type:'text', text: p }] });
+        } else if (sub === 'quick_reply') {
+          components.push({ type:'button', sub_type:'quick_reply', index: String(i) });
+        }
+      }
+    }
+    const payloadSend: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
+    const r = await fetch(urlMsg, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payloadSend) });
+    const raw = await r.text().catch(()=> ''); let parsed: any=null; try{ parsed = raw? JSON.parse(raw): null; } catch {}
+    const messageId = parsed?.messages?.[0]?.id || null;
+    if (r.ok && messageId) return res.json({ ok:true, status:r.status, to, messageId, response: parsed||raw, used: { template, lang, components } });
+    return res.status(502).json({ ok:false, status:r.status||502, error: raw.slice(0,500), used: { template, lang, components } });
+  }catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'send_smart_failed' }); }
+});
+
 // Admin: Diagnose a recipient phone deliverability via WhatsApp Cloud Contacts API
 adminRest.post('/whatsapp/diagnose', async (req, res) => {
   try{
