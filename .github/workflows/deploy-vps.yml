@@ -181,6 +181,7 @@ jobs:
               echo "GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}"
               echo "WHATSAPP_TOKEN=${{ secrets.WHATSAPP_TOKEN }}"
               echo "WHATSAPP_PHONE_ID=${{ secrets.WHATSAPP_PHONE_ID }}"
+              echo "WHATSAPP_BUSINESS_ACCOUNT_ID=${{ secrets.WHATSAPP_BUSINESS_ACCOUNT_ID }}"
               echo "WHATSAPP_TEMPLATE=${{ secrets.WHATSAPP_TEMPLATE }}"
               echo "WHATSAPP_LANGUAGE=${{ secrets.WHATSAPP_LANGUAGE }}"
               echo "WHATSAPP_HEADER_TYPE=${{ secrets.WHATSAPP_HEADER_TYPE }}"
