@@ -10,6 +10,8 @@
     "declaration": false,
     "declarationMap": false,
     "strict": true,
+    "noImplicitAny": false,
+    "noEmitOnError": false,
     "esModuleInterop": true,
     "skipLibCheck": true
   },
