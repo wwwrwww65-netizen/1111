@@ -39,7 +39,8 @@ export async function callDeepseek(opts: {
       '- الاسم يجب أن يكون وصفياً وكاملاً (≤ 60 حرفاً)، بلا رموز/ضوضاء.',
       '- الوصف جمالي بحت؛ ممنوع ذكر الأسعار/المقاسات/الألوان/العملات.',
       '- ركّز على استخراج السعر الشمالي/القديم فقط، وتجاهل أي أسعار أخرى.',
-      '- أعد JSON فقط وفق المخطط التالي دون أي نص إضافي.',
+      '- لا تخمّن، اترك الحقول غير المؤكدة null أو احذفها.',
+      '- أعد JSON فقط وفق المخطط التالي دون أي نص إضافي أو تعليقات.',
       '',
       'مخطط JSON:',
       '{"name": string?, "description": string?, "tags": string[]?, "sizes": string[]?, "price_range": {"low": number, "high": number}? , "notes": string?, "confidence": number?, "reasons": Record<string,string>? }'
@@ -50,8 +51,10 @@ export async function callDeepseek(opts: {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: JSON.stringify(input) }
       ],
-      temperature: 0,
-      max_tokens: 500
+      temperature: 0.2,
+      top_p: 0.8,
+      max_tokens: 500,
+      response_format: { type: 'json_object' as const }
     }
     const endpoints = [
       'https://api.deepseek.com/v1/chat/completions',
@@ -255,8 +258,10 @@ export async function callDeepseekPreview(opts: {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: JSON.stringify({ text: input.text }) }
       ],
-      temperature: 0.1,
-      max_tokens: 1000
+      temperature: 0.2,
+      top_p: 0.8,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' as const }
     }
     const endpoints = [
       'https://api.deepseek.com/v1/chat/completions',
