@@ -39,10 +39,18 @@ export default function WhatsAppSendPage(): JSX.Element {
         headerParam: headerParam || undefined,
         bodyParams: (bodyParams||'').split(',').map(s=>s.trim()).filter(Boolean),
       };
-      const r = await fetch(`${apiBase}/api/admin/whatsapp/send`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
-      const t = await r.text();
-      if (r.ok){ setColor('#22c55e'); setMsg(`OK ${r.status}`); }
-      else { setColor('#ef4444'); setMsg(`ERR ${r.status}: ${t.slice(0,200)}`); }
+      const r = await fetch(`${apiBase}/api/admin/whatsapp/send-smart`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
+      const text = await r.text();
+      let j: any = null; try { j = text ? JSON.parse(text) : null; } catch {}
+      if (r.ok){
+        const mid = j?.messageId || j?.id || j?.messages?.[0]?.id || '';
+        setColor('#22c55e');
+        setMsg(`OK ${r.status}${mid? ` | messageId=${mid}`:''}`);
+      } else {
+        const err = j?.error || text || 'error';
+        setColor('#ef4444');
+        setMsg(`ERR ${r.status}: ${String(err).slice(0,300)}`);
+      }
     } catch(e:any){ setColor('#ef4444'); setMsg(e.message||'network_error'); } finally { setLoading(false); }
   }
 

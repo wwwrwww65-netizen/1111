@@ -23,6 +23,7 @@ type WhatsAppConfig = {
   provider?: string; // meta | twilio | other
   token?: string;    // access token
   phoneId?: string;  // sender/phone id
+  wabaId?: string;   // WhatsApp Business Account ID (WABA_ID)
   template?: string; // template name/id
   languageCode?: string; // e.g. ar, en
   buttonSubType?: string; // url | quick_reply | phone_number
@@ -241,6 +242,7 @@ export default function LoginIntegrationsPage(): JSX.Element {
               <Field label="Provider" value={wcfg.provider||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'provider', v)} placeholder="meta | twilio | other" />
               <Field label="Access Token" value={wcfg.token||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'token', v)} placeholder="EAAG..." />
               <Field label="Phone/Sender ID" value={wcfg.phoneId||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'phoneId', v)} placeholder="1234567890" />
+              <Field label="WABA ID (Business Account)" value={wcfg.wabaId||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'wabaId', v)} placeholder="WHATSAPP_BUSINESS_ACCOUNT_ID" />
               <Field label="Template" value={wcfg.template||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'template', v)} placeholder="otp_template" />
               <Field label="Language Code" value={wcfg.languageCode||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'languageCode', v)} placeholder="ar | ar_SA" />
               <Field label="Button Type (optional)" value={wcfg.buttonSubType||''} onChange={(v)=> setCfg<WhatsAppConfig>(setWhatsapp, 'buttonSubType', v)} placeholder="url | quick_reply | phone_number" />
