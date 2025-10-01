@@ -71,7 +71,8 @@ if [ "$db_status" -ne 0 ]; then
 fi
 # Ensure Category SEO columns before API build to avoid runtime P20xx
 (cd "$ROOT_DIR/packages/api" && pnpm exec node scripts/ensure-category-seo.js) || true
-# Force fresh Next.js builds for web/admin with static cleanup
+# Force fresh builds (clean previous outputs)
+rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 pnpm --filter @repo/api build
 pnpm --filter web build
