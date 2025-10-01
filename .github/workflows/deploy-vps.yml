@@ -191,6 +191,8 @@ jobs:
               echo "WHATSAPP_BUTTON_TYPE=${{ secrets.WHATSAPP_BUTTON_TYPE }}"
               echo "WHATSAPP_BUTTON_INDEX=${{ secrets.WHATSAPP_BUTTON_INDEX }}"
               echo "WHATSAPP_BUTTON_PARAM=${{ secrets.WHATSAPP_BUTTON_PARAM }}"
+              echo "WA_OTP_STRICT=${{ secrets.WA_OTP_STRICT || vars.WA_OTP_STRICT || '1' }}"
+              echo "OTP_SMS_WITH_WA=${{ secrets.OTP_SMS_WITH_WA || vars.OTP_SMS_WITH_WA || '1' }}"
               echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}"
               echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}"
               echo "TWILIO_SMS_FROM=${{ secrets.TWILIO_SMS_FROM }}"
