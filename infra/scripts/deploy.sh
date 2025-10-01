@@ -80,9 +80,10 @@ set -e
 rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Generate Prisma client and compile db/api with Typescript directly
+# Generate Prisma client, then compile db/api using pnpm exec tsc (avoids npx/npm dependency)
 npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || true
-npx -y typescript@5 -p "$ROOT_DIR/packages/db/tsconfig.json"
-npx -y typescript@5 -p "$ROOT_DIR/packages/api/tsconfig.json"
+pnpm --filter @repo/db exec tsc -p tsconfig.json
+pnpm --filter @repo/api exec tsc -p tsconfig.json
 # Next.js builds
 pnpm --filter web build
 pnpm --filter admin build
