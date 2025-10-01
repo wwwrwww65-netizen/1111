@@ -20,3 +20,6 @@ export async function ensureSchemaSafe(): Promise<void> {
   } catch (_) {}
 }
 
+// Re-export db for other modules importing from this file
+export { db };
+
