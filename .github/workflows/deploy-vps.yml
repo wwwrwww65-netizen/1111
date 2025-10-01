@@ -32,7 +32,9 @@ jobs:
         run: |
           set -e
           pnpm install -r --no-frozen-lockfile
-          pnpm --filter @repo/api build
+          pnpm --filter @repo/db build
+          pnpm --filter @repo/api clean
+          pnpm --filter @repo/api exec tsc -p tsconfig.json
           pnpm --filter admin build
 
       # E2E auth moved to dedicated workflow

@@ -39,7 +39,7 @@ export npm_config_ignore_scripts=true
 export NPM_CONFIG_IGNORE_SCRIPTS=true
 export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-pnpm install -r --no-frozen-lockfile --ignore-scripts --prod=false
+pnpm install -r --no-frozen-lockfile --prod=false
 
 # Load or materialize public env (for Next build) and per-app .env.production
 mkdir -p "$ROOT_DIR/apps/admin" "$ROOT_DIR/apps/web"
@@ -80,11 +80,11 @@ set -e
 rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Build db/api via package scripts (ensures tsc and prisma are available in context)
-# Build DB: use npx prisma (local) then compile with tsc directly to avoid PATH issues
-npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma"
-pnpm --filter @repo/db exec tsc -p tsconfig.json
-# Build API without chaining DB build (already built above)
-pnpm --filter @repo/api clean && pnpm --filter @repo/api exec tsc -p tsconfig.json
+# Build DB: prisma generate + tsc via package scripts
+pnpm --filter @repo/db build || (npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" && pnpm --filter @repo/db exec tsc -p tsconfig.json)
+# Build API: clean then tsc via package scripts
+pnpm --filter @repo/api clean || true
+pnpm --filter @repo/api exec tsc -p tsconfig.json
 # Next.js builds
 pnpm --filter web build
 pnpm --filter admin build
