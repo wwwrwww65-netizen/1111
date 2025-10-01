@@ -161,7 +161,7 @@ jobs:
               echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
               echo "PUBLIC_API_BASE=$API_BASE_VAL"
               echo "MWEB_BASE_URL=$MWEB_BASE_VAL"
-              echo "DEFAULT_COUNTRY_CODE=${{ secrets.DEFAULT_COUNTRY_CODE || vars.DEFAULT_COUNTRY_CODE }}"
+              echo "DEFAULT_COUNTRY_CODE=${{ secrets.DEFAULT_COUNTRY_CODE || vars.DEFAULT_COUNTRY_CODE || '+967' }}"
               echo "CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || vars.CORS_ALLOW_ORIGINS }}"
               echo "NEXT_PUBLIC_ADMIN_URL=${{ secrets.NEXT_PUBLIC_ADMIN_URL || vars.NEXT_PUBLIC_ADMIN_URL }}"
               echo "NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL || vars.NEXT_PUBLIC_APP_URL }}"
