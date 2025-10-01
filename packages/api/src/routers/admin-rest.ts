@@ -293,8 +293,8 @@ adminRest.post('/whatsapp/diagnose', async (req, res) => {
     if (phoneId) {
       const first = await tryContacts(phoneId);
       if (first.ok) return res.json({ ok:true, status:first.status, phoneId, contact:first.contact, response:first.response });
-      // Verify phoneId object exists
-      try { const info = await fetch(`https://graph.facebook.com/v15.0/${encodeURIComponent(String(phoneId))}?fields=id`, { headers:{ 'Authorization': `Bearer ${token}` } }); if (info.status===200) return res.status(first.status).json({ ok:false, status:first.status, phoneId, contact:null, response:first.response }); } catch {}
+      // Even if phoneId exists (200), fallback to WABA list to pick a different bound number
+      try { await fetch(`https://graph.facebook.com/v15.0/${encodeURIComponent(String(phoneId))}?fields=id`, { headers:{ 'Authorization': `Bearer ${token}` } }); } catch {}
     }
     // Resolve via WABA phone_numbers
     if (wabaId) {
