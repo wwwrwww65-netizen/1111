@@ -240,7 +240,7 @@ jobs:
           target: ${{ github.event.inputs.path || '/var/www/ecom' }}
           overwrite: true
 
-      - name: Remote deploy
+      - name: Remote deploy (clean rebuild)
         if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -262,6 +262,8 @@ jobs:
             cd "$PATH_ON_HOST"
             export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
             export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
+            # Clean old dist on server before deploy script to ensure fresh build
+            rm -rf "$PATH_ON_HOST/packages/api/dist" || true
             bash infra/scripts/deploy.sh "$PATH_ON_HOST"
             echo '--- Prisma migrate (deploy) ---'
             if [ -f "$PATH_ON_HOST/.env.api" ]; then
