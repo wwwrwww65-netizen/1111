@@ -1,14 +1,15 @@
-// Use require import form for compatibility with TS transpilation and Prisma type generation timing
+// Use namespace + type import to avoid timing issues during CI builds
 import * as PrismaNS from '@prisma/client';
-const PrismaClient = (PrismaNS as any).PrismaClient as typeof PrismaNS.PrismaClient;
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientCtor = (PrismaNS as any).PrismaClient as unknown as new (...args: any[]) => PrismaClientType;
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: PrismaClientType | undefined;
 };
 
 export const prisma =
   globalForPrisma.prisma ??
-  new PrismaClient({
+  new PrismaClientCtor({
     log:
       process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
@@ -16,4 +17,4 @@ export const prisma =
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export const db = prisma;
-export type { PrismaClient } from '@prisma/client';
+export type { PrismaClientType as PrismaClient };
