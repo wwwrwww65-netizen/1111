@@ -5,8 +5,8 @@ import { resolveApiBase } from '../../lib/apiBase';
 export default function WhatsAppSendPage(): JSX.Element {
   const apiBase = resolveApiBase();
   const [phone, setPhone] = React.useState('967777310606');
-  const [template, setTemplate] = React.useState('otp_verification_code');
-  const [lang, setLang] = React.useState('ar_SA');
+  const [template, setTemplate] = React.useState('otp_login_code');
+  const [lang, setLang] = React.useState('ar');
   const [buttonSubType, setButtonSubType] = React.useState('');
   const [buttonIndex, setButtonIndex] = React.useState('0');
   const [buttonParam, setButtonParam] = React.useState('');
