@@ -39,7 +39,7 @@ export npm_config_ignore_scripts=true
 export NPM_CONFIG_IGNORE_SCRIPTS=true
 export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-pnpm install -r --no-frozen-lockfile --ignore-scripts
+pnpm install -r --no-frozen-lockfile --ignore-scripts --prod=false
 
 # Load or materialize public env (for Next build) and per-app .env.production
 mkdir -p "$ROOT_DIR/apps/admin" "$ROOT_DIR/apps/web"
