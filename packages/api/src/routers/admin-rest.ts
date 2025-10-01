@@ -41,6 +41,7 @@ adminRest.post('/whatsapp/send', async (req, res) => {
     const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
     const langIn = String((languageCode||'ar')).toLowerCase()==='arabic' ? 'ar' : String(languageCode||'ar');
     const to = String(phone).replace(/[^0-9]/g,'').replace(/^0+/, '');
+    if (!/^\d{8,15}$/.test(to)) return res.status(400).json({ ok:false, error:'invalid_msisdn' });
     const candidates = Array.from(new Set([langIn, 'ar_SA', 'ar', 'en']));
     const params = Array.isArray(bodyParams) ? bodyParams : (bodyParams ? [bodyParams] : []);
     const tried: Array<{ lang:string; status:number; body:string }> = [];
@@ -141,6 +142,40 @@ adminRest.get('/whatsapp/status', async (req, res) => {
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'status_failed' }); }
 });
 
+// Admin: WhatsApp health (validate TOKEN/PHONE_ID/WABA_ID and basic calls)
+adminRest.get('/whatsapp/health', async (req, res) => {
+  try {
+    const t = readAdminTokenFromRequest(req) || readTokenFromRequest(req);
+    let payload: any = null; try { payload = verifyToken(t as any); } catch {}
+    if (!payload || String((payload.role||''))?.toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
+    const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy: { createdAt:'desc' } });
+    const conf = (cfg as any)?.config || {};
+    const token = conf.token || process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_CLOUD_TOKEN;
+    const phoneId = conf.phoneId || process.env.WHATSAPP_PHONE_ID;
+    const wabaId = conf.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    if (!token) return res.status(400).json({ ok:false, error:'missing_token' });
+    if (!phoneId) return res.status(400).json({ ok:false, error:'missing_phone_id' });
+    // Validate sending capability (no actual send): call phone-number info
+    const infoUrl = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}`;
+    const ri = await fetch(infoUrl, { headers:{ 'Authorization': `Bearer ${token}` } });
+    const rawi = await ri.text().catch(()=> ''); let inf: any=null; try { inf = rawi? JSON.parse(rawi): null; } catch {}
+    const okInfo = ri.ok && (inf?.id === String(phoneId));
+    // If WABA_ID provided, check templates list
+    let templateOk: boolean | null = null;
+    if (wabaId) {
+      try {
+        const q = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(wabaId))}/message_templates?limit=1`;
+        const rt = await fetch(q, { headers:{ 'Authorization': `Bearer ${token}` } });
+        const rawt = await rt.text().catch(()=> ''); let jt:any=null; try{ jt = rawt? JSON.parse(rawt): null; } catch {}
+        templateOk = rt.ok && Array.isArray(jt?.data);
+      } catch { templateOk = false; }
+    }
+    return res.json({ ok:true, phoneId, wabaId: wabaId||null, checks: { phone_info: okInfo, templates: templateOk } });
+  } catch (e:any) {
+    return res.status(500).json({ ok:false, error: e.message||'health_failed' });
+  }
+});
+
 // Admin: smart send based on template definition (avoids Invalid parameter)
 adminRest.post('/whatsapp/send-smart', async (req, res) => {
   try{
@@ -154,6 +189,7 @@ adminRest.post('/whatsapp/send-smart', async (req, res) => {
     const token = conf.token; const phoneId = conf.phoneId; const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || conf.wabaId;
     if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
     const to = String(phone).replace(/[^0-9]/g,'').replace(/^0+/, '');
+    if (!/^\d{8,15}$/.test(to)) return res.status(400).json({ ok:false, error:'invalid_msisdn' });
     const lang = String(languageCode||'ar');
     const urlMsg = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
     let compDef: any[] = [];
