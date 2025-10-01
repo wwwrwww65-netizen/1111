@@ -143,7 +143,7 @@ fi
 # Ensure systemd ExecStart uses next start with correct working directory
 # Use Next.js standalone server.js for admin and web
 ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
-WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
+WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 5 -type f -name server.js -print -quit 2>/dev/null || true)
 if [ -n "$ADMIN_JS" ] && [ -f /etc/systemd/system/ecom-admin.service ]; then
   sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
   sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|" /etc/systemd/system/ecom-admin.service || true
