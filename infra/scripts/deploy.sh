@@ -35,8 +35,8 @@ fi
 export CI=1
 corepack enable || true
 corepack prepare pnpm@8.6.10 --activate || true
-export npm_config_ignore_scripts=true
-export NPM_CONFIG_IGNORE_SCRIPTS=true
+# Allow postinstall scripts so local bins (next/tsc/prisma) are linked correctly
+unset npm_config_ignore_scripts NPM_CONFIG_IGNORE_SCRIPTS || true
 export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 pnpm install -r --no-frozen-lockfile --prod=false
@@ -92,8 +92,8 @@ fi
 if [ ! -x "$ROOT_DIR/apps/admin/node_modules/.bin/next" ]; then
   (cd "$ROOT_DIR/apps/admin" && pnpm install --no-frozen-lockfile --prod=false) || true
 fi
-pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && (./node_modules/.bin/next build || pnpm --package=next@14.2.15 dlx next build))
-pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && (./node_modules/.bin/next build || pnpm --package=next@14.2.32 dlx next build))
+pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && ./node_modules/.bin/next build)
+pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && ./node_modules/.bin/next build)
 # Ensure Category SEO columns after DB/API are compiled and Prisma client exists
 (cd "$ROOT_DIR/packages/api" && node scripts/ensure-category-seo.js) || true
 # Build mobile web (m.jeeey.com) if present (Vite) - REQUIRED
