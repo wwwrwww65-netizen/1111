@@ -131,14 +131,12 @@ adminRest.get('/whatsapp/status', async (req, res) => {
     const conf = (cfg as any)?.config || {};
     const token = conf.token;
     if (!token) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
-    const r = await fetch(`https://graph.facebook.com/v17.0/${encodeURIComponent(messageId)}?fields=message_status`, { headers:{ 'Authorization': `Bearer ${token}` } });
-    const raw = await r.text().catch(()=> '');
-    let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
-    const status = parsed?.message_status || (parsed?.status) || null;
-    if (status) {
-      try { await db.$executeRawUnsafe('UPDATE "NotificationLog" SET status=$2, "updatedAt"=NOW() WHERE "messageId"=$1', messageId, String(status).toUpperCase()); } catch {}
-    }
-    return res.json({ ok: r.ok, status: r.status, message_status: status, response: parsed || raw });
+    // Prefer DB log (updated by webhooks) because Graph GET for messageId is unsupported
+    try {
+      const row: any = ((await db.$queryRawUnsafe('SELECT status, error, "updatedAt" FROM "NotificationLog" WHERE "messageId"=$1 LIMIT 1', messageId)) as any[])[0];
+      if (row) return res.json({ ok:true, status:200, message_status: row.status||null, error: row.error||null, updatedAt: row.updatedAt||null });
+    } catch {}
+    return res.json({ ok:true, status:200, message_status: null });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'status_failed' }); }
 });
 
