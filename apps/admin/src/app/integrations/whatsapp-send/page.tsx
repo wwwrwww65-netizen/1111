@@ -16,6 +16,8 @@ export default function WhatsAppSendPage(): JSX.Element {
   const [msg, setMsg] = React.useState('');
   const [color, setColor] = React.useState('#22c55e');
   const [loading, setLoading] = React.useState(false);
+  const [strict, setStrict] = React.useState(true);
+  const [details, setDetails] = React.useState<any>(null);
 
   function authHeaders(): Record<string,string> {
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -39,17 +41,19 @@ export default function WhatsAppSendPage(): JSX.Element {
         headerParam: headerParam || undefined,
         bodyParams: (bodyParams||'').split(',').map(s=>s.trim()).filter(Boolean),
       };
-      const r = await fetch(`${apiBase}/api/admin/whatsapp/send-smart`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
+      const r = await fetch(`${apiBase}/api/admin/whatsapp/send-smart`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ ...body, strict }) });
       const text = await r.text();
       let j: any = null; try { j = text ? JSON.parse(text) : null; } catch {}
       if (r.ok){
         const mid = j?.messageId || j?.id || j?.messages?.[0]?.id || '';
         setColor('#22c55e');
         setMsg(`OK ${r.status}${mid? ` | messageId=${mid}`:''}`);
+        setDetails(j||text||'');
       } else {
         const err = j?.error || text || 'error';
         setColor('#ef4444');
         setMsg(`ERR ${r.status}: ${String(err).slice(0,300)}`);
+        setDetails(j||text||'');
       }
     } catch(e:any){ setColor('#ef4444'); setMsg(e.message||'network_error'); } finally { setLoading(false); }
   }
@@ -58,6 +62,9 @@ export default function WhatsAppSendPage(): JSX.Element {
     <main style={{ padding:16, display:'grid', gap:12, maxWidth:720 }}>
       <h1 style={{ fontWeight:800, fontSize:20 }}>إرسال واتساب تجريبي</h1>
       {msg && (<div style={{ border:'1px solid #1f2937', borderRadius:12, padding:12, color: color }}>{msg}</div>)}
+      {details && (
+        <pre style={{ whiteSpace:'pre-wrap', fontSize:12, color:'#94a3b8', border:'1px solid #1f2937', borderRadius:12, padding:12, overflowX:'auto' }}>{JSON.stringify(details, null, 2).slice(0,2000)}</pre>
+      )}
       <div style={{ display:'grid', gap:10, gridTemplateColumns:'1fr 1fr' }}>
         <div>
           <label>Phone (E.164)</label>
@@ -90,6 +97,13 @@ export default function WhatsAppSendPage(): JSX.Element {
         <div>
           <label>Header Type</label>
           <input value={headerType} onChange={e=> setHeaderType(e.target.value)} placeholder="none | text | image | video | document" style={{ width:'100%', height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
+        </div>
+        <div>
+          <label>Strict (لا fallback لنص)</label>
+          <div style={{ display:'flex', alignItems:'center', gap:8, height:44 }}>
+            <input type="checkbox" checked={strict} onChange={e=> setStrict(e.target.checked)} />
+            <span style={{ fontSize:12, color:'#9ca3af' }}>عند التفعيل، سيفشل الطلب إذا لم يطابق القالب تماماً</span>
+          </div>
         </div>
         <div>
           <label>Header Param</label>
