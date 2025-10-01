@@ -303,22 +303,24 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
         }
       }
     }
-    // Fallback to plain text
-    for (const to of toVariants) {
-      const body = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } } as any;
-      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(body) });
-      const raw = await r.text().catch(()=> '');
-      if (r.ok) {
-        try {
-          const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id;
-        if (msgId) {
-            try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, 'text', text, 'SENT', msgId, JSON.stringify({})) } catch {}
-            console.log('WA text sent', { to, msgId });
-            return true;
-          }
-        } catch {}
+    // Fallback to plain text only if WA_OTP_STRICT != 1
+    if (String(process.env.WA_OTP_STRICT||'').trim() !== '1') {
+      for (const to of toVariants) {
+        const body = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } } as any;
+        const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(body) });
+        const raw = await r.text().catch(()=> '');
+        if (r.ok) {
+          try {
+            const parsed = raw ? JSON.parse(raw) : null; const msgId = parsed?.messages?.[0]?.id;
+            if (msgId) {
+              try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, 'text', text, 'SENT', msgId, JSON.stringify({})) } catch {}
+              console.log('WA text sent', { to, msgId });
+              return true;
+            }
+          } catch {}
+        }
+        try { console.error('WA text send failed', to, raw) } catch {}
       }
-      try { console.error('WA text send failed', to, raw) } catch {}
     }
     return false;
   } catch { return false; }
