@@ -59,30 +59,35 @@ export NODE_ENV=production
 if [ -f "$ROOT_DIR/.env.api" ]; then
   set -a; . "$ROOT_DIR/.env.api"; set +a
 fi
-# Try deploy migrations; if P3005 (non-empty DB) occurs, baseline automatically, then deploy again
+# Try deploy migrations using npx prisma; if fails, attempt baseline resolve
 set +e
-pnpm --filter @repo/db db:deploy
-db_status=$?
-set -e
-if [ "$db_status" -ne 0 ]; then
-  echo "[deploy] prisma migrate deploy failed with code $db_status; attempting baseline..." >&2
-  # Use prisma migrate resolve to mark the latest migration as applied when DB is already in use
-  if [ -d "$ROOT_DIR/packages/db/prisma/migrations" ]; then
-    last_mig=$(ls -1 "$ROOT_DIR/packages/db/prisma/migrations" | sort | tail -n1 || true)
-    if [ -n "$last_mig" ]; then
-      (cd "$ROOT_DIR/packages/db" && pnpm exec prisma migrate resolve --applied "$last_mig") || true
-      pnpm --filter @repo/db db:deploy || true
+if [ -n "${DIRECT_URL:-}" ] || [ -n "${DATABASE_URL:-}" ]; then
+  npx -y prisma@5.14.0 migrate deploy --schema "$ROOT_DIR/packages/db/prisma/schema.prisma"
+  db_status=$?
+  if [ "$db_status" -ne 0 ]; then
+    echo "[deploy] prisma migrate deploy failed with code $db_status; attempting baseline..." >&2
+    if [ -d "$ROOT_DIR/packages/db/prisma/migrations" ]; then
+      last_mig=$(ls -1 "$ROOT_DIR/packages/db/prisma/migrations" | sort | tail -n1 || true)
+      if [ -n "$last_mig" ]; then
+        npx -y prisma@5.14.0 migrate resolve --applied "$last_mig" --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || true
+        npx -y prisma@5.14.0 migrate deploy --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || true
+      fi
     fi
   fi
 fi
-# Ensure Category SEO columns before API build to avoid runtime P20xx
-(cd "$ROOT_DIR/packages/api" && pnpm exec node scripts/ensure-category-seo.js) || true
+set -e
 # Force fresh builds (clean previous outputs)
 rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
-pnpm --filter @repo/api build
+# Generate Prisma client and compile db/api with Typescript directly
+npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || true
+npx -y typescript@5 -p "$ROOT_DIR/packages/db/tsconfig.json"
+npx -y typescript@5 -p "$ROOT_DIR/packages/api/tsconfig.json"
+# Next.js builds
 pnpm --filter web build
 pnpm --filter admin build
+# Ensure Category SEO columns after DB/API are compiled and Prisma client exists
+(cd "$ROOT_DIR/packages/api" && node scripts/ensure-category-seo.js) || true
 # Build mobile web (m.jeeey.com) if present (Vite) - REQUIRED
 if [ -d "$ROOT_DIR/apps/mweb" ]; then
   rm -rf "$ROOT_DIR/apps/mweb/dist" || true
