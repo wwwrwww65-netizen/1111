@@ -80,11 +80,12 @@ set -e
 rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Build db/api via package scripts (ensures tsc and prisma are available in context)
-# Build DB: prisma generate + tsc via package scripts
-pnpm --filter @repo/db build || (npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" && pnpm --filter @repo/db exec tsc -p tsconfig.json)
-# Build API: clean then tsc via package scripts
-pnpm --filter @repo/api clean || true
-pnpm --filter @repo/api exec tsc -p tsconfig.json
+# Build DB: use local binaries to avoid PATH issues
+(cd "$ROOT_DIR/packages/db" && \
+  ./node_modules/.bin/prisma generate 2>/dev/null || npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma")
+(cd "$ROOT_DIR/packages/db" && ./node_modules/.bin/tsc -p tsconfig.json)
+# Build API: clean then compile with local tsc
+(cd "$ROOT_DIR/packages/api" && (./node_modules/.bin/rimraf dist || rm -rf dist) && ./node_modules/.bin/tsc -p tsconfig.json)
 # Next.js builds
 pnpm --filter web build
 pnpm --filter admin build
