@@ -2079,15 +2079,15 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
     else if (raw === 'COMPLETED') dbStatus = 'COMPLETED';
     let rows: any[] = [];
     if (dbStatus) {
-      rows = await db.$queryRawUnsafe<any[]>(
+      rows = (await db.$queryRawUnsafe(
         'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1::"ShipmentLegType" AND status=$2::"ShipmentLegStatus" ORDER BY "createdAt" DESC LIMIT 200',
         'PICKUP', dbStatus
-      );
+      )) as any[];
     } else {
-      rows = await db.$queryRawUnsafe<any[]>(
+      rows = (await db.$queryRawUnsafe(
         'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1::"ShipmentLegType" ORDER BY "createdAt" DESC LIMIT 200',
         'PICKUP'
-      );
+      )) as any[];
     }
     res.json({ pickups: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
@@ -3380,10 +3380,10 @@ adminRest.get('/vendors/:id/scorecard', async (req, res) => {
 adminRest.get('/vendors/:id/notifications', async (req, res) => {
   try {
     const { id } = req.params;
-    const items = await db.$queryRawUnsafe<any[]>(
+    const items = (await db.$queryRawUnsafe(
       'SELECT id, action, details, "createdAt" FROM "AuditLog" WHERE module=$1 AND details->>\'vendorId\'=$2 ORDER BY "createdAt" DESC LIMIT 100',
       'vendors', id
-    );
+    )) as any[];
     res.json({ notifications: items });
   } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_notifications_failed' }); }
 });
