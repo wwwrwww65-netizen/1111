@@ -63,37 +63,13 @@ adminRest.post('/whatsapp/send', async (req, res) => {
       components.push({ type:'body', parameters: params.map((p:any)=> ({ type:'text', text: String(p) })) });
       if (buttonSubType){
         const sub = String(buttonSubType).toLowerCase();
-        if (sub === 'quick_reply') {
-          components.push({ type:'button', sub_type: 'quick_reply', index: String(Number(buttonIndex)||0) });
-        } else if (sub === 'url') {
+        if (sub === 'url') {
           const p = String(buttonParam||'').slice(0,15);
           components.push({ type:'button', sub_type:'url', index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: p }] });
-        } else if (sub === 'phone_number') {
-          const p = String(buttonParam||'').slice(0,128);
-          components.push({ type:'button', sub_type:'phone_number', index: String(Number(buttonIndex)||0), parameters:[{ type:'text', text: p }] });
         }
       }
       const payload: any = { messaging_product:'whatsapp', to, type:'template', template: { name: String(template), language: { code: String(lang), policy:'deterministic' }, components } };
-      // If template defines a URL button in Meta configuration, API requires a parameter.
-      // Auto-provide it if not sent in the request.
-      try {
-        // Ensure at most ONE button component in the payload
-        payload.template.components = (payload.template.components || []).filter((c:any)=> String(c?.type).toLowerCase() !== 'button');
-        const needsButton = true; // safe default; Meta doesn't expose schema here
-        if (needsButton) {
-        const paramValue = (Array.isArray(bodyParams) && bodyParams.length ? String(bodyParams[0]) : '123456').slice(0, 15);
-        const btnType = String(buttonSubType || 'url').toLowerCase();
-        if (btnType === 'quick_reply') {
-          payload.template.components.push({ type:'button', sub_type: 'quick_reply', index: '0' });
-        } else if (btnType === 'url') {
-          const btnParam = String(buttonParam || paramValue).slice(0, 15);
-          payload.template.components.push({ type:'button', sub_type: 'url', index: '0', parameters: [{ type:'text', text: btnParam }] });
-        } else if (btnType === 'phone_number') {
-          const btnParam = String(buttonParam || paramValue).slice(0, 128);
-          payload.template.components.push({ type:'button', sub_type: 'phone_number', index: '0', parameters: [{ type:'text', text: btnParam }] });
-        }
-        }
-      } catch {}
+      // Do not auto-add buttons; only include URL button when explicitly provided
       const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payload) });
       const raw = await r.text().catch(()=> '');
       let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
