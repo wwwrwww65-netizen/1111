@@ -278,18 +278,40 @@ adminRest.post('/whatsapp/diagnose', async (req, res) => {
     if (!phone) return res.status(400).json({ ok:false, error:'phone_required' });
     const cfg: any = await db.integration.findFirst({ where: { provider:'whatsapp' }, orderBy: { createdAt:'desc' } });
     const conf = (cfg as any)?.config || {};
-    const token = conf.token; const phoneId = conf.phoneId;
-    if (!token || !phoneId) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
-    const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/contacts`;
-    // Contacts API expects international number without '+'
+    const token = conf.token; let phoneId = conf.phoneId; const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || conf.wabaId;
+    if (!token) return res.status(400).json({ ok:false, error:'whatsapp_not_configured' });
     const msisdn = String(phone).replace(/[^0-9]/g,'').replace(/^0+/, '');
-    const body = { blocking: 'wait', contacts: [ msisdn ], force_check: true } as any;
-    const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
-    const raw = await r.text().catch(()=> '');
-    let parsed: any = null; try { parsed = raw ? JSON.parse(raw) : null; } catch {}
-    const contact = parsed?.contacts?.[0] || null;
-    // Example contact: { input: '967777310606', wa_id: '967777310606', status: 'valid'|'invalid' }
-    return res.json({ ok: r.ok, status: r.status, contact: contact || null, response: parsed || raw });
+    const tryContacts = async (pid: string) => {
+      const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(pid))}/contacts`;
+      const body = { blocking: 'wait', contacts: [ msisdn ], force_check: true } as any;
+      const r = await fetch(url, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
+      const raw = await r.text().catch(()=> ''); let parsed: any = null; try { parsed = raw? JSON.parse(raw): null } catch{}
+      const contact = parsed?.contacts?.[0] || null;
+      return { ok: r.ok, status: r.status||400, contact, response: parsed||raw };
+    };
+    // First attempt with configured phoneId
+    if (phoneId) {
+      const first = await tryContacts(phoneId);
+      if (first.ok) return res.json({ ok:true, status:first.status, phoneId, contact:first.contact, response:first.response });
+      // Verify phoneId object exists
+      try { const info = await fetch(`https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}?fields=id`, { headers:{ 'Authorization': `Bearer ${token}` } }); if (info.status===200) return res.status(first.status).json({ ok:false, status:first.status, phoneId, contact:null, response:first.response }); } catch {}
+    }
+    // Resolve via WABA phone_numbers
+    if (wabaId) {
+      try {
+        const list = await fetch(`https://graph.facebook.com/v17.0/${encodeURIComponent(String(wabaId))}/phone_numbers`, { headers:{ 'Authorization': `Bearer ${token}` } });
+        const rawL = await list.text().catch(()=> ''); let jL:any=null; try{ jL = rawL? JSON.parse(rawL): null } catch{}
+        const arr: any[] = Array.isArray(jL?.data) ? jL.data : [];
+        let chosen = arr[0]?.id;
+        for (const n of arr){ const disp = String(n?.display_phone_number||'').replace(/[^0-9]/g,''); if (disp && (msisdn.startsWith(disp) || disp.endsWith(msisdn.slice(-disp.length)))) { chosen = n.id; break; } }
+        if (chosen) {
+          const second = await tryContacts(chosen);
+          if (second.ok) return res.json({ ok:true, status:second.status, phoneId: chosen, contact: second.contact, response: second.response });
+          return res.status(second.status).json({ ok:false, status:second.status, phoneId: chosen, contact: null, response: second.response });
+        }
+      } catch {}
+    }
+    return res.status(400).json({ ok:false, status:400, contact:null, response:{ error:'invalid_phone_id_or_permissions' } });
   } catch(e:any){ return res.status(500).json({ ok:false, error:e.message||'diagnose_failed' }); }
 });
 
