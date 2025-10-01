@@ -637,17 +637,29 @@ jobs:
             set -e
             API=${{ secrets.API_BASE || 'https://api.jeeey.com' }}
             PHONE='${{ secrets.WHATSAPP_TEST_PHONE || '' }}'
-            TMPL='${{ secrets.WHATSAPP_TEMPLATE || 'otp_verification_code' }}'
+            TMPL='${{ secrets.WHATSAPP_TEMPLATE || 'otp_login_code' }}'
             if [ -z "$PHONE" ]; then echo 'WHATSAPP_TEST_PHONE not set; skipping WA smoke'; exit 0; fi
-            # Admin login cookie
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
             PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
             curl -sS -c /tmp/cj -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -X POST "$API/api/admin/auth/login" >/dev/null
-            body=$(printf '{"phone":"%s","template":"%s","languageCode":"ar","bodyParams":["123456"],"buttonSubType":"url","buttonIndex":0,"buttonParam":"123456","strict":true}' "$PHONE" "$TMPL")
-            resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send" -d "$body")
-            echo "$resp" | grep -q 'messageId' || { echo "WA smoke failed: $resp"; exit 1; }
-            mid=$(echo "$resp" | grep -o '"messageId":"[^"]\+"' | head -n1 | sed 's/.*"messageId":"\([^"]\+\)".*/\1/')
-            # poll status directly if webhook not yet bound
+            ok=0
+            for L in ar ar_SA en; do
+              for V in qr url body; do
+                if [ "$V" = "qr" ]; then
+                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"buttonSubType":"quick_reply","buttonIndex":0,"strict":true}' "$PHONE" "$TMPL" "$L")
+                elif [ "$V" = "url" ]; then
+                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"buttonSubType":"url","buttonIndex":0,"buttonParam":"123456","strict":true}' "$PHONE" "$TMPL" "$L")
+                else
+                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"strict":true}' "$PHONE" "$TMPL" "$L")
+                fi
+                resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send" -d "$body")
+                echo "Attempt $L/$V => $(echo "$resp" | head -c 160)" || true
+                if echo "$resp" | grep -q 'messageId'; then ok=1; break; fi
+              done
+              [ "$ok" = "1" ] && break
+            done
+            [ "$ok" = "1" ] || { echo "WA smoke failed: $resp"; exit 1; }
+            mid=$(echo "$resp" | grep -o '"messageId":"[^\"]\+"' | head -n1 | sed 's/.*"messageId":"\([^\"]\+\)".*/\1/')
             for i in $(seq 1 5); do
               st=$(curl -sS -b /tmp/cj "$API/api/admin/whatsapp/status?id=$mid" || true)
               echo "$st" | grep -Eq 'DELIVERED|READ|SENT' && break
