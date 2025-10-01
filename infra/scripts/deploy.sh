@@ -83,22 +83,17 @@ rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 pnpm --filter @repo/api build
 pnpm --filter web build
 pnpm --filter admin build
-# Build mobile web (m.jeeey.com) if present (Vite)
+# Build mobile web (m.jeeey.com) if present (Vite) - REQUIRED
 if [ -d "$ROOT_DIR/apps/mweb" ]; then
   rm -rf "$ROOT_DIR/apps/mweb/dist" || true
   echo "[deploy] Building mweb (Vite)"
-  if command -v node >/dev/null 2>&1; then
-    (cd "$ROOT_DIR/apps/mweb" && pnpm install --silent || true)
-    if (cd "$ROOT_DIR/apps/mweb" && pnpm exec vite --version >/dev/null 2>&1); then
-      (cd "$ROOT_DIR/apps/mweb" && pnpm build)
-    else
-      echo "[deploy] vite not found; skipping mweb build"
-    fi
-  else
-    echo "[deploy] node not found in PATH; skipping mweb build"
-  fi
+  # Ensure devDependencies are installed even under NODE_ENV=production
+  (cd "$ROOT_DIR/apps/mweb" && NPM_CONFIG_PRODUCTION=false pnpm install --no-frozen-lockfile --ignore-scripts) \
+    || (cd "$ROOT_DIR/apps/mweb" && pnpm install --prod=false --no-frozen-lockfile --ignore-scripts)
+  (cd "$ROOT_DIR/apps/mweb" && pnpm build)
   if [ ! -f "$ROOT_DIR/apps/mweb/dist/index.html" ]; then
-    echo "[deploy] WARN: mweb dist/index.html missing; continuing" >&2
+    echo "[deploy] ERROR: mweb dist/index.html missing after build" >&2
+    exit 1
   fi
   # Bust CDN/cache by touching index.html (nginx short-cache already set)
   touch "$ROOT_DIR/apps/mweb/dist/index.html"
