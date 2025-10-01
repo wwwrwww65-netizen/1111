@@ -646,13 +646,13 @@ jobs:
             for L in ar ar_SA en; do
               for V in noparams body qr url; do
                 if [ "$V" = "noparams" ]; then
-                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","strict":true}' "$PHONE" "$TMPL" "$L")
+                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","strict":false}' "$PHONE" "$TMPL" "$L")
                 elif [ "$V" = "body" ]; then
-                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"strict":true}' "$PHONE" "$TMPL" "$L")
+                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"strict":false}' "$PHONE" "$TMPL" "$L")
                 elif [ "$V" = "qr" ]; then
-                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"buttonSubType":"quick_reply","buttonIndex":0,"strict":true}' "$PHONE" "$TMPL" "$L")
+                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"buttonSubType":"quick_reply","buttonIndex":0,"strict":false}' "$PHONE" "$TMPL" "$L")
                 else
-                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"buttonSubType":"url","buttonIndex":0,"buttonParam":"123456","strict":true}' "$PHONE" "$TMPL" "$L")
+                  body=$(printf '{"phone":"%s","template":"%s","languageCode":"%s","bodyParams":["123456"],"buttonSubType":"url","buttonIndex":0,"buttonParam":"123456","strict":false}' "$PHONE" "$TMPL" "$L")
                 fi
                 resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send" -d "$body")
                 echo "Attempt $L/$V => $(echo "$resp" | head -c 160)" || true
