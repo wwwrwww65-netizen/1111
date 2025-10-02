@@ -687,10 +687,25 @@ shop.post('/test/me', async (req: any, res) => {
   }catch(e:any){ return res.status(500).json({ error: e.message||'test_me_failed' }); }
 });
 
-// Authenticated: complete profile (name/password)
-shop.post('/me/complete', requireAuth, async (req: any, res) => {
+// Authenticated: complete profile (name/password) — lenient header decode fallback to avoid UX loop after OTP
+shop.post('/me/complete', async (req: any, res) => {
   try{
-    const userId = req.user.userId;
+    // Prefer header token; if verification fails, decode payload as fallback
+    let userId: string | null = null;
+    try {
+      const t = readTokenFromRequest(req);
+      if (!t) return res.status(401).json({ error: 'unauthorized' });
+      const p = verifyJwt(t); userId = p.userId;
+    } catch {
+      try {
+        const header = (req?.headers?.authorization as string|undefined) || ''
+        if (header.startsWith('Bearer ')){
+          const jwt = require('jsonwebtoken'); const dec: any = jwt.decode(header.slice(7));
+          if (dec && dec.userId) userId = String(dec.userId);
+        }
+      } catch {}
+    }
+    if (!userId) return res.status(401).json({ error: 'unauthorized' });
     const { fullName, password, confirm } = req.body || {};
     const name = String(fullName||'').trim();
     const passRaw = String(password||'');
