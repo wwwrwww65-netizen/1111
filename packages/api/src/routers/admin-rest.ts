@@ -3796,7 +3796,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 const isDress = /(فستان|فسان)/i.test(raw)
                 const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
                 const isSet = /(طقم)/i.test(raw)
-                const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان')))
+                const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : '')))
                 const feats: string[] = []
                 // gender
                 if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
@@ -3863,7 +3863,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 const isDress = /(فستان|فسان)/i.test(raw)
                 const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
                 const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
-                const baseType = isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان'))
+                const baseType = isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : ''))
                 const attrs: string[] = []
                 if (/(طويله|طويل)/i.test(raw) && baseType==='فستان') attrs.push('طويل')
                 if (/(تطريز|مطرز)/i.test(raw)) attrs.push('مطرز')
@@ -3935,7 +3935,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
           const isDress = /(فستان|فسان)/i.test(raw)
           const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-          const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : 'فستان')))
+          const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : '')))
           const feats:string[] = []
           if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
           else if (/(رجالي|رجالية)/i.test(raw)) feats.push('رجالي')
@@ -4104,7 +4104,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
         const isDress = /(فستان|فسان)/i.test(raw)
         const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-        const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : (curName||'فستان'))))
+        const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : curName)))
         const feats:string[] = []
         if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
         else if (/(رجالي|رجالية)/i.test(raw)) feats.push('رجالي')
