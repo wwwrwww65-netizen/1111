@@ -90,57 +90,59 @@
       <section class="px-3 py-3" aria-label="الفئات">
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <h2 class="text-sm font-semibold text-gray-900 mb-2">الفئات</h2>
-          <div class="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-          <div class="flex gap-2 pb-0.5">
-            <div v-for="(col,ci) in catCols" :key="'col-'+ci" class="flex flex-col gap-1">
-              <button v-for="(c,ri) in col" :key="c.name + '-' + ci + '-' + ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
-                <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
+          <div v-for="(row, idx) in catRows" :key="'row-'+idx" class="overflow-x-auto no-scrollbar snap-x-start mb-1.5 cat-row">
+            <div class="cat-row-inner">
+              <button v-for="c in row" :key="c.name + '-' + idx" class="snap-item cat-item text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
+                <div class="w-[68px] h-[68px] rounded-full overflow-hidden mx-auto mb-1.5 border border-gray-200 bg-white">
                   <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
                 </div>
-                <div class="text-[11px] text-gray-700">{{ c.name }}</div>
+                <div class="text-[11px] text-gray-700 line-clamp-2">{{ c.name }}</div>
               </button>
             </div>
-          </div>
           </div>
         </div>
       </section>
 
       <section class="px-3 py-3" aria-label="عروض كبرى">
-        <div class="mb-1.5 flex items-center justify-between bg-white border border-gray-200 rounded-[4px] px-3 py-3">
-          <h2 class="text-sm font-semibold text-gray-900">عروض كبرى</h2>
-          <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في عروض كبرى" @click="go('/products')">
-            <span class="mr-1">المزيد</span>
-            <ChevronLeft class="w-4 h-4" />
-          </button>
-        </div>
-        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row bg-white border border-gray-200 rounded-[4px] p-3 mt-2">
-          <div class="simple-row-inner">
-            <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
-              <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
-                <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
-              </div>
-              <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
+        <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
+          <div class="mb-1.5 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-gray-900">عروض كبرى</h2>
+            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في عروض كبرى" @click="go('/products')">
+              <span class="mr-1">المزيد</span>
+              <ChevronLeft class="w-4 h-4" />
             </button>
+          </div>
+          <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+            <div class="simple-row-inner">
+              <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
+                <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
+                  <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
+                </div>
+                <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
       <section class="px-3 py-3" aria-label="أهم الترندات">
-        <div class="mb-1.5 flex items-center justify-between bg-white border border-gray-200 rounded-[4px] px-3 py-3">
-          <h2 class="text-sm font-semibold text-gray-900">أهم الترندات</h2>
-          <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في أهم الترندات" @click="go('/products')">
-            <span class="mr-1">المزيد</span>
-            <ChevronLeft class="w-4 h-4" />
-          </button>
-        </div>
-        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row bg-white border border-gray-200 rounded-[4px] p-3 mt-2">
-          <div class="simple-row-inner">
-            <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
-              <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
-                <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
-              </div>
-              <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
+        <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
+          <div class="mb-1.5 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-gray-900">أهم الترندات</h2>
+            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في أهم الترندات" @click="go('/products')">
+              <span class="mr-1">المزيد</span>
+              <ChevronLeft class="w-4 h-4" />
             </button>
+          </div>
+          <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+            <div class="simple-row-inner">
+              <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
+                <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
+                  <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
+                </div>
+                <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
+              </button>
+            </div>
           </div>
         </div>
       </section>
