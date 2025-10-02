@@ -25,9 +25,10 @@ MAINTENANCE_SECRET="${MAINTENANCE_SECRET:?MAINTENANCE_SECRET environment variabl
 
 for kv in \
   COOKIE_DOMAIN=.jeeey.com \
-  CORS_ALLOW_ORIGINS=https://admin.jeeey.com,https://jeeey.com \
+  CORS_ALLOW_ORIGINS=https://admin.jeeey.com,https://jeeey.com,https://www.jeeey.com,https://m.jeeey.com \
   NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com \
   NEXT_PUBLIC_APP_URL=https://jeeey.com \
+  GOOGLE_REDIRECT_URI=https://api.jeeey.com/api/auth/google/callback \
   JWT_SECRET=${JWT_SECRET} \
   MAINTENANCE_SECRET=${MAINTENANCE_SECRET}
 do
