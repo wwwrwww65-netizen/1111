@@ -155,9 +155,10 @@ ADMIN_DIR=""
 WEB_DIR=""
 if [ -n "$ADMIN_JS" ]; then ADMIN_DIR=$(dirname "$ADMIN_JS"); fi
 if [ -n "$WEB_JS" ]; then WEB_DIR=$(dirname "$WEB_JS"); fi
-if [ -n "$ADMIN_JS" ] && [ -f /etc/systemd/system/ecom-admin.service ]; then
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
-  if [ -n "$ADMIN_DIR" ]; then sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ADMIN_DIR|" /etc/systemd/system/ecom-admin.service || true; fi
+if [ -f /etc/systemd/system/ecom-admin.service ]; then
+  # Prefer next start for reliability
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001|" /etc/systemd/system/ecom-admin.service || true
+  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/admin|" /etc/systemd/system/ecom-admin.service || true
   mkdir -p /etc/systemd/system/ecom-admin.service.d || true
   cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<EOF
 [Service]
@@ -170,9 +171,9 @@ StartLimitIntervalSec=60
 StartLimitBurst=20
 EOF
 fi
-if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $WEB_JS|" /etc/systemd/system/ecom-web.service || true
-  if [ -n "$WEB_DIR" ]; then sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$WEB_DIR|" /etc/systemd/system/ecom-web.service || true; fi
+if [ -f /etc/systemd/system/ecom-web.service ]; then
+  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000|" /etc/systemd/system/ecom-web.service || true
+  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/web|" /etc/systemd/system/ecom-web.service || true
   mkdir -p /etc/systemd/system/ecom-web.service.d || true
   cat > /etc/systemd/system/ecom-web.service.d/override.conf <<EOF
 [Service]
@@ -220,7 +221,7 @@ EOF
     systemctl daemon-reload || true
     systemctl enable ecom-api || true
   fi
-  if [ ! -f /etc/systemd/system/ecom-admin.service ] && [ -n "$ADMIN_JS" ]; then
+  if [ ! -f /etc/systemd/system/ecom-admin.service ]; then
     cat > /etc/systemd/system/ecom-admin.service <<EOF
 [Unit]
 Description=Ecom Admin (Next.js)
@@ -228,9 +229,9 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=${ADMIN_DIR:-$ROOT_DIR}
+WorkingDirectory=$ROOT_DIR/apps/admin
 Environment=PORT=3001
-ExecStart=/usr/bin/node $ADMIN_JS
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001
 Restart=always
 RestartSec=2
 
@@ -240,7 +241,7 @@ EOF
     systemctl daemon-reload || true
     systemctl enable ecom-admin || true
   fi
-  if [ ! -f /etc/systemd/system/ecom-web.service ] && [ -n "$WEB_JS" ]; then
+  if [ ! -f /etc/systemd/system/ecom-web.service ]; then
     cat > /etc/systemd/system/ecom-web.service <<EOF
 [Unit]
 Description=Ecom Web (Next.js)
@@ -248,9 +249,9 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=${WEB_DIR:-$ROOT_DIR}
+WorkingDirectory=$ROOT_DIR/apps/web
 Environment=PORT=3000
-ExecStart=/usr/bin/node $WEB_JS
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
 Restart=always
 RestartSec=2
 
