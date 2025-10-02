@@ -23,7 +23,7 @@
       </div>
     </div>
 
-    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: headerH + 'px' }" role="tablist" aria-label="التبويبات">
+    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: (scrolled ? 47 : 63) + 'px' }" role="tablist" aria-label="التبويبات">
       <div ref="tabsRef" class="max-w-[768px] mx-auto overflow-x-auto no-scrollbar px-3 py-2 flex gap-4" @keydown="onTabsKeyDown">
         <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ t }}
@@ -103,14 +103,14 @@
       </section>
 
       <section class="px-3 py-3" aria-label="عروض كبرى">
-        <div class="mb-1.5 flex items-center justify-between">
+        <div class="mb-1.5 flex items-center justify-between bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <h2 class="text-sm font-semibold text-gray-900">عروض كبرى</h2>
           <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في عروض كبرى" @click="go('/products')">
             <span class="mr-1">المزيد</span>
             <ChevronLeft class="w-4 h-4" />
           </button>
         </div>
-        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row bg-white border border-gray-200 rounded-[4px] p-3 mt-2">
           <div class="simple-row-inner">
             <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
               <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
@@ -123,14 +123,14 @@
       </section>
 
       <section class="px-3 py-3" aria-label="أهم الترندات">
-        <div class="mb-1.5 flex items-center justify-between">
+        <div class="mb-1.5 flex items-center justify-between bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <h2 class="text-sm font-semibold text-gray-900">أهم الترندات</h2>
           <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في أهم الترندات" @click="go('/products')">
             <span class="mr-1">المزيد</span>
             <ChevronLeft class="w-4 h-4" />
           </button>
         </div>
-        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row bg-white border border-gray-200 rounded-[4px] p-3 mt-2">
           <div class="simple-row-inner">
             <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
               <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
