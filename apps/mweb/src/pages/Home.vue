@@ -302,16 +302,25 @@ onMounted(async ()=>{
     hotTrends.value = items.slice(6, 12)
     // For You section (use same items, map to structure)
     const fy = (data?.items||[]).slice(12, 20)
+    function extractColors(prod:any): string[]{
+      const c1 = Array.isArray(prod.colorsHex)? prod.colorsHex : undefined
+      const c2 = Array.isArray(prod.colors)? prod.colors.filter((x:any)=> typeof x === 'string' && /^#?[0-9a-fA-F]{3,6}$/.test(String(x))).map((x:string)=> x.startsWith('#')? x : '#'+x) : undefined
+      const c3 = Array.isArray(prod.variants)? prod.variants.map((v:any)=> v?.colorHex).filter((x:any)=> typeof x==='string') : undefined
+      const merged = (c1||[]).concat(c2||[]).concat(c3||[]).filter(Boolean)
+      const uniq: string[] = []
+      for (const hex of merged){ const h = String(hex).startsWith('#')? String(hex) : '#'+String(hex); if (!uniq.includes(h)) uniq.push(h); if (uniq.length>=6) break }
+      return uniq
+    }
     forYouShein.value = fy.map((p:any, i:number)=>({
       id: p.id,
       image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
       images: Array.isArray(p.images) && p.images.length ? p.images.slice(0,5) : undefined,
       title: p.name || '',
-      brand: 'JEEEY',
+      brand: p.brand || 'JEEEY',
       basePrice: String(p.price || 0),
       couponPrice: undefined,
-      colors: ['#111827','#9CA3AF','#FCD34D'],
-      colorCount: 3,
+      colors: extractColors(p),
+      colorCount: Array.isArray(p.colors)? p.colors.length : undefined,
       imageAspect: aspectClassByIndex(i)
     }))
     if (!forYouShein.value.length && items.length){
@@ -320,10 +329,10 @@ onMounted(async ()=>{
         image: p.image,
         images: [p.image],
         title: p.name || '',
-        brand: 'JEEEY',
+        brand: p.brand || 'JEEEY',
         basePrice: p.price.replace(/[^0-9.]/g,'') || '0',
-        colors: ['#111827','#9CA3AF','#FCD34D'],
-        colorCount: 3,
+        colors: [],
+        colorCount: undefined,
         imageAspect: aspectClassByIndex(i)
       }))
     }
