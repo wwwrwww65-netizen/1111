@@ -246,8 +246,9 @@ async function onSubmit(){
         if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
         else router.push(ret)
       } else {
-        // As a fallback, still go to account (Account.vue will retry and route to complete-profile if needed)
-        router.push(ret)
+        // Fallback: honor API hint if provided
+        if (r.newUser) router.push({ path: '/complete-profile', query: { return: ret } })
+        else router.push(ret)
       }
     } else { errorText.value = 'رمز غير صحيح أو منتهي' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
