@@ -33,7 +33,7 @@
     </div>
 
     <div class="max-w-4xl mx-auto px-3">
-      <div class="relative w-full h-[360px] sm:h-[420px]">
+      <div class="relative w-full h-[360px] sm:h-[420px] mt-2">
           <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
         <div class="absolute left-4 right-4 bottom-4 text-white">
@@ -151,8 +151,8 @@
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
         </div>
-        <div class="mt-0 masonry">
-          <button v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1.5 inline-block w-full text-start break-inside-avoid" @click="openProduct({ id: p.id || '' , title: p.title, image: p.image, price: p.basePrice||'0' })">
+        <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 masonry">
+          <button v-for="(p,i) in forYouShein" :key="'fy-'+i" class="w-full text-start" @click="openProduct({ id: p.id || '' , title: p.title, image: p.image, price: p.basePrice||'0' })">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
               <div class="relative w-full" :class="p.imageAspect || 'aspect-[4/5]'">
                 <img :src="p.image" :alt="p.title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
@@ -235,7 +235,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet } from '@/lib/api'
 import { useCart } from '@/store/cart'
@@ -246,28 +246,23 @@ const router = useRouter()
 const cart = useCart()
 const wishlist = useWishlist()
 const headerRef = ref<HTMLElement|null>(null)
-
+const headerH = ref<number>(64)
 const scrolled = ref(false)
 const activeTab = ref(0)
 const tabs = ['كل','نساء','رجال','أطفال','أحجام كبيرة','جمال','المنزل','أحذية','فساتين']
 const tabsRef = ref<HTMLDivElement|null>(null)
-const headerH = computed(()=> scrolled.value ? 48 : 64)
-const tabsTopPx = computed(()=>{
-  const el = headerRef.value
-  if (!el) return headerH.value
-  try {
-    const r = el.getBoundingClientRect()
-    return Math.max(0, Math.round(r.height))
-  } catch { return headerH.value }
-})
+function measureHeader(){ try{ const h = headerRef.value?.getBoundingClientRect().height; if (typeof h === 'number' && h > 0) headerH.value = Math.round(h) }catch{} }
+const tabsTopPx = computed(()=> headerH.value)
 
 // Banner responsive sources
 const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
 const bannerSrcSet = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w'
 
 function go(path: string){ router.push(path) }
-function onScroll(){ scrolled.value = window.scrollY > 60 }
-onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive: true }) })
+function onScroll(){ scrolled.value = window.scrollY > 60; nextTick(measureHeader) }
+onMounted(()=>{ onScroll(); measureHeader(); window.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('resize', measureHeader) })
+onBeforeUnmount(()=>{ window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', measureHeader) })
+watch(scrolled, ()=> nextTick(measureHeader))
 function onTabsKeyDown(e: KeyboardEvent){
   if (e.key === 'ArrowRight') activeTab.value = Math.min(activeTab.value + 1, tabs.length - 1)
   if (e.key === 'ArrowLeft') activeTab.value = Math.max(activeTab.value - 1, 0)
@@ -357,17 +352,12 @@ onMounted(async ()=>{
 })
 
 const rows = 3
-const catCols = computed(()=>{
+const catRows = computed(()=>{
   const list = categories.value || []
-  const cols = Math.ceil(list.length / rows) || 1
+  const perRow = Math.ceil(list.length / rows) || 1
   const out: any[] = []
-  for (let c=0;c<cols;c++){
-    const col: any[] = []
-    for (let r=0;r<rows;r++){
-      const idx = c*rows + r
-      if (idx < list.length) col.push(list[idx])
-    }
-    out.push(col)
+  for (let r=0; r<rows; r++){
+    out[r] = list.slice(r * perRow, (r + 1) * perRow)
   }
   return out
 })
@@ -398,7 +388,9 @@ function addToCartFY(p: any){
 .simple-row{--visible:4.15;--gap:6px}
 .simple-row-inner{display:flex;gap:var(--gap)}
 .simple-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
-.masonry{column-count:2;column-gap:6px}
-.masonry > *{break-inside:avoid}
+/* Grid Masonry alternative for mobile friendliness */
+.masonry{ display:grid; grid-template-columns: repeat(2, 1fr); gap:6px }
+@media (min-width: 768px){ .masonry{ grid-template-columns: repeat(3, 1fr) } }
+.masonry > *{ break-inside: avoid }
 </style>
 
