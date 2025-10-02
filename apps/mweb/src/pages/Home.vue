@@ -1,11 +1,5 @@
 <template>
-  <div class="home-root" dir="rtl">
-    <style>
-      .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
-      .no-scrollbar::-webkit-scrollbar { display: none; }
-      .snap-x-start { scroll-snap-type: x mandatory; }
-      .snap-item { scroll-snap-align: start; }
-    </style>
+  <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
     <div class="header" :class="{ scrolled }" aria-label="رأس الصفحة">
         <div class="maxwrap header-inner">
@@ -30,63 +24,71 @@
       </div>
     </div>
 
-    <div class="maxwrap">
-      <div class="banner">
-        <img
-          src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60"
-          srcset="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w"
-          alt="عرض تخفيضات" class="banner-img" loading="eager" />
-        <div class="banner-overlay" />
-        <div class="banner-text">
-          <div class="banner-sub">احتفالنا الأكبر على الإطلاق</div>
-          <div class="banner-title">خصم يصل حتى 90%</div>
-          <button class="btn" aria-label="تسوّق الآن" @click="go('/products')">تسوّق الآن</button>
+    <div class="max-w-[768px] mx-auto">
+      <div class="relative w-full h-[360px] sm:h-[420px]">
+        <img src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
+        <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
+        <div class="absolute left-4 right-4 bottom-4 text-white">
+          <div class="text-[12px] mb-1">احتفالنا الأكبر على الإطلاق</div>
+          <div class="text-[32px] font-extrabold leading-tight">خصم يصل حتى 90%</div>
+          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200" aria-label="تسوّق الآن" @click="go('/products')">تسوّق الآن</button>
         </div>
       </div>
     </div>
 
-    <div class="maxwrap padX padY">
-      <div class="card">
-        <div class="row between center gap2">
-          <div class="text12 bold green7">قسائم خصم إضافية</div>
-          <div class="row gap2 overflow no-scrollbar">
-            <div class="coupon"><div class="coupon-title">-15%</div><div class="coupon-code">SDA15</div></div>
-            <div class="coupon"><div class="coupon-title">-16%</div><div class="coupon-code">SDA16</div></div>
-            <div class="coupon"><div class="coupon-title">-18%</div><div class="coupon-code">SDA18</div></div>
+    <div class="max-w-[768px] mx-auto px-3 py-3">
+      <div class="bg-white border border-gray-200 rounded p-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-[12px] font-semibold text-emerald-700">قسائم خصم إضافية</div>
+          <div class="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            <div class="min-w-[96px] text-center px-2 py-1 rounded border border-emerald-300 bg-emerald-50">
+              <div class="text-[11px] text-emerald-700 font-bold">-15%</div>
+              <div class="text-[10px] text-emerald-800">SDA15</div>
+            </div>
+            <div class="min-w-[96px] text-center px-2 py-1 rounded border border-emerald-300 bg-emerald-50">
+              <div class="text-[11px] text-emerald-700 font-bold">-16%</div>
+              <div class="text-[10px] text-emerald-800">SDA16</div>
+            </div>
+            <div class="min-w-[96px] text-center px-2 py-1 rounded border border-emerald-300 bg-emerald-50">
+              <div class="text-[11px] text-emerald-700 font-bold">-18%</div>
+              <div class="text-[10px] text-emerald-800">SDA18</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="maxwrap">
-      <div class="strip">
-        <div class="hscroll no-scrollbar snap-x-start gap2" aria-label="عروض">
-          <div v-for="p in promoTiles" :key="p.title" class="tile snap-item" :style="{ backgroundColor: p.bg }">
-            <img :src="p.image" :alt="p.title" class="tile-img" loading="lazy" />
-            <div class="tile-text">
-              <div class="text12 bold text900">{{ p.title }}</div>
-              <div class="text11 text600">{{ p.sub }}</div>
+    <div class="max-w-[768px] mx-auto">
+      <div class="bg-white p-3">
+        <div class="flex overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
+          <div v-for="p in promoTiles" :key="p.title" class="relative w-[192px] h-[68px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
+            <img :src="p.image" :alt="p.title" class="absolute right-0 top-0 w-16 h-full object-cover opacity-90" loading="lazy" />
+            <div class="absolute inset-0 right-[72px] left-2 flex flex-col justify-center">
+              <div class="text-[12px] font-semibold text-gray-900">{{ p.title }}</div>
+              <div class="text-[11px] text-gray-600">{{ p.sub }}</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="padX">
-        <div class="midpromo">
-          <img :src="midPromo.image" :alt="midPromo.alt" class="mid-img" loading="lazy" />
-          <div class="mid-overlay" />
-          <div class="mid-text">{{ midPromo.text }}</div>
+      <div class="px-3">
+        <div class="w-full h-[90px] border border-gray-200 rounded overflow-hidden relative bg-white">
+          <img :src="midPromo.image" :alt="midPromo.alt" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+          <div class="absolute inset-0 bg-black/10" />
+          <div class="absolute left-3 right-3 top-1/2 -translate-y-1/2 text-white text-[12px] font-semibold">{{ midPromo.text }}</div>
         </div>
       </div>
 
-      <section class="padX padY" aria-label="الفئات">
-        <h2 class="h2">الفئات</h2>
-        <div class="cat-scroll no-scrollbar">
-          <div class="cat-cols">
-            <div v-for="(col,ci) in catCols" :key="'col-'+ci" class="cat-col">
-              <button v-for="(c,ri) in col" :key="c.name + '-' + ci + '-' + ri" class="catbtn" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
-                <div class="catimg-wrap"><img :src="c.image" :alt="c.name" class="catimg" loading="lazy" /></div>
-                <div class="catname">{{ c.name }}</div>
+      <section class="px-3 py-3" aria-label="الفئات">
+        <h2 class="text-[14px] font-bold text-gray-900 mb-2">الفئات</h2>
+        <div class="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+          <div class="flex gap-2 pb-0.5">
+            <div v-for="(col,ci) in catCols" :key="'col-'+ci" class="flex flex-col gap-1">
+              <button v-for="(c,ri) in col" :key="c.name + '-' + ci + '-' + ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
+                <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
+                  <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
+                </div>
+                <div class="text-[11px] text-gray-700">{{ c.name }}</div>
               </button>
             </div>
           </div>
