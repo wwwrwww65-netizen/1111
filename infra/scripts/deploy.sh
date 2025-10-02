@@ -158,10 +158,32 @@ if [ -n "$WEB_JS" ]; then WEB_DIR=$(dirname "$WEB_JS"); fi
 if [ -n "$ADMIN_JS" ] && [ -f /etc/systemd/system/ecom-admin.service ]; then
   sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
   if [ -n "$ADMIN_DIR" ]; then sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ADMIN_DIR|" /etc/systemd/system/ecom-admin.service || true; fi
+  mkdir -p /etc/systemd/system/ecom-admin.service.d || true
+  cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<EOF
+[Service]
+Environment=PORT=3001
+StandardOutput=append:/var/log/ecom-admin.out
+StandardError=append:/var/log/ecom-admin.err
+Restart=always
+RestartSec=2
+StartLimitIntervalSec=60
+StartLimitBurst=20
+EOF
 fi
 if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
   sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $WEB_JS|" /etc/systemd/system/ecom-web.service || true
   if [ -n "$WEB_DIR" ]; then sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$WEB_DIR|" /etc/systemd/system/ecom-web.service || true; fi
+  mkdir -p /etc/systemd/system/ecom-web.service.d || true
+  cat > /etc/systemd/system/ecom-web.service.d/override.conf <<EOF
+[Service]
+Environment=PORT=3000
+StandardOutput=append:/var/log/ecom-web.out
+StandardError=append:/var/log/ecom-web.err
+Restart=always
+RestartSec=2
+StartLimitIntervalSec=60
+StartLimitBurst=20
+EOF
 fi
 
 systemctl daemon-reload || true
