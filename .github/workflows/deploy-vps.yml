@@ -824,6 +824,18 @@ jobs:
             SECRET='${{ secrets.MAINTENANCE_SECRET || vars.MAINTENANCE_SECRET }}'
             if [ -n "$SECRET" ]; then
               curl -sS -H "x-maintenance-secret: $SECRET" "$API/api/auth/otp/send-log?phone=$PHONE" | head -c 400 || true; echo
+              echo '--- Fetch latest OTP code (test endpoint) ---'
+              OTP=$(curl -sS -H "x-maintenance-secret: $SECRET" "$API/api/test/otp/latest?phone=$PHONE" | sed -n 's/.*"code":"\([0-9]\+\)".*/\1/p' | head -n1)
+              if [ -n "$OTP" ]; then
+                echo "Using OTP=$OTP for verify smoke"
+                echo '--- OTP verify (session) ---'
+                V=$(curl -sS -o /tmp/otp.verify -w '%{http_code}' -H 'content-type: application/json' -X POST "$API/api/auth/otp/verify" --data "{\"phone\":\"$PHONE\",\"code\":\"$OTP\"}")
+                echo "verify status: $V"; head -n1 /tmp/otp.verify || true
+                echo '--- /api/me after verify ---'
+                curl -sS "$API/api/me?ts=$(date +%s)" | head -c 200; echo
+              else
+                echo 'Could not fetch OTP via test endpoint; skipping verify.'
+              fi
             else
               echo 'MAINTENANCE_SECRET not set; skipping send-log check.'
             fi

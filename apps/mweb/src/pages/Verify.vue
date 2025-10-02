@@ -231,6 +231,7 @@ async function onSubmit(){
       if (r.token) {
         writeCookie('auth_token', r.token)
         writeCookie('shop_auth_token', r.token)
+        try{ localStorage.setItem('shop_token', r.token) }catch{}
       }
       // Fetch session and hydrate user store before redirect
       const me = await meWithRetry(2)
