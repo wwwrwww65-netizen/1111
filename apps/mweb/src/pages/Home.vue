@@ -149,8 +149,8 @@
         <div class="mt-0 columns-2 gap-1.5">
           <button v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1.5 inline-block w-full text-start break-inside-avoid" @click="openProduct({ id: p.id || '' , title: p.title, image: p.image, price: p.basePrice||'0' })">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
-              <div class="relative w-full" :class="p.imageAspect">
-                <img :src="p.image" :alt="p.title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+              <div class="relative w-full">
+                <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover" loading="lazy" />
                 <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center">
                   <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
                     <span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
