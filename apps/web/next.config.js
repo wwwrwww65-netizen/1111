@@ -7,6 +7,8 @@ const nextConfig = {
   // Remove invalid key for Next 15 runner
   images: {
     unoptimized: true,
+    // Avoid sharp requirement in standalone by not using the built-in optimizer path
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
     ],

@@ -28,7 +28,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   if (!data) return <main className="p-8">Not found</main>;
 
   const product = data;
-  const images = product.images && product.images.length ? product.images : ["/placeholder-product.jpg"];
+  const images = product.images && product.images.length ? product.images : ["/images/placeholder-product.jpg"];
 
   return (
     <main className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
@@ -51,7 +51,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
                 className={`relative w-full aspect-square rounded overflow-hidden border ${i === activeIdx ? 'border-black' : 'border-transparent'}`}
                 aria-label={`thumbnail-${i}`}
               >
-                <Image src={img} alt={`${product.name}-${i}`} fill className="object-cover" />
+                <img src={img} alt={`${product.name}-${i}`} className="absolute inset-0 w-full h-full object-cover" />
               </button>
             ))}
           </div>
