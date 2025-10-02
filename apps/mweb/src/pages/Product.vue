@@ -94,9 +94,9 @@
 
     <!-- Bottom Actions -->
     <div class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2">
-      <button class="flex-1 h-12 rounded-[8px] bg-black text-white" @click="addToCart">أضف إلى عربة التسوق بنجاح</button>
-      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المفضلة"><HeartIcon :size="20" /></button>
-      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات"><RulerIcon :size="20" /></button>
+      <button class="flex-1 h-12 rounded-[8px] bg-black text-white" @click="addToCart">أضف إلى عربة التسوق</button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المفضلة" @click="toggleWish"><HeartIcon :size="20" /></button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات" @click="router.push('/size-guide')"><RulerIcon :size="20" /></button>
     </div>
   </div>
 </template>
@@ -181,57 +181,6 @@ async function buyNow(){ addToCart() }
 </script>
 
 <style scoped>
-.shein-root{background:#ffffff;padding-bottom:96px}
-.head{display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid #e5e7eb}
-.left,.right{display:flex;align-items:center;gap:12px}
-.cartwrap{position:relative;display:inline-flex}
-.badge{position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:999px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;padding:0 4px;border:1px solid #fff}
-.logo{font-size:20px;font-weight:800;letter-spacing:.15em}
-.icon{background:transparent;border:0}
-.caret{color:#9ca3af}
-.hero{position:relative}
-.hero-img{width:100%;height:384px;object-fit:cover}
-.hero-count{position:absolute;bottom:12px;left:12px;color:#fff;font-size:12px}
-.hero-badge{position:absolute;bottom:12px;right:12px;background:rgba(255,255,255,.9);padding:6px 10px;border-radius:6px}
-.hero-badge .b1{font-size:12px;font-weight:700}
-.hero-badge .b2{font-size:11px;color:#F97316}
-.box{padding:12px}
-.row{display:flex;align-items:center}
-.space{justify-content:space-between}
-.gap{gap:8px}
-.small{font-size:12px}
-.chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px}
-.purple{background:#f5f3ff;color:#6D28D9}
-.slogan{color:#a78bfa;font-size:12px}
-.prices .now{color:#F97316;font-weight:800;font-size:18px}
-.prices .old{color:#9ca3af;text-decoration:line-through}
-.after{color:#F97316;font-size:12px}
-.coupon-box{border:1px solid #FDBA74;color:#C2410C;border-radius:6px;padding:6px 8px;font-size:12px;margin:6px 0}
-.club{display:flex;align-items:center;justify-content:space-between;background:#FFF7ED;border-radius:6px;padding:6px 8px}
-.clubtag{display:inline-flex;align-items:center;gap:6px}
-.clubtag .S{background:#F97316;color:#fff;border-radius:999px;padding:2px 6px;font-size:11px}
-.clubtag .name{font-weight:700}
-.title-row{margin-top:6px}
-.ttl{font-size:16px;font-weight:700;margin:6px 0}
-.desc{color:#6b7280;font-size:12px;margin-bottom:6px}
-.rate-row{display:flex;align-items:center;gap:6px}
-.ystar{color:#EAB308}
-.rcnt{color:#6b7280}
-.best{display:flex;align-items:center;gap:6px;margin:8px 0}
-.rank{background:#F97316;color:#fff;border-radius:6px;padding:2px 6px;font-size:12px}
-.besttxt{font-size:12px}
-.vimg{width:48px;height:48px;border-radius:6px;border:1px solid #e5e7eb;object-fit:cover}
-.sizes{margin-top:8px}
-.lbl{font-weight:600}
-.blue{color:#1A73E8}
-.muted{color:#6b7280}
-.sz{min-width:50px;border:1px solid #d1d5db;border-radius:6px;padding:8px 10px;background:#fff}
-.sz.on{border-color:#111}
-.fit{margin:10px 0;font-size:13px}
-.orange{color:#F97316}
-.bold{font-weight:700}
-.actions{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #e5e7eb;padding:12px;display:flex;align-items:center;gap:8px}
-.addtocart{flex:1;height:48px;border-radius:8px;background:#000;color:#fff;border:0}
-.square{width:40px;height:40px;border-radius:8px;border:1px solid #d1d5db;background:#fff;display:inline-flex;align-items:center;justify-content:center}
+/* Removed custom layout styles in favor of Tailwind classes already in template */
 </style>
 
