@@ -534,6 +534,22 @@ shop.get('/test/otp/latest', async (req: any, res) => {
   }
 })
 
+// Diagnostics: latest send logs for a phone (protected by maintenance secret)
+shop.get('/auth/otp/send-log', async (req: any, res) => {
+  try {
+    const secret = String(req.headers['x-maintenance-secret']||'')
+    const expected = process.env.MAINTENANCE_SECRET || ''
+    if (!expected || secret !== expected) return res.status(403).json({ error: 'forbidden' })
+    const phone = String(req.query?.phone||'').trim()
+    if (!phone) return res.status(400).json({ error: 'phone_required' })
+    const target = phone.replace(/\s+/g,'')
+    const rows: any[] = (await db.$queryRawUnsafe('SELECT "createdAt", channel, target, title, status, "messageId", error, meta FROM "NotificationLog" WHERE target=$1 ORDER BY "createdAt" DESC LIMIT 10', target)) as any[]
+    return res.json({ logs: rows })
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message||'failed' })
+  }
+})
+
 // Session info (optional auth)
 // Notification preferences
 shop.get('/me/preferences', requireAuth, async (req: any, res) => {
