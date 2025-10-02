@@ -8,10 +8,14 @@ function computeApiBase(req: Request): string {
     const host = u.host.split(':')[0]
     const parts = host.split('.')
     const apex = parts.length >= 2 ? parts.slice(-2).join('.') : host
-    if (process.env.NODE_ENV === 'production') return `http://127.0.0.1:4000/trpc`
-    return `${u.protocol}//api.${apex}/trpc`
+    // In production, always use public API domain
+    if (process.env.NODE_ENV === 'production') return `https://api.${apex}/trpc`
+    // In non-production, derive from current protocol
+    const proto = (u.protocol === 'http:' || u.protocol === 'https:') ? u.protocol : 'http:'
+    return `${proto}//api.${apex}/trpc`
   } catch {
-    return 'http://127.0.0.1:4000/trpc'
+    // Safe fallback to public API
+    return 'https://api.jeeey.com/trpc'
   }
 }
 
