@@ -68,19 +68,36 @@ jobs:
         with:
           ssh-private-key: ${{ env.DEPLOY_KEY }}
 
+      - name: Preflight SSH reachability (gate)
+        run: |
+          set -e
+          H="${{ env.DEPLOY_HOST }}"; P="${{ env.DEPLOY_PORT }}"
+          if [ -z "$H" ]; then echo 'DEPLOY_HOST missing'; echo "HAVE_SSH=0" >> "$GITHUB_ENV"; exit 0; fi
+          ok=0
+          for p in "$P" 22 2222 443; do
+            for i in 1 2 3; do
+              nc -z -w5 "$H" "$p" && { ok=1; echo "DEPLOY_PORT=$p" >> "$GITHUB_ENV"; break; } || sleep 2
+            done
+            [ "$ok" = "1" ] && break
+          done
+          if [ "$ok" = "1" ]; then echo "HAVE_SSH=1" >> "$GITHUB_ENV"; else echo 'SSH unreachable'; echo "HAVE_SSH=0" >> "$GITHUB_ENV"; fi
+
       - name: Create release dir on VPS (native ssh)
+        if: ${{ env.HAVE_SSH == '1' }}
         run: |
           set -ex
           DEPLOY_PATH="${{ env.MWEB_PATH }}"
           ssh -vvv -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" "set -ex; mkdir -p '$DEPLOY_PATH/releases/${GITHUB_SHA}'"
 
       - name: Upload build to VPS (rsync diff)
+        if: ${{ env.HAVE_SSH == '1' }}
         run: |
           set -ex
           RSYNC_RSH="ssh -p '${{ env.DEPLOY_PORT }}' -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3"
           rsync -az --delete --info=stats1,progress2 -e "$RSYNC_RSH" apps/mweb/dist/ "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.MWEB_PATH }}/releases/${GITHUB_SHA}/"
 
       - name: Activate release (native ssh)
+        if: ${{ env.HAVE_SSH == '1' }}
         run: |
           set -ex
           DEPLOY_PATH="${{ env.MWEB_PATH }}"
