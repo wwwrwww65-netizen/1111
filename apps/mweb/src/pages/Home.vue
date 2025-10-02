@@ -257,6 +257,11 @@ const hotTrends = ref<Array<{ id?:string; image:string; price:string }>>([])
 type ForYouShein = { image:string; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
 const forYouShein = ref<ForYouShein[]>([])
 
+function aspectClassByIndex(i: number): string {
+  const variants = ['aspect-[4/5]','aspect-[5/4]','aspect-[3/4]']
+  return variants[i % variants.length]
+}
+
 function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0-9.]/g,'')); return isFinite(n)? n : 0 }
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
 
@@ -295,7 +300,7 @@ onMounted(async ()=>{
     hotTrends.value = items.slice(6, 12)
     // For You section (use same items, map to structure)
     const fy = (data?.items||[]).slice(12, 20)
-    forYouShein.value = fy.map((p:any)=>({
+    forYouShein.value = fy.map((p:any, i:number)=>({
       image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
       title: p.name || '',
       brand: 'JEEEY',
@@ -303,17 +308,17 @@ onMounted(async ()=>{
       couponPrice: undefined,
       colors: ['#111827','#9CA3AF','#FCD34D'],
       colorCount: 3,
-      imageAspect: 'aspect-[4/5]'
+      imageAspect: aspectClassByIndex(i)
     }))
     if (!forYouShein.value.length && items.length){
-      forYouShein.value = items.slice(0,8).map((p:any)=>({
+      forYouShein.value = items.slice(0,8).map((p:any, i:number)=>({
         image: p.image,
         title: p.name || '',
         brand: 'JEEEY',
         basePrice: p.price.replace(/[^0-9.]/g,'') || '0',
         colors: ['#111827','#9CA3AF','#FCD34D'],
         colorCount: 3,
-        imageAspect: 'aspect-[4/5]'
+        imageAspect: aspectClassByIndex(i)
       }))
     }
   }catch{}
