@@ -189,6 +189,20 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
     // WhatsApp Cloud expects international number without '+' (MSISDN)
     const msisdn = String(phone).replace(/[^0-9]/g, '').replace(/^0+/, '');
     const toVariants = Array.from(new Set([msisdn]));
+    // Optional: pre-check contact deliverability
+    try {
+      const contactUrl = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/contacts`;
+      const body = { blocking: 'wait', contacts: [ msisdn ], force_check: true } as any;
+      const rc = await fetch(contactUrl, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
+      const rawc = await rc.text().catch(()=> ''); let jc:any=null; try{ jc = rawc? JSON.parse(rawc): null } catch{}
+      const contact = jc?.contacts?.[0] || null;
+      const status = String(contact?.status||'').toLowerCase();
+      try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, meta) VALUES ($1,$2,$3,$4,$5,$6,$7)', Math.random().toString(36).slice(2), 'whatsapp', msisdn, 'contact_check', '', (status==='valid'?'SENT':'FAILED'), JSON.stringify({ response: jc||rawc })) } catch {}
+      if (status && status !== 'valid') {
+        // Do not attempt WA template when the number is not reachable; allow SMS fallback
+        return false;
+      }
+    } catch {}
     // Try template with exact introspection from WABA if available
     // Read wabaId from integration/env for introspection
     const wabaId = cfg.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
