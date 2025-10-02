@@ -104,10 +104,14 @@ const couponMsg = ref('')
 async function goConfirm(){
   if(!(addressStr.value && payment.value && shipping.value)) return
   if (payment.value === 'الدفع عند الاستلام'){
-    // COD: إنشاء طلب مباشر
+    // COD: إنشاء طلب ثم وسمه مدفوعاً (مكتمل) مباشرة
     const created = await apiPost('/api/orders', { shippingAddressId: undefined, shippingMethodId: shipping.value?.id, payment: 'COD', ref: sessionStorage.getItem('affiliate_ref')||undefined })
-    if (created && (created as any).order){ router.push('/pay/success') }
-    else { router.push('/pay/failure') }
+    if (created && (created as any).order && (created as any).order.id){
+      const oid = (created as any).order.id
+      const paid = await apiPost(`/api/orders/${encodeURIComponent(oid)}/pay`, { method: 'CASH_ON_DELIVERY' })
+      if (paid && (paid as any).success){ router.push('/pay/success') }
+      else { router.push('/pay/failure') }
+    } else { router.push('/pay/failure') }
     return
   }
   // CARD: إنشاء جلسة دفع ثم تحويل
