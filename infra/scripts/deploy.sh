@@ -86,12 +86,8 @@ rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Build API: clean then compile with local tsc
 (cd "$ROOT_DIR/packages/api" && (./node_modules/.bin/rimraf dist || rm -rf dist) && (./node_modules/.bin/tsc -p tsconfig.json || pnpm --package=typescript@5.3.3 dlx tsc -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
 # Next.js builds (ensure next bin exists per app)
-if [ ! -x "$ROOT_DIR/apps/web/node_modules/.bin/next" ]; then
-  (cd "$ROOT_DIR/apps/web" && pnpm install --no-frozen-lockfile --prod=false) || true
-fi
-if [ ! -x "$ROOT_DIR/apps/admin/node_modules/.bin/next" ]; then
-  (cd "$ROOT_DIR/apps/admin" && pnpm install --no-frozen-lockfile --prod=false) || true
-fi
+ (cd "$ROOT_DIR/apps/web" && pnpm install --no-frozen-lockfile --prod=false) || true
+ (cd "$ROOT_DIR/apps/admin" && pnpm install --no-frozen-lockfile --prod=false) || true
 pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && ./node_modules/.bin/next build)
 pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && ./node_modules/.bin/next build)
 # Ensure Category SEO columns after DB/API are compiled and Prisma client exists
@@ -156,9 +152,14 @@ WEB_DIR=""
 if [ -n "$ADMIN_JS" ]; then ADMIN_DIR=$(dirname "$ADMIN_JS"); fi
 if [ -n "$WEB_JS" ]; then WEB_DIR=$(dirname "$WEB_JS"); fi
 if [ -f /etc/systemd/system/ecom-admin.service ]; then
-  # Prefer next start for reliability
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001|" /etc/systemd/system/ecom-admin.service || true
-  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/admin|" /etc/systemd/system/ecom-admin.service || true
+  # Prefer standalone if present, fallback to next start
+  if [ -n "$ADMIN_JS" ] && [ -f "$ADMIN_JS" ]; then
+    sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
+    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ADMIN_DIR|" /etc/systemd/system/ecom-admin.service || true
+  else
+    sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001|" /etc/systemd/system/ecom-admin.service || true
+    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/admin|" /etc/systemd/system/ecom-admin.service || true
+  fi
   mkdir -p /etc/systemd/system/ecom-admin.service.d || true
   cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<EOF
 [Service]
@@ -167,13 +168,16 @@ StandardOutput=append:/var/log/ecom-admin.out
 StandardError=append:/var/log/ecom-admin.err
 Restart=always
 RestartSec=2
-StartLimitIntervalSec=60
-StartLimitBurst=20
 EOF
 fi
 if [ -f /etc/systemd/system/ecom-web.service ]; then
-  sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000|" /etc/systemd/system/ecom-web.service || true
-  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/web|" /etc/systemd/system/ecom-web.service || true
+  if [ -n "$WEB_JS" ] && [ -f "$WEB_JS" ]; then
+    sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $WEB_JS|" /etc/systemd/system/ecom-web.service || true
+    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$WEB_DIR|" /etc/systemd/system/ecom-web.service || true
+  else
+    sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000|" /etc/systemd/system/ecom-web.service || true
+    sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR/apps/web|" /etc/systemd/system/ecom-web.service || true
+  fi
   mkdir -p /etc/systemd/system/ecom-web.service.d || true
   cat > /etc/systemd/system/ecom-web.service.d/override.conf <<EOF
 [Service]
@@ -182,8 +186,6 @@ StandardOutput=append:/var/log/ecom-web.out
 StandardError=append:/var/log/ecom-web.err
 Restart=always
 RestartSec=2
-StartLimitIntervalSec=60
-StartLimitBurst=20
 EOF
 fi
 
