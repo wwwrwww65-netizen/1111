@@ -118,7 +118,8 @@ export async function callDeepseek(opts: {
       desc = desc.replace(/\s*،\s*/g, '، ').replace(/\s*\.\s*/g, '. ').replace(/\s{2,}/g,' ').replace(/^،\s*/,'').trim()
       data.description = desc
     }
-    // Sanitize/compose name: ensure type noun present and strip colors/sizes/prices
+    // Sanitize/compose name: ensure type noun present and strip colors/sizes/prices.
+    // IMPORTANT: Do NOT invent a default type for gibberish/low-signal text.
     if (typeof data.name === 'string') {
       let name = data.name || ''
       name = name.replace(colorWords,'').replace(sizeTokens,'').replace(priceTokens,'').replace(/\s{2,}/g,' ').trim()
@@ -136,8 +137,8 @@ export async function callDeepseek(opts: {
       const embFlag = /(تطريز|مطرز)/i.test(rawText)
       const crystalFlag = /كريستال|كرستال/i.test(rawText)
       const occasionFlag = /(مناسب\s*للمناسبات|سهرة)/i.test(rawText)
-      if (!hasTypeInName) {
-        const base = typeFromText || 'فستان'
+      if (!hasTypeInName && typeFromText) {
+        const base = typeFromText
         const parts: string[] = [base]
         if (base === 'فستان' && longFlag) parts.push('طويل')
         if (embFlag) parts.push('مطرز')
@@ -145,8 +146,12 @@ export async function callDeepseek(opts: {
         if (base === 'فستان' && occasionFlag) parts.splice(1, 0, 'سهرة')
         name = parts.join(' ').replace(/\s{2,}/g,' ').trim()
       }
-      if (!name) name = typeFromText || 'فستان'
-      data.name = name.slice(0,60)
+      // If no clothing signal was detected and name is empty/too short, drop the name entirely
+      if (!name && !typeFromText) {
+        delete (data as any).name
+      } else if (name) {
+        data.name = name.slice(0,60)
+      }
     }
     // Derive/fix price_range from raw text: prefer "قديم" > "للشمال" > "سعر البيع"; ignore weight numbers; require > 100
     try {
@@ -386,8 +391,10 @@ export async function enforceLongNamePreview(opts: {
   const attempts = Math.max(1, Math.min(5, opts.attempts ?? 3))
   for (let i=1;i<=attempts;i++){
     const r = await callDeepseekPreview({ apiKey: opts.apiKey, model: opts.model, input: { text: opts.text }, timeoutMs: opts.timeoutMs })
-    const wc = String(r?.name||'').trim().split(/\s+/).filter(Boolean).length
-    if (r && wc >= 8) return r
+    const name = String(r?.name||'').trim()
+    const wc = name.split(/\s+/).filter(Boolean).length
+    // If the model produced no meaningful name (too short or gibberish), prefer null to avoid fake defaults
+    if (r && wc >= 4 && !/^(فستان|لانجري|جلابية|عباية)$/i.test(name)) return r
     await new Promise(res=> setTimeout(res, 800))
   }
   return null
