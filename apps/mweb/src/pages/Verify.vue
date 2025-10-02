@@ -9,7 +9,7 @@
     <main class="flex-1 max-w-md mx-auto px-4 py-6 space-y-6 w-full">
       <section class="flex items-center justify-between">
         <div class="text-[13px] text-gray-700">
-          تم إرسال رمز التحقق بواسطة WhatsApp إلى {{ countryDial }} {{ phoneMasked }}.
+          تم إرسال رمز التحقق بواسطة WhatsApp إلى {{ displayPhone }}.
         </div>
         <button class="text-[12px] text-blue-600 font-semibold" @click="editNumber">تعديل الرقم</button>
       </section>
@@ -97,6 +97,12 @@ const user = useUser()
 const countryDial = ref<string>(route.query.dial ? String(route.query.dial) : '+966')
 const phone = ref<string>(route.query.phone ? String(route.query.phone) : '')
 const phoneMasked = computed(()=> phone.value ? phone.value.replace(/\D/g,'') : '502457254')
+const displayPhone = computed(()=>{
+  const dialDigits = String(countryDial.value||'').replace(/\D/g,'')
+  const digits = phoneMasked.value
+  if (!digits) return ''
+  return digits.startsWith(dialDigits) ? ('+' + digits) : (String(countryDial.value||'') + ' ' + digits)
+})
 
 function goBack(){ try{ router.back() } catch{} }
 function editNumber(){ router.push('/login') }
