@@ -1,8 +1,25 @@
 #!/usr/bin/env node
 import fetch from 'node-fetch';
 
+async function fetchWithRetry(url, opts = {}, attempts = 5, baseDelayMs = 500) {
+  let err;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 8000);
+      const res = await fetch(url, { ...opts, signal: ctl.signal });
+      clearTimeout(t);
+      return res;
+    } catch (e) {
+      err = e;
+      await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(2, i)));
+    }
+  }
+  throw err;
+}
+
 async function check(url, expect = 200) {
-  const res = await fetch(url, { redirect: 'manual' });
+  const res = await fetchWithRetry(url, { redirect: 'manual' });
   const code = res.status;
   if (![200,201,202,204,301,302,307,308].includes(code)) throw new Error(`Bad status ${code} for ${url}`);
   const html = await res.text();
@@ -12,7 +29,7 @@ async function check(url, expect = 200) {
 }
 
 async function login(apiBase, email, password) {
-  const res = await fetch(`${apiBase}/api/admin/auth/login`, {
+  const res = await fetchWithRetry(`${apiBase}/api/admin/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password, remember: true }),
@@ -36,7 +53,7 @@ async function main() {
 
   const pages = ['/', '/orders', '/products', '/users', '/vendors', '/settings'];
   for (const p of pages) {
-    const res = await fetch(`${admin}${p}`, { headers, redirect: 'manual' });
+    const res = await fetchWithRetry(`${admin}${p}`, { headers, redirect: 'manual' });
     const code = res.status;
     if (![200,301,302,307,308].includes(code)) throw new Error(`Bad status ${code} for ${p}`);
     const html = await res.text();
