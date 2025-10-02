@@ -74,7 +74,7 @@
 
       <div class="mt-2">
         <div class="flex items-center gap-2">
-          <img v-for="(img,i) in images.slice(0,5)" :key="'thumb'+i" :src="img" class="w-12 h-12 rounded-[6px] border border-gray-200 object-cover cursor-pointer" :alt="'thumbnail '+i" @click="scrollToIdx(i)" />
+          <img v-for="(img,i) in images.slice(0,5)" :key="'thumb'+i" :src="img" class="w-12 h-12 rounded-[6px] border object-cover cursor-pointer" :class="i===activeIdx ? 'border-black ring-2 ring-black' : 'border-gray-200'" :alt="'thumbnail '+i" @click="selectThumb(i)" />
         </div>
       </div>
 
@@ -91,12 +91,7 @@
         </div>
       </div>
 
-      <div class="mt-3">
-        <div class="font-semibold mb-1">اللون</div>
-        <div class="flex items-center gap-2">
-          <button v-for="(c,i) in colorOptions" :key="c.name+'-'+i" class="w-8 h-8 rounded-full border" :class="{ 'ring-2 ring-black': colorIdx===i }" :style="{ background: c.hex }" @click="selectColor(i)" :aria-label="c.name" />
-        </div>
-      </div>
+      <!-- اللون يُمثّل بالمصغّرات أعلاه -->
 
       <div class="mt-3 inline-flex items-center gap-2">
         <button class="w-8 h-8 rounded border" @click="decQty" aria-label="-">-</button>
@@ -117,6 +112,9 @@
       <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" :aria-label="hasWish ? 'إزالة من المفضلة' : 'أضف إلى المفضلة'" @click="toggleWish"><HeartIcon :size="20" :class="hasWish ? 'text-red-500' : ''" /></button>
       <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات" @click="router.push('/size-guide')"><RulerIcon :size="20" /></button>
     </div>
+
+    <!-- Toast -->
+    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded shadow z-50">تمت الإضافة إلى الحقيبة</div>
   </div>
 </template>
 
@@ -162,7 +160,12 @@ const text = ref('')
 const description = 'تصميم راقية الدانتيل قطع السمكة'
 const related: any[] = []
 const cart = useCart()
-function addToCart(){ cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value }, qty.value) }
+const toast = ref(false)
+function addToCart(){
+  cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value }, qty.value)
+  toast.value = true
+  setTimeout(()=> toast.value=false, 1200)
+}
 const hasWish = ref(false)
 function toggleWish(){ hasWish.value = !hasWish.value }
 function setActive(i:number){ activeIdx.value = i }
@@ -173,6 +176,7 @@ function scrollToIdx(i:number){
   if (!el) return
   el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
 }
+function selectThumb(i:number){ selectColor(i); scrollToIdx(i) }
 function onGalleryScroll(){
   const el = galleryRef.value
   if (!el) return
