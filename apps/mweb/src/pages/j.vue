@@ -174,7 +174,10 @@ function onTabsKeyDown(e: KeyboardEvent){
 const promoTiles = ref([
   { title: 'شحن مجاني', sub: 'للطلبات فوق 99 ر.س', image: 'https://csspicker.dev/api/image/?q=free+shipping+icon&image_type=photo', bg: '#ffffff' },
   { title: 'خصم 90%', sub: 'لفترة محدودة', image: 'https://csspicker.dev/api/image/?q=sale+tag&image_type=photo', bg: '#fff6f1' },
-  { title: 'الدفع عند الاستلام', sub: 'متاح لمدن مختارة', image: 'https://csspicker.dev/api/image/?q=cod+payment&image_type=photo', bg: '#f7faff' }
+  { title: 'الدفع عند الاستلام', sub: 'متاح لمدن مختارة', image: 'https://csspicker.dev/api/image/?q=cod+payment&image_type=photo', bg: '#f7faff' },
+  { title: 'نقاط ومكافآت', sub: 'اكسب مع كل شراء', image: 'https://csspicker.dev/api/image/?q=reward+points&image_type=photo', bg: '#f9f9ff' },
+  { title: 'خصم الطلاب', sub: 'تحقق من الأهلية', image: 'https://csspicker.dev/api/image/?q=student+discount&image_type=photo', bg: '#fffaf3' },
+  { title: 'عروض اليوم', sub: 'لا تفوّت الفرصة', image: 'https://csspicker.dev/api/image/?q=deal+of+the+day&image_type=photo', bg: '#f5fffb' }
 ])
 const midPromo = ref({ image: 'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', alt: 'عرض شريطي 90×720', text: 'قسائم إضافية + شحن مجاني' })
 const categories = ref<Array<{ name:string; image:string }>>([
@@ -198,15 +201,24 @@ const bigDeals = ref<Array<{ image:string; price:string }>>([
   { image: 'https://csspicker.dev/api/image/?q=black+midi+dress&image_type=photo', price: '179.00 ر.س' },
   { image: 'https://csspicker.dev/api/image/?q=brown+dress+model&image_type=photo', price: '179.00 ر.س' },
   { image: 'https://csspicker.dev/api/image/?q=white+dress&image_type=photo', price: '179.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=black+sleeveless+dress&image_type=photo', price: '179.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=beige+skirt&image_type=photo', price: '95.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=pink+top&image_type=photo', price: '48.00 ر.س' }
 ])
 const hotTrends = ref<Array<{ image:string; price:string }>>([
   { image: 'https://csspicker.dev/api/image/?q=black+skirt&image_type=photo', price: '66.00 ر.س' },
   { image: 'https://csspicker.dev/api/image/?q=white+blouse&image_type=photo', price: '95.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=white+summer+dress&image_type=photo', price: '159.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=black+blouse&image_type=photo', price: '79.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=leather+handbag&image_type=photo', price: '129.00 ر.س' },
+  { image: 'https://csspicker.dev/api/image/?q=white+sneakers&image_type=photo', price: '139.00 ر.س' }
 ])
 type ForYou = { image:string; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
 const forYouShein = ref<ForYou[]>([
   { image:'https://csspicker.dev/api/image/?q=black+dress+model&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'COSMINA ملابس علوية كا ...', brand:'COSMINA', discountPercent:25, bestRank:4, bestRankCategory:'أنيق قمم نسائية', basePrice:'21.06', soldPlus:'تم بيع 100+', couponPrice:'16.85', colors:['#111111','#6B7280','#EEE5D4','#F9A8D4'], colorCount:9, imageAspect:'aspect-[4/5]' },
   { image:'https://csspicker.dev/api/image/?q=sleeveless+top+black+white&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'بلوزة نسائية بدون كم، خصر مرتفع', brand:'Frierie CURVE', discountPercent:76, basePrice:'120.00', soldPlus:'تم بيع 410+', couponPrice:'29.00', colors:['#000000','#FFFFFF','#A3A3A3','#FECACA'], colorCount:6, imageAspect:'aspect-[5/4]' },
+  { image:'https://csspicker.dev/api/image/?q=casual+shirt+dazy&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'قميص بجيوب نسائي بسيط', brand:'Dazy', basePrice:'120.00', couponPrice:'69.00', colors:['#FFFFFF','#9CA3AF','#E5E7EB','#FDE68A'], colorCount:3, imageAspect:'aspect-[3/4]' },
+  { image:'https://csspicker.dev/api/image/?q=white+outfit+woman+outdoor&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'إطلالة أنيقة بيضاء', brand:'', basePrice:'159.00', colors:['#FFFFFF','#F3F4F6','#D1D5DB','#A7F3D0'], colorCount:5, imageAspect:'aspect-[3/4]' }
 ])
 
 const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
