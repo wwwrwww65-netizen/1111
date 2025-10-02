@@ -136,7 +136,14 @@ fi
 if [ -d "$ROOT_DIR/apps/web/.next/static" ] && [ -d "$ROOT_DIR/apps/web/.next/standalone" ]; then
   mkdir -p "$ROOT_DIR/apps/web/.next/standalone/.next"
   rsync -a "$ROOT_DIR/apps/web/.next/static" "$ROOT_DIR/apps/web/.next/standalone/.next/" || true
-  cp -r "$ROOT_DIR/apps/web/public" "$ROOT_DIR/apps/web/.next/standalone/" 2>/dev/null || true
+  # Also place assets relative to the app subfolder used by server.js
+  if [ -d "$ROOT_DIR/apps/web/.next/standalone/apps/web" ]; then
+    mkdir -p "$ROOT_DIR/apps/web/.next/standalone/apps/web/.next"
+    rsync -a "$ROOT_DIR/apps/web/.next/static" "$ROOT_DIR/apps/web/.next/standalone/apps/web/.next/" || true
+    cp -r "$ROOT_DIR/apps/web/public" "$ROOT_DIR/apps/web/.next/standalone/apps/web/" 2>/dev/null || true
+  else
+    cp -r "$ROOT_DIR/apps/web/public" "$ROOT_DIR/apps/web/.next/standalone/" 2>/dev/null || true
+  fi
 fi
 
 # Ensure systemd ExecStart points to actual server.js paths for Next.js apps
