@@ -556,8 +556,10 @@ shop.get('/auth/otp/send-log', async (req: any, res) => {
     if (!expected || secret !== expected) return res.status(403).json({ error: 'forbidden' })
     const phone = String(req.query?.phone||'').trim()
     if (!phone) return res.status(400).json({ error: 'phone_required' })
-    const target = phone.replace(/\s+/g,'')
-    const rows: any[] = (await db.$queryRawUnsafe('SELECT "createdAt", channel, target, title, status, "messageId", error, meta FROM "NotificationLog" WHERE target=$1 ORDER BY "createdAt" DESC LIMIT 10', target)) as any[]
+    const p0 = phone.replace(/\s+/g,'')
+    const digits = p0.replace(/[^0-9]/g,'')
+    const pPlus = digits ? ('+'+digits) : p0
+    const rows: any[] = (await db.$queryRawUnsafe('SELECT "createdAt", channel, target, title, status, "messageId", error, meta FROM "NotificationLog" WHERE target=$1 OR target=$2 OR target=$3 ORDER BY "createdAt" DESC LIMIT 10', p0, digits, pPlus)) as any[]
     return res.json({ logs: rows })
   } catch (e:any) {
     return res.status(500).json({ error: e.message||'failed' })
