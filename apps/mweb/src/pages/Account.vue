@@ -99,14 +99,14 @@ onMounted(async ()=>{
     }
   }catch{}
 
-  // If no user after retries: clear cookies and redirect to login to refresh token
+  // If no user after retries: clear cookies and show guest account (no redirect)
   try{
     const clear = (name:string)=>{ document.cookie = `${name}=; Max-Age=0; path=/; domain=.jeeey.com; SameSite=None; Secure`; document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`; }
     clear('shop_auth_token'); clear('auth_token')
   }catch{}
   user.isLoggedIn = false
   hydrated.value = true
-  router.push('/login')
+  // Stay on guest account page; user can choose to login from the page CTA
 })
 
 const hydrated = ref(false)
