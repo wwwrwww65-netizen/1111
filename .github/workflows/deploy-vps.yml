@@ -359,13 +359,14 @@ jobs:
               echo 'No static chunks found locally'; exit 1
             fi
             echo '--- Verify deepseek dist has no default fallback string ---'
-            if [ -f "$ROOT/packages/api/dist/utils/deepseek.js" ] || [ -d "$ROOT/packages/api/dist" ]; then
-              if grep -R -n "فستان" "$ROOT/packages/api/dist" 2>/dev/null | head -n1 | grep -q "فستان"; then
-                echo 'Deepseek dist still contains the old default fallback string ("فستان").'
+            if [ -d "$ROOT/packages/api/dist" ]; then
+              # Check only for default assignment patterns to 'فستان' to avoid false positives
+              if grep -R -nE "\|\|\s*['\"]فستان['\"]|=\s*['\"]فستان['\"]" "$ROOT/packages/api/dist/utils" 2>/dev/null | head -n1 | grep -q "فستان"; then
+                echo 'Deepseek dist still contains a default assignment to ("فستان").'
                 echo 'This indicates the new build did not publish; failing deploy.'
                 exit 1
               else
-                echo 'Deepseek dist OK (no hard-coded default).'
+                echo 'Deepseek dist OK (no default name assignment).'
               fi
             else
               echo 'packages/api/dist missing; build may have failed.'
@@ -680,6 +681,37 @@ jobs:
               echo "$st" | grep -Eq 'DELIVERED|READ|SENT' && break
               sleep 3
             done
+
+      - name: OTP request smoke (shop)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          debug: true
+          script_stop: true
+          script: |
+            set -e
+            API=${{ secrets.API_BASE || 'https://api.jeeey.com' }}
+            PHONE='${{ secrets.WHATSAPP_TEST_PHONE || '' }}'
+            if [ -z "$PHONE" ]; then echo 'WHATSAPP_TEST_PHONE not set; skipping OTP smoke'; exit 0; fi
+            echo '--- OTP request (whatsapp channel) ---'
+            CODE=$(curl -s -o /tmp/otp.req -w '%{http_code}' -H 'content-type: application/json' -X POST "$API/api/auth/otp/request" --data "{\"phone\":\"$PHONE\",\"channel\":\"whatsapp\"}" || true)
+            head -c 200 /tmp/otp.req || true; echo
+            [ "$CODE" = "200" ] || { echo "OTP request failed: $CODE"; exit 1; }
+            echo '--- OTP send log (last 10) ---'
+            SECRET='${{ secrets.MAINTENANCE_SECRET || vars.MAINTENANCE_SECRET }}'
+            if [ -n "$SECRET" ]; then
+              curl -sS -H "x-maintenance-secret: $SECRET" "$API/api/auth/otp/send-log?phone=$PHONE" | head -c 400 || true; echo
+            else
+              echo 'MAINTENANCE_SECRET not set; skipping send-log check.'
+            fi
 
       - name: Post-deploy category delete proof (always)
         if: always()
