@@ -650,7 +650,7 @@ jobs:
             psql_ok=0
             if command -v psql >/dev/null 2>&1 && [ -n "${DATABASE_URL:-}" ]; then
               psql_ok=1
-              psql "$DATABASE_URL" -c 'SELECT "createdAt",channel,target,title,status,"messageId" FROM "NotificationLog" ORDER BY "createdAt" DESC LIMIT 10;' || true
+              psql "$DATABASE_URL" -c 'SELECT COALESCE("createdAt", createdat) as "createdAt",channel,target,title,status,"messageId" FROM "NotificationLog" ORDER BY COALESCE("createdAt", createdat) DESC LIMIT 10;' || true
             else
               echo '(psql not available)'
             fi
