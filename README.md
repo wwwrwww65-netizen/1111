@@ -284,6 +284,34 @@ For support and questions:
 
 ## 📱 m.jeeey.com (Figma 1:1 Sync)
 
+### Home (Mobile Web) — UI guarantees (Oct 2025)
+
+- For You masonry: variable card heights follow the natural image height (no fixed aspect wrappers). Implementation uses CSS columns with `break-inside: avoid` and plain `<img class="w-full h-auto">`.
+- Categories: unified 3-row horizontal scroller (no title card), each item `w-[96px]` with `68×68` circular image and text below, identical to `/j`.
+- Header/tabs spacing: tabs bar sticks exactly under the header using `headerRef` measurement to eliminate any top gap.
+
+Minimal snippet from `apps/mweb/src/pages/Home.vue`:
+
+```vue
+<section class="px-3 py-3" aria-label="من أجلك">
+  <div class="columns-2 gap-1 [column-fill:_balance]">
+    <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
+      <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+        <div class="relative w-full">
+          <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover block" />
+        </div>
+        <!-- meta/title/price ... -->
+      </div>
+    </div>
+  </div>
+</section>
+```
+
+Regression checklist:
+- Ensure no `aspect-*` wrappers around For You images on Home.
+- Confirm categories use the 3-row unified scroller and no title heading is rendered.
+- Verify tabs bar `top` equals measured header height on scroll/resize.
+
 - Generator syncs Figma → Vue (Vite) with:
   - Design Tokens → `tokens.css` (colors/spacing/typography as CSS vars)
   - Auto Layout/Constraints → Flex/Grid
