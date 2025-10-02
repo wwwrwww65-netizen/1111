@@ -143,14 +143,25 @@ if [ -d "$ROOT_DIR/apps/web/.next/static" ] && [ -d "$ROOT_DIR/apps/web/.next/st
 fi
 
 # Ensure systemd ExecStart points to actual server.js paths for Next.js apps
-# Ensure systemd ExecStart uses next start with correct working directory
-# Use Next.js standalone server.js for admin and web
-ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 5 -type f -name server.js -print -quit 2>/dev/null || true)
-WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 7 -type f -name server.js -print -quit 2>/dev/null || true)
+# Prefer app standalone server.js, fallback to toplevel standalone server.js, else fallback to next start
+ADMIN_JS=""
+WEB_JS=""
 ADMIN_DIR=""
 WEB_DIR=""
-if [ -n "$ADMIN_JS" ]; then ADMIN_DIR=$(dirname "$ADMIN_JS"); fi
-if [ -n "$WEB_JS" ]; then WEB_DIR=$(dirname "$WEB_JS"); fi
+if [ -f "$ROOT_DIR/apps/admin/.next/standalone/apps/admin/server.js" ]; then
+  ADMIN_JS="$ROOT_DIR/apps/admin/.next/standalone/apps/admin/server.js"
+  ADMIN_DIR=$(dirname "$ADMIN_JS")
+elif [ -f "$ROOT_DIR/apps/admin/.next/standalone/server.js" ]; then
+  ADMIN_JS="$ROOT_DIR/apps/admin/.next/standalone/server.js"
+  ADMIN_DIR=$(dirname "$ADMIN_JS")
+fi
+if [ -f "$ROOT_DIR/apps/web/.next/standalone/apps/web/server.js" ]; then
+  WEB_JS="$ROOT_DIR/apps/web/.next/standalone/apps/web/server.js"
+  WEB_DIR=$(dirname "$WEB_JS")
+elif [ -f "$ROOT_DIR/apps/web/.next/standalone/server.js" ]; then
+  WEB_JS="$ROOT_DIR/apps/web/.next/standalone/server.js"
+  WEB_DIR=$(dirname "$WEB_JS")
+fi
 if [ -f /etc/systemd/system/ecom-admin.service ]; then
   # Prefer standalone if present, fallback to next start
   if [ -n "$ADMIN_JS" ] && [ -f "$ADMIN_JS" ]; then
