@@ -31,6 +31,8 @@ cd "$ROOT_DIR"
 if [ -f "$ROOT_DIR/.env.api" ]; then
   # remove UTF-8 NBSP if present
   sed -i 's/\xC2\xA0//g' "$ROOT_DIR/.env.api" || true
+  # remove stray CI control lines if any
+  sed -i '/^DRONE_SSH_PREV_COMMAND_EXIT_CODE=/d' "$ROOT_DIR/.env.api" || true
 fi
 export CI=1
 corepack enable || true
