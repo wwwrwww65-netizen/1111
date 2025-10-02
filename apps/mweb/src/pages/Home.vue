@@ -1,30 +1,38 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
-    <div class="header" :class="{ scrolled }" aria-label="رأس الصفحة">
-        <div class="maxwrap header-inner">
-          <div class="header-left row gap1">
-          <button class="icon-btn" aria-label="القائمة" @click="go('/categories')"><Menu :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
-          <button class="icon-btn" aria-label="الإشعارات" @click="go('/notifications')"><Bell :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
+    <div :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
+      <div class="max-w-md mx-auto h-full px-3 flex items-center justify-between">
+        <div class="flex items-center gap-1">
+          <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة" @click="go('/categories')">
+            <Menu :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+          </button>
+          <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="الإشعارات" @click="go('/notifications')">
+            <Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+          </button>
         </div>
-        <div class="logo" :class="{ dark: scrolled }" aria-label="شعار المتجر">jeeey</div>
-          <div class="header-right row gap1">
-          <button class="icon-btn" aria-label="السلة" @click="go('/cart')"><ShoppingCart :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
-          <button class="icon-btn" aria-label="البحث" @click="go('/search')"><Search :color="scrolled? '#1f2937':'#ffffff'" :size="24" /></button>
+        <div :class="['text-base font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
+        <div class="flex items-center gap-1">
+          <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="السلة" @click="go('/cart')">
+            <ShoppingCart :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+          </button>
+          <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="البحث" @click="go('/search')">
+            <Search :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+          </button>
         </div>
       </div>
     </div>
 
-    <div class="tabsbar" :class="{ scrolled }" :style="{ top: headerH + 'px' }" role="tablist" aria-label="التبويبات">
-      <div ref="tabsRef" class="maxwrap tabswrap no-scrollbar" @keydown="onTabsKeyDown">
-        <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" class="tabbtn" :class="{ active: activeTab===i, dark: scrolled }">
+    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: headerH + 'px' }" role="tablist" aria-label="التبويبات">
+      <div ref="tabsRef" class="max-w-md mx-auto overflow-x-auto no-scrollbar px-3 py-2 flex gap-4" @keydown="onTabsKeyDown">
+        <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ t }}
-          <span class="tab-underline" :class="{ on: activeTab===i, dark: scrolled }" />
+          <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
         </button>
       </div>
     </div>
 
-    <div class="max-w-[768px] mx-auto">
+    <div class="max-w-md mx-auto">
       <div class="relative w-full h-[360px] sm:h-[420px]">
         <img src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
@@ -36,7 +44,7 @@
       </div>
     </div>
 
-    <div class="max-w-[768px] mx-auto px-3 py-3">
+    <div class="max-w-md mx-auto px-3 py-3">
       <div class="bg-white border border-gray-200 rounded p-3">
         <div class="flex items-center justify-between gap-2">
           <div class="text-[12px] font-semibold text-emerald-700">قسائم خصم إضافية</div>
@@ -58,7 +66,7 @@
       </div>
     </div>
 
-    <div class="max-w-[768px] mx-auto">
+    <div class="max-w-md mx-auto">
       <div class="bg-white p-3">
         <div class="flex overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
           <div v-for="p in promoTiles" :key="p.title" class="relative w-[192px] h-[68px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
@@ -95,38 +103,52 @@
         </div>
       </section>
 
-      <section class="padX padY" aria-label="عروض كبرى">
-        <h2 class="h2">عروض كبرى</h2>
-        <div class="overflow no-scrollbar snap-x-start simple-row hscroll">
+      <section class="px-3 py-3" aria-label="عروض كبرى">
+        <div class="mb-1.5 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-900">عروض كبرى</h2>
+          <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في عروض كبرى" @click="go('/products')">
+            <span class="mr-1">المزيد</span>
+            <ChevronLeft class="w-4 h-4" />
+          </button>
+        </div>
+        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
           <div class="simple-row-inner">
             <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
-              <div class="borderbox">
-                <img :src="p.image" :alt="p.price" class="simple-img" loading="lazy" />
+              <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
+                <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
               </div>
-              <div class="mt-1"><span class="price-red">{{ p.price }}</span></div>
+              <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
             </button>
           </div>
         </div>
       </section>
 
-      <section class="padX padY" aria-label="أهم الترندات">
-        <h2 class="h2">أهم الترندات</h2>
-        <div class="overflow no-scrollbar snap-x-start simple-row hscroll">
+      <section class="px-3 py-3" aria-label="أهم الترندات">
+        <div class="mb-1.5 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-900">أهم الترندات</h2>
+          <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في أهم الترندات" @click="go('/products')">
+            <span class="mr-1">المزيد</span>
+            <ChevronLeft class="w-4 h-4" />
+          </button>
+        </div>
+        <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
           <div class="simple-row-inner">
             <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
-              <div class="borderbox">
-                <img :src="p.image" :alt="p.price" class="simple-img" loading="lazy" />
+              <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
+                <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
               </div>
-              <div class="mt-1"><span class="price-red">{{ p.price }}</span></div>
+              <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
             </button>
           </div>
         </div>
       </section>
 
       <section class="px-3 py-3" aria-label="من أجلك">
-        <h2 class="text-[14px] font-bold text-gray-900 mb-2">من أجلك</h2>
-        <div class="columns-2 gap-1 [column-fill:_balance]"><!-- masonry -->
-          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
+        <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
+          <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
+        </div>
+        <div class="mt-0 columns-2 gap-1.5">
+          <button v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1.5 inline-block w-full text-start break-inside-avoid" @click="openProduct({ id: p.id || '' , title: p.title, image: p.image, price: p.basePrice||'0' })">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
               <div class="relative w-full" :class="p.imageAspect">
                 <img :src="p.image" :alt="p.title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
@@ -163,13 +185,15 @@
                   <span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span>
                   <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
                 </div>
-                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click="openProduct({ id: p.id || '' , title: p.title, image: p.image, price: p.basePrice||'0' })"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
+                <div v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white">
+                  <ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span>
+                </div>
                 <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
                   <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span>
                 </div>
               </div>
             </div>
-          </div>
+          </button>
         </div>
       </section>
 
@@ -177,7 +201,7 @@
     </div>
 
     <nav class="bottomnav" aria-label="التنقل السفلي">
-      <div class="maxwrap navwrap" dir="rtl">
+      <div class="max-w-md mx-auto navwrap" dir="rtl">
         <button class="navbtn active" aria-label="الرئيسية" @click="go('/')"><Home :size="24" class="mx-auto mb-1" /><div class="navtext">الرئيسية</div></button>
         <button class="navbtn" aria-label="الفئات" @click="go('/categories')"><LayoutGrid :size="24" class="mx-auto mb-1" /><div class="navtext">الفئات</div></button>
         <button class="navbtn" aria-label="جديد/بحث" @click="go('/search')"><Search :size="24" class="mx-auto mb-1" /><div class="navtext">جديد</div></button>
