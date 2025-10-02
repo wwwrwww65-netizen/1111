@@ -33,7 +33,7 @@
     </div>
 
     <div class="w-screen px-0">
-      <div class="relative w-full h-[360px] sm:h-[420px] mt-2">
+      <div class="relative w-full h-[360px] sm:h-[420px]">
           <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
         <div class="absolute left-4 right-4 bottom-4 text-white">
@@ -88,45 +88,18 @@
       </div>
 
       <section class="py-3" aria-label="الفئات">
-        <div class="px-3">
-          <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
-            <h2 class="text-sm font-semibold text-gray-900 mb-2">الفئات</h2>
-          </div>
-        </div>
         <div class="overflow-x-auto no-scrollbar px-3">
-          <div class="flex flex-col gap-1.5">
-              <div class="cat-row">
-                <div class="cat-row-inner">
-                  <button v-for="(c,i) in catRows[0]" :key="'r0-'+i" class="snap-item cat-item text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
-                    <div class="w-[68px] h-[68px] rounded-full overflow-hidden mx-auto mb-1.5 border border-gray-200 bg-white">
-                      <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
-                    </div>
-                    <div class="text-[11px] text-gray-700 line-clamp-2">{{ c.name }}</div>
-                  </button>
+          <div class="flex gap-2 pb-0.5">
+            <div v-for="(col,ci) in catColsLocked" :key="'col-'+ci" class="flex flex-col gap-1">
+              <button v-for="(c,ri) in col" :key="c.name + '-' + ci + '-' + ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
+                <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
+                  <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
                 </div>
-              </div>
-              <div class="cat-row">
-                <div class="cat-row-inner">
-                  <button v-for="(c,i) in catRows[1]" :key="'r1-'+i" class="snap-item cat-item text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
-                    <div class="w-[68px] h-[68px] rounded-full overflow-hidden mx-auto mb-1.5 border border-gray-200 bg-white">
-                      <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
-                    </div>
-                    <div class="text-[11px] text-gray-700 line-clamp-2">{{ c.name }}</div>
-                  </button>
-                </div>
-              </div>
-              <div class="cat-row">
-                <div class="cat-row-inner">
-                  <button v-for="(c,i) in catRows[2]" :key="'r2-'+i" class="snap-item cat-item text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
-                    <div class="w-[68px] h-[68px] rounded-full overflow-hidden mx-auto mb-1.5 border border-gray-200 bg-white">
-                      <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
-                    </div>
-                    <div class="text-[11px] text-gray-700 line-clamp-2">{{ c.name }}</div>
-                  </button>
-                </div>
-              </div>
+                <div class="text-[11px] text-gray-700">{{ c.name }}</div>
+              </button>
             </div>
           </div>
+        </div>
       </section>
 
       <section class="px-3 py-3" aria-label="عروض كبرى">
@@ -174,57 +147,26 @@
       </section>
 
       <section class="px-3 py-3" aria-label="من أجلك">
-        <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
-          <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
-        </div>
-        <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <button v-for="(p,i) in forYouShein" :key="'fy-'+i" class="w-full text-start" @click="openProduct({ id: p.id || '' , title: p.title, image: p.image, price: p.basePrice||'0' })">
+        <div class="columns-2 gap-1 [column-fill:_balance]"><!-- masonry -->
+          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
-              <div class="relative w-full aspect-[4/5]">
+              <div class="relative w-full" :class="p.imageAspect">
                 <img :src="p.image" :alt="p.title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center">
-                  <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
-                    <span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
-                    <span v-if="typeof p.colorCount==='number'" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span>
-                  </div>
-                </div>
+                <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center"><div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full"><span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span><span v-if="typeof p.colorCount==='number'" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span></div></div>
               </div>
-              <div v-if="p.overlayBannerSrc" class="w-full h-7 relative">
-                <img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-              </div>
+              <div v-if="p.overlayBannerSrc" class="w-full h-7 relative"><img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" /></div>
               <div class="relative p-2">
-                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden">
-                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span>
-                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700" :aria-label="'رموز متجر '+(p.brand||'')">
-                    <Store :size="14" color="#6D28D9" :stroke-width="2" />
-                    <span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span>
-                    <span class="text-violet-700 ms-0.5">&gt;</span>
-                  </span>
-                </div>
-                <div class="flex items-center gap-1 mt-1.5">
-                  <div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div>
-                  <div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div>
-                </div>
-                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden">
-                  <div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div>
-                  <button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0">
-                    <span>في {{ p.bestRankCategory }}</span><span>&gt;</span>
-                  </button>
-                </div>
-                <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1">
-                  <span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span>
-                  <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
-                </div>
-                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCartFY(p)">
-                  <ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span>
-                </button>
-                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
-                  <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span>
-                </div>
+                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden"><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700"><Store :size="14" color="#6D28D9" :stroke-width="2" /><span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span><span class="text-violet-700 ms-0.5">&gt;</span></span></div>
+                <div class="flex items-center gap-1 mt-1.5"><div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div><div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div></div>
+                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden"><div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div><button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ p.bestRankCategory }}</span><span>&gt;</span></button></div>
+                <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1"><span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span><span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span></div>
+                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCartFY(p)"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
+                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>
               </div>
             </div>
-          </button>
+          </div>
         </div>
+        <div style="height:80px" />
       </section>
 
       <div style="height:80px" />
