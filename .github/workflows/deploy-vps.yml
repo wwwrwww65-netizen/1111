@@ -643,6 +643,10 @@ jobs:
               pnpm install --prod --ignore-scripts >/dev/null 2>&1 || true
               npx -y prisma@5.14.0 --version || true
               npx -y prisma@5.14.0 migrate status --schema "$ROOT/packages/db/prisma/schema.prisma" || true
+              echo '== prisma introspect (columns snapshot) ==' || true
+              if command -v psql >/dev/null 2>&1; then
+                psql "$DATABASE_URL" -c "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('NotificationLog','Category','DeliveryRate') ORDER BY table_name, ordinal_position;" || true
+              fi
             else
               echo '(DATABASE_URL/DIRECT_URL not set)'
             fi
@@ -650,7 +654,7 @@ jobs:
             psql_ok=0
             if command -v psql >/dev/null 2>&1 && [ -n "${DATABASE_URL:-}" ]; then
               psql_ok=1
-              psql "$DATABASE_URL" -c 'SELECT COALESCE("createdAt", createdat) as "createdAt",channel,target,title,status,"messageId" FROM "NotificationLog" ORDER BY COALESCE("createdAt", createdat) DESC LIMIT 10;' || true
+              psql "$DATABASE_URL" -c 'SELECT COALESCE("createdAt", createdat) as "createdAt",channel,target,title,status,COALESCE("messageId", messageid) as "messageId" FROM "NotificationLog" ORDER BY COALESCE("createdAt", createdat) DESC LIMIT 10;' || true
             else
               echo '(psql not available)'
             fi
