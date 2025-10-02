@@ -835,3 +835,31 @@ Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `mai
   - «تكرار كود الدولة» في صفحة التحقق: تم حلّه عبر `displayPhone`؛ لا يؤثر على الإرسال، فقط العرض. تأكد من تحديث mweb.
   - «accepted ولا تصل الرسالة»: فعِّل التشخيص؛ غالباً القالب/اللغة/المكوّنات لا تطابق تعريف WABA. استخدم `send-smart` أو صحّح اسم القالب واللغة إلى `otp_login_code` و`ar`.
   - «Unsupported (code 100 subcode 33)»: تحقّق من صلاحيات `phone_id`/`waba_id` والاشتراكات، واستخدم قائمة `phone_numbers` لاختيار معرف صحيح تلقائياً.
+
+### OTP Verify & Complete Profile — تدفق مضمون بعد التحقق
+
+- التحقق من الرمز:
+  1) `POST /api/auth/otp/verify` { phone, code } يعيد `{ ok, token, newUser }`.
+  2) العميل (mweb) يحفظ التوكن فوراً:
+     - كوكي `shop_auth_token` (domain الجذر و`api.`)
+     - localStorage: `shop_token`
+     - sessionStorage (احتياطي مؤقت)
+  3) يقرأ `/api/me` ثم يقرر الوجهة:
+     - إن `newUser === true` أو الاسم ناقص → `/complete-profile?return=...`
+     - غير ذلك → `/account`
+
+- إكمال إنشاء الحساب:
+  - `POST /api/me/complete` { fullName, password?, confirm? } مع رأس `Authorization: Bearer <token>`.
+  - عند النجاح يعود `{ ok:true }` ويُحوِّل العميل إلى `/account`.
+
+- سلوك المصادقة على الخادم (منع الدورات و401):
+  - يتم تفضيل Authorization header على الكوكيز عند قراءة التوكن (لتجنب ظلّ كوكي قديم للتوكن الحديث).
+  - `/api/me`: إذا تعذّر التحقق بالتوقيع لحظياً، يُفك شفرة الـ JWT من الهيدر كحلٍ مؤقت لتفادي دورة إعادة تسجيل الدخول.
+  - `/api/me/complete`: يتحقق من الهيدر أولاً، وإن تعذّر، يفك الشفرة كحلٍ مؤقت لإتمام الإجراء بنجاح مباشرة بعد OTP.
+
+- NGINX/CORS:
+  - يسمح بالطرق: `GET, POST, PUT, PATCH, DELETE, OPTIONS` والرؤوس: `Content-Type, Authorization, X-Shop-Client` ويُعيد 204 للـ OPTIONS.
+
+- استكشاف 401/405 بعد التحقق:
+  - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
+  - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
