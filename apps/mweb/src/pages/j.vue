@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
-    <div :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
-      <div class="max-w-md mx-auto h-full px-3 flex items-center justify-between">
+    <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
+      <div class="w-screen px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة"><Menu :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" /></button>
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="الإشعارات"><Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" /></button>
@@ -14,8 +14,8 @@
       </div>
     </div>
 
-    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: headerH + 'px' }" role="tablist" aria-label="التبويبات">
-      <div ref="tabsRef" class="max-w-md mx-auto overflow-x-auto no-scrollbar px-3 py-2 flex gap-4" @keydown="onTabsKeyDown">
+    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
+      <div ref="tabsRef" class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
         <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ t }}
           <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
@@ -23,7 +23,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto">
+    <div class="w-screen px-0">
       <div class="relative w-full h-[360px] sm:h-[420px]">
         <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
@@ -35,7 +35,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto px-3 py-3">
+    <div class="w-screen px-3 py-3">
       <div class="bg-white border border-gray-200 rounded p-3">
         <div class="flex items-center justify-between gap-2">
           <div class="text-[12px] font-semibold text-emerald-700">قسائم خصم إضافية</div>
@@ -49,7 +49,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto">
+    <div class="w-screen px-3">
       <div class="bg-white p-3">
         <div class="flex overflow-x-auto gap-2 snap-x snap-mandatory no-scrollbar" aria-label="عروض">
           <div v-for="p in promoTiles" :key="p.title" class="relative w-[192px] h-[68px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start">
@@ -159,10 +159,15 @@ const scrolled = ref(false)
 const activeTab = ref(0)
 const tabs = ['كل','نساء','رجال','أطفال','أحجام كبيرة','جمال','المنزل','أحذية','فساتين']
 const tabsRef = ref<HTMLDivElement|null>(null)
+const headerRef = ref<HTMLElement|null>(null)
 const headerH = ref(64)
+const tabsTopPx = ref(64)
 
-function onScroll(){ scrolled.value = window.scrollY > 60; headerH.value = scrolled.value ? 48 : 64 }
-onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive: true }) })
+function measureHeader(){
+  try{ const h = headerRef.value?.getBoundingClientRect().height; if (h && h>0) { headerH.value = Math.round(h); tabsTopPx.value = headerH.value } }catch{}
+}
+function onScroll(){ scrolled.value = window.scrollY > 60; measureHeader() }
+onMounted(()=>{ onScroll(); measureHeader(); window.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('resize', measureHeader) })
 
 function onTabsKeyDown(e: KeyboardEvent){
   if (e.key === 'ArrowRight') activeTab.value = Math.min(activeTab.value + 1, tabs.length - 1)
