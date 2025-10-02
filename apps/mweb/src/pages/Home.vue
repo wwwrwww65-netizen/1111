@@ -99,7 +99,7 @@
         <h2 class="h2">عروض كبرى</h2>
         <div class="overflow no-scrollbar snap-x-start simple-row hscroll">
           <div class="simple-row-inner">
-            <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price">
+            <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
               <div class="borderbox">
                 <img :src="p.image" :alt="p.price" class="simple-img" loading="lazy" />
               </div>
@@ -113,7 +113,7 @@
         <h2 class="h2">أهم الترندات</h2>
         <div class="overflow no-scrollbar snap-x-start simple-row hscroll">
           <div class="simple-row-inner">
-            <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price">
+            <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
               <div class="borderbox">
                 <img :src="p.image" :alt="p.price" class="simple-img" loading="lazy" />
               </div>
@@ -163,7 +163,7 @@
                   <span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span>
                   <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
                 </div>
-                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
+                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click="openProduct({ id: p.id || '' , title: p.title, image: p.image, price: p.basePrice||'0' })"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
                 <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
                   <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span>
                 </div>
@@ -230,8 +230,8 @@ const promoTiles = reactive([
 const midPromo = reactive({ image: 'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', alt: 'عرض منتصف الصفحة', text: 'قسائم إضافية + شحن مجاني' })
 
 const categories = ref<Cat[]>([])
-const bigDeals = ref<Array<{ image:string; price:string }>>([])
-const hotTrends = ref<Array<{ image:string; price:string }>>([])
+const bigDeals = ref<Array<{ id?:string; image:string; price:string }>>([])
+const hotTrends = ref<Array<{ id?:string; image:string; price:string }>>([])
 type ForYouShein = { image:string; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
 const forYouShein = ref<ForYouShein[]>([])
 
@@ -268,11 +268,12 @@ onMounted(async ()=>{
   // Products to sections
   try{
     const data = await apiGet<any>('/api/products?limit=24')
-    const items: Array<{ image:string; price:string }> = (data?.items||[]).map((p:any)=>({ image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س' }))
+    const items: Array<{ id?:string; image:string; price:string }> = (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س' }))
     bigDeals.value = items.slice(0, 6)
     hotTrends.value = items.slice(6, 12)
     // For You section (use same items, map to structure)
-    forYouShein.value = (data?.items||[]).slice(12, 20).map((p:any)=>({
+    const fy = (data?.items||[]).slice(12, 20)
+    forYouShein.value = fy.map((p:any)=>({
       image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
       title: p.name || 'منتج',
       brand: 'JEEEY',
@@ -282,6 +283,17 @@ onMounted(async ()=>{
       colorCount: 3,
       imageAspect: 'aspect-[4/5]'
     }))
+    if (!forYouShein.value.length && items.length){
+      forYouShein.value = items.slice(0,8).map((p:any)=>({
+        image: p.image,
+        title: 'منتج',
+        brand: 'JEEEY',
+        basePrice: p.price.replace(/[^0-9.]/g,'') || '0',
+        colors: ['#111827','#9CA3AF','#FCD34D'],
+        colorCount: 3,
+        imageAspect: 'aspect-[4/5]'
+      }))
+    }
   }catch{}
 })
 
