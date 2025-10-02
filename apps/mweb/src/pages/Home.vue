@@ -149,9 +149,11 @@
       <section class="px-3 py-3" aria-label="من أجلك">
         <div class="columns-2 gap-1 [column-fill:_balance]"><!-- masonry -->
           <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
-            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
-              <div class="relative w-full">
-                <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover block" loading="lazy" />
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.enter="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.space.prevent="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })">
+              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
+                <div class="flex">
+                  <img v-for="(img,idx) in (p.images && p.images.length ? p.images : [p.image])" :key="'img-'+idx" :src="img" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
+                </div>
                 <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center"><div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full"><span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span><span v-if="typeof p.colorCount==='number'" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span></div></div>
               </div>
               <div v-if="p.overlayBannerSrc" class="w-full h-7 relative"><img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" /></div>
@@ -254,7 +256,7 @@ const midPromo = reactive({ image: 'https://images.unsplash.com/photo-1512203492
 const categories = ref<Cat[]>([])
 const bigDeals = ref<Array<{ id?:string; image:string; price:string }>>([])
 const hotTrends = ref<Array<{ id?:string; image:string; price:string }>>([])
-type ForYouShein = { image:string; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
+type ForYouShein = { id?:string; image:string; images?:string[]; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
 const forYouShein = ref<ForYouShein[]>([])
 
 function aspectClassByIndex(i: number): string {
@@ -301,7 +303,9 @@ onMounted(async ()=>{
     // For You section (use same items, map to structure)
     const fy = (data?.items||[]).slice(12, 20)
     forYouShein.value = fy.map((p:any, i:number)=>({
+      id: p.id,
       image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
+      images: Array.isArray(p.images) && p.images.length ? p.images.slice(0,5) : undefined,
       title: p.name || '',
       brand: 'JEEEY',
       basePrice: String(p.price || 0),
@@ -312,7 +316,9 @@ onMounted(async ()=>{
     }))
     if (!forYouShein.value.length && items.length){
       forYouShein.value = items.slice(0,8).map((p:any, i:number)=>({
+        id: p.id,
         image: p.image,
+        images: [p.image],
         title: p.name || '',
         brand: 'JEEEY',
         basePrice: p.price.replace(/[^0-9.]/g,'') || '0',
