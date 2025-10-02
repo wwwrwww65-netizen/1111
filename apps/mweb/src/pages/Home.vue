@@ -1,8 +1,8 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
-    <div :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
-      <div class="max-w-md mx-auto h-full px-3 flex items-center justify-between">
+    <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
+      <div class="max-w-4xl mx-auto px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة" @click="go('/categories')">
             <Menu :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
@@ -11,7 +11,7 @@
             <Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
-        <div :class="['text-base font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
+        <div :class="['text-lg sm:text-xl font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="السلة" @click="go('/cart')">
             <ShoppingCart :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
@@ -23,8 +23,8 @@
       </div>
     </div>
 
-    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: headerH + 'px' }" role="tablist" aria-label="التبويبات">
-      <div ref="tabsRef" class="max-w-md mx-auto overflow-x-auto no-scrollbar px-3 py-2 flex gap-4" @keydown="onTabsKeyDown">
+    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
+      <div ref="tabsRef" class="max-w-4xl mx-auto px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
         <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ t }}
           <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto">
+    <div class="max-w-4xl mx-auto px-3">
       <div class="relative w-full h-[360px] sm:h-[420px]">
           <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
@@ -44,7 +44,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto px-3 py-3">
+    <div class="max-w-4xl mx-auto px-3 py-3">
       <div class="bg-white border border-gray-200 rounded p-3">
         <div class="flex items-center justify-between gap-2">
           <div class="text-[12px] font-semibold text-emerald-700">قسائم خصم إضافية</div>
@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto">
+    <div class="max-w-4xl mx-auto px-3">
       <div class="bg-white p-3">
         <div class="flex overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
           <div v-for="p in promoTiles" :key="p.title" class="relative w-[192px] h-[68px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
@@ -205,7 +205,7 @@
     </div>
 
     <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
-      <div class="max-w-md mx-auto flex justify-around py-2" dir="rtl">
+      <div class="max-w-4xl mx-auto px-3 flex justify-around py-2" dir="rtl">
         <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
           <Home :size="24" class="mx-auto mb-1 text-gray-600" />
           <div class="text-[11px] text-gray-700">الرئيسية</div>
@@ -245,12 +245,21 @@ import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid,
 const router = useRouter()
 const cart = useCart()
 const wishlist = useWishlist()
+const headerRef = ref<HTMLElement|null>(null)
 
 const scrolled = ref(false)
 const activeTab = ref(0)
 const tabs = ['كل','نساء','رجال','أطفال','أحجام كبيرة','جمال','المنزل','أحذية','فساتين']
 const tabsRef = ref<HTMLDivElement|null>(null)
 const headerH = computed(()=> scrolled.value ? 48 : 64)
+const tabsTopPx = computed(()=>{
+  const el = headerRef.value
+  if (!el) return headerH.value
+  try {
+    const r = el.getBoundingClientRect()
+    return Math.max(0, Math.round(r.height))
+  } catch { return headerH.value }
+})
 
 // Banner responsive sources
 const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
@@ -389,5 +398,7 @@ function addToCartFY(p: any){
 .simple-row{--visible:4.15;--gap:6px}
 .simple-row-inner{display:flex;gap:var(--gap)}
 .simple-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
+.masonry{column-count:2;column-gap:6px}
+.masonry > *{break-inside:avoid}
 </style>
 
