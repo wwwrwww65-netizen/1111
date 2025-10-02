@@ -2,15 +2,178 @@
   <div v-if="!hydrated" class="account-loading" dir="rtl" lang="ar">
     <section class="box" style="margin-top:24px">جاري التحميل…</section>
   </div>
-  <main class="account" dir="rtl" lang="ar" v-else-if="user.isLoggedIn">
-    <ProfileHeroCard />
-    <ClubStatsStrip />
-    <ActivitySummaryRow />
-    <OrderStatusRow />
-    <section class="box"><ServicesGrid /></section>
-    <section class="box"><PromoProductCard /></section>
-    <BottomNav active="account" />
-    <div style="height:72px"></div>
+  <main class="bg-gray-50 min-h-screen" dir="rtl" lang="ar" v-else-if="user.isLoggedIn">
+    <!-- Header -->
+    <div class="bg-white px-4 py-3 flex items-center justify-between">
+      <Settings class="w-6 h-6 text-gray-600" />
+      <div class="flex items-center gap-2">
+        <span class="bg-gray-400 text-white px-2 py-1 rounded text-xs">SO %</span>
+        <span class="text-lg font-medium">{{ username }}</span>
+      </div>
+      <div class="w-6 h-6"></div>
+    </div>
+
+    <!-- SHEIN Club Card -->
+    <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <div class="bg-orange-500 text-white px-2 py-1 rounded text-xs font-bold">SHEIN CLUB</div>
+      </div>
+      <div class="text-sm text-gray-600 mb-4">انضم للحصول على المزايا 3+</div>
+
+      <div class="flex justify-between items-center mb-4">
+        <div class="text-center">
+          <div class="bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center mb-2">
+            <span class="text-orange-500 font-bold text-xs">5%</span>
+          </div>
+          <div class="text-xs text-gray-600">نقاط يومية 5%</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold">15%</div>
+          <div class="text-xs text-gray-600">خصومات حتى 15%</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold">10%</div>
+          <div class="text-xs text-gray-600">10%-2% منتجة الشحن</div>
+        </div>
+      </div>
+
+      <div class="bg-orange-50 p-3 rounded-lg">
+        <div class="text-center">
+          <span class="text-orange-500 line-through text-sm">₪33.99 (بدلاً من 93)</span>
+          <span class="text-orange-500 font-bold text-lg mr-2">₪22.99</span>
+          <button class="text-orange-500 text-sm underline" @click="joinClub">انضم الآن</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
+      <div class="flex justify-between">
+        <div class="text-center">
+          <div class="text-2xl font-bold">{{ awaitingShip }}</div>
+          <div class="text-xs text-gray-600">بانتظار الشحن</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold">{{ points }}</div>
+          <div class="text-xs text-gray-600">نقاط</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold">{{ cartCount }}</div>
+          <div class="text-xs text-gray-600">عربات</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mx-4 mt-4">
+      <div class="text-sm text-gray-500 mb-3">الأوامر المحفوظة</div>
+      <div class="bg-white rounded-lg p-4 shadow-sm">
+        <div class="flex justify-between">
+          <button class="text-center" @click="go('/wishlist')">
+            <Heart class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">المنتجات المحفوظة</div>
+          </button>
+          <button class="text-center" @click="go('/orders')">
+            <Package class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">تتبع</div>
+          </button>
+          <button class="text-center" @click="go('/orders')">
+            <Truck class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">مركز الشحن</div>
+          </button>
+          <button class="text-center" @click="go('/orders')">
+            <CreditCard class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">في التحضير</div>
+          </button>
+          <button class="text-center" @click="go('/offers')">
+            <Gift class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">عرض مجاني</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- More Services -->
+    <div class="mx-4 mt-4">
+      <div class="text-sm font-medium mb-3">المزيد من الخدمات</div>
+      <div class="bg-white rounded-lg p-4 shadow-sm">
+        <div class="grid grid-cols-4 gap-4">
+          <button class="text-center" @click="go('/free')">
+            <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+              <span class="text-sm">مجاني</span>
+            </div>
+            <div class="text-xs text-gray-600">مجاني</div>
+          </button>
+          <button class="text-center" @click="go('/camera')">
+            <Camera class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">كتب</div>
+          </button>
+          <button class="text-center" @click="go('/company')">
+            <Megaphone class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">شركة</div>
+          </button>
+          <button class="text-center" @click="go('/reviews')">
+            <FileText class="w-8 h-8 mx-auto mb-2 text-red-500" />
+            <div class="text-xs text-gray-600">مركز يستضيف الآراء</div>
+          </button>
+          <button class="text-center" @click="go('/support')">
+            <Headphones class="w-8 h-8 mx-auto mb-2 text-gray-600" />
+            <div class="text-xs text-gray-600">خدمة العملاء</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product Recommendation -->
+    <div class="mx-4 mt-4">
+      <div class="text-sm font-medium mb-3">تقييم الأسبوع</div>
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm">
+        <img
+          src="https://csspicker.dev/api/image/?q=black+tank+top+jeans&image_type=photo"
+          alt="Product"
+          class="w-full h-48 object-cover"
+        />
+        <div class="p-3">
+          <div class="text-sm font-medium">SHEIN Privé قميص علوي ملائم جداً</div>
+          <div class="flex items-center justify-between mt-2">
+            <div class="text-orange-500 font-bold">₪18.40</div>
+            <div class="text-xs text-gray-500">₪23.00</div>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">تم شراؤه من قبل 1000+ مشتري</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+      <div class="flex justify-around py-2">
+        <button class="text-center py-2" @click="go('/account')">
+          <User class="w-6 h-6 mx-auto mb-1 text-gray-600" />
+          <div class="text-xs text-gray-600">أنا</div>
+        </button>
+        <button class="text-center py-2 relative" @click="go('/cart')">
+          <ShoppingCart class="w-6 h-6 mx-auto mb-1 text-gray-600" />
+          <div class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">{{ cartCount }}</div>
+          <div class="text-xs text-gray-600">عربة</div>
+          <div class="bg-red-500 text-white text-xs px-2 py-1 rounded-full absolute -top-2 left-1/2 transform -translate-x-1/2">SAVE 10</div>
+        </button>
+        <button class="text-center py-2" @click="go('/ai')">
+          <div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-1">
+            <span class="text-white text-xs font-bold">AI</span>
+          </div>
+        </button>
+        <button class="text-center py-2" @click="go('/search')">
+          <Search class="w-6 h-6 mx-auto mb-1 text-gray-600" />
+          <div class="text-xs text-gray-600">البحث</div>
+        </button>
+        <button class="text-center py-2" @click="go('/')">
+          <Home class="w-6 h-6 mx-auto mb-1 text-gray-600" />
+          <div class="text-xs text-gray-600">الرئيسية</div>
+        </button>
+      </div>
+    </div>
+
+    <div class="h-20"></div>
   </main>
   <GuestAccount v-else />
   
@@ -19,16 +182,11 @@
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
 import GuestAccount from '@/components/account/GuestAccount.vue'
-import ProfileHeroCard from '@/components/account/ProfileHeroCard.vue'
-import ClubStatsStrip from '@/components/account/ClubStatsStrip.vue'
-import ActivitySummaryRow from '@/components/account/ActivitySummaryRow.vue'
-import OrderStatusRow from '@/components/account/OrderStatusRow.vue'
-import ServicesGrid from '@/components/ServicesGrid.vue'
-import PromoProductCard from '@/components/account/PromoProductCard.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
 import { apiGet } from '@/lib/api'
+import { Settings, User, Heart, Package, Truck, CreditCard, Gift, Camera, Megaphone, FileText, Headphones, Search, Home, ShoppingCart } from 'lucide-vue-next'
 const props = defineProps<{ userName?: string }>()
 const user = useUser()
 const username = computed(()=> props.userName || user.username || 'jeeey')
@@ -85,15 +243,7 @@ onMounted(async ()=>{
       if (me.user.name || me.user.email || me.user.phone) {
         user.username = String(me.user.name || me.user.email || me.user.phone)
       }
-      // If profile incomplete (no or weak name), guide to complete-profile
-      const name = String(me.user.name||'').trim()
-      const incomplete = !name || name.length < 2 || /^\d+$/.test(name)
-      if (incomplete){
-        const ret = (typeof window!=='undefined') ? (location.pathname + location.search) : '/account'
-        router.push({ path: '/complete-profile', query: { return: ret } })
-        hydrated.value = true
-        return
-      }
+    // Profile incomplete? Keep user on Account; let Verify flow handle first-time redirection
       hydrated.value = true
       return
     }
