@@ -142,15 +142,19 @@ fi
 # Ensure systemd ExecStart points to actual server.js paths for Next.js apps
 # Ensure systemd ExecStart uses next start with correct working directory
 # Use Next.js standalone server.js for admin and web
-ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 3 -type f -name server.js -print -quit 2>/dev/null || true)
-WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 5 -type f -name server.js -print -quit 2>/dev/null || true)
+ADMIN_JS=$(find "$ROOT_DIR/apps/admin/.next/standalone" -maxdepth 5 -type f -name server.js -print -quit 2>/dev/null || true)
+WEB_JS=$(find "$ROOT_DIR/apps/web/.next/standalone" -maxdepth 7 -type f -name server.js -print -quit 2>/dev/null || true)
+ADMIN_DIR=""
+WEB_DIR=""
+if [ -n "$ADMIN_JS" ]; then ADMIN_DIR=$(dirname "$ADMIN_JS"); fi
+if [ -n "$WEB_JS" ]; then WEB_DIR=$(dirname "$WEB_JS"); fi
 if [ -n "$ADMIN_JS" ] && [ -f /etc/systemd/system/ecom-admin.service ]; then
   sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $ADMIN_JS|" /etc/systemd/system/ecom-admin.service || true
-  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|" /etc/systemd/system/ecom-admin.service || true
+  if [ -n "$ADMIN_DIR" ]; then sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ADMIN_DIR|" /etc/systemd/system/ecom-admin.service || true; fi
 fi
 if [ -n "$WEB_JS" ] && [ -f /etc/systemd/system/ecom-web.service ]; then
   sed -i -E "s|^ExecStart=.*|ExecStart=/usr/bin/node $WEB_JS|" /etc/systemd/system/ecom-web.service || true
-  sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$ROOT_DIR|" /etc/systemd/system/ecom-web.service || true
+  if [ -n "$WEB_DIR" ]; then sed -i -E "s|^WorkingDirectory=.*|WorkingDirectory=$WEB_DIR|" /etc/systemd/system/ecom-web.service || true; fi
 fi
 
 systemctl daemon-reload || true
@@ -195,7 +199,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$ROOT_DIR
+WorkingDirectory=${ADMIN_DIR:-$ROOT_DIR}
 Environment=PORT=3001
 ExecStart=/usr/bin/node $ADMIN_JS
 Restart=always
@@ -215,7 +219,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$ROOT_DIR
+WorkingDirectory=${WEB_DIR:-$ROOT_DIR}
 Environment=PORT=3000
 ExecStart=/usr/bin/node $WEB_JS
 Restart=always
