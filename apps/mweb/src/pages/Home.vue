@@ -123,48 +123,50 @@
         </div>
       </section>
 
-      <section class="padX padY" aria-label="من أجلك">
-        <h2 class="h2">من أجلك</h2>
-        <div class="masonry mt0">
-          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="masonry-item">
-            <div class="cardbox">
-              <div class="imgwrap" :class="p.imageAspect">
-                <img :src="p.image" :alt="p.title" class="absimg" loading="lazy" />
-                <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="colorstack">
-                  <div class="colorcol">
-                    <span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="clr" :style="{ background: c }"></span>
-                    <span v-if="typeof p.colorCount==='number'" class="clrcount">{{ p.colorCount }}</span>
+      <section class="px-3 py-3" aria-label="من أجلك">
+        <h2 class="text-[14px] font-bold text-gray-900 mb-2">من أجلك</h2>
+        <div class="columns-2 gap-1 [column-fill:_balance]"><!-- masonry -->
+          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+              <div class="relative w-full" :class="p.imageAspect">
+                <img :src="p.image" :alt="p.title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center">
+                  <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
+                    <span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
+                    <span v-if="typeof p.colorCount==='number'" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span>
                   </div>
                 </div>
               </div>
-              <div v-if="p.overlayBannerSrc" class="bannerbar">
-                <img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="bannerimg" loading="lazy" />
+              <div v-if="p.overlayBannerSrc" class="w-full h-7 relative">
+                <img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
               </div>
-              <div class="contentbox">
-                <div class="inlinechip">
-                  <span class="chip trend">ترندات</span>
-                  <span class="chip store" :aria-label="'رموز متجر '+(p.brand||'')">
+              <div class="relative p-2">
+                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden">
+                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span>
+                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700" :aria-label="'رموز متجر '+(p.brand||'')">
                     <Store :size="14" color="#6D28D9" :stroke-width="2" />
-                    <span class="brandtxt">{{ p.brand||'' }}</span>
-                    <span class="caret">&gt;</span>
+                    <span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span>
+                    <span class="text-violet-700 ms-0.5">&gt;</span>
                   </span>
                 </div>
-                <div class="row gap1 mt2">
-                  <div v-if="typeof p.discountPercent==='number'" class="disc">-%{{ p.discountPercent }}</div>
-                  <div class="prodtitle">{{ p.title }}</div>
+                <div class="flex items-center gap-1 mt-1.5">
+                  <div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div>
+                  <div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div>
                 </div>
-                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="bestrow">
-                  <div v-if="typeof p.bestRank==='number'" class="bestrank">#{{ p.bestRank }} الأفضل مبيعاً</div>
-                  <button v-if="p.bestRankCategory" class="bestcat" :aria-label="'اذهب إلى الفئة '+p.bestRankCategory">
+                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden">
+                  <div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div>
+                  <button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0">
                     <span>في {{ p.bestRankCategory }}</span><span>&gt;</span>
                   </button>
                 </div>
-                <div v-if="p.basePrice || p.soldPlus" class="pricerow">
-                  <span v-if="p.basePrice" class="price-red">{{ p.basePrice }} ريال</span>
-                  <span v-if="p.soldPlus" class="soldtxt">{{ p.soldPlus }}</span>
+                <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1">
+                  <span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span>
+                  <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
                 </div>
-                <button v-if="p.basePrice || p.soldPlus" class="addbtn" aria-label="أضف إلى السلة"><ShoppingCart :size="16" class="addicon" /><span class="addqty">1+</span></button>
-                <div v-if="p.couponPrice" class="couponrow"><span class="couponnew">{{ p.couponPrice }} ريال</span><span class="coupontext">/بعد الكوبون</span></div>
+                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
+                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
+                  <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span>
+                </div>
               </div>
             </div>
           </div>
@@ -419,38 +421,7 @@ function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/prod
 .badge{display:inline-block;font-size:10px;color:#374151;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 6px}
 
 /* Masonry For You */
-.masonry{column-count:2;column-gap:6px}
-.masonry-item{break-inside:avoid;margin-bottom:6px;display:inline-block;width:100%}
-.cardbox{width:100%;border:1px solid #e5e7eb;border-radius:4px;background:#fff;overflow:hidden}
-.imgwrap{position:relative;width:100%}
-.absimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.colorstack{position:absolute;bottom:8px;right:8px;display:flex;align-items:center}
-.colorcol{display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,0,0,.4);padding:2px;border-radius:999px}
-.clr{width:12px;height:12px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
-.clrcount{margin-top:2px;font-size:9px;font-weight:600;padding:0 4px;border-radius:999px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.05)}
-.bannerbar{width:100%;height:28px;position:relative}
-.bannerimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.contentbox{position:relative;padding:8px}
-.inlinechip{display:inline-flex;align-items:center;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden}
-.chip{display:inline-flex;align-items:center;padding:0 6px;height:18px;font-size:11px}
-.chip.trend{color:#fff;background:#6D28D9}
-.chip.store{background:#F3F4F6;color:#6D28D9}
-.brandtxt{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.caret{color:#6D28D9;margin-inline-start:2px}
-.mt2{margin-top:6px}
-.disc{padding:0 4px;height:16px;border-radius:3px;font-size:11px;font-weight:700;border:1px solid #FB923C;color:#F97316;display:flex;align-items:center;line-height:1.1}
-.prodtitle{font-size:12px;color:#111827;font-weight:500;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bestrow{margin-top:4px;display:inline-flex;align-items:stretch;border-radius:4px;overflow:hidden}
-.bestrank{padding:0 4px;font-size:9px;font-weight:600;display:flex;align-items:center;line-height:1.1;background:rgb(255,232,174);color:#c77210}
-.bestcat{padding:0 4px;font-size:9px;font-weight:700;display:flex;align-items:center;gap:4px;line-height:1.1;background:rgba(254,243,199,.2);color:#d58700;border:0}
-.pricerow{margin-top:4px;display:flex;align-items:center;gap:6px}
-.soldtxt{font-size:11px;color:#374151}
-.addbtn{position:absolute;left:8px;bottom:24px;display:flex;align-items:center;gap:4px;padding:2px 6px;border-radius:999px;border:1px solid #000;background:#fff}
-.addicon{color:#000}
-.addqty{font-size:11px;font-weight:700;color:#000}
-.couponrow{margin-top:4px;height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:3px;background:rgba(249,115,22,.10)}
-.couponnew{font-size:13px;font-weight:800;color:#F97316}
-.coupontext{font-size:11px;color:#F97316}
+/* Tailwind replaces masonry/badges styles above */
 
 .bottomnav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #e5e7eb;z-index:50}
 .navwrap{display:flex;justify-content:space-around;padding:8px 0}
