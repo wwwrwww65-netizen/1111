@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
     <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
-      <div class="max-w-4xl mx-auto px-3 h-full flex items-center justify-between">
+      <div class="w-full px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة" @click="go('/categories')">
             <Menu :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
@@ -24,7 +24,7 @@
     </div>
 
     <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
-      <div ref="tabsRef" class="max-w-4xl mx-auto px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
+      <div ref="tabsRef" class="w-full px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
         <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ t }}
           <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <div class="max-w-4xl mx-auto px-3">
+    <div class="w-full px-3">
       <div class="relative w-full h-[360px] sm:h-[420px] mt-2">
           <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
@@ -44,7 +44,7 @@
       </div>
     </div>
 
-    <div class="max-w-4xl mx-auto px-3 py-3">
+    <div class="w-full px-3 py-3">
       <div class="bg-white border border-gray-200 rounded p-3">
         <div class="flex items-center justify-between gap-2">
           <div class="text-[12px] font-semibold text-emerald-700">قسائم خصم إضافية</div>
@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <div class="max-w-4xl mx-auto px-3">
+    <div class="w-full px-3">
       <div class="bg-white p-3">
         <div class="flex overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
           <div v-for="p in promoTiles" :key="p.title" class="relative w-[192px] h-[68px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
@@ -90,16 +90,18 @@
       <section class="px-3 py-3" aria-label="الفئات">
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <h2 class="text-sm font-semibold text-gray-900 mb-2">الفئات</h2>
-          <div v-for="(row, idx) in catRows" :key="'row-'+idx" class="overflow-x-auto no-scrollbar snap-x-start mb-1.5 cat-row">
-            <div class="cat-row-inner">
-              <button v-for="c in row" :key="c.name + '-' + idx" class="snap-item cat-item text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
-                <div class="w-[68px] h-[68px] rounded-full overflow-hidden mx-auto mb-1.5 border border-gray-200 bg-white">
-                  <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
-                </div>
-                <div class="text-[11px] text-gray-700 line-clamp-2">{{ c.name }}</div>
-              </button>
-            </div>
+        <div v-for="(row, idx) in catRows" :key="'row-'+idx" class="overflow-x-auto no-scrollbar snap-x-start mb-1.5 cat-row">
+          <div class="cat-row-inner">
+            <button v-for="(c, i) in row" :key="c.name + '-' + idx + '-' + i" class="snap-item cat-item text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
+              <div class="w-[68px] h-[68px] rounded-full overflow-hidden mx-auto mb-1.5 border border-gray-200 bg-white">
+                <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
+              </div>
+              <div class="text-[11px] text-gray-700 line-clamp-2">{{ c.name }}</div>
+            </button>
+            <!-- half card to hint scroll: phantom width 50% of item -->
+            <div class="snap-item cat-item" aria-hidden="true" style="opacity:0; pointer-events:none; flex-basis:calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible) / 2)"></div>
           </div>
+        </div>
         </div>
       </section>
 
@@ -388,6 +390,10 @@ function addToCartFY(p: any){
 .simple-row{--visible:4.15;--gap:6px}
 .simple-row-inner{display:flex;gap:var(--gap)}
 .simple-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
+/* categories: show 4.5 items per row */
+.cat-row{--visible:4.5;--gap:12px}
+.cat-row-inner{display:flex;gap:var(--gap)}
+.cat-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
 /* Grid Masonry alternative for mobile friendliness */
 .masonry{ display:grid; grid-template-columns: repeat(2, 1fr); gap:6px }
 @media (min-width: 768px){ .masonry{ grid-template-columns: repeat(3, 1fr) } }
