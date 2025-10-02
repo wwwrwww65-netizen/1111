@@ -203,6 +203,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
       } catch {}
     }
     // Try template with multiple languages and component permutations
+    let lastErrorRaw: string | null = null;
     if (template) {
       for (const to of toVariants) {
         for (const lang of candidates) {
@@ -298,6 +299,7 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
                 // Treat 200 without messageId as uncertain -> try next variant or fallback
               }
               try { console.error('WA template send failed', lang, to, JSON.stringify(toSend.template.components), raw) } catch {}
+              lastErrorRaw = raw || lastErrorRaw;
             }
           }
         }
@@ -320,8 +322,14 @@ async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
           } catch {}
         }
         try { console.error('WA text send failed', to, raw) } catch {}
+        lastErrorRaw = raw || lastErrorRaw;
       }
     }
+    // Log final failure for observability
+    try {
+      const to = toVariants[0] || phone;
+      await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, "messageId", meta) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', Math.random().toString(36).slice(2), 'whatsapp', to, template||'otp', text, 'FAILED', '', JSON.stringify({ error: (lastErrorRaw||'').slice(0,500) }));
+    } catch {}
     return false;
   } catch { return false; }
 }
@@ -415,6 +423,8 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     const phone = String(req.body?.phone || '').trim();
     const channel = String(req.body?.channel || 'whatsapp').toLowerCase();
     if (!phone) return res.status(400).json({ ok:false, error:'phone_required' });
+    // Prevent any caching by proxies/SW
+    try { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate'); } catch {}
     const code = generateOtpCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
     const id = await insertOtpRow(phone, code, channel, expiresAt);
@@ -445,7 +455,12 @@ shop.post('/auth/otp/request', async (req: any, res) => {
       const ok2 = await sendSmsOtp(targetPhone, text);
       if (ok2) { sent = true; used = 'sms'; }
     }
-    if (!sent) { console.warn('[OTP] send failed', { phone, channel }); return res.status(502).json({ ok:false, error:'send_failed' }); }
+    if (!sent) {
+      console.warn('[OTP] send failed', { phone, channel });
+      try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, meta) VALUES ($1,$2,$3,$4,$5,$6,$7)', Math.random().toString(36).slice(2), 'otp', phone, 'otp_request', text, 'FAILED', JSON.stringify({ channel })) } catch {}
+      return res.status(502).json({ ok:false, error:'send_failed' });
+    }
+    try { await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status, meta) VALUES ($1,$2,$3,$4,$5,$6,$7)', Math.random().toString(36).slice(2), 'otp', phone, 'otp_request', text, 'SENT', JSON.stringify({ channel: used })) } catch {}
     return res.json({ ok:true, sent:true, channelUsed: used, expiresInSec: 300 });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_request_failed' }); }
 });
