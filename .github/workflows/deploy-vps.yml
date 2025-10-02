@@ -358,6 +358,19 @@ jobs:
             else
               echo 'No static chunks found locally'; exit 1
             fi
+            echo '--- Verify deepseek dist has no default fallback string ---'
+            if [ -f "$ROOT/packages/api/dist/utils/deepseek.js" ] || [ -d "$ROOT/packages/api/dist" ]; then
+              if grep -R -n "فستان" "$ROOT/packages/api/dist" 2>/dev/null | head -n1 | grep -q "فستان"; then
+                echo 'Deepseek dist still contains the old default fallback string ("فستان").'
+                echo 'This indicates the new build did not publish; failing deploy.'
+                exit 1
+              else
+                echo 'Deepseek dist OK (no hard-coded default).'
+              fi
+            else
+              echo 'packages/api/dist missing; build may have failed.'
+              exit 1
+            fi
             echo '--- Restart web service to load latest build ---'
             systemctl reset-failed ecom-web || true
             systemctl try-restart ecom-web || true
