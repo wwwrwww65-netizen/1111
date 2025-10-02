@@ -17,12 +17,18 @@
       </div>
     </div>
 
-    <!-- Product Image with overlays -->
+    <!-- Product Image Gallery (swipeable) -->
     <div class="relative">
-      <img :src="activeImg" :alt="title" class="w-full h-96 object-cover" loading="lazy" />
-      <div class="absolute bottom-3 left-3 text-white text-[12px]">{{ images.length }} / {{ activeIdx+1 }}</div>
+      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar" @scroll.passive="onGalleryScroll">
+        <div class="flex">
+          <img v-for="(img,idx) in images" :key="'hero-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
+        </div>
+      </div>
+      <div class="absolute bottom-3 inset-x-0 flex justify-center gap-1">
+        <button v-for="(img,i) in images" :key="'dot-'+i" class="w-1.5 h-1.5 rounded-full" :class="i===activeIdx ? 'bg-white' : 'bg-white/50'" @click="scrollToIdx(i)" aria-label="اذهب إلى الصورة" />
+      </div>
       <div class="absolute bottom-3 right-3 bg-white/90 px-3 py-1.5 rounded-[6px]">
-        <div class="text-[12px] font-bold">استطالة% 50</div>
+        <div class="text-[12px] font-bold">{{ images.length }} صور</div>
         <div class="text-[11px] text-orange-500">S • VERIFIED</div>
       </div>
     </div>
@@ -36,7 +42,7 @@
 
       <div>
         <div class="flex items-center gap-2">
-          <span class="text-orange-500 font-extrabold text-[18px]">{{ price }}</span>
+          <span class="text-orange-500 font-extrabold text-[18px]">{{ displayPrice }}</span>
           <span v-if="original" class="text-gray-400 line-through">{{ original }}</span>
           <span class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
         </div>
@@ -68,7 +74,7 @@
 
       <div class="mt-2">
         <div class="flex items-center gap-2">
-          <img v-for="(img,i) in images.slice(0,3)" :key="'v'+i" :src="img" class="w-12 h-12 rounded-[6px] border border-gray-200 object-cover" :alt="'variant '+i" />
+          <img v-for="(img,i) in images.slice(0,5)" :key="'thumb'+i" :src="img" class="w-12 h-12 rounded-[6px] border border-gray-200 object-cover cursor-pointer" :alt="'thumbnail '+i" @click="scrollToIdx(i)" />
         </div>
       </div>
 
@@ -85,6 +91,19 @@
         </div>
       </div>
 
+      <div class="mt-3">
+        <div class="font-semibold mb-1">اللون</div>
+        <div class="flex items-center gap-2">
+          <button v-for="(c,i) in colorOptions" :key="c.name+'-'+i" class="w-8 h-8 rounded-full border" :class="{ 'ring-2 ring-black': colorIdx===i }" :style="{ background: c.hex }" @click="selectColor(i)" :aria-label="c.name" />
+        </div>
+      </div>
+
+      <div class="mt-3 inline-flex items-center gap-2">
+        <button class="w-8 h-8 rounded border" @click="decQty" aria-label="-">-</button>
+        <div class="min-w-[28px] text-center">{{ qty }}</div>
+        <button class="w-8 h-8 rounded border" @click="incQty" aria-label="+">+</button>
+      </div>
+
       <div class="my-2 text-[13px]">
         <span class="text-orange-500 font-bold">96%</span>
         <span class="text-gray-600">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
@@ -95,7 +114,7 @@
     <!-- Bottom Actions -->
     <div class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2">
       <button class="flex-1 h-12 rounded-[8px] bg-black text-white" @click="addToCart">أضف إلى عربة التسوق</button>
-      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المفضلة" @click="toggleWish"><HeartIcon :size="20" /></button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" :aria-label="hasWish ? 'إزالة من المفضلة' : 'أضف إلى المفضلة'" @click="toggleWish"><HeartIcon :size="20" :class="hasWish ? 'text-red-500' : ''" /></button>
       <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات" @click="router.push('/size-guide')"><RulerIcon :size="20" /></button>
     </div>
   </div>
@@ -111,7 +130,7 @@ const route = useRoute()
 const router = useRouter()
 const id = route.query.id as string || 'p1'
 const title = ref('منتج تجريبي')
-const price = ref('129 ر.س')
+const price = ref<number>(129)
 const original = ref('179 ر.س')
 const images = ref<string[]>([
   'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
@@ -121,9 +140,10 @@ const images = ref<string[]>([
 ])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
+const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 const sizes = ['S','M','L','XL']
 const size = ref<string>('M')
-const colors = [
+const colorOptions = [
   { name: 'black', hex: '#000000' },
   { name: 'white', hex: '#ffffff' },
   { name: 'blue', hex: '#2a62ff' },
@@ -131,6 +151,10 @@ const colors = [
   { name: 'beige', hex: '#d9c3a3' },
 ]
 const colorIdx = ref(0)
+function selectColor(i:number){ colorIdx.value = i }
+const qty = ref(1)
+function incQty(){ qty.value = Math.min(99, qty.value + 1) }
+function decQty(){ qty.value = Math.max(1, qty.value - 1) }
 const avgRating = ref(4.9)
 const reviews = ref<any[]>([])
 const stars = ref<number>(5)
@@ -138,9 +162,23 @@ const text = ref('')
 const description = 'تصميم راقية الدانتيل قطع السمكة'
 const related: any[] = []
 const cart = useCart()
-function addToCart(){ cart.add({ id, title: title.value, price: Number(price.value.replace(/[^\d.]/g,''))||0, img: activeImg.value }, 1) }
-function toggleWish(){}
+function addToCart(){ cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value }, qty.value) }
+const hasWish = ref(false)
+function toggleWish(){ hasWish.value = !hasWish.value }
 function setActive(i:number){ activeIdx.value = i }
+const galleryRef = ref<HTMLDivElement|null>(null)
+function scrollToIdx(i:number){
+  activeIdx.value = i
+  const el = galleryRef.value
+  if (!el) return
+  el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+}
+function onGalleryScroll(){
+  const el = galleryRef.value
+  if (!el) return
+  const i = Math.round(el.scrollLeft / el.clientWidth)
+  if (i !== activeIdx.value) activeIdx.value = i
+}
 const scrolled = ref(false)
 function onScroll(){ scrolled.value = window.scrollY > 60 }
 onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })
@@ -160,7 +198,7 @@ onMounted(async ()=>{
     if(res.ok){
       const d = await res.json()
       title.value = d.name || title.value
-      price.value = (d.price||129) + ' ر.س'
+      price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
       if (imgs.length) images.value = imgs
       original.value = d.original ? d.original + ' ر.س' : original.value
