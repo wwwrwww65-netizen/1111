@@ -200,13 +200,31 @@
       <div style="height:80px" />
     </div>
 
-    <nav class="bottomnav" aria-label="التنقل السفلي">
-      <div class="max-w-md mx-auto navwrap" dir="rtl">
-        <button class="navbtn active" aria-label="الرئيسية" @click="go('/')"><Home :size="24" class="mx-auto mb-1" /><div class="navtext">الرئيسية</div></button>
-        <button class="navbtn" aria-label="الفئات" @click="go('/categories')"><LayoutGrid :size="24" class="mx-auto mb-1" /><div class="navtext">الفئات</div></button>
-        <button class="navbtn" aria-label="جديد/بحث" @click="go('/search')"><Search :size="24" class="mx-auto mb-1" /><div class="navtext">جديد</div></button>
-        <button class="navbtn" aria-label="الحقيبة" @click="go('/cart')"><div class="cart-icon"><ShoppingBag :size="24" class="mx-auto mb-1" /><span v-if="cart.count>0" class="badge-count">{{ cart.count }}</span></div><div class="navtext">الحقيبة</div></button>
-        <button class="navbtn" aria-label="حسابي" @click="go('/account')"><User :size="24" class="mx-auto mb-1" /><div class="navtext">حسابي</div></button>
+    <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
+      <div class="max-w-md mx-auto flex justify-around py-2" dir="rtl">
+        <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
+          <Home :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">الرئيسية</div>
+        </button>
+        <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
+          <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">الفئات</div>
+        </button>
+        <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
+          <Search :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">جديد</div>
+        </button>
+        <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
+          <div class="relative inline-block">
+            <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
+            <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
+          </div>
+          <div class="text-[11px] text-gray-700">الحقيبة</div>
+        </button>
+        <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
+          <User :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">حسابي</div>
+        </button>
       </div>
     </nav>
   </div>
