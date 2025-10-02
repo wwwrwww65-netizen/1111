@@ -593,6 +593,48 @@ Services on VPS (systemd): `ecom-api`, `ecom-admin`, `ecom-web`. Use `journalctl
 
 ## 🔐 Admin Login: Final Flow
 
+## 🛡️ Production hardening (Oct 2025) — Web/Admin (Next.js)
+
+- Standalone server.js selection fixed in deploy script to prefer:
+  1) `apps/<app>/.next/standalone/apps/<app>/server.js`
+  2) fallback: `apps/<app>/.next/standalone/server.js`
+  3) fallback: `next start` within `apps/<app>` (ensures node_modules exists via `pnpm install` at app level)
+
+- Systemd units (created/updated by `infra/scripts/deploy.sh`):
+  - `ecom-web.service` and `ecom-admin.service` write logs to `/var/log/ecom-web.{out,err}` and `/var/log/ecom-admin.{out,err}`.
+  - WorkingDirectory is set to the directory of `server.js` for standalone, or the app folder for `next start`.
+
+- Next.js images & sharp:
+  - Avoid next/image optimizer for critical images on web; use plain `<img>` and set `images.unoptimized=true` to remove sharp dependency in standalone.
+  - Added placeholders under `apps/web/public/images/*` to prevent invalid resource errors.
+
+- Web/Admin node_modules presence on server:
+  - Deploy script ensures `pnpm install` runs in `apps/web` and `apps/admin` so `node_modules/next/dist/bin/next` is always available if `next start` is used.
+
+- NGINX/frontend 502 prevention:
+  - Server-side health checks verify `127.0.0.1:3000/3001` are serving before concluding deploy.
+  - If services are not yet ready, deploy restarts them via systemd and prints the last logs rather than failing silently.
+
+- .env hygiene on VPS:
+  - Removes any stray CI control lines (e.g., `DRONE_SSH_PREV_COMMAND_EXIT_CODE`) from `.env.api`.
+  - Ensures `GOOGLE_REDIRECT_URI=https://api.jeeey.com/api/auth/google/callback` to avoid redirect mismatches.
+
+### Commands (VPS quick ops)
+
+```bash
+# Logs
+journalctl -u ecom-web   -n 200 --no-pager
+journalctl -u ecom-admin -n 200 --no-pager
+journalctl -u ecom-api   -n 200 --no-pager
+
+# Health
+curl -sSI http://127.0.0.1:3000/ | head -n1   # web
+curl -sSI http://127.0.0.1:3001/login | head -n1   # admin
+
+# Restart
+systemctl restart ecom-web ecom-admin ecom-api
+```
+
 - Web (`apps/web`): redirects use absolute origin after login/register.
 - Admin (`apps/admin`):
   - Sanitizes `next` to same-origin paths.
