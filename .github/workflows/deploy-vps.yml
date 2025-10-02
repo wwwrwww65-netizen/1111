@@ -590,6 +590,74 @@ jobs:
             echo '--- List categories (search=SmokeCat) ---'
             curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/categories?search=SmokeCat' | sed -n '1,200p' || curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
 
+      - name: Server & Prisma comprehensive self-check
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 240s
+          command_timeout: 20m
+          debug: true
+          script_stop: true
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            echo '== deploy info =='
+            echo "commit=${GITHUB_SHA:-unknown} at $(date -u +%FT%TZ)" | tee "$ROOT/.deploy_info" || true
+            echo '== api health =='
+            curl -fsS http://127.0.0.1:4000/health || true; echo
+            echo '== env vars (.env.api) =='
+            if [ -f "$ROOT/.env.api" ]; then
+              grep -E '^(DEFAULT_COUNTRY_CODE|WHATSAPP_(TOKEN|PHONE_ID|BUSINESS_ACCOUNT_ID|TEMPLATE|LANGUAGE)|WA_OTP_STRICT|OTP_SMS_WITH_WA|COOKIE_DOMAIN)=' "$ROOT/.env.api" || true
+            else
+              echo '(missing .env.api)'
+            fi
+            echo '== api process env (selected) =='
+            pid=$(systemctl show -p MainPID ecom-api | cut -d= -f2)
+            if [ -n "$pid" ] && [ -r "/proc/$pid/environ" ]; then
+              tr '\0' '\n' </proc/$pid/environ | egrep '^(DEFAULT_COUNTRY_CODE|WHATSAPP_|WA_OTP_STRICT|OTP_SMS_WITH_WA|COOKIE_DOMAIN)=' || true
+            else
+              echo '(no pid or inaccessible /proc)'
+            fi
+            echo '== ports =='
+            (command -v ss >/dev/null && ss -ltnp | egrep ':4000|:3001|:3000' || netstat -ltnp 2>/dev/null | egrep ':4000|:3001|:3000') || true
+            echo '== dist checks =='
+            if [ -d "$ROOT/packages/api/dist" ]; then
+              echo '-- graph v15.0 references --'
+              grep -R -n "graph.facebook.com/v15.0" "$ROOT/packages/api/dist" | head -n3 || echo '(none)'
+              echo '-- WA_OTP_STRICT usage --'
+              grep -R -n "WA_OTP_STRICT" "$ROOT/packages/api/dist" | head -n3 || echo '(none)'
+              echo '-- deepseek default fallback (should be empty) --'
+              MATCH=$(grep -R -nE "\|\|\s*['\"]فستان['\"]" "$ROOT/packages/api/dist" 2>/dev/null | head -n1 || true)
+              if [ -n "$MATCH" ]; then echo "$MATCH"; else echo '(no default fallback found)'; fi
+            else
+              echo '(missing packages/api/dist)'
+            fi
+            echo '== prisma status =='
+            if [ -f "$ROOT/.env.api" ]; then set -a; . "$ROOT/.env.api"; set +a; fi
+            if [ -n "${DATABASE_URL:-}" ] || [ -n "${DIRECT_URL:-}" ]; then
+              cd "$ROOT/packages/db"
+              pnpm install --prod --ignore-scripts >/dev/null 2>&1 || true
+              npx -y prisma@5.14.0 --version || true
+              npx -y prisma@5.14.0 migrate status --schema "$ROOT/packages/db/prisma/schema.prisma" || true
+            else
+              echo '(DATABASE_URL/DIRECT_URL not set)'
+            fi
+            echo '== NotificationLog tail (10) =='
+            psql_ok=0
+            if command -v psql >/dev/null 2>&1 && [ -n "${DATABASE_URL:-}" ]; then
+              psql_ok=1
+              psql "$DATABASE_URL" -c 'SELECT "createdAt",channel,target,title,status,"messageId" FROM "NotificationLog" ORDER BY "createdAt" DESC LIMIT 10;' || true
+            else
+              echo '(psql not available)'
+            fi
+            echo '== api logs (tail) =='
+            journalctl -u ecom-api --no-pager -n 50 || tail -n 50 /var/log/ecom-api.out 2>/dev/null || true
+
       - name: Post-deploy admin categories delete smoke (create 3 → bulk-delete → verify)
         if: ${{ env.HAVE_SSH == '1' && ((github.event_name == 'workflow_dispatch' && inputs.allow_mutating_smokes == true) || github.event_name == 'push') }}
         uses: appleboy/ssh-action@v1.0.3
