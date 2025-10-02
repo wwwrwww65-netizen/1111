@@ -56,6 +56,7 @@ async function onSubmit(){
     submitting.value = true
     const payload: any = { fullName: fullName.value.trim() }
     if (password.value) { payload.password = password.value; payload.confirm = confirm.value }
+    // Ensure Authorization header is present by reading latest token
     const r: any = await apiPost('/api/me/complete', payload)
     if (r && r.ok){
       // Refresh session user and hydrate store

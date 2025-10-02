@@ -3,9 +3,15 @@ export const API_BASE = (import.meta as any)?.env?.VITE_API_BASE || 'https://api
 function getAuthHeader(): Record<string,string> {
   try {
     // Prefer client-stored token to bypass 3P cookie blocking
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const lt = window.localStorage.getItem('shop_token')
-      if (lt && lt.trim()) return { Authorization: `Bearer ${lt}` }
+    if (typeof window !== 'undefined') {
+      try {
+        const lt = window.localStorage?.getItem('shop_token')
+        if (lt && lt.trim()) return { Authorization: `Bearer ${lt}` }
+      } catch {}
+      try {
+        const st = window.sessionStorage?.getItem('shop_token')
+        if (st && st.trim()) return { Authorization: `Bearer ${st}` }
+      } catch {}
     }
     // Fallback: try cookies (may fail if httpOnly or 3P cookies blocked)
     const raw = typeof document !== 'undefined' ? document.cookie || '' : ''
