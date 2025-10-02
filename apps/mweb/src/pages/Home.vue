@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
     <div :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
-      <div class="max-w-md mx-auto h-full px-3 flex items-center justify-between">
+      <div class="max-w-[768px] mx-auto h-full px-3 flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة" @click="go('/categories')">
             <Menu :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
@@ -24,7 +24,7 @@
     </div>
 
     <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: headerH + 'px' }" role="tablist" aria-label="التبويبات">
-      <div ref="tabsRef" class="max-w-md mx-auto overflow-x-auto no-scrollbar px-3 py-2 flex gap-4" @keydown="onTabsKeyDown">
+      <div ref="tabsRef" class="max-w-[768px] mx-auto overflow-x-auto no-scrollbar px-3 py-2 flex gap-4" @keydown="onTabsKeyDown">
         <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ t }}
           <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
@@ -32,9 +32,9 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto">
+    <div class="max-w-[768px] mx-auto">
       <div class="relative w-full h-[360px] sm:h-[420px]">
-        <img src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
+          <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
         <div class="absolute left-4 right-4 bottom-4 text-white">
           <div class="text-[12px] mb-1">احتفالنا الأكبر على الإطلاق</div>
@@ -44,7 +44,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto px-3 py-3">
+    <div class="max-w-[768px] mx-auto px-3 py-3">
       <div class="bg-white border border-gray-200 rounded p-3">
         <div class="flex items-center justify-between gap-2">
           <div class="text-[12px] font-semibold text-emerald-700">قسائم خصم إضافية</div>
@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <div class="max-w-md mx-auto">
+    <div class="max-w-[768px] mx-auto">
       <div class="bg-white p-3">
         <div class="flex overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
           <div v-for="p in promoTiles" :key="p.title" class="relative w-[192px] h-[68px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
@@ -88,7 +88,6 @@
       </div>
 
       <section class="px-3 py-3" aria-label="الفئات">
-        <h2 class="text-[14px] font-bold text-gray-900 mb-2">الفئات</h2>
         <div class="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
           <div class="flex gap-2 pb-0.5">
             <div v-for="(col,ci) in catCols" :key="'col-'+ci" class="flex flex-col gap-1">
@@ -185,9 +184,9 @@
                   <span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span>
                   <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
                 </div>
-                <div v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white">
+                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCartFY(p)">
                   <ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span>
-                </div>
+                </button>
                 <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
                   <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span>
                 </div>
@@ -247,6 +246,10 @@ const activeTab = ref(0)
 const tabs = ['كل','نساء','رجال','أطفال','أحجام كبيرة','جمال','المنزل','أحذية','فساتين']
 const tabsRef = ref<HTMLDivElement|null>(null)
 const headerH = computed(()=> scrolled.value ? 48 : 64)
+
+// Banner responsive sources
+const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
+const bannerSrcSet = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w'
 
 function go(path: string){ router.push(path) }
 function onScroll(){ scrolled.value = window.scrollY > 60 }
@@ -310,14 +313,14 @@ onMounted(async ()=>{
   // Products to sections
   try{
     const data = await apiGet<any>('/api/products?limit=24')
-    const items: Array<{ id?:string; image:string; price:string }> = (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س' }))
+    const items: Array<{ id?:string; image:string; price:string; name?:string }> = (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
     bigDeals.value = items.slice(0, 6)
     hotTrends.value = items.slice(6, 12)
     // For You section (use same items, map to structure)
     const fy = (data?.items||[]).slice(12, 20)
     forYouShein.value = fy.map((p:any)=>({
       image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
-      title: p.name || 'منتج',
+      title: p.name || '',
       brand: 'JEEEY',
       basePrice: String(p.price || 0),
       couponPrice: undefined,
@@ -328,7 +331,7 @@ onMounted(async ()=>{
     if (!forYouShein.value.length && items.length){
       forYouShein.value = items.slice(0,8).map((p:any)=>({
         image: p.image,
-        title: 'منتج',
+        title: p.name || '',
         brand: 'JEEEY',
         basePrice: p.price.replace(/[^0-9.]/g,'') || '0',
         colors: ['#111827','#9CA3AF','#FCD34D'],
@@ -362,6 +365,16 @@ function openProduct(p: Prod){
   const id = p.id || ''
   if (id) return router.push(`/p?id=${encodeURIComponent(id)}`)
   router.push('/products')
+}
+
+function addToCartFY(p: any){
+  try{
+    const id = p.id || p.title || 'item'
+    const title = p.title || ' '
+    const price = parsePrice(String(p.basePrice||0))
+    const img = p.image
+    cart.add({ id, title, price, img }, 1)
+  }catch{}
 }
 </script>
 
