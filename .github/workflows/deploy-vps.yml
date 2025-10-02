@@ -360,8 +360,9 @@ jobs:
             fi
             echo '--- Verify deepseek dist has no default fallback string ---'
             if [ -d "$ROOT/packages/api/dist" ]; then
-              # Check only for default assignment patterns to 'فستان' to avoid false positives
-              if grep -R -nE "\|\|\s*['\"]فستان['\"]" "$ROOT/packages/api/dist/utils" 2>/dev/null | head -n1 | grep -q "فستان"; then
+              # Capture match safely without failing the script under set -e -o pipefail
+              MATCH=$(grep -R -nE "\|\|\s*['\"]فستان['\"]" "$ROOT/packages/api/dist" 2>/dev/null | head -n1 || true)
+              if echo "$MATCH" | grep -q "فستان"; then
                 echo 'Deepseek dist still contains a default assignment to ("فستان").'
                 echo 'This indicates the new build did not publish; failing deploy.'
                 exit 1
