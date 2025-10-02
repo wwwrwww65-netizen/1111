@@ -323,7 +323,8 @@ adminRest.get('/notifications/logs', async (req, res) => {
     try { payload = verifyToken(token as any); } catch {}
     const role = String((payload?.role)||'');
     if (role.toUpperCase() !== 'ADMIN') return res.status(403).json({ ok:false, error:'forbidden' });
-    const rows: any[] = (await db.$queryRawUnsafe('SELECT "createdAt", channel, target, title, status, "messageId", error FROM "NotificationLog" ORDER BY "createdAt" DESC LIMIT 50')) as any[];
+    // Be column-casing tolerant across environments
+    const rows: any[] = (await db.$queryRawUnsafe('SELECT COALESCE("createdAt", createdat) AS "createdAt", channel, target, title, status, "messageId", error FROM "NotificationLog" ORDER BY COALESCE("createdAt", createdat) DESC LIMIT 50')) as any[];
     return res.json({ ok:true, logs: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'failed' }) }
 });

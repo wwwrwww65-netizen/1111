@@ -124,6 +124,7 @@ async function ensureSchema(): Promise<void> {
       'translations JSONB',
       'sortOrder INTEGER DEFAULT 0',
       'image TEXT',
+      'ogImage TEXT',
       'parentId TEXT',
       'isActive BOOLEAN DEFAULT TRUE'
     ]) {
@@ -294,9 +295,14 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       '"messageId" TEXT,'+
       'meta JSONB,'+
       '"updatedAt" TIMESTAMP DEFAULT NOW(),'+
-      'createdAt TIMESTAMP DEFAULT NOW()'+
+      '"createdAt" TIMESTAMP DEFAULT NOW()'+
       ')'
     );
+    // Backfill/compatibility: some legacy deployments created lowercase createdat/updatedat
+    try { await db.$executeRawUnsafe('ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP DEFAULT NOW()'); } catch {}
+    try { await db.$executeRawUnsafe('UPDATE "NotificationLog" SET "createdAt" = createdat WHERE "createdAt" IS NULL'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP DEFAULT NOW()'); } catch {}
+    try { await db.$executeRawUnsafe('UPDATE "NotificationLog" SET "updatedAt" = updatedat WHERE "updatedAt" IS NULL'); } catch {}
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_messageId_idx" ON "NotificationLog"("messageId")'); } catch {}
     // Ensure Currency table exists (Prisma-compatible)
