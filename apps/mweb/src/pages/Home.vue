@@ -387,6 +387,17 @@ const catRows = computed(()=>{
   }
   return out
 })
+// columns for unified 3-row scroller (4.5 visible per row)
+const catColsLocked = computed(()=>{
+  const list = categories.value || []
+  const perCol = 3 // 3 rows
+  const cols = Math.ceil(list.length / perCol) || 1
+  const out: any[] = []
+  for (let c=0;c<cols;c++){
+    out[c] = list.slice(c*perCol, (c+1)*perCol)
+  }
+  return out
+})
 
 function hasWish(p: Prod){ return wishlist.has(p.id || p.title) }
 function toggleWish(p: Prod){ const id = p.id || p.title; wishlist.toggle({ id, title: p.title, price: parsePrice(p.price), img: p.image }) }
