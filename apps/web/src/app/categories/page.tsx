@@ -26,7 +26,8 @@ export default function CategoriesPage(): JSX.Element {
             <li key={c.id} className="group rounded-lg overflow-hidden border bg-white">
               <a href={`/search?categoryId=${c.id}`} className="block">
                 <div className="relative w-full aspect-[3/4] bg-gray-100">
-                  <Image src={c.image || "/placeholder-category.jpg"} alt={c.name} fill className="object-cover group-hover:scale-105 transition-transform" />
+                  {/* Use plain img to avoid next/image optimizer when running standalone */}
+                  <img src={c.image || "/images/placeholder-category.jpg"} alt={c.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 </div>
                 <div className="p-2.5 flex items-center justify-between text-sm">
                   <span className="font-medium truncate text-gray-900">{c.name}</span>
