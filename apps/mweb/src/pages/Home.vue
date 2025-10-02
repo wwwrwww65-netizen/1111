@@ -236,7 +236,7 @@ import { useRouter } from 'vue-router'
 import { apiGet } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
-import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home } from 'lucide-vue-next'
+import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home, ChevronLeft, Store } from 'lucide-vue-next'
 
 const router = useRouter()
 const cart = useCart()
@@ -358,132 +358,18 @@ const catCols = computed(()=>{
 function hasWish(p: Prod){ return wishlist.has(p.id || p.title) }
 function toggleWish(p: Prod){ const id = p.id || p.title; wishlist.toggle({ id, title: p.title, price: parsePrice(p.price), img: p.image }) }
 function quickAdd(p: Prod){ const id = p.id || p.title; cart.add({ id, title: p.title, price: parsePrice(p.price), img: p.image }, 1) }
-function openProduct(p: Prod){ const id = p.id || ''; if (id) router.push(`/products?id=${encodeURIComponent(id)}`) }
+function openProduct(p: Prod){
+  const id = p.id || ''
+  if (id) return router.push(`/p?id=${encodeURIComponent(id)}`)
+  router.push('/products')
+}
 </script>
 
 <style scoped>
-.home-root{min-height:100vh;background:#f7f7f7}
-.maxwrap{max-width:768px;margin:0 auto}
-.padX{padding-inline:12px}
-.padY{padding-block:12px}
-.mt0{margin-top:0}
-.mb2{margin-bottom:8px}
-.gap1{gap:4px}
-.gap2{gap:8px}
-.gap3{gap:12px}
-.row{display:flex}
-.between{justify-content:space-between}
-.center{align-items:center}
-.overflow{overflow-x:auto}
-.text11{font-size:11px}
-.text12{font-size:12px}
-.text600{color:#6b7280}
-.text700{color:#374151}
-.text900{color:#111827}
-.bold{font-weight:600}
-.green7{color:#047857}
-
-.header{position:fixed;inset-inline:0;top:0;z-index:50;transition:all .2s;background:transparent;height:64px}
-.header.scrolled{background:rgba(255,255,255,.95);backdrop-filter:saturate(1.2) blur(6px);height:48px}
-.header-inner{height:100%;padding:0 12px;display:flex;align-items:center;justify-content:space-between}
-.icon-btn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;cursor:pointer}
-.logo{font-size:16px;font-weight:700;color:#fff}
-.logo.dark{color:#111827}
-
-.tabsbar{position:fixed;left:0;right:0;z-index:40;transition:background .2s;border-bottom:0;box-shadow:none}
-.tabsbar.scrolled{background:rgba(255,255,255,.95);border-bottom:0;box-shadow:none}
-.tabswrap{display:flex;overflow-x:auto;padding:8px 12px;gap:16px;border-bottom:0;box-shadow:none}
-.tabbtn{background:transparent;border:none;padding:0 0 4px 0;cursor:pointer;white-space:nowrap;font-size:14px;color:#fff;position:relative}
-.tabbtn.dark{color:#374151}
-.tabbtn.active{font-weight:700;color:#111}
-.tab-underline{position:absolute;left:0;right:0;bottom:-2px;height:2px;background:transparent;display:block}
-.tab-underline.on{background:#000}
-.tab-underline.on.dark{background:#000}
-
-.banner{position:relative;width:100%;height:360px}
-@media (min-width:640px){.banner{height:420px}}
-.banner-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.banner-overlay{position:absolute;inset:0;background:linear-gradient(to bottom, rgba(0,0,0,.5), rgba(0,0,0,.2), transparent)}
-.banner-text{position:absolute;left:16px;right:16px;bottom:16px;color:#fff}
-.banner-sub{font-size:12px;margin-bottom:4px}
-.banner-title{font-size:32px;font-weight:800;line-height:1.1}
-.btn{margin-top:8px;background:#fff;color:#000;padding:8px 12px;border-radius:4px;font-size:13px;font-weight:600;border:1px solid #e5e7eb}
-
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:12px}
-.coupon{min-width:96px;text-align:center;padding:4px 8px;border-radius:4px;border:1px solid #86efac;background:#ecfdf5}
-.coupon-title{font-size:11px;color:#047857;font-weight:700}
-.coupon-code{font-size:10px;color:#065f46}
-
-.strip{background:#fff;padding:12px}
-.hscroll{display:flex;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
-.hscroll::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
-.tile{position:relative;width:192px;height:68px;flex-shrink:0;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
-.tile-img{position:absolute;right:0;top:0;width:64px;height:100%;object-fit:cover;opacity:.9}
-.tile-text{position:absolute;inset:0;right:72px;left:8px;display:flex;flex-direction:column;justify-content:center}
-
-/* Simple tiles (image + price) */
+.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
+.no-scrollbar::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
 .simple-row{--visible:4.15;--gap:6px}
 .simple-row-inner{display:flex;gap:var(--gap)}
 .simple-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
-.borderbox{border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
-.simple-img{width:100%;aspect-ratio:255/192;object-fit:cover}
-.price-red{color:#dc2626;font-weight:700;font-size:13px}
-
-/* Hide any visible scrollbars for containers marked no-scrollbar */
-.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
-.no-scrollbar::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
-
-/* Unified categories scroll: 3 rows move together */
-.cat-scroll{overflow-x:auto;scrollbar-width:none}
-.cat-scroll::-webkit-scrollbar{display:none}
-.cat-cols{display:flex;gap:8px;padding-bottom:2px}
-.cat-col{display:flex;flex-direction:column;gap:4px}
-.catbtn{width:90px}
-.cat-grid{display:grid;grid-auto-flow:column;grid-auto-columns:calc(100% - 24px);gap:12px;padding-bottom:2px}
-.cat-grid{--rows:3}
-.cat-grid{grid-template-rows:repeat(var(--rows),auto)}
-.catbtn{display:block}
-
-.midpromo{width:100%;height:90px;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;position:relative;background:#fff}
-.mid-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.mid-overlay{position:absolute;inset:0;background:rgba(0,0,0,.1)}
-.mid-text{position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);color:#fff;font-size:12px;font-weight:600}
-
-.h2{font-size:14px;font-weight:700;color:#111827;margin:0 0 8px 0}
-.catbtn{width:96px;flex-shrink:0;text-align:center;background:transparent;border:none;cursor:pointer}
-.catimg-wrap{width:68px;height:68px;border:1px solid #e5e7eb;border-radius:999px;overflow:hidden;margin:0 auto 8px auto;background:#fff}
-.catimg{width:100%;height:100%;object-fit:cover}
-.catname{font-size:11px;color:#374151}
-
-.prodcard{width:160px;flex-shrink:0}
-.prodimg-wrap{position:relative;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fff}
-.prodimg{width:100%;height:160px;object-fit:cover}
-.favbtn{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:4px;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;border:1px solid #e5e7eb;cursor:pointer}
-.coupon-badge{position:absolute;top:8px;left:8px;background:#000;color:#fff;font-size:10px;padding:2px 6px;border-radius:3px}
-.info{padding:6px 6px}
-.brand{font-size:11px;color:#6b7280}
-.title{font-size:12px;color:#111827}
-.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.rating{margin-top:4px}
-.price{margin-top:4px}
-.price-new{color:#dc2626;font-weight:700;font-size:13px}
-.price-old{color:#9ca3af;font-size:11px;text-decoration:line-through}
-.mini-btn{margin-top:6px;display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#374151;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer}
-.swatches{margin-top:4px;display:flex;gap:6px;align-items:center}
-.sw{width:12px;height:12px;border-radius:999px;display:inline-block}
-.badges{margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.badge{display:inline-block;font-size:10px;color:#374151;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 6px}
-
-/* Masonry For You */
-/* Tailwind replaces masonry/badges styles above */
-
-.bottomnav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #e5e7eb;z-index:50}
-.navwrap{display:flex;justify-content:space-around;padding:8px 0}
-.navbtn{width:64px;text-align:center;background:transparent;border:none;cursor:pointer}
-.navbtn.active .navtext{color:#111}
-.navtext{font-size:11px;color:#374151}
-.navicon{width:24px;height:24px;margin:0 auto 4px auto;background:#111;border-radius:4px;opacity:.9}
-.cart-icon{position:relative;display:inline-block}
-.badge-count{position:absolute;top:-4px;left:50%;transform:translateX(-20%);background:#ef4444;color:#fff;border-radius:999px;min-width:16px;height:16px;line-height:16px;font-size:10px;padding:0 4px;border:1px solid #fff}
 </style>
 
