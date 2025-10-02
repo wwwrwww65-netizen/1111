@@ -1,203 +1,96 @@
 <template>
-  <div class="min-h-screen bg-gray-50" dir="rtl">
-    <style>
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    </style>
-
-    <!-- Top Navigation -->
-    <div class="bg-white px-4 py-3 flex items-center gap-3">
-      <ChevronRight class="w-6 h-6" />
-      <div class="flex-1 flex items-center bg-gray-100 rounded-full px-4 py-2">
-        <input
-          type="text"
-          placeholder="فستان"
-          class="flex-1 bg-transparent outline-none text-right text-sm"
-        />
-        <Camera class="w-5 h-5 text-gray-500 ml-2" />
-        <div class="bg-black rounded-full p-2 ml-2">
-          <Search class="w-4 h-4 text-white" />
-        </div>
+  <div dir="rtl">
+    <HeaderBar />
+    <div class="toolbar container">
+      <div class="tabs" role="tablist">
+        <button class="tab" :class="{active: sort==='reco'}" @click="setSort('reco')">موصى به</button>
+        <button class="tab" :class="{active: sort==='new'}" @click="setSort('new')">الأحدث</button>
+        <button class="tab" :class="{active: sort==='top'}" @click="setSort('top')">الأكثر مبيعًا</button>
+        <button class="tab" :class="{active: sort==='price_asc'}" @click="setSort('price_asc')">السعر ↑</button>
+        <button class="tab" :class="{active: sort==='price_desc'}" @click="setSort('price_desc')">السعر ↓</button>
       </div>
-      <LayoutGrid class="w-6 h-6" />
-      <Heart class="w-6 h-6" />
-    </div>
-
-    <!-- Categories -->
-    <div class="bg-white px-4 py-3 overflow-x-auto hide-scrollbar">
-      <div class="flex gap-4">
-        <div v-for="(cat, idx) in categories" :key="'cat-'+idx" class="flex flex-col items-center min-w-[80px]">
-          <div class="w-16 h-16 rounded-full overflow-hidden mb-2">
-            <img :src="cat.image" :alt="cat.label" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-          <p class="text-xs text-center text-gray-700 leading-tight">{{ cat.label }}</p>
-        </div>
+      <div class="actions">
+        <button class="btn" @click="openFilters=true">فلترة</button>
       </div>
     </div>
 
-    <!-- Main Filters -->
-    <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-b border-gray-200">
-      <button class="flex items-center gap-1 text-sm">
-        <ChevronDown class="w-4 h-4" />
-        <span>التوصية</span>
-      </button>
-      <span class="text-sm text-gray-600">أوسع منتشرة</span>
-      <button class="flex items-center gap-1 text-sm text-gray-600">
-        <span>السعر</span>
-        <div class="flex flex-col">
-          <ChevronDown class="w-3 h-3 -mb-1" />
-        </div>
-      </button>
-      <button class="flex items-center gap-1 text-sm text-gray-600">
-        <Filter class="w-4 h-4" />
-        <span>تصنيف</span>
-      </button>
-    </div>
-
-    <!-- Secondary Filters -->
-    <div class="bg-white px-4 py-3 overflow-x-auto hide-scrollbar">
-      <div class="flex gap-2">
-        <button class="px-3 py-1 bg-green-50 text-green-600 rounded-full text-sm whitespace-nowrap flex items-center gap-1">
-          <span>🚚 شحن سريع</span>
-        </button>
-        <button class="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-sm whitespace-nowrap">تنزيلات</button>
-        <button class="px-3 py-1 border border-gray-300 rounded-full text-sm whitespace-nowrap flex items-center gap-1">
-          <ChevronDown class="w-3 h-3" />
-          <span>الفئات</span>
-        </button>
-        <button class="px-3 py-1 border border-gray-300 rounded-full text-sm whitespace-nowrap flex items-center gap-1">
-          <ChevronDown class="w-3 h-3" />
-          <span>مقاس</span>
-        </button>
-        <button class="px-3 py-1 border border-gray-300 rounded-full text-sm whitespace-nowrap">أضف التصفية</button>
-      </div>
-    </div>
-
-    <!-- Product Grid -->
-    <div class="p-2 grid grid-cols-2 gap-2">
-      <div v-for="(product, idx) in products" :key="'p-'+idx" class="bg-white rounded-lg overflow-hidden shadow-sm relative">
-        <div class="relative">
-          <img :src="product.image" :alt="product.title || ('item-'+idx)" class="w-full aspect-[3/4] object-cover" loading="lazy" />
-          <div v-if="product.badge" class="absolute top-2 left-2 bg-purple-100 text-purple-600 px-2 py-1 rounded text-xs">{{ product.badge }}</div>
-          <div v-if="product.cartCount !== undefined" class="absolute bottom-2 left-2 bg-white rounded-full p-2 shadow-md">
-            <div class="relative">
-              <ShoppingCart class="w-5 h-5" />
-              <span v-if="product.cartCount > 0" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{{ product.cartCount }}</span>
-            </div>
-          </div>
-          <div class="absolute bottom-2 right-2 flex gap-1">
-            <div class="w-3 h-3 rounded-full bg-purple-300"></div>
-            <div class="w-3 h-3 rounded-full bg-green-300"></div>
-            <div class="w-3 h-3 rounded-full bg-blue-300"></div>
-          </div>
-        </div>
-        <div v-if="product.title" class="p-2">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-gray-500">{{ product.brand }}</span>
-            <span v-if="product.badge" class="text-xs text-purple-600 flex items-center gap-1">
-              <span>تنزيلات</span>
-              <span class="text-purple-400">◀</span>
-            </span>
-          </div>
-          <p class="text-sm mb-2 text-gray-800">{{ product.title }}</p>
-          <div v-if="product.rating" class="flex items-center gap-1 mb-2">
-            <span v-for="i in 5" :key="'s-'+i" class="text-yellow-400 text-xs">⭐</span>
-            <span class="text-xs text-gray-500">({{ product.reviews }})</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-sm font-semibold">{{ product.price }}</div>
-              <div class="text-xs text-gray-400 line-through">تم بيع {{ product.originalPrice.replace('SR','') }}.+</div>
-            </div>
-            <div class="text-orange-500 text-sm font-semibold">
-              {{ product.originalPrice }} <span class="text-xs">{{ product.discount }}</span>
+    <div class="container grid-wrap">
+      <section class="px-0 py-0" aria-label="من أجلك">
+        <div class="columns-2 gap-1 [column-fill:_balance]">
+          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct(p)" @keydown.enter="openProduct(p)" @keydown.space.prevent="openProduct(p)">
+              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
+                <div class="flex">
+                  <img v-for="(img,idx) in (p.images && p.images.length ? p.images : [p.image])" :key="'img-'+idx" :src="img" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
+                </div>
+              </div>
+              <div v-if="p.overlayBannerSrc" class="w-full h-7 relative"><img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" /></div>
+              <div class="relative p-2">
+                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden"><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700"><Store :size="14" color="#6D28D9" :stroke-width="2" /><span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span><span class="text-violet-700 ms-0.5">&gt;</span></span></div>
+                <div class="flex items-center gap-1 mt-1.5"><div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div><div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div></div>
+                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden"><div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div><button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ p.bestRankCategory }}</span><span>&gt;</span></button></div>
+                <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1"><span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span><span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span></div>
+                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCartFY(p)"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
+                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+        <div style="height:80px" />
+      </section>
     </div>
 
-    <!-- Bottom Navigation (placeholder) -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-3 flex justify-between items-center">
-      <div class="flex flex-col items-center gap-1">
-        <div class="w-8 h-1 bg-gray-300 rounded-full"></div>
-      </div>
-      <div class="w-12 h-12 rounded-full border-2 border-gray-300"></div>
-      <ChevronRight class="w-6 h-6 text-gray-400" />
-    </div>
+    <BottomNav />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Heart, LayoutGrid, Search, Camera, ChevronRight, Filter, ChevronDown, ShoppingCart } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import HeaderBar from '@/components/HeaderBar.vue'
+import BottomNav from '@/components/BottomNav.vue'
+import { ShoppingCart, Store } from 'lucide-vue-next'
+import { apiGet } from '@/lib/api'
+import { useCart } from '@/store/cart'
 
-type ProductCard = {
-  image: string
-  brand: string
-  title: string
-  price: string
-  originalPrice: string
-  discount: string
-  rating?: number
-  reviews?: string
-  badge?: string
-  cartCount?: number
-}
+const router = useRouter()
+const cart = useCart()
 
-type CategoryItem = { image: string; label: string }
+const sort = ref('reco')
+const openFilters = ref(false)
 
-const categories = ref<CategoryItem[]>([
-  { image: 'https://csspicker.dev/api/image/?q=women+fashion+dress&image_type=photo', label: 'ملابس علوية &بلايز& ت...' },
-  { image: 'https://csspicker.dev/api/image/?q=blue+dress&image_type=photo', label: 'فساتين نسائية' },
-  { image: 'https://csspicker.dev/api/image/?q=casual+outfit&image_type=photo', label: 'ملابسة منسوحة نس...' },
-  { image: 'https://csspicker.dev/api/image/?q=elegant+dress&image_type=photo', label: 'ملابس سفلية نسائية' },
-  { image: 'https://csspicker.dev/api/image/?q=coordinated+outfit&image_type=photo', label: 'أطقم منسقة نسائية' },
-  { image: 'https://csspicker.dev/api/image/?q=women+clothing&image_type=photo', label: 'ملابس نسائية' },
-])
+function setSort(v:string){ sort.value = v }
 
-const products = ref<ProductCard[]>([
-  {
-    image: 'https://csspicker.dev/api/image/?q=green+elegant+dress&image_type=photo',
-    brand: 'Feyla',
-    title: 'فستان ماكسي بحمالات مطرز...',
-    price: 'SR109.00',
-    originalPrice: 'SR59.95',
-    discount: 'بعد الكوبون',
-    rating: 5,
-    reviews: '+1000',
-    cartCount: 6,
-  },
-  {
-    image: 'https://csspicker.dev/api/image/?q=floral+dress+women&image_type=photo',
-    brand: 'SHEIN SXY',
-    title: 'ملابس علوية نسائي ع...',
-    price: 'SR33.00',
-    originalPrice: 'SR26.40',
-    discount: 'بعد الكوبون',
-    badge: 'تنزيلات',
-    cartCount: 1,
-  },
-  {
-    image: 'https://csspicker.dev/api/image/?q=black+elegant+dress&image_type=photo',
-    brand: 'abyoxi',
-    title: '',
-    price: '',
-    originalPrice: '',
-    discount: '',
-    cartCount: 5,
-  },
-  {
-    image: 'https://csspicker.dev/api/image/?q=black+top+checkered+skirt&image_type=photo',
-    brand: 'SHEIN ESSNTL',
-    title: '',
-    price: '',
-    originalPrice: '',
-    discount: '',
-  },
-])
+type ForYouShein = { id?:string; image:string; images?:string[]; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
+const forYouShein = ref<ForYouShein[]>([])
+
+function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0-9.]/g,'')); return isFinite(n)? n : 0 }
+
+function openProduct(p: ForYouShein){ const id = p.id || ''; if (id) router.push(`/p?id=${encodeURIComponent(id)}`); else router.push('/products') }
+function addToCartFY(p: ForYouShein){ try{ const id = p.id || p.title || 'item'; const title = p.title || ' '; const price = parsePrice(String(p.basePrice||0)); const img = p.image; cart.add({ id, title, price, img }, 1) }catch{} }
+
+onMounted(async ()=>{
+  try{
+    const data = await apiGet<any>('/api/products?limit=24')
+    const items: Array<{ id?:string; image:string; price:string; name?:string; images?:string[] }> = (data?.items||[]).map((p:any)=>({ id: p.id, images: p.images||[], image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
+    const fy = (data?.items||[]).slice(12, 20)
+    forYouShein.value = fy.map((p:any, i:number)=>({ id: p.id, images: p.images, image: p.images?.[0] || items[i]?.image, title: p.name || '', brand: 'JEEEY', basePrice: String(p.price || 0), colors: ['#111827','#9CA3AF','#FCD34D'], colorCount: 3 }))
+    if (!forYouShein.value.length && items.length){
+      forYouShein.value = items.slice(0,8).map((p:any)=>({ id: p.id, images: p.images||[p.image], image: p.image, title: p.name || '', brand: 'JEEEY', basePrice: p.price.replace(/[^0-9.]/g,'') || '0', colors: ['#111827','#9CA3AF','#FCD34D'], colorCount: 3 }))
+    }
+  }catch{}
+})
 </script>
 
 <style scoped>
+.toolbar{position:sticky;top:56px;background:#fff;z-index:10;padding:8px 0;border-bottom:1px solid var(--muted-2)}
+.tabs{display:flex;gap:8px;overflow:auto}
+.tab{flex:0 0 auto;padding:8px 10px;border:1px solid var(--muted-2);border-radius:999px;background:#fff}
+.tab.active{background:#0B5FFF;color:#fff;border-color:#0B5FFF}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.btn{padding:8px 12px;border:1px solid var(--muted-2);border-radius:10px;background:#fff}
+.grid-wrap{padding:12px 0}
+.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
+.no-scrollbar::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
 </style>
 
