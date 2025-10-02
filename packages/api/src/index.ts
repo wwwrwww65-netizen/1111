@@ -298,13 +298,26 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       '"createdAt" TIMESTAMP DEFAULT NOW()'+
       ')'
     );
-    // Backfill/compatibility: some legacy deployments created lowercase createdat/updatedat
+    // Backfill/compatibility: ensure columns exist and quietly map from legacy lowercase if they exist
+    try { await db.$executeRawUnsafe('ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "messageId" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP DEFAULT NOW()'); } catch {}
-    try { await db.$executeRawUnsafe('UPDATE "NotificationLog" SET "createdAt" = createdat WHERE "createdAt" IS NULL'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP DEFAULT NOW()'); } catch {}
-    try { await db.$executeRawUnsafe('UPDATE "NotificationLog" SET "updatedAt" = updatedat WHERE "updatedAt" IS NULL'); } catch {}
+    try {
+      await db.$executeRawUnsafe(
+        'DO $$ BEGIN\n'+
+        'IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name=\'NotificationLog\' AND table_schema=\'public\' AND column_name=\'createdat\') THEN\n'+
+        '  EXECUTE \"UPDATE \\\"NotificationLog\\\" SET \\\"createdAt\\\" = createdat WHERE \\\"createdAt\\\" IS NULL\";\n'+
+        'END IF;\n'+
+        'IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name=\'NotificationLog\' AND table_schema=\'public\' AND column_name=\'updatedat\') THEN\n'+
+        '  EXECUTE \"UPDATE \\\"NotificationLog\\\" SET \\\"updatedAt\\\" = updatedat WHERE \\\"updatedAt\\\" IS NULL\";\n'+
+        'END IF;\n'+
+        'END $$;'
+      );
+    } catch {}
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_messageId_idx" ON "NotificationLog"("messageId")'); } catch {}
+    // DeliveryRate may exist without carrierId in some legacy installs
+    try { await db.$executeRawUnsafe('ALTER TABLE "DeliveryRate" ADD COLUMN IF NOT EXISTS "carrierId" TEXT'); } catch {}
     // Ensure Currency table exists (Prisma-compatible)
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Currency" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "code" TEXT NOT NULL, "symbol" TEXT NOT NULL, "precision" INTEGER NOT NULL DEFAULT 2, "rateToBase" DOUBLE PRECISION NOT NULL DEFAULT 1, "isBase" BOOLEAN NOT NULL DEFAULT FALSE, "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Currency_code_key" ON "Currency"("code")');
