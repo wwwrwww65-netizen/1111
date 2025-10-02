@@ -446,13 +446,20 @@ shop.post('/auth/otp/request', async (req: any, res) => {
     let sent = false;
     let used: 'whatsapp' | 'sms' | '' = '';
     const normalizeE164 = (p: string): string => {
-      const trimmed = String(p).replace(/\s+/g,'');
-      if (/^\+\d{6,15}$/.test(trimmed)) return trimmed;
-      // Basic heuristic: if starts with 0 and env COUNTRY_CODE set, replace leading 0
-      const cc = (process.env.DEFAULT_COUNTRY_CODE || '').replace(/^\+?/,'+');
-      if (cc && /^0\d+/.test(trimmed)) return cc + trimmed.replace(/^0/, '');
-      if (cc && /^\d{6,}$/.test(trimmed)) return cc + trimmed;
-      return trimmed.startsWith('+') ? trimmed : `+${trimmed}`;
+      const raw = String(p).trim();
+      if (/^\+\d{6,15}$/.test(raw)) return raw;
+      const digits = raw.replace(/\D/g,'');
+      const ccRaw = (process.env.DEFAULT_COUNTRY_CODE || '').replace(/[^\d+]/g,'');
+      const cc = ccRaw || '+967';
+      const ccNoPlus = cc.replace(/^\+/, '');
+      if (digits.length >= 6) {
+        // If already starts with country code digits, just prefix '+'
+        if (ccNoPlus && digits.startsWith(ccNoPlus)) return `+${digits}`;
+        // Drop leading zeros then prefix CC
+        const noZero = digits.replace(/^0+/, '');
+        return `+${ccNoPlus}${noZero}`;
+      }
+      return raw.startsWith('+') ? raw : (digits ? `+${digits}` : raw);
     };
     const targetPhone = normalizeE164(phone);
     if (channel === 'whatsapp' || channel === 'both') {
