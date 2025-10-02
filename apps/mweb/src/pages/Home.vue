@@ -228,22 +228,8 @@ const promoTiles = reactive([
 const midPromo = reactive({ image: 'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', alt: 'عرض منتصف الصفحة', text: 'قسائم إضافية + شحن مجاني' })
 
 const categories = ref<Cat[]>([])
-const bigDeals = ref<Array<{ image:string; price:string }>>([
-  { image: 'https://csspicker.dev/api/image/?q=black+midi+dress&image_type=photo', price: '179.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=brown+dress+model&image_type=photo', price: '179.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=white+dress&image_type=photo', price: '179.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=black+sleeveless+dress&image_type=photo', price: '179.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=beige+skirt&image_type=photo', price: '95.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=pink+top&image_type=photo', price: '48.00 ر.س' }
-])
-const hotTrends = ref<Array<{ image:string; price:string }>>([
-  { image: 'https://csspicker.dev/api/image/?q=black+skirt&image_type=photo', price: '66.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=white+blouse&image_type=photo', price: '95.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=white+summer+dress&image_type=photo', price: '159.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=black+blouse&image_type=photo', price: '79.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=leather+handbag&image_type=photo', price: '129.00 ر.س' },
-  { image: 'https://csspicker.dev/api/image/?q=white+sneakers&image_type=photo', price: '139.00 ر.س' }
-])
+const bigDeals = ref<Array<{ image:string; price:string }>>([])
+const hotTrends = ref<Array<{ image:string; price:string }>>([])
 type ForYouShein = { image:string; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
 const forYouShein = ref<ForYouShein[]>([])
 
@@ -251,8 +237,12 @@ function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
 
 onMounted(async ()=>{
-  const cats = await apiGet<any>('/api/categories?limit=15')
-  categories.value = Array.isArray(cats?.items) ? cats.items.map((c:any)=> ({ name: c.name||c.title, image: c.image||`https://csspicker.dev/api/image/?q=${encodeURIComponent(c.name||'fashion')}&image_type=photo` })) : []
+  // Categories
+  try {
+    const cats = await apiGet<any>('/api/categories?limit=15')
+    const arr = Array.isArray(cats?.categories) ? cats.categories : Array.isArray(cats?.items) ? cats.items : []
+    categories.value = arr.map((c:any)=> ({ name: c.name||c.title, image: c.image||`https://csspicker.dev/api/image/?q=${encodeURIComponent(c.name||'fashion')}&image_type=photo` }))
+  } catch {}
   if (!categories.value.length){
     categories.value = [
       { name: 'فساتين', image: 'https://csspicker.dev/api/image/?q=dress&image_type=photo' },
@@ -273,13 +263,24 @@ onMounted(async ()=>{
     ]
   }
 
-  // Build ForYou section in SHEIN style (static placeholders for now, wired to API later)
-  forYouShein.value = [
-    { image:'https://csspicker.dev/api/image/?q=black+dress+model&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'COSMINA ملابس علوية كا ...', brand:'COSMINA', discountPercent:25, bestRank:4, bestRankCategory:'أنيق قمم نسائية', basePrice:'21.06', soldPlus:'تم بيع 100+', couponPrice:'16.85', colors:['#111111','#6B7280','#EEE5D4','#F9A8D4'], colorCount:9, imageAspect:'aspect-[4/5]' },
-    { image:'https://csspicker.dev/api/image/?q=sleeveless+top+black+white&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'بلوزة نسائية بدون كم، خصر مرتفع', brand:'Frierie CURVE', discountPercent:76, basePrice:'120.00', soldPlus:'تم بيع 410+', couponPrice:'29.00', colors:['#000000','#FFFFFF','#A3A3A3','#FECACA'], colorCount:6, imageAspect:'aspect-[5/4]' },
-    { image:'https://csspicker.dev/api/image/?q=casual+shirt+dazy&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'قميص بجيوب نسائي بسيط', brand:'Dazy', basePrice:'120.00', couponPrice:'69.00', colors:['#FFFFFF','#9CA3AF','#E5E7EB','#FDE68A'], colorCount:3, imageAspect:'aspect-[3/4]' },
-    { image:'https://csspicker.dev/api/image/?q=white+outfit+woman+outdoor&image_type=photo', overlayBannerSrc:'https://csspicker.dev/api/image/?q=anniversary+party+banner+pink+yellow&image_type=photo', overlayBannerAlt:'حفلة الذكرى السنوية', title:'إطلالة أنيقة بيضاء', basePrice:'159.00', colors:['#FFFFFF','#F3F4F6','#D1D5DB','#A7F3D0'], colorCount:5, imageAspect:'aspect-[3/4]' }
-  ]
+  // Products to sections
+  try{
+    const data = await apiGet<any>('/api/products?limit=24')
+    const items: Array<{ image:string; price:string }> = (data?.items||[]).map((p:any)=>({ image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س' }))
+    bigDeals.value = items.slice(0, 6)
+    hotTrends.value = items.slice(6, 12)
+    // For You section (use same items, map to structure)
+    forYouShein.value = (data?.items||[]).slice(12, 20).map((p:any)=>({
+      image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
+      title: p.name || 'منتج',
+      brand: 'JEEEY',
+      basePrice: String(p.price || 0),
+      couponPrice: undefined,
+      colors: ['#111827','#9CA3AF','#FCD34D'],
+      colorCount: 3,
+      imageAspect: 'aspect-[4/5]'
+    }))
+  }catch{}
 })
 
 const rows = 3
