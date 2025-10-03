@@ -3491,14 +3491,18 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (!dsKey) {
           return res.status(400).json({ ok: false, analyzed: null, warnings, errors: ['deepseek_key_missing'] })
         }
-        let ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 15000 }) as any
-        // Fallback to schema mode if strict preview failed
+        let ds: any = null
+        const attempts = 3
+        for (let i=1;i<=attempts;i++){
+          try { ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
+          if (ds) break
+          try { ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String(text || ''), base: {} }, timeoutMs: 20000 }) as any; } catch {}
+          if (ds) break
+          await new Promise(r=> setTimeout(r, 700))
+        }
         if (!ds) {
-          const d2 = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String(text || ''), base: {} }, timeoutMs: 15000 })
-          if (!d2) {
-            return res.status(502).json({ ok: false, analyzed: null, warnings, errors: ['deepseek_failed'] })
-          }
-          ds = d2 as any
+          // Do NOT fail the request; return OK with warnings to avoid 502 at edge
+          return res.json({ ok: true, analyzed: {}, warnings: [...warnings, 'deepseek_unavailable'], errors: [], meta: { deepseekUsed: false, deepseekAttempted: true } })
         }
         // Build analyzed wrapper with ONLY AI-sourced fields
         const analyzed: any = {}
