@@ -3477,6 +3477,38 @@ adminRest.post('/products/generate', async (req, res) => {
 adminRest.post('/products/analyze', async (req, res) => {
   try{
     const { text, images } = req.body || {};
+    // STRICT DeepSeek-only short-circuit: handle upfront and return immediately
+    const deepseekOnly: boolean = String((req.query as any)?.deepseekOnly || '').trim() === '1'
+    if (deepseekOnly) {
+      try {
+        // Load DeepSeek config from Integration or env
+        const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(() => null) as any
+        const conf = (cfg?.config || {}) as Record<string, string>
+        const dsKey = conf['DEEPSEEK_API_KEY'] || process.env.DEEPSEEK_API_KEY
+        const dsModel = conf['DEEPSEEK_MODEL'] || process.env.DEEPSEEK_MODEL || 'deepseek-chat'
+        const warnings: string[] = []
+        const errors: string[] = []
+        if (!dsKey) {
+          return res.status(400).json({ ok: false, analyzed: null, warnings, errors: ['deepseek_key_missing'] })
+        }
+        const ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 15000 })
+        if (!ds) {
+          return res.status(502).json({ ok: false, analyzed: null, warnings, errors: ['deepseek_failed'] })
+        }
+        // Build analyzed wrapper with ONLY AI-sourced fields
+        const analyzed: any = {}
+        if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
+        if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
+        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
+        if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
+        if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
+        if (Array.isArray(ds.keywords)) analyzed.tags = { value: ds.keywords.slice(0, 6), source: 'ai' }
+        return res.json({ ok: true, analyzed, warnings, errors, meta: { deepseekUsed: true, deepseekAttempted: true } })
+      } catch (e: any) {
+        return res.status(500).json({ ok: false, analyzed: null, warnings: [], errors: [e?.message || 'deepseek_strict_error'] })
+      }
+    }
     const out:any = { name:null, description:null, brand:null, tags:[], sizes:[], colors:[], price_range:null, attributes:[], seo:{ title:null, description:null, keywords:[] } };
     const warnings: string[] = [];
     const errors: string[] = [];
