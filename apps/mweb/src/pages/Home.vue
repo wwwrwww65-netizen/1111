@@ -150,7 +150,7 @@
         <div class="columns-2 gap-1 [column-fill:_balance]"><!-- masonry -->
           <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.enter="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.space.prevent="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })">
-              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
+              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar x-snap">
                 <div class="flex">
                   <img v-for="(img,idx) in (p.images && p.images.length ? p.images : [p.image])" :key="'img-'+idx" :src="img" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
                 </div>
@@ -395,5 +395,6 @@ function addToCartFY(p: any){
 .masonry{ display:grid; grid-template-columns: repeat(2, 1fr); gap:6px }
 @media (min-width: 768px){ .masonry{ grid-template-columns: repeat(3, 1fr) } }
 .masonry > *{ break-inside: avoid }
+.x-snap{ scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain }
 </style>
 
