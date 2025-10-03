@@ -3491,9 +3491,14 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (!dsKey) {
           return res.status(400).json({ ok: false, analyzed: null, warnings, errors: ['deepseek_key_missing'] })
         }
-        const ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 15000 })
+        let ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 15000 }) as any
+        // Fallback to schema mode if strict preview failed
         if (!ds) {
-          return res.status(502).json({ ok: false, analyzed: null, warnings, errors: ['deepseek_failed'] })
+          const d2 = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String(text || ''), base: {} }, timeoutMs: 15000 })
+          if (!d2) {
+            return res.status(502).json({ ok: false, analyzed: null, warnings, errors: ['deepseek_failed'] })
+          }
+          ds = d2 as any
         }
         // Build analyzed wrapper with ONLY AI-sourced fields
         const analyzed: any = {}
@@ -3501,6 +3506,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
         if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
+        if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
         if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
         if (Array.isArray(ds.keywords)) analyzed.tags = { value: ds.keywords.slice(0, 6), source: 'ai' }
