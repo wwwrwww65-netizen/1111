@@ -399,3 +399,115 @@ export async function enforceLongNamePreview(opts: {
   }
   return null
 }
+
+// Strict DeepSeek preview: returns exactly model JSON (with digit normalization only)
+export async function callDeepseekPreviewStrict(opts: {
+  apiKey: string
+  model: string
+  input: { text: string }
+  timeoutMs?: number
+}): Promise<{
+  name?: string
+  description?: string
+  description_table?: Array<{ key: string; label: string; value: string; confidence?: number }>
+  price?: number
+  colors?: string[]
+  sizes?: string[]
+  keywords?: string[]
+} | null> {
+  const { apiKey, model, input } = opts
+  const timeoutMs = Math.min(Math.max(opts.timeoutMs ?? 15000, 3000), 20000)
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const systemPrompt = `أنت نظام تحليل منتجات صارم يُخرج JSON من النص فقط (بدون اختراع أو مزج بقواعد خارجية).
+
+المطلوب (JSON فقط):
+{
+  "name": string?,
+  "description": string?,
+  "description_table": Array<{"key": string, "label": string, "value": string, "confidence"?: number}>?,
+  "price": number?,
+  "colors": string[]?,
+  "sizes": string[]?,
+  "keywords": string[]?
+}
+
+القواعد:
+- المصدر الوحيد هو النص المُدخل. لا تُخمن إن غاب الدليل؛ احذف الحقل.
+- name: جملة عربية موجزة (≤ 60 حرفاً) تصف النوع والصفات والاستخدام إن وُجد.
+- description: 2-3 جمل جمالية بلا أسعار/مقاسات/ألوان.
+- description_table: صفوف اختيارية مما ورد بالنص فقط. مفاتيح شائعة: material, design, fit, details, usage, colors_text, sizes_text, notes.
+- price: رقم واحد بالأرقام الإنجليزية إن وُجد في النص (لا أوزان، لا اشتقاق خارجي).
+- colors: كما وردت بالنص (مثل "3 ألوان" أو أسماء ألوان).
+- sizes: مثل "فري سايز" أو نطاق كما في النص.
+- keywords: 6-8 كلمات من النص فقط دون كلمات توقف.
+- الأرقام داخل الحقول النصية بالأرقام الإنجليزية.
+
+«JSON فقط» دون أي سطور إضافية.`
+    const payload = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify({ text: input.text }) }
+      ],
+      temperature: 0.2,
+      top_p: 0.8,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' as const }
+    }
+    const endpoints = [
+      'https://api.deepseek.com/v1/chat/completions',
+      'https://api.deepseek.ai/v1/chat/completions',
+      'https://api.deepseek.com/chat/completions'
+    ]
+    let res: Response | null = null
+    for (const url of endpoints) {
+      try {
+        res = await (globalThis.fetch as typeof fetch)(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal
+        })
+        if (res.ok) break
+      } catch {}
+    }
+    if (!res || !res.ok) return null
+    const j = await res.json().catch(() => null) as any
+    let content = String(j?.choices?.[0]?.message?.content || '')
+    const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
+    if (fenceMatch) content = fenceMatch[1]
+    const firstBrace = content.indexOf('{')
+    const lastBrace = content.lastIndexOf('}')
+    const slice = (firstBrace>=0 && lastBrace>firstBrace) ? content.slice(firstBrace, lastBrace+1) : content
+    let parsed: any = null
+    try { parsed = JSON.parse(slice) } catch { return null }
+    // Minimal post: normalize Arabic/Indic digits inside strings only
+    const normalizeDigits = (s: string): string => {
+      if (!s) return s
+      const map: Record<string, string> = {
+        '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9',
+        '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'
+      }
+      return String(s).replace(/[٠-٩۰-۹]/g, d => map[d] || d)
+    }
+    const normAll = (val: any): any => {
+      if (typeof val === 'string') return normalizeDigits(val)
+      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? normalizeDigits(v) : v)
+      if (val && typeof val === 'object') {
+        const out: any = {}
+        for (const [k,v] of Object.entries(val)) out[k] = normAll(v as any)
+        return out
+      }
+      return val
+    }
+    const out = normAll(parsed)
+    if (out && typeof out.price !== 'number' && out.price != null) {
+      const m = String(out.price).match(/\d+(?:\.\d+)?/)
+      out.price = m ? Number(m[0]) : undefined
+      if (out.price == null) delete out.price
+    }
+    return out
+  } catch { return null } finally { clearTimeout(t) }
+}

@@ -3438,7 +3438,7 @@ adminRest.post('/integrations/:id/toggle', async (req, res) => {
 // Product parse/generate helpers
 import { parseProductText } from '../utils/nlp-ar';
 import getColors from 'get-image-colors';
-import { callDeepseek, callDeepseekPreview, enforceLongNamePreview } from '../utils/deepseek';
+import { callDeepseek, callDeepseekPreview, enforceLongNamePreview, callDeepseekPreviewStrict } from '../utils/deepseek';
 import sw from 'stopword';
 
 adminRest.post('/products/parse', async (req, res) => {
@@ -3692,151 +3692,27 @@ adminRest.post('/products/analyze', async (req, res) => {
       if (aiEnabled && (reqForce || (userWants && dsKey && qualityScore < QUALITY_THRESHOLD && !inCI))) {
         usedMeta.deepseekAttempted = true; deepseekAttempted = true
         if (!dsKey) {
-          // No key: record attempt only
+          if (deepseekOnly) {
+            return res.status(400).json({ ok:false, analyzed: null, warnings, errors: ['deepseek_key_missing'] })
+          }
         } else {
         const ds = deepseekOnly
-          ? await enforceLongNamePreview({ apiKey: dsKey, model: dsModel, text: String((req.body||{}).text||''), timeoutMs: 15000, attempts: 3 })
+          ? await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||'') }, timeoutMs: 15000 })
           : await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String((req.body||{}).text||''), base: out }, timeoutMs: 12000 })
         if (ds) {
           usedMeta.deepseekUsed = true
           if (deepseekOnly) {
             const p: any = ds
-            if (p.name && p.name.length >= 8) { out.name = p.name; sources.name = { source:'ai', confidence: 0.9 } }
-            if (p.description && p.description.length >= 12) { out.description = p.description; sources.description = { source:'ai', confidence: 0.9 } }
-            if (Array.isArray(p.colors)) { out.colors = p.colors; (sources as any).colors = { source:'ai', confidence: 0.7 } }
-            if (Array.isArray(p.sizes)) { out.sizes = p.sizes; (sources as any).sizes = { source:'ai', confidence: 0.7 } }
-            if (Array.isArray(p.keywords)) { out.tags = p.keywords.slice(0,6); sources.tags = { source:'ai', confidence: 0.7 } }
-            if (typeof p.price === 'number' && p.price > 100) { (out as any).price_range = { low: p.price, high: p.price }; (sources as any).price_range = { source:'ai', confidence: 0.8 } }
-            if (typeof p.stock === 'number' && p.stock >= 0) { (out as any).stock = p.stock; (sources as any).stock = { source:'ai', confidence: 0.6 } }
-            // Normalize digits to English and enforce general colors/price rules on preview results
-            try {
-              const raw = String((req.body as any)?.text || '')
-              const toLatinDigits = (s:string)=> s
-                .replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660))
-                .replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0)-0x06F0))
-                .replace(/[٬٫,]/g,'.')
-              if (typeof out.name === 'string') out.name = toLatinDigits(out.name)
-              if (typeof out.description === 'string') out.description = toLatinDigits(out.description)
-              if (Array.isArray(out.colors)) out.colors = (out.colors as string[]).map((c)=> toLatinDigits(String(c)))
-              if (Array.isArray(out.sizes)) out.sizes = (out.sizes as string[]).map((s)=> toLatinDigits(String(s)))
-              // General colors phrase in raw text takes precedence (e.g., "أربعة ألوان" / "4 ألوان")
-              const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
-              const gm = raw.match(generalColorsRe)
-              if (gm) {
-                const num = gm[1] ? Number(toLatinDigits(gm[1])) : 4
-                out.colors = [ `${num} ألوان` ]
-                ;(sources as any).colors = { source:'rules', confidence: 0.85 }
-              }
-              // Price priority from raw text regardless of p.price if p.price <= 100 or weight context present
-              const weightCtx = /(وزن|يلبس\s*الى|يلبس\s*إلى|حتى\s*وزن)/i
-              const pickNum = (s?:string)=>{ if(!s) return undefined; const m = toLatinDigits(s).match(/\d+(?:\.\d+)?/); return m? Number(m[0]): undefined }
-              const t = toLatinDigits(raw)
-              const get = (re:RegExp)=>{ const m = t.match(re); return m && pickNum(m[1]) }
-              const old = get(/(?:(?:عمل(?:ة|ه)\s*)?(?:قديم|القديم)|ريال\s*قديم|سعر\s*شمال)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
-              const north = get(/(?:للشمال|الشمال)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
-              const buy = get(/(?:سعر\s*الشراء)[^\d]{0,12}(\d+(?:\.\d+)?)/i)
-              const firstAny = get(/\b(?:السعر|سعر)\b[^\d]{0,12}(\d+(?:\.\d+)?)/i)
-              const candidates = [old, north, buy, firstAny].filter((v)=> typeof v === 'number') as number[]
-              let chosen = candidates[0]
-              if ((chosen === undefined || chosen <= 100) && weightCtx.test(t)) {
-                const gt = candidates.find((v)=> v>100)
-                if (gt !== undefined) chosen = gt
-              }
-              if (typeof chosen === 'number' && chosen>0) {
-                (out as any).price_range = { low: chosen, high: chosen }
-                ;(sources as any).price_range = { source:'rules', confidence: 0.85 }
-              }
-            } catch {}
-            // Domain correction: if text indicates أدوات مائدة/ملاعق, override clothing outputs
-            try {
-              const rawText = String((req.body as any)?.text || '')
-              const isTableware = /(ملاعق|ملعقة|شوكة|سكاكين|سكين|طقم\s*ملاعق|أدوات\s*مائدة|صحون|صحن|أطباق|قدور|قدر|كاسات|كوب|اكواب|أكواب)/i.test(rawText)
-              if (isTableware) {
-                const hasStainless = /(ستانلس|stainless|فولاذ|ستيل)/i.test(rawText)
-                const baseName = hasStainless ? 'طقم ملاعق طعام ستانلس ستيل' : 'طقم ملاعق طعام'
-                out.name = baseName
-                sources.name = { source:'rules', confidence: 0.95 }
-                // Colors (if any mentioned)
-                if (!Array.isArray(out.colors) || out.colors.length===0) {
-                  const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ذهبي|فضي|رمادي|بيج|كحلي)/gi
-                  const found = Array.from(new Set((rawText.match(colorLex)||[])))
-                  if (found.length) { out.colors = found; (sources as any).colors = { source:'rules', confidence: 0.8 } }
-                }
-                // Pieces from text
-                const big = rawText.match(/(\d+)\s*ملاع(?:ق|ق?ة)?\s*كب(?:ير|يرة)/i)
-                const small = rawText.match(/(\d+)\s*ملاع(?:ق|ق?ة)?\s*صغ(?:ير|يرة)/i)
-                const pieces: string[] = []
-                if (big) pieces.push(`${big[1]} ملاعق كبيرة`)
-                if (small) pieces.push(`${small[1]} ملاعق صغيرة`)
-                const piecesLine = pieces.length? pieces.join('، ') : 'عدة قطع'
-                const matLine = hasStainless ? 'ستانلس ستيل مقاوم للصدأ' : 'معدن آمن للطعام'
-                out.description = [
-                  `• الخامة: ${matLine}`,
-                  '• الصناعة: جودة تصنيع عالية',
-                  '• التصميم: متين وسهل التنظيف',
-                  `• الألوان: ${(Array.isArray(out.colors)&&out.colors.length)? out.colors.join('، ') : 'متعدد'}`,
-                  `• القطع: ${piecesLine}`,
-                  '• الميزات: مقاوم للصدأ - مناسب للمطابخ والمناسبات'
-                ].join('\n')
-                sources.description = { source:'rules', confidence: 0.9 }
-                // Sizes not applicable
-                out.sizes = []
-                sources.sizes = { source:'rules', confidence: 0.9 }
-                // SEO
-                out.seo = { title: out.name, description: (out.description||'').slice(0,160), keywords: Array.isArray(out.tags)? out.tags : [] }
-                sources.seo = { source:'rules', confidence: 0.8 }
-              }
-            } catch {}
-            // Enrich too-short names (e.g., "لانجري") from raw text features to satisfy 8–12 words
-            try {
-              const raw = String((req.body as any)?.text || '')
-              const currentName = String(out.name || p.name || '')
-              const wordCount = (s:string)=> (s.trim().split(/\s+/).filter(Boolean).length)
-              if (!currentName || currentName.length < 12 || wordCount(currentName) < 4) {
-                const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
-                const isDress = /(فستان|فسان)/i.test(raw)
-                const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-                const isSet = /(طقم)/i.test(raw)
-                const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : '')))
-                const feats: string[] = []
-                // gender
-                if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
-                else if (/(رجالي|رجالية)/i.test(raw)) feats.push('رجالي')
-                // material
-                if (/صوف|wool/i.test(raw)) feats.push('صوف')
-                if (/قطن|cotton/i.test(raw)) feats.push('قطن')
-                if (/حرير|silk/i.test(raw)) feats.push('حرير')
-                if (/شيفون|chiffon/i.test(raw)) feats.push('شيفون')
-                if (/دنيم|denim/i.test(raw)) feats.push('دنيم')
-                if (/جلد|leather/i.test(raw)) feats.push('جلد')
-                // sleeves / cut
-                if (/كم\s*كامل/i.test(raw)) feats.push('كم كامل')
-                if (/(كلوش|كلووش)/i.test(raw) && baseType!=='لانجري') feats.push('قصة كلّوش')
-                if (/(تول|تل)/i.test(raw)) feats.push('تول')
-                if (/شفاف/i.test(raw)) feats.push('شفاف')
-                if (/(صدريه|صدرية)/i.test(raw)) feats.push('بصدريه')
-                if (/(جبير|جلير)/i.test(raw)) feats.push('جبير')
-                if (/حزام\s*منفصل/i.test(raw)) feats.push('وحزام منفصل')
-                if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
-                if (/(مطرز|تطريز)/i.test(raw) && baseType!=='لانجري') feats.push('مطرز')
-                if (/(كرستال|كريستال)/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
-                if (/(سهرة|مناسب\s*للمناسبات)/i.test(raw) && baseType==='فستان') feats.unshift('سهرة')
-                if (/(مثير|مثيير|بارز)/i.test(raw) && baseType==='لانجري') feats.push('بتصميم جذاب')
-                const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
-                const ensureWords = (s:string)=>{
-                  const ws = s.trim().split(/\s+/)
-                  if (ws.length >= 4) return s
-                  // try to pad with safe existing cues without اختراع
-                  const pads: string[] = []
-                  if ((/ناع(م|مة)/i.test(raw))) pads.push('بملمس ناعم')
-                  if (/مبطن|بطانة/i.test(raw) && !ws.includes('مبطن')) pads.push('ومبطن لراحة')
-                  if (/خامة/i.test(raw) && !ws.includes('خامة')) pads.push('وخامة مريحة')
-                  return (s + ' ' + pads.join(' ')).trim()
-                }
-                const finalName = ensureWords(enriched).slice(0, 60)
-                if (finalName && wordCount(finalName) >= 4) { out.name = finalName; sources.name = { source:'ai', confidence: 0.9 } }
-              }
-            } catch {}
+            // Build strict analyzed wrapper and return early
+            const analyzed: any = {}
+            if (p.name) analyzed.name = { value: p.name, source:'ai' }
+            if (p.description) analyzed.description = { value: p.description, source:'ai' }
+            if (Array.isArray(p.description_table)) analyzed.description_table = { value: p.description_table, source:'ai' } as any
+            if (typeof p.price === 'number') analyzed.price_range = { value: { low: p.price, high: p.price }, source:'ai' }
+            if (Array.isArray(p.colors)) analyzed.colors = { value: p.colors, source:'ai' }
+            if (Array.isArray(p.sizes)) analyzed.sizes = { value: p.sizes, source:'ai' }
+            if (Array.isArray(p.keywords)) analyzed.tags = { value: p.keywords.slice(0,6), source:'ai' }
+            return res.json({ ok:true, analyzed, warnings, errors, meta: { deepseekUsed: true, deepseekAttempted, reason: undefined } })
           } else {
             const d: any = ds
             if (d.name && d.name.length >= 3) { out.name = d.name; sources.name = { source:'ai', confidence: Math.max(0.85, (sources.name?.confidence||0.8)) } }
