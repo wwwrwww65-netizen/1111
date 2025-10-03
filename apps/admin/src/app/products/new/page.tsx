@@ -432,11 +432,23 @@ export default function AdminProductCreate(): JSX.Element {
       });
       const aj = await resp.json().catch(()=>({}));
       if (!resp.ok) { setError('فشل تحليل DeepSeek'); showToast('فشل تحليل DeepSeek', 'err'); return; }
+      // Guard: if DeepSeek غير متاح أو لم يرجع أي حقول مفيدة، لا نعدّل المعاينة الحالية
+      if (Array.isArray(aj?.warnings) && aj.warnings.includes('deepseek_unavailable')) {
+        setError('DeepSeek غير متاح حالياً، حاول لاحقاً');
+        showToast('DeepSeek غير متاح حالياً', 'err');
+        return;
+      }
       const analyzed = aj?.analyzed || {};
+      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
+      if (!hasUseful) {
+        setError('لم يتم استخراج أي حقول من DeepSeek');
+        showToast('تعذر استخراج الحقول من DeepSeek', 'err');
+        return;
+      }
       const reviewObj:any = {
         name: String(analyzed?.name?.value||'').slice(0,60),
         longDesc: String(analyzed?.description?.value||''),
-        purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
+        purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
