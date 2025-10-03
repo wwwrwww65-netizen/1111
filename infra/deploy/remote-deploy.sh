@@ -130,39 +130,62 @@ if [[ -d apps/admin/.next/standalone ]]; then
   cp -r apps/admin/public apps/admin/.next/standalone/ 2>/dev/null || true
 fi
 
-echo "[deploy] Reloading processes with PM2..."
-# Ensure PM2 ecosystem config is up-to-date
-if [[ -f "$PROJECT_DIR/infra/deploy/ecosystem.config.js" ]]; then
-  sudo cp -f "$PROJECT_DIR/infra/deploy/ecosystem.config.js" /etc/pm2.ecosystem.config.js || true
+echo "[deploy] Reloading processes..."
+
+use_systemd=false
+if command -v systemctl >/dev/null 2>&1; then
+  # Detect if our services are managed by systemd
+  if systemctl list-unit-files | grep -qE '^ecom-api\.service'; then
+    use_systemd=true
+  fi
 fi
-pm2 delete ecom-web || true
-pm2 start /etc/pm2.ecosystem.config.js --only ecom-web --update-env || true
-pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
-pm2 start /etc/pm2.ecosystem.config.js --only ecom-api --update-env || true
-pm2 save || true
+
+if [[ "$use_systemd" == true ]]; then
+  echo "[deploy] Detected systemd units; restarting via systemd"
+  sudo systemctl daemon-reload || true
+  sudo systemctl restart ecom-web || true
+  sudo systemctl restart ecom-admin || true
+  sudo systemctl restart ecom-api || true
+else
+  echo "[deploy] Using PM2 (no systemd units detected)"
+  # Ensure PM2 ecosystem config is up-to-date
+  if [[ -f "$PROJECT_DIR/infra/deploy/ecosystem.config.js" ]]; then
+    sudo cp -f "$PROJECT_DIR/infra/deploy/ecosystem.config.js" /etc/pm2.ecosystem.config.js || true
+  fi
+  pm2 delete ecom-web || true
+  pm2 start /etc/pm2.ecosystem.config.js --only ecom-web --update-env || true
+  pm2 start /etc/pm2.ecosystem.config.js --only ecom-admin --update-env || true
+  pm2 start /etc/pm2.ecosystem.config.js --only ecom-api --update-env || true
+  pm2 save || true
+fi
 
 echo "[deploy] Verifying ports (3000 web, 3001 admin, 4000 api)..."
 sleep 1
-if ! (command -v ss >/dev/null 2>&1 && ss -ltn | grep -q ':3000') && ! curl -fsS http://127.0.0.1:3000 >/dev/null 2>&1; then
-  echo "[deploy] WARN: web port 3000 not listening yet; attempting one more restart"
-  pm2 restart ecom-web --update-env || true
-  sleep 3
-fi
-if ! curl -fsS http://127.0.0.1:3000 >/dev/null 2>&1; then
-  echo "[deploy] ERROR: web still not responding on 3000; showing pm2 logs (last 100 lines)"
-  pm2 logs ecom-web --lines 100 --nostream || true
-fi
 
-# Check admin 3001
-if ! curl -fsS http://127.0.0.1:3001 >/dev/null 2>&1; then
-  echo "[deploy] WARN: admin port 3001 not responding; restarting admin"
-  pm2 restart ecom-admin --update-env || true
-  sleep 3
-fi
-if ! curl -fsS http://127.0.0.1:3001 >/dev/null 2>&1; then
-  echo "[deploy] ERROR: admin still not responding on 3001; showing pm2 logs (last 100 lines)"
-  pm2 logs ecom-admin --lines 100 --nostream || true
-fi
+check_port() {
+  local port="$1" name="$2"
+  if ! curl -fsS "http://127.0.0.1:${port}" >/dev/null 2>&1; then
+    echo "[deploy] WARN: ${name} port ${port} not responding; attempting one more restart"
+    if [[ "$use_systemd" == true ]]; then
+      sudo systemctl restart "${name}" || true
+    else
+      pm2 restart "${name}" --update-env || true
+    fi
+    sleep 3
+    if ! curl -fsS "http://127.0.0.1:${port}" >/dev/null 2>&1; then
+      echo "[deploy] ERROR: ${name} still not responding on ${port}; showing recent logs"
+      if [[ "$use_systemd" == true ]]; then
+        sudo journalctl -u "${name}" -n 120 --no-pager || true
+      else
+        pm2 logs "${name}" --lines 120 --nostream || true
+      fi
+    fi
+  fi
+}
+
+check_port 3000 ecom-web
+check_port 3001 ecom-admin
+check_port 4000 ecom-api
 
 if [[ -n "${GIT_SHA:-}" ]]; then
   echo "[deploy] Deployment metadata: GIT_SHA=$GIT_SHA"
