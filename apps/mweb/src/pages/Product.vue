@@ -19,7 +19,7 @@
 
     <!-- Product Image Gallery (swipeable) -->
     <div class="relative">
-      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar" @scroll.passive="onGalleryScroll">
+      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar" @scroll.passive="onGalleryScroll" @click="openLightbox(activeIdx)">
         <div class="flex">
           <img v-for="(img,idx) in images" :key="'hero-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
         </div>
@@ -30,6 +30,26 @@
       <div class="absolute bottom-3 right-3 bg-white/90 px-3 py-1.5 rounded-[6px]">
         <div class="text-[12px] font-bold">{{ images.length }} صور</div>
         <div class="text-[11px] text-orange-500">S • VERIFIED</div>
+      </div>
+    </div>
+
+    <!-- Lightbox fullscreen -->
+    <div v-if="lightbox" class="fixed inset-0 bg-black/95 z-50 flex flex-col" @keydown.esc="closeLightbox" tabindex="0">
+      <div class="flex justify-between items-center p-3 text-white">
+        <button class="px-3 py-1 rounded border border-white/30" @click="closeLightbox">إغلاق</button>
+        <div class="text-[13px]">{{ lightboxIdx+1 }} / {{ images.length }}</div>
+      </div>
+      <div class="flex-1 relative">
+        <div ref="lightboxRef" class="w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
+          <div class="flex h-full">
+            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" />
+          </div>
+        </div>
+        <button class="absolute left-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="prevLightbox" aria-label="السابق">‹</button>
+        <button class="absolute right-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="nextLightbox" aria-label="التالي">›</button>
+      </div>
+      <div class="p-2 flex justify-center gap-1">
+        <span v-for="(img,i) in images" :key="'lbdot-'+i" class="w-1.5 h-1.5 rounded-full" :class="i===lightboxIdx? 'bg-white' : 'bg-white/40'" />
       </div>
     </div>
 
@@ -139,7 +159,7 @@ const images = ref<string[]>([
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
-const sizes = ['S','M','L','XL']
+const sizes = ref<string[]>(['S','M','L','XL'])
 const size = ref<string>('M')
 const colorOptions = [
   { name: 'black', hex: '#000000' },
@@ -170,6 +190,9 @@ const hasWish = ref(false)
 function toggleWish(){ hasWish.value = !hasWish.value }
 function setActive(i:number){ activeIdx.value = i }
 const galleryRef = ref<HTMLDivElement|null>(null)
+const lightboxRef = ref<HTMLDivElement|null>(null)
+const lightbox = ref(false)
+const lightboxIdx = ref(0)
 function scrollToIdx(i:number){
   activeIdx.value = i
   const el = galleryRef.value
@@ -177,6 +200,11 @@ function scrollToIdx(i:number){
   el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
 }
 function selectThumb(i:number){ selectColor(i); scrollToIdx(i) }
+function openLightbox(i:number){ lightbox.value = true; lightboxIdx.value = i; requestAnimationFrame(()=>{ const el = lightboxRef.value; if(el) el.scrollTo({ left: i * el.clientWidth }) }) }
+function closeLightbox(){ lightbox.value = false }
+function nextLightbox(){ const el = lightboxRef.value; if(!el) return; const i = Math.min(images.value.length-1, lightboxIdx.value+1); lightboxIdx.value=i; el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) }
+function prevLightbox(){ const el = lightboxRef.value; if(!el) return; const i = Math.max(0, lightboxIdx.value-1); lightboxIdx.value=i; el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) }
+function onLightboxScroll(){ const el = lightboxRef.value; if(!el) return; const i = Math.round(el.scrollLeft/el.clientWidth); if(i!==lightboxIdx.value) lightboxIdx.value=i }
 function onGalleryScroll(){
   const el = galleryRef.value
   if (!el) return
@@ -206,6 +234,11 @@ onMounted(async ()=>{
       const imgs = Array.isArray(d.images)? d.images : []
       if (imgs.length) images.value = imgs
       original.value = d.original ? d.original + ' ر.س' : original.value
+      // sizes from API if available
+      const s1 = Array.isArray(d.sizes)? d.sizes : []
+      const s2 = Array.isArray(d.variants)? d.variants.map((v:any)=> v?.size).filter((x:any)=> typeof x==='string') : []
+      const s = [...new Set([...s1, ...s2].filter((x:any)=> typeof x==='string' && x.trim()))]
+      if (s.length){ sizes.value = s as string[]; size.value = sizes.value[0] }
     }
   }catch{}
   try{
