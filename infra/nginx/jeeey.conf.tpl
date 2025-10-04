@@ -14,11 +14,10 @@ server { listen 80; server_name m.jeeey.com; return 301 https://$host$request_ur
 
 # API over HTTPS
 server {
-  listen 443 ssl;
+  listen 443 ssl http2;
   server_name api.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
-  http2 on;
 
   # CORS headers for all responses (including errors)
   set $cors_origin "";
@@ -78,11 +77,10 @@ server {
 
 # Admin over HTTPS (Next.js 3001)
 server {
-  listen 443 ssl;
+  listen 443 ssl http2;
   server_name admin.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
-  http2 on;
 
   # Let Next.js handle /api/admin proxying internally to avoid upstream 502
   location /api/admin/ {
@@ -121,11 +119,10 @@ server {
 
 # Web over HTTPS (Next.js 3000)
 server {
-  listen 443 ssl;
+  listen 443 ssl http2;
   server_name jeeey.com www.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
-  http2 on;
 
   # Redirect mobile devices to m.jeeey.com
   if ($is_mobile) {
@@ -149,11 +146,10 @@ server {
 
 # Mobile Web over HTTPS (static build via Vite)
 server {
-  listen 443 ssl;
+  listen 443 ssl http2;
   server_name m.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
-  http2 on;
 
   add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
   root /var/www/ecom/apps/mweb/dist;
