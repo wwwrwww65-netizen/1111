@@ -85,7 +85,8 @@ WEB_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_WEB"
 ADMIN_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_ADMIN"
 API_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_API"
 
-cat > "$SSL_CONF" <<EOF
+# Use single-quoted heredoc to avoid expanding $host etc. at shell time
+cat > "$SSL_CONF" <<'EOF'
 # Auto-generated SSL upstream mapping
 server {
     listen 443 ssl;
