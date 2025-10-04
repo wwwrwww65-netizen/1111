@@ -5,6 +5,8 @@ import { resolveApiBase } from '../../lib/apiBase';
 type AiKey = { key: string; label: string; placeholder?: string };
 const AI_KEYS: AiKey[] = [
   { key: 'OPENAI_API_KEY', label: 'OpenAI API Key', placeholder: 'sk-...' },
+  { key: 'OPENROUTER_API_KEY', label: 'OpenRouter API Key', placeholder: 'sk-or-...' },
+  { key: 'OPENROUTER_MODEL', label: 'OpenRouter Model', placeholder: 'deepseek/deepseek-chat' },
   { key: 'DEEPSEEK_API_KEY', label: 'DeepSeek API Key' },
   { key: 'ANTHROPIC_API_KEY', label: 'Anthropic API Key' },
   { key: 'GEMINI_API_KEY', label: 'Google Gemini API Key' },
@@ -43,6 +45,9 @@ export default function AiIntegrations(): JSX.Element {
   const [tMsg, setTMsg] = React.useState('');
   const [tErr, setTErr] = React.useState('');
   const [tLoading, setTLoading] = React.useState(false);
+  const [oMsg, setOMsg] = React.useState('');
+  const [oErr, setOErr] = React.useState('');
+  const [oLoading, setOLoading] = React.useState(false);
 
   async function load(){
     const j = await (await fetch(`${apiBase}/api/admin/integrations/list`, { credentials:'include' })).json();
@@ -84,6 +89,17 @@ export default function AiIntegrations(): JSX.Element {
       else if (j?.error === 'missing_key'){ setTErr('لم يتم ضبط مفتاح DeepSeek. أدخله ثم احفظ.'); }
       else { setTErr(`اختبار فشل: ${j?.error||r.status}`); }
     } catch { setTErr('اختبار فشل'); } finally { setTLoading(false); }
+  }
+
+  async function testOpenRouter(){
+    setOErr(''); setOMsg(''); setOLoading(true);
+    try{
+      const r = await fetch(`${apiBase}/api/admin/integrations/openrouter/health`, { credentials:'include' });
+      const j = await r.json().catch(()=>({}));
+      if (r.ok && j?.ok){ setOMsg('OpenRouter يعمل بنجاح'); }
+      else if (j?.error === 'missing_key'){ setOErr('لم يتم ضبط مفتاح OpenRouter. أدخله ثم احفظ.'); }
+      else { setOErr(`اختبار فشل: ${j?.error||r.status}`); }
+    } catch { setOErr('اختبار فشل'); } finally { setOLoading(false); }
   }
 
   return (
@@ -146,9 +162,12 @@ export default function AiIntegrations(): JSX.Element {
       <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:16 }}>
         <button onClick={save} disabled={saving} className="btn">{saving? 'يحفظ…' : 'حفظ'}</button>
         <button onClick={testDeepseek} disabled={tLoading} className="btn" style={{ background:'#0ea5e9' }}>{tLoading? 'يختبر…' : 'اختبار DeepSeek'}</button>
+        <button onClick={testOpenRouter} disabled={oLoading} className="btn" style={{ background:'#10b981' }}>{oLoading? 'يختبر…' : 'اختبار OpenRouter'}</button>
         {msg && <span style={{ color:'#22c55e' }}>{msg}</span>}
         {tMsg && <span style={{ color:'#22c55e' }}>{tMsg}</span>}
         {tErr && <span style={{ color:'#ef4444' }}>{tErr}</span>}
+        {oMsg && <span style={{ color:'#22c55e' }}>{oMsg}</span>}
+        {oErr && <span style={{ color:'#ef4444' }}>{oErr}</span>}
       </div>
 
       <h2 style={{ fontWeight:800, fontSize:16, marginTop:24, marginBottom:8 }}>آخر الإعدادات</h2>

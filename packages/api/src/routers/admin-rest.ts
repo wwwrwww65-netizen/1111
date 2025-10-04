@@ -3439,6 +3439,7 @@ adminRest.post('/integrations/:id/toggle', async (req, res) => {
 import { parseProductText } from '../utils/nlp-ar';
 import getColors from 'get-image-colors';
 import { callDeepseek, callDeepseekPreview, enforceLongNamePreview, callDeepseekPreviewStrict } from '../utils/deepseek';
+import { callOpenRouterStrict } from '../utils/openrouter';
 import sw from 'stopword';
 
 adminRest.post('/products/parse', async (req, res) => {
@@ -3477,6 +3478,41 @@ adminRest.post('/products/generate', async (req, res) => {
 adminRest.post('/products/analyze', async (req, res) => {
   try{
     const { text, images } = req.body || {};
+    // OpenRouter-only short-circuit
+    const openrouterOnly: boolean = String((req.query as any)?.openrouterOnly || '').trim() === '1'
+    if (openrouterOnly) {
+      try {
+        const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(() => null) as any
+        const conf = (cfg?.config || {}) as Record<string, string>
+        const orKey = conf['OPENROUTER_API_KEY'] || conf['CUSTOM_AI_KEY'] || process.env.OPENROUTER_API_KEY || process.env.CUSTOM_AI_KEY
+        const orModel = conf['OPENROUTER_MODEL'] || process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'
+        const warnings: string[] = []
+        const errors: string[] = []
+        if (!orKey) return res.status(400).json({ ok:false, analyzed:null, warnings, errors:['openrouter_key_missing'] })
+        let ds: any = null
+        const attempts = 3
+        for (let i=1;i<=attempts;i++){
+          try { ds = await callOpenRouterStrict({ apiKey: orKey, model: orModel, input: { text: String(text || '') }, timeoutMs: 20000, referer: 'https://admin', title: 'Products Analyze' }); } catch {}
+          if (ds) break
+          await new Promise(r=> setTimeout(r, 700))
+        }
+        if (!ds) {
+          return res.json({ ok: true, analyzed: {}, warnings: [...warnings, 'openrouter_unavailable'], errors: [], meta: { openrouterUsed: false, openrouterAttempted: true } })
+        }
+        const analyzed: any = {}
+        if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
+        if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
+        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
+        if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
+        if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
+        if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
+        if (Array.isArray(ds.keywords)) analyzed.tags = { value: ds.keywords.slice(0, 6), source: 'ai' }
+        return res.json({ ok: true, analyzed, warnings, errors, meta: { openrouterUsed: true, openrouterAttempted: true } })
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, analyzed:null, warnings:[], errors:[e?.message||'openrouter_error'] })
+      }
+    }
     // STRICT DeepSeek-only short-circuit: handle upfront and return immediately
     const deepseekOnly: boolean = String((req.query as any)?.deepseekOnly || '').trim() === '1'
     if (deepseekOnly) {
@@ -4214,6 +4250,32 @@ adminRest.get('/integrations/deepseek/health', async (req, res) => {
     return res.status(502).json({ ok:false, error: errMsg||'unknown' })
   } catch (e:any) {
     return res.status(500).json({ ok:false, error: e.message || 'deepseek_health_failed' })
+  }
+});
+
+// OpenRouter health check
+adminRest.get('/integrations/openrouter/health', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'integrations','openrouter_health_forbidden',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
+    const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(()=>null) as any
+    const conf = (cfg?.config || {}) as Record<string,string>
+    const apiKey = conf['OPENROUTER_API_KEY'] || conf['CUSTOM_AI_KEY'] || process.env.OPENROUTER_API_KEY || process.env.CUSTOM_AI_KEY
+    const model = conf['OPENROUTER_MODEL'] || process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'
+    if (!apiKey) return res.status(400).json({ ok:false, error:'missing_key' })
+    let ok = false
+    try {
+      const r = await callOpenRouterStrict({ apiKey, model, input: { text: 'ping' }, timeoutMs: 8000, referer: 'https://admin', title: 'Health' })
+      ok = !!r
+    } catch {}
+    if (ok) return res.json({ ok:true, model, returned:true })
+    // probe models endpoint (OpenRouter supports GET /models via same endpoint? Not documented; fallback to 200 on unauthorized token format)
+    try {
+      const probe = await (globalThis.fetch as typeof fetch)('https://openrouter.ai/api/v1/models', { headers: { 'authorization': `Bearer ${apiKey}` } })
+      if (probe.ok) return res.status(200).json({ ok:true, model, returned:false })
+    } catch {}
+    return res.status(502).json({ ok:false, error:'openrouter_unreachable' })
+  } catch (e:any) {
+    return res.status(500).json({ ok:false, error: e.message || 'openrouter_health_failed' })
   }
 });
 

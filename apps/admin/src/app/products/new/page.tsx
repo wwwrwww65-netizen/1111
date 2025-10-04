@@ -31,6 +31,9 @@ export default function AdminProductCreate(): JSX.Element {
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiDeepseekOn'); if (v!==null) setDeepseekOn(v==='1'); } catch {} },[]);
   React.useEffect(()=>{ try{ localStorage.setItem('aiDeepseekOn', deepseekOn? '1':'0'); } catch {} },[deepseekOn]);
   const [lastMeta, setLastMeta] = React.useState<any>(null);
+  const [useOpenRouter, setUseOpenRouter] = React.useState<boolean>(false);
+  React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
+  React.useEffect(()=>{ try{ localStorage.setItem('aiOpenRouterOn', useOpenRouter? '1':'0'); } catch {} },[useOpenRouter]);
 
   function SourceBadge({ src }: { src?: string }){
     const s = String(src||'rules').toLowerCase();
@@ -472,6 +475,57 @@ export default function AdminProductCreate(): JSX.Element {
     } finally { setBusy(false); }
   }
 
+  async function handleOpenRouterOnlyPreview(filesForPalette: File[]): Promise<void> {
+    setError('');
+    try {
+      setBusy(true);
+      const b64Images: string[] = [];
+      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?openrouterOnly=1`, {
+        method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+      });
+      const aj = await resp.json().catch(()=>({}));
+      if (!resp.ok) { setError('فشل تحليل OpenRouter'); showToast('فشل تحليل OpenRouter', 'err'); return; }
+      if (Array.isArray(aj?.warnings) && aj.warnings.includes('openrouter_unavailable')) {
+        setError('OpenRouter غير متاح حالياً، حاول لاحقاً');
+        showToast('OpenRouter غير متاح حالياً', 'err');
+        return;
+      }
+      const analyzed = aj?.analyzed || {};
+      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
+      if (!hasUseful) {
+        setError('لم يتم استخراج أي حقول من OpenRouter');
+        showToast('تعذر استخراج الحقول من OpenRouter', 'err');
+        return;
+      }
+      const reviewObj:any = {
+        name: String(analyzed?.name?.value||'').slice(0,60),
+        longDesc: String(analyzed?.description?.value||''),
+        purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
+        sizes: analyzed?.sizes?.value || [],
+        colors: analyzed?.colors?.value || [],
+        keywords: analyzed?.tags?.value || [],
+        stock: (analyzed?.stock?.value ?? undefined),
+        confidence: {
+          name: Number(analyzed?.name?.confidence ?? 0.85),
+          longDesc: Number(analyzed?.description?.confidence ?? 0.85),
+          sizes: Number(analyzed?.sizes?.confidence ?? 0.7),
+          colors: Number(analyzed?.colors?.confidence ?? 0.6),
+          purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6),
+          stock: Number(analyzed?.stock?.confidence ?? 0.5)
+        },
+        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
+      };
+      setReview(reviewObj);
+      showToast('تم تحليل OpenRouter (معاينة)', 'ok');
+      setActiveMobileTab('review');
+    } catch {
+      setError('فشل تحليل OpenRouter');
+      showToast('فشل تحليل OpenRouter', 'err');
+    } finally { setBusy(false); }
+  }
+
   const [type, setType] = React.useState<'simple'|'variable'>('simple');
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -733,9 +787,14 @@ export default function AdminProductCreate(): JSX.Element {
             <input type="checkbox" checked={deepseekOn} onChange={(e)=> setDeepseekOn(e.target.checked)} />
             <span>DeepSeek</span>
           </label>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+            <input type="checkbox" checked={useOpenRouter} onChange={(e)=> setUseOpenRouter(e.target.checked)} />
+            <span>OpenRouter</span>
+          </label>
           <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
           <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
           <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
+          <button type="button" onClick={()=>handleOpenRouterOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر OpenRouter فقط (معاينة)">{busy? '...' : 'تحليل عبر OpenRouter (معاينة)'}</button>
           <button type="button" onClick={()=>{
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);
