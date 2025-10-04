@@ -16,8 +16,8 @@ server { listen 80; server_name m.jeeey.com; return 301 https://$host$request_ur
 server {
   listen 443 ssl http2;
   server_name api.jeeey.com;
-  ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  ssl_certificate /etc/letsencrypt/live/api.jeeey.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/api.jeeey.com/privkey.pem;
 
   # CORS headers for all responses (including errors)
   set $cors_origin "";
@@ -79,8 +79,8 @@ server {
 server {
   listen 443 ssl http2;
   server_name admin.jeeey.com;
-  ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  ssl_certificate /etc/letsencrypt/live/admin.jeeey.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/admin.jeeey.com/privkey.pem;
 
   # Let Next.js handle /api/admin proxying internally to avoid upstream 502
   location /api/admin/ {
