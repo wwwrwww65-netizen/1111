@@ -337,7 +337,8 @@ jobs:
             fi
             echo '--- Ensure HTTPS (certbot if configured) ---'
             CERT_EMAIL='${{ secrets.CERTBOT_EMAIL || vars.CERTBOT_EMAIL }}'
-            [ -n "$CERT_EMAIL" ] && ( set +e; CERTBOT_EMAIL="$CERT_EMAIL" PROJECT_DIR="$ROOT" bash "$ROOT/infra/deploy/ensure-https.sh"; set -e ) || echo 'CERTBOT_EMAIL not set; skipping certbot/self-signed step.'
+            # Always run ensure-https.sh; it will skip issuance if CERTBOT_EMAIL is empty but still write SSL config
+            ( set +e; CERTBOT_EMAIL="$CERT_EMAIL" PROJECT_DIR="$ROOT" bash "$ROOT/infra/deploy/ensure-https.sh"; set -e )
 
       - name: Post-deploy smoke (health, login, static, services)
         if: ${{ env.HAVE_SSH == '1' }}
