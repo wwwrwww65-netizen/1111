@@ -619,6 +619,55 @@ Services on VPS (systemd): `ecom-api`, `ecom-admin`, `ecom-web`. Use `journalctl
 
 - The deploy script (`infra/scripts/deploy.sh`) never seeds data by default. To allow controlled seeding, set `DEPLOY_ALLOW_SEEDING=1`. Otherwise, any admin/user/product/category/order seeding is skipped. This prevents accidental test data creation on production.
 
+## 🔁 VPS جديد / تبديل السيرفر بخطوة واحدة
+
+إذا أردت تبديل الـ VPS (مع بقاء الدومين `jeeey.com` كما هو)، كل ما تحتاجه عادةً هو تحديث مفاتيح الوصول في أسرار Actions ثم الدفع إلى الفرع `main`.
+
+### الخطوات المختصرة
+
+1) حدّث أسرار/متغيّرات Actions في المستودع (Repository Settings → Secrets and variables → Actions):
+- **VPS_HOST / VPS_USER / VPS_PORT / SSH_PRIVATE_KEY**: بيانات الوصول إلى الـ VPS الجديد (المفتاح الخاص بصيغة OpenSSH، مستخدم بصلاحيات sudo، المنفذ غالباً 22)
+- **DATABASE_URL / DIRECT_URL**: اتصال Postgres صالح (محلّي على الخادم أو قاعدة مُدارة)
+- **JWT_SECRET / MAINTENANCE_SECRET**: مفاتيح التطبيق
+- **ADMIN_EMAIL / ADMIN_PASSWORD**: لحساب الأدمن الذي تُجري به فحوصات ما بعد النشر
+- (اختياري) `CERTBOT_EMAIL`, `CLOUDINARY_URL`, `STRIPE_*`, مفاتيح الذكاء الاصطناعي
+
+2) DNS: أبقِ `jeeey.com`, `admin.jeeey.com`, `api.jeeey.com` موجّهة إلى الـ VPS الجديد (سجلات A/AAAA). لا حاجة لتعديل أسماء الدومين في القوالب.
+
+3) أطلق النشر:
+- إمّا ادفع إلى `main`
+- أو من GitHub → Actions → "Deploy to VPS (SSH)" → Run workflow
+
+4) ما الذي سيحدث تلقائياً:
+- يبني المشروع ويتحقق مبكراً من TypeScript
+- يؤرشف الكود وينسخه إلى الخادم
+- يكتب **`.env.api`** و**`.env.web`** على الـ VPS من أسرارك (لا يولّد أسراراً عشوائية)
+- يشغّل `infra/scripts/deploy.sh`: تثبيت/بناء، Prisma migrate deploy (إن توفّرت `DATABASE_URL/DIRECT_URL`)، تهيئة/تحديث وحدات systemd وتعيين `ExecStart/WorkingDirectory` بدقّة، وإعادة تشغيل الخدمات
+- يثبت/يحدّث إعداد Nginx لـ `jeeey.com` ويعيد تحميله
+- يجري فحوصات دخانية: صحة API محلياً، بدء admin/web، صفحة `/register` عامّة، تسجيل دخول أدمن، CRUD إداري، فحوص HTTPS خارجية
+
+### تحقق سريع بعد النشر
+
+- سجلات الخدمات:
+```bash
+journalctl -u ecom-api   -n 200 --no-pager
+journalctl -u ecom-admin -n 200 --no-pager
+journalctl -u ecom-web   -n 200 --no-pager
+```
+- صحة المنافذ محلياً على الخادم:
+```bash
+curl -sSI http://127.0.0.1:4000/health | head -n1   # API
+curl -sSI http://127.0.0.1:3001/login | head -n1    # Admin
+curl -sSI http://127.0.0.1:3000/ | head -n1         # Web
+```
+
+### ملاحظات مهمّة
+
+- لا يقوم الـ Workflow بإنشاء Postgres. يجب أن يشير `DATABASE_URL` إلى قاعدة جاهزة (محلّية أو مُدارة). إن رغبت بإعداد قاعدة محلّية على الـ VPS الجديد يمكنك استخدام سكربت المساعدة (يدوياً):
+  - `infra/deploy/vps_local_db_setup.sh` (يتطلب `DB_PASS`, وكذلك `JWT_SECRET`, `MAINTENANCE_SECRET`)
+- خطوة SSL تُدار عبر سكربتات `infra/deploy/enable-https.sh`/`ensure-https.sh` عند تفعيل `CERTBOT_EMAIL` في الأسرار.
+- يكفي عادةً عند تبديل الخادم: تحديث `VPS_HOST/VPS_USER/VPS_PORT/SSH_PRIVATE_KEY` وبقاء بقية الأسرار كما هي ثم دفع إلى `main`.
+
 ## 🔐 Admin Login: Final Flow
 
 ## 🛡️ Production hardening (Oct 2025) — Web/Admin (Next.js)
