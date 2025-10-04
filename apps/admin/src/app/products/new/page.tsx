@@ -475,6 +475,46 @@ export default function AdminProductCreate(): JSX.Element {
     } finally { setBusy(false); }
   }
 
+  async function handleRulesStrictPreview(filesForPalette: File[]): Promise<void> {
+    setError('');
+    try {
+      setBusy(true);
+      const b64Images: string[] = [];
+      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?rulesStrict=1`, {
+        method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+      });
+      const aj = await resp.json().catch(()=>({}));
+      if (!resp.ok) { setError('فشل التحليل الصارم'); showToast('فشل التحليل الصارم', 'err'); return; }
+      const analyzed = aj?.analyzed || {};
+      const reviewObj:any = {
+        name: String(analyzed?.name?.value||'').slice(0,60),
+        longDesc: String((analyzed?.description_table?.value||[]).map((r:any)=> `${r.label}: ${r.value}`).join('\n')||''),
+        purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
+        sizes: analyzed?.sizes?.value || [],
+        colors: analyzed?.colors?.value || [],
+        keywords: analyzed?.tags?.value || [],
+        sources: {
+          name: 'rules', description: 'rules', sizes: 'rules', colors: 'rules', price_range: 'rules', tags:'rules'
+        },
+        confidence: {
+          name: Number(analyzed?.name?.confidence ?? 0.9),
+          longDesc: Number(analyzed?.description_table?.confidence ?? 0.9),
+          sizes: Number(analyzed?.sizes?.confidence ?? 0.7),
+          colors: Number(analyzed?.colors?.confidence ?? 0.7),
+          purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.75)
+        }
+      };
+      setReview(reviewObj);
+      showToast('تم التحليل الصارم (نص فقط)', 'ok');
+      setActiveMobileTab('review');
+    } catch {
+      setError('فشل التحليل الصارم');
+      showToast('فشل التحليل الصارم', 'err');
+    } finally { setBusy(false); }
+  }
+
   async function handleOpenRouterOnlyPreview(filesForPalette: File[]): Promise<void> {
     setError('');
     try {
@@ -794,6 +834,7 @@ export default function AdminProductCreate(): JSX.Element {
           <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
           <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
           <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
+          <button type="button" onClick={()=>handleRulesStrictPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل صارم (نص فقط)">{busy? '...' : 'تحليل صارم (بدون اختراع)'}</button>
           <button type="button" onClick={()=>handleOpenRouterOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر OpenRouter فقط (معاينة)">{busy? '...' : 'تحليل عبر OpenRouter (معاينة)'}</button>
           <button type="button" onClick={()=>{
               if (!review) return;

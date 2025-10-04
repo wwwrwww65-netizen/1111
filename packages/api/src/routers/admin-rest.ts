@@ -3478,6 +3478,63 @@ adminRest.post('/products/generate', async (req, res) => {
 adminRest.post('/products/analyze', async (req, res) => {
   try{
     const { text, images } = req.body || {};
+    // Strict rules-only short-circuit (no AI, no invention). Extract from text only.
+    const rulesStrict: boolean = String((req.query as any)?.rulesStrict || '').trim() === '1'
+    if (rulesStrict) {
+      try {
+        const raw = String(text || '')
+        const toLatinDigits = (s:string)=> s
+          .replace(/\u0660|\u0661|\u0662|\u0663|\u0664|\u0665|\u0666|\u0667|\u0668|\u0669/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
+          .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)))
+        const normSpace = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim()
+        const rt = normSpace(toLatinDigits(raw))
+
+        // Derive name strictly from text tokens (no defaults)
+        const TYPE_RE = /(طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي)/i
+        const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل)/i
+        const FEAT_RE = /(كم\s*كامل|مطرز|كرستال|كريستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي)/i
+        const type = (rt.match(TYPE_RE)||['',''])[1] || ''
+        const mat = (rt.match(MAT_RE)||['',''])[1] || ''
+        const feat = (rt.match(FEAT_RE)||['',''])[1] || ''
+        const nameParts = [type, mat && type!=='لانجري' ? mat : '', feat && type!=='لانجري' ? feat : ''].filter(Boolean)
+
+        // Parse basic fields strictly via existing text parser (sizes/colors/price/keywords)
+        const parsed = parseProductText(rt) || ({} as any)
+        const sizes = Array.isArray(parsed.sizes) ? parsed.sizes : []
+        const colors = Array.isArray(parsed.colors) ? parsed.colors : []
+        const cost = typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined
+        const keywords = Array.isArray(parsed.keywords) ? parsed.keywords.slice(0,6) : []
+
+        // Build description_table strictly from tokens present in text
+        const materials = Array.from(new Set((rt.match(/شيفون|تول|تل|قطن|صوف|حرير|دنيم|جلد/gi)||[]))).join('، ')
+        const designTokens = Array.from(new Set((rt.match(/تطريز|مطرز|كرستال|كريستال|شفاف|ربطة\s*خصر|حزام\s*خصر|أكمام\s*طويله?|أكمام\s*طويل/gi)||[]))).join('، ')
+        const usageTokens = Array.from(new Set((rt.match(/مناسب(?:\s*ل)?(?:لمناسبات|للمناسبات|سهرة|يومي|خارجي|عملي)/gi)||[]))).join('، ')
+        const generalColors = (rt.match(/\b(?:\d+\s*ألوان|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)\b/i)||[])[0] || ''
+        const sizesText = sizes.length ? sizes.join('، ') : ((rt.match(/فري\s*سايز/i)||[])[0]||'')
+        const colorsText = colors.length ? colors.join('، ') : generalColors
+        const notes = (rt.match(/لونين|قطعتين|ثلاث(?:ه|ة)\s*قطع|٤\s*قطع/gi)||[]).slice(0,2).join('، ')
+
+        const table: Array<{ key:string; label:string; value:string; confidence?:number }> = []
+        if (materials) table.push({ key:'material', label:'الخامة', value: materials, confidence: 0.9 })
+        if (designTokens) table.push({ key:'design', label:'التصميم', value: designTokens, confidence: 0.85 })
+        if (usageTokens) table.push({ key:'usage', label:'الاستخدام', value: usageTokens, confidence: 0.7 })
+        if (colorsText) table.push({ key:'colors_text', label:'الألوان (كما ذُكرت)', value: colorsText, confidence: 0.75 })
+        if (sizesText) table.push({ key:'sizes_text', label:'المقاسات (كما ذُكرت)', value: sizesText, confidence: 0.75 })
+        if (notes) table.push({ key:'notes', label:'ملاحظات', value: notes, confidence: 0.6 })
+
+        const analyzed: any = {}
+        if (nameParts.length >= 1) analyzed.name = { value: nameParts.join(' ').replace(/\s{2,}/g,' ').trim().slice(0,60), source:'rules', confidence: 0.9 }
+        if (table.length) analyzed.description_table = { value: table, source:'rules', confidence: 0.9 }
+        if (typeof cost === 'number' && Number.isFinite(cost) && cost > 50) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.75 }
+        if (colors.length) analyzed.colors = { value: colors, source:'rules', confidence: 0.7 }
+        if (sizes.length) analyzed.sizes = { value: sizes, source:'rules', confidence: 0.7 }
+        if (keywords.length) analyzed.tags = { value: keywords, source:'rules', confidence: 0.6 }
+
+        return res.json({ ok:true, analyzed, warnings: [], errors: [], meta: { rulesStrictUsed: true } })
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, analyzed:null, warnings:[], errors:[e?.message||'rules_strict_error'] })
+      }
+    }
     // OpenRouter-only short-circuit
     const openrouterOnly: boolean = String((req.query as any)?.openrouterOnly || '').trim() === '1'
     if (openrouterOnly) {
