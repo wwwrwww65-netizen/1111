@@ -3484,49 +3484,126 @@ adminRest.post('/products/analyze', async (req, res) => {
       try {
         const raw = String(text || '')
         const toLatinDigits = (s:string)=> s
-          .replace(/\u0660|\u0661|\u0662|\u0663|\u0664|\u0665|\u0666|\u0667|\u0668|\u0669/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
+          .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
           .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)))
         const normSpace = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim()
         const rt = normSpace(toLatinDigits(raw))
 
-        // Derive name strictly from text tokens (no defaults)
-        const TYPE_RE = /(طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي)/i
-        const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل)/i
-        const FEAT_RE = /(كم\s*كامل|مطرز|كرستال|كريستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي)/i
+        const addRow = (arr: Array<{key:string;label:string;value:string;confidence?:number}>, key:string, label:string, value?:string, conf=0.85)=>{
+          const v = String(value||'').trim(); if (!v) return; if (arr.some(r=> r.key===key)) return; arr.push({ key, label, value: v, confidence: conf });
+        }
+
+        // Derive name (8–12 كلمات) من النص فقط
+        const TYPE_RE = /(ملاعق|ملاعق\s*طعام|مطرقه|شاشه|طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|حذاء|شنطه|حقيبه|ساعه|كوب|قدر|خلاط|مكوى|مكواة)/i
+        const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل|ستان|بوليستر|خشب|ستانلس|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك)/i
+        const FEATS_RE = /(كم\s*كامل|مطرز|كرستال|كريستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي|لمس|لاسلكي|سلكي|ذكي|مضاد\s*للماء)/gi
         const type = (rt.match(TYPE_RE)||['',''])[1] || ''
         const mat = (rt.match(MAT_RE)||['',''])[1] || ''
-        const feat = (rt.match(FEAT_RE)||['',''])[1] || ''
-        const nameParts = [type, mat && type!=='لانجري' ? mat : '', feat && type!=='لانجري' ? feat : ''].filter(Boolean)
+        const feats = Array.from(new Set((rt.match(FEATS_RE)||[]))).slice(0,4)
+        // أرقام مفيدة للاسم (مثل 55"، 220V)
+        const numTokens: string[] = []
+        const mInch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i); if (mInch) numTokens.push(`${mInch[1]}"`)
+        const mVolt = rt.match(/(\d{2,4}(?:\.\d+)?)\s*(?:v|volt|فولت(?:يه)?)/i); if (mVolt) numTokens.push(`${mVolt[1]}V`)
+        const wordsFromText = [type, mat, ...feats, ...numTokens].map(s=> String(s||'').trim()).filter(Boolean)
+        const nameWords = [] as string[]
+        for (const w of wordsFromText){ if (!nameWords.includes(w)) nameWords.push(w) }
+        while (nameWords.join(' ').split(/\s+/).filter(Boolean).length < 8) break
+        const nameValue = nameWords.join(' ').trim().split(/\s+/).slice(0,12).join(' ')
 
-        // Parse basic fields strictly via existing text parser (sizes/colors/price/keywords)
+        // Parse baseline via parser but we'll strictly filter sizes/colors
         const parsed = parseProductText(rt) || ({} as any)
-        const sizes = Array.isArray(parsed.sizes) ? parsed.sizes : []
-        const colors = Array.isArray(parsed.colors) ? parsed.colors : []
+        let sizes: string[] = []
+        let colorsCandidates: string[] = []
         const cost = typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined
         const keywords = Array.isArray(parsed.keywords) ? parsed.keywords.slice(0,6) : []
 
-        // Build description_table strictly from tokens present in text
-        const materials = Array.from(new Set((rt.match(/شيفون|تول|تل|قطن|صوف|حرير|دنيم|جلد/gi)||[]))).join('، ')
-        const designTokens = Array.from(new Set((rt.match(/تطريز|مطرز|كرستال|كريستال|شفاف|ربطة\s*خصر|حزام\s*خصر|أكمام\s*طويله?|أكمام\s*طويل/gi)||[]))).join('، ')
-        const usageTokens = Array.from(new Set((rt.match(/مناسب(?:\s*ل)?(?:لمناسبات|للمناسبات|سهرة|يومي|خارجي|عملي)/gi)||[]))).join('، ')
-        const generalColors = (rt.match(/\b(?:\d+\s*ألوان|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)\b/i)||[])[0] || ''
-        const sizesText = sizes.length ? sizes.join('، ') : ((rt.match(/فري\s*سايز/i)||[])[0]||'')
-        const colorsText = colors.length ? colors.join('، ') : generalColors
-        const notes = (rt.match(/لونين|قطعتين|ثلاث(?:ه|ة)\s*قطع|٤\s*قطع/gi)||[]).slice(0,2).join('، ')
+        // Colors candidates from lexicon (Arabic + English translit)
+        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي)/gi
+        colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> s.replace(/ورديه/i,'وردي'))))
+        // استثناء ألوان الزينة القريبة من مفردات الديكور
+        const deco = /(خرز|تطريز|كريستال|كرستال|ترتر|سلاسل|حواف|سحاب|أزرار|زرار)/i
+        const decorColors = new Set<string>()
+        for (const c of colorsCandidates){
+          const re = new RegExp(`(?:${deco.source})[\\s\S]{0,20}?${c}|${c}[\\s\S]{0,20}?(?:${deco.source})`,'i')
+          if (re.test(rt)) decorColors.add(c)
+        }
+        const finalColors = colorsCandidates.filter(c=> !decorColors.has(c))
 
+        // Sizes: تتطلب مرساة صريحة أو رموز أحرف
+        const hasSizeAnchor = /(المقاسات|المقاس|\bsize\b|\bEU\b|\bUS\b|\bUK\b)/i.test(rt)
+        const letterSizes = Array.from(new Set((rt.match(/\b(XXL|XL|L|M|S|XS)\b/gi)||[]).map(s=> s.toUpperCase())))
+        if (hasSizeAnchor || letterSizes.length){
+          const nums = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
+          sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums.map(v=> String(v))])) as string[]
+        }
+
+        // Build dynamic description_table from text only (no fixed rows)
         const table: Array<{ key:string; label:string; value:string; confidence?:number }> = []
-        if (materials) table.push({ key:'material', label:'الخامة', value: materials, confidence: 0.9 })
-        if (designTokens) table.push({ key:'design', label:'التصميم', value: designTokens, confidence: 0.85 })
-        if (usageTokens) table.push({ key:'usage', label:'الاستخدام', value: usageTokens, confidence: 0.7 })
-        if (colorsText) table.push({ key:'colors_text', label:'الألوان (كما ذُكرت)', value: colorsText, confidence: 0.75 })
-        if (sizesText) table.push({ key:'sizes_text', label:'المقاسات (كما ذُكرت)', value: sizesText, confidence: 0.75 })
-        if (notes) table.push({ key:'notes', label:'ملاحظات', value: notes, confidence: 0.6 })
+        // مواد وتصميم واستخدام إن وُجدت دلالات
+        const materials = Array.from(new Set((rt.match(/شيفون|تول|تل|قطن|صوف|حرير|دنيم|جلد|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك/gi)||[]))).join('، ')
+        const designTokens = Array.from(new Set((rt.match(/سلاسل\s*ذهب|سلاسل\s*ذهبيه?|تطريز|مطرز|كريستال|كرستال|شفاف|حواف|سحاب|أزرار|زرار/gi)||[]))).join('، ')
+        const usageTokens = Array.from(new Set((rt.match(/مناسب(?:\s*ل)?(?:طعام|المطبخ|المنزل|العمل|السفر|لمناسبات|للمناسبات|سهرة|يومي|خارجي|عملي)/gi)||[]))).join('، ')
+        if (materials) addRow(table,'material','الخامة',materials,0.9)
+        if (designTokens) addRow(table,'design','التصميم',designTokens,0.88)
+        if (usageTokens) addRow(table,'usage','الاستخدام',usageTokens,0.75)
+
+        // وحدات عامة: الجهد/التردد/القدرة/التيار
+        const volt = rt.match(/(\d{2,4}(?:[\.\-]\d{1,3})?)\s*(?:v|volt|فولت(?:يه)?)/i)?.[0]
+        const freq = rt.match(/(\d{2,3}(?:\s*\/\s*\d{2,3})?)\s*(?:hz|هرتز)/i)?.[0]
+        const watt = rt.match(/(\d{2,5}(?:[\.\-]\d{1,3})?)\s*(?:w|watt|واط|وات)/i)?.[0]
+        const amp  = rt.match(/(\d{1,3}(?:\.\d+)?)\s*(?:a|amp|أمبير)/i)?.[0]
+        if (volt) addRow(table,'voltage','الجهد',volt)
+        if (freq) addRow(table,'frequency','التردد',freq)
+        if (watt) addRow(table,'power','القدرة',watt)
+        if (amp)  addRow(table,'current','التيار',amp)
+
+        // الشاشة/البوصة/الهرتز
+        const inch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i)?.[0]
+        const isTouch = /(?:شاشه|شاشة)\s*لمس|\btouch\b/i.test(rt)
+        if (inch || isTouch) addRow(table,'screen','الشاشة',[inch,isTouch?'لمس': ''].filter(Boolean).join(' ').trim(),0.85)
+
+        // الأبعاد والوزن
+        const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
+        if (dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
+        const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (weight) addRow(table,'weight','الوزن',weight,0.82)
+
+        // السعة/الذاكرة/التخزين/البطارية
+        const capacity = rt.match(/\b\d+(?:\.\d+)?\s*(?:ml|l)\b/i)?.[0]; if (capacity) addRow(table,'capacity','السعة',capacity,0.82)
+        const memory = rt.match(/\b\d+\s*(?:gb|mb|tb)\b/i)?.[0]; if (memory) addRow(table,'memory','الذاكرة/التخزين',memory,0.82)
+        const battery = rt.match(/\b\d+\s*(?:mAh|Wh|Ah)\b/i)?.[0]; if (battery) addRow(table,'battery','البطارية',battery,0.82)
+
+        // الاتصال والمنافذ
+        const conns = Array.from(new Set((rt.match(/wi-?fi|Bluetooth|NFC|Ethernet|LAN|WLAN|\b4G\b|\b5G\b/ig)||[]))).join(', ')
+        if (conns) addRow(table,'connectivity','الاتصال',conns,0.8)
+        const ports = Array.from(new Set((rt.match(/USB-?C|USB-?A|HDMI|DisplayPort|3\.5mm|microSD|SD/ig)||[]))).join(', ')
+        if (ports) addRow(table,'ports','المنافذ',ports,0.8)
+
+        // موديل/ضمان/منشأ
+        const model = rt.match(/(?:موديل|model)\s*[:\-\s]?([A-Za-z0-9_.\-]+)/i)?.[1]; if (model) addRow(table,'model','الموديل',model,0.85)
+        const warranty = rt.match(/ضمان\s*(\d{1,2})\s*(سنه|سنة|شهر|اشهر|أشهر)/i); if (warranty) addRow(table,'warranty','الضمان',warranty[0],0.8)
+        const origin = rt.match(/صنع\s*في\s*([\u0600-\u06FFA-Za-z\s]+)/i)?.[0]; if (origin) addRow(table,'origin','بلد الصنع',origin,0.75)
+
+        // المقاسات/الألوان كنص (بدون عبارة "كما ذُكرت")
+        const colorsText = finalColors.join('، ')
+        const sizesText = sizes.join('، ')
+        if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
+        if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
+
+        // أي key:value صريح في النص نلتقطه كما هو (AR/EN)
+        const kvRegex = /(^|[\s\-؛:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,24})[:：]\s*([^\n؛:,،]{1,80})/g
+        let m: RegExpExecArray | null
+        while ((m = kvRegex.exec(raw))){
+          const k = m[2].trim(); const v = m[3].trim();
+          // تخطّي إن كان صفاً معروفاً سبق إضافته
+          if (table.some(r=> r.label===k || r.key===k)) continue
+          addRow(table, k, k, v, 0.8)
+        }
 
         const analyzed: any = {}
-        if (nameParts.length >= 1) analyzed.name = { value: nameParts.join(' ').replace(/\s{2,}/g,' ').trim().slice(0,60), source:'rules', confidence: 0.9 }
+        if (nameValue) analyzed.name = { value: nameValue.slice(0,60), source:'rules', confidence: 0.9 }
         if (table.length) analyzed.description_table = { value: table, source:'rules', confidence: 0.9 }
         if (typeof cost === 'number' && Number.isFinite(cost) && cost > 50) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.75 }
-        if (colors.length) analyzed.colors = { value: colors, source:'rules', confidence: 0.7 }
+        if (finalColors.length) analyzed.colors = { value: finalColors, source:'rules', confidence: 0.7 }
         if (sizes.length) analyzed.sizes = { value: sizes, source:'rules', confidence: 0.7 }
         if (keywords.length) analyzed.tags = { value: keywords, source:'rules', confidence: 0.6 }
 
