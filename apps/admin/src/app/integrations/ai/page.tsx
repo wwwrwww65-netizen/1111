@@ -118,6 +118,14 @@ export default function AiIntegrations(): JSX.Element {
                 <option value="deepseek-coder">deepseek-coder</option>
                 <option value="deepseek-chat-lite">deepseek-chat-lite</option>
               </select>
+            ) : row.key === 'OPENROUTER_MODEL' ? (
+              <select value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }}>
+                <option value="">اختر…</option>
+                <option value="deepseek/deepseek-chat">deepseek/deepseek-chat</option>
+                <option value="deepseek/deepseek-coder">deepseek/deepseek-coder</option>
+                <option value="deepseek/deepseek-reasoner">deepseek/deepseek-reasoner</option>
+                <option value="deepseek/deepseek-chat-lite">deepseek/deepseek-chat-lite</option>
+              </select>
             ) : (
               <input value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} placeholder={row.placeholder||''} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
             )}
