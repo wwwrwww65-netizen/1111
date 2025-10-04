@@ -54,22 +54,25 @@ fi
 ln -sf "$NGINX_CONF" "$ENABLED_DIR/jeeey.conf"
 nginx -t && systemctl enable nginx && systemctl restart nginx || true
 
-# If no certbot email provided, skip HTTPS automation.
+# If no certbot email provided, skip only certificate issuance but continue to write SSL config
 if [ -z "$CERTBOT_EMAIL" ]; then
-  echo "[https] CERTBOT_EMAIL not set; skipping certificate issuance"
-  exit 0
-fi
-
-echo "[https] Installing certbot if missing..."
-if ! command -v certbot >/dev/null 2>&1; then
-  apt-get update -y && apt-get install -y certbot python3-certbot-nginx
+  echo "[https] CERTBOT_EMAIL not set; skipping certificate issuance (will still write SSL config)"
+else
+  echo "[https] Installing certbot if missing..."
+  if ! command -v certbot >/dev/null 2>&1; then
+    apt-get update -y && apt-get install -y certbot python3-certbot-nginx
+  fi
 fi
 
 issue_cert() {
   local domain="$1"; shift
   echo "[https] Issuing/renewing certificate for $domain"
   set +e
-  certbot --nginx -n --redirect --agree-tos -m "$CERTBOT_EMAIL" -d "$domain" "$@"
+  if [ -n "$CERTBOT_EMAIL" ]; then
+    certbot --nginx -n --redirect --agree-tos -m "$CERTBOT_EMAIL" -d "$domain" "$@"
+  else
+    echo "[https] (skip) certbot issuance for $domain because CERTBOT_EMAIL empty"
+  fi
   local rc=$?
   set -e
   if [ $rc -ne 0 ]; then
