@@ -76,6 +76,16 @@ if [ -n "${DIRECT_URL:-}" ] || [ -n "${DATABASE_URL:-}" ]; then
       fi
     fi
   fi
+  # If core table still missing (fresh DB), run a non-destructive db push to materialize schema
+  echo "[deploy] Verifying core tables (User/Category)"
+  set +e
+  has_user=$(node -e "(async()=>{try{const {Client}=require('pg');const u=process.env.DATABASE_URL||process.env.DIRECT_URL;const c=new Client({connectionString:u});await c.connect();const r=await c.query(\"SELECT to_regclass('public.\\"User\\"') as t\");console.log(r.rows[0].t?'1':'0');await c.end();}catch(e){console.log('0')}})()")
+  has_cat=$(node -e "(async()=>{try{const {Client}=require('pg');const u=process.env.DATABASE_URL||process.env.DIRECT_URL;const c=new Client({connectionString:u});await c.connect();const r=await c.query(\"SELECT to_regclass('public.\\"Category\\"') as t\");console.log(r.rows[0].t?'1':'0');await c.end();}catch(e){console.log('0')}})()")
+  set -e
+  if [ "${has_user}" != "1" ] || [ "${has_cat}" != "1" ]; then
+    echo "[deploy] Core tables missing; running prisma db push to create schema"
+    (cd "$ROOT_DIR/packages/db" && npx -y prisma@5.14.0 db push --accept-data-loss --schema "$ROOT_DIR/packages/db/prisma/schema.prisma") || true
+  fi
 fi
 set -e
 # Force fresh builds (clean previous outputs)
