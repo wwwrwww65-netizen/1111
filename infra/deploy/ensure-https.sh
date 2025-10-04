@@ -85,67 +85,65 @@ WEB_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_WEB"
 ADMIN_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_ADMIN"
 API_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_API"
 
-# Use single-quoted heredoc to avoid expanding $host etc. at shell time
-cat > "$SSL_CONF" <<'EOF'
+# Expand DOMAIN_* and CERT_DIR vars, but escape Nginx $ vars
+cat > "$SSL_CONF" <<EOF
 # Auto-generated SSL upstream mapping
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    server_name $DOMAIN_WEB www.$DOMAIN_WEB;
-    ssl_certificate $WEB_CERT_DIR/fullchain.pem;
-    ssl_certificate_key $WEB_CERT_DIR/privkey.pem;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN_WEB} www.${DOMAIN_WEB};
+    ssl_certificate ${WEB_CERT_DIR}/fullchain.pem;
+    ssl_certificate_key ${WEB_CERT_DIR}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     location / {
         proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    server_name $DOMAIN_ADMIN;
-    ssl_certificate $ADMIN_CERT_DIR/fullchain.pem;
-    ssl_certificate_key $ADMIN_CERT_DIR/privkey.pem;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN_ADMIN};
+    ssl_certificate ${ADMIN_CERT_DIR}/fullchain.pem;
+    ssl_certificate_key ${ADMIN_CERT_DIR}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     location / {
         proxy_pass http://127.0.0.1:3001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        # Allow admin static/API calls where needed
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         add_header 'Cache-Control' 'private, no-cache, no-store, max-age=0, must-revalidate';
     }
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    server_name $DOMAIN_API;
-    ssl_certificate $API_CERT_DIR/fullchain.pem;
-    ssl_certificate_key $API_CERT_DIR/privkey.pem;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN_API};
+    ssl_certificate ${API_CERT_DIR}/fullchain.pem;
+    ssl_certificate_key ${API_CERT_DIR}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     location / {
         proxy_pass http://127.0.0.1:4000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        # CORS for credentialed requests from admin/app
-        add_header 'Access-Control-Allow-Origin' "https://admin.$DOMAIN_WEB" always;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        add_header 'Access-Control-Allow-Origin' "https://admin.${DOMAIN_WEB}" always;
         add_header 'Vary' 'Origin' always;
         add_header 'Access-Control-Allow-Credentials' 'true' always;
         add_header 'Access-Control-Allow-Headers' 'Authorization,Origin, X-Requested-With, Content-Type, Accept' always;
         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
-        proxy_cookie_domain ~^.*$ .$DOMAIN_WEB;
-        if ($request_method = 'OPTIONS') {
+        proxy_cookie_domain ~^.*$ .${DOMAIN_WEB};
+        if (\$request_method = 'OPTIONS') {
             add_header 'Content-Length' 0;
             add_header 'Content-Type' 'text/plain';
             return 204;

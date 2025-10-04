@@ -322,10 +322,9 @@ jobs:
             fi
             echo '--- Install Nginx config (jeeey.conf) ---'
             if [ -f infra/nginx/jeeey.conf.tpl ]; then
-              DOMAIN_ROOT="jeeey.com"
-              TPL=$(cat infra/nginx/jeeey.conf.tpl)
+              # Write template verbatim (no sed template variables like domain_web)
               TMP="/tmp/jeeey.conf.$$"
-              echo "$TPL" | sed "s/jeeey.com/${DOMAIN_ROOT}/g" > "$TMP"
+              cat infra/nginx/jeeey.conf.tpl > "$TMP"
               TARGET="/etc/nginx/sites-available/jeeey.conf"
               mv "$TMP" "$TARGET"
               ln -sf "$TARGET" /etc/nginx/sites-enabled/jeeey.conf

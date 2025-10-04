@@ -148,8 +148,8 @@ server {
 server {
   listen 443 ssl http2;
   server_name m.jeeey.com;
-  ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  ssl_certificate /etc/letsencrypt/live/m.jeeey.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/m.jeeey.com/privkey.pem;
 
   add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
   root /var/www/ecom/apps/mweb/dist;
