@@ -40,6 +40,12 @@ if [ ! -d "$CONF_DIR" ]; then
   CONF_DIR="/etc/nginx/conf.d"; ENABLED_DIR="$CONF_DIR"
 fi
 
+echo "[https] Ensure ACME webroot exists"
+mkdir -p /var/www/letsencrypt || true
+
+echo "[https] Remove duplicate/default nginx configs if any (to avoid conflicts)"
+rm -f /etc/nginx/conf.d/jeeey.conf /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default 2>/dev/null || true
+
 echo "[https] Writing nginx config (HTTP reverse proxies)..."
 NGINX_CONF="$CONF_DIR/jeeey.conf"
 if [ -f "$PROJECT_DIR/infra/deploy/nginx/jeeey.conf" ]; then
@@ -75,6 +81,7 @@ issue_cert() {
 issue_cert "$DOMAIN_WEB" -d "www.$DOMAIN_WEB"
 issue_cert "$DOMAIN_ADMIN"
 issue_cert "$DOMAIN_API"
+issue_cert "$DOMAIN_MWEB"
 
 echo "[https] Reloading nginx"
 nginx -t && systemctl reload nginx || systemctl restart nginx || true

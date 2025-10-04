@@ -328,6 +328,9 @@ jobs:
               TARGET="/etc/nginx/sites-available/jeeey.conf"
               mv "$TMP" "$TARGET"
               ln -sf "$TARGET" /etc/nginx/sites-enabled/jeeey.conf
+              # Ensure ACME webroot and remove duplicate/default confs to avoid conflicts
+              mkdir -p /var/www/letsencrypt || true
+              rm -f /etc/nginx/conf.d/jeeey.conf /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default || true
               echo 'Validating nginx config...'
               nginx -t && (systemctl reload nginx || systemctl restart nginx || true)
               echo 'Nginx config installed.'
