@@ -2705,11 +2705,32 @@ adminRest.post('/media/upload', async (req, res) => {
       const url = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION||'us-east-1'}.amazonaws.com/${key}`;
       return res.json({ provider:'s3', presign: { url, fields: {} }, key, url });
     }
-    if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error:'cloudinary_not_configured' });
     if (!base64) return res.status(400).json({ error:'base64_required' });
-    const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
-    await audit(req, 'media', 'upload', { public_id: uploaded.public_id, bytes: uploaded.bytes });
-    res.json({ provider:'cloudinary', url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format });
+    if (process.env.CLOUDINARY_URL) {
+      const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
+      await audit(req, 'media', 'upload', { public_id: uploaded.public_id, bytes: uploaded.bytes });
+      return res.json({ provider:'cloudinary', url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format });
+    }
+    // Local fallback
+    try {
+      const fs = require('fs'); const path = require('path');
+      const outDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), '../../uploads');
+      fs.mkdirSync(outDir, { recursive: true });
+      const m = String(base64).match(/^data:(.*?);base64,(.*)$/);
+      if (!m) return res.status(400).json({ error:'invalid_base64' });
+      const mime = m[1] || 'application/octet-stream'; const buf = Buffer.from(m[2], 'base64');
+      const ext = (mime.split('/')[1]||'bin').replace(/[^a-z0-9]/gi,'');
+      const safe = String(filename||`upload-${Date.now()}`).replace(/[^a-zA-Z0-9_.-]/g,'_');
+      const name = safe.endsWith(`.${ext}`) ? safe : `${safe}.${ext}`;
+      const filePath = path.join(outDir, name);
+      fs.writeFileSync(filePath, buf);
+      const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
+      const url = `${apiBase}/uploads/${name}`;
+      await audit(req, 'media', 'upload_local', { file: name, bytes: buf.length });
+      return res.json({ provider:'local', url });
+    } catch (e:any) {
+      return res.status(500).json({ error: e.message || 'local_upload_failed' });
+    }
   } catch (e:any) { res.status(500).json({ error: e.message||'media_upload_failed' }); }
 });
 
