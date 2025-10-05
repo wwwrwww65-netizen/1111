@@ -41,20 +41,16 @@ jobs:
           set -e
           : "${ADMIN_EMAIL:=admin@example.com}"
           : "${ADMIN_PASSWORD:=admin123}"
-          echo "=== jeeey.com HEAD ==="
-          curl -ksS -I https://jeeey.com | sed -n '1,12p'
-          echo
-          echo "=== admin.jeeey.com HEAD ==="
-          curl -ksS -I https://admin.jeeey.com | sed -n '1,12p'
-          echo
-          echo "=== m.jeeey.com HEAD ==="
-          curl -ksS -I https://m.jeeey.com | sed -n '1,12p'
+          head() { url="$1"; name="$2"; echo "=== $name HEAD ==="; ok=0; for i in $(seq 1 30); do code=$(curl -ksS -o /dev/null -w '%{http_code}' "$url" || true); if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then curl -ksS -I "$url" | sed -n '1,12p'; ok=1; break; fi; sleep 2; done; if [ "$ok" != "1" ]; then echo "(timeout) last=$code"; fi; echo; }
+          head https://jeeey.com "jeeey.com"
+          head https://admin.jeeey.com "admin.jeeey.com"
+          head https://m.jeeey.com "m.jeeey.com"
           echo
           echo "=== m.jeeey.com HTML snippet ==="
           curl -ksS https://m.jeeey.com | sed -n '1,40p' | sed 's/<[^>]*>//g' | tr -s ' ' | head -n 5
           echo
           echo "=== api.jeeey.com /health ==="
-          curl -ksS -i https://api.jeeey.com/health | sed -n '1,20p'
+          ok=0; for i in $(seq 1 30); do out=$(curl -ksS -i https://api.jeeey.com/health || true); code=$(printf "%s" "$out" | sed -n '1p' | awk '{print $2}' || true); if [ "$code" = "200" ]; then printf "%s\n" "$out" | sed -n '1,20p'; ok=1; break; fi; sleep 2; done; if [ "$ok" != "1" ]; then echo "(timeout) api health not 200"; fi
           echo
           echo "=== admin login (form) headers ==="
           curl -ksSI -X POST https://api.jeeey.com/api/admin/auth/login \
