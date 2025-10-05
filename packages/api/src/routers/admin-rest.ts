@@ -23,6 +23,59 @@ adminRest.use(express.urlencoded({ extended: true }));
 // Per-route limiter for media uploads (active in all envs)
 const mediaUploadLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
 
+// ==== Media helpers (meta/colors/quota/virus scan) ====
+type MediaMeta = { width?: number; height?: number; bytes?: number; mime?: string };
+async function extractMetaAndColors(buf: Buffer, mime: string): Promise<{ meta: MediaMeta; colors: string[] }>{
+  const meta: MediaMeta = { bytes: buf.length, mime };
+  const colors: string[] = [];
+  try {
+    const sizeOf = require('image-size');
+    const dim = sizeOf.imageSize ? sizeOf.imageSize(buf) : sizeOf(buf);
+    meta.width = (dim as any)?.width; meta.height = (dim as any)?.height;
+  } catch {}
+  try {
+    const getColors = require('get-image-colors');
+    const model = mime.includes('png') ? 'image/png' : 'image/jpeg';
+    const palette = await getColors(buf, model);
+    for (const c of palette || []) { if (typeof c.hex === 'function') colors.push(c.hex()); }
+  } catch {}
+  return { meta, colors };
+}
+function buildCloudinaryTransform(src: string, w: number): string {
+  try {
+    if (!/res\.cloudinary\.com\//.test(src)) return src;
+    return src.replace(/\/upload\//, `/upload/f_auto,q_auto,w_${Math.max(80, Math.min(2000, Math.floor(w||800)))}/`);
+  } catch { return src; }
+}
+const uploadHourlyCounters = new Map<string, { count: number; resetAt: number }>();
+function enforceUploadQuota(userId: string, isAdmin: boolean): boolean {
+  const now = Date.now();
+  const key = userId || 'anon';
+  const limit = isAdmin ? Number(process.env.MEDIA_UPLOADS_PER_HOUR_ADMIN||'300') : Number(process.env.MEDIA_UPLOADS_PER_HOUR_USER||'60');
+  let slot = uploadHourlyCounters.get(key);
+  if (!slot || slot.resetAt < now) { slot = { count: 0, resetAt: now + 60*60*1000 }; uploadHourlyCounters.set(key, slot); }
+  if (slot.count >= limit) return false;
+  slot.count += 1; return true;
+}
+async function optionalVirusScan(buf: Buffer): Promise<void> {
+  if (String(process.env.CLAMAV_SCAN||'').trim() !== '1') return;
+  const fs = require('fs'); const os = require('os'); const path = require('path'); const cp = require('child_process');
+  const tmp = path.join(os.tmpdir(), `up-${Date.now()}-${Math.random().toString(36).slice(2)}.bin`);
+  try {
+    fs.writeFileSync(tmp, buf);
+    await new Promise<void>((resolve, reject)=>{
+      cp.execFile('clamscan', ['--no-summary', tmp], (err: any, stdout: string, stderr: string)=>{
+        try { fs.unlinkSync(tmp); } catch {}
+        if (err) return reject(new Error('virus_suspected'));
+        return resolve();
+      });
+    });
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    throw e;
+  }
+}
+
 // Admin: Send WhatsApp templated message (test) with button/body params
 adminRest.post('/whatsapp/send', async (req, res) => {
   try{
@@ -2703,6 +2756,8 @@ adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
     const { filename, type, contentType, base64 } = req.body || {};
     const s3Key = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.S3_BUCKET;
+    const isAdmin = Boolean((u as any)?.role === 'ADMIN');
+    if (!enforceUploadQuota(u.userId, isAdmin)) return res.status(429).json({ error:'upload_quota_exceeded' });
     if (s3Key && !base64) {
       // Simple v4 presign via AWS SDK would be used normally; return minimal stub for now
       const key = `uploads/${Date.now()}-${(filename||'file').replace(/[^a-zA-Z0-9_.-]/g,'_')}`;
@@ -2712,8 +2767,9 @@ adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
     if (!base64) return res.status(400).json({ error:'base64_required' });
     if (process.env.CLOUDINARY_URL) {
       const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
+      const colors = Array.isArray((uploaded as any)?.colors) ? ((uploaded as any).colors as any[]).map((c:any)=> c?.hex || c)?.filter(Boolean) : [];
       await audit(req, 'media', 'upload', { public_id: uploaded.public_id, bytes: uploaded.bytes });
-      return res.json({ provider:'cloudinary', url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format });
+      return res.json({ provider:'cloudinary', url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format, dominantColors: colors });
     }
     // Local fallback (hardened)
     try {
@@ -2738,10 +2794,12 @@ adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
       if (!fs.existsSync(filePath)) {
         fs.writeFileSync(filePath, buf);
       }
+      await optionalVirusScan(buf);
+      const { meta, colors } = await extractMetaAndColors(buf, mime);
       const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
       const url = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
       await audit(req, 'media', 'upload_local', { file: `${sub1}/${sub2}/${name}`, bytes: buf.length });
-      return res.json({ provider:'local', url });
+      return res.json({ provider:'local', url, meta, dominantColors: colors });
     } catch (e:any) {
       return res.status(500).json({ error: e.message || 'local_upload_failed' });
     }
@@ -3007,7 +3065,7 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
   if (!finalUrl && base64) {
     if (process.env.CLOUDINARY_URL) {
       const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
-      finalUrl = uploaded.secure_url;
+      finalUrl = buildCloudinaryTransform(uploaded.secure_url, 800);
     } else {
       // Local fallback (hardened): validate, hash-path, store, return absolute URL
       try {
@@ -3032,8 +3090,12 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
         if (!fs.existsSync(filePath)) {
           fs.writeFileSync(filePath, buf);
         }
+        await optionalVirusScan(buf);
+        const { meta, colors } = await extractMetaAndColors(buf, mime);
         const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
         finalUrl = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
+        // Attach meta/colors for client convenience
+        (req as any)._mediaMeta = meta; (req as any)._mediaColors = colors;
       } catch (e:any) {
         return res.status(500).json({ error: e.message || 'local_upload_failed' });
       }
@@ -3058,10 +3120,14 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
     if (ex) {
       asset = ex;
     } else {
-      asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt, checksum } });
+      const meta = (req as any)._mediaMeta || undefined;
+      const dominantColors = (req as any)._mediaColors || [];
+      asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt, checksum, meta: meta? JSON.stringify(meta): undefined, dominantColors } });
     }
   } else {
-    asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt } });
+    const meta = (req as any)._mediaMeta || undefined;
+    const dominantColors = (req as any)._mediaColors || [];
+    asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt, meta: meta? JSON.stringify(meta): undefined, dominantColors } });
   }
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
