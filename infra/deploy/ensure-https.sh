@@ -159,16 +159,17 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Authorization \$http_authorization;
         add_header 'Access-Control-Allow-Origin' \$cors_allow_origin always;
         add_header 'Vary' 'Origin' always;
         add_header 'Access-Control-Allow-Credentials' 'true' always;
-        add_header 'Access-Control-Allow-Headers' 'Authorization,Origin, X-Requested-With, Content-Type, Accept' always;
+        add_header 'Access-Control-Allow-Headers' 'Authorization,Origin, X-Requested-With, Content-Type, Accept, X-Shop-Client' always;
         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
         proxy_cookie_domain ~^.*$ .${DOMAIN_WEB};
         if (\$request_method = 'OPTIONS') {
             add_header 'Access-Control-Allow-Origin' \$cors_allow_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
-            add_header 'Access-Control-Allow-Headers' 'Authorization,Origin, X-Requested-With, Content-Type, Accept' always;
+            add_header 'Access-Control-Allow-Headers' 'Authorization,Origin, X-Requested-With, Content-Type, Accept, X-Shop-Client' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
             add_header 'Vary' 'Origin' always;
             add_header 'Content-Length' 0;
