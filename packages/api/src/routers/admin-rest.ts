@@ -2941,9 +2941,27 @@ adminRest.post('/media', async (req, res) => {
   const { url, type, alt, base64 } = req.body || {};
   let finalUrl = url as string | undefined;
   if (!finalUrl && base64) {
-    if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error: 'cloudinary_not_configured' });
-    const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media' });
-    finalUrl = uploaded.secure_url;
+    if (process.env.CLOUDINARY_URL) {
+      const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
+      finalUrl = uploaded.secure_url;
+    } else {
+      // Local fallback: save under uploads and return a served URL
+      try {
+        const fs = require('fs'); const path = require('path');
+        const outDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), '../../uploads');
+        fs.mkdirSync(outDir, { recursive: true });
+        const m = String(base64).match(/^data:(.*?);base64,(.*)$/);
+        if (!m) return res.status(400).json({ error:'invalid_base64' });
+        const mime = m[1] || 'application/octet-stream'; const buf = Buffer.from(m[2], 'base64');
+        const ext = (mime.split('/')[1]||'bin').replace(/[^a-z0-9]/gi,'');
+        const name = `media-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const filePath = path.join(outDir, name);
+        fs.writeFileSync(filePath, buf);
+        finalUrl = `/uploads/${name}`;
+      } catch (e:any) {
+        return res.status(500).json({ error: e.message || 'local_upload_failed' });
+      }
+    }
   }
   if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
   const asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt } });

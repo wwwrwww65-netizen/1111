@@ -6,6 +6,8 @@ ROOT_DIR=${1:-/var/www/ecom}
 
 echo "Deploying to $ROOT_DIR"
 mkdir -p "$ROOT_DIR"
+# Ensure uploads directory exists for local media fallback
+mkdir -p "$ROOT_DIR/uploads" || true
 # Ensure a stable canonical path and compatibility with any legacy path consumers
 if [ "$ROOT_DIR" != "/srv/ecom" ]; then
   mkdir -p /srv || true

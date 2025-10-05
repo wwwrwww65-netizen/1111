@@ -176,6 +176,13 @@ server {
         add_header 'Vary' 'Origin' always;
         proxy_pass http://127.0.0.1:4000;
     }
+    # Serve local uploads if present
+    location /uploads/ {
+        alias ${PROJECT_DIR}/uploads/;
+        add_header Cache-Control "public, max-age=60" always;
+        try_files $uri =404;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:4000;
         proxy_set_header Host \$host;
