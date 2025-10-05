@@ -367,7 +367,7 @@ jobs:
             set -e
             echo '--- Rewrite jeeey-ssl.conf explicitly (no inline map) ---'
             rm -f /etc/nginx/sites-enabled/jeeey-ssl.conf /etc/nginx/sites-enabled/jeeey-ssl.conf.* || true
-            cat >/etc/nginx/sites-available/jeeey-ssl.conf <<'NG'
+              cat >/etc/nginx/sites-available/jeeey-ssl.conf <<'NG'
 server {
   listen 443 ssl http2; listen [::]:443 ssl http2;
   server_name api.jeeey.com;
