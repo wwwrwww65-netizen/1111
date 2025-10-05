@@ -319,6 +319,8 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     // Ensure MediaAsset checksum unique (idempotent)
     try { await db.$executeRawUnsafe('ALTER TABLE "MediaAsset" ADD COLUMN IF NOT EXISTS checksum TEXT'); } catch {}
     try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "MediaAsset_checksum_key" ON "MediaAsset"(checksum) WHERE checksum IS NOT NULL'); } catch {}
+    // Ensure uploads dir exists next to API process for alias ${PROJECT_DIR}/uploads
+    try { const fs = require('fs'); const path = require('path'); const root = process.cwd(); fs.mkdirSync(path.join(root,'uploads'), { recursive: true }); } catch {}
     // DeliveryRate may exist without carrierId in some legacy installs
     try { await db.$executeRawUnsafe('ALTER TABLE "DeliveryRate" ADD COLUMN IF NOT EXISTS "carrierId" TEXT'); } catch {}
     // Ensure Currency table exists (Prisma-compatible)

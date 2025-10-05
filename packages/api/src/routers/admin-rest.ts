@@ -2774,7 +2774,7 @@ adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
     // Local fallback (hardened)
     try {
       const fs = require('fs'); const path = require('path'); const crypto = require('crypto');
-      const outDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), '../../uploads');
+      const outDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads');
       fs.mkdirSync(outDir, { recursive: true });
       const m = String(base64).match(/^data:(.*?);base64,(.*)$/);
       if (!m) return res.status(400).json({ error:'invalid_base64' });
@@ -3070,7 +3070,7 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
       // Local fallback (hardened): validate, hash-path, store, return absolute URL
       try {
         const fs = require('fs'); const path = require('path'); const crypto = require('crypto');
-        const outDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), '../../uploads');
+        const outDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads');
         fs.mkdirSync(outDir, { recursive: true });
         const m = String(base64).match(/^data:(.*?);base64,(.*)$/);
         if (!m) return res.status(400).json({ error:'invalid_base64' });
