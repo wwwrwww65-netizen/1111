@@ -350,6 +350,30 @@ jobs:
             # Always run ensure-https.sh; it will skip issuance if CERTBOT_EMAIL is empty but still write SSL config
             ( set +e; CERTBOT_EMAIL="$CERT_EMAIL" PROJECT_DIR="$ROOT" bash "$ROOT/infra/deploy/ensure-https.sh"; set -e )
 
+      - name: Force-enable SSL and verify 443 (post ensure-https)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          script_stop: true
+          script: |
+            set -e
+            echo '--- Ensure jeeey-ssl.conf linked ---'
+            if [ ! -f /etc/nginx/sites-enabled/jeeey-ssl.conf ]; then
+              ln -sf /etc/nginx/sites-available/jeeey-ssl.conf /etc/nginx/sites-enabled/jeeey-ssl.conf || true
+            fi
+            echo '--- Reload nginx ---'
+            nginx -t && (nginx -s reload || systemctl reload nginx || systemctl restart nginx) || (journalctl -u nginx -n 100 --no-pager || true; exit 1)
+            echo '--- Wait for 443 readiness ---'
+            ok=0; for i in $(seq 1 30); do code=$(curl -ksS -o /dev/null -w '%{http_code}' https://api.jeeey.com/health || true); echo "try $i => $code"; [ "$code" = "200" ] && ok=1 && break; sleep 2; done; [ "$ok" = "1" ] || exit 1
+
       - name: Post-deploy smoke (health, login, static, services)
         if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
