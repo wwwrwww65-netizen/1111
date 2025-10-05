@@ -518,12 +518,12 @@ jobs:
           script: |
             set -e
             echo '--- Verify registration page (200) ---'
-            code=$(curl -k -s -o /dev/null -w '%{http_code}' https://jeeey.com/register || true)
+            code=$(curl -L -k -s -o /dev/null -w '%{http_code}' https://jeeey.com/register || true)
             echo "register status: $code"
             if [ "$code" != "200" ] && [ "$code" != "204" ] && [ "$code" != "301" ] && [ "$code" != "302" ] && [ "$code" != "307" ] && [ "$code" != "308" ]; then
               echo 'Registration page did not return 200'; exit 1; fi
             echo '--- Verify registration HTML has no 0.0.0.0 references ---'
-            html=$(curl -k -s https://jeeey.com/register || true)
+            html=$(curl -L -k -s https://jeeey.com/register || true)
             if echo "$html" | grep -Eq "://0\.0\.0\.0|0\.0\.0\.0:"; then
               echo 'Registration HTML contains 0.0.0.0'; exit 1; fi
             echo '--- Grep built outputs for 0.0.0.0 (should be none) ---'
