@@ -120,6 +120,12 @@ export const applySecurityMiddleware = (app: Express) => {
   app.use(cors(corsOptions));
   app.options('*', cors(corsOptions));
 
+  // Prevent caches for admin/API responses to ensure fresh data after mutations
+  app.use((_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
+
   // Rate limiting (disable in production to avoid proxy validation issues)
   if (process.env.NODE_ENV !== 'production') {
     app.use(rateLimitConfig);
