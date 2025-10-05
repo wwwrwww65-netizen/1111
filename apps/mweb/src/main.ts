@@ -12,6 +12,7 @@ import { useCart } from './store/cart'
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
 const manualRoutes = [
+  { path: '/mis', component: () => import('./pages/Mis.vue') },
   { path: '/categories', component: () => import('./pages/Categories.vue') },
   { path: '/c/:slug', component: () => import('./pages/c/[slug].vue') },
   { path: '/wishlist', component: () => import('./pages/Wishlist.vue') },
