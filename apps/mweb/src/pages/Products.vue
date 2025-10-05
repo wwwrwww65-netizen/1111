@@ -1,101 +1,228 @@
 <template>
-  <div dir="rtl">
-    <HeaderBar />
-    <div class="toolbar container">
-      <div class="tabs" role="tablist">
-        <button class="tab" :class="{active: sort==='reco'}" @click="setSort('reco')">موصى به</button>
-        <button class="tab" :class="{active: sort==='new'}" @click="setSort('new')">الأحدث</button>
-        <button class="tab" :class="{active: sort==='top'}" @click="setSort('top')">الأكثر مبيعًا</button>
-        <button class="tab" :class="{active: sort==='price_asc'}" @click="setSort('price_asc')">السعر ↑</button>
-        <button class="tab" :class="{active: sort==='price_desc'}" @click="setSort('price_desc')">السعر ↓</button>
-      </div>
-      <div class="actions">
-        <button class="btn" @click="applyFilters">تطبيق</button>
-      </div>
-    </div>
-
-    <div class="container grid-wrap">
-      <section class="px-0 py-0" aria-label="قائمة المنتجات">
-        <div class="columns-2 gap-1 [column-fill:_balance]">
-          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
-            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct(p)" @keydown.enter="openProduct(p)" @keydown.space.prevent="openProduct(p)">
-              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
-                <div class="flex">
-                  <img v-for="(img,idx) in (p.images && p.images.length ? p.images : [p.image])" :key="'img-'+idx" :src="img" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
-                </div>
-              </div>
-              <div v-if="p.overlayBannerSrc" class="w-full h-7 relative"><img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" /></div>
-              <div class="relative p-2">
-                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden"><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700"><Store :size="14" color="#6D28D9" :stroke-width="2" /><span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span><span class="text-violet-700 ms-0.5">&gt;</span></span></div>
-                <div class="flex items-center gap-1 mt-1.5"><div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div><div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div></div>
-                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden"><div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div><button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ p.bestRankCategory }}</span><span>&gt;</span></button></div>
-                <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1"><span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span><span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span></div>
-                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCartFY(p)"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
-                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>
+  <div class="min-h-screen bg-[#f7f7f7]" dir="rtl" @scroll.passive="onScroll" ref="page">
+    <div class="w-full bg-white border-b border-gray-200 sticky top-0 z-40">
+      <div class="h-12 px-2 flex items-center justify-between">
+        <div class="flex items-center gap-0.5">
+          <button aria-label="رجوع" class="w-8 h-8 flex items-center justify-center p-0" @click="goBack">
+            <ArrowRight class="w-5 h-5 text-gray-800" />
+          </button>
+          <div aria-hidden class="w-8 h-8 flex items-center justify-center p-0">
+            <Menu class="w-5 h-5 text-gray-700" />
+          </div>
+        </div>
+        <div class="flex-1 px-1">
+          <div class="flex items-center bg-gray-100 rounded-full h-9 px-2">
+            <div class="flex-1 flex items-center justify-start">
+              <span class="text-[12px] text-gray-400 truncate">{{ promoWords[promoIndex] }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button aria-label="كاميرا" class="w-7 h-7 flex items-center justify-center opacity-60">
+                <Camera class="w-4 h-4 text-gray-500" />
+              </button>
+              <div class="h-7 px-3 rounded-full flex items-center justify-center shadow-sm" style="background-color:#8a1538">
+                <Search class="w-4 h-4 text-white" />
               </div>
             </div>
           </div>
         </div>
-        <div style="height:80px" />
-      </section>
+        <div class="flex items-center gap-0.5">
+          <button aria-label="المفضلة" class="w-8 h-8 flex items-center justify-center p-0">
+            <Heart class="w-5 h-5 text-gray-700" />
+          </button>
+          <button aria-label="عربة التسوق" class="w-8 h-8 flex items-center justify-center p-0 relative">
+            <ShoppingCart class="w-5 h-5 text-gray-700" />
+            <span v-if="cartBadge > 0" id="cart-target" class="absolute -top-1 -left-1 min-w-[16px] h-4 text-[10px] leading-4 rounded-full bg-red-500 text-white flex items-center justify-center px-1">{{ cartBadge }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="!compact" class="bg-white border-t border-gray-100">
+        <div class="flex gap-2 overflow-x-auto no-scrollbar px-2 py-2 items-start">
+          <button v-for="c in visibleCategories" :key="c.id" class="flex flex-col items-center min-w-[76px] pb-1" @click="onCategoryClick(c)">
+            <div class="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
+              <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
+            </div>
+            <span class="mt-1 text-[12px] text-gray-700 text-center leading-tight category-title">{{ c.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="compact" class="bg-white border-t border-gray-100">
+        <div class="flex gap-2 overflow-x-auto no-scrollbar px-2 py-1 items-center">
+          <button v-for="c in compactCategories" :key="c.id" class="flex items-center gap-3 min-w-[140px] px-2 py-1 rounded-md hover:bg-gray-50" @click="onCategoryClick(c)">
+            <div class="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
+              <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
+            </div>
+            <div class="text-right">
+              <div class="text-[13px] text-gray-800 leading-tight truncate-2-lines max-w-[8rem]">{{ c.label }}</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="showHeaderFilters" class="bg-white border-t border-gray-100 px-2 py-2">
+        <div class="flex items-center justify-between mb-2">
+          <button @click="setFilter('recommend')" :class="['text-[12px]', activeFilter === 'recommend' ? 'text-black font-semibold' : 'text-gray-600']">التوصية</button>
+          <button @click="setFilter('popular')" :class="['text-[12px]', activeFilter === 'popular' ? 'text-black font-semibold' : 'text-gray-600']">الأوسع انتشاراً</button>
+          <button @click="togglePriceSort" class="flex items-center gap-1 text-[12px]" :class="activeFilter === 'price' ? 'text-black font-semibold' : 'text-gray-600']">
+            السعر
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><g>
+              <path :fill="priceSort === 'asc' ? '#000' : '#9ca3af'" d="M174.2,246h-12.5V19.5c0-2.5,2-5,4.5-6c2.5-1,5.5,0,7,2.5l52.7,77.3l-11.1,7l-41.2-60.3V246H174.2z"/>
+              <path :fill="priceSort === 'desc' ? '#000' : '#9ca3af'" d="M87.8,243c-2,0-4-1-5-2.5l-52.7-77.8l10.5-7l41.2,60.3V10h12.5v226.5c0,2.5-2,5-4.5,6C88.8,242.5,88.3,243,87.8,243z"/>
+            </g></svg>
+          </button>
+          <button @click="setFilter('rating')" :class="['flex items-center gap-1 text-[12px]', activeFilter === 'rating' ? 'text-black font-semibold' : 'text-gray-600']">
+            <Filter class="w-3.5 h-3.5" /> التصنيف
+          </button>
+        </div>
+        <div class="flex gap-2 overflow-x-auto no-scrollbar py-1">
+          <button v-for="f in ['الفئات','المقاس','اللون','المواد','الأسلوب']" :key="f" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
+            {{ f }} <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
+          </button>
+        </div>
+      </div>
     </div>
-    <BottomNav />
+
+    <div v-if="!showHeaderFilters" class="h-3"></div>
+    <section v-if="!showHeaderFilters" class="bg-white border-b border-gray-200 px-2 py-2">
+      <div class="flex items-center justify-between mb-2">
+        <button @click="setFilter('recommend')" :class="['text-[12px]', activeFilter === 'recommend' ? 'text-black font-semibold' : 'text-gray-600']">التوصية</button>
+        <button @click="setFilter('popular')" :class="['text-[12px]', activeFilter === 'popular' ? 'text-black font-semibold' : 'text-gray-600']">الأوسع انتشاراً</button>
+        <button @click="togglePriceSort" class="flex items-center gap-1 text-[12px]" :class="activeFilter === 'price' ? 'text-black font-semibold' : 'text-gray-600']">
+          السعر
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><g>
+            <path :fill="priceSort === 'asc' ? '#000' : '#9ca3af'" d="M174.2,246h-12.5V19.5c0-2.5,2-5,4.5-6c2.5-1,5.5,0,7,2.5l52.7,77.3l-11.1,7l-41.2-60.3V246H174.2z"/>
+            <path :fill="priceSort === 'desc' ? '#000' : '#9ca3af'" d="M87.8,243c-2,0-4-1-5-2.5l-52.7-77.8l10.5-7l41.2,60.3V10h12.5v226.5c0,2.5-2,5-4.5,6C88.8,242.5,88.3,243,87.8,243z"/>
+          </g></svg>
+        </button>
+        <button @click="setFilter('rating')" :class="['flex items-center gap-1 text-[12px]', activeFilter === 'rating' ? 'text-black font-semibold' : 'text-gray-600']">
+          <Filter class="w-3.5 h-3.5" /> التصنيف
+        </button>
+      </div>
+      <div class="flex gap-2 overflow-x-auto no-scrollbar py-1">
+        <button v-for="f in ['الفئات','المقاس','اللون','المواد','الأسلوب']" :key="f" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
+          {{ f }}
+          <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
+        </button>
+      </div>
+    </section>
+
+    <section class="px-2 py-2">
+      <div v-if="!products.length" class="text-[12px] text-gray-500 text-center py-6">لا توجد منتجات</div>
+      <div v-else class="grid grid-cols-2 gap-2">
+        <ProductCard v-for="p in products" :key="p.id" :id="p.id" :img="p.image" :title="p.title" :price="p.price" />
+      </div>
+    </section>
   </div>
+  
 </template>
 
 <script setup lang="ts">
-import HeaderBar from '@/components/HeaderBar.vue'
-import BottomNav from '@/components/BottomNav.vue'
-import { ShoppingCart, Store } from 'lucide-vue-next'
-import { onMounted, ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiGet } from '@/lib/api'
+import ProductCard from '@/components/ProductCard.vue'
 import { useCart } from '@/store/cart'
+import { ArrowRight, Menu, ShoppingCart, Heart, Search, Camera, Filter, ChevronDown as ArrowDown } from 'lucide-vue-next'
 
-const route = useRoute()
 const router = useRouter()
+const route = useRoute()
 const cart = useCart()
+const cartBadge = computed(()=> cart.count)
 
-const sort = ref('reco')
-function setSort(v:string){ sort.value = v; applyFilters() }
+const promoWords = ["فساتين","هودي","بلايز","تيشيرت","جواكت"]
+const promoIndex = ref(0)
+const activeFilter = ref<'recommend'|'popular'|'price'|'rating'>('recommend')
+const priceSort = ref<'asc'|'desc'|null>(null)
+const compact = ref(false)
+const page = ref<HTMLElement | null>(null)
+const isScrollingUp = ref(true)
+const atTop = ref(true)
+const showHeaderFilters = computed(() => isScrollingUp.value || atTop.value)
 
-type ForYouShein = { id?:string; image:string; images?:string[]; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
-const forYouShein = ref<ForYouShein[]>([])
+let interval: any
+let lastScrollY = 0
 
-function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0-9.]/g,'')); return isFinite(n)? n : 0 }
-function openProduct(p: ForYouShein){ const id = p.id || ''; if (id) router.push(`/p?id=${encodeURIComponent(id)}`); else router.push('/products') }
-function addToCartFY(p: ForYouShein){ try{ const id = p.id || p.title || 'item'; const title = p.title || ' '; const price = parsePrice(String(p.basePrice||0)); const img = p.image; cart.add({ id, title, price, img }, 1) }catch{} }
+const categories = ref<Array<{ id:string; label:string; img:string }>>([])
+const visibleCategories = computed(()=> categories.value.slice(0, 8))
+const compactCategories = computed(()=> categories.value.slice(0, 6))
 
-async function fetchData(){
-  try{
-    const sp = new URLSearchParams()
-    sp.set('limit','24')
-    if (sort.value) sp.set('sort', sort.value)
-    const cat = route.query.category as string | undefined
-    if (cat) sp.set('category', cat)
-    const data = await apiGet<any>(`/api/products?${sp.toString()}`)
-    const items: Array<{ id?:string; image:string; price:string; name?:string; images?:string[] }> = (data?.items||[]).map((p:any)=>({ id: p.id, images: p.images||[], image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
-    const fy = (data?.items||[])
-    forYouShein.value = fy.map((p:any, i:number)=>({ id: p.id, images: p.images, image: p.images?.[0] || items[i]?.image, title: p.name || '', brand: 'JEEEY', basePrice: String(p.price || 0), colors: ['#111827','#9CA3AF','#FCD34D'], colorCount: 3 }))
-    if (!forYouShein.value.length && items.length){
-      forYouShein.value = items.slice(0,8).map((p:any)=>({ id: p.id, images: p.images||[p.image], image: p.image, title: p.name || '', brand: 'JEEEY', basePrice: p.price.replace(/[^0-9.]/g,'') || '0', colors: ['#111827','#9CA3AF','#FCD34D'], colorCount: 3 }))
-    }
-  }catch{}
+const products = ref<Array<{ id:string; image:string; title:string; price:string }>>([])
+
+function goBack(){ router.back() }
+
+onMounted(() => {
+  interval = setInterval(()=> { promoIndex.value = (promoIndex.value + 1) % promoWords.length }, 3000)
+  lastScrollY = window.scrollY || 0
+  atTop.value = lastScrollY <= 0
+  isScrollingUp.value = true
+  window.addEventListener('scroll', handleWindowScroll, { passive: true })
+  loadCategories()
+  loadProducts()
+})
+
+onBeforeUnmount(() => {
+  clearInterval(interval)
+  window.removeEventListener('scroll', handleWindowScroll)
+})
+
+function handleWindowScroll(){
+  const y = window.scrollY
+  isScrollingUp.value = y < lastScrollY
+  compact.value = y > 90
+  atTop.value = y <= 0
+  lastScrollY = y
 }
 
-onMounted(fetchData)
-async function applyFilters(){ await fetchData() }
+function onScroll(e: Event){
+  const el = page.value
+  if (!el) return
+  const y = el.scrollTop
+  isScrollingUp.value = y < lastScrollY
+  compact.value = y > 90
+  atTop.value = y <= 0
+  lastScrollY = y
+}
+
+function setFilter(filter: 'recommend'|'popular'|'rating'){
+  activeFilter.value = filter
+  priceSort.value = null
+  loadProducts()
+}
+function togglePriceSort(){
+  activeFilter.value = 'price'
+  if (priceSort.value === null || priceSort.value === 'desc') priceSort.value = 'asc'; else priceSort.value = 'desc'
+  loadProducts()
+}
+function onCategoryClick(c: {id:string,label:string,img:string}){
+  router.replace({ path: '/products', query: { category: c.id } })
+  loadProducts()
+}
+
+async function loadCategories(){
+  const data = await apiGet<any>('/api/categories?limit=36')
+  const arr = Array.isArray(data?.categories) ? data.categories : []
+  categories.value = arr.map((c:any)=> ({ id: (c.slug||c.id||'').toString(), label: c.name||c.title||'', img: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug||c.id||'img')}/200/200` }))
+}
+
+async function loadProducts(){
+  const sp = new URLSearchParams()
+  sp.set('limit','24')
+  const cat = String(route.query.category||'')
+  let endpoint = '/api/products'
+  if (cat) endpoint = `/api/catalog/${encodeURIComponent(cat)}`
+  const sort = activeFilter.value === 'popular' ? 'top' : activeFilter.value === 'recommend' ? 'reco' : (activeFilter.value === 'price' ? (priceSort.value==='asc'?'price_asc':'price_desc') : 'reco')
+  sp.set('sort', sort)
+  const data = await apiGet<any>(`${endpoint}?${sp.toString()}`)
+  const items: Array<{ id:string; name:string; price:number; images?:string[] }> = Array.isArray(data?.items) ? data.items : []
+  products.value = items.map(p=> ({ id: String(p.id), image: (p.images?.[0]) || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', title: p.name || '', price: `${Number(p.price||0)} ر.س` }))
+}
 </script>
 
-<style scoped>
-.toolbar{position:sticky;top:56px;background:#fff;z-index:10;padding:8px 0;border-bottom:1px solid var(--muted-2)}
-.tabs{display:flex;gap:8px;overflow:auto}
-.tab{flex:0 0 auto;padding:8px 10px;border:1px solid var(--muted-2);border-radius:999px;background:#fff}
-.tab.active{background:#0B5FFF;color:#fff;border-color:#0B5FFF}
-.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
-.btn{padding:8px 12px;border:1px solid var(--muted-2);border-radius:10px;background:#fff}
-.grid-wrap{padding:12px 0}
-.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
-.no-scrollbar::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
+<style>
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.category-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-overflow: ellipsis; }
+.truncate-2-lines { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-overflow: ellipsis; }
 </style>
 
