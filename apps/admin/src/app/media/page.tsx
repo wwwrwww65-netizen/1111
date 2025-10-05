@@ -48,6 +48,16 @@ export default function MediaPage(): JSX.Element {
               <button className="btn" onClick={()=> { navigator.clipboard.writeText(a.url); }}>نسخ</button>
               <button className="btn" onClick={async ()=>{ await fetch(`${apiBase}/api/admin/media/${a.id}`, { method:'DELETE', credentials:'include' }); await load(page, search); }}>حذف</button>
             </div>
+            <div style={{ display:'flex', justifyContent:'space-between', padding:'0 8px 8px', fontSize:12, color:'#94a3b8' }}>
+              <span>{a.meta?.width}×{a.meta?.height}px</span>
+              {Array.isArray(a.dominantColors) && a.dominantColors.length>0 && (
+                <span style={{ display:'inline-flex', gap:4 }}>
+                  {a.dominantColors.slice(0,3).map((c:string, i:number)=> (
+                    <span key={i} title={c} style={{ width:14, height:14, borderRadius:3, background:c, border:'1px solid rgba(255,255,255,0.2)' }} />
+                  ))}
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>
