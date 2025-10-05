@@ -461,6 +461,39 @@ jobs:
               echo '.env.api missing; skipping login.'
             fi
             set -e
+      - name: Post-deploy ensure RBAC and admin (always)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 180s
+          command_timeout: 10m
+          debug: true
+          script_stop: true
+          script: |
+            set -Eeuxo pipefail
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            EMAIL=${ADMIN_EMAIL:-${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}}
+            PASS=${ADMIN_PASSWORD:-${{ secrets.ADMIN_PASSWORD || 'admin123' }}}
+            API=http://127.0.0.1:4000
+            if [ -f "$ROOT/.env.api" ]; then . "$ROOT/.env.api" || true; fi
+            echo '--- ensure RBAC'
+            curl -sS -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -X POST "$API/api/admin/maintenance/ensure-rbac" | sed -n '1,60p' || true
+            echo '--- create admin (idempotent)'
+            curl -sS -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' \
+              -X POST "$API/api/admin/maintenance/create-admin" --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"name\":\"Admin\"}" | sed -n '1,60p' || true
+            echo '--- grant ADMIN role'
+            curl -sS -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' \
+              -X POST "$API/api/admin/maintenance/grant-admin" --data "{\"email\":\"$EMAIL\"}" | sed -n '1,60p' || true
+            echo '--- login and list users'
+            curl -sS -c /tmp/cj -H 'content-type: application/json' -X POST "$API/api/admin/auth/login" \
+              --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" >/tmp/login.json || true
+            curl -sS -b /tmp/cj "$API/api/admin/users/list?page=1&limit=10" | sed -n '1,120p' || true
       - name: Post-deploy verify registration page and no 0.0.0.0
         if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
