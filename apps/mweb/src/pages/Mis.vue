@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-[#f7f7f7]" dir="rtl" @scroll.passive="onScroll" ref="page">
+  <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
     <!-- الهيدر (ثابت أعلى) -->
     <div class="w-full bg-white border-b border-gray-200 sticky top-0 z-40">
       <div class="h-12 px-2 flex items-center justify-between">
@@ -211,7 +211,6 @@ const promoIndex = ref(0);
 const activeFilter = ref<'recommend'|'popular'|'price'|'rating'>('recommend');
 const priceSort = ref<'asc'|'desc'|null>(null);
 const compact = ref(false);
-const page = ref<HTMLElement | null>(null);
 
 const isScrollingUp = ref(true);
 const atTop = ref(true);
@@ -241,15 +240,7 @@ function handleWindowScroll() {
   lastScrollY = y;
 }
 
-function onScroll(e: Event) {
-  const el = page.value;
-  if (!el) return;
-  const y = el.scrollTop;
-  isScrollingUp.value = y < lastScrollY;
-  compact.value = y > 90;
-  atTop.value = y <= 0;
-  lastScrollY = y;
-}
+// Scroll handled globally on window only to avoid container discrepancies
 
 function setFilter(filter: 'recommend'|'popular'|'rating') {
   activeFilter.value = filter;
