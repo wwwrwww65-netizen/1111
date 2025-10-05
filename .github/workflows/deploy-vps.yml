@@ -517,11 +517,15 @@ jobs:
           command_timeout: 30m
           script: |
             set -e
-            echo '--- Verify registration page (200) ---'
-            code=$(curl -L -k -s -o /dev/null -w '%{http_code}' https://jeeey.com/register || true)
-            echo "register status: $code"
-            if [ "$code" != "200" ] && [ "$code" != "204" ] && [ "$code" != "301" ] && [ "$code" != "302" ] && [ "$code" != "307" ] && [ "$code" != "308" ]; then
-              echo 'Registration page did not return 200'; exit 1; fi
+            echo '--- Verify registration page (200, allow redirects) ---'
+            ok=0
+            for i in $(seq 1 30); do
+              code=$(curl -L -k -s -o /dev/null -w '%{http_code}' https://jeeey.com/register || true)
+              echo "attempt $i => $code"
+              case "$code" in 200|204|301|302|307|308) ok=1; break;; esac
+              sleep 2
+            done
+            [ "$ok" = "1" ] || { echo 'Registration page did not return 200/3xx within timeout'; exit 1; }
             echo '--- Verify registration HTML has no 0.0.0.0 references ---'
             html=$(curl -L -k -s https://jeeey.com/register || true)
             if echo "$html" | grep -Eq "://0\.0\.0\.0|0\.0\.0\.0:"; then
