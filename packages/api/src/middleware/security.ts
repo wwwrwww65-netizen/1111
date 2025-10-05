@@ -131,9 +131,9 @@ export const applySecurityMiddleware = (app: Express) => {
     app.use(rateLimitConfig);
   }
 
-  // Body parser limits
-  app.use(require('express').json({ limit: '10mb' }));
-  app.use(require('express').urlencoded({ extended: true, limit: '10mb' }));
+  // Body parser limits (allow up to ~20mb to accommodate base64 images of 10mb)
+  app.use(require('express').json({ limit: '20mb' }));
+  app.use(require('express').urlencoded({ extended: true, limit: '20mb' }));
 
   // Remove X-Powered-By header
   app.disable('x-powered-by');
