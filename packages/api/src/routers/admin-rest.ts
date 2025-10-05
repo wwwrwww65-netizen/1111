@@ -3040,7 +3040,29 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
     }
   }
   if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
-  const asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt } });
+  // Attempt to dedupe by checksum if URL is local hashed path
+  let checksum: string|undefined;
+  try {
+    if (finalUrl.includes('/uploads/')) {
+      const m2 = String(base64||'').match(/^data:(.*?);base64,(.*)$/);
+      if (m2) {
+        const crypto = require('crypto');
+        const buf = Buffer.from(m2[2], 'base64');
+        checksum = crypto.createHash('sha256').update(buf).digest('hex');
+      }
+    }
+  } catch {}
+  let asset;
+  if (checksum) {
+    const ex = await db.mediaAsset.findFirst({ where: { checksum } });
+    if (ex) {
+      asset = ex;
+    } else {
+      asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt, checksum } });
+    }
+  } else {
+    asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt } });
+  }
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
 });
