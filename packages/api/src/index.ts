@@ -316,6 +316,9 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     } catch {}
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_messageId_idx" ON "NotificationLog"("messageId")'); } catch {}
+    // Ensure MediaAsset checksum unique (idempotent)
+    try { await db.$executeRawUnsafe('ALTER TABLE "MediaAsset" ADD COLUMN IF NOT EXISTS checksum TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "MediaAsset_checksum_key" ON "MediaAsset"(checksum) WHERE checksum IS NOT NULL'); } catch {}
     // DeliveryRate may exist without carrierId in some legacy installs
     try { await db.$executeRawUnsafe('ALTER TABLE "DeliveryRate" ADD COLUMN IF NOT EXISTS "carrierId" TEXT'); } catch {}
     // Ensure Currency table exists (Prisma-compatible)
