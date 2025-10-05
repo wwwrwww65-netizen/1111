@@ -341,9 +341,9 @@ jobs:
                 '    default "";' \
                 '    ~^https://(m\.jeeey\.com|admin\.jeeey\.com|jeeey\.com|www\.jeeey\.com)$ $http_origin;' \
                 '}' > /etc/nginx/conf.d/cors_map.conf
-              echo 'Validating nginx config...'
-              nginx -t && (systemctl reload nginx || systemctl restart nginx || true)
-              echo 'Nginx config installed.'
+              echo 'Validating nginx config (staging only, no reload yet)...'
+              nginx -t || true
+              echo 'Nginx config staged; reload will occur after ensure-https.'
             fi
             echo '--- Ensure HTTPS (certbot if configured) ---'
             CERT_EMAIL='${{ secrets.CERTBOT_EMAIL || vars.CERTBOT_EMAIL }}'
