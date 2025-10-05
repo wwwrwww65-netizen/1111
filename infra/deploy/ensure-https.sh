@@ -46,6 +46,14 @@ mkdir -p /var/www/letsencrypt || true
 echo "[https] Remove duplicate/default nginx configs if any (to avoid conflicts)"
 rm -f /etc/nginx/conf.d/jeeey.conf /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default 2>/dev/null || true
 
+echo "[https] Writing CORS map at http-level (conf.d)"
+cat > /etc/nginx/conf.d/cors_map.conf <<EOF
+map \$http_origin \$cors_allow_origin {
+    default "";
+    ~^https://(admin\.${DOMAIN_WEB}|m\.${DOMAIN_WEB}|${DOMAIN_WEB}|www\.${DOMAIN_WEB})\$ \$http_origin;
+}
+EOF
+
 echo "[https] Writing nginx config (HTTP reverse proxies)..."
 NGINX_CONF="$CONF_DIR/jeeey.conf"
 if [ -f "$PROJECT_DIR/infra/deploy/nginx/jeeey.conf" ]; then
@@ -104,12 +112,6 @@ else
   # Expand DOMAIN_* and CERT_DIR vars, but escape Nginx $ vars
   cat > "$SSL_CONF" <<EOF
 # Auto-generated SSL upstream mapping
-
-# CORS allowlist for API (dynamic per Origin)
-map \$http_origin \$cors_allow_origin {
-    default "";
-    ~^https://(admin\.${DOMAIN_WEB}|m\.${DOMAIN_WEB}|${DOMAIN_WEB}|www\.${DOMAIN_WEB})\$ \$http_origin;
-}
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
