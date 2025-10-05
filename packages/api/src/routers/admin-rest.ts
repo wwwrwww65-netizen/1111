@@ -20,6 +20,9 @@ const adminRest = Router();
 adminRest.use(express.json({ limit: '20mb' }));
 adminRest.use(express.urlencoded({ extended: true }));
 
+// Per-route limiter for media uploads (active in all envs)
+const mediaUploadLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
+
 // Admin: Send WhatsApp templated message (test) with button/body params
 adminRest.post('/whatsapp/send', async (req, res) => {
   try{
@@ -2695,7 +2698,7 @@ adminRest.get('/shipments/:id/track', async (req, res) => {
 });
 
 // Media upload presign or direct Cloudinary upload (fallback)
-adminRest.post('/media/upload', async (req, res) => {
+adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
     const { filename, type, contentType, base64 } = req.body || {};
@@ -2965,10 +2968,39 @@ adminRest.get('/analytics', async (req, res) => {
 });
 adminRest.get('/media/list', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'media.read'))) return res.status(403).json({ error:'forbidden' });
-  const assets = await db.mediaAsset.findMany({ orderBy: { createdAt: 'desc' } });
-  res.json({ assets });
+  const page = Math.max(1, Number(req.query.page||1));
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit||24)));
+  const search = String(req.query.search||'').trim();
+  const skip = (page-1)*limit;
+  const where: any = {};
+  if (search) where.OR = [ { url: { contains: search, mode:'insensitive' } }, { alt: { contains: search, mode:'insensitive' } } ];
+  const [assets, total] = await Promise.all([
+    db.mediaAsset.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+    db.mediaAsset.count({ where })
+  ]);
+  res.json({ assets, total, page, limit });
 });
-adminRest.post('/media', async (req, res) => {
+
+adminRest.patch('/media/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params; const { alt, type } = req.body || {};
+  try {
+    const updated = await db.mediaAsset.update({ where: { id }, data: { alt: alt ?? undefined, type: type ?? undefined } });
+    await audit(req, 'media', 'update', { id });
+    res.json({ asset: updated });
+  } catch (e:any) { res.status(404).json({ error: 'not_found' }); }
+});
+
+adminRest.delete('/media/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'media.delete'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  try {
+    const a = await db.mediaAsset.delete({ where: { id } });
+    await audit(req, 'media', 'delete', { id, url: a?.url });
+    res.json({ ok: true });
+  } catch { res.status(404).json({ error: 'not_found' }); }
+});
+adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
   const { url, type, alt, base64 } = req.body || {};
   let finalUrl = url as string | undefined;
