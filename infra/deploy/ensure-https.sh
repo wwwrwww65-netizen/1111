@@ -104,6 +104,12 @@ else
   # Expand DOMAIN_* and CERT_DIR vars, but escape Nginx $ vars
   cat > "$SSL_CONF" <<EOF
 # Auto-generated SSL upstream mapping
+
+# CORS allowlist for API (dynamic per Origin)
+map \$http_origin \$cors_allow_origin {
+    default "";
+    ~^https://(admin\.${DOMAIN_WEB}|m\.${DOMAIN_WEB}|${DOMAIN_WEB}|www\.${DOMAIN_WEB})\$ \$http_origin;
+}
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -153,7 +159,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        add_header 'Access-Control-Allow-Origin' "https://admin.${DOMAIN_WEB}" always;
+    add_header 'Access-Control-Allow-Origin' \$cors_allow_origin always;
         add_header 'Vary' 'Origin' always;
         add_header 'Access-Control-Allow-Credentials' 'true' always;
         add_header 'Access-Control-Allow-Headers' 'Authorization,Origin, X-Requested-With, Content-Type, Accept' always;
