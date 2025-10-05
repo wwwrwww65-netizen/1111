@@ -105,12 +105,10 @@ ADMIN_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_ADMIN"
 API_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_API"
 MWEB_CERT_DIR="/etc/letsencrypt/live/$DOMAIN_MWEB"
 
-# If jeeey.conf already contains SSL listeners, skip generating jeeey-ssl.conf to avoid duplicates
-if [ -f "$ENABLED_DIR/jeeey.conf" ] && grep -q "listen 443" "$ENABLED_DIR/jeeey.conf"; then
-  echo "[https] Detected existing SSL listeners in jeeey.conf; skipping jeeey-ssl.conf generation"
-else
-  # Expand DOMAIN_* and CERT_DIR vars, but escape Nginx $ vars
-  cat > "$SSL_CONF" <<EOF
+echo "[https] (re)writing jeeey-ssl.conf explicitly"
+rm -f "$ENABLED_DIR/jeeey-ssl.conf" "$ENABLED_DIR/jeeey-ssl.conf".* 2>/dev/null || true
+# Expand DOMAIN_* and CERT_DIR vars, but escape Nginx $ vars
+cat > "$SSL_CONF" <<EOF
 # Auto-generated SSL upstream mapping
 server {
     listen 443 ssl http2;
@@ -220,11 +218,10 @@ server {
     location / { add_header Cache-Control "no-store" always; try_files \$uri \$uri/ /index.html; }
 }
 EOF
-  ln -sf "$SSL_CONF" "$ENABLED_DIR/jeeey-ssl.conf"
+ln -sf "$SSL_CONF" "$ENABLED_DIR/jeeey-ssl.conf"
 
-  echo "[https] Testing and reloading nginx after SSL blocks"
-  nginx -t && systemctl reload nginx || systemctl restart nginx || true
-fi
+echo "[https] Testing and reloading nginx after SSL blocks"
+nginx -t && systemctl reload nginx || systemctl restart nginx || true
 
 # Show quick diagnostics
 echo "[https] Firewall (ufw) status (if available):"
