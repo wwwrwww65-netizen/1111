@@ -2978,7 +2978,8 @@ adminRest.post('/media', async (req, res) => {
         const name = `media-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const filePath = path.join(outDir, name);
         fs.writeFileSync(filePath, buf);
-        finalUrl = `/uploads/${name}`;
+        const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
+        finalUrl = `${apiBase}/uploads/${name}`;
       } catch (e:any) {
         return res.status(500).json({ error: e.message || 'local_upload_failed' });
       }
