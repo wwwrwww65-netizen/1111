@@ -334,12 +334,11 @@ jobs:
               # Temporarily disable old jeeey-ssl.conf (may contain invalid inline map) before validation
               if [ -f /etc/nginx/sites-enabled/jeeey-ssl.conf ]; then mv /etc/nginx/sites-enabled/jeeey-ssl.conf /etc/nginx/sites-enabled/jeeey-ssl.conf.bak.$$ || true; fi
               # Write CORS map at http-level so ensure-https can rely on it
-              cat > /etc/nginx/conf.d/cors_map.conf <<'EOF'
-map $http_origin $cors_allow_origin {
-    default "";
-    ~^https://(m\.jeeey\.com|admin\.jeeey\.com|jeeey\.com|www\.jeeey\.com)$ $http_origin;
-}
-EOF
+              printf '%s\n' \
+                'map $http_origin $cors_allow_origin {' \
+                '    default "";' \
+                '    ~^https://(m\.jeeey\.com|admin\.jeeey\.com|jeeey\.com|www\.jeeey\.com)$ $http_origin;' \
+                '}' > /etc/nginx/conf.d/cors_map.conf
               echo 'Validating nginx config...'
               nginx -t && (systemctl reload nginx || systemctl restart nginx || true)
               echo 'Nginx config installed.'
