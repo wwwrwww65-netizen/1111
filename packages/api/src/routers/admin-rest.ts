@@ -3711,7 +3711,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const mInch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i); if (mInch) numTokens.push(`${mInch[1]}"`)
         const mVolt = rt.match(/(\d{2,4}(?:\.\d+)?)\s*(?:v|volt|فولت(?:يه)?)/i); if (mVolt) numTokens.push(`${mVolt[1]}V`)
         const noiseBase = [
-          'عرض','عروض','تخفيض','خصم','مجاني','مجانا','جديد','حصري','انيق','انيقه','اناقه','راقي','راقيه','مميز','مميزه','عصري','عصريه','مريح','مريحه','ناعم','جدا','مذهل','رائع','جميل','لامع',
+          'لا','لايفوتكم','لا يفوتكم','لاطلالة','اطلاله','إطلالة','جديدنا','جديدناا','عرض','عروض','تخفيض','خصم','مجاني','مجانا','جديد','حصري','انيق','انيقه','اناقه','راقي','راقيه','مميز','مميزه','عصري','عصريه','مريح','مريحه','ناعم','جدا','مذهل','رائع','جميل','لامع','بتصميم','مميز',
           'premium','sale','offer','original','copy','free','hot','deal'
         ]
         const noiseWords = new Set<string>(noiseBase.concat((nlpCfg.noisePhrases||[])))
@@ -3896,12 +3896,20 @@ adminRest.post('/products/analyze', async (req, res) => {
 
         // المقاسات/الألوان كنص (بدون عبارة "كما ذُكرت")
         const colorsText = finalColors.join('، ')
+        // Normalize free-size with weight range to a single entry
+        if (/فري\s*سايز/i.test(rt)) {
+          const w = rt.replace(/[_/\\-]+/g,' ').match(/وزن\s*(\d{2,3})[^\d]{0,16}?(?:حتى|إلى|الى|-|–)\s*(?:وزن)?\s*(\d{2,3})/i)
+          if (w) sizes = [`فري سايز (${Math.min(Number(w[1]),Number(w[2]))}–${Math.max(Number(w[1]),Number(w[2]))} كجم)`]
+          else sizes = Array.from(new Set(['فري سايز', ...sizes.filter(s=> !/^\d{2,3}$/.test(String(s)))]))
+        }
         const sizesText = sizes.join('، ')
         if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
         if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
 
         // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة، ونستبعد ما يشير للسعر
         const hasCurrency = (s: unknown): boolean => /(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i.test(String(s||''))
+        const looksLikeBareNumber = (s: unknown): boolean => /^\[?\s*\d{2,7}(?:[\.,][0-9]{1,2})?\s*\]?$/i.test(String(s||'').trim())
+        const looksLikeNewOldLabel = (s: unknown): boolean => /(قديم|قديمة|جديد|جديدة|عملة|السعر)/i.test(String(s||''))
         const kvRegex = /(^|[\s\-؛;:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,40})\s*[:：=\-–—→»›]\s*([^\n؛;:,،]{1,200})/g
         let m: RegExpExecArray | null
         while ((m = kvRegex.exec(raw))){
@@ -3909,7 +3917,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           // تخطّي إن كان صفاً معروفاً سبق إضافته
           const kSlug = k.toLowerCase().replace(/[^\u0600-\u06FFA-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'field'
           if (table.some(r=> r.label===k || r.key===kSlug)) continue
-          if (/(?:^|\s)(?:سعر|price|cost)(?:\s|$)/i.test(k) || hasCurrency(k) || hasCurrency(v) || /\b(?:سعر|price|cost)\b/i.test(v)) continue
+          if (/(?:^|\s)(?:سعر|price|cost)(?:\s|$)/i.test(k) || hasCurrency(k) || hasCurrency(v) || /\b(?:سعر|price|cost)\b/i.test(v) || looksLikeBareNumber(v) || looksLikeNewOldLabel(k)) continue
           addRow(table, kSlug, k, v, 0.8)
         }
 
