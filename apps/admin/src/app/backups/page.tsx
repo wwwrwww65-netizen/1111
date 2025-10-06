@@ -5,6 +5,7 @@ import { resolveApiBase } from "../lib/apiBase";
 export default function BackupsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [schedule, setSchedule] = React.useState<string>("daily");
+  const [retained, setRetained] = React.useState<number>(30);
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -28,6 +29,7 @@ export default function BackupsPage(): JSX.Element {
           <option value="off">إيقاف</option>
         </select>
         <button onClick={saveSchedule} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>حفظ الجدولة</button>
+        <div style={{ marginInlineStart:'auto', color:'#94a3b8' }}>الاحتفاظ: آخر {retained} يومًا (مدار عبر الخادم)</div>
       </div>
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead>
