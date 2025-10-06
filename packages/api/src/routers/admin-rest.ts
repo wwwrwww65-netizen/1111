@@ -3710,7 +3710,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         const numTokens: string[] = []
         const mInch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i); if (mInch) numTokens.push(`${mInch[1]}"`)
         const mVolt = rt.match(/(\d{2,4}(?:\.\d+)?)\s*(?:v|volt|فولت(?:يه)?)/i); if (mVolt) numTokens.push(`${mVolt[1]}V`)
-        const noiseWords = new Set<string>(['عرض','عروض','تخفيض','خصم','مجاني','مجانا','جديد','حصري','انيق','اناقه','premium','sale','offer','original','copy','free','hot','deal', ...(nlpCfg.noisePhrases||[])])
+        const noiseWords = new Set<string>('
+          عرض,عروض,تخفيض,خصم,مجاني,مجانا,جديد,حصري,انيق,انيقه,اناقه,راقي,راقيه,مميز,مميزه,عصري,عصريه,مريح,مريحه,ناعم,جدا,مذهل,رائع,جميل,لامع,
+          premium,sale,offer,original,copy,free,hot,deal'.split(',').map(s=>s.trim()).filter(Boolean).concat((nlpCfg.noisePhrases||[])))
         const applySyn = (t:string)=>{ const k=String(t||'').toLowerCase().trim(); const m=(nlpCfg.synonyms||{})[k]; return (typeof m==='string'&&m.trim())? m:t }
         const wordsFromText = [type, mat, ...feats, ...numTokens].map(s=> applySyn(String(s||'').trim())).filter(Boolean)
         const nameWords: string[] = []
