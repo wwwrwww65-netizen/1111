@@ -1640,11 +1640,31 @@ adminRest.get('/orders/:id', async (req, res) => {
     const { id } = req.params;
     const o = await db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true } }, payment: true, shipments: { include: { carrier: true, driver: true } }, assignedDriver: true } });
     if (!o) return res.status(404).json({ error: 'not_found' });
+    // Notes table (idempotent ensure)
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderNote" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, body TEXT NOT NULL, author TEXT, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    let notes: any[] = [];
+    try { notes = await db.$queryRawUnsafe('SELECT id, body, author, "createdAt" FROM "OrderNote" WHERE "orderId"=$1 ORDER BY "createdAt" DESC', id); } catch {}
     await audit(req, 'orders', 'detail', { id });
-    res.json({ order: o });
+    res.json({ order: o, notes });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'order_detail_failed' });
   }
+});
+
+// Order notes add endpoint
+adminRest.post('/orders/:id/notes', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const { body } = req.body || {};
+    if (!body || !String(body).trim()) return res.status(400).json({ error:'body_required' });
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderNote" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, body TEXT NOT NULL, author TEXT, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    const noteId = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "OrderNote" (id, "orderId", body, author) VALUES ($1,$2,$3,$4)', noteId, id, String(body), String(u.userId||''));
+    const notes = await db.$queryRawUnsafe('SELECT id, body, author, "createdAt" FROM "OrderNote" WHERE "orderId"=$1 ORDER BY "createdAt" DESC', id);
+    await audit(req, 'orders', 'note_add', { id, noteId });
+    res.json({ notes });
+  } catch (e:any) { res.status(500).json({ error: e.message||'note_add_failed' }); }
 });
 // Refund order payment (Stripe mock/prod)
 adminRest.post('/orders/:id/refund', async (req, res) => {
@@ -1776,7 +1796,7 @@ adminRest.post('/orders', async (req, res) => {
   const full = await db.order.findUnique({ where: { id: order.id }, include: { user: true, items: { include: { product: true } }, payment: true } });
   let timeline: any[] = [];
   try { timeline = await db.$queryRawUnsafe('SELECT id, type, message, meta, "createdAt" FROM "OrderTimeline" WHERE "orderId"=$1 ORDER BY "createdAt" ASC', order.id); } catch {}
-  res.json({ order: full, timeline });
+  res.json({ order: full, timeline, notes: [] });
   } catch (e:any) {
     res.status(500).json({ error: e.message || 'order_create_failed' });
   }

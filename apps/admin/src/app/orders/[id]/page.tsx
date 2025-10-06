@@ -15,6 +15,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
   const [dimensions, setDimensions] = React.useState('');
   const [drivers, setDrivers] = React.useState<any[]>([]);
   const [carriers, setCarriers] = React.useState<any[]>([]);
+  const [notes, setNotes] = React.useState<Array<{id:string;body:string;author?:string;createdAt:string}>>([]);
+  const [noteBody, setNoteBody] = React.useState('');
 
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
@@ -32,7 +34,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
         fetch(`${apiBase}/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()),
         fetch(`${apiBase}/api/admin/carriers`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()),
       ]);
-      setOrder(od.order||null); setTimeline(od.timeline||[]); setDrivers(dr.drivers||[]); setCarriers(cr.carriers||[]);
+      setOrder(od.order||null); setTimeline(od.timeline||[]); setNotes(od.notes||[]); setDrivers(dr.drivers||[]); setCarriers(cr.carriers||[]);
     } catch{}
   })(); },[apiBase, id]);
 
@@ -45,7 +47,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
         const j = await res.json();
         setShowModal(false);
         const od = await (await fetch(`${apiBase}/api/admin/orders/${id}`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json();
-        setOrder(od.order||null); setTimeline(od.timeline||[]);
+        setOrder(od.order||null); setTimeline(od.timeline||[]); setNotes(od.notes||[]);
       }
     } finally { setCreating(false); }
   }
@@ -135,6 +137,30 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
             ))}
           </ul>
         )}
+      </div>
+      <div className="panel">
+        <h3 style={{ marginTop:0 }}>ملاحظات داخلية</h3>
+        <div style={{ display:'grid', gap:8 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:8 }}>
+            <input className="input" placeholder="أضف ملاحظة..." value={noteBody} onChange={(e)=> setNoteBody(e.target.value)} />
+            <button className="btn" disabled={!noteBody.trim()} onClick={async()=>{
+              const r = await fetch(`${apiBase}/api/admin/orders/${id}/notes`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ body: noteBody }) });
+              if (r.ok) { const j = await r.json(); setNotes(j.notes||[]); setNoteBody(''); }
+            }}>حفظ</button>
+          </div>
+          <div>
+            {!notes.length ? (<div style={{ color:'var(--sub)' }}>لا توجد ملاحظات</div>) : (
+              <ul style={{ listStyle:'none', margin:0, padding:0, display:'grid', gap:8 }}>
+                {notes.map(n => (
+                  <li key={n.id} style={{ display:'grid', gridTemplateColumns:'160px 1fr', gap:12 }}>
+                    <div style={{ color:'var(--sub)' }}>{new Date(n.createdAt).toLocaleString()}</div>
+                    <div>{n.body}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
 
       {showModal && (
