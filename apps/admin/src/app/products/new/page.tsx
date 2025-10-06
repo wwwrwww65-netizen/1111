@@ -688,15 +688,55 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // result is a data URL: data:<mime>;base64,<data>
-        resolve(result);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+    // Compress to WebP with max dimension for optimal upload; fallback to original if failure
+    try {
+      const dataUrl = await compressToDataUrl(file, 1600, 0.82);
+      return dataUrl;
+    } catch {
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result||''));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+  }
+
+  async function compressToDataUrl(file: File, maxDim: number, quality: number): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      try {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          try {
+            const w = img.width; const h = img.height;
+            let targetW = w; let targetH = h;
+            if (w > h && w > maxDim) { targetW = maxDim; targetH = Math.round(h * (maxDim / w)); }
+            else if (h >= w && h > maxDim) { targetH = maxDim; targetW = Math.round(w * (maxDim / h)); }
+            const canvas = document.createElement('canvas');
+            canvas.width = targetW; canvas.height = targetH;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { URL.revokeObjectURL(url); return reject(new Error('no_ctx')); }
+            ctx.drawImage(img, 0, 0, targetW, targetH);
+            const mime = 'image/webp';
+            canvas.toBlob((blob)=>{
+              try {
+                URL.revokeObjectURL(url);
+                if (!blob) return reject(new Error('no_blob'));
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result||''));
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              } catch (e) { reject(e as any); }
+            }, mime, quality);
+          } catch (e) {
+            URL.revokeObjectURL(url);
+            reject(e as any);
+          }
+        };
+        img.onerror = (e)=> { URL.revokeObjectURL(url); reject(new Error('img_error')); };
+        img.src = url;
+      } catch (e) { reject(e as any); }
     });
   }
 

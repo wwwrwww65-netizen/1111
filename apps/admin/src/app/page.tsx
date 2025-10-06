@@ -206,11 +206,13 @@ export default function AdminHome(): JSX.Element {
         </div>
         <RecentEvents apiBase={apiBase} />
       </div>
-      <div className="panel">
+      <div className="panel" style={{ minHeight: 320 }}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <h3 style={{margin:0}}>إحصائيات 7 أيام</h3>
         </div>
-        <ChartOrdersRevenue series={series} />
+        <LazyChart>
+          <ChartOrdersRevenue series={series} />
+        </LazyChart>
       </div>
       <div className="grid cols-2">
         <div className="panel">
@@ -323,6 +325,22 @@ function ChartOrdersRevenue({ series }: { series: Array<{ day:string; orders:num
     return ()=> { disposed = true; window.removeEventListener('resize', resize); try { chartRef.current && chartRef.current.dispose(); } catch {} };
   }, [series]);
   return <div ref={ref} style={{ width:'100%', height: 280 }} />;
+}
+
+function LazyChart({ children }: { children: React.ReactNode }): JSX.Element {
+  const ref = React.useRef<HTMLDivElement|null>(null);
+  const [visible, setVisible] = React.useState(false);
+  React.useEffect(()=>{
+    if (!ref.current) return;
+    const ob = new IntersectionObserver((entries)=>{
+      for (const en of entries) {
+        if (en.isIntersecting) { setVisible(true); ob.disconnect(); break; }
+      }
+    }, { rootMargin: '100px' });
+    ob.observe(ref.current);
+    return ()=> ob.disconnect();
+  },[]);
+  return <div ref={ref} style={{ minHeight: 280 }}>{visible? children : (<div className="skeleton" style={{ height: 280 }} />)}</div>;
 }
 
 function SystemHealthBadge({ apiBase }: { apiBase: string }): JSX.Element {

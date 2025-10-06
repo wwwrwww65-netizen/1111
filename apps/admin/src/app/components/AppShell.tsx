@@ -36,6 +36,17 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
     };
   },[]);
   React.useEffect(()=>{ try { localStorage.setItem('admin_force_desktop', forceDesktop ? '1' : ''); } catch {} }, [forceDesktop]);
+  // Redirect to lock screen if locked
+  React.useEffect(()=>{
+    try {
+      if (typeof window === 'undefined') return;
+      const locked = localStorage.getItem('admin_locked') === '1';
+      const isLock = pathname === '/lock';
+      if (locked && !isLock) {
+        window.location.href = '/lock';
+      }
+    } catch {}
+  }, [pathname]);
   React.useEffect(()=>{
     const onKey = (e: KeyboardEvent)=>{
       const mod = e.ctrlKey || (e.metaKey && navigator.platform.toLowerCase().includes('mac'));

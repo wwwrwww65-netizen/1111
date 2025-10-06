@@ -224,7 +224,7 @@ export default function CategoriesPage(): JSX.Element {
           <div style={{ display:'grid', gap:10 }}>
             <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             <label>الوصف<textarea value={description} onChange={(e)=>setDescription(e.target.value)} rows={3} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <label>Slug
               <input value={slug} onChange={(e)=>setSlug(e.target.value)} onBlur={async()=>{
                 if (!slug.trim()) return;
@@ -240,6 +240,14 @@ export default function CategoriesPage(): JSX.Element {
               <label>SEO Description<input value={seoDescription} onChange={(e)=>setSeoDescription(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
               <label>SEO Keywords (comma)<input value={seoKeywords} onChange={(e)=>setSeoKeywords(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             </div>
+          <div style={{ marginTop:10 }}>
+            <div style={{ color:'#94a3b8', marginBottom:6 }}>معاينة محرك البحث</div>
+            <div className="panel" style={{ padding:12 }}>
+              <div style={{ color:'#1d4ed8', fontSize:16, fontWeight:700 }}>{(seoTitle||name||'عنوان التصنيف')} | الموقع</div>
+              <div style={{ color:'#059669', fontSize:12 }}>{slug? `https://www.example.com/c/${slug}` : 'https://www.example.com/c/your-slug'}</div>
+              <div style={{ color:'#9ca3af', marginTop:4 }}>{seoDescription || (description? description.slice(0,160) : 'وصف موجز للتصنيف سيظهر في نتائج البحث.')}</div>
+            </div>
+          </div>
             <div style={{ border:'1px solid #1c2333', borderRadius:10, padding:10 }}>
               <div style={{ color:'#94a3b8', marginBottom:8 }}>ترجمات</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>

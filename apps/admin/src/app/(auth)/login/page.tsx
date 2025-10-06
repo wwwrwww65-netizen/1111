@@ -11,6 +11,8 @@ export default function AdminLogin(): JSX.Element {
   const [busy, setBusy] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  // If temporarily locked, show a hint to go to lock screen
+  const locked = typeof window !== 'undefined' ? (localStorage.getItem('admin_locked') === '1') : false;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,7 +29,8 @@ export default function AdminLogin(): JSX.Element {
       });
       const j = await res.json().catch(()=>null) as any;
       if (!res.ok) {
-        const msg = (j && (j.error || j.message)) || 'فشل تسجيل الدخول';
+        let msg = (j && (j.error || j.message)) || 'فشل تسجيل الدخول';
+        if (String(j?.error||'').includes('locked')) msg = 'تم حظر الحساب مؤقتًا بسبب محاولات فاشلة. حاول لاحقًا.';
         setError(msg);
         setToast(msg);
         setTimeout(()=> setToast(""), 4000);
@@ -84,6 +87,9 @@ export default function AdminLogin(): JSX.Element {
     <main style={{ display:'grid', placeItems:'center', minHeight:'100vh', background:'#0b0e14', padding:24, position:'relative' }}>
       <form onSubmit={onSubmit} style={{ width:360, background:'#0f1420', border:'1px solid #1c2333', borderRadius:12, padding:16, color:'#e2e8f0' }}>
         <h1 style={{ margin:0, marginBottom:12, fontSize:20 }}>تسجيل دخول الإدارة</h1>
+        {locked && (
+          <div style={{ marginBottom:10, color:'#f59e0b', fontSize:12 }}>تم تفعيل القفل المؤقت. يمكنك <a href="/lock" className="link">فتح القفل هنا</a>.</div>
+        )}
         <label style={{ display:'grid', gap:6, marginBottom:10 }}>البريد الإلكتروني
           <input value={email} onChange={(e)=>setEmail(e.target.value)} required style={{ padding:10, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
         </label>
