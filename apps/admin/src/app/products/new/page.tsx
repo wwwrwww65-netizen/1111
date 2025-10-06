@@ -32,6 +32,9 @@ export default function AdminProductCreate(): JSX.Element {
   React.useEffect(()=>{ try{ localStorage.setItem('aiDeepseekOn', deepseekOn? '1':'0'); } catch {} },[deepseekOn]);
   const [lastMeta, setLastMeta] = React.useState<any>(null);
   const [useOpenRouter, setUseOpenRouter] = React.useState<boolean>(false);
+  const [draft, setDraft] = React.useState<boolean>(true);
+  const [seoTitle, setSeoTitle] = React.useState("");
+  const [seoDescription, setSeoDescription] = React.useState("");
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
   React.useEffect(()=>{ try{ localStorage.setItem('aiOpenRouterOn', useOpenRouter? '1':'0'); } catch {} },[useOpenRouter]);
 
@@ -812,7 +815,9 @@ export default function AdminProductCreate(): JSX.Element {
       sku: sku || undefined,
       brand: brand || undefined,
       tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
-      isActive: true,
+      isActive: !draft,
+      seoTitle: seoTitle||undefined,
+      seoDescription: seoDescription||undefined,
     };
     let res: Response;
     try {
@@ -1282,11 +1287,19 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
               <div style={{ fontWeight:700 }}>{name || '— بدون اسم —'}</div>
               <div style={{ color:'var(--sub)', fontSize:12 }}>{categoryOptions.find(c=>c.id===categoryId)?.name || 'بدون تصنيف'}</div>
+              <div className="panel" style={{ padding:10 }}>
+                <div style={{ marginBottom:6, color:'#9ca3af' }}>SEO</div>
+                <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
+                  <input className="input" placeholder="SEO Title" value={seoTitle} onChange={(e)=> setSeoTitle(e.target.value)} />
+                  <input className="input" placeholder="SEO Description" value={seoDescription} onChange={(e)=> setSeoDescription(e.target.value)} />
+                </div>
+              </div>
               <div style={{ display:'flex', gap:12, marginTop:6 }}>
                 <div><div style={{ color:'var(--sub)', fontSize:12 }}>سعر البيع</div><div>{salePrice || '—'}</div></div>
                 <div><div style={{ color:'var(--sub)', fontSize:12 }}>المخزون</div><div>{stockQuantity || 0}</div></div>
                 <div><div style={{ color:'var(--sub)', fontSize:12 }}>الصور</div><div>{(images||'').split(',').filter(Boolean).length + files.length}</div></div>
               </div>
+              <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
               <div style={{ display:'flex', gap:8, marginTop:8 }}>
                 <button type="submit" className="btn" disabled={!name || !categoryId || salePrice==='' || salePrice===undefined}>حفظ المنتج</button>
                 <a href="/products" className="btn btn-outline">رجوع</a>
