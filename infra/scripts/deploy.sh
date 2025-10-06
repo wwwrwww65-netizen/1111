@@ -315,6 +315,7 @@ if [ -d "$ROOT_DIR/packages/api" ]; then
 [Service]
 EnvironmentFile=$ROOT_DIR/.env.api
 WorkingDirectory=$ROOT_DIR
+Environment=NLP_CONFIG_DIR=$ROOT_DIR/config/nlp
 EOF
       systemctl daemon-reload || true
     fi
