@@ -3823,13 +3823,14 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
         if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
 
-        // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة
+        // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة، ونستبعد ما يشير للسعر
         const kvRegex = /(^|[\s\-؛;:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,40})\s*[:：=\-–—→»›]\s*([^\n؛;:,،]{1,200})/g
         let m: RegExpExecArray | null
         while ((m = kvRegex.exec(raw))){
           const k = m[2].trim(); const v = m[3].trim();
           // تخطّي إن كان صفاً معروفاً سبق إضافته
           if (table.some(r=> r.label===k || r.key===k)) continue
+          if (/(?:^|\s)(?:سعر|price|cost)(?:\s|$)/i.test(k) || hasCurrency(k) || hasCurrency(v) || /\b(?:سعر|price|cost)\b/i.test(v)) continue
           addRow(table, k, k, v, 0.8)
         }
 
@@ -3840,6 +3841,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           while ((mb = bulletRe.exec(raw))){
             const content = String(mb[2]||'').trim();
             if (!content) continue
+            if (hasCurrency(content) || /\b(?:سعر|price|cost)\b/i.test(content)) continue
             if (table.some(r=> r.value===content)) continue
             addRow(table, `detail_${table.length+idx}`, 'تفصيل', content, 0.6)
             idx++
