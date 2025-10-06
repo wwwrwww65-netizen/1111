@@ -5764,6 +5764,9 @@ adminRest.patch('/attributes/colors/:id', async (req, res) => {
 });
 adminRest.delete('/attributes/colors/:id', async (req, res) => {
   const { id } = req.params;
+  // Prevent delete when color is referenced by products (by name match)
+  const used = await db.product.count({ where: { tags: { has: id as any } } }).catch(()=>0);
+  if (used) return res.status(409).json({ error:'in_use' });
   await db.attributeColor.delete({ where: { id } });
   res.json({ success: true });
 });
@@ -5817,6 +5820,9 @@ adminRest.patch('/attributes/sizes/:id', async (req, res) => {
 });
 adminRest.delete('/attributes/sizes/:id', async (req, res) => {
   const { id } = req.params;
+  // Prevent delete when referenced by product variants
+  const used = await db.productVariant.count({ where: { value: { equals: id } } }).catch(()=>0);
+  if (used) return res.status(409).json({ error:'in_use' });
   await db.attributeSize.delete({ where: { id } });
   res.json({ success: true });
 });
@@ -5839,6 +5845,9 @@ adminRest.patch('/attributes/brands/:id', async (req, res) => {
 });
 adminRest.delete('/attributes/brands/:id', async (req, res) => {
   const { id } = req.params;
+  // Prevent delete when referenced by products
+  const used = await db.product.count({ where: { brand: { equals: id } } }).catch(()=>0);
+  if (used) return res.status(409).json({ error:'in_use' });
   await db.attributeBrand.delete({ where: { id } });
   res.json({ success: true });
 });
