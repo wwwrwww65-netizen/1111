@@ -566,6 +566,47 @@ export default function AdminProductCreate(): JSX.Element {
     } finally { setBusy(false); }
   }
 
+  async function handleGptOnlyPreview(_filesForPalette: File[]): Promise<void> {
+    try{
+      setBusy(true); setError('');
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?gptOnly=1`, {
+        method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste })
+      });
+      const aj = await resp.json().catch(()=>({}));
+      if (!resp.ok) { setError('فشل تحليل GPT'); showToast('فشل تحليل GPT', 'err'); return; }
+      if (Array.isArray(aj?.warnings) && aj.warnings.includes('gpt_unavailable')) {
+        setError('GPT غير متاح حالياً، حاول لاحقاً');
+        showToast('GPT غير متاح حالياً', 'err');
+        return;
+      }
+      const analyzed = aj?.analyzed || {};
+      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
+      if (!hasUseful) { setError('لم يتم استخراج أي حقول من GPT'); showToast('تعذر استخراج الحقول من GPT', 'err'); return; }
+      const reviewObj:any = {
+        name: String(analyzed?.name?.value||'').slice(0,60),
+        longDesc: String(analyzed?.description?.value||''),
+        purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
+        sizes: analyzed?.sizes?.value || [],
+        colors: analyzed?.colors?.value || [],
+        keywords: analyzed?.tags?.value || [],
+        stock: (analyzed?.stock?.value ?? undefined),
+        confidence: {
+          name: Number(analyzed?.name?.confidence ?? 0.85),
+          longDesc: Number(analyzed?.description?.confidence ?? 0.85),
+          sizes: Number(analyzed?.sizes?.confidence ?? 0.7),
+          colors: Number(analyzed?.colors?.confidence ?? 0.6),
+          purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6),
+          stock: Number(analyzed?.stock?.confidence ?? 0.5)
+        },
+        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
+      };
+      setReview(reviewObj);
+      showToast('تم تحليل GPT (معاينة)', 'ok');
+      setActiveMobileTab('review');
+    } catch { setError('فشل تحليل GPT'); showToast('فشل تحليل GPT', 'err'); }
+    finally { setBusy(false); }
+  }
+
   const [type, setType] = React.useState<'simple'|'variable'>('simple');
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -836,6 +877,7 @@ export default function AdminProductCreate(): JSX.Element {
           <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
           <button type="button" onClick={()=>handleRulesStrictPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل صارم (نص فقط)">{busy? '...' : 'تحليل صارم (بدون اختراع)'}</button>
           <button type="button" onClick={()=>handleOpenRouterOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر OpenRouter فقط (معاينة)">{busy? '...' : 'تحليل عبر OpenRouter (معاينة)'}</button>
+          <button type="button" onClick={()=>handleGptOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر GPT فقط (معاينة)">{busy? '...' : 'تحليل عبر GPT (معاينة)'}</button>
           <button type="button" onClick={()=>{
               if (!review) return;
               const limitedName = String(review.name||'').slice(0,60);

@@ -3622,6 +3622,7 @@ import { parseProductText } from '../utils/nlp-ar';
 import getColors from 'get-image-colors';
 import { callDeepseek, callDeepseekPreview, enforceLongNamePreview, callDeepseekPreviewStrict } from '../utils/deepseek';
 import { callOpenRouterStrict } from '../utils/openrouter';
+import { callGpt35Strict } from '../utils/openai';
 import sw from 'stopword';
 
 adminRest.post('/products/parse', async (req, res) => {
@@ -3827,6 +3828,34 @@ adminRest.post('/products/analyze', async (req, res) => {
         return res.json({ ok: true, analyzed, warnings, errors, meta: { openrouterUsed: true, openrouterAttempted: true } })
       } catch (e:any) {
         return res.status(500).json({ ok:false, analyzed:null, warnings:[], errors:[e?.message||'openrouter_error'] })
+      }
+    }
+    // GPT-3.5-Turbo-only short-circuit
+    const gptOnly: boolean = String((req.query as any)?.gptOnly || '').trim() === '1'
+    if (gptOnly) {
+      try {
+        const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(() => null) as any
+        const conf = (cfg?.config || {}) as Record<string, string>
+        const key = conf['GPT35T_API_KEY'] || conf['OPENAI_API_KEY'] || process.env.GPT35T_API_KEY || process.env.OPENAI_API_KEY
+        const model = conf['GPT35T_MODEL'] || 'gpt-3.5-turbo'
+        const warnings: string[] = []
+        const errors: string[] = []
+        if (!key) return res.status(400).json({ ok:false, analyzed:null, warnings, errors:['gpt_key_missing'] })
+        const out = await callGpt35Strict({ apiKey: key, model, input: { text: String(text || '') }, timeoutMs: 20000 })
+        if (!out) return res.json({ ok:true, analyzed:{}, warnings:[...warnings,'gpt_unavailable'], errors:[], meta:{ gptUsed:false, gptAttempted:true } })
+        const ds: any = (out as any)
+        const analyzed: any = {}
+        if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
+        if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
+        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
+        if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
+        if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
+        if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
+        if (Array.isArray(ds.keywords)) analyzed.tags = { value: ds.keywords.slice(0, 6), source: 'ai' }
+        return res.json({ ok: true, analyzed, warnings, errors, meta: { gptUsed: true, gptAttempted: true } })
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, analyzed:null, warnings:[], errors:[e?.message||'gpt_error'] })
       }
     }
     // STRICT DeepSeek-only short-circuit: handle upfront and return immediately
@@ -4593,6 +4622,24 @@ adminRest.get('/integrations/openrouter/health', async (req, res) => {
   } catch (e:any) {
     return res.status(500).json({ ok:false, error: e.message || 'openrouter_health_failed' })
   }
+});
+
+// GPT health check
+adminRest.get('/integrations/gpt/health', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'integrations','gpt_health_forbidden',{}); return res.status(403).json({ ok:false, error:'forbidden' }); }
+    const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(()=>null) as any
+    const conf = (cfg?.config || {}) as Record<string,string>
+    const apiKey = conf['GPT35T_API_KEY'] || conf['OPENAI_API_KEY'] || process.env.GPT35T_API_KEY || process.env.OPENAI_API_KEY
+    const model = conf['GPT35T_MODEL'] || 'gpt-3.5-turbo'
+    if (!apiKey) return res.status(400).json({ ok:false, error:'missing_key' })
+    // minimal probe: expect 200 or a well-formed completion
+    try {
+      await callGpt35Strict({ apiKey, model, input: { text: 'ping' }, timeoutMs: 8000 })
+      return res.json({ ok:true, model })
+    } catch {}
+    return res.status(502).json({ ok:false, error:'gpt_unreachable' })
+  } catch (e:any) { return res.status(500).json({ ok:false, error: e.message || 'gpt_health_failed' }) }
 });
 
 // Admin: WhatsApp OTP live test (sends a real message using current config)
