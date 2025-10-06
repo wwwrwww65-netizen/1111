@@ -3669,17 +3669,24 @@ adminRest.post('/products/analyze', async (req, res) => {
         const toLatinDigits = (s:string)=> s
           .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
           .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)))
+        const stripDiacritics = (s:string)=> s.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+        const normalizeLetters = (s:string)=> s
+          .replace(/[\u0622\u0623\u0625]/g, '\u0627')
+          .replace(/\u0649/g, '\u064A')
+          .replace(/\u0629/g, '\u0647')
+          .replace(/\u06A9/g, '\u0643')
+          .replace(/\u06CC/g, '\u064A')
         const normSpace = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim()
-        const rt = normSpace(toLatinDigits(raw))
+        const rt = normSpace(normalizeLetters(stripDiacritics(toLatinDigits(raw))))
 
         const addRow = (arr: Array<{key:string;label:string;value:string;confidence?:number}>, key:string, label:string, value?:string, conf=0.85)=>{
           const v = String(value||'').trim(); if (!v) return; if (arr.some(r=> r.key===key)) return; arr.push({ key, label, value: v, confidence: conf });
         }
 
-        // Derive name (8–12 كلمات) من النص فقط
-        const TYPE_RE = /(ملاعق|ملاعق\s*طعام|مطرقه|شاشه|طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|حذاء|شنطه|حقيبه|ساعه|كوب|قدر|خلاط|مكوى|مكواة)/i
+        // Derive name (8–12 كلمات) من النص فقط (مع مرادفات وضجيج مستبعد)
+        const TYPE_RE = /(ملاعق|ملاعق\s*طعام|مطرقه|شاشه|طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|حذاء|شنطه|حقيبه|ساعه|كوب|قدر|خلاط|مكوى|مكواة|تي\s*شيرت|بنطال|جاكيت)/i
         const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل|ستان|بوليستر|خشب|ستانلس|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك)/i
-        const FEATS_RE = /(كم\s*كامل|مطرز|كرستال|كريستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي|لمس|لاسلكي|سلكي|ذكي|مضاد\s*للماء)/gi
+        const FEATS_RE = /(كم\s*كامل|مطرز|كريستال|كرستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي|لمس|لاسلكي|سلكي|ذكي|مضاد\s*للماء)/gi
         const type = (rt.match(TYPE_RE)||['',''])[1] || ''
         const mat = (rt.match(MAT_RE)||['',''])[1] || ''
         const feats = Array.from(new Set((rt.match(FEATS_RE)||[]))).slice(0,4)
@@ -3687,10 +3694,14 @@ adminRest.post('/products/analyze', async (req, res) => {
         const numTokens: string[] = []
         const mInch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i); if (mInch) numTokens.push(`${mInch[1]}"`)
         const mVolt = rt.match(/(\d{2,4}(?:\.\d+)?)\s*(?:v|volt|فولت(?:يه)?)/i); if (mVolt) numTokens.push(`${mVolt[1]}V`)
+        const noiseWords = new Set<string>(['عرض','تخفيض','خصم','مجاني','جديد','حصري','انيق','اناقه','premium','sale','offer'])
         const wordsFromText = [type, mat, ...feats, ...numTokens].map(s=> String(s||'').trim()).filter(Boolean)
-        const nameWords = [] as string[]
+        const nameWords: string[] = []
         for (const w of wordsFromText){ if (!nameWords.includes(w)) nameWords.push(w) }
-        while (nameWords.join(' ').split(/\s+/).filter(Boolean).length < 8) break
+        if (nameWords.length < 8) {
+          const extra = rt.split(/\s+/).filter(w=> /[\u0600-\u06FF]/.test(w) && w.length>=3 && !noiseWords.has(w))
+          for (const t of extra) { if (nameWords.length>=12) break; if (!nameWords.includes(t)) nameWords.push(t) }
+        }
         const nameValue = nameWords.join(' ').trim().split(/\s+/).slice(0,12).join(' ')
 
         // Parse baseline via parser but we'll strictly filter sizes/colors
@@ -3704,7 +3715,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي)/gi
         colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> s.replace(/ورديه/i,'وردي'))))
         // استثناء ألوان الزينة القريبة من مفردات الديكور
-        const deco = /(خرز|تطريز|كريستال|كرستال|ترتر|سلاسل|حواف|سحاب|أزرار|زرار)/i
+        const deco = /(خرز|تطريز|كريستال|كرستال|ترتر|سلاسل|حواف|سحاب|أزرار|زرار|تطريزات|حبات|حبوب)/i
         const decorColors = new Set<string>()
         for (const c of colorsCandidates){
           const re = new RegExp(`(?:${deco.source})[\\s\S]{0,20}?${c}|${c}[\\s\S]{0,20}?(?:${deco.source})`,'i')
@@ -3713,7 +3724,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const finalColors = colorsCandidates.filter(c=> !decorColors.has(c))
 
         // Sizes: تتطلب مرساة صريحة أو رموز أحرف
-        const hasSizeAnchor = /(المقاسات|المقاس|\bsize\b|\bEU\b|\bUS\b|\bUK\b)/i.test(rt)
+        const hasSizeAnchor = /(المقاسات|المقاس|\bsize\b|\bEU\b|\bUS\b|\bUK\b|فري\s*سايز)/i.test(rt)
         const letterSizes = Array.from(new Set((rt.match(/\b(XXL|XL|L|M|S|XS)\b/gi)||[]).map(s=> s.toUpperCase())))
         if (hasSizeAnchor || letterSizes.length){
           const nums = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
@@ -3745,8 +3756,8 @@ adminRest.post('/products/analyze', async (req, res) => {
         const isTouch = /(?:شاشه|شاشة)\s*لمس|\btouch\b/i.test(rt)
         if (inch || isTouch) addRow(table,'screen','الشاشة',[inch,isTouch?'لمس': ''].filter(Boolean).join(' ').trim(),0.85)
 
-        // الأبعاد والوزن
-        const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
+        // الأبعاد والوزن (دعم x و ×)
+        const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×X]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
         if (dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
         const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (weight) addRow(table,'weight','الوزن',weight,0.82)
 
@@ -3785,7 +3796,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const analyzed: any = {}
         if (nameValue) analyzed.name = { value: nameValue.slice(0,60), source:'rules', confidence: 0.9 }
         if (table.length) analyzed.description_table = { value: table, source:'rules', confidence: 0.9 }
-        if (typeof cost === 'number' && Number.isFinite(cost) && cost > 50) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.75 }
+        if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.78 }
         if (finalColors.length) analyzed.colors = { value: finalColors, source:'rules', confidence: 0.7 }
         if (sizes.length) analyzed.sizes = { value: sizes, source:'rules', confidence: 0.7 }
         if (keywords.length) analyzed.tags = { value: keywords, source:'rules', confidence: 0.6 }
