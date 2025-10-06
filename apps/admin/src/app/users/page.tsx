@@ -31,6 +31,11 @@ export default function UsersPage(): JSX.Element {
   const [tab, setTab] = React.useState<'users'|'vendors'|'admins'|'permissions'>('users');
   const [modalOpen, setModalOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
+  const [auditOpen, setAuditOpen] = React.useState(false);
+  const [auditUserId, setAuditUserId] = React.useState<string>('');
+  const [auditRows, setAuditRows] = React.useState<any[]>([]);
+  const [auditPage, setAuditPage] = React.useState<number>(1);
+  const [auditLoading, setAuditLoading] = React.useState<boolean>(false);
   const showToast = (m:string)=>{ setToast(m); setTimeout(()=>setToast(""), 1800); };
 
   async function load() {
@@ -50,6 +55,18 @@ export default function UsersPage(): JSX.Element {
   async function assign(userId: string) {
     await fetch(`${apiBase}/api/admin/users/assign-role`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ userId, roleName }) });
     await load();
+  }
+  async function openAudit(userId: string){
+    setAuditUserId(userId); setAuditPage(1); setAuditOpen(true); await loadAudit(userId, 1);
+  }
+  async function loadAudit(userId: string, page: number){
+    setAuditLoading(true);
+    try{
+      const url = new URL(`${apiBase}/api/admin/users/${userId}/audit-logs`);
+      url.searchParams.set('page', String(page)); url.searchParams.set('limit','50');
+      const j = await (await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' })).json();
+      setAuditRows(j.items||[]);
+    } finally { setAuditLoading(false); }
   }
   async function bulkAssign() {
     const ids = rows.filter(r=>selected[r.id]).map(r=>r.id);
@@ -121,6 +138,7 @@ export default function UsersPage(): JSX.Element {
                     <option value="ADMIN">ADMIN</option>
                   </select>
                   <button onClick={()=>assign(u.id)} className="btn btn-outline">إسناد</button>
+                  <button onClick={()=>openAudit(u.id)} className="btn">عرض السجل</button>
                   <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/users/${u.id}`, { method:'DELETE', credentials:'include', headers:{ ...authHeaders() } }); await load(); }} className="btn danger">حذف</button>
                 </div>
               </td>
@@ -146,6 +164,33 @@ export default function UsersPage(): JSX.Element {
               <button onClick={()=> setModalOpen(false)} className="icon-btn">إغلاق</button>
             </div>
             {tab==='vendors' ? <VendorAccountForm onDone={async ()=>{ setModalOpen(false); showToast('تمت الإضافة'); await load(); }} apiBase={apiBase} authHeaders={authHeaders} /> : <GenericAccountForm role={tab==='admins' ? 'ADMIN' : 'USER'} onDone={async ()=>{ setModalOpen(false); showToast('تمت الإضافة'); await load(); }} apiBase={apiBase} authHeaders={authHeaders} />}
+          </div>
+        </div>
+      )}
+
+      {auditOpen && (
+        <div className="modal">
+          <div className="dialog" style={{ maxWidth: 820 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <h3 className="title">سجل التدقيق للمستخدم</h3>
+              <button onClick={()=> setAuditOpen(false)} className="icon-btn">إغلاق</button>
+            </div>
+            {auditLoading ? (<div className="skeleton-table-row" />) : (
+              <div style={{ overflowX:'auto' }}>
+                <table className="table">
+                  <thead><tr><th>الوقت</th><th>الوحدة</th><th>الإجراء</th><th>التفاصيل</th><th>IP</th></tr></thead>
+                  <tbody>
+                    {auditRows.length ? auditRows.map((r:any)=> (
+                      <tr key={r.id}><td>{new Date(r.createdAt).toLocaleString()}</td><td>{r.module}</td><td>{r.action}</td><td><code style={{fontSize:12}}>{r.details? JSON.stringify(r.details): '-'}</code></td><td>{r.ip||'-'}</td></tr>
+                    )) : (<tr><td colSpan={5}>لا يوجد سجل</td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
+              <button className="btn btn-outline" onClick={async()=>{ const p=Math.max(1,auditPage-1); setAuditPage(p); await loadAudit(auditUserId, p); }} disabled={auditPage<=1}>السابق</button>
+              <button className="btn btn-outline" onClick={async()=>{ const p=auditPage+1; setAuditPage(p); await loadAudit(auditUserId, p); }}>التالي</button>
+            </div>
           </div>
         </div>
       )}
