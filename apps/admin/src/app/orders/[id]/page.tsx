@@ -6,6 +6,7 @@ import { resolveApiBase } from "../../lib/apiBase";
 export default function OrderDetailPage({ params }: { params: { id: string } }): JSX.Element {
   const { id } = params;
   const [order, setOrder] = React.useState<any>(null);
+  const [timeline, setTimeline] = React.useState<Array<{id:string;type:string;message?:string;meta?:any;createdAt:string}>>([]);
   const [showModal, setShowModal] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
   const [driverId, setDriverId] = React.useState('');
@@ -31,7 +32,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
         fetch(`${apiBase}/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()),
         fetch(`${apiBase}/api/admin/carriers`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()),
       ]);
-      setOrder(od.order||null); setDrivers(dr.drivers||[]); setCarriers(cr.carriers||[]);
+      setOrder(od.order||null); setTimeline(od.timeline||[]); setDrivers(dr.drivers||[]); setCarriers(cr.carriers||[]);
     } catch{}
   })(); },[apiBase, id]);
 
@@ -44,7 +45,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
         const j = await res.json();
         setShowModal(false);
         const od = await (await fetch(`${apiBase}/api/admin/orders/${id}`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json();
-        setOrder(od.order||null);
+        setOrder(od.order||null); setTimeline(od.timeline||[]);
       }
     } finally { setCreating(false); }
   }
@@ -119,7 +120,21 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
       </div>
       <div className="panel">
         <h3 style={{ marginTop:0 }}>Timeline</h3>
-        <div style={{ color:'var(--sub)' }}>Placeholder للأحداث (تم الإنشاء، الدفع، الإسناد، الشحن، التسليم…)</div>
+        {!timeline.length ? (
+          <div style={{ color:'var(--sub)' }}>لا توجد أحداث</div>
+        ) : (
+          <ul style={{ listStyle:'none', margin:0, padding:0, display:'grid', gap:8 }}>
+            {timeline.map(ev => (
+              <li key={ev.id} style={{ display:'grid', gridTemplateColumns:'160px 1fr', gap:12 }}>
+                <div style={{ color:'var(--sub)' }}>{new Date(ev.createdAt).toLocaleString()}</div>
+                <div>
+                  <div style={{ fontWeight:700 }}>{ev.type}</div>
+                  {ev.message && <div style={{ color:'var(--sub)' }}>{ev.message}</div>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {showModal && (
