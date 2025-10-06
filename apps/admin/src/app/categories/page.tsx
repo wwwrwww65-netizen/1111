@@ -225,7 +225,17 @@ export default function CategoriesPage(): JSX.Element {
             <label>الاسم<input value={name} onChange={(e)=>setName(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             <label>الوصف<textarea value={description} onChange={(e)=>setDescription(e.target.value)} rows={3} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-              <label>Slug<input value={slug} onChange={(e)=>setSlug(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+            <label>Slug
+              <input value={slug} onChange={(e)=>setSlug(e.target.value)} onBlur={async()=>{
+                if (!slug.trim()) return;
+                try{
+                  const r = await fetch(`/api/admin/categories?search=${encodeURIComponent(slug)}`, { credentials:'include', cache:'no-store', headers:{ ...authHeaders() } });
+                  const j = await r.json();
+                  const exists = Array.isArray(j?.categories) && j.categories.some((c:any)=> String(c.slug||'').toLowerCase() === slug.trim().toLowerCase());
+                  if (exists) showToast('Slug مستخدم بالفعل');
+                } catch {}
+              }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
               <label>SEO Title<input value={seoTitle} onChange={(e)=>setSeoTitle(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
               <label>SEO Description<input value={seoDescription} onChange={(e)=>setSeoDescription(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
               <label>SEO Keywords (comma)<input value={seoKeywords} onChange={(e)=>setSeoKeywords(e.target.value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
