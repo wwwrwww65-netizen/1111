@@ -3890,6 +3890,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
 
         // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة، ونستبعد ما يشير للسعر
+        const hasCurrency = (s: unknown): boolean => /(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i.test(String(s||''))
         const kvRegex = /(^|[\s\-؛;:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,40})\s*[:：=\-–—→»›]\s*([^\n؛;:,،]{1,200})/g
         let m: RegExpExecArray | null
         while ((m = kvRegex.exec(raw))){
