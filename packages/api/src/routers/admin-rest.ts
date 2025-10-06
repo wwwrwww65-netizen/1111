@@ -5337,7 +5337,19 @@ adminRest.delete('/reviews/:id', async (req, res) => {
   res.json({ success: true });
 });
 // Auth: login/logout + sessions
-adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit({ windowMs: 60_000, max: 10 }) : ((_req:any,_res:any,next:any)=>next())) as any, async (req, res) => {
+// Safer limiter: key by email + forwarded IP (or req.ip) to avoid proxy-wide throttling
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    const email = (req?.body?.email || req?.query?.email || '') + '';
+    const xff = (req.headers?.['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.ip || '';
+    return `${email}|${xff}`;
+  },
+});
+adminRest.post('/auth/login', loginLimiter as any, async (req, res) => {
   try {
     let email: string | undefined;
     let password: string | undefined;
@@ -5364,7 +5376,7 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
     }
     if (!email || !password) return res.status(400).json({ error: 'invalid_credentials' });
     const emailNorm = String(email).trim().toLowerCase();
-    let user = await db.user.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } as any, select: { id: true, email: true, password: true, role: true } });
+    let user = await db.user.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } as any, select: { id: true, email: true, password: true, role: true, failedLoginAttempts: true, lockUntil: true } });
     // Auto-create admin using configured credentials, or fallback demo admin
     const cfgAdminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
     const cfgAdminPass = process.env.ADMIN_PASSWORD || '';
@@ -5377,6 +5389,13 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
       try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'auto_admin_created', details: { email: emailNorm } } }); } catch {}
     }
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
+    // Enforce lockout window if set
+    try {
+      const until = (user as any).lockUntil ? new Date((user as any).lockUntil) : null;
+      if (until && until.getTime() > Date.now()) {
+        return res.status(429).json({ error: 'locked', until: until.toISOString() });
+      }
+    } catch {}
     const bcrypt = require('bcryptjs');
     if (!user.password || typeof user.password !== 'string' || user.password.length === 0) {
       // Allow first-time binding to configured ADMIN credentials
@@ -5397,6 +5416,16 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
     const ok = await bcrypt.compare(password || '', ensuredUser.password);
     if (!ok) {
       try { await db.auditLog.create({ data: { userId: ensuredUser.id, module: 'auth', action: 'login_failed' } }); } catch {}
+      // Increment failed attempts and apply lock when threshold reached
+      try {
+        const prev = Number((user as any).failedLoginAttempts || 0);
+        const attempts = prev + 1;
+        const THRESHOLD = Number(process.env.AUTH_LOCK_THRESHOLD || 5);
+        const LOCK_MIN = Number(process.env.AUTH_LOCK_MINUTES || 15);
+        const lockUntil = attempts >= THRESHOLD ? new Date(Date.now() + LOCK_MIN * 60 * 1000) : null;
+        await db.user.update({ where: { id: ensuredUser.id }, data: { failedLoginAttempts: attempts, lockUntil } });
+        if (lockUntil) return res.status(429).json({ error: 'locked', until: lockUntil.toISOString() });
+      } catch {}
       return res.status(401).json({ error: 'invalid_credentials' });
     }
     // 2FA requirement disabled for login UI (kept endpoints for later enablement)
@@ -5411,6 +5440,10 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
     } catch (e) {
       console.warn('session_create_failed', (e as any)?.message || e);
     }
+    try {
+      // Reset failed attempts on success
+      await db.user.update({ where: { id: ensuredUser.id }, data: { failedLoginAttempts: 0, lockUntil: null } });
+    } catch {}
     try { await db.auditLog.create({ data: { userId: ensuredUser.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
     setAuthCookies(res, token, !!remember);
     return res.json({ success: true, token, sessionId });
