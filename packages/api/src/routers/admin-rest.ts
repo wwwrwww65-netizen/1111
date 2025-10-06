@@ -3670,6 +3670,15 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
           .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)))
         const stripDiacritics = (s:string)=> s.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+        const stripEmoji = (s:string)=> s.replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}\u{2600}-\u{26FF}\u{FE0F}]/gu, ' ')
+        const removeMarketing = (s:string)=> {
+          const phrases = [
+            'لايفوتك','العرض','العرض محدود','عرض','عروض','تخفيض','خصم','شحن مجاني','مجاني','جديد','حصري','مميز','افضل','الأفضل','🔥','👇','💎','🤩','👌','سعر اليوم'
+          ]
+          let out = s
+          for (const p of phrases) out = out.replace(new RegExp(p, 'gi'), ' ')
+          return out
+        }
         const normalizeLetters = (s:string)=> s
           .replace(/[\u0622\u0623\u0625]/g, '\u0627')
           .replace(/\u0649/g, '\u064A')
@@ -3677,7 +3686,8 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/\u06A9/g, '\u0643')
           .replace(/\u06CC/g, '\u064A')
         const normSpace = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim()
-        const rt = normSpace(normalizeLetters(stripDiacritics(toLatinDigits(raw))))
+        const pre = removeMarketing(stripEmoji(normalizeLetters(stripDiacritics(toLatinDigits(raw)))))
+        const rt = normSpace(pre)
 
         const addRow = (arr: Array<{key:string;label:string;value:string;confidence?:number}>, key:string, label:string, value?:string, conf=0.85)=>{
           const v = String(value||'').trim(); if (!v) return; if (arr.some(r=> r.key===key)) return; arr.push({ key, label, value: v, confidence: conf });
@@ -3704,12 +3714,42 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
         const nameValue = nameWords.join(' ').trim().split(/\s+/).slice(0,12).join(' ')
 
-        // Parse baseline via parser but we'll strictly filter sizes/colors
+        // Parse baseline via parser but we'll strictly filter sizes/colors and recompute price/keywords/stock
         const parsed = parseProductText(rt) || ({} as any)
         let sizes: string[] = []
         let colorsCandidates: string[] = []
-        const cost = typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined
-        const keywords = Array.isArray(parsed.keywords) ? parsed.keywords.slice(0,6) : []
+        // Price selection (prefer OLD, then NORTH; ignore NEW/SOUTH/قعيطي/سعودي contexts)
+        const NUM = '(\\d+(?:[\\.,]\\d{1,2})?)'
+        const CUR = '(?:﷼|ريال|sar|aed|usd|\\$|egp|kwd|qr)'
+        type PriceCand = { v:number; tag:number; ctx:string }
+        const cands: PriceCand[] = []
+        const addCand = (v:number, around:string)=>{
+          const near = around.toLowerCase()
+          const bad = /(جديد|جنوب|جنوبي|قعيطي|سعودي)/i.test(around)
+          if (bad) return
+          let tag = 4
+          if (/قديم/i.test(around)) tag = 1
+          else if (/(للشمال|الشمال)/i.test(around)) tag = 2
+          cands.push({ v, tag, ctx: around })
+        }
+        // scan windows around number+currency
+        const rxAll = new RegExp(`${NUM}\\s*${CUR}?`, 'ig')
+        let mP: RegExpExecArray | null
+        while ((mP = rxAll.exec(rt))){
+          const num = Number(String(mP[1]).replace(',', '.'))
+          const start = Math.max(0, mP.index - 20)
+          const end = Math.min(rt.length, mP.index + mP[0].length + 20)
+          addCand(num, rt.slice(start, end))
+        }
+        cands.sort((a,b)=> a.tag - b.tag)
+        const cost = cands.length ? cands[0].v : (typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined)
+        // Stock
+        const stockMatch = rt.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)
+        const stock = stockMatch ? Number(stockMatch[1]) : undefined
+        // Keywords (exclude noise and name tokens)
+        const nameSet = new Set(nameWords)
+        const kwCandidates = rt.split(/\s+/).filter(w=> /[\u0600-\u06FF]/.test(w) && w.length>=3 && !noiseWords.has(w) && !nameSet.has(w))
+        const keywords = Array.from(new Set(kwCandidates)).slice(0,6)
 
         // Colors candidates from lexicon (Arabic + English translit)
         const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي)/gi
@@ -3800,6 +3840,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (finalColors.length) analyzed.colors = { value: finalColors, source:'rules', confidence: 0.7 }
         if (sizes.length) analyzed.sizes = { value: sizes, source:'rules', confidence: 0.7 }
         if (keywords.length) analyzed.tags = { value: keywords, source:'rules', confidence: 0.6 }
+        if (typeof stock === 'number') analyzed.stock = { value: stock, source:'rules', confidence: 0.5 }
 
         return res.json({ ok:true, analyzed, warnings: [], errors: [], meta: { rulesStrictUsed: true } })
       } catch (e:any) {
