@@ -3771,13 +3771,19 @@ adminRest.post('/products/analyze', async (req, res) => {
           sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums.map(v=> String(v))])) as string[]
         }
 
+        // Domain detectors (lightweight heuristics)
+        const isCosmetics = /(روج|أحمر\s*شفاه|lipstick|ماسكارا|mascara|eyeliner|كحل|ظل\s*عيون|ظلال|foundation|بودرة|powder|blush|هايلايتر|مناكير|nail|جل\s*أظافر|toner|سيروم|serum|spf|عامل\s*حماية|واقي\s*شمس|sunscreen|شامبو|بلسم|عطر|fragrance|perfume|soap|لوشن|كريم)/i.test(rt)
+        const isElectronics = /(شاشه|شاشة|هاتف|جوال|كمبيوتر|حاسوب|laptop|notebook|gpu|cpu|رام|ram|rom|ssd|hdmi|usb|bluetooth|wifi|ios|android|windows|linux|كاميرا|ميجابكسل|ميغابكسل|ذواكر|بطاريه|بطارية|mAh|Hz|واط|وات)/i.test(rt)
+        const isClothing = /(فستان|قميص|بنطال|بنطلون|عبايه|عباية|هودي|جاكيت|تنوره|تنورة|بدله|بدلة|حذاء|حقيبه|شنطه|شراب|جوارب|سويت|تي\s*شيرت|بلوزه|بلوزة|جلابيه|جلابية|عباية)/i.test(rt)
+        const isFood = /(طعام|غذاء|عسل|تمر|بهارات|توابل|رز|أرز|قمح|سكر|ملح|جبن|حليب|لبن|قهوة|شاي|معكرونه|مكرونة|بسكويت|شوكولاته|كاكاو|زيت|خل|معلبات|تاريخ\s*انتهاء|صلاحية|منتج\s*غذائي|غذائي)/i.test(rt)
+
         // Build dynamic description_table from text only (no fixed rows)
         const table: Array<{ key:string; label:string; value:string; confidence?:number }> = []
         // مواد وتصميم واستخدام إن وُجدت دلالات
         const materials = Array.from(new Set((rt.match(/شيفون|تول|تل|قطن|صوف|حرير|دنيم|جلد|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك/gi)||[]))).join('، ')
         const designTokens = Array.from(new Set((rt.match(/سلاسل\s*ذهب|سلاسل\s*ذهبيه?|تطريز|مطرز|كريستال|كرستال|شفاف|حواف|سحاب|أزرار|زرار/gi)||[]))).join('، ')
         const usageTokens = Array.from(new Set((rt.match(/مناسب(?:\s*ل)?(?:طعام|المطبخ|المنزل|العمل|السفر|لمناسبات|للمناسبات|سهرة|يومي|خارجي|عملي)/gi)||[]))).join('، ')
-        if (materials) addRow(table,'material','الخامة',materials,0.9)
+        if (!isCosmetics && materials) addRow(table,'material','الخامة',materials,0.9)
         if (designTokens) addRow(table,'design','التصميم',designTokens,0.88)
         if (usageTokens) addRow(table,'usage','الاستخدام',usageTokens,0.75)
 
@@ -3794,26 +3800,86 @@ adminRest.post('/products/analyze', async (req, res) => {
         // الشاشة/البوصة/الهرتز
         const inch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i)?.[0]
         const isTouch = /(?:شاشه|شاشة)\s*لمس|\btouch\b/i.test(rt)
-        if (inch || isTouch) addRow(table,'screen','الشاشة',[inch,isTouch?'لمس': ''].filter(Boolean).join(' ').trim(),0.85)
+        if (!isCosmetics && (inch || isTouch)) addRow(table,'screen','الشاشة',[inch,isTouch?'لمس': ''].filter(Boolean).join(' ').trim(),0.85)
 
         // الأبعاد والوزن (دعم x و ×)
         const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×X]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
-        if (dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
-        const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (weight) addRow(table,'weight','الوزن',weight,0.82)
+        if (!isCosmetics && dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
+        const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
 
         // السعة/الذاكرة/التخزين/البطارية
-        const capacity = rt.match(/\b\d+(?:\.\d+)?\s*(?:ml|l)\b/i)?.[0]; if (capacity) addRow(table,'capacity','السعة',capacity,0.82)
-        const memory = rt.match(/\b\d+\s*(?:gb|mb|tb)\b/i)?.[0]; if (memory) addRow(table,'memory','الذاكرة/التخزين',memory,0.82)
-        const battery = rt.match(/\b\d+\s*(?:mAh|Wh|Ah)\b/i)?.[0]; if (battery) addRow(table,'battery','البطارية',battery,0.82)
+        const capacity = rt.match(/\b\d+(?:\.\d+)?\s*(?:ml|l)\b/i)?.[0]; if (!isCosmetics && capacity) addRow(table,'capacity','السعة',capacity,0.82)
+        const memory = rt.match(/\b\d+\s*(?:gb|mb|tb)\b/i)?.[0]; if (!isCosmetics && memory) addRow(table,'memory','الذاكرة/التخزين',memory,0.82)
+        const battery = rt.match(/\b\d+\s*(?:mAh|Wh|Ah)\b/i)?.[0]; if (!isCosmetics && battery) addRow(table,'battery','البطارية',battery,0.82)
 
         // الاتصال والمنافذ
         const conns = Array.from(new Set((rt.match(/wi-?fi|Bluetooth|NFC|Ethernet|LAN|WLAN|\b4G\b|\b5G\b/ig)||[]))).join(', ')
-        if (conns) addRow(table,'connectivity','الاتصال',conns,0.8)
+        if (!isCosmetics && conns) addRow(table,'connectivity','الاتصال',conns,0.8)
         const ports = Array.from(new Set((rt.match(/USB-?C|USB-?A|HDMI|DisplayPort|3\.5mm|microSD|SD/ig)||[]))).join(', ')
-        if (ports) addRow(table,'ports','المنافذ',ports,0.8)
+        if (!isCosmetics && ports) addRow(table,'ports','المنافذ',ports,0.8)
 
         // موديل/ضمان/منشأ
-        const model = rt.match(/(?:موديل|model)\s*[:\-\s]?([A-Za-z0-9_.\-]+)/i)?.[1]; if (model) addRow(table,'model','الموديل',model,0.85)
+        const model = rt.match(/(?:موديل|model)\s*[:\-\s]?([A-Za-z0-9_.\-]+)/i)?.[1]; if (!isCosmetics && model) addRow(table,'model','الموديل',model,0.85)
+
+        // Cosmetics-specific properties
+        if (isCosmetics){
+          const ingredients = rt.match(/(?:مكونات|ingredients?)\s*[:：=\-–—→»›]?\s*([^\n؛;:,،]{3,200})/i)?.[1]
+          if (ingredients) addRow(table,'ingredients','المكونات',ingredients,0.85)
+          const spf = rt.match(/\b(?:spf)\s*(\d{1,3})\b|(?:عامل\s*حماية)\s*(\d{1,3})/i)
+          if (spf) addRow(table,'spf','عامل الحماية', spf[1]||spf[2]||'', 0.85)
+          const usage = rt.match(/(?:طريقة\s*الاستخدام|الاستخدام|usage)\s*[:：=\-–—→»›]?\s*([^\n]{5,200})/i)?.[1]
+          if (usage) addRow(table,'usage_how','طريقة الاستخدام',usage,0.75)
+          const shade = rt.match(/(?:الدرجة|shade|لون)\s*[:：=\-–—→»›]?\s*([^\n؛;:,،]{2,80})/i)?.[1]
+          if (shade) addRow(table,'shade','الدرجة/اللون',shade,0.78)
+          const net = rt.match(/(?:الوزن|الحجم|net\s*(?:wt\.?|weight))\s*[:：=\-–—→»›]?\s*([^\n]{2,40})/i)?.[1]
+          if (net) addRow(table,'net','الوزن/الحجم',net,0.78)
+        }
+
+        // Food-specific properties
+        if (isFood){
+          const ingredients = rt.match(/(?:المكونات|مكونات|ingredients?)\s*[:：=\-–—→»›]?\s*([^\n؛;:,،]{3,200})/i)?.[1]
+          if (ingredients) addRow(table,'ingredients','المكونات',ingredients,0.85)
+          const nutrition = rt.match(/(?:حقائق\s*غذائية|القيم\s*الغذائية|nutrition|calories|kcal|بروتين|دهون|كربوهيدرات)[^\n]{0,5}[:：=\-–—→»›]?\s*([^\n]{3,200})/i)?.[1]
+          if (nutrition) addRow(table,'nutrition','القيم الغذائية',nutrition,0.78)
+          const expiry = rt.match(/(?:تاريخ\s*الانتهاء|انتهاء|الصلاحية|expiry|exp)\s*[:：=\-–—→»›]?\s*([^\n]{3,40})/i)?.[1]
+          if (expiry) addRow(table,'expiry','تاريخ الانتهاء/الصلاحية',expiry,0.85)
+          const halal = rt.match(/\b(?:حلال|ذبح\s*اسلامي|حلال\s*معتمد)\b/i)
+          if (halal) addRow(table,'halal','حلال', 'نعم', 0.8)
+          const allergens = rt.match(/(?:تحذير\s*حساسية|يحتوي\s*على|contains)\s*[:：=\-–—→»›]?\s*([^\n]{3,140})/i)?.[1]
+          if (allergens) addRow(table,'allergens','تحذير حساسية',allergens,0.8)
+        }
+
+        // Electronics-specific properties
+        if (isElectronics){
+          const cpu = rt.match(/(?:cpu|معالج)\s*[:：=\-–—→»›]?\s*([^\n]{2,80})/i)?.[1]
+          if (cpu) addRow(table,'cpu','المعالج',cpu,0.85)
+          const gpu = rt.match(/(?:gpu|كرت\s*شاشه|كرت\s*شاشة|معالج\s*رسومي)\s*[:：=\-–—→»›]?\s*([^\n]{2,80})/i)?.[1]
+          if (gpu) addRow(table,'gpu','المعالج الرسومي',gpu,0.82)
+          const ram = rt.match(/(?:ram|رام|ذاكره\s*عشوائيه|ذاكرة\s*عشوائية)\s*[:：=\-–—→»›]?\s*([^\n]{1,40})/i)?.[1]
+          if (ram) addRow(table,'ram','الذاكرة العشوائية',ram,0.85)
+          const rom = rt.match(/(?:rom|التخزين|سعة\s*التخزين)\s*[:：=\-–—→»›]?\s*([^\n]{1,40})/i)?.[1]
+          if (rom) addRow(table,'rom','سعة التخزين',rom,0.85)
+          const cam = rt.match(/(?:كاميرا|camera)[^\d]{0,5}(\d{1,3})\s*(?:mp|ميجا|ميجابكسل|ميغابكسل)/i)
+          if (cam) addRow(table,'camera_mp','الكاميرا',`${cam[1]} MP`,0.8)
+          const os = rt.match(/\b(Android|iOS|Windows|Linux)\b/i)?.[1]
+          if (os) addRow(table,'os','نظام التشغيل',os,0.8)
+          const fast = rt.match(/(?:شحن\s*سريع|fast\s*charge)[^\d]{0,6}(\d{1,3})\s*(?:W|واط|وات)/i)
+          if (fast) addRow(table,'fast_charge','الشحن السريع',`${fast[1]}W`,0.8)
+        }
+
+        // Clothing-specific properties
+        if (isClothing){
+          const fit = rt.match(/(?:القص|القَص|fit|قص)\s*[:：=\-–—→»›]?\s*([^\n]{2,40})/i)?.[1]
+          if (fit) addRow(table,'fit','القص/القَص',fit,0.78)
+          const care = rt.match(/(?:تعليمات\s*الغسيل|الغسيل|العناية|care)\s*[:：=\-–—→»›]?\s*([^\n]{3,120})/i)?.[1]
+          if (care) addRow(table,'care','العناية/الغسيل',care,0.78)
+          const pattern = rt.match(/(?:النقشه|النقشة|pattern|طبعة|مطبوع)\s*[:：=\-–—→»›]?\s*([^\n]{2,60})/i)?.[1]
+          if (pattern) addRow(table,'pattern','النقشة/الطبعة',pattern,0.75)
+          const season = rt.match(/\b(شتوي|صيفي|ربيعي|خريفي|all\s*season)\b/i)?.[1]
+          if (season) addRow(table,'season','الموسم',season,0.75)
+          const gender = rt.match(/\b(نسائي|رجالي|أطفالي|بناتي|ولادي|women|men|kids)\b/i)?.[1]
+          if (gender) addRow(table,'gender','الجنس',gender,0.75)
+        }
         const warranty = rt.match(/ضمان\s*(\d{1,2})\s*(سنه|سنة|شهر|اشهر|أشهر)/i); if (warranty) addRow(table,'warranty','الضمان',warranty[0],0.8)
         const origin = rt.match(/صنع\s*في\s*([\u0600-\u06FFA-Za-z\s]+)/i)?.[0]; if (origin) addRow(table,'origin','بلد الصنع',origin,0.75)
 
