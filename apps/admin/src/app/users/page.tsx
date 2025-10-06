@@ -90,6 +90,22 @@ export default function UsersPage(): JSX.Element {
           <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
         </>} right={<>
           <button onClick={()=> setModalOpen(true)} className="btn">إضافة حساب</button>
+          <button onClick={async()=>{
+            const url = new URL(`${apiBase}/api/admin/users/list`);
+            url.searchParams.set('page','1'); url.searchParams.set('limit','1000');
+            if (search) url.searchParams.set('search', search);
+            if (tab==='admins') url.searchParams.set('role','ADMIN'); else if (tab==='users') url.searchParams.set('role','USER'); else if (tab==='vendors') url.searchParams.set('role','VENDOR');
+            const j = await (await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' })).json();
+            const items = (j.users||[]) as Array<any>;
+            const header = ['id','email','name','phone','role'];
+            const lines = [header.join(',')].concat(items.map(u=> header.map(k=> {
+              const v = (u as any)[k] ?? '';
+              const s = String(v).replace(/"/g,'""');
+              return /[",\n]/.test(s)? `"${s}"` : s;
+            }).join(',')));
+            const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `users_${Date.now()}.csv`; a.click(); setTimeout(()=> URL.revokeObjectURL(a.href), 1500);
+          }} className="btn btn-outline">تصدير CSV</button>
         </>} />
       )}
 
