@@ -3624,6 +3624,7 @@ import { callDeepseek, callDeepseekPreview, enforceLongNamePreview, callDeepseek
 import { callOpenRouterStrict } from '../utils/openrouter';
 import { callGpt35Strict } from '../utils/openai';
 import sw from 'stopword';
+import { callHfNER } from '../utils/hf';
 
 adminRest.post('/products/parse', async (req, res) => {
   try{
@@ -4770,6 +4771,20 @@ adminRest.get('/integrations/openrouter/health', async (req, res) => {
   } catch (e:any) {
     return res.status(500).json({ ok:false, error: e.message || 'openrouter_health_failed' })
   }
+});
+
+// Hugging Face health
+adminRest.get('/integrations/hf/health', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ ok:false, error:'forbidden' });
+    const cfg = await db.integration.findFirst({ where: { provider: 'ai' }, orderBy: { createdAt: 'desc' } }).catch(()=>null) as any
+    const conf = (cfg?.config || {}) as Record<string,string>
+    const apiKey = conf['HF_API_TOKEN'] || process.env.HF_API_TOKEN
+    const model = conf['HF_NER_MODEL'] || 'Davlan/bert-base-multilingual-cased-ner-hrl'
+    if (!apiKey) return res.status(400).json({ ok:false, error:'missing_key' })
+    const out = await callHfNER({ apiKey, model, text: 'اختبار', timeoutMs: 8000 }).catch(()=> null)
+    return res.json({ ok: !!out, count: Array.isArray(out)? out.length : 0 })
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e?.message||'hf_health_failed' }) }
 });
 
 // GPT health check

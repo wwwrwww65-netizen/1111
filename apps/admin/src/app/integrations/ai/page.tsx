@@ -14,6 +14,8 @@ const AI_KEYS: AiKey[] = [
   { key: 'GEMINI_API_KEY', label: 'Google Gemini API Key' },
   { key: 'CUSTOM_AI_ENDPOINT', label: 'Custom AI Endpoint', placeholder: 'https://api.example.com/v1' },
   { key: 'CUSTOM_AI_KEY', label: 'Custom AI API Key' },
+  { key: 'HF_API_TOKEN', label: 'HuggingFace API Token', placeholder: 'hf_...' },
+  { key: 'HF_NER_MODEL', label: 'HuggingFace NER Model', placeholder: 'Davlan/bert-base-multilingual-cased-ner-hrl' },
   // Cursor AI specific
   { key: 'CURSOR_AI_ENDPOINT', label: 'Cursor AI Endpoint', placeholder: 'https://api.cursor.sh/v1' },
   { key: 'CURSOR_AI_API_KEY', label: 'Cursor AI API Key' },
