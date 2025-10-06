@@ -5700,6 +5700,42 @@ adminRest.post('/products', async (req, res) => {
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
+
+// Variants bulk upsert for a product
+adminRest.post('/products/:id/variants', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity?: number; sku?: string }>= Array.isArray(req.body?.variants)? req.body.variants : [];
+    const p = await db.product.findUnique({ where: { id }, select: { id: true } });
+    if (!p) return res.status(404).json({ error: 'product_not_found' });
+    const out: any[] = [];
+    for (const v of rows) {
+      const data: any = {
+        productId: id,
+        name: String(v.name||'').slice(0, 120) || 'Variant',
+        value: String(v.value||'').slice(0, 120) || '-',
+        price: typeof v.price === 'number' ? v.price : null,
+        purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : null,
+        stockQuantity: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
+        sku: v.sku || null,
+      };
+      if (v.sku) {
+        const existing = await db.productVariant.findFirst({ where: { sku: v.sku } });
+        if (existing) {
+          const up = await db.productVariant.update({ where: { id: existing.id }, data });
+          out.push(up);
+          continue;
+        }
+      }
+      const created = await db.productVariant.create({ data });
+      out.push(created);
+    }
+    return res.json({ ok:true, variants: out });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'variants_upsert_failed' });
+  }
+});
 adminRest.patch('/products/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });

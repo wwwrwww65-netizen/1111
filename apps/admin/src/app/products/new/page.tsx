@@ -885,7 +885,12 @@ export default function AdminProductCreate(): JSX.Element {
       let variants = variantRows;
       if (!variants?.length) variants = generateVariantRows();
       if (variants.length) {
-        // Future: POST variants in bulk when endpoint is ready
+        try {
+          await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
+            method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+            body: JSON.stringify({ variants })
+          });
+        } catch {}
       }
     }
     if (uploadedOrBase64.length) {
