@@ -5,6 +5,8 @@ import { resolveApiBase } from '../../lib/apiBase';
 type AiKey = { key: string; label: string; placeholder?: string };
 const AI_KEYS: AiKey[] = [
   { key: 'OPENAI_API_KEY', label: 'OpenAI API Key', placeholder: 'sk-...' },
+  { key: 'GPT35T_API_KEY', label: 'GPT-3.5-Turbo API Key', placeholder: 'sk-...' },
+  { key: 'GPT35T_MODEL', label: 'GPT-3.5-Turbo Model', placeholder: 'gpt-3.5-turbo' },
   { key: 'OPENROUTER_API_KEY', label: 'OpenRouter API Key', placeholder: 'sk-or-...' },
   { key: 'OPENROUTER_MODEL', label: 'OpenRouter Model', placeholder: 'deepseek/deepseek-chat' },
   { key: 'DEEPSEEK_API_KEY', label: 'DeepSeek API Key' },
@@ -125,6 +127,12 @@ export default function AiIntegrations(): JSX.Element {
                 <option value="deepseek/deepseek-coder">deepseek/deepseek-coder</option>
                 <option value="deepseek/deepseek-reasoner">deepseek/deepseek-reasoner</option>
                 <option value="deepseek/deepseek-chat-lite">deepseek/deepseek-chat-lite</option>
+              </select>
+            ) : row.key === 'GPT35T_MODEL' ? (
+              <select value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }}>
+                <option value="">اختر…</option>
+                <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                <option value="gpt-3.5-turbo-0125">gpt-3.5-turbo-0125</option>
               </select>
             ) : (
               <input value={values[row.key]||''} onChange={e=> setVal(row.key, e.target.value)} placeholder={row.placeholder||''} style={{ height:44, borderRadius:12, border:'1px solid var(--muted2)', padding:'0 12px', background:'#0b0e14', color:'#e2e8f0' }} />
