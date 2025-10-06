@@ -1696,6 +1696,7 @@ adminRest.post('/orders/assign-driver', async (req, res) => {
     const { orderId, driverId } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const updated = await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId || null } });
+    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'ASSIGN_DRIVER', 'تعيين سائق', { driverId }); } catch {}
     await audit(req, 'orders', 'assign_driver', { orderId, driverId });
     res.json({ order: updated });
   } catch (e: any) {
@@ -1709,6 +1710,7 @@ adminRest.post('/orders/ship', async (req, res) => {
     const { orderId, trackingNumber } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const order = await db.order.update({ where: { id: orderId }, data: { status: 'SHIPPED', trackingNumber } });
+    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'SHIPPED', 'تم شحن الطلب', { trackingNumber }); } catch {}
     await audit(req, 'orders', 'ship', { orderId, trackingNumber });
     res.json({ success: true, order });
   } catch (e: any) {
@@ -1746,7 +1748,11 @@ adminRest.post('/orders', async (req, res) => {
       total += price * quantity;
       itemsData.push({ productId: it.productId || (prod?.id as string), price, quantity });
     }
-    const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
+  const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderTimeline" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, type TEXT NOT NULL, message TEXT, meta JSONB, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), order.id, 'CREATED', 'تم إنشاء الطلب', { total, items: itemsData.length });
+  } catch {}
     // Fire FB CAPI AddToCart (server-side) best-effort
     try {
       const { fbSendEvents, hashEmail } = await import('../services/fb');
@@ -1767,8 +1773,10 @@ adminRest.post('/orders', async (req, res) => {
       await db.payment.create({ data: { orderId: order.id, amount: payment.amount, method: payment.method||'CASH_ON_DELIVERY', status: payment.status||'PENDING' } });
     }
     await audit(req, 'orders', 'create', { orderId: order.id });
-    const full = await db.order.findUnique({ where: { id: order.id }, include: { user: true, items: { include: { product: true } }, payment: true } });
-    res.json({ order: full });
+  const full = await db.order.findUnique({ where: { id: order.id }, include: { user: true, items: { include: { product: true } }, payment: true } });
+  let timeline: any[] = [];
+  try { timeline = await db.$queryRawUnsafe('SELECT id, type, message, meta, "createdAt" FROM "OrderTimeline" WHERE "orderId"=$1 ORDER BY "createdAt" ASC', order.id); } catch {}
+  res.json({ order: full, timeline });
   } catch (e:any) {
     res.status(500).json({ error: e.message || 'order_create_failed' });
   }
