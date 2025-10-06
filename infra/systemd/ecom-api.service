@@ -21,6 +21,7 @@ Environment=NEXT_PUBLIC_APP_URL=https://jeeey.com
 Environment=CORS_ALLOW_ORIGINS=https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://api.jeeey.com
 Environment=API_RUN_ENSURE_SCHEMA=1
 Environment=API_ALLOW_BOOTSTRAP=1
+Environment=NLP_CONFIG_DIR=/var/www/ecom/config/nlp
 Restart=always
 RestartSec=2
 User=root
