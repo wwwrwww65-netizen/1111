@@ -10,6 +10,7 @@ export default function MediaPage(): JSX.Element {
   const [search, setSearch] = React.useState('');
   const [url, setUrl] = React.useState("");
   const [file, setFile] = React.useState<File|null>(null);
+  const [files, setFiles] = React.useState<File[]>([]);
   const [busy, setBusy] = React.useState(false);
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   async function load(p = page, q = search) {
@@ -22,13 +23,21 @@ export default function MediaPage(): JSX.Element {
     setBusy(true);
     try{
       let body: any = { url, type:'image' };
-      if (file) {
+      const uploadOne = async (payload:any)=> fetch(`${apiBase}/api/admin/media`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+      if (files.length>0) {
+        for (const f of files) {
+          const b64 = await toBase64(f);
+          await uploadOne({ base64: b64, type: f.type||'image' });
+        }
+      } else if (file) {
         const b64 = await toBase64(file);
-        body = { base64: b64, type:'image' };
+        await uploadOne({ base64: b64, type:'image' });
+      } else if (url) {
+        await uploadOne(body);
       }
-      await fetch(`${apiBase}/api/admin/media`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(body) });
       setUrl("");
       setFile(null);
+      setFiles([]);
       await load(page, search);
     } finally { setBusy(false); }
   }
@@ -40,7 +49,7 @@ export default function MediaPage(): JSX.Element {
         <input className="input" value={search} onChange={(e)=> setSearch(e.target.value)} placeholder="بحث بالعنوان أو الرابط" />
         <button className="btn" onClick={()=> load(1, search)}>بحث</button>
         <input className="input" value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="https://..." />
-        <input className="input" type="file" accept="image/*" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
+        <input className="input" type="file" accept="image/*" multiple onChange={(e)=>{ const list = Array.from(e.target.files||[]); if (list.length) setFiles(list); }} />
         <button className="btn" onClick={add} disabled={busy}>{busy? 'جارٍ الرفع…':'إضافة'}</button>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:8 }}>

@@ -182,9 +182,14 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
           <table className="table" style={{ marginTop:8 }}>
             <thead><tr><th>النوع</th><th>الرابط</th><th>انتهاء</th></tr></thead>
             <tbody>
-              {docs.length ? docs.map((dc:any)=> (
-                <tr key={dc.id}><td>{dc.docType}</td><td><a className="link" href={dc.url} target="_blank">فتح</a></td><td>{dc.expiresAt? String(dc.expiresAt).slice(0,10) : '—'}</td></tr>
-              )) : (<tr><td colSpan={3}>لا توجد وثائق</td></tr>)}
+              {docs.length ? docs.map((dc:any)=> {
+                const exp = dc.expiresAt? new Date(dc.expiresAt) : null;
+                const daysLeft = exp? Math.ceil((exp.getTime() - Date.now())/(24*3600*1000)) : null;
+                const warn = daysLeft!=null && daysLeft <= 30;
+                return (
+                  <tr key={dc.id} className={warn? 'warn': ''}><td>{dc.docType}</td><td><a className="link" href={dc.url} target="_blank">فتح</a></td><td>{dc.expiresAt? String(dc.expiresAt).slice(0,10) : '—'} {warn && <span style={{ color:'#ef4444', marginInlineStart:8 }}>(ينتهي خلال {daysLeft}ي)</span>}</td></tr>
+                );
+              }) : (<tr><td colSpan={3}>لا توجد وثائق</td></tr>)}
             </tbody>
           </table>
         </div>
