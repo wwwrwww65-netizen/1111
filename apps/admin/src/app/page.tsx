@@ -18,6 +18,27 @@ export default function AdminHome(): JSX.Element {
   const [end, setEnd] = React.useState<string>('');
   const [costCenter, setCostCenter] = React.useState<string>('all');
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  // Persist dashboard filters to localStorage for better UX across sessions
+  React.useEffect(()=>{
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem('admin_dash_filters') : null;
+      if (!raw) return;
+      const parsed = JSON.parse(raw||'{}') as { range?: '7d'|'30d'|'90d'|'custom'; start?: string; end?: string; costCenter?: string };
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.range && ['7d','30d','90d','custom'].includes(parsed.range)) setRange(parsed.range as any);
+        if (typeof parsed.start === 'string') setStart(parsed.start);
+        if (typeof parsed.end === 'string') setEnd(parsed.end);
+        if (typeof parsed.costCenter === 'string') setCostCenter(parsed.costCenter);
+      }
+    } catch {}
+  }, []);
+  React.useEffect(()=>{
+    try {
+      if (typeof window === 'undefined') return;
+      const payload = { range, start, end, costCenter };
+      window.localStorage.setItem('admin_dash_filters', JSON.stringify(payload));
+    } catch {}
+  }, [range, start, end, costCenter]);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
