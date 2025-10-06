@@ -3671,13 +3671,18 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)))
         const stripDiacritics = (s:string)=> s.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
         const stripEmoji = (s:string)=> s.replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}\u{2600}-\u{26FF}\u{FE0F}]/gu, ' ')
+        // Runtime-config for NLP lists
+        const loadNlpConfig = ()=>{
+          try { const fs=require('fs'); const path=require('path'); const base=process.env.NLP_CONFIG_DIR||path.join(process.cwd(),'config','nlp');
+            const read=(f:string)=>{ try{return JSON.parse(fs.readFileSync(path.join(base,f),'utf8'))}catch{return null} };
+            const m=read('marketing.json')||{}; const syn=read('synonyms.json')||{}; const u=read('units.json')||{};
+            return { noisePhrases: Array.isArray(m.noisePhrases)? m.noisePhrases:[], synonyms: syn.synonyms||{}, unitTokens: Array.isArray(u.units)? u.units:[] };
+          } catch { return { noisePhrases:[], synonyms:{}, unitTokens:[] } }
+        }
+        const nlpCfg = loadNlpConfig()
         const removeMarketing = (s:string)=> {
-          const phrases = [
-            'لايفوتك','العرض','العرض محدود','عرض','عروض','تخفيض','خصم','شحن مجاني','مجاني','جديد','حصري','مميز','افضل','الأفضل','🔥','👇','💎','🤩','👌','سعر اليوم'
-          ]
-          let out = s
-          for (const p of phrases) out = out.replace(new RegExp(p, 'gi'), ' ')
-          return out
+          const phrases = [ 'لايفوتك','العرض','العرض محدود','عرض','عروض','تخفيض','خصم','كوبون','هدية','مجانا','شحن مجاني','مجاني','جديد','حصري','مميز','افضل','الأفضل','اصلي','اصلية','تقليد','🔥','👇','💎','🤩','👌','سعر اليوم','لفترة محدودة', ...(nlpCfg.noisePhrases||[]) ]
+          let out = s; for (const p of phrases) out = out.replace(new RegExp(p,'gi'),' '); return out;
         }
         const normalizeLetters = (s:string)=> s
           .replace(/[\u0622\u0623\u0625]/g, '\u0627')
@@ -3704,8 +3709,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         const numTokens: string[] = []
         const mInch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i); if (mInch) numTokens.push(`${mInch[1]}"`)
         const mVolt = rt.match(/(\d{2,4}(?:\.\d+)?)\s*(?:v|volt|فولت(?:يه)?)/i); if (mVolt) numTokens.push(`${mVolt[1]}V`)
-        const noiseWords = new Set<string>(['عرض','تخفيض','خصم','مجاني','جديد','حصري','انيق','اناقه','premium','sale','offer'])
-        const wordsFromText = [type, mat, ...feats, ...numTokens].map(s=> String(s||'').trim()).filter(Boolean)
+        const noiseWords = new Set<string>(['عرض','عروض','تخفيض','خصم','مجاني','مجانا','جديد','حصري','انيق','اناقه','premium','sale','offer','original','copy','free','hot','deal', ...(nlpCfg.noisePhrases||[])])
+        const applySyn = (t:string)=>{ const k=String(t||'').toLowerCase().trim(); const m=(nlpCfg.synonyms||{})[k]; return (typeof m==='string'&&m.trim())? m:t }
+        const wordsFromText = [type, mat, ...feats, ...numTokens].map(s=> applySyn(String(s||'').trim())).filter(Boolean)
         const nameWords: string[] = []
         for (const w of wordsFromText){ if (!nameWords.includes(w)) nameWords.push(w) }
         if (nameWords.length < 8) {
@@ -3894,23 +3900,26 @@ adminRest.post('/products/analyze', async (req, res) => {
         const kvRegex = /(^|[\s\-؛;:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,40})\s*[:：=\-–—→»›]\s*([^\n؛;:,،]{1,200})/g
         let m: RegExpExecArray | null
         while ((m = kvRegex.exec(raw))){
-          const k = m[2].trim(); const v = m[3].trim();
+          const kRaw = m[2].trim(); const v = m[3].trim(); const k = applySyn(kRaw)
           // تخطّي إن كان صفاً معروفاً سبق إضافته
-          if (table.some(r=> r.label===k || r.key===k)) continue
+          const kSlug = k.toLowerCase().replace(/[^\u0600-\u06FFA-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'field'
+          if (table.some(r=> r.label===k || r.key===kSlug)) continue
           if (/(?:^|\s)(?:سعر|price|cost)(?:\s|$)/i.test(k) || hasCurrency(k) || hasCurrency(v) || /\b(?:سعر|price|cost)\b/i.test(v)) continue
-          addRow(table, k, k, v, 0.8)
+          addRow(table, kSlug, k, v, 0.8)
         }
 
         // التقاط عناصر القوائم النقطية/الشرطات كصفوف تفاصيل عامة
         try {
           const bulletRe = /(^|\n)\s*(?:[-*•·]|[–—])\s*([^\n]{3,120})/g
           let mb: RegExpExecArray | null; let idx = 1
+          const unitSet = new Set<string>([...((nlpCfg.unitTokens||[]) as string[]),'cm','mm','in','ml','l','kg','g','mAh','Wh','Ah','hz','v','w','gb','mb','tb'])
           while ((mb = bulletRe.exec(raw))){
             const content = String(mb[2]||'').trim();
             if (!content) continue
             if (hasCurrency(content) || /\b(?:سعر|price|cost)\b/i.test(content)) continue
             if (table.some(r=> r.value===content)) continue
-            addRow(table, `detail_${table.length+idx}`, 'تفصيل', content, 0.6)
+            const hasUnit = Array.from(unitSet).some(u=> new RegExp(`(^|\s)${u}(?:\b|\s|$)`, 'i').test(content)) || /\d/.test(content)
+            addRow(table, `detail_${table.length+idx}`, 'تفصيل', content, hasUnit? 0.75 : 0.6)
             idx++
           }
         } catch {}
