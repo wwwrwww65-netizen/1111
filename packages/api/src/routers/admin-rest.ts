@@ -3823,14 +3823,32 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
         if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
 
-        // أي key:value صريح في النص نلتقطه كما هو (AR/EN)
-        const kvRegex = /(^|[\s\-؛:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,24})[:：]\s*([^\n؛:,،]{1,80})/g
+        // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة
+        const kvRegex = /(^|[\s\-؛;:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,40})\s*[:：=\-–—→»›]\s*([^\n؛;:,،]{1,200})/g
         let m: RegExpExecArray | null
         while ((m = kvRegex.exec(raw))){
           const k = m[2].trim(); const v = m[3].trim();
           // تخطّي إن كان صفاً معروفاً سبق إضافته
           if (table.some(r=> r.label===k || r.key===k)) continue
           addRow(table, k, k, v, 0.8)
+        }
+
+        // التقاط عناصر القوائم النقطية/الشرطات كصفوف تفاصيل عامة
+        try {
+          const bulletRe = /(^|\n)\s*(?:[-*•·]|[–—])\s*([^\n]{3,120})/g
+          let mb: RegExpExecArray | null; let idx = 1
+          while ((mb = bulletRe.exec(raw))){
+            const content = String(mb[2]||'').trim();
+            if (!content) continue
+            if (table.some(r=> r.value===content)) continue
+            addRow(table, `detail_${table.length+idx}`, 'تفصيل', content, 0.6)
+            idx++
+          }
+        } catch {}
+
+        // أصل محلي إن ذُكر صراحة ولم يلتقط سابقًا
+        if (!table.some(r=> r.key==='origin')){
+          if (/(?:منتج\s*محلي|محلي\s*الصنع|صنع\s*محلي)/i.test(raw)) addRow(table,'origin','بلد الصنع','محلي الصنع',0.75)
         }
 
         const analyzed: any = {}
