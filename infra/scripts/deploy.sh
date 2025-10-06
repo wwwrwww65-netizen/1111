@@ -291,6 +291,11 @@ EOF
 fi
 # Ensure API process uses deployed dist and sees env
 if [ -d "$ROOT_DIR/packages/api" ]; then
+  # Ensure NLP runtime config exists on server and seed defaults (non-destructive)
+  mkdir -p "$ROOT_DIR/config/nlp" || true
+  if [ -d "$ROOT_DIR/packages/api/config/nlp" ]; then
+    cp -n "$ROOT_DIR/packages/api/config/nlp"/*.json "$ROOT_DIR/config/nlp/" 2>/dev/null || true
+  fi
   if [ -f "$ROOT_DIR/.env.api" ]; then
     cp "$ROOT_DIR/.env.api" "$ROOT_DIR/packages/api/.env" || true
     if ! grep -q '^COOKIE_DOMAIN=' "$ROOT_DIR/packages/api/.env"; then
