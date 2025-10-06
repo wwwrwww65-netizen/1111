@@ -10,6 +10,7 @@ export default function MediaPage(): JSX.Element {
   const [search, setSearch] = React.useState('');
   const [url, setUrl] = React.useState("");
   const [file, setFile] = React.useState<File|null>(null);
+  const [busy, setBusy] = React.useState(false);
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   async function load(p = page, q = search) {
     const r = await fetch(`${apiBase}/api/admin/media/list?page=${p}&limit=${limit}&search=${encodeURIComponent(q)}`, { credentials:'include' });
@@ -18,15 +19,18 @@ export default function MediaPage(): JSX.Element {
   }
   React.useEffect(()=>{ load(1, ''); },[apiBase]);
   async function add() {
-    let body: any = { url, type:'image' };
-    if (file) {
-      const b64 = await toBase64(file);
-      body = { base64: b64, type:'image' };
-    }
-    await fetch(`${apiBase}/api/admin/media`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(body) });
-    setUrl("");
-    setFile(null);
-    await load(page, search);
+    setBusy(true);
+    try{
+      let body: any = { url, type:'image' };
+      if (file) {
+        const b64 = await toBase64(file);
+        body = { base64: b64, type:'image' };
+      }
+      await fetch(`${apiBase}/api/admin/media`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(body) });
+      setUrl("");
+      setFile(null);
+      await load(page, search);
+    } finally { setBusy(false); }
   }
   function toBase64(f: File): Promise<string> { return new Promise((resolve,reject)=>{ const r = new FileReader(); r.onload=()=>resolve(String(r.result)); r.onerror=reject; r.readAsDataURL(f); }); }
   return (
@@ -37,7 +41,7 @@ export default function MediaPage(): JSX.Element {
         <button className="btn" onClick={()=> load(1, search)}>بحث</button>
         <input className="input" value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="https://..." />
         <input className="input" type="file" accept="image/*" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
-        <button className="btn" onClick={add}>إضافة</button>
+        <button className="btn" onClick={add} disabled={busy}>{busy? 'جارٍ الرفع…':'إضافة'}</button>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:8 }}>
         {rows.map((a)=> (
