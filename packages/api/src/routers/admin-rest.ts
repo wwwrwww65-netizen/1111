@@ -6253,6 +6253,30 @@ adminRest.post('/backups/schedule', async (req, res) => {
   res.json({ setting: s });
 });
 
+// Audit logs listing (system-wide)
+adminRest.get('/audit-logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'audit.read'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, parseInt(String((req.query as any).page||'1'),10)||1);
+    const limit = Math.min(200, Math.max(1, parseInt(String((req.query as any).limit||'50'),10)||50));
+    const offset = (page-1)*limit;
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT id, "userId", module, action, details, ip, "userAgent", "createdAt" FROM "AuditLog" ORDER BY "createdAt" DESC LIMIT $1 OFFSET $2`, limit, offset);
+    res.json({ items: rows, page, limit });
+  } catch (e:any) { res.status(500).json({ error: e.message||'audit_list_failed' }); }
+});
+// Per-user audit logs
+adminRest.get('/users/:id/audit-logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'audit.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const page = Math.max(1, parseInt(String((req.query as any).page||'1'),10)||1);
+    const limit = Math.min(200, Math.max(1, parseInt(String((req.query as any).limit||'50'),10)||50));
+    const offset = (page-1)*limit;
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT id, module, action, details, ip, "userAgent", "createdAt" FROM "AuditLog" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT $2 OFFSET $3`, id, limit, offset);
+    res.json({ items: rows, page, limit });
+  } catch (e:any) { res.status(500).json({ error: e.message||'user_audit_list_failed' }); }
+});
+
 export default adminRest;
 adminRest.get('/pos/:id', async (req, res) => {
   try {
