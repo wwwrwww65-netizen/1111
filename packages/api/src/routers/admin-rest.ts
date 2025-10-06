@@ -5994,8 +5994,15 @@ adminRest.post('/categories/reorder', async (req, res) => {
 adminRest.post('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req,'categories','forbidden_create',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
-    const { name } = req.body || {};
+    const { name, slug } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
+    // Guard slug uniqueness when provided
+    if (slug && typeof slug === 'string') {
+      try {
+        const exists: any[] = await db.$queryRawUnsafe('SELECT 1 FROM "Category" WHERE LOWER("slug") = LOWER($1) LIMIT 1', String(slug));
+        if (exists && exists.length) return res.status(409).json({ error:'slug_exists' });
+      } catch {}
+    }
     // Ensure legacy/prod-mirrored schemas are relaxed/compatible before insert
     await ensureCategorySeo();
     // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
@@ -6037,6 +6044,12 @@ adminRest.patch('/categories/:id', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req,'categories','forbidden_update',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
     await ensureCategorySeo();
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+    if (slug && typeof slug === 'string') {
+      try {
+        const exists: any[] = await db.$queryRawUnsafe('SELECT 1 FROM "Category" WHERE LOWER("slug") = LOWER($1) AND id<>$2 LIMIT 1', String(slug), String(id));
+        if (exists && exists.length) return res.status(409).json({ error:'slug_exists' });
+      } catch {}
+    }
     const cols = await getCategoryColumnFlags();
     const data: any = {};
     if (name) data.name = name;
