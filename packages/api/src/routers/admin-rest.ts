@@ -4038,25 +4038,43 @@ adminRest.post('/products/analyze', async (req, res) => {
         type PriceCand = { v:number; tag:number; ctx:string }
         const cands: PriceCand[] = []
         const addCand = (v:number, around:string)=>{
-          const near = around.toLowerCase()
           const bad = /(جديد|جنوب|جنوبي|قعيطي|سعودي)/i.test(around)
           if (bad) return
+          // ignore weight contexts even if price word appears nearby
+          if (/وزن/i.test(around)) return
           let tag = 4
           if (/قديم/i.test(around)) tag = 1
-          else if (/(للشمال|الشمال)/i.test(around)) tag = 2
+          else if (/(للشمال|الشمال|\bشمال\b|شمالي)/i.test(around)) tag = 2
           cands.push({ v, tag, ctx: around })
         }
-        // scan windows around number+currency
+        const hasCurrencyTok = (s:string)=> new RegExp(CUR,'i').test(s)
+        const hasPriceWord = (s:string)=> /(السعر|سعر|price|البيع)/i.test(s)
+        // scan windows around numeric tokens but keep only plausible price contexts
         const rxAll = new RegExp(`${NUM}\\s*${CUR}?`, 'ig')
         let mP: RegExpExecArray | null
         while ((mP = rxAll.exec(rt))){
-          const num = Number(String(mP[1]).replace(',', '.'))
+          const numVal = Number(String(mP[1]).replace(',', '.'))
           const start = Math.max(0, mP.index - 20)
-          const end = Math.min(rt.length, mP.index + mP[0].length + 20)
-          addCand(num, rt.slice(start, end))
+          const end = Math.min(rt.length, mP.index + mP[0].length + 24)
+          const ctx = rt.slice(start, end)
+          // require currency or explicit price word, and a reasonable magnitude
+          if (!Number.isFinite(numVal) || numVal < 80) continue
+          if (!(hasCurrencyTok(ctx) || hasPriceWord(ctx))) continue
+          addCand(numVal, ctx)
         }
         cands.sort((a,b)=> a.tag - b.tag)
-        const cost = cands.length ? cands[0].v : (typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined)
+        let cost = cands.length ? cands[0].v : (typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined)
+        // Fallback: try explicit priority scans if no valid cost yet
+        if (!(typeof cost === 'number' && Number.isFinite(cost))) {
+          const num = (s:string)=> Number(String(s).replace(/[٬٫,]/g,'.'))
+          const oldM = rt.match(/(?:قديم|القديم)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
+          const northM = rt.match(/(?:للشمال|الشمال|\bشمال\b|شمالي)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
+          const priceM = rt.match(/(?:السعر|سعر|price|البيع)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
+          const currM = rt.match(/(\d+[\.,٬٫]?\d*)\s*(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i)
+          const pick = oldM?.[1] ?? northM?.[1] ?? priceM?.[1] ?? currM?.[1]
+          const cand = pick ? num(pick) : undefined
+          if (typeof cand === 'number' && Number.isFinite(cand) && cand >= 80) cost = cand
+        }
         // Stock
         const stockMatch = rt.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)
         const stock = stockMatch ? Number(stockMatch[1]) : undefined
@@ -4081,8 +4099,18 @@ adminRest.post('/products/analyze', async (req, res) => {
         const hasSizeAnchor = /(المقاسات|المقاس|\bsize\b|\bEU\b|\bUS\b|\bUK\b|فري\s*سايز)/i.test(rt)
         const letterSizes = Array.from(new Set((rt.match(/\b(XXL|XL|L|M|S|XS)\b/gi)||[]).map(s=> s.toUpperCase())))
         if (hasSizeAnchor || letterSizes.length){
-          const nums = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
-          sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums.map(v=> String(v))])) as string[]
+          const numMatches = Array.from(rt.matchAll(/\b(\d{2})\b/g))
+          const nums = numMatches
+            .map(m=> ({ value: Number(m[1]), index: m.index || 0, raw: m[0] }))
+            .filter(o=> o.value>=20 && o.value<=60)
+            .filter(o=>{
+              const start = Math.max(0, o.index - 20)
+              const end = Math.min(rt.length, o.index + String(o.raw).length + 20)
+              const ctx = rt.slice(start, end)
+              return !/(السعر|سعر|price|البيع)/i.test(ctx) && !new RegExp(CUR,'i').test(ctx)
+            })
+            .map(o=> String(o.value))
+          sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums])) as string[]
         }
 
         // Domain detectors (lightweight heuristics)
@@ -4119,6 +4147,11 @@ adminRest.post('/products/analyze', async (req, res) => {
         // الأبعاد والوزن (دعم x و ×)
         const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×X]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
         if (!isCosmetics && dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
+        // Capture length/width without units if explicitly labeled
+        const lenM = rt.match(/الطول\s*(\d{2,4})/i)
+        if (!isCosmetics && lenM) addRow(table,'length','الطول',lenM[1],0.82)
+        const widM = rt.match(/العرض\s*(\d{2,4})/i)
+        if (!isCosmetics && widM) addRow(table,'width','العرض',widM[1],0.82)
         const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
 
         // السعة/الذاكرة/التخزين/البطارية
@@ -4208,6 +4241,32 @@ adminRest.post('/products/analyze', async (req, res) => {
         const sizesText = sizes.join('، ')
         if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
         if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
+
+        // Extra capture: bullet-like lines and components section (e.g., 🌹1سرير ...)
+        try {
+          const lines = String(raw||'').split(/\r?\n/)
+          let inComponents = false
+          let added = 0
+          const isBulletLike = (s:string)=> /^(?:\s*(?:[-*•·–—]|[🌹🎈💫🔥📌👉✅☑️⚫️🔹🔸★☆•·]))/.test(s) || /^(?:\s*\d+[\s\-\.)]?\s*\S+)/.test(s)
+          const stripLead = (s:string)=> String(s||'').replace(/^[\s🌹🎈💫🔥📌👉✅☑️⚫️🔹🔸★☆•·\-\*–—]+/, '').trim()
+          const looksPriceHint = (s:string)=> /(سعر|price|ريال|﷼|usd|aed|sar|egp|kwd|qr)/i.test(String(s||''))
+          for (const ln of lines){
+            const t = String(ln||'').trim()
+            if (!t) continue
+            if (/(?:مكونات\s*الطقم|المكونات)\b/i.test(t)) { inComponents = true; continue }
+            if (inComponents && added < 12) {
+              const content = stripLead(t)
+              if (!content || looksPriceHint(content)) continue
+              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, 'تفصيل', content, /(\d|cm|mm|in|kg|كجم|g|جرام)/i.test(content)? 0.75 : 0.6); added++ }
+              continue
+            }
+            if (isBulletLike(t) && added < 6) {
+              const content = stripLead(t)
+              if (!content || looksPriceHint(content)) continue
+              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, 'تفصيل', content, /(\d|cm|mm|in|kg|كجم|g|جرام)/i.test(content)? 0.7 : 0.6); added++ }
+            }
+          }
+        } catch {}
 
         // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة، ونستبعد ما يشير للسعر
         const hasCurrency = (s: unknown): boolean => /(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i.test(String(s||''))
@@ -6780,6 +6839,91 @@ adminRest.get('/notifications/rules', async (req, res) => {
     res.json({ rules: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'rules_list_failed' }); }
 });
+
+// Facebook Marketing: settings, analytics, recommendations, catalog feed
+adminRest.get('/marketing/facebook/settings', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.query.site||'web');
+    const key = `marketing:facebook:settings:${site}`;
+    const s = await db.setting.findUnique({ where: { key } });
+    res.json({ settings: (s?.value as any)||{} });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_settings_get_failed' }); }
+});
+adminRest.put('/marketing/facebook/settings', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.body?.site||'web');
+    const settings = req.body?.settings||{};
+    const key = `marketing:facebook:settings:${site}`;
+    const r = await db.setting.upsert({ where: { key }, update: { value: settings }, create: { key, value: settings } });
+    await audit(req,'marketing.facebook','settings_save',{ site });
+    res.json({ ok:true, settings: r.value });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_settings_put_failed' }); }
+});
+adminRest.get('/marketing/facebook/analytics', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    // Placeholder aggregates
+    const orders = await db.order.count({});
+    const revenue = await db.order.aggregate({ _sum: { total: true } });
+    const conv = Math.min(orders, 1000);
+    const roas = revenue._sum.total ? Number(revenue._sum.total)/Math.max(1, 1000) : 0; // fake adspend
+    const cpa = orders ? Math.round(1000/Math.max(1, orders)) : 0;
+    res.json({ analytics: { roas, conv, purchases: orders, cpa } });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_analytics_failed' }); }
+});
+adminRest.get('/marketing/facebook/recommendations', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const products = await db.product.findMany({ orderBy: { updatedAt: 'desc' }, take: 12 });
+    const items = products.map((p:any)=> ({ id: p.id, name: p.name, image: (p.images||[])[0]||'', price: p.price||0 }));
+    res.json({ items });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_recs_failed' }); }
+});
+adminRest.get('/marketing/facebook/catalog.xml', async (req, res) => {
+  try{
+    const site = String(req.query.site||'web');
+    const token = String(req.query.token||'');
+    const key = `marketing:facebook:settings:${site}`;
+    const s = await db.setting.findUnique({ where: { key } });
+    const expected = (s?.value as any)?.feedToken || '';
+    if (!expected || token !== expected) return res.status(403).send('forbidden');
+    res.set('Content-Type','application/xml');
+    const xml = ['<?xml version="1.0" encoding="UTF-8"?>','<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">','<channel>','<title>JEEEY Catalog</title>','<link>https://jeeey.com</link>','<description>Product feed</description>'];
+    const perPage = 1000;
+    let lastId: string | null = null;
+    for(;;){
+      const page = await db.product.findMany({
+        where: { isActive: true },
+        orderBy: { id: 'asc' },
+        take: perPage,
+        skip: lastId ? 1 : 0,
+        ...(lastId ? { cursor: { id: lastId } } : {})
+      });
+      if (!page.length) break;
+      for (const p of page){
+        const img = (p.images||[])[0]||'';
+        xml.push('<item>');
+        xml.push(`<g:id>${p.id}</g:id>`);
+        xml.push(`<title>${escapeXml(p.name)}</title>`);
+        xml.push(`<link>https://jeeey.com/p?id=${p.id}</link>`);
+        xml.push(`<g:price>${(p.price||0).toFixed(2)} SAR</g:price>`);
+        xml.push(`<g:image_link>${escapeXml(img)}</g:image_link>`);
+        xml.push(`<g:availability>${p.isActive ? 'in stock' : 'out of stock'}</g:availability>`);
+        if (p.brand) xml.push(`<g:brand>${escapeXml(p.brand)}</g:brand>`);
+        xml.push(`<g:condition>new</g:condition>`);
+        xml.push('</item>');
+      }
+      lastId = page[page.length - 1]?.id || null;
+      if (page.length < perPage) break;
+    }
+    xml.push('</channel></rss>');
+    res.send(xml.join(''));
+  }catch(e:any){ res.status(500).send('feed_failed'); }
+});
+
+function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c)=> ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as any)[c] || c) }
 adminRest.post('/notifications/rules', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });

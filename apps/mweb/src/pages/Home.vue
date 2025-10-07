@@ -11,7 +11,14 @@
             <Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
-        <div :class="['text-lg sm:text-xl font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
+        <div :class="['text-lg sm:text-xl font-semibold flex items-center justify-center', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">
+          <template v-if="brandLogo">
+            <img :src="brandLogo" alt="jeeey" class="h-7 w-auto object-contain" />
+          </template>
+          <template v-else>
+            jeeey
+          </template>
+        </div>
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="السلة" @click="go('/cart')">
             <ShoppingCart :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
@@ -34,12 +41,12 @@
 
     <div class="w-screen px-0">
       <div class="relative w-full h-[360px] sm:h-[420px]">
-          <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
-        <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
+          <img :src="hero.image" :alt="hero.alt" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
+        <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent" />
         <div class="absolute left-4 right-4 bottom-4 text-white">
-          <div class="text-[12px] mb-1">احتفالنا الأكبر على الإطلاق</div>
-          <div class="text-[32px] font-extrabold leading-tight">خصم يصل حتى 90%</div>
-          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200" aria-label="تسوّق الآن" @click="go('/products')">تسوّق الآن</button>
+          <div class="text-[12px] mb-1">{{ hero.kicker }}</div>
+          <div class="text-[32px] font-extrabold leading-tight">{{ hero.title }}</div>
+          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200" :aria-label="hero.cta||'تسوّق الآن'" @click="go(hero.link||'/products')">{{ hero.cta||'تسوّق الآن' }}</button>
         </div>
       </div>
     </div>
@@ -176,29 +183,40 @@
 
     <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
       <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
-        <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
-          <Home :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">الرئيسية</div>
-        </button>
-        <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
-          <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">الفئات</div>
-        </button>
-        <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
-          <Search :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">جديد</div>
-        </button>
-        <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
-          <div class="relative inline-block">
-            <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
-            <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
-          </div>
-          <div class="text-[11px] text-gray-700">الحقيبة</div>
-        </button>
-        <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
-          <User :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">حسابي</div>
-        </button>
+        <template v-if="(navTabs && navTabs.length)">
+          <button v-for="(t,idx) in navTabs" :key="'tab-'+idx" class="w-16 text-center" :aria-label="t.label" @click="go(t.href||'/')">
+            <div class="relative inline-block">
+              <component :is="iconComp(t.icon||'home')" :size="24" class="mx-auto mb-1 text-gray-600" />
+              <span v-if="(t.icon||'')==='cart' && cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
+            </div>
+            <div class="text-[11px] text-gray-700">{{ t.label }}</div>
+          </button>
+        </template>
+        <template v-else>
+          <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
+            <Home :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">الرئيسية</div>
+          </button>
+          <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
+            <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">الفئات</div>
+          </button>
+          <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
+            <Search :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">جديد</div>
+          </button>
+          <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
+            <div class="relative inline-block">
+              <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
+              <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
+            </div>
+            <div class="text-[11px] text-gray-700">الحقيبة</div>
+          </button>
+          <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
+            <User :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">حسابي</div>
+          </button>
+        </template>
       </div>
     </nav>
   </div>
@@ -225,8 +243,18 @@ function measureHeader(){ try{ const h = headerRef.value?.getBoundingClientRect(
 const tabsTopPx = computed(()=> headerH.value)
 
 // Banner responsive sources
-const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
-const bannerSrcSet = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w'
+const theme = ref<any>({})
+const hero = reactive({ image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1600&q=60', alt:'عرض تخفيضات', title:'خصم يصل حتى 90%', kicker:'احتفالنا الأكبر على الإطلاق', cta:'تسوّق الآن', link:'/products' })
+const brandLogo = computed(()=> {
+  const b = (theme.value?.branding)||{}
+  return scrolled.value ? (b.logoDark || b.logoLight || '') : (b.logoLight || '')
+})
+const navTabs = computed(()=> (theme.value?.navigation?.mweb?.tabs)||[])
+
+function iconComp(name: string){
+  const map: Record<string, any> = { home: Home, categories: LayoutGrid, search: Search, cart: ShoppingBag, user: User }
+  return map[name] || Home
+}
 
 function go(path: string){ router.push(path) }
 function onScroll(){ scrolled.value = window.scrollY > 60; nextTick(measureHeader) }
@@ -268,6 +296,21 @@ function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
 
 onMounted(async ()=>{
+  // Load live theme for mweb and bind to hero if provided
+  try{
+    const res = await fetch('/api/theme/config?site=mweb', { credentials:'include' })
+    const j = await res.json(); theme.value = j?.theme||{}
+    if (theme.value?.home?.sections){
+      const heroSec = theme.value.home.sections.find((s:any)=> s?.type==='hero')
+      if (heroSec?.config){
+        hero.image = heroSec.config.image || hero.image
+        hero.title = heroSec.config.title || hero.title
+        hero.kicker = heroSec.config.kicker || hero.kicker
+        hero.cta = heroSec.config.cta || hero.cta
+        hero.link = heroSec.config.link || hero.link
+      }
+    }
+  }catch{}
   // Categories
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')

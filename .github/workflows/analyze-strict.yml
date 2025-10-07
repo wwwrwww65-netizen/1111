@@ -1,0 +1,51 @@
+name: analyze-strict
+
+on:
+  push:
+    branches: [ hash ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  analyze-strict:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        ports: ['5432:5432']
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+      JWT_SECRET: secret_for_tests
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: npm i -g pnpm@8.6.10
+
+      - name: Install deps
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Prepare DB
+        run: |
+          pnpm --filter @repo/db db:push
+          pnpm --filter @repo/api run seed:admin || true
+
+      - name: Run rulesStrict tests
+        run: pnpm --filter @repo/api test -- src/__tests__/products.analyze.strict.test.ts
