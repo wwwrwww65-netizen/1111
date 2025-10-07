@@ -3006,6 +3006,9 @@ adminRest.get('/users/list', async (req, res) => {
     const limit = Math.min(Number(req.query.limit ?? 20), 100);
     const search = (req.query.search as string | undefined) ?? undefined;
     const roleFilter = (req.query.role as string | undefined)?.toUpperCase();
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const perm = (req.query.perm as string | undefined)?.trim();
     const skip = (page - 1) * limit;
     const where: any = {};
     if (search) where.OR = [
@@ -3016,6 +3019,23 @@ adminRest.get('/users/list', async (req, res) => {
     if (roleFilter === 'ADMIN') where.role = 'ADMIN';
     else if (roleFilter === 'USER') where.role = 'USER';
     else if (roleFilter === 'VENDOR') where.vendorId = { not: null };
+    if (from || to) where.createdAt = { ...(from? { gte: from }: {}), ...(to? { lte: to }: {}) };
+    let idFilter: string[] | undefined;
+    if (perm) {
+      try {
+        const rows: Array<{ id: string }> = await db.$queryRawUnsafe(`
+          SELECT DISTINCT u.id
+          FROM "User" u
+          JOIN "UserRoleLink" url ON url."userId"=u.id
+          JOIN "RolePermission" rp ON rp."roleId"=url."roleId"
+          JOIN "Permission" p ON p.id=rp."permissionId"
+          WHERE lower(p.key)=lower($1)
+        `, perm);
+        idFilter = rows.map(r=> r.id);
+        if (!idFilter.length) return res.json({ users: [], pagination: { page, limit, total: 0, totalPages: 0 } });
+        where.id = { in: idFilter };
+      } catch {}
+    }
     const [raw, total] = await Promise.all([
       db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true, vendorId: true } }),
       db.user.count({ where }),

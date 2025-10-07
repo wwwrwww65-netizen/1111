@@ -25,6 +25,9 @@ export default function UsersPage(): JSX.Element {
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
   const [rows, setRows] = React.useState<any[]>([]);
+  const [from, setFrom] = React.useState<string>("");
+  const [to, setTo] = React.useState<string>("");
+  const [perm, setPerm] = React.useState<string>("");
   const [roleName, setRoleName] = React.useState("MANAGER");
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [allChecked, setAllChecked] = React.useState(false);
@@ -46,6 +49,9 @@ export default function UsersPage(): JSX.Element {
     if (tab==='admins') url.searchParams.set('role','ADMIN');
     else if (tab==='users') url.searchParams.set('role','USER');
     else if (tab==='vendors') url.searchParams.set('role','VENDOR');
+    if (from) url.searchParams.set('from', from);
+    if (to) url.searchParams.set('to', to);
+    if (perm) url.searchParams.set('perm', perm);
     const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
     const json = await res.json();
     setRows(json.users || []);
@@ -87,7 +93,10 @@ export default function UsersPage(): JSX.Element {
       {tab !== 'permissions' && (
         <Toolbar left={<>
           <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" className="input" /></div>
-          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
+          <input type="date" value={from} onChange={(e)=> setFrom(e.target.value)} className="input" />
+          <input type="date" value={to} onChange={(e)=> setTo(e.target.value)} className="input" />
+          <input value={perm} onChange={(e)=> setPerm(e.target.value)} placeholder="perm.key (مثال: products.read)" className="input" />
+          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">تطبيق</button>
         </>} right={<>
           <button onClick={()=> setModalOpen(true)} className="btn">إضافة حساب</button>
           <button onClick={async()=>{
