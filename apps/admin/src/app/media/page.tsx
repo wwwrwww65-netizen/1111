@@ -41,7 +41,40 @@ export default function MediaPage(): JSX.Element {
       await load(page, search);
     } finally { setBusy(false); }
   }
-  function toBase64(f: File): Promise<string> { return new Promise((resolve,reject)=>{ const r = new FileReader(); r.onload=()=>resolve(String(r.result)); r.onerror=reject; r.readAsDataURL(f); }); }
+  async function toBase64(f: File): Promise<string> {
+    try {
+      const d = await cropAndConvert(f);
+      return d;
+    } catch {
+      return await new Promise((resolve,reject)=>{ const r = new FileReader(); r.onload=()=>resolve(String(r.result)); r.onerror=reject; r.readAsDataURL(f); });
+    }
+  }
+  async function cropAndConvert(file: File): Promise<string> {
+    // Simple client-side crop to square center and export to WebP; fallback to original
+    return new Promise<string>((resolve, reject) => {
+      try{
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          try{
+            const minSide = Math.min(img.width, img.height);
+            const sx = Math.floor((img.width - minSide)/2);
+            const sy = Math.floor((img.height - minSide)/2);
+            const canvas = document.createElement('canvas');
+            const target = Math.min(1024, minSide);
+            canvas.width = target; canvas.height = target;
+            const ctx = canvas.getContext('2d'); if (!ctx) { URL.revokeObjectURL(url); return reject(new Error('no_ctx')); }
+            ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, target, target);
+            const out = canvas.toDataURL('image/webp', 0.9);
+            URL.revokeObjectURL(url);
+            resolve(out);
+          }catch(e){ URL.revokeObjectURL(url); reject(e as any); }
+        };
+        img.onerror = ()=> { URL.revokeObjectURL(url); reject(new Error('img_error')); };
+        img.src = url;
+      } catch(e){ reject(e as any); }
+    });
+  }
   return (
     <main className="panel" style={{ padding:16 }}>
       <h1 className="text-xl font-bold mb-3">الوسائط</h1>
@@ -51,6 +84,7 @@ export default function MediaPage(): JSX.Element {
         <input className="input" value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="https://..." />
         <input className="input" type="file" accept="image/*" multiple onChange={(e)=>{ const list = Array.from(e.target.files||[]); if (list.length) setFiles(list); }} />
         <button className="btn" onClick={add} disabled={busy}>{busy? 'جارٍ الرفع…':'إضافة'}</button>
+        <button className="btn btn-outline" onClick={async()=>{ try{ const r = await fetch(`${apiBase}/api/admin/media/dedupe`, { method:'POST', credentials:'include' }); const j = await r.json(); alert(`تم حذف ${j.deleted||0} مكرر`); await load(page, search); } catch{ alert('فشل إزالة التكرار'); } }}>إزالة التكرار</button>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:8 }}>
         {rows.map((a)=> (

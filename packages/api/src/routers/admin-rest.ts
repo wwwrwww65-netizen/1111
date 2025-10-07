@@ -3130,16 +3130,14 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
     }
   }
   if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
-  // Attempt to dedupe by checksum if URL is local hashed path
+  // Attempt to dedupe by checksum whenever base64 present
   let checksum: string|undefined;
   try {
-    if (finalUrl.includes('/uploads/')) {
-      const m2 = String(base64||'').match(/^data:(.*?);base64,(.*)$/);
-      if (m2) {
-        const crypto = require('crypto');
-        const buf = Buffer.from(m2[2], 'base64');
-        checksum = crypto.createHash('sha256').update(buf).digest('hex');
-      }
+    const m2 = String(base64||'').match(/^data:(.*?);base64,(.*)$/);
+    if (m2) {
+      const crypto = require('crypto');
+      const buf = Buffer.from(m2[2], 'base64');
+      checksum = crypto.createHash('sha256').update(buf).digest('hex');
     }
   } catch {}
   let asset;
@@ -3159,6 +3157,32 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
   }
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
+});
+
+// Dedupe media by checksum, keep most recent per checksum
+adminRest.post('/media/dedupe', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'media.delete'))) return res.status(403).json({ error:'forbidden' });
+    const rows: Array<{ checksum: string, ids: string[] }> = await db.$queryRawUnsafe(
+      `SELECT checksum, array_agg(id ORDER BY "createdAt" DESC) AS ids
+       FROM "MediaAsset"
+       WHERE checksum IS NOT NULL
+       GROUP BY checksum
+       HAVING COUNT(*) > 1`
+    );
+    let deleted = 0;
+    for (const r of rows) {
+      const dupes = r.ids.slice(1);
+      if (dupes.length) {
+        const out = await db.mediaAsset.deleteMany({ where: { id: { in: dupes } } });
+        deleted += out.count;
+      }
+    }
+    await audit(req, 'media', 'dedupe', { deleted });
+    return res.json({ ok:true, deleted });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'media_dedupe_failed' });
+  }
 });
 adminRest.get('/settings', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
