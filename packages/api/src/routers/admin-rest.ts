@@ -6924,6 +6924,99 @@ adminRest.get('/marketing/facebook/catalog.xml', async (req, res) => {
 });
 
 function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c)=> ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as any)[c] || c) }
+
+  // Meta (Facebook) direct integration: settings + test endpoints
+  adminRest.get('/integrations/meta/settings', async (req, res) => {
+    try{
+      const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+      const site = String(req.query.site||'web');
+      const key = `integrations:meta:settings:${site}`;
+      const s = await db.setting.findUnique({ where: { key } });
+      const v = (s?.value as any) || {};
+      // Mask secrets in response (UI can show toggle to reveal if needed)
+      const mask = (t?: string)=> t ? `${String(t).slice(0,4)}***${String(t).slice(-2)}` : '';
+      const out = { ...v } as any;
+      if (out.appSecret) out.appSecretMasked = mask(out.appSecret);
+      if (out.systemUserToken) out.systemUserTokenMasked = mask(out.systemUserToken);
+      if (out.conversionsToken) out.conversionsTokenMasked = mask(out.conversionsToken);
+      res.json({ settings: out });
+    }catch(e:any){ res.status(500).json({ error: e.message||'meta_settings_get_failed' }); }
+  });
+
+  adminRest.put('/integrations/meta/settings', async (req, res) => {
+    try{
+      const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+      const site = String(req.body?.site||'web');
+      const settings = req.body?.settings||{};
+      const key = `integrations:meta:settings:${site}`;
+      const r = await db.setting.upsert({ where: { key }, update: { value: settings }, create: { key, value: settings } });
+      await audit(req,'integrations.meta','settings_save',{ site });
+      res.json({ ok:true, settings: r.value });
+    }catch(e:any){ res.status(500).json({ error: e.message||'meta_settings_put_failed' }); }
+  });
+
+  // Test Conversions API (server-side Pixel)
+  adminRest.post('/integrations/meta/test/pixel', async (req, res) => {
+    try{
+      const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+      const site = String(req.body?.site||'web');
+      const key = `integrations:meta:settings:${site}`;
+      const s = await db.setting.findUnique({ where: { key } });
+      const v = (s?.value as any) || {};
+      const pixelId = String(v.pixelId||'');
+      const accessToken = String(v.conversionsToken||'');
+      const testEventCode = String(v.testEventCode||'');
+      if (!pixelId || !accessToken) return res.status(400).json({ error:'missing_pixel_credentials' });
+      const allowExternal = String(process.env.META_ALLOW_EXTERNAL||'').toLowerCase() === '1' && String(process.env.CI||'').toLowerCase() !== 'true';
+      if (!allowExternal) {
+        return res.json({ ok:true, simulated:true, reason:'ci_or_external_disabled' });
+      }
+      const url = new URL(`https://graph.facebook.com/v18.0/${encodeURIComponent(pixelId)}/events`);
+      url.searchParams.set('access_token', accessToken);
+      const ev = {
+        data: [
+          {
+            event_name: 'PageView',
+            event_time: Math.floor(Date.now()/1000),
+            action_source: 'website',
+            event_source_url: 'https://jeeey.com/admin/integrations/meta',
+          }
+        ],
+        test_event_code: testEventCode || undefined
+      };
+      const r = await fetch(url.toString(), { method:'POST', headers: { 'content-type':'application/json' }, body: JSON.stringify(ev) }).catch(()=> null as any);
+      const jr = await r?.json().catch(()=> ({}));
+      const ok = Boolean(r?.ok);
+      await audit(req,'integrations.meta','pixel_test',{ site, ok });
+      if (!ok) return res.status(400).json({ ok:false, response: jr });
+      res.json({ ok:true, response: jr });
+    }catch(e:any){ res.status(500).json({ error: e.message||'meta_pixel_test_failed' }); }
+  });
+
+  // Test Catalog API credentials (no external call in CI)
+  adminRest.post('/integrations/meta/test/catalog', async (req, res) => {
+    try{
+      const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+      const site = String(req.body?.site||'web');
+      const key = `integrations:meta:settings:${site}`;
+      const s = await db.setting.findUnique({ where: { key } });
+      const v = (s?.value as any) || {};
+      const catalogId = String(v.catalogId||'');
+      const systemToken = String(v.systemUserToken||'');
+      if (!catalogId || !systemToken) return res.status(400).json({ error:'missing_catalog_credentials' });
+      const allowExternal = String(process.env.META_ALLOW_EXTERNAL||'').toLowerCase() === '1' && String(process.env.CI||'').toLowerCase() !== 'true';
+      if (!allowExternal) {
+        return res.json({ ok:true, simulated:true, reason:'ci_or_external_disabled' });
+      }
+      const url = `https://graph.facebook.com/v18.0/${encodeURIComponent(catalogId)}?fields=id,name&access_token=${encodeURIComponent(systemToken)}`;
+      const r = await fetch(url, { method:'GET' }).catch(()=> null as any);
+      const jr = await r?.json().catch(()=> ({}));
+      const ok = Boolean(r?.ok);
+      await audit(req,'integrations.meta','catalog_test',{ site, ok });
+      if (!ok) return res.status(400).json({ ok:false, response: jr });
+      res.json({ ok:true, response: jr });
+    }catch(e:any){ res.status(500).json({ error: e.message||'meta_catalog_test_failed' }); }
+  });
 adminRest.post('/notifications/rules', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
