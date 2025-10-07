@@ -87,6 +87,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/coupons', label: 'الكوبونات' },
       { href: '/promotions', label: 'العروض' },
       { href: '/trends/management', label: 'الاتجاهات' },
+      { href: '/marketing/facebook', label: 'تسويق فيسبوك' },
     ],
   },
   {

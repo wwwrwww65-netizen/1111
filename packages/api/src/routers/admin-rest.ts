@@ -6780,6 +6780,76 @@ adminRest.get('/notifications/rules', async (req, res) => {
     res.json({ rules: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'rules_list_failed' }); }
 });
+
+// Facebook Marketing: settings, analytics, recommendations, catalog feed
+adminRest.get('/marketing/facebook/settings', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.query.site||'web');
+    const key = `marketing:facebook:settings:${site}`;
+    const s = await db.setting.findUnique({ where: { key } });
+    res.json({ settings: (s?.value as any)||{} });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_settings_get_failed' }); }
+});
+adminRest.put('/marketing/facebook/settings', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.body?.site||'web');
+    const settings = req.body?.settings||{};
+    const key = `marketing:facebook:settings:${site}`;
+    const r = await db.setting.upsert({ where: { key }, update: { value: settings }, create: { key, value: settings } });
+    await audit(req,'marketing.facebook','settings_save',{ site });
+    res.json({ ok:true, settings: r.value });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_settings_put_failed' }); }
+});
+adminRest.get('/marketing/facebook/analytics', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    // Placeholder aggregates
+    const orders = await db.order.count({});
+    const revenue = await db.order.aggregate({ _sum: { total: true } });
+    const conv = Math.min(orders, 1000);
+    const roas = revenue._sum.total ? Number(revenue._sum.total)/Math.max(1, 1000) : 0; // fake adspend
+    const cpa = orders ? Math.round(1000/Math.max(1, orders)) : 0;
+    res.json({ analytics: { roas, conv, purchases: orders, cpa } });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_analytics_failed' }); }
+});
+adminRest.get('/marketing/facebook/recommendations', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const products = await db.product.findMany({ orderBy: { updatedAt: 'desc' }, take: 12 });
+    const items = products.map((p:any)=> ({ id: p.id, name: p.name, image: (p.images||[])[0]||'', price: p.price||0 }));
+    res.json({ items });
+  }catch(e:any){ res.status(500).json({ error: e.message||'fb_recs_failed' }); }
+});
+adminRest.get('/marketing/facebook/catalog.xml', async (req, res) => {
+  try{
+    const site = String(req.query.site||'web');
+    const token = String(req.query.token||'');
+    const key = `marketing:facebook:settings:${site}`;
+    const s = await db.setting.findUnique({ where: { key } });
+    const expected = (s?.value as any)?.feedToken || '';
+    if (!expected || token !== expected) return res.status(403).send('forbidden');
+    const rows = await db.product.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, take: 200 });
+    res.set('Content-Type','application/xml');
+    const xml = ['<?xml version="1.0" encoding="UTF-8"?>','<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">','<channel>','<title>JEEEY Catalog</title>','<link>https://jeeey.com</link>','<description>Product feed</description>'];
+    for (const p of rows){
+      const img = (p.images||[])[0]||'';
+      xml.push('<item>');
+      xml.push(`<g:id>${p.id}</g:id>`);
+      xml.push(`<title>${escapeXml(p.name)}</title>`);
+      xml.push(`<link>https://jeeey.com/p?id=${p.id}</link>`);
+      xml.push(`<g:price>${(p.price||0).toFixed(2)} SAR</g:price>`);
+      xml.push(`<g:image_link>${escapeXml(img)}</g:image_link>`);
+      xml.push(`<g:availability>in stock</g:availability>`);
+      xml.push('</item>');
+    }
+    xml.push('</channel></rss>');
+    res.send(xml.join(''));
+  }catch(e:any){ res.status(500).send('feed_failed'); }
+});
+
+function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c)=> ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as any)[c] || c) }
 adminRest.post('/notifications/rules', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
