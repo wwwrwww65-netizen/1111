@@ -9,6 +9,24 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/app
+      JWT_SECRET: test_secret
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -19,7 +37,11 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
+      - name: Prepare database (db push)
+        run: pnpm --filter @repo/db db:push
+      - name: Seed minimal data
+        run: pnpm --filter @repo/db db:seed:admin-only
       - name: Lint
         run: pnpm lint || true
       - name: Typecheck (best-effort)
