@@ -1086,9 +1086,20 @@ adminRest.get('/orders/list', async (req, res) => {
 adminRest.get('/orders/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
-    const items = await db.order.findMany({ include: { user: true, items: true, shipments: true, payment: true } });
-    const flat = items.map(o => ({ id:o.id, date:o.createdAt.toISOString(), user:o.user?.email||'', items:o.items.length, total:o.total||0, status:o.status, payment:o.payment?.status||'', shipments:o.shipments.length }));
-    const parser = new CsvParser({ fields: ['id','date','user','items','total','status','payment','shipments'] });
+    const items = await db.order.findMany({ include: { user: true, items: { include: { product: true } }, shipments: true, payment: true } });
+    const flat = items.map(o => ({
+      id:o.id,
+      date:o.createdAt.toISOString(),
+      userEmail:o.user?.email||'',
+      userPhone:o.user?.phone||'',
+      total:o.total||0,
+      status:o.status,
+      paymentStatus:o.payment?.status||'',
+      shipments:o.shipments.length,
+      itemCount:o.items.length,
+      items:o.items.map(i=> `${i.product?.name||''}×${i.quantity}`).join(' | ')
+    }));
+    const parser = new CsvParser({ fields: ['id','date','userEmail','userPhone','itemCount','items','total','status','paymentStatus','shipments'] });
     const csv = parser.parse(flat);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
