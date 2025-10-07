@@ -50,6 +50,27 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
     });
   });
 
+  // Apply theme CSS variables from server (live config)
+  React.useEffect(() => {
+    async function loadTheme() {
+      try {
+        const res = await fetch('/api/theme/config?site=web', { credentials: 'include' });
+        const j = await res.json();
+        const theme = j?.theme || {};
+        const root = document.documentElement as HTMLElement;
+        const c = theme.colors || {};
+        if (c.primary) root.style.setProperty('--color-primary', String(c.primary));
+        if (c.secondary) root.style.setProperty('--color-secondary', String(c.secondary));
+        if (c.bg) root.style.setProperty('--color-bg', String(c.bg));
+        if (c.text) root.style.setProperty('--color-text', String(c.text));
+        const r = theme.radius || {};
+        if (r.md != null) root.style.setProperty('--radius-md', String(r.md) + 'px');
+        if (r.lg != null) root.style.setProperty('--radius-lg', String(r.lg) + 'px');
+      } catch {}
+    }
+    if (typeof window !== 'undefined') loadTheme();
+  }, []);
+
   React.useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       try { navigator.serviceWorker.register('/sw.js'); } catch {}

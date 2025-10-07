@@ -1187,6 +1187,19 @@ shop.post('/coupons/apply', requireAuth, async (req:any, res) => {
   }catch(e:any){ res.status(500).json({ error:e.message||'failed' }) }
 })
 
+// Public: Theme config for sites (web/mweb)
+shop.get('/theme/config', async (req, res) => {
+  try{
+    const { db } = require('@repo/db');
+    const site = String(req.query.site||'web');
+    const key = `theme:${site}:live`;
+    const s = await db.setting.findUnique({ where: { key } });
+    const theme = (s?.value as any) || {};
+    res.setHeader('Cache-Control','public, max-age=60');
+    res.json({ site, theme });
+  }catch(e:any){ res.status(500).json({ error: e.message||'theme_config_failed' }) }
+})
+
 // Shipping quote (simple placeholder; replace with provider call if enabled)
 shop.get('/shipping/quote', async (req, res) => {
   try{
