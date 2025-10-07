@@ -36,10 +36,10 @@ export default function CategoriesPage(): JSX.Element {
   const [trNameEn, setTrNameEn] = React.useState("");
   const [trDescEn, setTrDescEn] = React.useState("");
   const [jsonEditorOpen, setJsonEditorOpen] = React.useState<boolean>(false);
-  const [jsonText, setJsonText] = React.useState<string>("{
-  \"ar\": { \"name\": \"\", \"description\": \"\" },
-  \"en\": { \"name\": \"\", \"description\": \"\" }
-}");
+  const [jsonText, setJsonText] = React.useState<string>(`{
+  "ar": { "name": "", "description": "" },
+  "en": { "name": "", "description": "" }
+}`);
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m:string) => { setToast(m); setTimeout(()=>setToast(""), 1800); };
 
