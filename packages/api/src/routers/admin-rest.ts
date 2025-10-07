@@ -3,7 +3,10 @@ import { verifyToken, createToken } from '../middleware/auth';
 import { readTokenFromRequest, readAdminTokenFromRequest } from '../utils/jwt';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import { Parser as CsvParser } from 'json2csv';
-import * as XLSX from 'xlsx';
+// Optional XLSX usage guarded at runtime; keep import type-only to avoid bundling errors
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import type * as XLSX from 'xlsx';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
 import { authenticator } from 'otplib';
@@ -2375,7 +2378,7 @@ adminRest.post('/logistics/delivery/proof/batch', async (req, res) => {
     const results: any[] = [];
     for (const it of items) {
       try {
-        const r = await (await fetch('http://localhost', { method:'POST' } as any)).catch(()=>null); // placeholder no-op
+        const r = await fetch('http://localhost', { method:'POST' } as any).catch(()=>null); // placeholder no-op
         // Reuse local logic
         const payload: any = { orderId: it.orderId, signatureBase64: it.signatureBase64, photoBase64: it.photoBase64, photoUrl: it.photoUrl };
         // Directly call handler logic
@@ -3678,14 +3681,14 @@ adminRest.post('/vendors/:id/catalog/upload', async (req, res) => {
               await db.product.update({ where: { id: ex.id }, data: { name, price: price??ex.price, stockQuantity: stock??ex.stockQuantity, images: imagesRaw.length? imagesRaw : ex.images, vendorId: id } });
               updated++;
             } else {
-              await db.product.create({ data: { name, sku, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id, categoryId: exDefaultCategoryId } as any }).catch(async()=>{
-                // fallback without category
-                await db.product.create({ data: { name, sku, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id } });
-              });
+              // Ensure a default 'Uncategorized' category exists
+              const defCat = await db.category.upsert({ where: { slug: 'uncategorized' }, update: {}, create: { name: 'Uncategorized', slug: 'uncategorized', seoKeywords: [] } });
+              await db.product.create({ data: { name, description: String(name), sku, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id, categoryId: defCat.id } });
               created++;
             }
           } else {
-            await db.product.create({ data: { name, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id } });
+            const defCat2 = await db.category.upsert({ where: { slug: 'uncategorized' }, update: {}, create: { name: 'Uncategorized', slug: 'uncategorized', seoKeywords: [] } });
+            await db.product.create({ data: { name, description: String(name), price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id, categoryId: defCat2.id } });
             created++;
           }
         }
@@ -5700,7 +5703,7 @@ adminRest.post('/auth/login', loginLimiter as any, async (req, res) => {
         try {
           const hash = await bcrypt.hash(cfgAdminPass, 10);
           await db.user.update({ where: { id: user.id }, data: { password: hash, role: (user as any).role || 'ADMIN' } });
-          user = await db.user.findUnique({ where: { id: user.id }, select: { id:true, email:true, password:true, role:true } });
+          user = await db.user.findUnique({ where: { id: user.id }, select: { id:true, email:true, password:true, role:true, failedLoginAttempts: true, lockUntil: true } });
         } catch {}
       } else {
         try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { reason: 'no_password' } } }); } catch {}
