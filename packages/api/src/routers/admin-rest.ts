@@ -4242,6 +4242,32 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
         if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
 
+        // Extra capture: bullet-like lines and components section (e.g., 🌹1سرير ...)
+        try {
+          const lines = String(raw||'').split(/\r?\n/)
+          let inComponents = false
+          let added = 0
+          const isBulletLike = (s:string)=> /^(?:\s*(?:[-*•·–—]|[🌹🎈💫🔥📌👉✅☑️⚫️🔹🔸★☆•·]))/.test(s) || /^(?:\s*\d+[\s\-\.)]?\s*\S+)/.test(s)
+          const stripLead = (s:string)=> String(s||'').replace(/^[\s🌹🎈💫🔥📌👉✅☑️⚫️🔹🔸★☆•·\-\*–—]+/, '').trim()
+          const looksPriceHint = (s:string)=> /(سعر|price|ريال|﷼|usd|aed|sar|egp|kwd|qr)/i.test(String(s||''))
+          for (const ln of lines){
+            const t = String(ln||'').trim()
+            if (!t) continue
+            if (/(?:مكونات\s*الطقم|المكونات)\b/i.test(t)) { inComponents = true; continue }
+            if (inComponents && added < 12) {
+              const content = stripLead(t)
+              if (!content || looksPriceHint(content)) continue
+              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, 'تفصيل', content, /(\d|cm|mm|in|kg|كجم|g|جرام)/i.test(content)? 0.75 : 0.6); added++ }
+              continue
+            }
+            if (isBulletLike(t) && added < 6) {
+              const content = stripLead(t)
+              if (!content || looksPriceHint(content)) continue
+              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, 'تفصيل', content, /(\d|cm|mm|in|kg|كجم|g|جرام)/i.test(content)? 0.7 : 0.6); added++ }
+            }
+          }
+        } catch {}
+
         // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة، ونستبعد ما يشير للسعر
         const hasCurrency = (s: unknown): boolean => /(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i.test(String(s||''))
         const looksLikeBareNumber = (s: unknown): boolean => /^\[?\s*\d{2,7}(?:[\.,][0-9]{1,2})?\s*\]?$/i.test(String(s||'').trim())
