@@ -2772,6 +2772,69 @@ adminRest.patch('/carriers/:id', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message || 'carrier_update_failed' }); }
 });
 
+// Carrier documents (idempotent table)
+adminRest.get('/carriers/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'carriers.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "CarrierDocument" (id TEXT PRIMARY KEY, "carrierId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "CarrierDocument" WHERE "carrierId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'carrier_docs_failed' }); }
+});
+adminRest.post('/carriers/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'carriers.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const { docType, url, base64, expiresAt } = req.body || {};
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "CarrierDocument" (id TEXT PRIMARY KEY, "carrierId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    let finalUrl = url as string | undefined;
+    if (!finalUrl && base64) { try { const saved = await db.mediaAsset.create({ data: { url: base64, type:'image' } }); finalUrl = saved.url; } catch {} }
+    const docId = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "CarrierDocument" (id, "carrierId", "docType", url, "expiresAt") VALUES ($1,$2,$3,$4,$5)', docId, id, docType||null, finalUrl||null, expiresAt? new Date(String(expiresAt)) : null);
+    await audit(req,'carriers','doc_add',{ id, docType });
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "CarrierDocument" WHERE "carrierId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'carrier_docs_add_failed' }); }
+});
+adminRest.get('/carriers/alerts/expiring', async (_req, res) => {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "CarrierDocument" (id TEXT PRIMARY KEY, "carrierId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT c.id as "carrierId", c.name, COUNT(d.id) as expiring
+      FROM "Carrier" c
+      LEFT JOIN "CarrierDocument" d ON d."carrierId"=c.id AND d."expiresAt" <= NOW() + INTERVAL '30 days'
+      GROUP BY c.id, c.name
+      HAVING COUNT(d.id) > 0
+      ORDER BY expiring DESC`);
+    return res.json({ alerts: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'carrier_alerts_failed' }); }
+});
+
+// Shipment documents (idempotent table)
+adminRest.get('/shipments/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'shipments.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShipmentDocument" (id TEXT PRIMARY KEY, "shipmentId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "ShipmentDocument" WHERE "shipmentId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'shipment_docs_failed' }); }
+});
+adminRest.post('/shipments/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'shipments.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const { docType, url, base64, expiresAt } = req.body || {};
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShipmentDocument" (id TEXT PRIMARY KEY, "shipmentId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    let finalUrl = url as string | undefined;
+    if (!finalUrl && base64) { try { const saved = await db.mediaAsset.create({ data: { url: base64, type:'image' } }); finalUrl = saved.url; } catch {} }
+    const docId = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "ShipmentDocument" (id, "shipmentId", "docType", url, "expiresAt") VALUES ($1,$2,$3,$4,$5)', docId, id, docType||null, finalUrl||null, expiresAt? new Date(String(expiresAt)) : null);
+    await audit(req,'shipments','doc_add',{ id, docType });
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "ShipmentDocument" WHERE "shipmentId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'shipment_docs_add_failed' }); }
+});
+
 // Shipments
 adminRest.get('/shipments', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
