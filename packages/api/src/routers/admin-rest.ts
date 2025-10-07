@@ -4040,9 +4040,11 @@ adminRest.post('/products/analyze', async (req, res) => {
         const addCand = (v:number, around:string)=>{
           const bad = /(جديد|جنوب|جنوبي|قعيطي|سعودي)/i.test(around)
           if (bad) return
+          // ignore weight contexts even if price word appears nearby
+          if (/وزن/i.test(around)) return
           let tag = 4
           if (/قديم/i.test(around)) tag = 1
-          else if (/(للشمال|الشمال)/i.test(around)) tag = 2
+          else if (/(للشمال|الشمال|\bشمال\b|شمالي)/i.test(around)) tag = 2
           cands.push({ v, tag, ctx: around })
         }
         const hasCurrencyTok = (s:string)=> new RegExp(CUR,'i').test(s)
@@ -4061,7 +4063,18 @@ adminRest.post('/products/analyze', async (req, res) => {
           addCand(numVal, ctx)
         }
         cands.sort((a,b)=> a.tag - b.tag)
-        const cost = cands.length ? cands[0].v : (typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined)
+        let cost = cands.length ? cands[0].v : (typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined)
+        // Fallback: try explicit priority scans if no valid cost yet
+        if (!(typeof cost === 'number' && Number.isFinite(cost))) {
+          const num = (s:string)=> Number(String(s).replace(/[٬٫,]/g,'.'))
+          const oldM = rt.match(/(?:قديم|القديم)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
+          const northM = rt.match(/(?:للشمال|الشمال|\bشمال\b|شمالي)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
+          const priceM = rt.match(/(?:السعر|سعر|price|البيع)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
+          const currM = rt.match(/(\d+[\.,٬٫]?\d*)\s*(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i)
+          const pick = oldM?.[1] ?? northM?.[1] ?? priceM?.[1] ?? currM?.[1]
+          const cand = pick ? num(pick) : undefined
+          if (typeof cand === 'number' && Number.isFinite(cand) && cand >= 80) cost = cand
+        }
         // Stock
         const stockMatch = rt.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)
         const stock = stockMatch ? Number(stockMatch[1]) : undefined
