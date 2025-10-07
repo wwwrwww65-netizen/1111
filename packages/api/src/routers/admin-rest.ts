@@ -6720,6 +6720,55 @@ adminRest.get('/notifications/templates', async (req, res) => {
     res.json({ templates: items });
   } catch (e:any) { res.status(500).json({ error: e.message||'templates_failed' }); }
 });
+
+// Design/Theming: Draft/Live storage in Setting table
+adminRest.get('/design/theme', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.query.site||'web');
+    const mode = String(req.query.mode||'draft'); // draft|live
+    const key = `theme:${site}:${mode}`;
+    const s = await db.setting.findUnique({ where: { key } });
+    res.json({ site, mode, theme: s?.value||null });
+  } catch (e:any) { res.status(500).json({ error: e.message||'theme_get_failed' }); }
+});
+adminRest.put('/design/theme', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.body?.site||'web');
+    const mode = String(req.body?.mode||'draft');
+    const theme = req.body?.theme||{};
+    const key = `theme:${site}:${mode}`;
+    const r = await db.setting.upsert({ where: { key }, update: { value: theme }, create: { key, value: theme } });
+    await audit(req,'design','theme_save',{ site, mode });
+    res.json({ ok:true, theme: r.value });
+  } catch (e:any) { res.status(500).json({ error: e.message||'theme_put_failed' }); }
+});
+adminRest.post('/design/theme/publish', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.body?.site||'web');
+    const draftKey = `theme:${site}:draft`;
+    const liveKey = `theme:${site}:live`;
+    const d = await db.setting.findUnique({ where: { key: draftKey } });
+    const theme = d?.value||{};
+    await db.setting.upsert({ where: { key: liveKey }, update: { value: theme }, create: { key: liveKey, value: theme } });
+    await audit(req,'design','theme_publish',{ site });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'theme_publish_failed' }); }
+});
+
+// Public theme config for web/mweb consumption
+adminRest.get('/public/theme/config', async (req, res) => {
+  try {
+    const site = String(req.query.site||'web');
+    const key = `theme:${site}:live`;
+    const s = await db.setting.findUnique({ where: { key } });
+    const theme = (s?.value as any) || {};
+    res.set('Cache-Control','public, max-age=60');
+    res.json({ site, theme });
+  } catch (e:any) { res.status(500).json({ error: e.message||'theme_config_failed' }); }
+});
 adminRest.get('/notifications/rules', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });

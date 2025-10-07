@@ -6,6 +6,15 @@ type NavItem = { href: string; label: string };
 
 const groups: Array<{ title?: string; items: NavItem[] }> = [
   {
+    title: 'التصميم والمظهر',
+    items: [
+      { href: '/design/theme', label: 'المظهر العام' },
+      { href: '/design/branding', label: 'الشعارات والأيقونات' },
+      { href: '/design/navigation', label: 'التنقل والشرائط' },
+      { href: '/design/home', label: 'الصفحة الرئيسية' },
+    ],
+  },
+  {
     items: [
       { href: '/', label: 'الرئيسية' },
     ],
