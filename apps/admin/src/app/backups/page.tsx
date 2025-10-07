@@ -6,6 +6,8 @@ export default function BackupsPage(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [schedule, setSchedule] = React.useState<string>("daily");
   const [retained, setRetained] = React.useState<number>(30);
+  const [progress, setProgress] = React.useState<number>(0);
+  const [msg, setMsg] = React.useState<string>("");
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -16,7 +18,11 @@ export default function BackupsPage(): JSX.Element {
   },[]);
   async function load(){ const j = await (await fetch(`${apiBase}/api/admin/backups/list`, { credentials:'include', headers:{ ...authHeaders() } })).json(); setRows(j.backups||[]); }
   React.useEffect(()=>{ load(); },[apiBase]);
-  async function run(){ await fetch(`${apiBase}/api/admin/backups/run`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
+  async function run(){
+    setMsg('جاري النسخ الاحتياطي…'); setProgress(10);
+    try{ await fetch(`${apiBase}/api/admin/backups/run`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); setProgress(100); setMsg('اكتمل النسخ الاحتياطي'); } catch { setMsg('فشل النسخ الاحتياطي'); }
+    finally { setTimeout(()=> setMsg(''), 2000); await load(); setProgress(0); }
+  }
   async function restore(id: string){ await fetch(`${apiBase}/api/admin/backups/${id}/restore`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
   async function saveSchedule(){ await fetch(`${apiBase}/api/admin/backups/schedule`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ schedule }) }); }
   return (
@@ -31,6 +37,12 @@ export default function BackupsPage(): JSX.Element {
         <button onClick={saveSchedule} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>حفظ الجدولة</button>
         <div style={{ marginInlineStart:'auto', color:'#94a3b8' }}>الاحتفاظ: آخر {retained} يومًا (مدار عبر الخادم)</div>
       </div>
+      {msg && (<div className={`toast ${/فشل/.test(msg)? 'err':'ok'}`} role="status" aria-live="polite">{msg}</div>)}
+      {progress>0 && (
+        <div style={{ height:8, background:'#1f2937', borderRadius:999, overflow:'hidden', marginBottom:12 }}>
+          <div style={{ width:`${progress}%`, height:'100%', background:'#22c55e', transition:'width .3s' }} />
+        </div>
+      )}
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead>
           <tr>
