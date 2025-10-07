@@ -64,22 +64,30 @@ export default function DeliveryPage(): JSX.Element {
     return ()=> { cancelled = true; };
   }, []);
 
-  // Update driver markers when live locations change
+  // Update driver markers when live locations change (clustered)
   React.useEffect(()=>{
     if (!mapObjRef.current || !(window as any).maplibregl) return;
-    for (const m of markersRef.current) { try { m.remove(); } catch {}
-    }
+    for (const m of markersRef.current) { try { m.remove(); } catch {} }
     markersRef.current = [];
     const maplibregl = (window as any).maplibregl;
+    // naive grid clustering
+    const cell = 0.1; // ~11km grid
+    const grid = new Map<string, Array<any>>();
     for (const d of driversLive) {
       if (typeof d.lng !== 'number' || typeof d.lat !== 'number') continue;
+      const gx = Math.floor(d.lng / cell); const gy = Math.floor(d.lat / cell);
+      const key = `${gx}:${gy}`;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key)!.push(d);
+    }
+    for (const [_, group] of grid) {
+      const lng = group.reduce((a,c)=> a + c.lng, 0)/group.length;
+      const lat = group.reduce((a,c)=> a + c.lat, 0)/group.length;
       const el = document.createElement('div');
-      el.style.width = '10px';
-      el.style.height = '10px';
-      el.style.borderRadius = '50%';
-      el.style.background = d.status === 'AVAILABLE' ? '#22c55e' : '#f59e0b';
-      el.title = d.name || '';
-      const mk = new maplibregl.Marker({ element: el }).setLngLat([d.lng, d.lat]).addTo(mapObjRef.current);
+      el.style.width = '22px'; el.style.height = '22px'; el.style.borderRadius = '50%'; el.style.display='grid'; el.style.placeItems='center';
+      el.style.background = '#1e293b'; el.style.color='#e2e8f0'; el.style.fontSize='12px'; el.style.border='1px solid #334155';
+      el.textContent = String(group.length);
+      const mk = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(mapObjRef.current);
       markersRef.current.push(mk);
     }
   }, [driversLive]);

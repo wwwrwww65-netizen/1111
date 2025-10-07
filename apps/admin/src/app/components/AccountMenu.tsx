@@ -23,6 +23,13 @@ export function AccountMenu(): JSX.Element {
     try { await fetch(`${apiBase}/api/admin/auth/logout`, { method:'POST', credentials:'include' }); } catch {}
     window.location.href = '/login';
   }
+  async function lockNow(){
+    try {
+      localStorage.setItem('admin_locked','1');
+      if (user?.email) localStorage.setItem('admin_locked_email', user.email);
+    } catch {}
+    window.location.href = '/lock';
+  }
   return (
     <div className="account-menu" style={{ position:'relative' }}>
       <button className="icon-btn" onClick={()=> setOpen(o=>!o)} aria-haspopup="menu" aria-expanded={open}>
@@ -36,6 +43,7 @@ export function AccountMenu(): JSX.Element {
         <div role="menu" className="dropdown" style={{ position:'absolute', insetInlineEnd:0, marginTop:8, minWidth:200, background:'#0f1420', border:'1px solid #1c2333', borderRadius:10, padding:8, zIndex:80 }}>
           <a className="nav-item" href="/settings" role="menuitem" style={{display:'block'}}>الإعدادات</a>
           <a className="nav-item" href="/users" role="menuitem" style={{display:'block'}}>الملف الشخصي</a>
+          <button className="nav-item" onClick={lockNow} role="menuitem" style={{width:'100%',textAlign:'start'}}>قفل مؤقت</button>
           <button className="nav-item" onClick={logout} role="menuitem" style={{width:'100%',textAlign:'start'}}>تسجيل الخروج</button>
         </div>
       )}

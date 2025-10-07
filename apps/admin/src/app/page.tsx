@@ -5,7 +5,7 @@ import { resolveApiBase } from "./lib/apiBase";
 export const dynamic = 'force-dynamic';
 
 export default function AdminHome(): JSX.Element {
-  const [kpis, setKpis] = React.useState<{users?:number;orders?:number;revenue?:number}>({});
+  const [kpis, setKpis] = React.useState<{users?:number;orders?:number;revenue?:number;pageViews?:number;deltas?:{ordersWoW?:number;revenueWoW?:number}} | Record<string, any>>({});
   const [series, setSeries] = React.useState<{day:string;orders:number;revenue:number}[]>([]);
   const [recentOrders, setRecentOrders] = React.useState<any[]>([]);
   const [recentTickets, setRecentTickets] = React.useState<any[]>([]);
@@ -18,6 +18,27 @@ export default function AdminHome(): JSX.Element {
   const [end, setEnd] = React.useState<string>('');
   const [costCenter, setCostCenter] = React.useState<string>('all');
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  // Persist dashboard filters to localStorage for better UX across sessions
+  React.useEffect(()=>{
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem('admin_dash_filters') : null;
+      if (!raw) return;
+      const parsed = JSON.parse(raw||'{}') as { range?: '7d'|'30d'|'90d'|'custom'; start?: string; end?: string; costCenter?: string };
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.range && ['7d','30d','90d','custom'].includes(parsed.range)) setRange(parsed.range as any);
+        if (typeof parsed.start === 'string') setStart(parsed.start);
+        if (typeof parsed.end === 'string') setEnd(parsed.end);
+        if (typeof parsed.costCenter === 'string') setCostCenter(parsed.costCenter);
+      }
+    } catch {}
+  }, []);
+  React.useEffect(()=>{
+    try {
+      if (typeof window === 'undefined') return;
+      const payload = { range, start, end, costCenter };
+      window.localStorage.setItem('admin_dash_filters', JSON.stringify(payload));
+    } catch {}
+  }, [range, start, end, costCenter]);
   const authHeaders = React.useCallback(()=>{
     if (typeof document === 'undefined') return {} as Record<string,string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
@@ -40,7 +61,19 @@ export default function AdminHome(): JSX.Element {
         fetch(`/api/admin/tickets?page=1&limit=5`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({tickets:[]})),
         fetch(seriesUrl, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' }).then(r=>r.json()).catch(()=>({series:[]})),
       ]);
-      setKpis(ak.kpis||{});
+      const base = ak.kpis||{};
+      // Compute simple WoW deltas from current series
+      let deltas: any = {};
+      try{
+        const arr = (as.series||[]) as Array<{day:string;orders:number;revenue:number}>;
+        if (arr.length >= 14) {
+          const thisWeek = arr.slice(-7).reduce((a,c)=>({ orders:a.orders+c.orders, revenue:a.revenue+c.revenue }), {orders:0,revenue:0});
+          const prevWeek = arr.slice(-14,-7).reduce((a,c)=>({ orders:a.orders+c.orders, revenue:a.revenue+c.revenue }), {orders:0,revenue:0});
+          deltas.ordersWoW = prevWeek.orders? ((thisWeek.orders - prevWeek.orders)/prevWeek.orders)*100 : undefined;
+          deltas.revenueWoW = prevWeek.revenue? ((thisWeek.revenue - prevWeek.revenue)/prevWeek.revenue)*100 : undefined;
+        }
+      }catch{}
+      setKpis({ ...base, deltas });
       setRecentOrders(ao.orders||[]);
       setRecentTickets(at.tickets||[]);
       setSeries(as.series||[]);
@@ -147,9 +180,9 @@ export default function AdminHome(): JSX.Element {
         <div style={{opacity:0.8,fontSize:13,marginTop:4}}>هاشم الجائفي ( هـــَـش ) - هشام الجائفي ( مستر ) - عمر عبيد ( غوبر )</div>
       </div>
       <div className="grid cols-3">
-        <div className="card"><div style={{color:'var(--sub)'}}>المستخدمون</div><div style={{fontSize:28,fontWeight:800}}>{kpis.users ?? (busy?'…':'-')}</div></div>
-        <div className="card"><div style={{color:'var(--sub)'}}>الطلبات</div><div style={{fontSize:28,fontWeight:800}}>{kpis.orders ?? (busy?'…':'-')}</div></div>
-        <div className="card"><div style={{color:'var(--sub)'}}>الإيرادات</div><div style={{fontSize:28,fontWeight:800}}>{typeof kpis.revenue==='number'? kpis.revenue.toLocaleString() : (busy?'…':'-')}</div></div>
+        <div className="card"><div style={{color:'var(--sub)'}}>المستخدمون</div><div style={{fontSize:28,fontWeight:800}}>{(kpis as any).users ?? (busy?'…':'-')}</div></div>
+        <div className="card"><div style={{color:'var(--sub)'}}>الطلبات</div><div style={{display:'flex',alignItems:'baseline',gap:8}}><div style={{fontSize:28,fontWeight:800}}>{(kpis as any).orders ?? (busy?'…':'-')}</div>{(kpis as any).deltas?.ordersWoW!=null && <span style={{color:((kpis as any).deltas.ordersWoW>=0?'#22c55e':'#ef4444'),fontSize:12}}>{((kpis as any).deltas.ordersWoW).toFixed(1)}%</span>}</div></div>
+        <div className="card"><div style={{color:'var(--sub)'}}>الإيرادات</div><div style={{display:'flex',alignItems:'baseline',gap:8}}><div style={{fontSize:28,fontWeight:800}}>{typeof (kpis as any).revenue==='number'? (kpis as any).revenue.toLocaleString() : (busy?'…':'-')}</div>{(kpis as any).deltas?.revenueWoW!=null && <span style={{color:((kpis as any).deltas.revenueWoW>=0?'#22c55e':'#ef4444'),fontSize:12}}>{((kpis as any).deltas.revenueWoW).toFixed(1)}%</span>}</div></div>
       </div>
       <div className="grid cols-3">
         <div className="card"><div style={{color:'var(--sub)'}}>السائقون المتصلون</div><div style={{fontSize:28,fontWeight:800}}>{driversOnline}</div></div>
@@ -173,11 +206,13 @@ export default function AdminHome(): JSX.Element {
         </div>
         <RecentEvents apiBase={apiBase} />
       </div>
-      <div className="panel">
+      <div className="panel" style={{ minHeight: 320 }}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <h3 style={{margin:0}}>إحصائيات 7 أيام</h3>
         </div>
-        <ChartOrdersRevenue series={series} />
+        <LazyChart>
+          <ChartOrdersRevenue series={series} />
+        </LazyChart>
       </div>
       <div className="grid cols-2">
         <div className="panel">
@@ -290,6 +325,22 @@ function ChartOrdersRevenue({ series }: { series: Array<{ day:string; orders:num
     return ()=> { disposed = true; window.removeEventListener('resize', resize); try { chartRef.current && chartRef.current.dispose(); } catch {} };
   }, [series]);
   return <div ref={ref} style={{ width:'100%', height: 280 }} />;
+}
+
+function LazyChart({ children }: { children: React.ReactNode }): JSX.Element {
+  const ref = React.useRef<HTMLDivElement|null>(null);
+  const [visible, setVisible] = React.useState(false);
+  React.useEffect(()=>{
+    if (!ref.current) return;
+    const ob = new IntersectionObserver((entries)=>{
+      for (const en of entries) {
+        if (en.isIntersecting) { setVisible(true); ob.disconnect(); break; }
+      }
+    }, { rootMargin: '100px' });
+    ob.observe(ref.current);
+    return ()=> ob.disconnect();
+  },[]);
+  return <div ref={ref} style={{ minHeight: 280 }}>{visible? children : (<div className="skeleton" style={{ height: 280 }} />)}</div>;
 }
 
 function SystemHealthBadge({ apiBase }: { apiBase: string }): JSX.Element {

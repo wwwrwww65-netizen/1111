@@ -1167,14 +1167,22 @@ shop.post('/coupons/apply', requireAuth, async (req:any, res) => {
   try{
     const { code } = req.body || {}
     if (!code) return res.status(400).json({ error:'code_required' })
-    const c = await db.coupon.findUnique({ where: { code: String(code) } })
+    const codeUp = String(code).toUpperCase()
+    const c = await db.coupon.findUnique({ where: { code: codeUp } })
     if (!c) return res.status(404).json({ error:'not_found' })
     const now = Date.now()
     if (c.validFrom && new Date(c.validFrom).getTime() > now) return res.status(400).json({ error:'not_started' })
     if (c.validUntil && new Date(c.validUntil).getTime() < now) return res.status(400).json({ error:'expired' })
-    const rules: any = (c as any).rules || {}
-    if (rules.enabled === false) return res.status(400).json({ error:'disabled' })
-    // TODO: enforce includes/excludes by cart content (requires join); allow pass-through for now
+    // Load advanced rules from settings key coupon_rules:CODE
+    const setting = await db.setting.findUnique({ where: { key: `coupon_rules:${codeUp}` } })
+    const rules: any = (setting?.value as any) || {}
+    if (rules && rules.enabled === false) return res.status(400).json({ error:'disabled' })
+    if (rules && rules.schedule) {
+      const fromOk = !rules.schedule.from || new Date(rules.schedule.from).getTime() <= now
+      const toOk = !rules.schedule.to || new Date(rules.schedule.to).getTime() >= now
+      if (!(fromOk && toOk)) return res.status(400).json({ error:'out_of_schedule' })
+    }
+    // includes/excludes require cart context; defer to checkout validation
     res.json({ ok: true, coupon: { code: c.code, type: c.discountType, value: c.discountValue } })
   }catch(e:any){ res.status(500).json({ error:e.message||'failed' }) }
 })

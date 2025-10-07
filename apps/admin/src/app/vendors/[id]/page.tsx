@@ -65,9 +65,34 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
       {tab==='products' && (
       <>
       <h2 style={{ margin:'12px 0' }}>منتجات المورد</h2>
-      <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
-        <input type="file" accept=".csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={async(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=async()=>{ try{ const res= await fetch(`/api/admin/vendors/${id}/catalog/upload`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ base64: String(r.result||'') }) }); if(!res.ok) alert('فشل رفع الكتالوج'); }catch{ alert('خطأ أثناء الرفع'); } }; r.readAsDataURL(f); }} />
-        <button className="btn btn-sm">مزامنة الأسعار</button>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignItems:'start', marginBottom:8 }}>
+        <div className="panel" style={{ padding:10 }}>
+          <div style={{ marginBottom:6, fontWeight:700 }}>استيراد كتالوج (CSV)</div>
+          <input type="file" accept=".csv" onChange={async(e)=>{ const f=e.target.files?.[0]; if(!f) return; const text = await f.text(); const lines = text.split(/\r?\n/).filter(Boolean); const header = lines.shift()?.split(',').map(s=> s.trim())||[]; const rowsCsv = lines.map(l=>{ const cols=l.split(','); const o:any = {}; header.forEach((h,i)=> o[h]=cols[i]); return o; }); (window as any).__vendor_import_rows = rowsCsv; alert('تم التحميل. اختر الأعمدة ثم اضغط استيراد.'); }} />
+          <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+            <select id="map_name" className="select"><option value="">اسم المنتج</option></select>
+            <select id="map_sku" className="select"><option value="">SKU</option></select>
+            <select id="map_price" className="select"><option value="">السعر</option></select>
+            <select id="map_stock" className="select"><option value="">المخزون</option></select>
+            <select id="map_images" className="select" style={{ gridColumn:'1 / -1' }}><option value="">الصور (| أو ,)</option></select>
+          </div>
+          <button className="btn btn-sm" style={{ marginTop:8 }} onClick={async()=>{
+            const rows = (window as any).__vendor_import_rows || [];
+            if (!rows.length) { alert('حمّل ملف CSV أولاً'); return; }
+            const mapping:any = {
+              name: (document.getElementById('map_name') as HTMLSelectElement)?.value||'name',
+              sku: (document.getElementById('map_sku') as HTMLSelectElement)?.value||'sku',
+              price: (document.getElementById('map_price') as HTMLSelectElement)?.value||'price',
+              stock: (document.getElementById('map_stock') as HTMLSelectElement)?.value||'stock',
+              images: (document.getElementById('map_images') as HTMLSelectElement)?.value||'images',
+            };
+            const r = await fetch(`/api/admin/vendors/${id}/catalog/upload`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ mapping, rows }) });
+            const j = await r.json(); if (!r.ok) { alert('فشل الاستيراد'); return;} alert(`تم: مضاف ${j?.summary?.created||0}, محدّث ${j?.summary?.updated||0}`);
+          }}>استيراد</button>
+        </div>
+        <div>
+          <button className="btn btn-sm">مزامنة الأسعار</button>
+        </div>
       </div>
       <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:16 }}>
         <thead style={{ position:'sticky', top:0, background:'var(--panel)', zIndex:1 }}><tr><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>#</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>الاسم</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>SKU</th><th style={{textAlign:'right',padding:8,borderBottom:'1px solid #1c2333'}}>المخزون</th></tr></thead>
@@ -182,9 +207,14 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
           <table className="table" style={{ marginTop:8 }}>
             <thead><tr><th>النوع</th><th>الرابط</th><th>انتهاء</th></tr></thead>
             <tbody>
-              {docs.length ? docs.map((dc:any)=> (
-                <tr key={dc.id}><td>{dc.docType}</td><td><a className="link" href={dc.url} target="_blank">فتح</a></td><td>{dc.expiresAt? String(dc.expiresAt).slice(0,10) : '—'}</td></tr>
-              )) : (<tr><td colSpan={3}>لا توجد وثائق</td></tr>)}
+              {docs.length ? docs.map((dc:any)=> {
+                const exp = dc.expiresAt? new Date(dc.expiresAt) : null;
+                const daysLeft = exp? Math.ceil((exp.getTime() - Date.now())/(24*3600*1000)) : null;
+                const warn = daysLeft!=null && daysLeft <= 30;
+                return (
+                  <tr key={dc.id} className={warn? 'warn': ''}><td>{dc.docType}</td><td><a className="link" href={dc.url} target="_blank">فتح</a></td><td>{dc.expiresAt? String(dc.expiresAt).slice(0,10) : '—'} {warn && <span style={{ color:'#ef4444', marginInlineStart:8 }}>(ينتهي خلال {daysLeft}ي)</span>}</td></tr>
+                );
+              }) : (<tr><td colSpan={3}>لا توجد وثائق</td></tr>)}
             </tbody>
           </table>
         </div>

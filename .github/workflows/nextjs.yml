@@ -1,63 +1,24 @@
-# Sample workflow for building and deploying a Next.js site to GitHub Pages
-#
-# To get started with Next.js see: https://nextjs.org/docs/getting-started
-#
-name: Build Next.js (smoke only)
+name: Web/Admin Next.js build
 
 on:
-  workflow_dispatch:
-
-# Minimal permissions
-permissions:
-  contents: read
-
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  push:
+    branches: [ hash ]
+  pull_request:
+    branches: [ hash, main ]
 
 jobs:
-  # Build job
-  build:
+  next-build:
     runs-on: ubuntu-latest
-    env:
-      PNPM_CONFIG_FROZEN_LOCKFILE: 'false'
-      PNPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.pnpm-store
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Enable corepack
-        run: corepack enable
-      - name: Use pnpm 8.6.10
-        run: corepack prepare pnpm@8.6.10 --activate
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
-          node-version: "20"
-          cache: ''
-
-      - name: Ensure default pnpm cache path exists (~/.pnpm-store)
-        run: mkdir -p "$HOME/.pnpm-store"
-
-      - name: Configure pnpm store dir (project)
-        run: pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR" --location project
-
-      - name: Ensure pnpm store dir exists
-        run: mkdir -p "$PNPM_CONFIG_STORE_DIR"
-
-      - name: Install dependencies
-        run: |
-          pnpm config set store-dir "$PNPM_CONFIG_STORE_DIR"
-          pnpm config set node-linker hoisted
-          pnpm config set package-import-method copy
-          pnpm install --no-frozen-lockfile --ignore-scripts --store-dir="$PNPM_CONFIG_STORE_DIR"
-        working-directory: .
-
-      - name: Build web (Next.js)
-        run: pnpm build && pnpm start & sleep 5 && curl -sSf http://localhost:3000 | head -n 5 | cat
-        working-directory: apps/web
-
-  # No deployment in this workflow (smoke build only)
+          version: 8.6.10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build Web/Admin
+        run: pnpm --filter web build && pnpm --filter admin build

@@ -200,7 +200,7 @@ export default function OrdersPage(): JSX.Element {
           { key:'createdAt', title:'تاريخ', minWidth:120 },
           { key:'user', title:'العميل', minWidth:220 },
           { key:'total', title:'الإجمالي', minWidth:120 },
-          { key:'status', title:'الحالة', minWidth:140 },
+          { key:'status', title:'الحالة', minWidth:220 },
           { key:'actions', title:'إجراءات', minWidth:200 },
         ]}
         renderCard={(o:any)=>{
@@ -233,7 +233,12 @@ export default function OrdersPage(): JSX.Element {
             <td>{new Date(o.createdAt).toLocaleString()}</td>
             <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
             <td>{formatMoney(o.total)}</td>
-            <td><span className={`badge ${statusClass(o.status)}`}>{o.status}</span></td>
+            <td>
+              <div style={{ display:'grid', gap:6 }}>
+                <span><span className={`badge ${statusClass(o.status)}`}>{o.status}</span></span>
+                <Progress status={o.status} shipmentStatus={o.shipments?.[0]?.status} />
+              </div>
+            </td>
             <td>
               <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                 <a href={`/orders/${o.id}`} className="btn btn-sm">عرض</a>
@@ -296,6 +301,31 @@ export default function OrdersPage(): JSX.Element {
       </div>
     )}
     </>
+  );
+}
+
+function Progress({ status, shipmentStatus }:{ status:string; shipmentStatus?:string }): JSX.Element {
+  const steps = [
+    { key:'PENDING', label:'طلب' },
+    { key:'PAID', label:'دفع' },
+    { key:'SHIPPED', label:'شحن' },
+    { key:'DELIVERED', label:'تسليم' },
+  ];
+  const current = (()=>{
+    const map: Record<string, number> = { PENDING:0, PAID:1, SHIPPED:2, DELIVERED:3 };
+    if (shipmentStatus==='OUT_FOR_DELIVERY') return 2;
+    if (shipmentStatus==='DELIVERED') return 3;
+    return map[status] ?? 0;
+  })();
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6 }}>
+      {steps.map((s, idx)=> (
+        <div key={s.key} style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <div style={{ width:8, height:8, borderRadius:999, background: idx<=current? '#22c55e':'#334155' }} />
+          <span style={{ fontSize:12, color: idx<=current? '#e2e8f0':'#94a3b8' }}>{s.label}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 

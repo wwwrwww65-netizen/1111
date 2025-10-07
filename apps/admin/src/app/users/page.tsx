@@ -25,12 +25,20 @@ export default function UsersPage(): JSX.Element {
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
   const [rows, setRows] = React.useState<any[]>([]);
+  const [from, setFrom] = React.useState<string>("");
+  const [to, setTo] = React.useState<string>("");
+  const [perm, setPerm] = React.useState<string>("");
   const [roleName, setRoleName] = React.useState("MANAGER");
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [allChecked, setAllChecked] = React.useState(false);
   const [tab, setTab] = React.useState<'users'|'vendors'|'admins'|'permissions'>('users');
   const [modalOpen, setModalOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
+  const [auditOpen, setAuditOpen] = React.useState(false);
+  const [auditUserId, setAuditUserId] = React.useState<string>('');
+  const [auditRows, setAuditRows] = React.useState<any[]>([]);
+  const [auditPage, setAuditPage] = React.useState<number>(1);
+  const [auditLoading, setAuditLoading] = React.useState<boolean>(false);
   const showToast = (m:string)=>{ setToast(m); setTimeout(()=>setToast(""), 1800); };
 
   async function load() {
@@ -41,6 +49,9 @@ export default function UsersPage(): JSX.Element {
     if (tab==='admins') url.searchParams.set('role','ADMIN');
     else if (tab==='users') url.searchParams.set('role','USER');
     else if (tab==='vendors') url.searchParams.set('role','VENDOR');
+    if (from) url.searchParams.set('from', from);
+    if (to) url.searchParams.set('to', to);
+    if (perm) url.searchParams.set('perm', perm);
     const res = await fetch(url.toString(), { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
     const json = await res.json();
     setRows(json.users || []);
@@ -50,6 +61,18 @@ export default function UsersPage(): JSX.Element {
   async function assign(userId: string) {
     await fetch(`${apiBase}/api/admin/users/assign-role`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ userId, roleName }) });
     await load();
+  }
+  async function openAudit(userId: string){
+    setAuditUserId(userId); setAuditPage(1); setAuditOpen(true); await loadAudit(userId, 1);
+  }
+  async function loadAudit(userId: string, page: number){
+    setAuditLoading(true);
+    try{
+      const url = new URL(`${apiBase}/api/admin/users/${userId}/audit-logs`);
+      url.searchParams.set('page', String(page)); url.searchParams.set('limit','50');
+      const j = await (await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' })).json();
+      setAuditRows(j.items||[]);
+    } finally { setAuditLoading(false); }
   }
   async function bulkAssign() {
     const ids = rows.filter(r=>selected[r.id]).map(r=>r.id);
@@ -70,9 +93,28 @@ export default function UsersPage(): JSX.Element {
       {tab !== 'permissions' && (
         <Toolbar left={<>
           <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/البريد/الهاتف" className="input" /></div>
-          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
+          <input type="date" value={from} onChange={(e)=> setFrom(e.target.value)} className="input" />
+          <input type="date" value={to} onChange={(e)=> setTo(e.target.value)} className="input" />
+          <input value={perm} onChange={(e)=> setPerm(e.target.value)} placeholder="perm.key (مثال: products.read)" className="input" />
+          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">تطبيق</button>
         </>} right={<>
           <button onClick={()=> setModalOpen(true)} className="btn">إضافة حساب</button>
+          <button onClick={async()=>{
+            const url = new URL(`${apiBase}/api/admin/users/list`);
+            url.searchParams.set('page','1'); url.searchParams.set('limit','1000');
+            if (search) url.searchParams.set('search', search);
+            if (tab==='admins') url.searchParams.set('role','ADMIN'); else if (tab==='users') url.searchParams.set('role','USER'); else if (tab==='vendors') url.searchParams.set('role','VENDOR');
+            const j = await (await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' })).json();
+            const items = (j.users||[]) as Array<any>;
+            const header = ['id','email','name','phone','role'];
+            const lines = [header.join(',')].concat(items.map(u=> header.map(k=> {
+              const v = (u as any)[k] ?? '';
+              const s = String(v).replace(/"/g,'""');
+              return /[",\n]/.test(s)? `"${s}"` : s;
+            }).join(',')));
+            const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `users_${Date.now()}.csv`; a.click(); setTimeout(()=> URL.revokeObjectURL(a.href), 1500);
+          }} className="btn btn-outline">تصدير CSV</button>
         </>} />
       )}
 
@@ -121,6 +163,7 @@ export default function UsersPage(): JSX.Element {
                     <option value="ADMIN">ADMIN</option>
                   </select>
                   <button onClick={()=>assign(u.id)} className="btn btn-outline">إسناد</button>
+                  <button onClick={()=>openAudit(u.id)} className="btn">عرض السجل</button>
                   <button onClick={async ()=>{ await fetch(`${apiBase}/api/admin/users/${u.id}`, { method:'DELETE', credentials:'include', headers:{ ...authHeaders() } }); await load(); }} className="btn danger">حذف</button>
                 </div>
               </td>
@@ -146,6 +189,33 @@ export default function UsersPage(): JSX.Element {
               <button onClick={()=> setModalOpen(false)} className="icon-btn">إغلاق</button>
             </div>
             {tab==='vendors' ? <VendorAccountForm onDone={async ()=>{ setModalOpen(false); showToast('تمت الإضافة'); await load(); }} apiBase={apiBase} authHeaders={authHeaders} /> : <GenericAccountForm role={tab==='admins' ? 'ADMIN' : 'USER'} onDone={async ()=>{ setModalOpen(false); showToast('تمت الإضافة'); await load(); }} apiBase={apiBase} authHeaders={authHeaders} />}
+          </div>
+        </div>
+      )}
+
+      {auditOpen && (
+        <div className="modal">
+          <div className="dialog" style={{ maxWidth: 820 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <h3 className="title">سجل التدقيق للمستخدم</h3>
+              <button onClick={()=> setAuditOpen(false)} className="icon-btn">إغلاق</button>
+            </div>
+            {auditLoading ? (<div className="skeleton-table-row" />) : (
+              <div style={{ overflowX:'auto' }}>
+                <table className="table">
+                  <thead><tr><th>الوقت</th><th>الوحدة</th><th>الإجراء</th><th>التفاصيل</th><th>IP</th></tr></thead>
+                  <tbody>
+                    {auditRows.length ? auditRows.map((r:any)=> (
+                      <tr key={r.id}><td>{new Date(r.createdAt).toLocaleString()}</td><td>{r.module}</td><td>{r.action}</td><td><code style={{fontSize:12}}>{r.details? JSON.stringify(r.details): '-'}</code></td><td>{r.ip||'-'}</td></tr>
+                    )) : (<tr><td colSpan={5}>لا يوجد سجل</td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
+              <button className="btn btn-outline" onClick={async()=>{ const p=Math.max(1,auditPage-1); setAuditPage(p); await loadAudit(auditUserId, p); }} disabled={auditPage<=1}>السابق</button>
+              <button className="btn btn-outline" onClick={async()=>{ const p=auditPage+1; setAuditPage(p); await loadAudit(auditUserId, p); }}>التالي</button>
+            </div>
           </div>
         </div>
       )}

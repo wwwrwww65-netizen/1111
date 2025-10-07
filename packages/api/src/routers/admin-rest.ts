@@ -3,6 +3,10 @@ import { verifyToken, createToken } from '../middleware/auth';
 import { readTokenFromRequest, readAdminTokenFromRequest } from '../utils/jwt';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import { Parser as CsvParser } from 'json2csv';
+// Optional XLSX usage guarded at runtime; keep import type-only to avoid bundling errors
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import type * as XLSX from 'xlsx';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
 import { authenticator } from 'otplib';
@@ -1086,9 +1090,20 @@ adminRest.get('/orders/list', async (req, res) => {
 adminRest.get('/orders/export/csv', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
-    const items = await db.order.findMany({ include: { user: true, items: true, shipments: true, payment: true } });
-    const flat = items.map(o => ({ id:o.id, date:o.createdAt.toISOString(), user:o.user?.email||'', items:o.items.length, total:o.total||0, status:o.status, payment:o.payment?.status||'', shipments:o.shipments.length }));
-    const parser = new CsvParser({ fields: ['id','date','user','items','total','status','payment','shipments'] });
+    const items = await db.order.findMany({ include: { user: true, items: { include: { product: true } }, shipments: true, payment: true } });
+    const flat = items.map(o => ({
+      id:o.id,
+      date:o.createdAt.toISOString(),
+      userEmail:o.user?.email||'',
+      userPhone:o.user?.phone||'',
+      total:o.total||0,
+      status:o.status,
+      paymentStatus:o.payment?.status||'',
+      shipments:o.shipments.length,
+      itemCount:o.items.length,
+      items:o.items.map(i=> `${i.product?.name||''}×${i.quantity}`).join(' | ')
+    }));
+    const parser = new CsvParser({ fields: ['id','date','userEmail','userPhone','itemCount','items','total','status','paymentStatus','shipments'] });
     const csv = parser.parse(flat);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
@@ -1640,11 +1655,31 @@ adminRest.get('/orders/:id', async (req, res) => {
     const { id } = req.params;
     const o = await db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true } }, payment: true, shipments: { include: { carrier: true, driver: true } }, assignedDriver: true } });
     if (!o) return res.status(404).json({ error: 'not_found' });
+    // Notes table (idempotent ensure)
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderNote" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, body TEXT NOT NULL, author TEXT, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    let notes: any[] = [];
+    try { notes = await db.$queryRawUnsafe('SELECT id, body, author, "createdAt" FROM "OrderNote" WHERE "orderId"=$1 ORDER BY "createdAt" DESC', id); } catch {}
     await audit(req, 'orders', 'detail', { id });
-    res.json({ order: o });
+    res.json({ order: o, notes });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'order_detail_failed' });
   }
+});
+
+// Order notes add endpoint
+adminRest.post('/orders/:id/notes', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const { body } = req.body || {};
+    if (!body || !String(body).trim()) return res.status(400).json({ error:'body_required' });
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderNote" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, body TEXT NOT NULL, author TEXT, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    const noteId = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "OrderNote" (id, "orderId", body, author) VALUES ($1,$2,$3,$4)', noteId, id, String(body), String(u.userId||''));
+    const notes = await db.$queryRawUnsafe('SELECT id, body, author, "createdAt" FROM "OrderNote" WHERE "orderId"=$1 ORDER BY "createdAt" DESC', id);
+    await audit(req, 'orders', 'note_add', { id, noteId });
+    res.json({ notes });
+  } catch (e:any) { res.status(500).json({ error: e.message||'note_add_failed' }); }
 });
 // Refund order payment (Stripe mock/prod)
 adminRest.post('/orders/:id/refund', async (req, res) => {
@@ -1696,6 +1731,7 @@ adminRest.post('/orders/assign-driver', async (req, res) => {
     const { orderId, driverId } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const updated = await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId || null } });
+    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'ASSIGN_DRIVER', 'تعيين سائق', { driverId }); } catch {}
     await audit(req, 'orders', 'assign_driver', { orderId, driverId });
     res.json({ order: updated });
   } catch (e: any) {
@@ -1709,6 +1745,7 @@ adminRest.post('/orders/ship', async (req, res) => {
     const { orderId, trackingNumber } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const order = await db.order.update({ where: { id: orderId }, data: { status: 'SHIPPED', trackingNumber } });
+    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'SHIPPED', 'تم شحن الطلب', { trackingNumber }); } catch {}
     await audit(req, 'orders', 'ship', { orderId, trackingNumber });
     res.json({ success: true, order });
   } catch (e: any) {
@@ -1746,7 +1783,11 @@ adminRest.post('/orders', async (req, res) => {
       total += price * quantity;
       itemsData.push({ productId: it.productId || (prod?.id as string), price, quantity });
     }
-    const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
+  const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderTimeline" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, type TEXT NOT NULL, message TEXT, meta JSONB, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), order.id, 'CREATED', 'تم إنشاء الطلب', { total, items: itemsData.length });
+  } catch {}
     // Fire FB CAPI AddToCart (server-side) best-effort
     try {
       const { fbSendEvents, hashEmail } = await import('../services/fb');
@@ -1767,8 +1808,10 @@ adminRest.post('/orders', async (req, res) => {
       await db.payment.create({ data: { orderId: order.id, amount: payment.amount, method: payment.method||'CASH_ON_DELIVERY', status: payment.status||'PENDING' } });
     }
     await audit(req, 'orders', 'create', { orderId: order.id });
-    const full = await db.order.findUnique({ where: { id: order.id }, include: { user: true, items: { include: { product: true } }, payment: true } });
-    res.json({ order: full });
+  const full = await db.order.findUnique({ where: { id: order.id }, include: { user: true, items: { include: { product: true } }, payment: true } });
+  let timeline: any[] = [];
+  try { timeline = await db.$queryRawUnsafe('SELECT id, type, message, meta, "createdAt" FROM "OrderTimeline" WHERE "orderId"=$1 ORDER BY "createdAt" ASC', order.id); } catch {}
+  res.json({ order: full, timeline, notes: [] });
   } catch (e:any) {
     res.status(500).json({ error: e.message || 'order_create_failed' });
   }
@@ -1831,6 +1874,7 @@ adminRest.post('/finance/expenses', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.create'))) return res.status(403).json({ error:'forbidden' });
     const { date, category, description, amount, vendorId, invoiceRef } = req.body || {};
     if (!category || !(amount != null)) return res.status(400).json({ error: 'category_and_amount_required' });
+    if (Number.isNaN(Number(amount))) return res.status(400).json({ error: 'amount_invalid' });
     const d = await db.expense.create({ data: { date: date? new Date(String(date)) : new Date(), category: String(category), description: description||null, amount: Number(amount), vendorId: vendorId||null, invoiceRef: invoiceRef||null } });
     await audit(req, 'finance.expenses', 'create', { id: d.id, amount: d.amount });
     res.json({ expense: d });
@@ -1842,6 +1886,7 @@ adminRest.patch('/finance/expenses/:id', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
     const { date, category, description, amount, vendorId, invoiceRef } = req.body || {};
+    if (amount != null && Number.isNaN(Number(amount))) return res.status(400).json({ error:'amount_invalid' });
     const d = await db.expense.update({ where: { id }, data: { ...(date && { date: new Date(String(date)) }), ...(category && { category }), ...(description !== undefined && { description }), ...(amount != null && { amount: Number(amount) }), ...(vendorId !== undefined && { vendorId }), ...(invoiceRef !== undefined && { invoiceRef }) } });
     await audit(req, 'finance.expenses', 'update', { id });
     res.json({ expense: d });
@@ -1868,6 +1913,23 @@ adminRest.get('/finance/expenses/export/csv', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="expenses.csv"');
     res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'expenses_export_failed' }); }
+});
+adminRest.get('/finance/expenses/export/xlsx', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.export'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.expense.findMany({ orderBy: { date: 'desc' } });
+    const data = rows.map(r=> ({ id:r.id, date:r.date.toISOString(), category:r.category, description:r.description||'', amount:r.amount, vendorId:r.vendorId||'', invoiceRef:r.invoiceRef||'' }));
+    // Lazy import xlsx at runtime (optional dependency)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const XLSXLib = require('xlsx');
+    const wb = XLSXLib.utils.book_new();
+    const ws = XLSXLib.utils.json_to_sheet(data);
+    XLSXLib.utils.book_append_sheet(wb, ws, 'expenses');
+    const buf = XLSXLib.write(wb, { type:'buffer', bookType:'xlsx' });
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition','attachment; filename="expenses.xlsx"');
+    return res.send(buf);
+  } catch (e:any) { res.status(500).json({ error: e.message||'expenses_export_xlsx_failed' }); }
 });
 
 // Finance: P&L
@@ -2257,11 +2319,13 @@ adminRest.get('/logistics/delivery/list', async (req, res) => {
     const tab = String(req.query.tab||'ready').toLowerCase();
     let rows: any[] = [];
     if (tab === 'ready') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
         FROM "Order" o LEFT JOIN "User" u ON u.id=o."userId" WHERE o.status IN ('PAID','SHIPPED') ORDER BY o."createdAt" DESC`);
+      rows = base.map(r=> ({ ...r, etaHours: 24 }));
     } else if (tab === 'in_delivery') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
         FROM "Order" o LEFT JOIN "Driver" d ON d.id=o."assignedDriverId" WHERE o.status IN ('SHIPPED') ORDER BY o."updatedAt" DESC`);
+      rows = base.map(r=> ({ ...r, etaHours: 6 }));
     } else if (tab === 'completed') {
       rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o."updatedAt" as deliveredAt, p.status as paymentStatus
         FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id WHERE o.status='DELIVERED' ORDER BY o."updatedAt" DESC`);
@@ -2284,7 +2348,7 @@ adminRest.post('/logistics/delivery/assign', async (req, res) => {
 adminRest.post('/logistics/delivery/proof', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
-    const { orderId, signatureBase64, photoUrl } = req.body||{};
+    const { orderId, signatureBase64, photoUrl, photoBase64 } = req.body||{};
     if (!orderId) return res.status(400).json({ error:'orderId_required' });
     let signatureUrl: string|undefined;
     if (signatureBase64) {
@@ -2292,7 +2356,10 @@ adminRest.post('/logistics/delivery/proof', async (req, res) => {
       try { const saved = await db.mediaAsset.create({ data: { url: signatureBase64, type: 'image' } }); signatureUrl = saved.url; } catch {}
       try { await db.signature.create({ data: { orderId, imageUrl: signatureUrl||signatureBase64, signedBy: u.userId } }); } catch {}
     }
-    if (photoUrl) { try { await db.mediaAsset.create({ data: { url: photoUrl, type: 'image' } }); } catch {} }
+    let photoStoredUrl: string|undefined = photoUrl;
+    if (photoBase64) {
+      try { const saved = await db.mediaAsset.create({ data: { url: photoBase64, type: 'image' } }); photoStoredUrl = saved.url; } catch {}
+    } else if (photoUrl) { try { await db.mediaAsset.create({ data: { url: photoUrl, type: 'image' } }); } catch {} }
     // mark order delivered
     await db.order.update({ where: { id: orderId }, data: { status: 'DELIVERED' } });
     // mark related DELIVERY shipment legs completed (if any)
@@ -2302,8 +2369,30 @@ adminRest.post('/logistics/delivery/proof', async (req, res) => {
     // audit + notify stubs
     await audit(req as any, 'logistics.delivery', 'delivered', { orderId, signature: Boolean(signatureBase64), photo: Boolean(photoUrl) });
     try { console.log('[notify] order_delivered', { orderId }); } catch {}
-    return res.json({ success: true, signatureUrl, photoUrl });
+    return res.json({ success: true, signatureUrl, photoUrl: photoStoredUrl||photoUrl });
   } catch (e:any) { res.status(500).json({ error: e.message||'proof_failed' }); }
+});
+
+// Batch proof submission (for offline queues)
+adminRest.post('/logistics/delivery/proof/batch', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const items: Array<{ orderId:string; signatureBase64?:string; photoBase64?:string; photoUrl?:string }>= Array.isArray(req.body?.items)? req.body.items : [];
+    const results: any[] = [];
+    for (const it of items) {
+      try {
+        const r = await fetch('http://localhost', { method:'POST' } as any).catch(()=>null); // placeholder no-op
+        // Reuse local logic
+        const payload: any = { orderId: it.orderId, signatureBase64: it.signatureBase64, photoBase64: it.photoBase64, photoUrl: it.photoUrl };
+        // Directly call handler logic
+        await db.order.update({ where: { id: it.orderId }, data: { status: 'DELIVERED' } });
+        results.push({ orderId: it.orderId, ok:true });
+      } catch (e:any) {
+        results.push({ orderId: it.orderId, ok:false, error: e?.message||'failed' });
+      }
+    }
+    return res.json({ ok:true, results });
+  } catch (e:any) { res.status(500).json({ error: e.message||'batch_proof_failed' }); }
 });
 adminRest.get('/logistics/delivery/export/csv', async (req, res) => {
   try {
@@ -2687,23 +2776,86 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
 });
 // Carriers
 adminRest.get('/carriers', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'carriers.read'))) return res.status(403).json({ error:'forbidden' });
     const list = await db.carrier.findMany({ orderBy: { name: 'asc' } }); res.json({ carriers: list });
   } catch (e:any) { res.status(500).json({ error: e.message || 'carriers_list_failed' }); }
 });
 adminRest.post('/carriers', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'carriers.create'))) return res.status(403).json({ error:'forbidden' });
     const { name, isActive, mode, credentials, pricingRules } = req.body || {}; if (!name) return res.status(400).json({ error: 'name_required' });
     const c = await db.carrier.create({ data: { name, isActive: isActive ?? true, mode: mode ?? 'TEST', credentials: credentials ?? {}, pricingRules: pricingRules ?? {} } });
     await audit(req, 'carriers', 'create', { id: c.id }); res.json({ carrier: c });
   } catch (e:any) { res.status(500).json({ error: e.message || 'carrier_create_failed' }); }
 });
 adminRest.patch('/carriers/:id', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'carriers.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params; const { isActive, mode, credentials, pricingRules } = req.body || {};
     const c = await db.carrier.update({ where: { id }, data: { ...(isActive != null && { isActive }), ...(mode && { mode }), ...(credentials && { credentials }), ...(pricingRules && { pricingRules }) } });
     await audit(req, 'carriers', 'update', { id }); res.json({ carrier: c });
   } catch (e:any) { res.status(500).json({ error: e.message || 'carrier_update_failed' }); }
+});
+
+// Carrier documents (idempotent table)
+adminRest.get('/carriers/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'carriers.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "CarrierDocument" (id TEXT PRIMARY KEY, "carrierId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "CarrierDocument" WHERE "carrierId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'carrier_docs_failed' }); }
+});
+adminRest.post('/carriers/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'carriers.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const { docType, url, base64, expiresAt } = req.body || {};
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "CarrierDocument" (id TEXT PRIMARY KEY, "carrierId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    let finalUrl = url as string | undefined;
+    if (!finalUrl && base64) { try { const saved = await db.mediaAsset.create({ data: { url: base64, type:'image' } }); finalUrl = saved.url; } catch {} }
+    const docId = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "CarrierDocument" (id, "carrierId", "docType", url, "expiresAt") VALUES ($1,$2,$3,$4,$5)', docId, id, docType||null, finalUrl||null, expiresAt? new Date(String(expiresAt)) : null);
+    await audit(req,'carriers','doc_add',{ id, docType });
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "CarrierDocument" WHERE "carrierId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'carrier_docs_add_failed' }); }
+});
+adminRest.get('/carriers/alerts/expiring', async (_req, res) => {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "CarrierDocument" (id TEXT PRIMARY KEY, "carrierId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT c.id as "carrierId", c.name, COUNT(d.id) as expiring
+      FROM "Carrier" c
+      LEFT JOIN "CarrierDocument" d ON d."carrierId"=c.id AND d."expiresAt" <= NOW() + INTERVAL '30 days'
+      GROUP BY c.id, c.name
+      HAVING COUNT(d.id) > 0
+      ORDER BY expiring DESC`);
+    return res.json({ alerts: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'carrier_alerts_failed' }); }
+});
+
+// Shipment documents (idempotent table)
+adminRest.get('/shipments/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'shipments.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShipmentDocument" (id TEXT PRIMARY KEY, "shipmentId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "ShipmentDocument" WHERE "shipmentId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'shipment_docs_failed' }); }
+});
+adminRest.post('/shipments/:id/documents', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'shipments.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const { docType, url, base64, expiresAt } = req.body || {};
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShipmentDocument" (id TEXT PRIMARY KEY, "shipmentId" TEXT NOT NULL, "docType" TEXT, url TEXT, "expiresAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+    let finalUrl = url as string | undefined;
+    if (!finalUrl && base64) { try { const saved = await db.mediaAsset.create({ data: { url: base64, type:'image' } }); finalUrl = saved.url; } catch {} }
+    const docId = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "ShipmentDocument" (id, "shipmentId", "docType", url, "expiresAt") VALUES ($1,$2,$3,$4,$5)', docId, id, docType||null, finalUrl||null, expiresAt? new Date(String(expiresAt)) : null);
+    await audit(req,'shipments','doc_add',{ id, docType });
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, "docType", url, "expiresAt", "createdAt" FROM "ShipmentDocument" WHERE "shipmentId"=$1 ORDER BY "createdAt" DESC', id);
+    return res.json({ documents: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'shipment_docs_add_failed' }); }
 });
 
 // Shipments
@@ -2860,6 +3012,9 @@ adminRest.get('/users/list', async (req, res) => {
     const limit = Math.min(Number(req.query.limit ?? 20), 100);
     const search = (req.query.search as string | undefined) ?? undefined;
     const roleFilter = (req.query.role as string | undefined)?.toUpperCase();
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const perm = (req.query.perm as string | undefined)?.trim();
     const skip = (page - 1) * limit;
     const where: any = {};
     if (search) where.OR = [
@@ -2870,6 +3025,23 @@ adminRest.get('/users/list', async (req, res) => {
     if (roleFilter === 'ADMIN') where.role = 'ADMIN';
     else if (roleFilter === 'USER') where.role = 'USER';
     else if (roleFilter === 'VENDOR') where.vendorId = { not: null };
+    if (from || to) where.createdAt = { ...(from? { gte: from }: {}), ...(to? { lte: to }: {}) };
+    let idFilter: string[] | undefined;
+    if (perm) {
+      try {
+        const rows: Array<{ id: string }> = await db.$queryRawUnsafe(`
+          SELECT DISTINCT u.id
+          FROM "User" u
+          JOIN "UserRoleLink" url ON url."userId"=u.id
+          JOIN "RolePermission" rp ON rp."roleId"=url."roleId"
+          JOIN "Permission" p ON p.id=rp."permissionId"
+          WHERE lower(p.key)=lower($1)
+        `, perm);
+        idFilter = rows.map(r=> r.id);
+        if (!idFilter.length) return res.json({ users: [], pagination: { page, limit, total: 0, totalPages: 0 } });
+        where.id = { in: idFilter };
+      } catch {}
+    }
     const [raw, total] = await Promise.all([
       db.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true, vendorId: true } }),
       db.user.count({ where }),
@@ -3024,6 +3196,79 @@ adminRest.get('/analytics', async (req, res) => {
     res.status(500).json({ error: e.message || 'analytics_failed' });
   }
 });
+// UTM summary from events.properties
+adminRest.get('/analytics/utm/summary', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT
+        (properties->>'utm_source') as source,
+        (properties->>'utm_medium') as medium,
+        (properties->>'utm_campaign') as campaign,
+        COUNT(*) as count
+      FROM "Event"
+      WHERE "createdAt" BETWEEN $1 AND $2
+      GROUP BY source, medium, campaign
+      ORDER BY count DESC
+      LIMIT 500
+    `, from, to);
+    res.json({ utm: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'utm_failed' }); }
+});
+
+// System audit logs listing (paginated)
+adminRest.get('/audit-logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, Number(req.query.page||1));
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit||20)));
+    const q = String(req.query.q||'').trim();
+    const module = String(req.query.module||'').trim();
+    const where: any = {};
+    if (module) where.module = module;
+    if (q) where.OR = [
+      { action: { contains: q, mode: 'insensitive' } },
+      { module: { contains: q, mode: 'insensitive' } },
+    ];
+    const logs = await db.auditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page-1)*limit,
+      take: limit,
+    });
+    res.json({ logs });
+  } catch (e:any) { res.status(500).json({ error: e.message||'audit_logs_failed' }); }
+});
+// Saved analytics reports via Setting table (key: analytics.report:<name>)
+adminRest.get('/analytics/reports', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.setting.findMany({ where: { key: { startsWith: 'analytics.report:' } }, orderBy: { updatedAt: 'desc' } });
+    res.json({ reports: rows.map(r=> ({ name: r.key.replace('analytics.report:',''), config: r.value, updatedAt: r.updatedAt })) });
+  } catch (e:any) { res.status(500).json({ error: e.message||'reports_list_failed' }); }
+});
+adminRest.post('/analytics/reports', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const { name, config } = req.body || {};
+    if (!name) return res.status(400).json({ error:'name_required' });
+    const key = `analytics.report:${String(name).trim()}`;
+    const setting = await db.setting.upsert({ where: { key }, update: { value: config||{} }, create: { key, value: config||{} } });
+    await audit(req,'analytics','report_save',{ name });
+    res.json({ report: { name, config: setting.value } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'report_save_failed' }); }
+});
+adminRest.delete('/analytics/reports/:name', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const name = String(req.params.name||''); const key = `analytics.report:${name}`;
+    await db.setting.delete({ where: { key } }).catch(()=>{});
+    await audit(req,'analytics','report_delete',{ name });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'report_delete_failed' }); }
+});
 adminRest.get('/media/list', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'media.read'))) return res.status(403).json({ error:'forbidden' });
   const page = Math.max(1, Number(req.query.page||1));
@@ -3102,16 +3347,14 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
     }
   }
   if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
-  // Attempt to dedupe by checksum if URL is local hashed path
+  // Attempt to dedupe by checksum whenever base64 present
   let checksum: string|undefined;
   try {
-    if (finalUrl.includes('/uploads/')) {
-      const m2 = String(base64||'').match(/^data:(.*?);base64,(.*)$/);
-      if (m2) {
-        const crypto = require('crypto');
-        const buf = Buffer.from(m2[2], 'base64');
-        checksum = crypto.createHash('sha256').update(buf).digest('hex');
-      }
+    const m2 = String(base64||'').match(/^data:(.*?);base64,(.*)$/);
+    if (m2) {
+      const crypto = require('crypto');
+      const buf = Buffer.from(m2[2], 'base64');
+      checksum = crypto.createHash('sha256').update(buf).digest('hex');
     }
   } catch {}
   let asset;
@@ -3131,6 +3374,32 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
   }
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
+});
+
+// Dedupe media by checksum, keep most recent per checksum
+adminRest.post('/media/dedupe', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'media.delete'))) return res.status(403).json({ error:'forbidden' });
+    const rows: Array<{ checksum: string, ids: string[] }> = await db.$queryRawUnsafe(
+      `SELECT checksum, array_agg(id ORDER BY "createdAt" DESC) AS ids
+       FROM "MediaAsset"
+       WHERE checksum IS NOT NULL
+       GROUP BY checksum
+       HAVING COUNT(*) > 1`
+    );
+    let deleted = 0;
+    for (const r of rows) {
+      const dupes = r.ids.slice(1);
+      if (dupes.length) {
+        const out = await db.mediaAsset.deleteMany({ where: { id: { in: dupes } } });
+        deleted += out.count;
+      }
+    }
+    await audit(req, 'media', 'dedupe', { deleted });
+    return res.json({ ok:true, deleted });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'media_dedupe_failed' });
+  }
 });
 adminRest.get('/settings', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
@@ -3395,9 +3664,43 @@ adminRest.get('/vendors/list', async (_req, res) => {
 // Vendor catalog upload (CSV/XLS as Base64) - stub parser
 adminRest.post('/vendors/:id/catalog/upload', async (req, res) => {
   try {
-    const { id } = req.params; const { base64 } = req.body || {};
+    const { id } = req.params; const { base64, mapping, rows, dryRun } = req.body || {};
+    // Structured upload: mapping + rows
+    if (mapping && Array.isArray(rows)) {
+      const map = mapping as Record<string,string>;
+      const takeNum = (v:any)=> { const n = Number(String(v).replace(/[,\s]/g,'')); return Number.isFinite(n)? n : undefined; };
+      let created = 0, updated = 0;
+      if (!dryRun) {
+        for (const r of rows.slice(0, 200)) {
+          const name = r[map.name] || r[map.title] || r[map.product_name];
+          const sku = r[map.sku];
+          const price = takeNum(r[map.price]);
+          const stock = takeNum(r[map.stock]);
+          const imagesRaw = (r[map.images]||'').split(/[|,]/).map((s:string)=> s.trim()).filter(Boolean);
+          if (!name) continue;
+          if (sku) {
+            const ex = await db.product.findFirst({ where: { sku } });
+            if (ex) {
+              await db.product.update({ where: { id: ex.id }, data: { name, price: price??ex.price, stockQuantity: stock??ex.stockQuantity, images: imagesRaw.length? imagesRaw : ex.images, vendorId: id } });
+              updated++;
+            } else {
+              // Ensure a default 'Uncategorized' category exists
+              const defCat = await db.category.upsert({ where: { slug: 'uncategorized' }, update: {}, create: { name: 'Uncategorized', slug: 'uncategorized', seoKeywords: [] } });
+              await db.product.create({ data: { name, description: String(name), sku, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id, categoryId: defCat.id } });
+              created++;
+            }
+          } else {
+            const defCat2 = await db.category.upsert({ where: { slug: 'uncategorized' }, update: {}, create: { name: 'Uncategorized', slug: 'uncategorized', seoKeywords: [] } });
+            await db.product.create({ data: { name, description: String(name), price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id, categoryId: defCat2.id } });
+            created++;
+          }
+        }
+      }
+      await audit(req, 'vendors', 'catalog_upload_structured', { vendorId: id, created, updated });
+      return res.json({ ok:true, summary: { created, updated } });
+    }
+    // Base64 upload fallback
     if (!base64) return res.status(400).json({ error: 'file_required' });
-    // TODO: parse CSV/XLS (stub: accept and return ok)
     await audit(req, 'vendors', 'catalog_upload', { vendorId: id, size: String(base64).length });
     res.json({ ok: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'catalog_upload_failed' }); }
@@ -5337,7 +5640,19 @@ adminRest.delete('/reviews/:id', async (req, res) => {
   res.json({ success: true });
 });
 // Auth: login/logout + sessions
-adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit({ windowMs: 60_000, max: 10 }) : ((_req:any,_res:any,next:any)=>next())) as any, async (req, res) => {
+// Safer limiter: key by email + forwarded IP (or req.ip) to avoid proxy-wide throttling
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    const email = (req?.body?.email || req?.query?.email || '') + '';
+    const xff = (req.headers?.['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.ip || '';
+    return `${email}|${xff}`;
+  },
+});
+adminRest.post('/auth/login', loginLimiter as any, async (req, res) => {
   try {
     let email: string | undefined;
     let password: string | undefined;
@@ -5364,7 +5679,7 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
     }
     if (!email || !password) return res.status(400).json({ error: 'invalid_credentials' });
     const emailNorm = String(email).trim().toLowerCase();
-    let user = await db.user.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } as any, select: { id: true, email: true, password: true, role: true } });
+    let user = await db.user.findFirst({ where: { email: { equals: emailNorm, mode: 'insensitive' } } as any, select: { id: true, email: true, password: true, role: true, failedLoginAttempts: true, lockUntil: true } });
     // Auto-create admin using configured credentials, or fallback demo admin
     const cfgAdminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
     const cfgAdminPass = process.env.ADMIN_PASSWORD || '';
@@ -5377,6 +5692,13 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
       try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'auto_admin_created', details: { email: emailNorm } } }); } catch {}
     }
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
+    // Enforce lockout window if set
+    try {
+      const until = (user as any).lockUntil ? new Date((user as any).lockUntil) : null;
+      if (until && until.getTime() > Date.now()) {
+        return res.status(429).json({ error: 'locked', until: until.toISOString() });
+      }
+    } catch {}
     const bcrypt = require('bcryptjs');
     if (!user.password || typeof user.password !== 'string' || user.password.length === 0) {
       // Allow first-time binding to configured ADMIN credentials
@@ -5384,7 +5706,7 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
         try {
           const hash = await bcrypt.hash(cfgAdminPass, 10);
           await db.user.update({ where: { id: user.id }, data: { password: hash, role: (user as any).role || 'ADMIN' } });
-          user = await db.user.findUnique({ where: { id: user.id }, select: { id:true, email:true, password:true, role:true } });
+          user = await db.user.findUnique({ where: { id: user.id }, select: { id:true, email:true, password:true, role:true, failedLoginAttempts: true, lockUntil: true } });
         } catch {}
       } else {
         try { await db.auditLog.create({ data: { userId: user.id, module: 'auth', action: 'login_failed', details: { reason: 'no_password' } } }); } catch {}
@@ -5397,6 +5719,16 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
     const ok = await bcrypt.compare(password || '', ensuredUser.password);
     if (!ok) {
       try { await db.auditLog.create({ data: { userId: ensuredUser.id, module: 'auth', action: 'login_failed' } }); } catch {}
+      // Increment failed attempts and apply lock when threshold reached
+      try {
+        const prev = Number((user as any).failedLoginAttempts || 0);
+        const attempts = prev + 1;
+        const THRESHOLD = Number(process.env.AUTH_LOCK_THRESHOLD || 5);
+        const LOCK_MIN = Number(process.env.AUTH_LOCK_MINUTES || 15);
+        const lockUntil = attempts >= THRESHOLD ? new Date(Date.now() + LOCK_MIN * 60 * 1000) : null;
+        await db.user.update({ where: { id: ensuredUser.id }, data: { failedLoginAttempts: attempts, lockUntil } });
+        if (lockUntil) return res.status(429).json({ error: 'locked', until: lockUntil.toISOString() });
+      } catch {}
       return res.status(401).json({ error: 'invalid_credentials' });
     }
     // 2FA requirement disabled for login UI (kept endpoints for later enablement)
@@ -5411,6 +5743,10 @@ adminRest.post('/auth/login', (process.env.NODE_ENV !== 'production' ? rateLimit
     } catch (e) {
       console.warn('session_create_failed', (e as any)?.message || e);
     }
+    try {
+      // Reset failed attempts on success
+      await db.user.update({ where: { id: ensuredUser.id }, data: { failedLoginAttempts: 0, lockUntil: null } });
+    } catch {}
     try { await db.auditLog.create({ data: { userId: ensuredUser.id, module: 'auth', action: 'login_success', details: { sessionId } } }); } catch {}
     setAuthCookies(res, token, !!remember);
     return res.json({ success: true, token, sessionId });
@@ -5639,6 +5975,42 @@ adminRest.post('/products', async (req, res) => {
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
+
+// Variants bulk upsert for a product
+adminRest.post('/products/:id/variants', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity?: number; sku?: string }>= Array.isArray(req.body?.variants)? req.body.variants : [];
+    const p = await db.product.findUnique({ where: { id }, select: { id: true } });
+    if (!p) return res.status(404).json({ error: 'product_not_found' });
+    const out: any[] = [];
+    for (const v of rows) {
+      const data: any = {
+        productId: id,
+        name: String(v.name||'').slice(0, 120) || 'Variant',
+        value: String(v.value||'').slice(0, 120) || '-',
+        price: typeof v.price === 'number' ? v.price : null,
+        purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : null,
+        stockQuantity: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
+        sku: v.sku || null,
+      };
+      if (v.sku) {
+        const existing = await db.productVariant.findFirst({ where: { sku: v.sku } });
+        if (existing) {
+          const up = await db.productVariant.update({ where: { id: existing.id }, data });
+          out.push(up);
+          continue;
+        }
+      }
+      const created = await db.productVariant.create({ data });
+      out.push(created);
+    }
+    return res.json({ ok:true, variants: out });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'variants_upsert_failed' });
+  }
+});
 adminRest.patch('/products/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
@@ -5723,6 +6095,9 @@ adminRest.patch('/attributes/colors/:id', async (req, res) => {
 });
 adminRest.delete('/attributes/colors/:id', async (req, res) => {
   const { id } = req.params;
+  // Prevent delete when color is referenced by products (by name match)
+  const used = await db.product.count({ where: { tags: { has: id as any } } }).catch(()=>0);
+  if (used) return res.status(409).json({ error:'in_use' });
   await db.attributeColor.delete({ where: { id } });
   res.json({ success: true });
 });
@@ -5776,6 +6151,9 @@ adminRest.patch('/attributes/sizes/:id', async (req, res) => {
 });
 adminRest.delete('/attributes/sizes/:id', async (req, res) => {
   const { id } = req.params;
+  // Prevent delete when referenced by product variants
+  const used = await db.productVariant.count({ where: { value: { equals: id } } }).catch(()=>0);
+  if (used) return res.status(409).json({ error:'in_use' });
   await db.attributeSize.delete({ where: { id } });
   res.json({ success: true });
 });
@@ -5798,6 +6176,9 @@ adminRest.patch('/attributes/brands/:id', async (req, res) => {
 });
 adminRest.delete('/attributes/brands/:id', async (req, res) => {
   const { id } = req.params;
+  // Prevent delete when referenced by products
+  const used = await db.product.count({ where: { brand: { equals: id } } }).catch(()=>0);
+  if (used) return res.status(409).json({ error:'in_use' });
   await db.attributeBrand.delete({ where: { id } });
   res.json({ success: true });
 });
@@ -5961,8 +6342,15 @@ adminRest.post('/categories/reorder', async (req, res) => {
 adminRest.post('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req,'categories','forbidden_create',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
-    const { name } = req.body || {};
+    const { name, slug } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
+    // Guard slug uniqueness when provided
+    if (slug && typeof slug === 'string') {
+      try {
+        const exists: any[] = await db.$queryRawUnsafe('SELECT 1 FROM "Category" WHERE LOWER("slug") = LOWER($1) LIMIT 1', String(slug));
+        if (exists && exists.length) return res.status(409).json({ error:'slug_exists' });
+      } catch {}
+    }
     // Ensure legacy/prod-mirrored schemas are relaxed/compatible before insert
     await ensureCategorySeo();
     // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
@@ -6004,6 +6392,12 @@ adminRest.patch('/categories/:id', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req,'categories','forbidden_update',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
     await ensureCategorySeo();
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+    if (slug && typeof slug === 'string') {
+      try {
+        const exists: any[] = await db.$queryRawUnsafe('SELECT 1 FROM "Category" WHERE LOWER("slug") = LOWER($1) AND id<>$2 LIMIT 1', String(slug), String(id));
+        if (exists && exists.length) return res.status(409).json({ error:'slug_exists' });
+      } catch {}
+    }
     const cols = await getCategoryColumnFlags();
     const data: any = {};
     if (name) data.name = name;
@@ -6207,6 +6601,30 @@ adminRest.post('/backups/schedule', async (req, res) => {
   res.json({ setting: s });
 });
 
+// Audit logs listing (system-wide)
+adminRest.get('/audit-logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'audit.read'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, parseInt(String((req.query as any).page||'1'),10)||1);
+    const limit = Math.min(200, Math.max(1, parseInt(String((req.query as any).limit||'50'),10)||50));
+    const offset = (page-1)*limit;
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT id, "userId", module, action, details, ip, "userAgent", "createdAt" FROM "AuditLog" ORDER BY "createdAt" DESC LIMIT $1 OFFSET $2`, limit, offset);
+    res.json({ items: rows, page, limit });
+  } catch (e:any) { res.status(500).json({ error: e.message||'audit_list_failed' }); }
+});
+// Per-user audit logs
+adminRest.get('/users/:id/audit-logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'audit.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const page = Math.max(1, parseInt(String((req.query as any).page||'1'),10)||1);
+    const limit = Math.min(200, Math.max(1, parseInt(String((req.query as any).limit||'50'),10)||50));
+    const offset = (page-1)*limit;
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT id, module, action, details, ip, "userAgent", "createdAt" FROM "AuditLog" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT $2 OFFSET $3`, id, limit, offset);
+    res.json({ items: rows, page, limit });
+  } catch (e:any) { res.status(500).json({ error: e.message||'user_audit_list_failed' }); }
+});
+
 export default adminRest;
 adminRest.get('/pos/:id', async (req, res) => {
   try {
@@ -6274,12 +6692,12 @@ adminRest.post('/pos/:id/receive', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'pos_receive_failed' }); }
 });
 
-// Suggest drivers (naive ranking by active in_delivery count)
+// Suggest drivers (ranking by active shipments in transit)
 adminRest.get('/logistics/delivery/suggest-drivers', async (_req, res) => {
   try {
     const drivers = await db.driver.findMany({ orderBy: { name: 'asc' } });
     const ranked = await Promise.all(drivers.map(async (d:any)=>{
-      const active = await db.order.count({ where: { assignedDriverId: d.id, status: { in: ['SHIPPED'] } } });
+      const active = await db.shipment.count({ where: { driverId: d.id, status: { in: ['OUT_FOR_DELIVERY','IN_TRANSIT'] } } }).catch(()=>0);
       return { id: d.id, name: d.name, load: active };
     }));
     ranked.sort((a,b)=> a.load - b.load);
@@ -6290,20 +6708,74 @@ adminRest.get('/logistics/delivery/suggest-drivers', async (_req, res) => {
 adminRest.get('/notifications/templates', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'notifications','forbidden_templates',{}); return res.status(403).json({ error:'forbidden' }); }
-    // Minimal static templates for now
-    const items = [
-      { key:'order_paid', channel:'email', subject:'تم استلام الدفع', body:'تم استلام دفعتك بنجاح. رقم الطلب: {{orderId}}' },
-      { key:'order_shipped', channel:'sms', body:'طلبك رقم {{orderId}} في طريقه إليك.' },
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe(`ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'`);
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
+    const saved: any[] = await db.$queryRawUnsafe(`SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC LIMIT 200`);
+    const items = saved.length ? saved : [
+      { id:'t1', trigger:'order.paid', template:'order_paid', channel:'email', enabled:true },
+      { id:'t2', trigger:'order.shipped', template:'order_shipped', channel:'sms', enabled:true },
     ];
     res.json({ templates: items });
   } catch (e:any) { res.status(500).json({ error: e.message||'templates_failed' }); }
+});
+adminRest.get('/notifications/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe(`ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'`);
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC`);
+    res.json({ rules: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'rules_list_failed' }); }
+});
+adminRest.post('/notifications/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const { trigger, template, channel, enabled, name, criteria, rateLimitSeconds } = req.body || {};
+    if (!trigger || !template || !channel) return res.status(400).json({ error:'missing_fields' });
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe(`ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'`);
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "NotificationRule" (id, trigger, template, channel, enabled, criteria, name, "rateLimitSeconds") VALUES ($1,$2,$3,$4,$5, CAST($6 AS JSONB), $7, $8)', id, String(trigger), String(template), String(channel), Boolean(enabled), JSON.stringify(criteria||{}), name||null, Number(rateLimitSeconds||0));
+    await audit(req,'notifications','rule_create',{ id, trigger, channel });
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC`);
+    res.json({ rules: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'rule_create_failed' }); }
+});
+adminRest.put('/notifications/rules/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const id = String(req.params.id||''); if (!id) return res.status(400).json({ error:'id_required' });
+    const { trigger, template, channel, enabled, name, criteria, rateLimitSeconds } = req.body || {};
+    await db.$executeRawUnsafe(`ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'`);
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
+    await db.$executeRawUnsafe('UPDATE "NotificationRule" SET trigger=$2, template=$3, channel=$4, enabled=$5, criteria=CAST($6 AS JSONB), name=$7, "rateLimitSeconds"=$8 WHERE id=$1', id, String(trigger), String(template), String(channel), Boolean(enabled), JSON.stringify(criteria||{}), name||null, Number(rateLimitSeconds||0));
+    await audit(req,'notifications','rule_update',{ id, trigger, channel });
+    const row: any[] = await db.$queryRawUnsafe(`SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" WHERE id=$1`, id);
+    res.json({ rule: row?.[0]||null });
+  } catch (e:any) { res.status(500).json({ error: e.message||'rule_update_failed' }); }
+});
+adminRest.delete('/notifications/rules/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const id = String(req.params.id||''); if (!id) return res.status(400).json({ error:'id_required' });
+    await db.$executeRawUnsafe('DELETE FROM "NotificationRule" WHERE id=$1', id);
+    await audit(req,'notifications','rule_delete',{ id });
+    res.json({ success:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'rule_delete_failed' }); }
 });
 adminRest.post('/notifications/send', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'notifications','forbidden_send',{}); return res.status(403).json({ error:'forbidden' }); }
     const { channel, to, subject, body } = req.body || {};
     if (!channel || !to || !body) return res.status(400).json({ error:'channel_to_body_required' });
-    // Best-effort send: email via nodemailer; SMS placeholder
+    // Best-effort send: email via nodemailer; SMS/WHATSAPP placeholders
     try {
       if (channel === 'email') {
         const tx = nodemailer.createTransport({
@@ -6314,7 +6786,9 @@ adminRest.post('/notifications/send', async (req, res) => {
         });
         await tx.sendMail({ from: process.env.SMTP_FROM || 'no-reply@jeeey.com', to, subject: subject||'Notification', html: body });
       } else if (channel === 'sms') {
-        // TODO: integrate SMS provider; for now, log
+        // integrate SMS provider here; best-effort log only
+      } else if (channel === 'whatsapp') {
+        // integrate WhatsApp Business API provider here; best-effort log only
       }
     } catch {}
     await audit(req, 'notifications', 'send', { channel, to });

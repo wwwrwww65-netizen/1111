@@ -20,18 +20,18 @@ function ColorsTab(): JSX.Element {
   const [name, setName] = React.useState("");
   const [hex, setHex] = React.useState("#800020");
   const [search, setSearch] = React.useState("");
-  const [toast, setToast] = React.useState<string>("");
-  const showToast = (m: string) => { setToast(m); setTimeout(()=> setToast(""), 1800); };
+  const [toast, setToast] = React.useState<{type:'ok'|'err'|'warn'; text:string}|null>(null);
+  const showToast = (text: string, type:'ok'|'err'|'warn'='ok') => { setToast({ type, text }); setTimeout(()=> setToast(null), 2000); };
   async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.colors||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, hex }) }); if(!r.ok){ showToast('فشل الإضافة'); return;} setName(""); await load(); showToast('تمت الإضافة'); }
-  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok){ showToast('فشل الحفظ'); return;} await load(); showToast('تم الحفظ'); }
-  async function remove(id: string){ if (!confirm('تأكيد الحذف؟')) return; const r = await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok){ showToast('فشل الحذف'); return;} await load(); showToast('تم الحذف'); }
+  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name, hex }) }); if(!r.ok){ showToast('فشل الإضافة','err'); return;} setName(""); await load(); showToast('تمت الإضافة','ok'); }
+  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok){ showToast('فشل الحفظ','err'); return;} await load(); showToast('تم الحفظ','ok'); }
+  async function remove(id: string){ if (!confirm('تأكيد الحذف؟')) return; const r = await fetch(`${apiBase}/api/admin/attributes/colors/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok){ showToast('لا يمكن حذف اللون لأنه مستخدم','err'); return;} await load(); showToast('تم الحذف','ok'); }
   async function pickWithEyedropper(){ try { const EyeDropper = (window as any).EyeDropper; if (!EyeDropper) return; const ed = new EyeDropper(); const result = await ed.open(); setHex(result.sRGBHex); } catch {}
   }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
-      {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
+      {toast && (<div className={`toast ${toast.type}`} style={{ marginBottom:8 }}>{toast.text}</div>)}
       <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:12, marginBottom:12 }}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 120px auto', gap:8 }}>
           <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم اللون" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
@@ -53,7 +53,7 @@ function ColorsTab(): JSX.Element {
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>الاسم</th><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>اللون</th></tr></thead>
         <tbody>
-          {rows.filter((c:any)=> !search || c.name?.toLowerCase().includes(search.toLowerCase())).map((c:any, idx:number)=> (
+          {rows.filter((c:any)=> !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.hex?.toLowerCase().includes(search.toLowerCase())).map((c:any, idx:number)=> (
             <tr key={c.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
               <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                 <input defaultValue={c.name} onBlur={(e)=>update(c.id, { name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
@@ -86,11 +86,13 @@ function SizesTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
+  const [toast, setToast] = React.useState<{type:'ok'|'err'|'warn'; text:string}|null>(null);
+  const showToast = (text:string, type:'ok'|'err'|'warn'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2000); };
   async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.types||[]); }
   React.useEffect(()=>{ load(); },[apiBase]);
-  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok) return; setName(""); await load(); }
-  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok) return; await load(); }
-  async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok) return; await load(); }
+  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok){ showToast('فشل الإضافة','err'); return; } setName(""); await load(); showToast('تمت الإضافة','ok'); }
+  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok){ showToast('فشل الحفظ','err'); return;} await load(); showToast('تم الحفظ','ok'); }
+  async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok){ showToast('لا يمكن الحذف لأنه مستخدم','err'); return;} await load(); showToast('تم الحذف','ok'); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:12, marginBottom:12 }}>
@@ -102,6 +104,7 @@ function SizesTab(): JSX.Element {
           <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم" style={{ padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', width:240 }} />
         </div>
       </div>
+      {toast && (<div className={`toast ${toast.type}`} style={{ marginBottom:8 }}>{toast.text}</div>)}
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>النوع</th><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}></th></tr></thead>
         <tbody>
@@ -131,11 +134,13 @@ function BrandsTab(): JSX.Element {
   const [rows, setRows] = React.useState<any[]>([]);
   const [name, setName] = React.useState("");
   const [search, setSearch] = React.useState("");
+  const [toast, setToast] = React.useState<{type:'ok'|'err'|'warn'; text:string}|null>(null);
+  const showToast = (text:string, type:'ok'|'err'|'warn'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2000); };
   async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.brands||[]); }
   React.useEffect(()=>{ load(); },[]);
-  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/brands`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok) return; setName(""); await load(); }
-  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok) return; await load(); }
-  async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok) return; await load(); }
+  async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/brands`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok){ showToast('فشل الإضافة','err'); return;} setName(""); await load(); showToast('تمت الإضافة','ok'); }
+  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok){ showToast('فشل الحفظ','err'); return;} await load(); showToast('تم الحفظ','ok'); }
+  async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/brands/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok){ showToast('لا يمكن الحذف لأنه مستخدم','err'); return;} await load(); showToast('تم الحذف','ok'); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'flex', gap:8, marginBottom:12, justifyContent:'space-between' }}>
@@ -143,6 +148,7 @@ function BrandsTab(): JSX.Element {
         <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="اسم العلامة" style={{ flex:1, padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
         <button onClick={add} style={{ padding:'10px 14px', background:'#800020', color:'#fff', borderRadius:10 }}>إضافة</button>
       </div>
+      {toast && (<div className={`toast ${toast.type}`} style={{ marginBottom:8 }}>{toast.text}</div>)}
       <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
         <thead><tr><th style={{textAlign:'right',padding:12,borderBottom:'1px solid #1c2333',background:'#0f1320'}}>الاسم</th></tr></thead>
         <tbody>

@@ -32,6 +32,9 @@ export default function AdminProductCreate(): JSX.Element {
   React.useEffect(()=>{ try{ localStorage.setItem('aiDeepseekOn', deepseekOn? '1':'0'); } catch {} },[deepseekOn]);
   const [lastMeta, setLastMeta] = React.useState<any>(null);
   const [useOpenRouter, setUseOpenRouter] = React.useState<boolean>(false);
+  const [draft, setDraft] = React.useState<boolean>(true);
+  const [seoTitle, setSeoTitle] = React.useState("");
+  const [seoDescription, setSeoDescription] = React.useState("");
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
   React.useEffect(()=>{ try{ localStorage.setItem('aiOpenRouterOn', useOpenRouter? '1':'0'); } catch {} },[useOpenRouter]);
 
@@ -685,15 +688,55 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // result is a data URL: data:<mime>;base64,<data>
-        resolve(result);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+    // Compress to WebP with max dimension for optimal upload; fallback to original if failure
+    try {
+      const dataUrl = await compressToDataUrl(file, 1600, 0.82);
+      return dataUrl;
+    } catch {
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result||''));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+  }
+
+  async function compressToDataUrl(file: File, maxDim: number, quality: number): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      try {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          try {
+            const w = img.width; const h = img.height;
+            let targetW = w; let targetH = h;
+            if (w > h && w > maxDim) { targetW = maxDim; targetH = Math.round(h * (maxDim / w)); }
+            else if (h >= w && h > maxDim) { targetH = maxDim; targetW = Math.round(w * (maxDim / h)); }
+            const canvas = document.createElement('canvas');
+            canvas.width = targetW; canvas.height = targetH;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { URL.revokeObjectURL(url); return reject(new Error('no_ctx')); }
+            ctx.drawImage(img, 0, 0, targetW, targetH);
+            const mime = 'image/webp';
+            canvas.toBlob((blob)=>{
+              try {
+                URL.revokeObjectURL(url);
+                if (!blob) return reject(new Error('no_blob'));
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result||''));
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              } catch (e) { reject(e as any); }
+            }, mime, quality);
+          } catch (e) {
+            URL.revokeObjectURL(url);
+            reject(e as any);
+          }
+        };
+        img.onerror = (e)=> { URL.revokeObjectURL(url); reject(new Error('img_error')); };
+        img.src = url;
+      } catch (e) { reject(e as any); }
     });
   }
 
@@ -812,7 +855,9 @@ export default function AdminProductCreate(): JSX.Element {
       sku: sku || undefined,
       brand: brand || undefined,
       tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
-      isActive: true,
+      isActive: !draft,
+      seoTitle: seoTitle||undefined,
+      seoDescription: seoDescription||undefined,
     };
     let res: Response;
     try {
@@ -840,7 +885,12 @@ export default function AdminProductCreate(): JSX.Element {
       let variants = variantRows;
       if (!variants?.length) variants = generateVariantRows();
       if (variants.length) {
-        // Future: POST variants in bulk when endpoint is ready
+        try {
+          await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
+            method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+            body: JSON.stringify({ variants })
+          });
+        } catch {}
       }
     }
     if (uploadedOrBase64.length) {
@@ -1282,11 +1332,19 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
               <div style={{ fontWeight:700 }}>{name || '— بدون اسم —'}</div>
               <div style={{ color:'var(--sub)', fontSize:12 }}>{categoryOptions.find(c=>c.id===categoryId)?.name || 'بدون تصنيف'}</div>
+              <div className="panel" style={{ padding:10 }}>
+                <div style={{ marginBottom:6, color:'#9ca3af' }}>SEO</div>
+                <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
+                  <input className="input" placeholder="SEO Title" value={seoTitle} onChange={(e)=> setSeoTitle(e.target.value)} />
+                  <input className="input" placeholder="SEO Description" value={seoDescription} onChange={(e)=> setSeoDescription(e.target.value)} />
+                </div>
+              </div>
               <div style={{ display:'flex', gap:12, marginTop:6 }}>
                 <div><div style={{ color:'var(--sub)', fontSize:12 }}>سعر البيع</div><div>{salePrice || '—'}</div></div>
                 <div><div style={{ color:'var(--sub)', fontSize:12 }}>المخزون</div><div>{stockQuantity || 0}</div></div>
                 <div><div style={{ color:'var(--sub)', fontSize:12 }}>الصور</div><div>{(images||'').split(',').filter(Boolean).length + files.length}</div></div>
               </div>
+              <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
               <div style={{ display:'flex', gap:8, marginTop:8 }}>
                 <button type="submit" className="btn" disabled={!name || !categoryId || salePrice==='' || salePrice===undefined}>حفظ المنتج</button>
                 <a href="/products" className="btn btn-outline">رجوع</a>

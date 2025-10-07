@@ -67,20 +67,23 @@ export default function ReviewsPage(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r:any, idx:number)=> (
-              <tr key={r.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
+            {rows.map((r:any, idx:number)=> {
+              const ageDays = Math.floor((Date.now() - new Date(r.createdAt||Date.now()).getTime())/(24*3600*1000));
+              const slaWarn = !r.isApproved && ageDays>=7;
+              return (
+              <tr key={r.id} style={{ background: idx%2? '#0a0e17':'transparent' }} className={slaWarn? 'warn': ''}>
                 <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{r.product?.name||'-'}</td>
                 <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{r.user?.email||r.user?.name||'-'}</td>
                 <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{r.rating}</td>
                 <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{r.comment||'-'}</td>
-                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{r.isApproved? 'مقبول':'معلق'}</td>
+                <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{r.isApproved? 'مقبول': (<span>معلق {slaWarn && <span style={{ color:'#ef4444' }}>(+{ageDays}ي)</span>}</span>)}</td>
                 <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>
                   <button className="btn" onClick={()=>approve(r.id)} disabled={r.isApproved}>قبول</button>
                   <button className="btn" onClick={()=>reject(r.id)} style={{ marginInlineStart:6 }} disabled={!r.isApproved}>تعليق</button>
                   <button className="btn" onClick={()=>remove(r.id)} style={{ marginInlineStart:6, background:'#7c2d12', color:'#fff' }}>حذف</button>
                 </td>
               </tr>
-            ))}
+            )})}
             {!rows.length && (<tr><td colSpan={6} style={{ padding:12, color:'var(--sub)' }}>{busy? 'جارٍ التحميل…' : 'لا توجد مراجعات'}</td></tr>)}
           </tbody>
         </table>

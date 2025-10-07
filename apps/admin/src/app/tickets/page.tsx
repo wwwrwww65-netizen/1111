@@ -60,18 +60,21 @@ export default function TicketsPage(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {rows.map((t)=> (
-            <tr key={t.id}>
+          {rows.map((t)=> {
+            const ageDays = Math.floor((Date.now() - new Date(t.createdAt||Date.now()).getTime())/(24*3600*1000));
+            const slaWarn = t.status!=='CLOSED' && ageDays>=3;
+            return (
+            <tr key={t.id} className={slaWarn? 'warn': ''}>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{t.id.slice(0,6)}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{t.subject}</td>
-              <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{t.status}</td>
+              <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{t.status} {slaWarn && <span style={{ color:'#ef4444' }}>(+{ageDays}ي)</span>}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{t.priority}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>{t.user?.email||'-'}</td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
                 <a href={`/tickets/${t.id}`} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:6 }}>تفاصيل</a>
               </td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     </main>
