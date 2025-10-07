@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ hash ]
+    branches: [ main, hash ]
   pull_request:
     branches: [ main ]
 
