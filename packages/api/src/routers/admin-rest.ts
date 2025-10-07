@@ -6575,13 +6575,35 @@ adminRest.get('/logistics/delivery/suggest-drivers', async (_req, res) => {
 adminRest.get('/notifications/templates', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'notifications','forbidden_templates',{}); return res.status(403).json({ error:'forbidden' }); }
-    // Minimal static templates for now
-    const items = [
-      { key:'order_paid', channel:'email', subject:'تم استلام الدفع', body:'تم استلام دفعتك بنجاح. رقم الطلب: {{orderId}}' },
-      { key:'order_shipped', channel:'sms', body:'طلبك رقم {{orderId}} في طريقه إليك.' },
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const saved: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled FROM "NotificationRule" ORDER BY "createdAt" DESC LIMIT 200');
+    const items = saved.length ? saved : [
+      { id:'t1', trigger:'order.paid', template:'order_paid', channel:'email', enabled:true },
+      { id:'t2', trigger:'order.shipped', template:'order_shipped', channel:'sms', enabled:true },
     ];
     res.json({ templates: items });
   } catch (e:any) { res.status(500).json({ error: e.message||'templates_failed' }); }
+});
+adminRest.get('/notifications/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled FROM "NotificationRule" ORDER BY "createdAt" DESC');
+    res.json({ rules: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'rules_list_failed' }); }
+});
+adminRest.post('/notifications/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const { trigger, template, channel, enabled } = req.body || {};
+    if (!trigger || !template || !channel) return res.status(400).json({ error:'missing_fields' });
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('INSERT INTO "NotificationRule" (id, trigger, template, channel, enabled) VALUES ($1,$2,$3,$4,$5)', id, String(trigger), String(template), String(channel), Boolean(enabled));
+    await audit(req,'notifications','rule_create',{ id, trigger, channel });
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled FROM "NotificationRule" ORDER BY "createdAt" DESC');
+    res.json({ rules: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'rule_create_failed' }); }
 });
 adminRest.post('/notifications/send', async (req, res) => {
   try {
