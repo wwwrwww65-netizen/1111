@@ -11,7 +11,14 @@
             <Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
-        <div :class="['text-lg sm:text-xl font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
+        <div :class="['text-lg sm:text-xl font-semibold flex items-center justify-center', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">
+          <template v-if="brandLogo">
+            <img :src="brandLogo" alt="jeeey" class="h-7 w-auto object-contain" />
+          </template>
+          <template v-else>
+            jeeey
+          </template>
+        </div>
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="السلة" @click="go('/cart')">
             <ShoppingCart :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
@@ -176,29 +183,40 @@
 
     <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
       <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
-        <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
-          <Home :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">الرئيسية</div>
-        </button>
-        <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
-          <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">الفئات</div>
-        </button>
-        <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
-          <Search :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">جديد</div>
-        </button>
-        <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
-          <div class="relative inline-block">
-            <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
-            <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
-          </div>
-          <div class="text-[11px] text-gray-700">الحقيبة</div>
-        </button>
-        <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
-          <User :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">حسابي</div>
-        </button>
+        <template v-if="(navTabs && navTabs.length)">
+          <button v-for="(t,idx) in navTabs" :key="'tab-'+idx" class="w-16 text-center" :aria-label="t.label" @click="go(t.href||'/')">
+            <div class="relative inline-block">
+              <component :is="iconComp(t.icon||'home')" :size="24" class="mx-auto mb-1 text-gray-600" />
+              <span v-if="(t.icon||'')==='cart' && cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
+            </div>
+            <div class="text-[11px] text-gray-700">{{ t.label }}</div>
+          </button>
+        </template>
+        <template v-else>
+          <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
+            <Home :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">الرئيسية</div>
+          </button>
+          <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
+            <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">الفئات</div>
+          </button>
+          <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
+            <Search :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">جديد</div>
+          </button>
+          <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
+            <div class="relative inline-block">
+              <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
+              <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
+            </div>
+            <div class="text-[11px] text-gray-700">الحقيبة</div>
+          </button>
+          <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
+            <User :size="24" class="mx-auto mb-1 text-gray-600" />
+            <div class="text-[11px] text-gray-700">حسابي</div>
+          </button>
+        </template>
       </div>
     </nav>
   </div>
@@ -227,6 +245,16 @@ const tabsTopPx = computed(()=> headerH.value)
 // Banner responsive sources
 const theme = ref<any>({})
 const hero = reactive({ image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1600&q=60', alt:'عرض تخفيضات', title:'خصم يصل حتى 90%', kicker:'احتفالنا الأكبر على الإطلاق', cta:'تسوّق الآن', link:'/products' })
+const brandLogo = computed(()=> {
+  const b = (theme.value?.branding)||{}
+  return scrolled.value ? (b.logoDark || b.logoLight || '') : (b.logoLight || '')
+})
+const navTabs = computed(()=> (theme.value?.navigation?.mweb?.tabs)||[])
+
+function iconComp(name: string){
+  const map: Record<string, any> = { home: Home, categories: LayoutGrid, search: Search, cart: ShoppingBag, user: User }
+  return map[name] || Home
+}
 
 function go(path: string){ router.push(path) }
 function onScroll(){ scrolled.value = window.scrollY > 60; nextTick(measureHeader) }
