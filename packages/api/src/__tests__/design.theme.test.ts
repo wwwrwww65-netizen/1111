@@ -14,7 +14,7 @@ describe('Design Theme CRUD & Publish', () => {
     expect(getDraft.status).toBe(200);
     const pub = await request(expressApp).post('/api/admin/design/theme/publish').set('Authorization', `Bearer ${token}`).send({ site:'web' });
     expect(pub.status).toBe(200);
-    const getLive = await request(expressApp).get('/api/admin/public/theme/config?site=web');
+    const getLive = await request(expressApp).get('/api/theme/config?site=web');
     expect(getLive.status).toBe(200);
     expect(getLive.body?.theme?.colors?.primary).toBe('#123456');
   });
