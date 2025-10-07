@@ -1919,10 +1919,13 @@ adminRest.get('/finance/expenses/export/xlsx', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.export'))) return res.status(403).json({ error:'forbidden' });
     const rows = await db.expense.findMany({ orderBy: { date: 'desc' } });
     const data = rows.map(r=> ({ id:r.id, date:r.date.toISOString(), category:r.category, description:r.description||'', amount:r.amount, vendorId:r.vendorId||'', invoiceRef:r.invoiceRef||'' }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'expenses');
-    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
+    // Lazy import xlsx at runtime (optional dependency)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const XLSXLib = require('xlsx');
+    const wb = XLSXLib.utils.book_new();
+    const ws = XLSXLib.utils.json_to_sheet(data);
+    XLSXLib.utils.book_append_sheet(wb, ws, 'expenses');
+    const buf = XLSXLib.write(wb, { type:'buffer', bookType:'xlsx' });
     res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition','attachment; filename="expenses.xlsx"');
     return res.send(buf);
