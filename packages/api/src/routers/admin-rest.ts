@@ -3,6 +3,7 @@ import { verifyToken, createToken } from '../middleware/auth';
 import { readTokenFromRequest, readAdminTokenFromRequest } from '../utils/jwt';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import { Parser as CsvParser } from 'json2csv';
+import * as XLSX from 'xlsx';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
 import { authenticator } from 'otplib';
@@ -1870,6 +1871,7 @@ adminRest.post('/finance/expenses', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.create'))) return res.status(403).json({ error:'forbidden' });
     const { date, category, description, amount, vendorId, invoiceRef } = req.body || {};
     if (!category || !(amount != null)) return res.status(400).json({ error: 'category_and_amount_required' });
+    if (Number.isNaN(Number(amount))) return res.status(400).json({ error: 'amount_invalid' });
     const d = await db.expense.create({ data: { date: date? new Date(String(date)) : new Date(), category: String(category), description: description||null, amount: Number(amount), vendorId: vendorId||null, invoiceRef: invoiceRef||null } });
     await audit(req, 'finance.expenses', 'create', { id: d.id, amount: d.amount });
     res.json({ expense: d });
@@ -1881,6 +1883,7 @@ adminRest.patch('/finance/expenses/:id', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
     const { date, category, description, amount, vendorId, invoiceRef } = req.body || {};
+    if (amount != null && Number.isNaN(Number(amount))) return res.status(400).json({ error:'amount_invalid' });
     const d = await db.expense.update({ where: { id }, data: { ...(date && { date: new Date(String(date)) }), ...(category && { category }), ...(description !== undefined && { description }), ...(amount != null && { amount: Number(amount) }), ...(vendorId !== undefined && { vendorId }), ...(invoiceRef !== undefined && { invoiceRef }) } });
     await audit(req, 'finance.expenses', 'update', { id });
     res.json({ expense: d });
@@ -1907,6 +1910,20 @@ adminRest.get('/finance/expenses/export/csv', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="expenses.csv"');
     res.send(csv);
   } catch (e:any) { res.status(500).json({ error: e.message||'expenses_export_failed' }); }
+});
+adminRest.get('/finance/expenses/export/xlsx', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'finance.expenses.export'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.expense.findMany({ orderBy: { date: 'desc' } });
+    const data = rows.map(r=> ({ id:r.id, date:r.date.toISOString(), category:r.category, description:r.description||'', amount:r.amount, vendorId:r.vendorId||'', invoiceRef:r.invoiceRef||'' }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'expenses');
+    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition','attachment; filename="expenses.xlsx"');
+    return res.send(buf);
+  } catch (e:any) { res.status(500).json({ error: e.message||'expenses_export_xlsx_failed' }); }
 });
 
 // Finance: P&L
