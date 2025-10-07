@@ -6703,10 +6703,10 @@ adminRest.get('/notifications/templates', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) { await audit(req,'notifications','forbidden_templates',{}); return res.status(403).json({ error:'forbidden' }); }
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
-    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '\'{}\''');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
-    const saved: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria,'{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC LIMIT 200');
+    const saved: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '\'{}\'') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC LIMIT 200');
     const items = saved.length ? saved : [
       { id:'t1', trigger:'order.paid', template:'order_paid', channel:'email', enabled:true },
       { id:'t2', trigger:'order.shipped', template:'order_shipped', channel:'sms', enabled:true },
@@ -6718,10 +6718,10 @@ adminRest.get('/notifications/rules', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
-    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '\'{}\''');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
-    const rows: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria,'{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '\'{}\'') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC');
     res.json({ rules: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'rules_list_failed' }); }
 });
@@ -6731,13 +6731,13 @@ adminRest.post('/notifications/rules', async (req, res) => {
     const { trigger, template, channel, enabled, name, criteria, rateLimitSeconds } = req.body || {};
     if (!trigger || !template || !channel) return res.status(400).json({ error:'missing_fields' });
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "NotificationRule" (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, template TEXT NOT NULL, channel TEXT NOT NULL, enabled BOOLEAN DEFAULT true, "createdAt" TIMESTAMP DEFAULT NOW())');
-    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '\'{}\''');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
     const id = (require('crypto').randomUUID as ()=>string)();
     await db.$executeRawUnsafe('INSERT INTO "NotificationRule" (id, trigger, template, channel, enabled, criteria, name, "rateLimitSeconds") VALUES ($1,$2,$3,$4,$5, CAST($6 AS JSONB), $7, $8)', id, String(trigger), String(template), String(channel), Boolean(enabled), JSON.stringify(criteria||{}), name||null, Number(rateLimitSeconds||0));
     await audit(req,'notifications','rule_create',{ id, trigger, channel });
-    const rows: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria,'{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC');
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '\'{}\'') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC');
     res.json({ rules: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'rule_create_failed' }); }
 });
@@ -6746,12 +6746,12 @@ adminRest.put('/notifications/rules/:id', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
     const id = String(req.params.id||''); if (!id) return res.status(400).json({ error:'id_required' });
     const { trigger, template, channel, enabled, name, criteria, rateLimitSeconds } = req.body || {};
-    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '{}'');
+    await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS criteria JSONB DEFAULT '\'{}\''');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS name TEXT');
     await db.$executeRawUnsafe('ALTER TABLE "NotificationRule" ADD COLUMN IF NOT EXISTS "rateLimitSeconds" INT DEFAULT 0');
     await db.$executeRawUnsafe('UPDATE "NotificationRule" SET trigger=$2, template=$3, channel=$4, enabled=$5, criteria=CAST($6 AS JSONB), name=$7, "rateLimitSeconds"=$8 WHERE id=$1', id, String(trigger), String(template), String(channel), Boolean(enabled), JSON.stringify(criteria||{}), name||null, Number(rateLimitSeconds||0));
     await audit(req,'notifications','rule_update',{ id, trigger, channel });
-    const row: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria,'{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" WHERE id=$1', id);
+    const row: any[] = await db.$queryRawUnsafe('SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '\'{}\'') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" WHERE id=$1', id);
     res.json({ rule: row?.[0]||null });
   } catch (e:any) { res.status(500).json({ error: e.message||'rule_update_failed' }); }
 });
