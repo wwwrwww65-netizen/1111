@@ -55,3 +55,20 @@ app.mount('#app');
 injectTracking();
 try{ const cart = useCart(); cart.loadLocal() }catch{}
 
+// Apply theme CSS variables for mweb (live config)
+try {
+  fetch('/api/admin/public/theme/config?site=mweb', { credentials:'include' })
+    .then(r=> r.json()).then(j=> {
+      const theme = j?.theme || {};
+      const root = document.documentElement as HTMLElement;
+      const c: any = theme.colors || {};
+      if (c.primary) root.style.setProperty('--color-primary', String(c.primary));
+      if (c.secondary) root.style.setProperty('--color-secondary', String(c.secondary));
+      if (c.bg) root.style.setProperty('--color-bg', String(c.bg));
+      if (c.text) root.style.setProperty('--color-text', String(c.text));
+      const r: any = theme.radius || {};
+      if (r.md != null) root.style.setProperty('--radius-md', String(r.md) + 'px');
+      if (r.lg != null) root.style.setProperty('--radius-lg', String(r.lg) + 'px');
+    }).catch(()=>{});
+} catch {}
+
