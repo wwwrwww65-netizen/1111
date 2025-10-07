@@ -57,7 +57,7 @@ try{ const cart = useCart(); cart.loadLocal() }catch{}
 
 // Apply theme CSS variables for mweb (live config)
 try {
-  fetch('/api/admin/public/theme/config?site=mweb', { credentials:'include' })
+  fetch('/api/theme/config?site=mweb', { credentials:'include' })
     .then(r=> r.json()).then(j=> {
       const theme = j?.theme || {};
       const root = document.documentElement as HTMLElement;

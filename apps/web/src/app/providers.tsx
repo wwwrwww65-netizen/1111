@@ -54,7 +54,7 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
   React.useEffect(() => {
     async function loadTheme() {
       try {
-        const res = await fetch('/api/admin/public/theme/config?site=web', { credentials: 'include' });
+        const res = await fetch('/api/theme/config?site=web', { credentials: 'include' });
         const j = await res.json();
         const theme = j?.theme || {};
         const root = document.documentElement as HTMLElement;
