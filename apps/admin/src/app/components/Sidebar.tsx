@@ -197,6 +197,7 @@ export function Sidebar(): JSX.Element {
     const initial: Record<number, boolean> = {};
     groups.forEach((g, idx) => {
       if (!g.title) { initial[idx] = true; return; }
+      if (g.title === 'التصميم والمظهر') { initial[idx] = true; return; }
       const anyActive = (g.items || []).some(it => isActive(it.href));
       initial[idx] = anyActive;
     });
