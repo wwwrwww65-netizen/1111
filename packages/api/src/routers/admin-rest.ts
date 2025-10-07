@@ -3211,6 +3211,30 @@ adminRest.get('/analytics/utm/summary', async (req, res) => {
     res.json({ utm: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'utm_failed' }); }
 });
+
+// System audit logs listing (paginated)
+adminRest.get('/audit-logs', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, Number(req.query.page||1));
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit||20)));
+    const q = String(req.query.q||'').trim();
+    const module = String(req.query.module||'').trim();
+    const where: any = {};
+    if (module) where.module = module;
+    if (q) where.OR = [
+      { action: { contains: q, mode: 'insensitive' } },
+      { module: { contains: q, mode: 'insensitive' } },
+    ];
+    const logs = await db.auditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page-1)*limit,
+      take: limit,
+    });
+    res.json({ logs });
+  } catch (e:any) { res.status(500).json({ error: e.message||'audit_logs_failed' }); }
+});
 // Saved analytics reports via Setting table (key: analytics.report:<name>)
 adminRest.get('/analytics/reports', async (req, res) => {
   try {
