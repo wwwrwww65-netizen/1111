@@ -34,12 +34,12 @@
 
     <div class="w-screen px-0">
       <div class="relative w-full h-[360px] sm:h-[420px]">
-          <img :src="bannerSrc" :srcset="bannerSrcSet" alt="عرض تخفيضات" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
-        <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent" />
+          <img :src="hero.image" :alt="hero.alt" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
+        <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent" />
         <div class="absolute left-4 right-4 bottom-4 text-white">
-          <div class="text-[12px] mb-1">احتفالنا الأكبر على الإطلاق</div>
-          <div class="text-[32px] font-extrabold leading-tight">خصم يصل حتى 90%</div>
-          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200" aria-label="تسوّق الآن" @click="go('/products')">تسوّق الآن</button>
+          <div class="text-[12px] mb-1">{{ hero.kicker }}</div>
+          <div class="text-[32px] font-extrabold leading-tight">{{ hero.title }}</div>
+          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200" :aria-label="hero.cta||'تسوّق الآن'" @click="go(hero.link||'/products')">{{ hero.cta||'تسوّق الآن' }}</button>
         </div>
       </div>
     </div>
@@ -225,8 +225,8 @@ function measureHeader(){ try{ const h = headerRef.value?.getBoundingClientRect(
 const tabsTopPx = computed(()=> headerH.value)
 
 // Banner responsive sources
-const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
-const bannerSrcSet = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w'
+const theme = ref<any>({})
+const hero = reactive({ image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1600&q=60', alt:'عرض تخفيضات', title:'خصم يصل حتى 90%', kicker:'احتفالنا الأكبر على الإطلاق', cta:'تسوّق الآن', link:'/products' })
 
 function go(path: string){ router.push(path) }
 function onScroll(){ scrolled.value = window.scrollY > 60; nextTick(measureHeader) }
@@ -268,6 +268,21 @@ function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
 
 onMounted(async ()=>{
+  // Load live theme for mweb and bind to hero if provided
+  try{
+    const res = await fetch('/api/theme/config?site=mweb', { credentials:'include' })
+    const j = await res.json(); theme.value = j?.theme||{}
+    if (theme.value?.home?.sections){
+      const heroSec = theme.value.home.sections.find((s:any)=> s?.type==='hero')
+      if (heroSec?.config){
+        hero.image = heroSec.config.image || hero.image
+        hero.title = heroSec.config.title || hero.title
+        hero.kicker = heroSec.config.kicker || hero.kicker
+        hero.cta = heroSec.config.cta || hero.cta
+        hero.link = heroSec.config.link || hero.link
+      }
+    }
+  }catch{}
   // Categories
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')
