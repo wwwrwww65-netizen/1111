@@ -2,65 +2,65 @@
 
 Track progress across all admin modules. Each item lists gaps, UX/UI improvements, and concrete tasks. Update checkboxes as work completes.
 
-- [ ] 1) Auth & SSO & 2FA
+- [x] 1) Auth & SSO & 2FA
   - Gaps: unified errors, prod rate-limit, SSO self-tests.
   - Tasks: lockout banner; proxy-safe rate-limit; SSO health checks.
   - UX: clearer toasts, OTP hints.
-- [ ] 2) Dashboard (KPIs/Series/Health/Live)
+- [x] 2) Dashboard (KPIs/Series/Health/Live)
   - Gaps: persist filters, deltas (WoW/MoM).
   - Tasks: localStorage filters; lazy charts; CSV parity with filters.
   - UX: skeletons/empty-states.
-- [ ] 3) Catalog: Products
+- [x] 3) Catalog: Products
   - Gaps: variants/inventory editor, SEO, drafts.
   - Tasks: variants UI; SKU rules; image compression.
-- [ ] 4) Catalog: Categories
+- [x] 4) Catalog: Categories
   - Gaps: instant slug validation; safer deletes.
   - Tasks: drag/drop reorder polish; SEO preview; translations editor.
-- [ ] 5) Catalog: Attributes
+- [x] 5) Catalog: Attributes
   - Gaps: prevent delete when in-use; list filters.
   - Tasks: usage checks; search.
-- [ ] 6) Media Library
+- [x] 6) Media Library
   - Gaps: multi-upload with progress; crop; WebP/AVIF; dedupe.
   - Tasks: client crop; server conversion; checksum usage.
-- [ ] 7) Orders
+- [x] 7) Orders
   - Gaps: timeline; internal notes.
   - Tasks: status progress UI; export correctness.
-- [ ] 8) Logistics
+- [x] 8) Logistics
   - Gaps: offline-proof reliability; ETA; clustering.
   - Tasks: retry queue; map improvements.
-- [ ] 9) Drivers/Shipments/Carriers
+- [x] 9) Drivers/Shipments/Carriers
   - Gaps: doc expiry reminders; fine RBAC.
   - Tasks: reminders; permission matrix.
-- [ ] 10) Finance
+- [x] 10) Finance
   - Gaps: reconcile rules; XLSX exports; validations.
   - Tasks: rule engine; export formatting.
-- [ ] 11) Marketing/Coupons/Analytics
+- [x] 11) Marketing/Coupons/Analytics
   - Gaps: visual coupon rules; saved reports.
   - Tasks: rule builder; saved views.
-- [ ] 12) Notifications
+- [x] 12) Notifications
   - Gaps: visual rules; multi-channel abstractions.
   - Tasks: template preview; rule hits metrics.
-- [ ] 13) Users & RBAC
+- [x] 13) Users & RBAC
   - Gaps: per-user audit; advanced filters.
   - Tasks: CSV/XLS exports; audit tab.
-- [ ] 14) Vendors
+- [x] 14) Vendors
   - Gaps: catalog import validator; mapping assistant.
   - Tasks: progress UI; doc expiry alerts.
-- [ ] 15) Settings & System
+- [x] 15) Settings & System
   - Gaps: confirm dangerous ops; granular permissions; pre-change backups.
   - Tasks: change log; confirmations.
-- [ ] 16) Backups
+- [x] 16) Backups
   - Gaps: retention UI; alerts; progress; sizes/time.
   - Tasks: schedule save; restore audit.
-- [ ] 17) Reviews/Tickets/Returns/CMS
+- [x] 17) Reviews/Tickets/Returns/CMS
   - Gaps: SLA indicators; WYSIWYG; filters.
   - Tasks: sanitize content; SLA badges.
-- [ ] 18) Loyalty/Badges/Subscriptions/Wallet/FX/Affiliate
+- [x] 18) Loyalty/Badges/Subscriptions/Wallet/FX/Affiliate
   - Gaps: unified ledgers; payouts; FX screen; dashboards.
   - Tasks: integrity checks; payout exports; FX conversions.
 
 ## Cross-cutting
-- [ ] Tests (unit/integration/E2E) per module
-- [ ] Feature flags for risky UI
-- [ ] CI type-check (progressively enable), lint, build, smokes, E2E
-- [ ] Security: single CORS source in prod; rate-limit sensitive routes; audit logs
+- [x] Tests (unit/integration/E2E) per module
+- [x] Feature flags for risky UI
+- [x] CI type-check (progressively enable), lint, build, smokes, E2E
+- [x] Security: single CORS source in prod; rate-limit sensitive routes; audit logs

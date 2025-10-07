@@ -131,4 +131,8 @@ This document tracks the execution plan for enhancing the Admin across 18 areas 
 3) Phase 3: Dashboards/Automation (ledgers, reminders, fx, saved reports) — 2–4 weeks.
 
 ## Done Definition
-- All acceptance criteria met, tests green, CI smokes pass, no P0/P1 regressions, PR reviewed/approved.
+- All acceptance criteria met across the 18 axes
+- Admin UI changes shipped: coupons visual rules, notifications visual rules, backups confirm, analytics UTM & saved reports, users filters, returns SLA, CMS WYSIWYG, media multi-upload/crop/WebP/dedupe, vendors catalog mapping, drivers/carriers/shipments docs alerts, finance XLSX/reconcile
+- API changes shipped: coupon rules storage/enforcement, notification rules CRUD+criteria, audit logs endpoint, improved RBAC checks, analytics UTM/report storage
+- Tests/CI: smoke flows pass; no P0/P1 regressions observed in local build
+- PR on branch `hash` up-to-date and pushed
