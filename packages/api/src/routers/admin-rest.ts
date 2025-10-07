@@ -4038,7 +4038,6 @@ adminRest.post('/products/analyze', async (req, res) => {
         type PriceCand = { v:number; tag:number; ctx:string }
         const cands: PriceCand[] = []
         const addCand = (v:number, around:string)=>{
-          const near = around.toLowerCase()
           const bad = /(جديد|جنوب|جنوبي|قعيطي|سعودي)/i.test(around)
           if (bad) return
           let tag = 4
@@ -4046,14 +4045,20 @@ adminRest.post('/products/analyze', async (req, res) => {
           else if (/(للشمال|الشمال)/i.test(around)) tag = 2
           cands.push({ v, tag, ctx: around })
         }
-        // scan windows around number+currency
+        const hasCurrencyTok = (s:string)=> new RegExp(CUR,'i').test(s)
+        const hasPriceWord = (s:string)=> /(السعر|سعر|price|البيع)/i.test(s)
+        // scan windows around numeric tokens but keep only plausible price contexts
         const rxAll = new RegExp(`${NUM}\\s*${CUR}?`, 'ig')
         let mP: RegExpExecArray | null
         while ((mP = rxAll.exec(rt))){
-          const num = Number(String(mP[1]).replace(',', '.'))
+          const numVal = Number(String(mP[1]).replace(',', '.'))
           const start = Math.max(0, mP.index - 20)
-          const end = Math.min(rt.length, mP.index + mP[0].length + 20)
-          addCand(num, rt.slice(start, end))
+          const end = Math.min(rt.length, mP.index + mP[0].length + 24)
+          const ctx = rt.slice(start, end)
+          // require currency or explicit price word, and a reasonable magnitude
+          if (!Number.isFinite(numVal) || numVal < 80) continue
+          if (!(hasCurrencyTok(ctx) || hasPriceWord(ctx))) continue
+          addCand(numVal, ctx)
         }
         cands.sort((a,b)=> a.tag - b.tag)
         const cost = cands.length ? cands[0].v : (typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined)
@@ -4081,8 +4086,18 @@ adminRest.post('/products/analyze', async (req, res) => {
         const hasSizeAnchor = /(المقاسات|المقاس|\bsize\b|\bEU\b|\bUS\b|\bUK\b|فري\s*سايز)/i.test(rt)
         const letterSizes = Array.from(new Set((rt.match(/\b(XXL|XL|L|M|S|XS)\b/gi)||[]).map(s=> s.toUpperCase())))
         if (hasSizeAnchor || letterSizes.length){
-          const nums = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
-          sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums.map(v=> String(v))])) as string[]
+          const numMatches = Array.from(rt.matchAll(/\b(\d{2})\b/g))
+          const nums = numMatches
+            .map(m=> ({ value: Number(m[1]), index: m.index || 0, raw: m[0] }))
+            .filter(o=> o.value>=20 && o.value<=60)
+            .filter(o=>{
+              const start = Math.max(0, o.index - 20)
+              const end = Math.min(rt.length, o.index + String(o.raw).length + 20)
+              const ctx = rt.slice(start, end)
+              return !/(السعر|سعر|price|البيع)/i.test(ctx) && !new RegExp(CUR,'i').test(ctx)
+            })
+            .map(o=> String(o.value))
+          sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums])) as string[]
         }
 
         // Domain detectors (lightweight heuristics)
@@ -4119,6 +4134,11 @@ adminRest.post('/products/analyze', async (req, res) => {
         // الأبعاد والوزن (دعم x و ×)
         const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×X]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
         if (!isCosmetics && dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
+        // Capture length/width without units if explicitly labeled
+        const lenM = rt.match(/الطول\s*(\d{2,4})/i)
+        if (!isCosmetics && lenM) addRow(table,'length','الطول',lenM[1],0.82)
+        const widM = rt.match(/العرض\s*(\d{2,4})/i)
+        if (!isCosmetics && widM) addRow(table,'width','العرض',widM[1],0.82)
         const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
 
         // السعة/الذاكرة/التخزين/البطارية
