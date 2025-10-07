@@ -21,7 +21,7 @@ describe('Marketing Facebook', () => {
     const r = await request(expressApp).get(`/api/admin/marketing/facebook/recommendations?site=${site}`).set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(200);
 
-    const feed = await request(expressApp).get(`/api/admin/marketing/facebook/catalog.xml?site=${site}&token=${feedToken}`);
+    const feed = await request(expressApp).get(`/api/marketing/facebook/catalog.xml?site=${site}&token=${feedToken}`);
     expect(feed.status).toBe(200);
     expect(feed.text).toContain('<rss');
     expect(feed.text).toContain('<item>');

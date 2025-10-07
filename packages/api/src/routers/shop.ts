@@ -1200,6 +1200,46 @@ shop.get('/theme/config', async (req, res) => {
   }catch(e:any){ res.status(500).json({ error: e.message||'theme_config_failed' }) }
 })
 
+// Public Facebook Catalog feed (secured by token from admin settings)
+shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
+  try{
+    const { db } = require('@repo/db');
+    const site = String(req.query.site||'web');
+    const token = String(req.query.token||'');
+    const key = `marketing:facebook:settings:${site}`;
+    const s = await db.setting.findUnique({ where: { key } });
+    const expected = (s?.value as any)?.feedToken || '';
+    if (!expected || token !== expected) return res.status(403).send('forbidden');
+    res.setHeader('Content-Type','application/xml');
+    const xml = ['<?xml version="1.0" encoding="UTF-8"?>','<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">','<channel>','<title>JEEEY Catalog</title>','<link>https://jeeey.com</link>','<description>Product feed</description>'];
+    const perPage = 1000;
+    let lastId: string | null = null;
+    for(;;){
+      const page = await db.product.findMany({ where: { isActive: true }, orderBy: { id: 'asc' }, take: perPage, skip: lastId ? 1 : 0, ...(lastId ? { cursor: { id: lastId } } : {}) });
+      if (!page.length) break;
+      for (const p of page){
+        const img = (p.images||[])[0]||'';
+        xml.push('<item>');
+        xml.push(`<g:id>${p.id}</g:id>`);
+        xml.push(`<title>${escapeXml(p.name)}</title>`);
+        xml.push(`<link>https://jeeey.com/p?id=${p.id}</link>`);
+        xml.push(`<g:price>${(p.price||0).toFixed(2)} SAR</g:price>`);
+        xml.push(`<g:image_link>${escapeXml(img)}</g:image_link>`);
+        xml.push(`<g:availability>${p.isActive ? 'in stock' : 'out of stock'}</g:availability>`);
+        if (p.brand) xml.push(`<g:brand>${escapeXml(p.brand)}</g:brand>`);
+        xml.push(`<g:condition>new</g:condition>`);
+        xml.push('</item>');
+      }
+      lastId = page[page.length - 1]?.id || null;
+      if (page.length < perPage) break;
+    }
+    xml.push('</channel></rss>');
+    res.send(xml.join(''));
+  }catch(e:any){ res.status(500).send('feed_failed') }
+})
+
+function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c)=> ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as any)[c] || c) }
+
 // Shipping quote (simple placeholder; replace with provider call if enabled)
 shop.get('/shipping/quote', async (req, res) => {
   try{
