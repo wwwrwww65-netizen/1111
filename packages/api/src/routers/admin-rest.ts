@@ -3190,6 +3190,55 @@ adminRest.get('/analytics', async (req, res) => {
     res.status(500).json({ error: e.message || 'analytics_failed' });
   }
 });
+// UTM summary from events.properties
+adminRest.get('/analytics/utm/summary', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT
+        (properties->>'utm_source') as source,
+        (properties->>'utm_medium') as medium,
+        (properties->>'utm_campaign') as campaign,
+        COUNT(*) as count
+      FROM "Event"
+      WHERE "createdAt" BETWEEN $1 AND $2
+      GROUP BY source, medium, campaign
+      ORDER BY count DESC
+      LIMIT 500
+    `, from, to);
+    res.json({ utm: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'utm_failed' }); }
+});
+// Saved analytics reports via Setting table (key: analytics.report:<name>)
+adminRest.get('/analytics/reports', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.setting.findMany({ where: { key: { startsWith: 'analytics.report:' } }, orderBy: { updatedAt: 'desc' } });
+    res.json({ reports: rows.map(r=> ({ name: r.key.replace('analytics.report:',''), config: r.value, updatedAt: r.updatedAt })) });
+  } catch (e:any) { res.status(500).json({ error: e.message||'reports_list_failed' }); }
+});
+adminRest.post('/analytics/reports', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const { name, config } = req.body || {};
+    if (!name) return res.status(400).json({ error:'name_required' });
+    const key = `analytics.report:${String(name).trim()}`;
+    const setting = await db.setting.upsert({ where: { key }, update: { value: config||{} }, create: { key, value: config||{} } });
+    await audit(req,'analytics','report_save',{ name });
+    res.json({ report: { name, config: setting.value } });
+  } catch (e:any) { res.status(500).json({ error: e.message||'report_save_failed' }); }
+});
+adminRest.delete('/analytics/reports/:name', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const name = String(req.params.name||''); const key = `analytics.report:${name}`;
+    await db.setting.delete({ where: { key } }).catch(()=>{});
+    await audit(req,'analytics','report_delete',{ name });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'report_delete_failed' }); }
+});
 adminRest.get('/media/list', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'media.read'))) return res.status(403).json({ error:'forbidden' });
   const page = Math.max(1, Number(req.query.page||1));
