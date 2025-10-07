@@ -3,6 +3,73 @@ import { router, publicProcedure } from '../trpc-setup';
 import { protectedProcedure } from '../middleware/auth';
 import { db } from '@repo/db';
 
+type AdvancedCouponRules = {
+  enabled?: boolean;
+  min?: number | null; // minimum order total required (overrides coupon.minOrderAmount if provided)
+  max?: number | null; // maximum discount amount cap
+  includes?: string[]; // e.g., ["category:catId", "brand:Nike", "sku:ABC", "product:prodId", "vendor:vendorId", "user:userId", "email:user@example.com"]
+  excludes?: string[];
+  schedule?: { from?: string | null; to?: string | null };
+  limitPerUser?: number | null; // max number of uses per user
+  paymentMethods?: string[] | null; // optional allow-list; enforcement depends on checkout flow
+};
+
+async function loadAdvancedRules(couponCode: string): Promise<AdvancedCouponRules | null> {
+  const key = `coupon_rules:${couponCode.toUpperCase()}`;
+  const setting = await db.setting.findUnique({ where: { key } });
+  return (setting?.value as unknown as AdvancedCouponRules) ?? null;
+}
+
+function dateInWindow(now: Date, schedule?: { from?: string | null; to?: string | null }): boolean {
+  if (!schedule) return true;
+  const fromOk = !schedule.from || now >= new Date(schedule.from);
+  const toOk = !schedule.to || now <= new Date(schedule.to);
+  return fromOk && toOk;
+}
+
+function matchesTag(tag: string, ctx: { userId?: string; userEmail?: string | null; items: Array<{ productId: string; sku?: string | null; brand?: string | null; categoryId?: string | null; vendorId?: string | null }> }): boolean {
+  const [k, ...rest] = tag.split(':');
+  const v = rest.join(':').trim();
+  const key = (k || '').toLowerCase();
+  if (!v) return false;
+  switch (key) {
+    case 'user':
+      return (ctx.userId || '').toLowerCase() === v.toLowerCase();
+    case 'email':
+      return (ctx.userEmail || '').toLowerCase() === v.toLowerCase();
+    case 'sku':
+      return ctx.items.some(i => (i.sku || '').toLowerCase() === v.toLowerCase());
+    case 'brand':
+      return ctx.items.some(i => (i.brand || '').toLowerCase() === v.toLowerCase());
+    case 'product':
+      return ctx.items.some(i => i.productId === v);
+    case 'category':
+      return ctx.items.some(i => (i.categoryId || '') === v);
+    case 'vendor':
+      return ctx.items.some(i => (i.vendorId || '') === v);
+    default:
+      return false;
+  }
+}
+
+function checkAdvancedRules(rules: AdvancedCouponRules | null, params: { now: Date; orderTotal: number; ctx: { userId?: string; userEmail?: string | null; items: Array<{ productId: string; sku?: string | null; brand?: string | null; categoryId?: string | null; vendorId?: string | null }> } }): { ok: boolean; reason?: string } {
+  if (!rules) return { ok: true };
+  if (rules.enabled === false) return { ok: false, reason: 'Coupon disabled by rules' };
+  if (!dateInWindow(params.now, rules.schedule)) return { ok: false, reason: 'Coupon out of schedule' };
+  if (rules.min != null && params.orderTotal < Number(rules.min)) return { ok: false, reason: 'Minimum order amount not met' };
+  // includes: if provided, at least ONE must match
+  if (rules.includes && rules.includes.length > 0) {
+    const anyIncluded = rules.includes.some(t => matchesTag(t, params.ctx));
+    if (!anyIncluded) return { ok: false, reason: 'Not eligible by include rules' };
+  }
+  // excludes: if any matches, reject
+  if (rules.excludes && rules.excludes.length > 0) {
+    const anyExcluded = rules.excludes.some(t => matchesTag(t, params.ctx));
+    if (anyExcluded) return { ok: false, reason: 'Excluded by rules' };
+  }
+  return { ok: true };
+}
+
 export const couponsRouter = router({
   // Validate coupon code
   validateCoupon: publicProcedure
@@ -20,6 +87,13 @@ export const couponsRouter = router({
       const now = new Date();
       if (now < coupon.validFrom || now > coupon.validUntil) {
         throw new Error('Coupon is not valid at this time');
+      }
+
+      // Optional basic check for rules schedule/enabled
+      const rules = await loadAdvancedRules(coupon.code);
+      if (rules) {
+        if (rules.enabled === false) throw new Error('Coupon is disabled');
+        if (!dateInWindow(now, rules.schedule)) throw new Error('Coupon is not valid at this time');
       }
 
       if (coupon.maxUses && coupon.currentUses >= coupon.maxUses) {
@@ -67,11 +141,44 @@ export const couponsRouter = router({
       });
       if (existingUsage) throw new Error('Coupon already applied to this order');
 
+      // Load order context for advanced rules evaluation
+      const order = await db.order.findFirst({
+        where: { id: orderId, userId },
+        include: { items: { include: { product: true } }, user: true },
+      });
+      if (!order) throw new Error('Order not found');
+
+      const rules = await loadAdvancedRules(coupon.code);
+      if (rules) {
+        // Enforce per-user limit if configured
+        if (rules.limitPerUser != null) {
+          const uses = await db.couponUsage.count({ where: { couponId: coupon.id, userId } });
+          if (uses >= Number(rules.limitPerUser)) throw new Error('Per-user coupon usage limit exceeded');
+        }
+        const ctxObj = {
+          userId,
+          userEmail: order.user?.email ?? null,
+          items: (order.items || []).map(it => ({
+            productId: it.productId,
+            sku: it.product?.sku ?? null,
+            brand: it.product?.brand ?? null,
+            categoryId: it.product?.categoryId ?? null,
+            vendorId: it.product?.vendorId ?? null,
+          })),
+        };
+        const check = checkAdvancedRules(rules, { now, orderTotal, ctx: ctxObj });
+        if (!check.ok) throw new Error(check.reason || 'Coupon rules not satisfied');
+      }
+
       let discountAmount = 0;
       discountAmount = coupon.discountType === 'PERCENTAGE'
         ? (orderTotal * coupon.discountValue) / 100
         : coupon.discountValue;
       discountAmount = Math.min(discountAmount, orderTotal);
+
+      if (rules && rules.max != null) {
+        discountAmount = Math.min(discountAmount, Number(rules.max));
+      }
 
       await db.order.update({
         where: { id: orderId },
