@@ -2726,19 +2726,19 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
 });
 // Carriers
 adminRest.get('/carriers', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'carriers.read'))) return res.status(403).json({ error:'forbidden' });
     const list = await db.carrier.findMany({ orderBy: { name: 'asc' } }); res.json({ carriers: list });
   } catch (e:any) { res.status(500).json({ error: e.message || 'carriers_list_failed' }); }
 });
 adminRest.post('/carriers', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'carriers.create'))) return res.status(403).json({ error:'forbidden' });
     const { name, isActive, mode, credentials, pricingRules } = req.body || {}; if (!name) return res.status(400).json({ error: 'name_required' });
     const c = await db.carrier.create({ data: { name, isActive: isActive ?? true, mode: mode ?? 'TEST', credentials: credentials ?? {}, pricingRules: pricingRules ?? {} } });
     await audit(req, 'carriers', 'create', { id: c.id }); res.json({ carrier: c });
   } catch (e:any) { res.status(500).json({ error: e.message || 'carrier_create_failed' }); }
 });
 adminRest.patch('/carriers/:id', async (req, res) => {
-  try { const u = (req as any).user; if (!(await can(u.userId, 'orders.manage'))) return res.status(403).json({ error:'forbidden' });
+  try { const u = (req as any).user; if (!(await can(u.userId, 'carriers.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params; const { isActive, mode, credentials, pricingRules } = req.body || {};
     const c = await db.carrier.update({ where: { id }, data: { ...(isActive != null && { isActive }), ...(mode && { mode }), ...(credentials && { credentials }), ...(pricingRules && { pricingRules }) } });
     await audit(req, 'carriers', 'update', { id }); res.json({ carrier: c });
@@ -6452,12 +6452,12 @@ adminRest.post('/pos/:id/receive', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'pos_receive_failed' }); }
 });
 
-// Suggest drivers (naive ranking by active in_delivery count)
+// Suggest drivers (ranking by active shipments in transit)
 adminRest.get('/logistics/delivery/suggest-drivers', async (_req, res) => {
   try {
     const drivers = await db.driver.findMany({ orderBy: { name: 'asc' } });
     const ranked = await Promise.all(drivers.map(async (d:any)=>{
-      const active = await db.order.count({ where: { assignedDriverId: d.id, status: { in: ['SHIPPED'] } } });
+      const active = await db.shipment.count({ where: { driverId: d.id, status: { in: ['OUT_FOR_DELIVERY','IN_TRANSIT'] } } }).catch(()=>0);
       return { id: d.id, name: d.name, load: active };
     }));
     ranked.sort((a,b)=> a.load - b.load);
