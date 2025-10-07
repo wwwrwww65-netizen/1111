@@ -92,7 +92,12 @@ export default function DesignThemePage(): JSX.Element {
       <div className="panel" style={{ padding:12, marginTop:12 }}>
         <h3 style={{ marginTop:0 }}>معاينة</h3>
         <div style={{ border:'1px solid #1c2333', borderRadius:12, overflow:'hidden' }}>
-          <iframe title="preview" src={site==='web'? '/': '/mobile'} style={{ width:'100%', height:420, background:'#0b0e14', border:'none' }} />
+          {(()=>{
+            const webUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jeeey.com';
+            const mwebUrl = process.env.NEXT_PUBLIC_MWEB_URL || 'https://m.jeeey.com';
+            const src = site==='web'? webUrl : mwebUrl;
+            return <iframe title="preview" src={src} style={{ width:'100%', height:420, background:'#0b0e14', border:'none' }} />
+          })()}
         </div>
       </div>
     </main>
