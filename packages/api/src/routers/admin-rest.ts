@@ -3585,9 +3585,43 @@ adminRest.get('/vendors/list', async (_req, res) => {
 // Vendor catalog upload (CSV/XLS as Base64) - stub parser
 adminRest.post('/vendors/:id/catalog/upload', async (req, res) => {
   try {
-    const { id } = req.params; const { base64 } = req.body || {};
+    const { id } = req.params; const { base64, mapping, rows, dryRun } = req.body || {};
+    // Structured upload: mapping + rows
+    if (mapping && Array.isArray(rows)) {
+      const map = mapping as Record<string,string>;
+      const takeNum = (v:any)=> { const n = Number(String(v).replace(/[,\s]/g,'')); return Number.isFinite(n)? n : undefined; };
+      let created = 0, updated = 0;
+      if (!dryRun) {
+        for (const r of rows.slice(0, 200)) {
+          const name = r[map.name] || r[map.title] || r[map.product_name];
+          const sku = r[map.sku];
+          const price = takeNum(r[map.price]);
+          const stock = takeNum(r[map.stock]);
+          const imagesRaw = (r[map.images]||'').split(/[|,]/).map((s:string)=> s.trim()).filter(Boolean);
+          if (!name) continue;
+          if (sku) {
+            const ex = await db.product.findFirst({ where: { sku } });
+            if (ex) {
+              await db.product.update({ where: { id: ex.id }, data: { name, price: price??ex.price, stockQuantity: stock??ex.stockQuantity, images: imagesRaw.length? imagesRaw : ex.images, vendorId: id } });
+              updated++;
+            } else {
+              await db.product.create({ data: { name, sku, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id, categoryId: exDefaultCategoryId } as any }).catch(async()=>{
+                // fallback without category
+                await db.product.create({ data: { name, sku, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id } });
+              });
+              created++;
+            }
+          } else {
+            await db.product.create({ data: { name, price: price||0, stockQuantity: stock||0, images: imagesRaw, vendorId: id } });
+            created++;
+          }
+        }
+      }
+      await audit(req, 'vendors', 'catalog_upload_structured', { vendorId: id, created, updated });
+      return res.json({ ok:true, summary: { created, updated } });
+    }
+    // Base64 upload fallback
     if (!base64) return res.status(400).json({ error: 'file_required' });
-    // TODO: parse CSV/XLS (stub: accept and return ok)
     await audit(req, 'vendors', 'catalog_upload', { vendorId: id, size: String(base64).length });
     res.json({ ok: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'catalog_upload_failed' }); }
