@@ -2296,11 +2296,13 @@ adminRest.get('/logistics/delivery/list', async (req, res) => {
     const tab = String(req.query.tab||'ready').toLowerCase();
     let rows: any[] = [];
     if (tab === 'ready') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
         FROM "Order" o LEFT JOIN "User" u ON u.id=o."userId" WHERE o.status IN ('PAID','SHIPPED') ORDER BY o."createdAt" DESC`);
+      rows = base.map(r=> ({ ...r, etaHours: 24 }));
     } else if (tab === 'in_delivery') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
         FROM "Order" o LEFT JOIN "Driver" d ON d.id=o."assignedDriverId" WHERE o.status IN ('SHIPPED') ORDER BY o."updatedAt" DESC`);
+      rows = base.map(r=> ({ ...r, etaHours: 6 }));
     } else if (tab === 'completed') {
       rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o."updatedAt" as deliveredAt, p.status as paymentStatus
         FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id WHERE o.status='DELIVERED' ORDER BY o."updatedAt" DESC`);
