@@ -6830,19 +6830,34 @@ adminRest.get('/marketing/facebook/catalog.xml', async (req, res) => {
     const s = await db.setting.findUnique({ where: { key } });
     const expected = (s?.value as any)?.feedToken || '';
     if (!expected || token !== expected) return res.status(403).send('forbidden');
-    const rows = await db.product.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, take: 200 });
     res.set('Content-Type','application/xml');
     const xml = ['<?xml version="1.0" encoding="UTF-8"?>','<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">','<channel>','<title>JEEEY Catalog</title>','<link>https://jeeey.com</link>','<description>Product feed</description>'];
-    for (const p of rows){
-      const img = (p.images||[])[0]||'';
-      xml.push('<item>');
-      xml.push(`<g:id>${p.id}</g:id>`);
-      xml.push(`<title>${escapeXml(p.name)}</title>`);
-      xml.push(`<link>https://jeeey.com/p?id=${p.id}</link>`);
-      xml.push(`<g:price>${(p.price||0).toFixed(2)} SAR</g:price>`);
-      xml.push(`<g:image_link>${escapeXml(img)}</g:image_link>`);
-      xml.push(`<g:availability>in stock</g:availability>`);
-      xml.push('</item>');
+    const perPage = 1000;
+    let lastId: string | null = null;
+    for(;;){
+      const page = await db.product.findMany({
+        where: { isActive: true },
+        orderBy: { id: 'asc' },
+        take: perPage,
+        skip: lastId ? 1 : 0,
+        ...(lastId ? { cursor: { id: lastId } } : {})
+      });
+      if (!page.length) break;
+      for (const p of page){
+        const img = (p.images||[])[0]||'';
+        xml.push('<item>');
+        xml.push(`<g:id>${p.id}</g:id>`);
+        xml.push(`<title>${escapeXml(p.name)}</title>`);
+        xml.push(`<link>https://jeeey.com/p?id=${p.id}</link>`);
+        xml.push(`<g:price>${(p.price||0).toFixed(2)} SAR</g:price>`);
+        xml.push(`<g:image_link>${escapeXml(img)}</g:image_link>`);
+        xml.push(`<g:availability>${p.isActive ? 'in stock' : 'out of stock'}</g:availability>`);
+        if (p.brand) xml.push(`<g:brand>${escapeXml(p.brand)}</g:brand>`);
+        xml.push(`<g:condition>new</g:condition>`);
+        xml.push('</item>');
+      }
+      lastId = page[page.length - 1]?.id || null;
+      if (page.length < perPage) break;
     }
     xml.push('</channel></rss>');
     res.send(xml.join(''));
