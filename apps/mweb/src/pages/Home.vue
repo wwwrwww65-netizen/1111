@@ -11,14 +11,7 @@
             <Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
-        <div :class="['text-lg sm:text-xl font-semibold flex items-center justify-center', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">
-          <template v-if="brandLogo">
-            <img :src="brandLogo" alt="jeeey" class="h-7 w-auto object-contain" />
-          </template>
-          <template v-else>
-            jeeey
-          </template>
-        </div>
+        <div :class="['text-lg sm:text-xl font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="السلة" @click="go('/cart')">
             <ShoppingCart :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
@@ -40,48 +33,41 @@
     </div>
 
     <div class="w-screen px-0">
-      <div class="relative w-full h-[360px] sm:h-[420px]">
-          <img :src="hero.image" :alt="hero.alt" class="absolute inset-0 w-full h-full object-cover" loading="eager" />
-        <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent" />
-        <div class="absolute left-4 right-4 bottom-4 text-white">
-          <div class="text-[12px] mb-1">{{ hero.kicker }}</div>
-          <div class="text-[32px] font-extrabold leading-tight">{{ hero.title }}</div>
-          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200" :aria-label="hero.cta||'تسوّق الآن'" @click="go(hero.link||'/products')">{{ hero.cta||'تسوّق الآن' }}</button>
+      <div class="relative w-full h-[257.172px]">
+        <swiper
+          :modules="[Autoplay]"
+          :slides-per-view="1"
+          :loop="true"
+          :autoplay="{ delay: 5000, disableOnInteraction: true, reverseDirection: false }"
+          :space-between="0"
+          class="h-full"
+          dir="rtl"
+          @swiper="onSwiper"
+          @slide-change="onSlideChange"
+        >
+          <swiper-slide v-for="(b,i) in banners" :key="'bnr-'+i">
+            <img :src="b.src" :srcset="b.srcset" :alt="b.alt" class="w-full h-full object-cover" loading="eager" />
+          </swiper-slide>
+        </swiper>
+        <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
+        <div class="absolute left-4 right-4 bottom-4 text-white pointer-events-none">
+          <div class="text-[12px] mb-1">احتفالنا الأكبر على الإطلاق</div>
+          <div class="text-[32px] font-extrabold leading-tight">خصم يصل حتى 90%</div>
+          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200 pointer-events-auto" aria-label="تسوّق الآن" @click="go('/products')">تسوّق الآن</button>
+        </div>
+        <div class="easy-pagination absolute left-1/2 -translate-x-1/2 bottom-2 flex items-center gap-1.5" dir="rtl">
+          <button v-for="(b,i) in banners" :key="'pg-'+i" class="w-1.5 h-1.5 rounded-full transition-colors" :class="i===activeBanner ? 'bg-white' : 'bg-white/50'" aria-label="انتقل إلى البنر" @click="goToBanner(i)" />
         </div>
       </div>
     </div>
 
-    <div class="w-screen px-0 py-3">
-      <div class="bg-white border border-gray-200 rounded p-3">
-        <div class="flex items-center justify-between gap-2">
-          <div class="text-[12px] font-semibold text-emerald-700">قسائم خصم إضافية</div>
-          <div class="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-            <div class="min-w-[96px] text-center px-2 py-1 rounded border border-emerald-300 bg-emerald-50">
-              <div class="text-[11px] text-emerald-700 font-bold">-15%</div>
-              <div class="text-[10px] text-emerald-800">SDA15</div>
-            </div>
-            <div class="min-w-[96px] text-center px-2 py-1 rounded border border-emerald-300 bg-emerald-50">
-              <div class="text-[11px] text-emerald-700 font-bold">-16%</div>
-              <div class="text-[10px] text-emerald-800">SDA16</div>
-            </div>
-            <div class="min-w-[96px] text-center px-2 py-1 rounded border border-emerald-300 bg-emerald-50">
-              <div class="text-[11px] text-emerald-700 font-bold">-18%</div>
-              <div class="text-[10px] text-emerald-800">SDA18</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    
 
     <div class="w-screen px-0">
       <div class="bg-white p-3">
-        <div class="flex overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
-          <div v-for="p in promoTiles" :key="p.title" class="relative w-[192px] h-[68px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
-            <img :src="p.image" :alt="p.title" class="absolute right-0 top-0 w-16 h-full object-cover opacity-90" loading="lazy" />
-            <div class="absolute inset-0 right-[72px] left-2 flex flex-col justify-center">
-              <div class="text-[12px] font-semibold text-gray-900">{{ p.title }}</div>
-              <div class="text-[11px] text-gray-600">{{ p.sub }}</div>
-            </div>
+        <div class="flex overflow-x-auto gap-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
+          <div v-for="p in promoTiles" :key="p.title" class="relative w-[100px] h-[50px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
+            <img :src="p.image" :alt="p.title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
           </div>
         </div>
       </div>
@@ -154,8 +140,12 @@
       </section>
 
       <section class="px-3 py-3" aria-label="من أجلك">
-        <div class="columns-2 gap-1 [column-fill:_balance]"><!-- masonry -->
-          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1 break-inside-avoid">
+        <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
+          <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
+        </div>
+
+        <div class="mt-0 masonry">
+          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.enter="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.space.prevent="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })">
               <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar x-snap">
                 <div class="flex">
@@ -175,7 +165,8 @@
             </div>
           </div>
         </div>
-        <div style="height:80px" />
+
+        <div class="mt-4" />
       </section>
 
       <div style="height:80px" />
@@ -183,40 +174,29 @@
 
     <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
       <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
-        <template v-if="(navTabs && navTabs.length)">
-          <button v-for="(t,idx) in navTabs" :key="'tab-'+idx" class="w-16 text-center" :aria-label="t.label" @click="go(t.href||'/')">
-            <div class="relative inline-block">
-              <component :is="iconComp(t.icon||'home')" :size="24" class="mx-auto mb-1 text-gray-600" />
-              <span v-if="(t.icon||'')==='cart' && cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
-            </div>
-            <div class="text-[11px] text-gray-700">{{ t.label }}</div>
-          </button>
-        </template>
-        <template v-else>
-          <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
-            <Home :size="24" class="mx-auto mb-1 text-gray-600" />
-            <div class="text-[11px] text-gray-700">الرئيسية</div>
-          </button>
-          <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
-            <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
-            <div class="text-[11px] text-gray-700">الفئات</div>
-          </button>
-          <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
-            <Search :size="24" class="mx-auto mb-1 text-gray-600" />
-            <div class="text-[11px] text-gray-700">جديد</div>
-          </button>
-          <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
-            <div class="relative inline-block">
-              <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
-              <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
-            </div>
-            <div class="text-[11px] text-gray-700">الحقيبة</div>
-          </button>
-          <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
-            <User :size="24" class="mx-auto mb-1 text-gray-600" />
-            <div class="text-[11px] text-gray-700">حسابي</div>
-          </button>
-        </template>
+        <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
+          <Home :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">الرئيسية</div>
+        </button>
+        <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
+          <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">الفئات</div>
+        </button>
+        <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
+          <Search :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">جديد</div>
+        </button>
+        <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
+          <div class="relative inline-block">
+            <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
+            <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
+          </div>
+          <div class="text-[11px] text-gray-700">الحقيبة</div>
+        </button>
+        <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
+          <User :size="24" class="mx-auto mb-1 text-gray-600" />
+          <div class="text-[11px] text-gray-700">حسابي</div>
+        </button>
       </div>
     </nav>
   </div>
@@ -229,6 +209,9 @@ import { apiGet } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
 import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home, ChevronLeft, Store } from 'lucide-vue-next'
+import { Swiper, SwiperSlide } from 'swiper/vue'
+import { Autoplay } from 'swiper/modules'
+import 'swiper/css'
 
 const router = useRouter()
 const cart = useCart()
@@ -243,17 +226,29 @@ function measureHeader(){ try{ const h = headerRef.value?.getBoundingClientRect(
 const tabsTopPx = computed(()=> headerH.value)
 
 // Banner responsive sources
-const theme = ref<any>({})
-const hero = reactive({ image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1600&q=60', alt:'عرض تخفيضات', title:'خصم يصل حتى 90%', kicker:'احتفالنا الأكبر على الإطلاق', cta:'تسوّق الآن', link:'/products' })
-const brandLogo = computed(()=> {
-  const b = (theme.value?.branding)||{}
-  return scrolled.value ? (b.logoDark || b.logoLight || '') : (b.logoLight || '')
-})
-const navTabs = computed(()=> (theme.value?.navigation?.mweb?.tabs)||[])
+const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
+const bannerSrcSet = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w'
+type Banner = { src: string; srcset?: string; alt: string }
+const banners = reactive<Banner[]>([
+  { src: bannerSrc, srcset: bannerSrcSet, alt: 'عرض تخفيضات' },
+  { src: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1600&auto=format&fit=crop', alt: 'عروض جديدة' },
+  { src: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&w=1600&auto=format&fit=crop', alt: 'ترندات الموسم' }
+])
+const activeBanner = ref<number>(0)
+let swiperInstance: any = null
 
-function iconComp(name: string){
-  const map: Record<string, any> = { home: Home, categories: LayoutGrid, search: Search, cart: ShoppingBag, user: User }
-  return map[name] || Home
+function goToBanner(i: number){ 
+  if (swiperInstance) {
+    swiperInstance.slideTo(i)
+  }
+}
+
+function onSwiper(swiper: any) {
+  swiperInstance = swiper
+}
+
+function onSlideChange(swiper: any) {
+  activeBanner.value = swiper.realIndex
 }
 
 function go(path: string){ router.push(path) }
@@ -296,21 +291,6 @@ function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
 
 onMounted(async ()=>{
-  // Load live theme for mweb and bind to hero if provided
-  try{
-    const res = await fetch('/api/theme/config?site=mweb', { credentials:'include' })
-    const j = await res.json(); theme.value = j?.theme||{}
-    if (theme.value?.home?.sections){
-      const heroSec = theme.value.home.sections.find((s:any)=> s?.type==='hero')
-      if (heroSec?.config){
-        hero.image = heroSec.config.image || hero.image
-        hero.title = heroSec.config.title || hero.title
-        hero.kicker = heroSec.config.kicker || hero.kicker
-        hero.cta = heroSec.config.cta || hero.cta
-        hero.link = heroSec.config.link || hero.link
-      }
-    }
-  }catch{}
   // Categories
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')
@@ -407,7 +387,7 @@ const catColsLocked = computed(()=>{
 function hasWish(p: Prod){ return wishlist.has(p.id || p.title) }
 function toggleWish(p: Prod){ const id = p.id || p.title; wishlist.toggle({ id, title: p.title, price: parsePrice(p.price), img: p.image }) }
 function quickAdd(p: Prod){ const id = p.id || p.title; cart.add({ id, title: p.title, price: parsePrice(p.price), img: p.image }, 1) }
-function openProduct(p: Prod){
+function openProduct(p: Partial<Prod>){
   const id = p.id || ''
   if (id) return router.push(`/p?id=${encodeURIComponent(id)}`)
   router.push('/products')
@@ -439,5 +419,18 @@ function addToCartFY(p: any){
 @media (min-width: 768px){ .masonry{ grid-template-columns: repeat(3, 1fr) } }
 .masonry > *{ break-inside: avoid }
 .x-snap{ scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain }
+
+/* Easy pagination styles */
+.easy-pagination {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  z-index: 10;
+}
 </style>
 
