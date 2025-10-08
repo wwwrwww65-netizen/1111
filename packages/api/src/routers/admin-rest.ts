@@ -3984,9 +3984,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         const loadNlpConfig = ()=>{
           try { const fs=require('fs'); const path=require('path'); const base=process.env.NLP_CONFIG_DIR||path.join(process.cwd(),'config','nlp');
             const read=(f:string)=>{ try{return JSON.parse(fs.readFileSync(path.join(base,f),'utf8'))}catch{return null} };
-            const m=read('marketing.json')||{}; const syn=read('synonyms.json')||{}; const u=read('units.json')||{};
-            return { noisePhrases: Array.isArray(m.noisePhrases)? m.noisePhrases:[], synonyms: syn.synonyms||{}, unitTokens: Array.isArray(u.units)? u.units:[] };
-          } catch { return { noisePhrases:[], synonyms:{}, unitTokens:[] } }
+            const m=read('marketing.json')||{}; const syn=read('synonyms.json')||{}; const u=read('units.json')||{}; const t=read('types.json')||{}; const c=read('colors.json')||{};
+            return { noisePhrases: Array.isArray(m.noisePhrases)? m.noisePhrases:[], synonyms: syn.synonyms||{}, unitTokens: Array.isArray(u.units)? u.units:[], types: Array.isArray(t.types)? t.types:[], colorSynonyms: c.colorSynonyms||{} };
+          } catch { return { noisePhrases:[], synonyms:{}, unitTokens:[], types:[], colorSynonyms:{} } }
         }
         const nlpCfg = loadNlpConfig()
         const removeMarketing = (s:string)=> {
@@ -4008,7 +4008,10 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
 
         // Derive name (8–12 كلمات) من النص فقط (مع مرادفات وضجيج مستبعد)
-        const TYPE_RE = /(ملاعق|ملاعق\s*طعام|مطرقه|شاشه|طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|حذاء|شنطه|حقيبه|ساعه|كوب|قدر|خلاط|مكوى|مكواة|تي\s*شيرت|بنطال|جاكيت|درع|قفطان|قافطان|قحطان)/i
+        const builtinTypes = ['ملاعق','ملاعق\\s*طعام','مطرقه','شاشه','طقم','فستان','جلابيه','جلابية','لانجري','لنجري','عبايه','عباية','قميص','بلوزه','بلوزة','سويتر','بلوفر','هودي','حذاء','شنطه','حقيبه','ساعه','كوب','قدر','خلاط','مكوى','مكواة','تي\\s*شيرت','بنطال','جاكيت','درع','قفطان','قافطان','سديري','بدلة','طقم\\s*أطفال','قفطان\\s*مغربي'] as string[]
+        const extraTypes = Array.isArray((nlpCfg as any).types) ? (nlpCfg as any).types as string[] : []
+        const typeUnion = builtinTypes.concat(extraTypes.map((t)=> String(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')))
+        const TYPE_RE = new RegExp(`(${typeUnion.join('|')})`,'i')
         const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل|ستان|بوليستر|خشب|ستانلس|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك)/i
         const FEATS_RE = /(كم\s*كامل|مطرز|كريستال|كرستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي|لمس|لاسلكي|سلكي|ذكي|مضاد\s*للماء)/gi
         const type = (rt.match(TYPE_RE)||['',''])[1] || ''
@@ -4093,8 +4096,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         const keywords = Array.from(new Set(kwCandidates)).slice(0,6)
 
         // Colors candidates from lexicon (Arabic + English translit)
-        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|بيج\s*غامق|بيج\s*فاتح)/gi
-        colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> s.replace(/ورديه/i,'وردي'))))
+        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|لبني|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|بيج\s*غامق|بيج\s*فاتح)/gi
+        const colorSyn = (nlpCfg as any).colorSynonyms || {}
+        colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> (colorSyn[s] || s).replace(/ورديه/i,'وردي'))))
         // استثناء ألوان الزينة القريبة من مفردات الديكور
         const deco = /(خرز|تطريز|كريستال|كرستال|ترتر|سلاسل|حواف|سحاب|أزرار|زرار|تطريزات|حبات|حبوب)/i
         const decorColors = new Set<string>()
