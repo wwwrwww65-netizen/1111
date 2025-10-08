@@ -80,11 +80,25 @@
         <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
       </div>
       <h1 class="text-[16px] font-bold my-1.5">{{ title }}</h1>
-      <p class="text-gray-600 text-[12px] mb-1.5">تصميم راقية الدانتيل قطع السمكة</p>
+      <p class="text-gray-600 text-[12px] mb-1.5">{{ pDescription }}</p>
+      <div class="grid grid-cols-2 gap-2 text-[12px] text-gray-700 mb-1.5">
+        <div v-if="sku"><span class="text-gray-500">كود المنتج:</span> {{ sku }}</div>
+        <div v-if="brand"><span class="text-gray-500">العلامة:</span> {{ brand }}</div>
+        <div v-if="material"><span class="text-gray-500">الخامة:</span> {{ material }}</div>
+        <div v-if="care"><span class="text-gray-500">العناية:</span> {{ care }}</div>
+      </div>
       <div class="flex items-center gap-1.5">
         <span class="font-semibold">{{ avgRating.toFixed(2) }}</span>
         <StarIcon :size="16" class="text-yellow-400" />
         <span class="text-gray-600">(+{{ reviews.length || 500 }})</span>
+      </div>
+      <!-- توزيع النجوم -->
+      <div class="mt-1 space-y-1">
+        <div v-for="n in [5,4,3,2,1]" :key="'bar-'+n" class="flex items-center gap-2 text-[12px]">
+          <span class="w-6">{{ n }}★</span>
+          <div class="flex-1 h-2 bg-gray-200 rounded"><div class="h-2 bg-yellow-400 rounded" :style="{ width: (dist[n]||0) + '%' }"></div></div>
+          <span class="w-10 text-right text-gray-600">{{ (dist[n]||0).toFixed(0) }}%</span>
+        </div>
       </div>
 
       <div class="flex items-center gap-1.5 my-2">
@@ -169,7 +183,7 @@
     </div>
 
     <!-- Toast -->
-    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded shadow z-50">تمت الإضافة إلى الحقيبة</div>
+    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded shadow z-50">{{ toastText }}</div>
 
   <!-- ورقة مرجع المقاس السفلية -->
   <div v-if="sizeGuideOpen" class="fixed inset-0 z-50">
