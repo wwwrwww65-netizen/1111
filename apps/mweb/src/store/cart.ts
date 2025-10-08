@@ -1,7 +1,15 @@
 import { defineStore } from 'pinia'
 import { apiGet, apiPost } from '@/lib/api'
 
-export type CartItem = { id: string; title: string; price: number; img?: string; qty: number }
+export type CartItem = { 
+  id: string; 
+  title: string; 
+  price: number; 
+  img?: string; 
+  qty: number;
+  variantColor?: string;
+  variantSize?: string;
+}
 
 export const useCart = defineStore('cart', {
   state: () => ({ items: [] as CartItem[], loaded: false }),
