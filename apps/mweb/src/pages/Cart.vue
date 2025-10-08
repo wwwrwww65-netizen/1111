@@ -1,116 +1,410 @@
 <template>
-  <div class="cart-page" dir="rtl" lang="ar">
-    <header class="cart-header" role="banner" aria-label="رأس صفحة السلة">
-      <button class="icon" aria-label="قائمة">⋮</button>
-      <div class="title">حقيبة التسوق ({{ cartCount }})</div>
-      <button class="icon sm" aria-label="مشاركة">🔗</button>
-      <button class="icon" aria-label="بحث">🔍</button>
-    </header>
+  <div class="min-h-screen bg-[#f7f7f7] flex flex-col items-center" dir="rtl">
+    <!-- الهيدر - نفس التصميم للحالتين -->
+    <header class="w-full bg-white border-b border-gray-200 px-4 pt-3 pb-2">
+      <div class="flex items-center justify-between">
+        <!-- إذا كانت السلة ممتلئة - عرض تحديد الكل -->
+        <div v-if="items.length" class="flex items-center gap-1.5">
+          <button
+            @click="toggleSelectAll"
+            :class="`w-5 h-5 rounded-full border flex items-center justify-center ${
+              selectAll ? 'bg-[#8a1538] border-[#8a1538]' : 'bg-white border-gray-400'
+            }`"
+            aria-label="تحديد جميع المنتجات"
+          >
+            <Check v-if="selectAll" class="w-4 h-4 text-white" />
+          </button>
+          <span class="text-[12px] text-gray-800 font-medium">جميع</span>
+        </div>
+        
+        <!-- إذا كانت السلة فارغة - مساحة فارغة -->
+        <div v-else class="w-16"></div>
 
-    <div class="promos" role="region" aria-label="عروض وتنبيهات">
-      <button class="pill" aria-label="تخفيضات">🔥 تخفيضات</button>
-      <button class="pill" aria-label="الكمية على وشك الانتهاء">⏳ الكمية على وشك الانتهاء</button>
-    </div>
+        <!-- العنوان -->
+        <h1 class="text-[15px] font-semibold text-gray-900 mx-auto">سلة التسوق</h1>
 
-    <div class="container body">
-      <div v-if="!items.length" class="card empty">لا توجد عناصر في السلة</div>
-      <div v-else class="list">
-        <article v-for="i in items" :key="i.id" class="card item" aria-label="عنصر في السلة">
-          <button class="select" :aria-pressed="isSelected(i.id)" @click="toggle(i.id)">⭕</button>
-          <img class="thumb" :src="i.img" :alt="i.title" loading="lazy" />
-          <div class="meta">
-            <div class="line name">
-              <span class="shop">🏬</span>
-              <span class="txt" :title="i.title">{{ i.title }}</span>
-              <button class="wish" aria-label="إضافة للمفضلة">❤</button>
-            </div>
-            <div class="line opts">
-              <select class="sel" aria-label="المقاس/اللون">
-                <option>مقاس: M</option>
-                <option>مقاس: L</option>
-              </select>
-            </div>
-            <div class="line price">
-              <span class="now">{{ i.price.toFixed(2) }} ﷼</span>
-              <span class="sale">{{ (i.price*0.90).toFixed(2) }} ﷼</span>
-              <span class="cut">{{ (i.price*1.20).toFixed(2) }} ﷼</span>
-            </div>
-            <div class="line qty-row">
-              <button class="qty-btn" @click="dec(i.id)" aria-label="نقص">➖</button>
-              <input class="qty-input" type="number" v-model.number="map[i.id]" @change="apply(i.id)" min="1" aria-label="الكمية" />
-              <button class="qty-btn" @click="inc(i.id)" aria-label="زيادة">➕</button>
-              <button class="trash" @click="remove(i.id)" aria-label="حذف">🗑</button>
+        <!-- الأزرار اليمنى -->
+        <div class="flex items-center gap-1.5">
+          <!-- إذا كانت السلة ممتلئة - قائمة الخيارات -->
+          <div v-if="items.length" class="relative">
+            <button @click="menuOpen = !menuOpen" aria-label="خيارات إضافية">
+              <MoreHorizontal class="w-5 h-5 text-gray-600" />
+            </button>
+            <div v-if="menuOpen" class="absolute left-0 top-7 w-40 bg-white border border-gray-200 rounded-[6px] shadow-lg text-right z-50">
+              <button class="w-full px-3 py-2 text-[12px] text-gray-800 flex items-center gap-2 hover:bg-gray-50">
+                <Share2 class="w-4 h-4 text-gray-500" />
+                مشاركة السلة
+              </button>
+              <button class="w-full px-3 py-2 text-[12px] text-gray-800 flex items-center gap-2 hover:bg-gray-50">
+                <Settings class="w-4 h-4 text-gray-500" />
+                إدارة
+              </button>
+              <button class="w-full px-3 py-2 text-[12px] text-gray-800 flex items-center gap-2 hover:bg-gray-50">
+                <Heart class="w-4 h-4 text-gray-500" />
+                قائمة الأمنيات
+              </button>
             </div>
           </div>
-        </article>
-        <div class="quick-promo" aria-live="polite">🎁 أضف 99.00 للحصول على هدية مجانية</div>
+          
+          <!-- زر الإغلاق -->
+          <button aria-label="إغلاق" @click="goBack">
+            <X class="w-6 h-6 text-gray-800" />
+          </button>
+        </div>
       </div>
+
+      <!-- الشحن إلى - نص صغير مع سهم -->
+      <div class="flex items-center justify-center mt-1 gap-1 text-[11px] text-gray-600">
+        <span>يتم الشحن إلى {{ shippingAddress }}</span>
+        <ChevronLeft class="w-4 h-4 text-gray-400" />
+      </div>
+    </header>
+
+    <!-- المحتوى الرئيسي -->
+    <main class="w-full flex-1">
+      <!-- السلة الفارغة -->
+      <section v-if="!items.length" class="bg-white w-full flex flex-col items-center justify-center py-8 space-y-4">
+        <!-- أيقونة السلة -->
+        <div class="w-20 h-20 rounded-full bg-white border border-gray-300 flex items-center justify-center shadow-sm">
+          <ShoppingCart class="w-10 h-10 text-gray-400" />
+        </div>
+
+        <!-- النص -->
+        <div class="text-[14px] text-gray-800 font-medium">
+          عربة التسوق فارغة
+        </div>
+
+        <!-- أزرار الإجراءات -->
+        <div class="flex gap-3">
+          <button
+            class="px-6 h-10 rounded-[6px] text-[13px] font-semibold text-white"
+            style="background-color: #8a1538"
+            @click="goShopping"
+          >
+            تسوق الآن
+          </button>
+          <button
+            class="px-4 h-10 rounded-[6px] text-[13px] font-semibold border border-gray-300 text-gray-700"
+            @click="addTestItems"
+          >
+            إضافة منتجات تجريبية
+          </button>
+        </div>
+      </section>
+
+      <!-- السلة الممتلئة -->
+      <div v-else class="space-y-1 pt-1">
+        <!-- المنتجات في السلة -->
+        <section v-for="item in items" :key="item.id" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-2 flex items-start gap-2">
+          <!-- Select item -->
+          <button
+            @click="toggleItem(item.id)"
+            :class="`w-5 h-5 rounded-full border flex items-center justify-center mt-1 ${
+              selectedItems.includes(item.id) ? 'bg-[#8a1538] border-[#8a1538]' : 'bg-white border-gray-400'
+            }`"
+            aria-label="تحديد المنتج"
+          >
+            <Check v-if="selectedItems.includes(item.id)" class="w-4 h-4 text-white" />
+          </button>
+
+          <!-- Image -->
+          <div class="w-20 h-20 bg-gray-100 rounded-[6px] overflow-hidden shrink-0">
+            <img :src="item.img" :alt="item.title" class="w-full h-full object-cover" />
     </div>
 
-    <div class="checkout-bar" role="region" aria-label="إتمام الشراء">
-      <div class="sum">
-        <div class="coupon">كوبون التوفير</div>
-        <div class="total">{{ totalFormatted }}</div>
-      </div>
-      <a class="pay" href="/checkout" aria-label="الدفع">الدفع</a>
-    </div>
+          <!-- Details -->
+          <div class="flex-1 text-right space-y-1.5">
+            <div class="text-[13px] font-semibold text-gray-800 leading-5">{{ item.title }}</div>
 
-    <BottomNav />
+            <!-- Variant chip oval gray with chevron-down -->
+            <button
+              @click="openOptions(item.id)"
+              class="inline-flex items-center gap-1 px-3 h-7 rounded-full bg-gray-100 text-[11px] text-gray-700 border border-gray-200"
+              aria-label="تعديل اللون والمقاس"
+            >
+              <span>{{ item.variantColor || 'أبيض' }} / {{ item.variantSize || 'M' }}</span>
+              <ChevronDown class="w-3.5 h-3.5 text-gray-500" />
+            </button>
+
+            <!-- Price & qty (qty on left) -->
+            <div class="flex items-center justify-between">
+              <div class="text-[13px] text-[#8a1538] font-bold">
+                {{ item.price.toFixed(2) }} ر.س
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button
+                  @click="changeQty(item.id, -1)"
+                  class="w-6 h-6 rounded-full border border-gray-300 flex items-center justify-center"
+                  aria-label="إنقاص الكمية"
+                >
+                  <Minus class="w-4 h-4 text-gray-600" />
+                </button>
+                <span class="text-[12px] text-gray-800 min-w-[1.5rem] text-center">{{ item.qty }}</span>
+                <button
+                  @click="changeQty(item.id, 1)"
+                  class="w-6 h-6 rounded-full border border-gray-300 flex items-center justify-center"
+                  aria-label="زيادة الكمية"
+                >
+                  <Plus class="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- بطاقة انتهى من المخزون + المنتجات غير صالحة -->
+        <section v-if="hasOutOfStock" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-3 space-y-3">
+          <!-- شريط تنبيه أعلى البطاقة -->
+          <div class="w-full rounded-[6px] border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700 text-center">
+            انتهى من المخزون والمنتجات غير صالحة
+            </div>
+
+          <!-- محتوى البطاقة -->
+          <div class="flex items-start gap-3">
+            <!-- صورة المنتج -->
+            <div class="w-20 h-20 bg-gray-100 rounded-[6px] overflow-hidden shrink-0">
+              <img
+                src="https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=200&auto=format&fit=crop"
+                alt="منتج انتهى من المخزون"
+                class="w-full h-full object-cover"
+              />
+            </div>
+
+            <!-- التفاصيل -->
+            <div class="flex-1 text-right space-y-2">
+              <div class="text-[13px] font-semibold text-gray-900 leading-5">
+                منتج انتهى من المخزون
+              </div>
+
+              <!-- السعر والخصم -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="text-[13px] font-bold text-[#8a1538]">9.00 ر.س</span>
+                  <span class="text-[12px] text-gray-500 line-through">20.00 ر.س</span>
+                  <span class="text-[11px] px-2 py-0.5 rounded-[4px] bg-rose-100 text-rose-700 border border-rose-200">
+                    55%
+                  </span>
+                </div>
+
+                <!-- أيقونات الإجراءات -->
+                <div class="flex items-center gap-2">
+                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="مشاركة">
+                    <Share2 class="w-4 h-4 text-gray-600" />
+                  </button>
+                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="إضافة للمفضلة">
+                    <Heart class="w-4 h-4 text-gray-600" />
+                  </button>
+                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="حذف">
+                    <X class="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- زر منتجات مشابهة -->
+              <div class="flex justify-start">
+                <button
+                  class="h-9 px-3 rounded-[6px] text-[12px] font-semibold border border-[#8a1538] text-[#8a1538] bg-white"
+                  aria-label="منتجات مشابهة"
+                >
+                  منتجات مشابهة
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- مسافة بسيطة -->
+      <div class="h-4" />
+
+      <!-- قسم قد ترغب في الملء - يظهر في الحالتين -->
+      <section class="w-full bg-white px-4 py-4">
+        <h2 class="text-[14px] font-semibold text-gray-800 text-center mb-3">
+          قد ترغب في الملء
+        </h2>
+
+        <!-- المنتجات المقترحة -->
+        <div class="space-y-4">
+          <!-- هنا يمكن إضافة مكون عرض المنتجات المقترحة -->
+          <div class="text-center text-gray-500 text-[12px] py-4">
+            منتجات مقترحة ستظهر هنا
+      </div>
+    </div>
+      </section>
+    </main>
+
+    <!-- شريط الدفع السفلي - يظهر فقط عندما تكون السلة ممتلئة -->
+    <footer v-if="items.length" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex items-center justify-between z-50">
+      <div class="text-[14px] font-semibold text-gray-900">{{ selectedTotal.toFixed(2) }} ر.س</div>
+      <button
+        class="flex items-center justify-center px-3 h-9 rounded-[6px] text-[12px] font-semibold text-white bg-[#8a1538]"
+        aria-label="الانتقال إلى الدفع"
+        @click="goToCheckout"
+      >
+        الانتقال إلى الدفع
+      </button>
+    </footer>
+
+    <!-- مساحة إضافية للشريط السفلي عندما تكون السلة ممتلئة -->
+    <div v-if="items.length" class="h-16"></div>
+
+    <!-- Options modal: product-like design -->
+    <ProductOptionsModal v-if="optionsModal.open" :onClose="closeOptionsModal" />
   </div>
 </template>
 
 <script setup lang="ts">
-import BottomNav from '@/components/BottomNav.vue'
 import { storeToRefs } from 'pinia'
 import { useCart } from '@/store/cart'
-import { computed, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ref, computed, reactive } from 'vue'
+import { 
+  X, 
+  ShoppingCart, 
+  ChevronLeft, 
+  Check, 
+  MoreHorizontal, 
+  Share2, 
+  Settings, 
+  Heart, 
+  ChevronDown, 
+  Plus, 
+  Minus 
+} from 'lucide-vue-next'
+import ProductOptionsModal from '../components/ProductOptionsModal.vue'
 
 const cart = useCart()
+const router = useRouter()
 const { items, total } = storeToRefs(cart)
-const remove = (id:string)=> cart.remove(id)
-const map = reactive<Record<string, number>>({})
-const selected = reactive<Set<string>>(new Set())
-const cartCount = computed(()=> items.value.reduce((n,i)=> n+i.qty, 0))
-const totalFormatted = computed(()=> `${(total.value).toFixed(2)} ﷼`)
-function sync(){ items.value.forEach(i=> map[i.id] = i.qty) }
-function inc(id:string){ const it = items.value.find(i=>i.id===id); if(it){ it.qty++; map[id]=it.qty } }
-function dec(id:string){ const it = items.value.find(i=>i.id===id); if(it && it.qty>1){ it.qty--; map[id]=it.qty } }
-function apply(id:string){ const it = items.value.find(i=>i.id===id); if(it){ it.qty = Math.max(1, Number(map[id]||1)) } }
-function toggle(id:string){ if(selected.has(id)) selected.delete(id); else selected.add(id) }
-function isSelected(id:string){ return selected.has(id) }
-sync()
+
+// عنوان الشحن الديناميكي
+const shippingAddress = "الوحدة معين، 13،22،14"
+
+// حالة تحديد المنتجات
+const selectedItems = ref<string[]>([])
+const selectAll = ref(false)
+const menuOpen = ref(false)
+const hasOutOfStock = ref(true)
+
+// Modal state
+const optionsModal = reactive({
+  open: false,
+  productId: '',
+  color: '',
+  size: '',
+  galleryIndex: 0
+})
+
+// إضافة خصائص المنتجات المفقودة
+const enhancedItems = computed(() => {
+  return items.value.map(item => ({
+    ...item,
+    variantColor: item.variantColor || 'أبيض',
+    variantSize: item.variantSize || 'M'
+  }))
+})
+
+// حساب الإجمالي للمنتجات المحددة
+const selectedTotal = computed(() => {
+  return selectedItems.value.reduce((sum, id) => {
+    const item = items.value.find(i => i.id === id)
+    if (!item) return sum
+    return sum + item.price * item.qty
+  }, 0)
+})
+
+// وظائف التنقل
+function goBack() {
+  router.back()
+}
+
+function goShopping() {
+  router.push('/')
+}
+
+function goToCheckout() {
+  router.push('/checkout')
+}
+
+// وظائف إدارة السلة
+function toggleItem(id: string) {
+  const index = selectedItems.value.indexOf(id)
+  if (index > -1) {
+    selectedItems.value.splice(index, 1)
+  } else {
+    selectedItems.value.push(id)
+  }
+  updateSelectAll()
+}
+
+function toggleSelectAll() {
+  selectAll.value = !selectAll.value
+  if (selectAll.value) {
+    selectedItems.value = items.value.map(item => item.id)
+  } else {
+    selectedItems.value = []
+  }
+}
+
+function updateSelectAll() {
+  selectAll.value = selectedItems.value.length === items.value.length
+}
+
+function changeQty(id: string, delta: number) {
+  const item = items.value.find(i => i.id === id)
+  if (item) {
+    const newQty = Math.max(1, item.qty + delta)
+    cart.update(id, newQty)
+  }
+}
+
+function openOptions(id: string) {
+  const item = items.value.find(i => i.id === id)
+  if (item) {
+    optionsModal.open = true
+    optionsModal.productId = id
+    optionsModal.color = item.variantColor || 'أبيض'
+    optionsModal.size = item.variantSize || 'M'
+    optionsModal.galleryIndex = 0
+  }
+}
+
+function closeOptionsModal() {
+  optionsModal.open = false
+}
+
+// إضافة منتجات تجريبية للاختبار
+function addTestItems() {
+  if (items.value.length === 0) {
+    cart.add({
+      id: 'test-1',
+      title: 'تيشيرت نسائي بياقة مستديرة وقماش مريح',
+      price: 34.0,
+      img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=200&auto=format&fit=crop',
+      variantColor: 'أبيض',
+      variantSize: 'S'
+    }, 1)
+    
+    cart.add({
+      id: 'test-2', 
+      title: 'قميص بأكمام قصيرة وتفاصيل مجمعة',
+      price: 27.2,
+      img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=200&auto=format&fit=crop',
+      variantColor: 'كحلي',
+      variantSize: 'M'
+    }, 1)
+  }
+}
+
+// إضافة المنتجات التجريبية عند تحميل الصفحة
+import { onMounted } from 'vue'
+onMounted(() => {
+  // يمكن إزالة هذا السطر لاختبار السلة الفارغة
+  // addTestItems()
+})
 </script>
 
 <style scoped>
-.cart-page{background:#F5F5F5;color:#222;min-height:100vh;padding-bottom:120px}
-.cart-header{height:56px;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;padding:0 12px;background:transparent;position:sticky;top:0;z-index:20}
-.title{font-size:16px;font-weight:800}
-.icon{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;background:transparent;border:0}
-.icon.sm{width:36px;height:36px}
-.promos{display:flex;gap:8px;align-items:center;background:#f0f0f0;padding:6px 12px;height:40px}
-.pill{height:28px;padding:0 12px;border-radius:14px;border:0;background:#fff;font-size:14px}
-.body{padding-top:8px}
-.list{display:flex;flex-direction:column;gap:12px}
-.item{display:grid;grid-template-columns:auto 100px 1fr;gap:10px;align-items:center;min-height:120px}
-.select{width:24px;height:24px;display:grid;place-items:center;background:transparent;border:0}
-.thumb{width:100px;height:100px;object-fit:cover;border-radius:6px;background:#eee}
-.meta{display:flex;flex-direction:column;gap:8px}
-.line{display:flex;align-items:center;gap:8px}
-.name .txt{font-size:14px;font-weight:600;max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.opts .sel{height:28px;border:1px solid #e5e5e5;border-radius:8px;padding:0 8px;font-size:12px;background:#fff}
-.price{gap:10px}
-.price .now{font-size:14px;font-weight:800;color:#222}
-.price .sale{font-size:14px;color:#FF5722}
-.price .cut{font-size:12px;color:#999;text-decoration:line-through}
-.qty-row{gap:8px}
-.qty-btn{width:24px;height:24px;border-radius:6px;border:1px solid #e5e5e5;background:#fff}
-.qty-input{width:40px;height:28px;text-align:center;border:1px solid #e5e5e5;border-radius:6px}
-.trash{margin-inline-start:auto;background:transparent;border:0;width:24px;height:24px}
-.quick-promo{font-size:12px;color:#FF5722;padding:0 12px 8px}
-.checkout-bar{position:fixed;bottom:56px;left:0;right:0;background:#fff;border-top:1px solid #eee;padding:8px 12px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;z-index:60}
-.sum{display:flex;flex-direction:column;gap:2px}
-.coupon{font-size:14px;color:#444}
-.total{font-size:16px;font-weight:800}
-.pay{display:block;text-align:center;background:#000;color:#fff;border-radius:10px;height:50px;line-height:50px;text-decoration:none}
+/* استخدام Tailwind CSS - لا حاجة لأنماط إضافية */
 </style>
 
