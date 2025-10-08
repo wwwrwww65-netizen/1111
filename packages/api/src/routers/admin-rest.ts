@@ -4158,14 +4158,18 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (!isCosmetics && (inch || isTouch)) addRow(table,'screen','الشاشة',[inch,isTouch?'لمس': ''].filter(Boolean).join(' ').trim(),0.85)
 
         // الأبعاد والوزن (دعم x و ×)
-        const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×X]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
+        const dims = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)(?:\s*[x×X]\s*\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)){0,2}/i)?.[0]
         if (!isCosmetics && dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
         // Capture length/width without units if explicitly labeled
         const lenM = rt.match(/الطول\s*(\d{2,4})/i)
         if (!isCosmetics && lenM) addRow(table,'length','الطول',lenM[1],0.82)
         const widM = rt.match(/العرض\s*(\d{2,4})/i)
         if (!isCosmetics && widM) addRow(table,'width','العرض',widM[1],0.82)
-        const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
+        const weight = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
+        const netWeight = rt.match(/(?:الوزن\s*الصافي|صافي\s*الوزن|net\s*(?:wt\.?|weight))\s*[:：=\-–—→»›]?\s*([^\n\r]{2,40})/i)?.[1]
+        if (!isCosmetics && netWeight) addRow(table,'net_weight','الوزن الصافي',netWeight,0.8)
+        const netVolume = rt.match(/(?:الحجم\s*الصافي|صافي\s*الحجم|net\s*(?:vol\.?|volume))\s*[:：=\-–—→»›]?\s*([^\n\r]{2,40})/i)?.[1]
+        if (!isCosmetics && netVolume) addRow(table,'net_volume','الحجم الصافي',netVolume,0.8)
 
         // السعة/الذاكرة/التخزين/البطارية
         const capacity = rt.match(/\b\d+(?:\.\d+)?\s*(?:ml|l)\b/i)?.[0]; if (!isCosmetics && capacity) addRow(table,'capacity','السعة',capacity,0.82)
