@@ -1,137 +1,204 @@
 <template>
-  <div class="bg-white min-h-screen" dir="rtl">
+  <div class="bg-white pb-24" dir="rtl">
     <!-- Header -->
-    <div class="fixed top-0 left-0 right-0 z-50 bg-white">
-      <div class="flex items-center justify-between px-4 py-3 h-14">
-        <div class="flex items-center gap-3">
-          <button class="w-6 h-6 flex items-center justify-center" @click="router.push('/cart')">
-            <ShoppingCart :size="20" />
-            <span v-if="cart.count" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center text-[10px] px-1">{{ cart.count }}</span>
-          </button>
-          <button class="w-6 h-6 flex items-center justify-center" @click="share">
-            <Share :size="20" />
-          </button>
-          <button class="w-6 h-6 flex items-center justify-center" @click="router.push('/search')">
-            <Search :size="20" />
-          </button>
+    <div class="flex items-center justify-between p-3 border-b border-gray-200">
+      <div class="flex items-center gap-3">
+        <div class="relative inline-flex" @click="router.push('/cart')" aria-label="السلة">
+          <ShoppingCart :size="24" />
+          <span v-if="cart.count" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 border border-white">{{ cart.count }}</span>
         </div>
-        <div class="text-xl font-bold">SHEIN</div>
-        <div class="flex items-center gap-3">
-          <button class="w-6 h-6 flex items-center justify-center">
-            <Menu :size="20" />
-          </button>
-          <button class="w-6 h-6 flex items-center justify-center">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
+        <button class="bg-transparent border-0" aria-label="مشاركة" @click="share"><Share :size="24" /></button>
+        <button class="bg-transparent border-0" aria-label="بحث" @click="router.push('/search')"><Search :size="24" /></button>
+      </div>
+      <div class="text-[20px] font-extrabold tracking-widest">jeeey</div>
+      <div class="flex items-center gap-3">
+        <button class="bg-transparent border-0" aria-label="القائمة"><Menu :size="24" /></button>
+        <div class="text-gray-400">›</div>
       </div>
     </div>
 
-    <!-- Product Image Gallery -->
-    <div class="relative mt-14">
-      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide" @scroll.passive="onGalleryScroll">
+    <!-- Product Image Gallery (swipeable) -->
+    <div class="relative">
+      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar" @scroll.passive="onGalleryScroll" @click="openLightbox(activeIdx)">
         <div class="flex">
           <img v-for="(img,idx) in images" :key="'hero-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
         </div>
       </div>
-      
-      <!-- Brand Overlay -->
-      <div class="absolute top-4 left-4 bg-red-500 text-white px-2 py-1 rounded text-[12px] font-bold">
-        COSMINA EST 2024
+      <div class="absolute bottom-3 inset-x-0 flex justify-center gap-1">
+        <button v-for="(img,i) in images" :key="'dot-'+i" class="w-1.5 h-1.5 rounded-full" :class="i===activeIdx ? 'bg-white' : 'bg-white/50'" @click="scrollToIdx(i)" aria-label="اذهب إلى الصورة" />
       </div>
-      
-      <!-- Image Counter -->
-      <div class="absolute bottom-4 left-4 bg-black/70 text-white px-2 py-1 rounded text-[12px] font-medium">
-        {{ activeIdx + 1 }}/{{ images.length }}
+      <div class="absolute bottom-3 right-3 bg-white/90 px-3 py-1.5 rounded-[6px]">
+        <div class="text-[12px] font-bold">{{ images.length }} صور</div>
+        <div class="text-[11px] text-orange-500">S • VERIFIED</div>
       </div>
     </div>
 
-    <!-- Product Info -->
-    <div class="px-4 py-4 space-y-3">
-      <!-- Trends Banner -->
-      <div class="bg-purple-100 px-3 py-2 rounded">
+    <!-- Lightbox fullscreen -->
+    <div v-if="lightbox" class="fixed inset-0 bg-black/95 z-50 flex flex-col" @keydown.esc="closeLightbox" tabindex="0">
+      <div class="flex justify-between items-center p-3 text-white">
+        <button class="px-3 py-1 rounded border border-white/30" @click="closeLightbox">إغلاق</button>
+        <div class="text-[13px]">{{ lightboxIdx+1 }} / {{ images.length }}</div>
+      </div>
+      <div class="flex-1 relative">
+        <div ref="lightboxRef" class="w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
+          <div class="flex h-full">
+            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" />
+          </div>
+        </div>
+        <button class="absolute left-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="prevLightbox" aria-label="السابق">‹</button>
+        <button class="absolute right-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="nextLightbox" aria-label="التالي">›</button>
+      </div>
+      <div class="p-2 flex justify-center gap-1">
+        <span v-for="(img,i) in images" :key="'lbdot-'+i" class="w-1.5 h-1.5 rounded-full" :class="i===lightboxIdx? 'bg-white' : 'bg-white/40'" />
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="p-3">
+      <div class="flex items-center justify-between">
+        <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
+        <span class="text-violet-400 text-[12px]">الموضة في متناول الجميع</span>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-orange-500 font-extrabold text-[18px]">{{ displayPrice }}</span>
+          <span v-if="original" class="text-gray-400 line-through">{{ original }}</span>
+          <span v-if="couponCode" class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
+        </div>
+        <div v-if="couponCode" class="border border-orange-300 text-orange-700 rounded-[6px] px-2 py-1 text-[12px] my-1.5 flex items-center justify-between">
+          <span>كوبون {{ couponCode }} — {{ couponDesc }}</span>
+          <span class="text-gray-600">ينتهي خلال {{ countdown }}</span>
+        </div>
+        <div class="flex items-center justify-between bg-orange-50 rounded-[6px] px-2 py-1.5">
+          <span>يشحن إلى {{ shipTo }} بين {{ etaFrom }} و {{ etaTo }}</span>
+          <span class="text-[12px] text-gray-600">إرجاع خلال 14 يومًا</span>
+        </div>
+      </div>
+
+      <div class="mt-1">
+        <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
+      </div>
+      <h1 class="text-[16px] font-bold my-1.5">{{ title }}</h1>
+      <p class="text-gray-600 text-[12px] mb-1.5">{{ pDescription }}</p>
+      <div class="grid grid-cols-2 gap-2 text-[12px] text-gray-700 mb-1.5">
+        <div v-if="sku"><span class="text-gray-500">كود المنتج:</span> {{ sku }}</div>
+        <div v-if="brand"><span class="text-gray-500">العلامة:</span> {{ brand }}</div>
+        <div v-if="material"><span class="text-gray-500">الخامة:</span> {{ material }}</div>
+        <div v-if="care"><span class="text-gray-500">العناية:</span> {{ care }}</div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="font-semibold">{{ avgRating.toFixed(2) }}</span>
+        <StarIcon :size="16" class="text-yellow-400" />
+        <span class="text-gray-600">(+{{ reviews.length || 500 }})</span>
+      </div>
+      <!-- توزيع النجوم -->
+      <div class="mt-1 space-y-1">
+        <div v-for="n in [5,4,3,2,1]" :key="'bar-'+n" class="flex items-center gap-2 text-[12px]">
+          <span class="w-6">{{ n }}★</span>
+          <div class="flex-1 h-2 bg-gray-200 rounded"><div class="h-2 bg-yellow-400 rounded" :style="{ width: (dist[n]||0) + '%' }"></div></div>
+          <span class="w-10 text-right text-gray-600">{{ (dist[n]||0).toFixed(0) }}%</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 my-2">
+        <span class="bg-orange-500 text-white rounded-[6px] px-1.5 py-0.5 text-[12px]">#5</span>
+        <span class="text-[12px]">الأفضل مبيعاً في عطلة فساتين ماكسي للنساء</span>
+      </div>
+
+      <div class="mt-2">
+        <div class="flex items-center gap-2">
+          <img v-for="(img,i) in images.slice(0,5)" :key="'thumb'+i" :src="img" class="w-12 h-12 rounded-[6px] border object-cover cursor-pointer" :class="i===activeIdx ? 'border-black ring-2 ring-black' : 'border-gray-200'" :alt="'thumbnail '+i" @click="selectThumb(i)" />
+        </div>
+      </div>
+
+      <div class="mt-2">
         <div class="flex items-center justify-between">
-          <span class="text-purple-700 text-[12px] font-medium">ترندات</span>
-          <span class="text-purple-500 text-[12px]">الموضة في متناول الجميع</span>
+          <span class="font-semibold">المقاس</span>
+          <div class="flex items-center gap-2 text-[12px]">
+            <button class="text-blue-600" @click="openSizeGuide">مرجع المقاس</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-1">
+          <button v-for="s in sizes" :key="s" class="min-w-[50px] border rounded-[6px] px-2 py-2 bg-white" :class="size===s ? 'border-black' : 'border-gray-300'" @click="size=s">{{ s }}</button>
+        </div>
+        <div v-if="sizesSecondary.length" class="mt-2">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold">مقاس إضافي</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <button v-for="s in sizesSecondary" :key="'s2-'+s" class="min-w-[50px] border rounded-[6px] px-2 py-2 bg-white" :class="size2===s ? 'border-black' : 'border-gray-300'" @click="size2=s">{{ s }}</button>
+          </div>
         </div>
       </div>
-      
-      <!-- Price -->
-      <div class="text-[24px] font-bold text-gray-900">27.00 ر.س</div>
-      
-      <!-- SHEIN CLUB Offer -->
-      <div class="bg-orange-100 px-3 py-2 rounded">
-        <div class="text-[13px] text-orange-700">
-          وفر بخصم 1.35 ر.س على هذا المنتج بعد الانضمام. 
-          <span class="bg-orange-500 text-white rounded px-1 py-0.5 text-[10px] font-bold">S</span>
-          <span class="font-bold">SHEIN CLUB</span>
-        </div>
-      </div>
-      
-      <!-- Product Title -->
-      <h1 class="text-[16px] font-semibold leading-tight text-gray-900">ترندات COSMINA ملابس علوية كاجوال بأكمام قصيرة بلون سادة للسيدات</h1>
-      <p class="text-[14px] text-gray-600">مناسب للصيف</p>
-      
-      <!-- Rating -->
-      <div class="flex items-center gap-2">
-        <div class="flex items-center gap-1">
-          <StarIcon v-for="i in 5" :key="i" :size="14" class="text-yellow-400" />
-        </div>
-        <span class="text-[14px] font-semibold text-gray-900">4.90</span>
-        <span class="text-gray-500 text-[12px]">(+1000)</span>
-      </div>
-      
-      <!-- Thumbnail Images -->
-      <div class="flex gap-2 overflow-x-auto">
-        <img v-for="(img,i) in images.slice(0,5)" :key="'thumb'+i" :src="img" class="w-16 h-16 rounded border object-cover cursor-pointer flex-shrink-0" :class="i===activeIdx ? 'border-black ring-2 ring-black' : 'border-gray-200'" :alt="'thumbnail '+i" @click="scrollToIdx(i)" />
-      </div>
-      
-      <!-- Best Seller -->
-      <div class="bg-orange-100 px-3 py-2 rounded">
-        <div class="text-[13px] text-orange-700 font-medium">#5 الأفضل مبيعًا في أنيق قسم نسائية</div>
-      </div>
-      
-      <!-- Color Selection -->
-      <div class="space-y-2">
-        <div class="text-[14px] font-medium text-gray-900">لون: الأسود</div>
-      </div>
-      
-      <!-- Size Selection -->
-      <div class="space-y-2">
+
+      <!-- ألوان كمصغرات دائرية -->
+      <div class="mt-3">
         <div class="flex items-center justify-between">
-          <span class="text-[14px] font-medium text-gray-900">مقاس</span>
-          <button class="text-blue-600 text-[12px] font-medium">مرجع المقاس</button>
+          <span class="font-semibold">اللون</span>
         </div>
-        <div class="flex gap-2 flex-wrap">
-          <button v-for="size in sizes" :key="size" 
-                  class="px-3 py-2 border rounded-lg text-[13px] transition-all font-medium"
-                  :class="selectedSize === size ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-gray-700'"
-                  @click="selectedSize = size">
-            {{ size }}
+        <div class="flex items-center gap-2 mt-1">
+          <button v-for="(c,i) in colorOptions" :key="'c-'+i" class="w-8 h-8 rounded-full border" :class="i===colorIdx ? 'border-black ring-2 ring-black' : 'border-gray-300'" :style="{ background: c.hex }" @click="selectColor(i)" :aria-label="c.name"></button>
+        </div>
+      </div>
+
+      <div class="mt-3 inline-flex items-center gap-2">
+        <button class="w-8 h-8 rounded border" @click="decQty" aria-label="-">-</button>
+        <div class="min-w-[28px] text-center">{{ qty }}</div>
+        <button class="w-8 h-8 rounded border" @click="incQty" aria-label="+">+</button>
+      </div>
+
+      <div class="my-2 text-[13px]">
+        <span class="text-orange-500 font-bold">96%</span>
+        <span class="text-gray-600">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
+        <div class="text-gray-600 text-[12px] mt-1">ليس مقياسك؟ اخبرنا ما هو مقياسك</div>
+      </div>
+
+      <!-- أقسام قابلة للطي -->
+      <div class="divide-y divide-gray-200 border-t">
+        <div v-for="sec in sections" :key="sec.key" class="py-2">
+          <button class="w-full flex items-center justify-between py-2" @click="toggleSection(sec.key)">
+            <span class="font-semibold">{{ sec.title }}</span>
+            <span>{{ openSections[sec.key] ? '▾' : '▸' }}</span>
           </button>
+          <div v-if="openSections[sec.key]" class="text-gray-700 text-[13px] leading-relaxed">
+            <template v-if="Array.isArray(sec.content)">
+              <ul class="list-disc pr-5 space-y-1">
+                <li v-for="(li,idx) in sec.content" :key="'li-'+idx">{{ li }}</li>
+              </ul>
+            </template>
+            <template v-else>
+              <p>{{ sec.content }}</p>
+            </template>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Bottom Action Bar -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 flex items-center gap-3 pb-safe">
-      <button class="flex-1 h-12 rounded-lg bg-black text-white font-medium text-[14px]" @click="addToCart">
-        أضف إلى عربة التسوق بنجاح
-      </button>
-      <button class="w-12 h-12 rounded-lg border border-gray-300 flex items-center justify-center" @click="toggleWish">
-        <HeartIcon :size="20" :class="hasWish ? 'text-red-500' : 'text-gray-600'" />
-      </button>
-      <button class="w-12 h-12 rounded-lg border border-gray-300 flex items-center justify-center" @click="router.push('/cart')">
-        <ShoppingCart :size="20" class="text-gray-600" />
-      </button>
+    <!-- Bottom Actions -->
+    <div class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2">
+      <button class="flex-1 h-12 rounded-[8px] bg-black text-white" @click="addToCart">أضف إلى عربة التسوق</button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" :aria-label="hasWish ? 'إزالة من المفضلة' : 'أضف إلى المفضلة'" @click="toggleWish"><HeartIcon :size="20" :class="hasWish ? 'text-red-500' : ''" /></button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات" @click="openSizeGuide"><RulerIcon :size="20" /></button>
     </div>
 
     <!-- Toast -->
-    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded-lg shadow-lg z-50">
-      تمت الإضافة إلى عربة التسوق بنجاح
+    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded shadow z-50">{{ toastText }}</div>
+
+  <!-- ورقة مرجع المقاس السفلية -->
+  <div v-if="sizeGuideOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" @click="closeSizeGuide"></div>
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 max-h-[70vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-[16px]">مرجع المقاس</h3>
+        <button class="text-[20px]" @click="closeSizeGuide">×</button>
+      </div>
+      <div class="text-[13px] text-gray-700 leading-relaxed">
+        <p>تحويلات تقريبية: XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42) • XXL (EU 44)</p>
+        <p class="mt-2">قد تختلف المقاسات حسب التصميم والخامة. يُفضل مراجعة التعليقات لمعرفة الانطباعات عن الملاءمة.</p>
+      </div>
     </div>
+  </div>
   </div>
 </template>
 
@@ -140,179 +207,193 @@ import { useRoute, useRouter } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useCart } from '@/store/cart'
 import { API_BASE, apiPost, apiGet } from '@/lib/api'
-import { ShoppingCart, Share, Search, Menu, Star as StarIcon, Heart as HeartIcon } from 'lucide-vue-next'
-
+import { ShoppingCart, Share, Search, Menu, Star as StarIcon, Heart as HeartIcon, Ruler as RulerIcon } from 'lucide-vue-next'
 const route = useRoute()
 const router = useRouter()
-const id = route.query.id as string || 'p1'
-
-// Product Data
-const title = ref('ترندات COSMINA ملابس علوية كاجوال بأكمام قصيرة بلون سادة للسيدات')
-const price = ref<number>(27.00)
-const originalPrice = ref('')
+const id = computed<string>(()=> String((route.query.id as string) || (route.params as any)?.id || 'p1'))
+const title = ref('منتج تجريبي')
+const price = ref<number>(129)
+const original = ref('179 ر.س')
 const images = ref<string[]>([
-  'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop',
   'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
   'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop'
+  'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop'
 ])
-
-// Gallery
 const activeIdx = ref(0)
-const galleryRef = ref<HTMLDivElement|null>(null)
-
-// Product Options
-const colors = ref([
-  { name: 'أسود', hex: '#000000' }
-])
-const selectedColorIdx = ref(0)
-const selectedColor = computed(() => colors.value[selectedColorIdx.value].name)
-
-const sizes = ref(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
-const selectedSize = ref('M')
-
-// Reviews & Ratings
-const avgRating = ref(4.90)
-const reviewsCount = ref(1000)
-const sizeFitPercentage = ref(95)
-const wouldBuyAgain = ref(95)
-const goodFabric = ref(500)
-
-const reviews = ref([
-  { 
-    id: 1, 
-    user: 'سارة أ***', 
-    stars: 5, 
-    comment: 'قميص رائع جداً، مريح ومناسب للصيف. الجودة ممتازة والمقاس مناسب تماماً.', 
-    date: 'منذ يومين',
-    colorSize: 'لون: أسود، مقاس: M',
-    helpful: 8
-  },
-  { 
-    id: 2, 
-    user: 'فاطمة م***', 
-    stars: 4, 
-    comment: 'التصميم بسيط وأنيق، القماش خفيف ومناسب للطقس الحار. أنصح به.', 
-    date: 'منذ أسبوع',
-    colorSize: 'لون: أسود، مقاس: L',
-    helpful: 5
+const activeImg = computed(()=> images.value[activeIdx.value] || '')
+const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
+const sizes = ref<string[]>(['S','M','L','XL'])
+const sizesSecondary = ref<string[]>([])
+const size = ref<string>('M')
+const size2 = ref<string | null>(null)
+const colorOptions = [
+  { name: 'black', hex: '#000000' },
+  { name: 'white', hex: '#ffffff' },
+  { name: 'blue', hex: '#2a62ff' },
+  { name: 'gray', hex: '#9aa0a6' },
+  { name: 'beige', hex: '#d9c3a3' },
+]
+const colorIdx = ref(0)
+function selectColor(i:number){ colorIdx.value = i }
+const qty = ref(1)
+function incQty(){ qty.value = Math.min(99, qty.value + 1) }
+function decQty(){ qty.value = Math.max(1, qty.value - 1) }
+const avgRating = ref(4.9)
+const reviews = ref<any[]>([])
+// توزيع النجوم كنِسَب مئوية (لتفادي أخطاء التشغيل عند غياب البيانات)
+const dist = computed<Record<number, number>>(()=>{
+  const base: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  const list = Array.isArray(reviews.value) ? reviews.value : []
+  if (!list.length) return { 5: 80, 4: 12, 3: 5, 2: 2, 1: 1 }
+  for (const r of list) {
+    const s = Math.min(5, Math.max(1, Math.round((r?.stars ?? 0) as number)))
+    base[s] = (base[s] || 0) + 1
   }
-])
-
-// Shipping & Location
-const shippingLocation = ref('Riyadh, Saudi Arabia')
-const freeShippingThreshold = ref('99.00')
-const deliveryDate = ref('نوفمبر 15 - نوفمبر 18')
-const clubCoupons = ref(12)
-const clubCouponsValue = ref('360.00')
-
-// SHEIN CLUB
-const clubSave = ref(1.35)
-
-// Model Info
-const modelSize = ref('M')
-const modelMeasurements = ref('طول: 175cm صدر: 84cm خصر: 62cm الوركين: 91cm')
-
-// Related Products
-const relatedCategories = ref(['ملابس نسائية', 'قمصان', 'ملابس صيفية', 'ملابس كاجوال'])
-
-const relatedProducts = ref([
-  {
-    id: 1,
-    name: 'Dazy',
-    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=200&h=200&fit=crop',
-    price: '15.80',
-    reviews: 189
-  },
-  {
-    id: 2,
-    name: 'SHEIN Privé',
-    image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=200&h=200&fit=crop',
-    price: '18.40',
-    reviews: 1000
+  const total = list.length
+  return {
+    1: total ? (base[1] / total) * 100 : 0,
+    2: total ? (base[2] / total) * 100 : 0,
+    3: total ? (base[3] / total) * 100 : 0,
+    4: total ? (base[4] / total) * 100 : 0,
+    5: total ? (base[5] / total) * 100 : 0,
   }
-])
-
-// Computed
-const displayPrice = computed(() => price.value.toFixed(2))
-
-// Cart & Wishlist
+})
+const stars = ref<number>(5)
+const text = ref('')
+const description = 'تصميم راقية الدانتيل قطع السمكة'
+const pDescription = ref<string>('')
+const sku = ref<string>('')
+const brand = ref<string>('')
+const material = ref<string>('')
+const care = ref<string>('')
+const related: any[] = []
 const cart = useCart()
-const hasWish = ref(false)
 const toast = ref(false)
-
-// Functions
-function selectColor(i: number) {
-  selectedColorIdx.value = i
+const toastText = ref('تمت الإضافة إلى السلة')
+function addToCart(){
+  const variantNote = [size.value, (size2.value||'')].filter(Boolean).join(' / ')
+  cart.add({ id: id.value, title: title.value + (variantNote? ` (${variantNote})` : ''), price: Number(price.value)||0, img: activeImg.value }, qty.value)
+  toast.value = true
+  setTimeout(()=> toast.value=false, 1200)
 }
-
-function scrollToIdx(i: number) {
+const hasWish = ref(false)
+function toggleWish(){ hasWish.value = !hasWish.value }
+const sizeGuideOpen = ref(false)
+function openSizeGuide(){ sizeGuideOpen.value = true }
+function closeSizeGuide(){ sizeGuideOpen.value = false }
+const openSections = ref<Record<string, boolean>>({})
+const sections = ref<Array<{ key:string; title:string; content:string|string[] }>>([
+  { key:'details', title:'التفاصيل', content: description },
+  { key:'shipping', title:'الشحن والإرجاع', content: ['شحن خلال 2-5 أيام عمل','إرجاع خلال 14 يومًا وفق السياسة'] },
+  { key:'reviews', title:'المراجعات', content: [`التقييم المتوسط: ${avgRating.value} من 5`, `عدد المراجعات: ${reviews.value.length || 500}`] },
+])
+function toggleSection(k:string){ openSections.value[k] = !openSections.value[k] }
+function setActive(i:number){ activeIdx.value = i }
+const galleryRef = ref<HTMLDivElement|null>(null)
+const lightboxRef = ref<HTMLDivElement|null>(null)
+const lightbox = ref(false)
+const lightboxIdx = ref(0)
+function scrollToIdx(i:number){
   activeIdx.value = i
   const el = galleryRef.value
   if (!el) return
   el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
 }
-
-function onGalleryScroll() {
+function selectThumb(i:number){ selectColor(i); scrollToIdx(i) }
+function openLightbox(i:number){ lightbox.value = true; lightboxIdx.value = i; requestAnimationFrame(()=>{ const el = lightboxRef.value; if(el) el.scrollTo({ left: i * el.clientWidth }) }) }
+function closeLightbox(){ lightbox.value = false }
+function nextLightbox(){ const el = lightboxRef.value; if(!el) return; const i = Math.min(images.value.length-1, lightboxIdx.value+1); lightboxIdx.value=i; el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) }
+function prevLightbox(){ const el = lightboxRef.value; if(!el) return; const i = Math.max(0, lightboxIdx.value-1); lightboxIdx.value=i; el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) }
+function onLightboxScroll(){ const el = lightboxRef.value; if(!el) return; const i = Math.round(el.scrollLeft/el.clientWidth); if(i!==lightboxIdx.value) lightboxIdx.value=i }
+function onGalleryScroll(){
   const el = galleryRef.value
   if (!el) return
   const i = Math.round(el.scrollLeft / el.clientWidth)
   if (i !== activeIdx.value) activeIdx.value = i
 }
-
-function addToCart() {
-  cart.add({ 
-    id, 
-    title: title.value, 
-    price: Number(price.value) || 0, 
-    img: images.value[activeIdx.value] 
-  }, 1)
-  toast.value = true
-  setTimeout(() => toast.value = false, 2000)
+const scrolled = ref(false)
+function onScroll(){ scrolled.value = window.scrollY > 60 }
+onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })
+onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
+// الشحن والكوبونات وعناصر الشريط العلوي
+const shipTo = ref('السعودية')
+const etaFrom = ref('2-4 أيام')
+const etaTo = ref('5-9 أيام')
+const couponCode = ref('')
+const couponDesc = ref('')
+const couponExpiresAt = ref<number|null>(null)
+const now = ref<number>(Date.now())
+let nowTimer: any = null
+const countdown = computed(()=>{
+  if (!couponExpiresAt.value) return ''
+  const diffSec = Math.max(0, Math.floor((couponExpiresAt.value - now.value) / 1000))
+  const d = Math.floor(diffSec / 86400)
+  const h = Math.floor((diffSec % 86400) / 3600)
+  const m = Math.floor((diffSec % 3600) / 60)
+  const s = diffSec % 60
+  const parts: string[] = []
+  if (d) parts.push(`${d}ي`)
+  parts.push(`${h}س`, `${m}د`, `${s}ث`)
+  return parts.join(' ')
+})
+function goBack(){ if (window.history.length > 1) router.back(); else router.push('/') }
+async function share(){
+  try{
+    const data = { title: title.value, text: title.value, url: location.href }
+    if ((navigator as any).share) await (navigator as any).share(data)
+    else await navigator.clipboard.writeText(location.href)
+  }catch{}
 }
-
-function toggleWish() {
-  hasWish.value = !hasWish.value
-}
-
-async function share() {
-  try {
-    const data = { 
-      title: title.value, 
-      text: title.value, 
-      url: location.href 
-    }
-    if ((navigator as any).share) {
-      await (navigator as any).share(data)
-    } else {
-      await navigator.clipboard.writeText(location.href)
-    }
-  } catch {}
-}
-
-// Lifecycle
-onMounted(async () => {
-  try {
-    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { 
-      credentials: 'omit', 
-      headers: { 'Accept': 'application/json' } 
-    })
-    if (res.ok) {
+onMounted(async ()=>{
+  try{
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id.value)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
+    if(res.ok){
       const d = await res.json()
       title.value = d.name || title.value
-      price.value = Number(d.price || 18.40)
-      const imgs = Array.isArray(d.images) ? d.images : []
+      price.value = Number(d.price||129)
+      const imgs = Array.isArray(d.images)? d.images : []
       if (imgs.length) images.value = imgs
-      originalPrice.value = d.original ? d.original : originalPrice.value
+      original.value = d.original ? d.original + ' ر.س' : original.value
+      // وصف ومواصفات
+      pDescription.value = (d.description || '').trim() || description
+      sku.value = (d.sku || '').toString()
+      brand.value = (d.brand || '').toString()
+      material.value = (d.material || '').toString()
+      care.value = (d.care || '').toString()
+      // sizes from API if available
+      const s1 = Array.isArray(d.sizes)? d.sizes : []
+      const s2 = Array.isArray(d.variants)? d.variants.map((v:any)=> v?.size).filter((x:any)=> typeof x==='string') : []
+      const s = [...new Set([...s1, ...s2].filter((x:any)=> typeof x==='string' && x.trim()))]
+      if (s.length){ sizes.value = s as string[]; size.value = sizes.value[0] }
+      const sSecond = Array.isArray(d.sizes2)? d.sizes2.filter((x:any)=> typeof x==='string' && x.trim()) : []
+      if (sSecond.length){ sizesSecondary.value = sSecond as string[]; size2.value = sizesSecondary.value[0] }
+      // كوبونات وشحن (اختياري من الـ API)
+      couponCode.value = (d.couponCode || '').toString()
+      couponDesc.value = (d.couponDesc || '').toString()
+      const exp = d.couponExpiresAt ? Date.parse(d.couponExpiresAt) : NaN
+      if (!Number.isNaN(exp)) couponExpiresAt.value = exp
+      shipTo.value = (d.shipTo || shipTo.value).toString()
+      if (d.etaFrom) etaFrom.value = String(d.etaFrom)
+      if (d.etaTo) etaTo.value = String(d.etaTo)
     }
-  } catch {}
+  }catch{}
+  try{
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id.value)}`)
+    if (list && Array.isArray(list.items)){
+      reviews.value = list.items
+      const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
+      avgRating.value = list.items.length? (sum/list.items.length) : avgRating.value
+    }
+  }catch{}
+  // skip related in this design
 })
+onMounted(()=>{ nowTimer = setInterval(()=> now.value = Date.now(), 1000) })
+onBeforeUnmount(()=>{ if (nowTimer) { try{ clearInterval(nowTimer) }catch{} } })
+async function submitReview(){}
+async function buyNow(){ addToCart() }
 </script>
 
 <style scoped>
 /* Removed custom layout styles in favor of Tailwind classes already in template */
 </style>
-
