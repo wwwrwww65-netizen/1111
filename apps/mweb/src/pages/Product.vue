@@ -64,15 +64,15 @@
         <div class="flex items-center gap-2">
           <span class="text-orange-500 font-extrabold text-[18px]">{{ displayPrice }}</span>
           <span v-if="original" class="text-gray-400 line-through">{{ original }}</span>
-          <span class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
+          <span v-if="couponCode" class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
         </div>
-        <div class="border border-orange-300 text-orange-700 rounded-[6px] px-2 py-1 text-[12px] my-1.5">خصم 20%: بدون حد أدنى للشراء</div>
+        <div v-if="couponCode" class="border border-orange-300 text-orange-700 rounded-[6px] px-2 py-1 text-[12px] my-1.5 flex items-center justify-between">
+          <span>كوبون {{ couponCode }} — {{ couponDesc }}</span>
+          <span class="text-gray-600">ينتهي خلال {{ countdown }}</span>
+        </div>
         <div class="flex items-center justify-between bg-orange-50 rounded-[6px] px-2 py-1.5">
-          <span>وفر بخصم {{ clubSave }} على هذا المنتج بعد الانضمام.</span>
-          <div class="inline-flex items-center gap-1.5">
-            <span class="bg-orange-500 text-white rounded-full px-1.5 py-0.5 text-[11px]">S</span>
-            <span class="font-bold">jeeey CLUB</span>
-          </div>
+          <span>يشحن إلى {{ shipTo }} بين {{ etaFrom }} و {{ etaTo }}</span>
+          <span class="text-[12px] text-gray-600">إرجاع خلال 14 يومًا</span>
         </div>
       </div>
 
@@ -80,11 +80,25 @@
         <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
       </div>
       <h1 class="text-[16px] font-bold my-1.5">{{ title }}</h1>
-      <p class="text-gray-600 text-[12px] mb-1.5">تصميم راقية الدانتيل قطع السمكة</p>
+      <p class="text-gray-600 text-[12px] mb-1.5">{{ pDescription }}</p>
+      <div class="grid grid-cols-2 gap-2 text-[12px] text-gray-700 mb-1.5">
+        <div v-if="sku"><span class="text-gray-500">كود المنتج:</span> {{ sku }}</div>
+        <div v-if="brand"><span class="text-gray-500">العلامة:</span> {{ brand }}</div>
+        <div v-if="material"><span class="text-gray-500">الخامة:</span> {{ material }}</div>
+        <div v-if="care"><span class="text-gray-500">العناية:</span> {{ care }}</div>
+      </div>
       <div class="flex items-center gap-1.5">
         <span class="font-semibold">{{ avgRating.toFixed(2) }}</span>
         <StarIcon :size="16" class="text-yellow-400" />
         <span class="text-gray-600">(+{{ reviews.length || 500 }})</span>
+      </div>
+      <!-- توزيع النجوم -->
+      <div class="mt-1 space-y-1">
+        <div v-for="n in [5,4,3,2,1]" :key="'bar-'+n" class="flex items-center gap-2 text-[12px]">
+          <span class="w-6">{{ n }}★</span>
+          <div class="flex-1 h-2 bg-gray-200 rounded"><div class="h-2 bg-yellow-400 rounded" :style="{ width: (dist[n]||0) + '%' }"></div></div>
+          <span class="w-10 text-right text-gray-600">{{ (dist[n]||0).toFixed(0) }}%</span>
+        </div>
       </div>
 
       <div class="flex items-center gap-1.5 my-2">
@@ -100,18 +114,33 @@
 
       <div class="mt-2">
         <div class="flex items-center justify-between">
-          <span class="font-semibold">مقاس</span>
+          <span class="font-semibold">المقاس</span>
           <div class="flex items-center gap-2 text-[12px]">
-            <span class="text-blue-600">الافتراضي</span>
-            <span class="text-gray-600">مرجع المقاس</span>
+            <button class="text-blue-600" @click="openSizeGuide">مرجع المقاس</button>
           </div>
         </div>
         <div class="flex items-center gap-2 mt-1">
-          <button v-for="s in sizes" :key="s" class="min-w-[50px] border border-gray-300 rounded-[6px] px-2 py-2 bg-white" :class="{ 'border-black': size===s }" @click="size=s">{{ s }}</button>
+          <button v-for="s in sizes" :key="s" class="min-w-[50px] border rounded-[6px] px-2 py-2 bg-white" :class="size===s ? 'border-black' : 'border-gray-300'" @click="size=s">{{ s }}</button>
+        </div>
+        <div v-if="sizesSecondary.length" class="mt-2">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold">مقاس إضافي</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <button v-for="s in sizesSecondary" :key="'s2-'+s" class="min-w-[50px] border rounded-[6px] px-2 py-2 bg-white" :class="size2===s ? 'border-black' : 'border-gray-300'" @click="size2=s">{{ s }}</button>
+          </div>
         </div>
       </div>
 
-      <!-- اللون يُمثّل بالمصغّرات أعلاه -->
+      <!-- ألوان كمصغرات دائرية -->
+      <div class="mt-3">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold">اللون</span>
+        </div>
+        <div class="flex items-center gap-2 mt-1">
+          <button v-for="(c,i) in colorOptions" :key="'c-'+i" class="w-8 h-8 rounded-full border" :class="i===colorIdx ? 'border-black ring-2 ring-black' : 'border-gray-300'" :style="{ background: c.hex }" @click="selectColor(i)" :aria-label="c.name"></button>
+        </div>
+      </div>
 
       <div class="mt-3 inline-flex items-center gap-2">
         <button class="w-8 h-8 rounded border" @click="decQty" aria-label="-">-</button>
@@ -124,17 +153,52 @@
         <span class="text-gray-600">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
         <div class="text-gray-600 text-[12px] mt-1">ليس مقياسك؟ اخبرنا ما هو مقياسك</div>
       </div>
+
+      <!-- أقسام قابلة للطي -->
+      <div class="divide-y divide-gray-200 border-t">
+        <div v-for="sec in sections" :key="sec.key" class="py-2">
+          <button class="w-full flex items-center justify-between py-2" @click="toggleSection(sec.key)">
+            <span class="font-semibold">{{ sec.title }}</span>
+            <span>{{ openSections[sec.key] ? '▾' : '▸' }}</span>
+          </button>
+          <div v-if="openSections[sec.key]" class="text-gray-700 text-[13px] leading-relaxed">
+            <template v-if="Array.isArray(sec.content)">
+              <ul class="list-disc pr-5 space-y-1">
+                <li v-for="(li,idx) in sec.content" :key="'li-'+idx">{{ li }}</li>
+              </ul>
+            </template>
+            <template v-else>
+              <p>{{ sec.content }}</p>
+            </template>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Bottom Actions -->
     <div class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2">
       <button class="flex-1 h-12 rounded-[8px] bg-black text-white" @click="addToCart">أضف إلى عربة التسوق</button>
       <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" :aria-label="hasWish ? 'إزالة من المفضلة' : 'أضف إلى المفضلة'" @click="toggleWish"><HeartIcon :size="20" :class="hasWish ? 'text-red-500' : ''" /></button>
-      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات" @click="router.push('/size-guide')"><RulerIcon :size="20" /></button>
+      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات" @click="openSizeGuide"><RulerIcon :size="20" /></button>
     </div>
 
     <!-- Toast -->
-    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded shadow z-50">تمت الإضافة إلى الحقيبة</div>
+    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded shadow z-50">{{ toastText }}</div>
+
+  <!-- ورقة مرجع المقاس السفلية -->
+  <div v-if="sizeGuideOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" @click="closeSizeGuide"></div>
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 max-h-[70vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-[16px]">مرجع المقاس</h3>
+        <button class="text-[20px]" @click="closeSizeGuide">×</button>
+      </div>
+      <div class="text-[13px] text-gray-700 leading-relaxed">
+        <p>تحويلات تقريبية: XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42) • XXL (EU 44)</p>
+        <p class="mt-2">قد تختلف المقاسات حسب التصميم والخامة. يُفضل مراجعة التعليقات لمعرفة الانطباعات عن الملاءمة.</p>
+      </div>
+    </div>
+  </div>
   </div>
 </template>
 
@@ -160,7 +224,9 @@ const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 const sizes = ref<string[]>(['S','M','L','XL'])
+const sizesSecondary = ref<string[]>([])
 const size = ref<string>('M')
+const size2 = ref<string | null>(null)
 const colorOptions = [
   { name: 'black', hex: '#000000' },
   { name: 'white', hex: '#ffffff' },
@@ -182,12 +248,23 @@ const related: any[] = []
 const cart = useCart()
 const toast = ref(false)
 function addToCart(){
-  cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value }, qty.value)
+  const variantNote = [size.value, (size2.value||'')].filter(Boolean).join(' / ')
+  cart.add({ id, title: title.value + (variantNote? ` (${variantNote})` : ''), price: Number(price.value)||0, img: activeImg.value }, qty.value)
   toast.value = true
   setTimeout(()=> toast.value=false, 1200)
 }
 const hasWish = ref(false)
 function toggleWish(){ hasWish.value = !hasWish.value }
+const sizeGuideOpen = ref(false)
+function openSizeGuide(){ sizeGuideOpen.value = true }
+function closeSizeGuide(){ sizeGuideOpen.value = false }
+const openSections = ref<Record<string, boolean>>({})
+const sections = ref<Array<{ key:string; title:string; content:string|string[] }>>([
+  { key:'details', title:'التفاصيل', content: description },
+  { key:'shipping', title:'الشحن والإرجاع', content: ['شحن خلال 2-5 أيام عمل','إرجاع خلال 14 يومًا وفق السياسة'] },
+  { key:'reviews', title:'المراجعات', content: [`التقييم المتوسط: ${avgRating.value} من 5`, `عدد المراجعات: ${reviews.value.length || 500}`] },
+])
+function toggleSection(k:string){ openSections.value[k] = !openSections.value[k] }
 function setActive(i:number){ activeIdx.value = i }
 const galleryRef = ref<HTMLDivElement|null>(null)
 const lightboxRef = ref<HTMLDivElement|null>(null)
@@ -239,6 +316,8 @@ onMounted(async ()=>{
       const s2 = Array.isArray(d.variants)? d.variants.map((v:any)=> v?.size).filter((x:any)=> typeof x==='string') : []
       const s = [...new Set([...s1, ...s2].filter((x:any)=> typeof x==='string' && x.trim()))]
       if (s.length){ sizes.value = s as string[]; size.value = sizes.value[0] }
+      const sSecond = Array.isArray(d.sizes2)? d.sizes2.filter((x:any)=> typeof x==='string' && x.trim()) : []
+      if (sSecond.length){ sizesSecondary.value = sSecond as string[]; size2.value = sizesSecondary.value[0] }
     }
   }catch{}
   try{
