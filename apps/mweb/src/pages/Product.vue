@@ -210,7 +210,7 @@ import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { ShoppingCart, Share, Search, Menu, Star as StarIcon, Heart as HeartIcon, Ruler as RulerIcon } from 'lucide-vue-next'
 const route = useRoute()
 const router = useRouter()
-const id = route.query.id as string || 'p1'
+const id = computed<string>(()=> String((route.query.id as string) || (route.params as any)?.id || 'p1'))
 const title = ref('منتج تجريبي')
 const price = ref<number>(129)
 const original = ref('179 ر.س')
@@ -273,7 +273,7 @@ const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
 function addToCart(){
   const variantNote = [size.value, (size2.value||'')].filter(Boolean).join(' / ')
-  cart.add({ id, title: title.value + (variantNote? ` (${variantNote})` : ''), price: Number(price.value)||0, img: activeImg.value }, qty.value)
+  cart.add({ id: id.value, title: title.value + (variantNote? ` (${variantNote})` : ''), price: Number(price.value)||0, img: activeImg.value }, qty.value)
   toast.value = true
   setTimeout(()=> toast.value=false, 1200)
 }
@@ -347,7 +347,7 @@ async function share(){
 }
 onMounted(async ()=>{
   try{
-    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id.value)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
     if(res.ok){
       const d = await res.json()
       title.value = d.name || title.value
@@ -379,7 +379,7 @@ onMounted(async ()=>{
     }
   }catch{}
   try{
-    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id)}`)
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id.value)}`)
     if (list && Array.isArray(list.items)){
       reviews.value = list.items
       const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
