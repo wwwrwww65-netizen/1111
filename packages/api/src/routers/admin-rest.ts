@@ -4275,11 +4275,22 @@ adminRest.post('/products/analyze', async (req, res) => {
         // المقاسات/الألوان كنص (بدون عبارة "كما ذُكرت")
         const colorsText = finalColors.join('، ')
         // Normalize free-size with weight range to a single entry
-        if (/فري\s*سايز/i.test(rt)) {
+        if (/فري\s*سايز|مقاس\s*واحد|one\s*size|free\s*size/i.test(rt)) {
           const w = rt.replace(/[_/\\-]+/g,' ').match(/وزن\s*(\d{2,3})[^\d]{0,16}?(?:حتى|إلى|الى|-|–)\s*(?:وزن)?\s*(\d{2,3})/i)
           if (w) sizes = [`فري سايز (${Math.min(Number(w[1]),Number(w[2]))}–${Math.max(Number(w[1]),Number(w[2]))} كجم)`]
           else sizes = Array.from(new Set(['فري سايز', ...sizes.filter(s=> !/^\d{2,3}$/.test(String(s)))]))
         }
+        // Paired size lines like "52عرض19" or "54 عرض 20": push primary to sizes and width to sizes2
+        try {
+          const pairRe = /(\d{2,3})\s*عرض\s*(\d{1,2})/ig
+          let mp: RegExpExecArray | null
+          while ((mp = pairRe.exec(rt))) {
+            const len = String(mp[1])
+            const wid = String(mp[2])
+            sizes.push(len)
+            sizes2.push(wid)
+          }
+        } catch {}
         const sizesText = sizes.join('، ')
         if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
         if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
