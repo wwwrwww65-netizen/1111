@@ -491,20 +491,26 @@ export default function AdminProductCreate(): JSX.Element {
       const aj = await resp.json().catch(()=>({}));
       if (!resp.ok) { setError('فشل التحليل الصارم'); showToast('فشل التحليل الصارم', 'err'); return; }
       const analyzed = aj?.analyzed || {};
+      const sanitize = (s:string)=> String(s||'')
+        .replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u200D\uFE0F]/gu,' ')
+        .replace(/[\uFFFD]/g,' ')
+        .replace(/\s{2,}/g,' ').trim();
       const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
-        longDesc: String((analyzed?.description_table?.value||[]).map((r:any)=> `${r.label}: ${r.value}`).join('\n')||''),
+        name: sanitize(String(analyzed?.name?.value||'').slice(0,60)),
+        longDesc: sanitize(String((analyzed?.description_table?.value||[]).map((r:any)=> `${r.label}: ${r.value}`).join('\n')||'')),
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sizes: analyzed?.sizes?.value || [],
+        sizes2: (analyzed as any)?.sizes2?.value || [],
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
         sources: {
-          name: 'rules', description: 'rules', sizes: 'rules', colors: 'rules', price_range: 'rules', tags:'rules'
+          name: 'rules', description: 'rules', sizes: 'rules', sizes2: 'rules', colors: 'rules', price_range: 'rules', tags:'rules'
         },
         confidence: {
           name: Number(analyzed?.name?.confidence ?? 0.9),
           longDesc: Number(analyzed?.description_table?.confidence ?? 0.9),
           sizes: Number(analyzed?.sizes?.confidence ?? 0.7),
+          sizes2: 0.6,
           colors: Number(analyzed?.colors?.confidence ?? 0.7),
           purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.75)
         }
