@@ -64,15 +64,15 @@
         <div class="flex items-center gap-2">
           <span class="text-orange-500 font-extrabold text-[18px]">{{ displayPrice }}</span>
           <span v-if="original" class="text-gray-400 line-through">{{ original }}</span>
-          <span class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
+          <span v-if="couponCode" class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
         </div>
-        <div class="border border-orange-300 text-orange-700 rounded-[6px] px-2 py-1 text-[12px] my-1.5">خصم 20%: بدون حد أدنى للشراء</div>
+        <div v-if="couponCode" class="border border-orange-300 text-orange-700 rounded-[6px] px-2 py-1 text-[12px] my-1.5 flex items-center justify-between">
+          <span>كوبون {{ couponCode }} — {{ couponDesc }}</span>
+          <span class="text-gray-600">ينتهي خلال {{ countdown }}</span>
+        </div>
         <div class="flex items-center justify-between bg-orange-50 rounded-[6px] px-2 py-1.5">
-          <span>وفر بخصم {{ clubSave }} على هذا المنتج بعد الانضمام.</span>
-          <div class="inline-flex items-center gap-1.5">
-            <span class="bg-orange-500 text-white rounded-full px-1.5 py-0.5 text-[11px]">S</span>
-            <span class="font-bold">jeeey CLUB</span>
-          </div>
+          <span>يشحن إلى {{ shipTo }} بين {{ etaFrom }} و {{ etaTo }}</span>
+          <span class="text-[12px] text-gray-600">إرجاع خلال 14 يومًا</span>
         </div>
       </div>
 
