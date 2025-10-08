@@ -3999,6 +3999,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/\u0629/g, '\u0647')
           .replace(/\u06A9/g, '\u0643')
           .replace(/\u06CC/g, '\u064A')
+          .replace(/\u0640/g, '')
         const normSpace = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim()
         const pre = removeMarketing(stripEmoji(normalizeUnicode(normalizeLetters(stripDiacritics(toLatinDigits(raw))))))
         const rt = normSpace(pre)
@@ -4126,6 +4127,18 @@ adminRest.post('/products/analyze', async (req, res) => {
             .map(o=> String(o.value))
           sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums])) as string[]
         }
+        // Abaya-style pairs: 52عرض19 → length 52, width 19
+        try{
+          const pairRe = /(\d{2})\s*عرض\s*(\d{1,2})/gi
+          let mp: RegExpExecArray | null
+          while ((mp = pairRe.exec(rt))) {
+            const len = Number(mp[1]); const wid = Number(mp[2])
+            if (len>=30 && len<=70) sizes.push(String(len))
+            if (wid>=14 && wid<=40) sizes2.push(String(wid))
+          }
+          sizes = Array.from(new Set(sizes))
+          sizes2 = Array.from(new Set(sizes2))
+        } catch {}
 
         // Domain detectors (lightweight heuristics)
         const isCosmetics = /(روج|أحمر\s*شفاه|lipstick|ماسكارا|mascara|eyeliner|كحل|ظل\s*عيون|ظلال|foundation|بودرة|powder|blush|هايلايتر|مناكير|nail|جل\s*أظافر|toner|سيروم|serum|spf|عامل\s*حماية|واقي\s*شمس|sunscreen|شامبو|بلسم|عطر|fragrance|perfume|soap|لوشن|كريم)/i.test(rt)
