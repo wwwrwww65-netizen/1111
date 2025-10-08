@@ -210,7 +210,7 @@ import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { ShoppingCart, Share, Search, Menu, Star as StarIcon, Heart as HeartIcon, Ruler as RulerIcon } from 'lucide-vue-next'
 const route = useRoute()
 const router = useRouter()
-const id = route.query.id as string || 'p1'
+const id = computed<string>(()=> String((route.query.id as string) || (route.params as any)?.id || 'p1'))
 const title = ref('منتج تجريبي')
 const price = ref<number>(129)
 const original = ref('179 ر.س')
@@ -241,15 +241,39 @@ function incQty(){ qty.value = Math.min(99, qty.value + 1) }
 function decQty(){ qty.value = Math.max(1, qty.value - 1) }
 const avgRating = ref(4.9)
 const reviews = ref<any[]>([])
+// توزيع النجوم كنِسَب مئوية (لتفادي أخطاء التشغيل عند غياب البيانات)
+const dist = computed<Record<number, number>>(()=>{
+  const base: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  const list = Array.isArray(reviews.value) ? reviews.value : []
+  if (!list.length) return { 5: 80, 4: 12, 3: 5, 2: 2, 1: 1 }
+  for (const r of list) {
+    const s = Math.min(5, Math.max(1, Math.round((r?.stars ?? 0) as number)))
+    base[s] = (base[s] || 0) + 1
+  }
+  const total = list.length
+  return {
+    1: total ? (base[1] / total) * 100 : 0,
+    2: total ? (base[2] / total) * 100 : 0,
+    3: total ? (base[3] / total) * 100 : 0,
+    4: total ? (base[4] / total) * 100 : 0,
+    5: total ? (base[5] / total) * 100 : 0,
+  }
+})
 const stars = ref<number>(5)
 const text = ref('')
 const description = 'تصميم راقية الدانتيل قطع السمكة'
+const pDescription = ref<string>('')
+const sku = ref<string>('')
+const brand = ref<string>('')
+const material = ref<string>('')
+const care = ref<string>('')
 const related: any[] = []
 const cart = useCart()
 const toast = ref(false)
+const toastText = ref('تمت الإضافة إلى السلة')
 function addToCart(){
   const variantNote = [size.value, (size2.value||'')].filter(Boolean).join(' / ')
-  cart.add({ id, title: title.value + (variantNote? ` (${variantNote})` : ''), price: Number(price.value)||0, img: activeImg.value }, qty.value)
+  cart.add({ id: id.value, title: title.value + (variantNote? ` (${variantNote})` : ''), price: Number(price.value)||0, img: activeImg.value }, qty.value)
   toast.value = true
   setTimeout(()=> toast.value=false, 1200)
 }
@@ -292,7 +316,27 @@ const scrolled = ref(false)
 function onScroll(){ scrolled.value = window.scrollY > 60 }
 onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })
 onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
-const offerEnds = '1d 18h 59m 52s'
+// الشحن والكوبونات وعناصر الشريط العلوي
+const shipTo = ref('السعودية')
+const etaFrom = ref('2-4 أيام')
+const etaTo = ref('5-9 أيام')
+const couponCode = ref('')
+const couponDesc = ref('')
+const couponExpiresAt = ref<number|null>(null)
+const now = ref<number>(Date.now())
+let nowTimer: any = null
+const countdown = computed(()=>{
+  if (!couponExpiresAt.value) return ''
+  const diffSec = Math.max(0, Math.floor((couponExpiresAt.value - now.value) / 1000))
+  const d = Math.floor(diffSec / 86400)
+  const h = Math.floor((diffSec % 86400) / 3600)
+  const m = Math.floor((diffSec % 3600) / 60)
+  const s = diffSec % 60
+  const parts: string[] = []
+  if (d) parts.push(`${d}ي`)
+  parts.push(`${h}س`, `${m}د`, `${s}ث`)
+  return parts.join(' ')
+})
 function goBack(){ if (window.history.length > 1) router.back(); else router.push('/') }
 async function share(){
   try{
@@ -303,7 +347,7 @@ async function share(){
 }
 onMounted(async ()=>{
   try{
-    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id.value)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
     if(res.ok){
       const d = await res.json()
       title.value = d.name || title.value
@@ -311,6 +355,12 @@ onMounted(async ()=>{
       const imgs = Array.isArray(d.images)? d.images : []
       if (imgs.length) images.value = imgs
       original.value = d.original ? d.original + ' ر.س' : original.value
+      // وصف ومواصفات
+      pDescription.value = (d.description || '').trim() || description
+      sku.value = (d.sku || '').toString()
+      brand.value = (d.brand || '').toString()
+      material.value = (d.material || '').toString()
+      care.value = (d.care || '').toString()
       // sizes from API if available
       const s1 = Array.isArray(d.sizes)? d.sizes : []
       const s2 = Array.isArray(d.variants)? d.variants.map((v:any)=> v?.size).filter((x:any)=> typeof x==='string') : []
@@ -318,10 +368,18 @@ onMounted(async ()=>{
       if (s.length){ sizes.value = s as string[]; size.value = sizes.value[0] }
       const sSecond = Array.isArray(d.sizes2)? d.sizes2.filter((x:any)=> typeof x==='string' && x.trim()) : []
       if (sSecond.length){ sizesSecondary.value = sSecond as string[]; size2.value = sizesSecondary.value[0] }
+      // كوبونات وشحن (اختياري من الـ API)
+      couponCode.value = (d.couponCode || '').toString()
+      couponDesc.value = (d.couponDesc || '').toString()
+      const exp = d.couponExpiresAt ? Date.parse(d.couponExpiresAt) : NaN
+      if (!Number.isNaN(exp)) couponExpiresAt.value = exp
+      shipTo.value = (d.shipTo || shipTo.value).toString()
+      if (d.etaFrom) etaFrom.value = String(d.etaFrom)
+      if (d.etaTo) etaTo.value = String(d.etaTo)
     }
   }catch{}
   try{
-    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id)}`)
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id.value)}`)
     if (list && Array.isArray(list.items)){
       reviews.value = list.items
       const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
@@ -330,6 +388,8 @@ onMounted(async ()=>{
   }catch{}
   // skip related in this design
 })
+onMounted(()=>{ nowTimer = setInterval(()=> now.value = Date.now(), 1000) })
+onBeforeUnmount(()=>{ if (nowTimer) { try{ clearInterval(nowTimer) }catch{} } })
 async function submitReview(){}
 async function buyNow(){ addToCart() }
 </script>
