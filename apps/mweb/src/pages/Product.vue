@@ -1,204 +1,498 @@
 <template>
-  <div class="bg-white pb-24" dir="rtl">
+  <div class="bg-gray-50 min-h-screen pb-20" dir="rtl">
     <!-- Header -->
-    <div class="flex items-center justify-between p-3 border-b border-gray-200">
-      <div class="flex items-center gap-3">
-        <div class="relative inline-flex" @click="router.push('/cart')" aria-label="السلة">
-          <ShoppingCart :size="24" />
-          <span v-if="cart.count" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 border border-white">{{ cart.count }}</span>
-        </div>
-        <button class="bg-transparent border-0" aria-label="مشاركة" @click="share"><Share :size="24" /></button>
-        <button class="bg-transparent border-0" aria-label="بحث" @click="router.push('/search')"><Search :size="24" /></button>
-      </div>
-      <div class="text-[20px] font-extrabold tracking-widest">jeeey</div>
-      <div class="flex items-center gap-3">
-        <button class="bg-transparent border-0" aria-label="القائمة"><Menu :size="24" /></button>
-        <div class="text-gray-400">›</div>
-      </div>
-    </div>
-
-    <!-- Product Image Gallery (swipeable) -->
-    <div class="relative">
-      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar" @scroll.passive="onGalleryScroll" @click="openLightbox(activeIdx)">
-        <div class="flex">
-          <img v-for="(img,idx) in images" :key="'hero-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
-        </div>
-      </div>
-      <div class="absolute bottom-3 inset-x-0 flex justify-center gap-1">
-        <button v-for="(img,i) in images" :key="'dot-'+i" class="w-1.5 h-1.5 rounded-full" :class="i===activeIdx ? 'bg-white' : 'bg-white/50'" @click="scrollToIdx(i)" aria-label="اذهب إلى الصورة" />
-      </div>
-      <div class="absolute bottom-3 right-3 bg-white/90 px-3 py-1.5 rounded-[6px]">
-        <div class="text-[12px] font-bold">{{ images.length }} صور</div>
-        <div class="text-[11px] text-orange-500">S • VERIFIED</div>
-      </div>
-    </div>
-
-    <!-- Lightbox fullscreen -->
-    <div v-if="lightbox" class="fixed inset-0 bg-black/95 z-50 flex flex-col" @keydown.esc="closeLightbox" tabindex="0">
-      <div class="flex justify-between items-center p-3 text-white">
-        <button class="px-3 py-1 rounded border border-white/30" @click="closeLightbox">إغلاق</button>
-        <div class="text-[13px]">{{ lightboxIdx+1 }} / {{ images.length }}</div>
-      </div>
-      <div class="flex-1 relative">
-        <div ref="lightboxRef" class="w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
-          <div class="flex h-full">
-            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" />
-          </div>
-        </div>
-        <button class="absolute left-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="prevLightbox" aria-label="السابق">‹</button>
-        <button class="absolute right-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="nextLightbox" aria-label="التالي">›</button>
-      </div>
-      <div class="p-2 flex justify-center gap-1">
-        <span v-for="(img,i) in images" :key="'lbdot-'+i" class="w-1.5 h-1.5 rounded-full" :class="i===lightboxIdx? 'bg-white' : 'bg-white/40'" />
-      </div>
-    </div>
-
-    <!-- Info -->
-    <div class="p-3">
-      <div class="flex items-center justify-between">
-        <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
-        <span class="text-violet-400 text-[12px]">الموضة في متناول الجميع</span>
-      </div>
-
-      <div>
-        <div class="flex items-center gap-2">
-          <span class="text-orange-500 font-extrabold text-[18px]">{{ displayPrice }}</span>
-          <span v-if="original" class="text-gray-400 line-through">{{ original }}</span>
-          <span v-if="couponCode" class="text-orange-500 text-[12px]">بعد تطبيق الكوبون.</span>
-        </div>
-        <div v-if="couponCode" class="border border-orange-300 text-orange-700 rounded-[6px] px-2 py-1 text-[12px] my-1.5 flex items-center justify-between">
-          <span>كوبون {{ couponCode }} — {{ couponDesc }}</span>
-          <span class="text-gray-600">ينتهي خلال {{ countdown }}</span>
-        </div>
-        <div class="flex items-center justify-between bg-orange-50 rounded-[6px] px-2 py-1.5">
-          <span>يشحن إلى {{ shipTo }} بين {{ etaFrom }} و {{ etaTo }}</span>
-          <span class="text-[12px] text-gray-600">إرجاع خلال 14 يومًا</span>
-        </div>
-      </div>
-
-      <div class="mt-1">
-        <span class="inline-flex items-center h-[22px] px-2 rounded-full text-[12px] bg-violet-50 text-violet-700">تنزيلات</span>
-      </div>
-      <h1 class="text-[16px] font-bold my-1.5">{{ title }}</h1>
-      <p class="text-gray-600 text-[12px] mb-1.5">{{ pDescription }}</p>
-      <div class="grid grid-cols-2 gap-2 text-[12px] text-gray-700 mb-1.5">
-        <div v-if="sku"><span class="text-gray-500">كود المنتج:</span> {{ sku }}</div>
-        <div v-if="brand"><span class="text-gray-500">العلامة:</span> {{ brand }}</div>
-        <div v-if="material"><span class="text-gray-500">الخامة:</span> {{ material }}</div>
-        <div v-if="care"><span class="text-gray-500">العناية:</span> {{ care }}</div>
-      </div>
-      <div class="flex items-center gap-1.5">
-        <span class="font-semibold">{{ avgRating.toFixed(2) }}</span>
-        <StarIcon :size="16" class="text-yellow-400" />
-        <span class="text-gray-600">(+{{ reviews.length || 500 }})</span>
-      </div>
-      <!-- توزيع النجوم -->
-      <div class="mt-1 space-y-1">
-        <div v-for="n in [5,4,3,2,1]" :key="'bar-'+n" class="flex items-center gap-2 text-[12px]">
-          <span class="w-6">{{ n }}★</span>
-          <div class="flex-1 h-2 bg-gray-200 rounded"><div class="h-2 bg-yellow-400 rounded" :style="{ width: (dist[n]||0) + '%' }"></div></div>
-          <span class="w-10 text-right text-gray-600">{{ (dist[n]||0).toFixed(0) }}%</span>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-1.5 my-2">
-        <span class="bg-orange-500 text-white rounded-[6px] px-1.5 py-0.5 text-[12px]">#5</span>
-        <span class="text-[12px]">الأفضل مبيعاً في عطلة فساتين ماكسي للنساء</span>
-      </div>
-
-      <div class="mt-2">
-        <div class="flex items-center gap-2">
-          <img v-for="(img,i) in images.slice(0,5)" :key="'thumb'+i" :src="img" class="w-12 h-12 rounded-[6px] border object-cover cursor-pointer" :class="i===activeIdx ? 'border-black ring-2 ring-black' : 'border-gray-200'" :alt="'thumbnail '+i" @click="selectThumb(i)" />
-        </div>
-      </div>
-
-      <div class="mt-2">
-        <div class="flex items-center justify-between">
-          <span class="font-semibold">المقاس</span>
-          <div class="flex items-center gap-2 text-[12px]">
-            <button class="text-blue-600" @click="openSizeGuide">مرجع المقاس</button>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 mt-1">
-          <button v-for="s in sizes" :key="s" class="min-w-[50px] border rounded-[6px] px-2 py-2 bg-white" :class="size===s ? 'border-black' : 'border-gray-300'" @click="size=s">{{ s }}</button>
-        </div>
-        <div v-if="sizesSecondary.length" class="mt-2">
-          <div class="flex items-center justify-between">
-            <span class="font-semibold">مقاس إضافي</span>
-          </div>
-          <div class="flex items-center gap-2 mt-1">
-            <button v-for="s in sizesSecondary" :key="'s2-'+s" class="min-w-[50px] border rounded-[6px] px-2 py-2 bg-white" :class="size2===s ? 'border-black' : 'border-gray-300'" @click="size2=s">{{ s }}</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ألوان كمصغرات دائرية -->
-      <div class="mt-3">
-        <div class="flex items-center justify-between">
-          <span class="font-semibold">اللون</span>
-        </div>
-        <div class="flex items-center gap-2 mt-1">
-          <button v-for="(c,i) in colorOptions" :key="'c-'+i" class="w-8 h-8 rounded-full border" :class="i===colorIdx ? 'border-black ring-2 ring-black' : 'border-gray-300'" :style="{ background: c.hex }" @click="selectColor(i)" :aria-label="c.name"></button>
-        </div>
-      </div>
-
-      <div class="mt-3 inline-flex items-center gap-2">
-        <button class="w-8 h-8 rounded border" @click="decQty" aria-label="-">-</button>
-        <div class="min-w-[28px] text-center">{{ qty }}</div>
-        <button class="w-8 h-8 rounded border" @click="incQty" aria-label="+">+</button>
-      </div>
-
-      <div class="my-2 text-[13px]">
-        <span class="text-orange-500 font-bold">96%</span>
-        <span class="text-gray-600">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
-        <div class="text-gray-600 text-[12px] mt-1">ليس مقياسك؟ اخبرنا ما هو مقياسك</div>
-      </div>
-
-      <!-- أقسام قابلة للطي -->
-      <div class="divide-y divide-gray-200 border-t">
-        <div v-for="sec in sections" :key="sec.key" class="py-2">
-          <button class="w-full flex items-center justify-between py-2" @click="toggleSection(sec.key)">
-            <span class="font-semibold">{{ sec.title }}</span>
-            <span>{{ openSections[sec.key] ? '▾' : '▸' }}</span>
+    <div class="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm">
+      <div class="flex items-center justify-between px-4 py-3 h-14">
+        <div class="flex items-center gap-3">
+          <button class="w-8 h-8 flex items-center justify-center relative" @click="router.push('/cart')">
+            <ShoppingCart :size="22" class="text-gray-800" />
+            <span v-if="cart.count" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 font-bold">{{ cart.count }}</span>
           </button>
-          <div v-if="openSections[sec.key]" class="text-gray-700 text-[13px] leading-relaxed">
-            <template v-if="Array.isArray(sec.content)">
-              <ul class="list-disc pr-5 space-y-1">
-                <li v-for="(li,idx) in sec.content" :key="'li-'+idx">{{ li }}</li>
-              </ul>
-            </template>
-            <template v-else>
-              <p>{{ sec.content }}</p>
-            </template>
+          <button class="w-8 h-8 flex items-center justify-center" @click="share">
+            <Share2 :size="22" class="text-gray-800" />
+          </button>
+          <button class="w-8 h-8 flex items-center justify-center" @click="router.push('/search')">
+            <Search :size="22" class="text-gray-800" />
+          </button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button @click="router.back()" class="w-8 h-8 flex items-center justify-center">
+            <ChevronRight :size="24" class="text-gray-800" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product Image Gallery -->
+    <div class="relative mt-14 bg-white">
+      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide" @scroll.passive="onGalleryScroll">
+        <div class="flex">
+          <div v-for="(img,idx) in images" :key="'img-'+idx" class="w-full flex-shrink-0 snap-start relative">
+            <img :src="img" :alt="title" class="w-full h-auto object-cover block" loading="lazy" />
+          </div>
+        </div>
+      </div>
+      
+      <!-- Image Counter -->
+      <div class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-[13px] font-medium">
+        {{ activeIdx + 1 }}/{{ images.length }}
+      </div>
+      
+      <!--Wishlist Badge -->
+      <button @click="toggleWish" class="absolute top-3 left-3 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
+        <Heart :size="20" :class="hasWish ? 'text-red-500 fill-red-500' : 'text-gray-600'" />
+      </button>
+
+      <!-- Gallery Dots -->
+      <div class="flex justify-center gap-1.5 py-3 bg-white">
+        <div v-for="(img, i) in images" :key="'dot-'+i" 
+             class="h-1.5 rounded-full transition-all"
+             :class="i === activeIdx ? 'w-6 bg-gray-900' : 'w-1.5 bg-gray-300'">
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="space-y-3">
+      <!-- Price Section -->
+      <div class="bg-white px-4 py-4">
+        <div class="flex items-baseline gap-2 mb-2">
+          <span class="text-[28px] font-bold text-red-600">{{ displayPrice }} ر.س</span>
+          <span v-if="originalPrice" class="text-[16px] text-gray-400 line-through">{{ originalPrice }} ر.س</span>
+          <span v-if="originalPrice" class="bg-red-100 text-red-600 text-[12px] px-2 py-0.5 rounded font-bold">
+            -{{ Math.round((1 - price/parseFloat(originalPrice)) * 100) }}%
+          </span>
+        </div>
+
+        <!-- SHEIN CLUB Offer -->
+        <div class="bg-gradient-to-r from-orange-50 to-orange-100 px-3 py-2.5 rounded-lg mb-3 border border-orange-200">
+          <div class="flex items-center gap-2">
+            <div class="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded px-1.5 py-0.5 text-[11px] font-bold">S</div>
+            <span class="text-[13px] text-orange-800 font-medium">وفر {{ clubSave.toFixed(2) }} ر.س مع SHEIN CLUB</span>
+          </div>
+        </div>
+
+        <!-- Flash Sale Timer -->
+        <div v-if="showFlashSale" class="bg-gradient-to-r from-red-500 to-pink-500 px-3 py-2.5 rounded-lg flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Zap :size="16" class="text-white" />
+            <span class="text-white text-[13px] font-bold">عرض محدود</span>
+          </div>
+          <div class="flex items-center gap-1 text-white">
+            <div class="bg-white/20 px-2 py-1 rounded text-[13px] font-bold">{{ hours }}</div>
+            <span class="text-[13px]">:</span>
+            <div class="bg-white/20 px-2 py-1 rounded text-[13px] font-bold">{{ minutes }}</div>
+            <span class="text-[13px]">:</span>
+            <div class="bg-white/20 px-2 py-1 rounded text-[13px] font-bold">{{ seconds }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product Title & Rating -->
+      <div class="bg-white px-4 py-4">
+        <h1 class="text-[17px] font-semibold leading-snug text-gray-900 mb-3">{{ title }}</h1>
+        
+        <!-- Rating -->
+        <div class="flex items-center gap-3 mb-3">
+          <div class="flex items-center gap-1.5">
+            <Star v-for="i in 5" :key="i" :size="16" :class="i <= Math.floor(avgRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'" />
+          </div>
+          <span class="text-[15px] font-bold text-gray-900">{{ avgRating.toFixed(1) }}</span>
+          <button @click="scrollToReviews" class="text-[13px] text-gray-500 underline">({{ reviewsCount }}+ تقييم)</button>
+        </div>
+
+        <!-- Tags -->
+        <div class="flex flex-wrap gap-2">
+          <span class="bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full text-[12px] font-medium">#5 الأفضل مبيعاً</span>
+          <span class="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full text-[12px] font-medium">ترندات</span>
+          <span class="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[12px] font-medium">توصيل سريع</span>
+        </div>
+      </div>
+
+      <!-- Coupons Section -->
+      <div class="bg-white px-4 py-4" v-if="coupons.length">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <Ticket :size="18" class="text-red-500" />
+            <span class="text-[15px] font-bold text-gray-900">كوبونات متاحة</span>
+          </div>
+          <button class="text-[13px] text-blue-600">عرض الكل</button>
+        </div>
+        <div class="space-y-2">
+          <div v-for="(coupon, i) in coupons.slice(0, 2)" :key="i" 
+               class="border-2 border-dashed border-red-300 rounded-lg p-3 flex items-center justify-between bg-red-50">
+            <div>
+              <div class="text-[14px] font-bold text-red-600 mb-1">{{ coupon.title }}</div>
+              <div class="text-[12px] text-gray-600">{{ coupon.desc }}</div>
+            </div>
+            <button class="bg-red-500 text-white px-4 py-1.5 rounded-full text-[12px] font-bold hover:bg-red-600 transition">
+              احصل عليه
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Color Selection -->
+      <div class="bg-white px-4 py-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[15px] font-bold text-gray-900">اللون: <span class="font-normal text-gray-700">{{ selectedColor }}</span></span>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <button v-for="(color, i) in colors" :key="i"
+                  @click="selectColor(i)"
+                  class="relative w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
+                  :class="selectedColorIdx === i ? 'border-gray-900 ring-2 ring-gray-900 ring-offset-2' : 'border-gray-200'">
+            <div class="w-full h-full" :style="{ backgroundColor: color.hex }"></div>
+            <Check v-if="selectedColorIdx === i" :size="16" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Size Selection -->
+      <div class="bg-white px-4 py-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[15px] font-bold text-gray-900">المقاس: <span class="font-normal text-gray-700">{{ selectedSize }}</span></span>
+          <button @click="showSizeGuide = true" class="flex items-center gap-1 text-blue-600 text-[13px] font-medium">
+            <Ruler :size="14" />
+            <span>دليل المقاسات</span>
+          </button>
+        </div>
+        <div class="grid grid-cols-4 gap-2">
+          <button v-for="size in sizes" :key="size"
+                  @click="selectedSize = size"
+                  class="h-11 rounded-lg border-2 text-[14px] font-medium transition-all"
+                  :class="selectedSize === size 
+                    ? 'border-gray-900 bg-gray-900 text-white' 
+                    : 'border-gray-300 text-gray-700 hover:border-gray-400'">
+            {{ size }}
+          </button>
+        </div>
+        
+        <!-- Size Recommendation -->
+        <div class="mt-3 bg-blue-50 px-3 py-2 rounded-lg flex items-start gap-2">
+          <Info :size="16" class="text-blue-600 mt-0.5 flex-shrink-0" />
+          <div class="text-[12px] text-blue-800">
+            <div class="font-bold mb-1">نصيحة المقاس</div>
+            <div>{{ sizeFitPercentage }}% من العملاء اختاروا مقاسهم المعتاد</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quantity -->
+      <div class="bg-white px-4 py-4">
+        <div class="text-[15px] font-bold text-gray-900 mb-3">الكمية</div>
+        <div class="flex items-center gap-3">
+          <button @click="decreaseQty" 
+                  class="w-10 h-10 rounded-lg border-2 border-gray-300 flex items-center justify-center text-gray-700 font-bold hover:bg-gray-50"
+                  :disabled="quantity <= 1">
+            <Minus :size="18" />
+          </button>
+          <div class="flex-1 h-10 rounded-lg border-2 border-gray-300 flex items-center justify-center text-[15px] font-bold">
+            {{ quantity }}
+          </div>
+          <button @click="increaseQty" 
+                  class="w-10 h-10 rounded-lg border-2 border-gray-300 flex items-center justify-center text-gray-700 font-bold hover:bg-gray-50">
+            <Plus :size="18" />
+          </button>
+          <div class="text-[13px] text-gray-500">متوفر: {{ stock }} قطعة</div>
+        </div>
+      </div>
+
+      <!-- Shipping & Delivery -->
+      <div class="bg-white px-4 py-4">
+        <div class="flex items-center gap-2 mb-3">
+          <Truck :size="18" class="text-gray-700" />
+          <span class="text-[15px] font-bold text-gray-900">التوصيل والشحن</span>
+        </div>
+        
+        <div class="space-y-3">
+          <!-- Location -->
+          <div class="flex items-start gap-3 pb-3 border-b border-gray-100">
+            <MapPin :size="16" class="text-gray-500 mt-0.5 flex-shrink-0" />
+            <div class="flex-1">
+              <div class="text-[13px] text-gray-600 mb-1">التوصيل إلى</div>
+              <div class="flex items-center justify-between">
+                <span class="text-[14px] font-medium text-gray-900">{{ shippingLocation }}</span>
+                <button class="text-blue-600 text-[13px] font-medium">تغيير</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Delivery Date -->
+          <div class="flex items-start gap-3 pb-3 border-b border-gray-100">
+            <Calendar :size="16" class="text-gray-500 mt-0.5 flex-shrink-0" />
+            <div class="flex-1">
+              <div class="text-[13px] text-gray-600 mb-1">تاريخ التوصيل المتوقع</div>
+              <div class="text-[14px] font-medium text-gray-900">{{ deliveryDate }}</div>
+            </div>
+          </div>
+
+          <!-- Shipping Cost -->
+          <div class="flex items-start gap-3">
+            <Package :size="16" class="text-gray-500 mt-0.5 flex-shrink-0" />
+            <div class="flex-1">
+              <div class="text-[13px] text-gray-600 mb-1">تكلفة الشحن</div>
+              <div class="text-[14px] font-medium text-green-600">شحن مجاني للطلبات فوق {{ freeShippingThreshold }} ر.س</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product Details -->
+      <div class="bg-white px-4 py-4">
+        <button @click="showDetails = !showDetails" class="w-full flex items-center justify-between mb-3">
+          <span class="text-[15px] font-bold text-gray-900">تفاصيل المنتج</span>
+          <ChevronDown :size="20" :class="showDetails ? 'rotate-180' : ''" class="transition-transform text-gray-600" />
+        </button>
+        
+        <div v-if="showDetails" class="space-y-2 text-[14px]">
+          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
+            <span class="text-gray-600">المادة</span>
+            <span class="text-gray-900 font-medium">100% قطن</span>
+          </div>
+          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
+            <span class="text-gray-600">النمط</span>
+            <span class="text-gray-900 font-medium">لون سادة</span>
+          </div>
+          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
+            <span class="text-gray-600">نوع الأكمام</span>
+            <span class="text-gray-900 font-medium">أكمام قصيرة</span>
+          </div>
+          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
+            <span class="text-gray-600">المناسبة</span>
+            <span class="text-gray-900 font-medium">كاجوال، يومي</span>
+          </div>
+          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
+            <span class="text-gray-600">الموسم</span>
+            <span class="text-gray-900 font-medium">صيف، ربيع</span>
+          </div>
+          <div class="grid grid-cols-[100px_1fr] gap-3 py-2">
+            <span class="text-gray-600">العناية</span>
+            <span class="text-gray-900 font-medium">غسيل آلي، لا تبييض</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="bg-white px-4 py-4">
+        <button @click="showDescription = !showDescription" class="w-full flex items-center justify-between mb-3">
+          <span class="text-[15px] font-bold text-gray-900">الوصف</span>
+          <ChevronDown :size="20" :class="showDescription ? 'rotate-180' : ''" class="transition-transform text-gray-600" />
+        </button>
+        
+        <div v-if="showDescription" class="text-[14px] text-gray-700 leading-relaxed space-y-3">
+          <p>قميص كاجوال أنيق مناسب للارتداء اليومي وفي المناسبات الصيفية. مصنوع من قطن عالي الجودة يوفر راحة فائقة طوال اليوم.</p>
+          <p>التصميم البسيط والعصري يجعله قطعة أساسية في خزانة ملابسك. يمكن تنسيقه مع الجينز أو البنطلونات الكاجوال.</p>
+          
+          <div class="bg-gray-50 p-3 rounded-lg mt-4">
+            <div class="text-[13px] font-bold text-gray-900 mb-2">معلومات المانيكان:</div>
+            <div class="text-[13px] text-gray-600">{{ modelMeasurements }}</div>
+            <div class="text-[13px] text-gray-600 mt-1">المانيكان ترتدي المقاس: {{ modelSize }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reviews Section -->
+      <div ref="reviewsSection" class="bg-white px-4 py-4">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-[17px] font-bold text-gray-900">التقييمات ({{ reviewsCount }})</span>
+          <button class="text-blue-600 text-[13px] font-medium">عرض الكل</button>
+        </div>
+
+        <!-- Rating Summary -->
+        <div class="bg-gray-50 rounded-lg p-4 mb-4">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="text-center">
+              <div class="text-[36px] font-bold text-gray-900">{{ avgRating.toFixed(1) }}</div>
+              <div class="flex items-center justify-center gap-0.5 mb-1">
+                <Star v-for="i in 5" :key="i" :size="14" :class="i <= Math.floor(avgRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'" />
+              </div>
+              <div class="text-[12px] text-gray-500">{{ reviewsCount }} تقييم</div>
+            </div>
+            
+            <div class="flex-1 space-y-2">
+              <div v-for="star in [5,4,3,2,1]" :key="star" class="flex items-center gap-2">
+                <div class="flex items-center gap-1">
+                  <Star :size="12" class="text-yellow-400 fill-yellow-400" />
+                  <span class="text-[12px] text-gray-600 w-3">{{ star }}</span>
+                </div>
+                <div class="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-yellow-400" :style="{ width: getStarPercentage(star) + '%' }"></div>
+                </div>
+                <span class="text-[11px] text-gray-500 w-8 text-right">{{ getStarPercentage(star) }}%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Customer Stats -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white rounded-lg p-3 text-center">
+              <div class="text-[14px] font-bold text-gray-900">{{ sizeFitPercentage }}%</div>
+              <div class="text-[11px] text-gray-600">مقاس مناسب</div>
+            </div>
+            <div class="bg-white rounded-lg p-3 text-center">
+              <div class="text-[14px] font-bold text-gray-900">{{ wouldBuyAgain }}%</div>
+              <div class="text-[11px] text-gray-600">سيشترون مرة أخرى</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reviews List -->
+        <div class="space-y-4">
+          <div v-for="review in reviews.slice(0, 3)" :key="review.id" class="border-b border-gray-100 pb-4 last:border-0">
+            <div class="flex items-start justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-[13px] font-bold">
+                  {{ review.user.charAt(0) }}
+                </div>
+                <div>
+                  <div class="text-[13px] font-medium text-gray-900">{{ review.user }}</div>
+                  <div class="text-[11px] text-gray-500">{{ review.date }}</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-0.5">
+                <Star v-for="i in 5" :key="i" :size="12" :class="i <= review.stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'" />
+              </div>
+            </div>
+            
+            <p class="text-[14px] text-gray-700 leading-relaxed mb-2">{{ review.comment }}</p>
+            
+            <div class="text-[12px] text-gray-500 mb-2">{{ review.colorSize }}</div>
+            
+            <button class="flex items-center gap-1 text-[12px] text-gray-600">
+              <ThumbsUp :size="14" />
+              <span>مفيد ({{ review.helpful }})</span>
+            </button>
+          </div>
+        </div>
+
+        <button class="w-full mt-4 py-3 border-2 border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition">
+          عرض جميع التقييمات ({{ reviewsCount }})
+        </button>
+      </div>
+
+      <!-- Similar Products -->
+      <div class="bg-white px-4 py-4">
+        <div class="text-[17px] font-bold text-gray-900 mb-4">منتجات مشابهة</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div v-for="product in relatedProducts" :key="product.id" class="border border-gray-200 rounded-lg overflow-hidden">
+            <img :src="product.image" :alt="product.name" class="w-full aspect-square object-cover" />
+            <div class="p-2">
+              <div class="text-[13px] font-medium text-gray-900 mb-1 line-clamp-2">{{ product.name }}</div>
+              <div class="text-[15px] font-bold text-gray-900 mb-1">{{ product.price }} ر.س</div>
+              <div class="flex items-center gap-1">
+                <Star :size="12" class="text-yellow-400 fill-yellow-400" />
+                <span class="text-[11px] text-gray-600">({{ product.reviews }})</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="bg-white px-4 py-4">
+        <div class="text-[17px] font-bold text-gray-900 mb-4">أسئلة شائعة</div>
+        <div class="space-y-3">
+          <div v-for="(faq, i) in faqs" :key="i" class="border-b border-gray-100 pb-3 last:border-0">
+            <button @click="toggleFaq(i)" class="w-full flex items-start justify-between gap-3 text-right">
+              <span class="text-[14px] font-medium text-gray-900">{{ faq.q }}</span>
+              <ChevronDown :size="18" :class="faq.open ? 'rotate-180' : ''" class="transition-transform text-gray-600 flex-shrink-0 mt-0.5" />
+            </button>
+            <div v-if="faq.open" class="text-[13px] text-gray-600 mt-2 leading-relaxed">{{ faq.a }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trust Badges -->
+      <div class="bg-white px-4 py-4">
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="space-y-2">
+            <div class="w-12 h-12 mx-auto rounded-full bg-green-100 flex items-center justify-center">
+              <ShieldCheck :size="24" class="text-green-600" />
+            </div>
+            <div class="text-[11px] text-gray-600">ضمان الجودة</div>
+          </div>
+          <div class="space-y-2">
+            <div class="w-12 h-12 mx-auto rounded-full bg-blue-100 flex items-center justify-center">
+              <RotateCcw :size="24" class="text-blue-600" />
+            </div>
+            <div class="text-[11px] text-gray-600">إرجاع مجاني</div>
+          </div>
+          <div class="space-y-2">
+            <div class="w-12 h-12 mx-auto rounded-full bg-purple-100 flex items-center justify-center">
+              <Lock :size="24" class="text-purple-600" />
+            </div>
+            <div class="text-[11px] text-gray-600">دفع آمن</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Bottom Actions -->
-    <div class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2">
-      <button class="flex-1 h-12 rounded-[8px] bg-black text-white" @click="addToCart">أضف إلى عربة التسوق</button>
-      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" :aria-label="hasWish ? 'إزالة من المفضلة' : 'أضف إلى المفضلة'" @click="toggleWish"><HeartIcon :size="20" :class="hasWish ? 'text-red-500' : ''" /></button>
-      <button class="w-10 h-10 rounded-[8px] border border-gray-300 bg-white inline-flex items-center justify-center" aria-label="المقاسات" @click="openSizeGuide"><RulerIcon :size="20" /></button>
+    <!-- Bottom Action Bar -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2 pb-safe z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+      <button @click="router.push('/cart')" class="w-12 h-12 rounded-lg border-2 border-gray-300 flex items-center justify-center relative hover:bg-gray-50 transition">
+        <ShoppingCart :size="22" class="text-gray-700" />
+        <span v-if="cart.count" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 font-bold">{{ cart.count }}</span>
+      </button>
+      <button @click="buyNow" class="flex-1 h-12 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold text-[15px] hover:from-orange-600 hover:to-orange-700 transition shadow-md">
+        اشتر الآن
+      </button>
+      <button @click="addToCart" class="flex-1 h-12 rounded-lg bg-gradient-to-r from-gray-900 to-gray-800 text-white font-bold text-[15px] hover:from-black hover:to-gray-900 transition shadow-md">
+        أضف للسلة
+      </button>
     </div>
 
-    <!-- Toast -->
-    <div v-if="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-3 py-2 rounded shadow z-50">{{ toastText }}</div>
-
-  <!-- ورقة مرجع المقاس السفلية -->
-  <div v-if="sizeGuideOpen" class="fixed inset-0 z-50">
-    <div class="absolute inset-0 bg-black/50" @click="closeSizeGuide"></div>
-    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 max-h-[70vh] overflow-y-auto">
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="font-semibold text-[16px]">مرجع المقاس</h3>
-        <button class="text-[20px]" @click="closeSizeGuide">×</button>
-      </div>
-      <div class="text-[13px] text-gray-700 leading-relaxed">
-        <p>تحويلات تقريبية: XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42) • XXL (EU 44)</p>
-        <p class="mt-2">قد تختلف المقاسات حسب التصميم والخامة. يُفضل مراجعة التعليقات لمعرفة الانطباعات عن الملاءمة.</p>
+    <!-- Size Guide Modal -->
+    <div v-if="showSizeGuide" @click="showSizeGuide = false" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div @click.stop class="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between">
+          <span class="text-[17px] font-bold text-gray-900">دليل المقاسات</span>
+          <button @click="showSizeGuide = false" class="w-8 h-8 flex items-center justify-center">
+            <X :size="24" class="text-gray-600" />
+          </button>
+        </div>
+        
+        <div class="p-4">
+          <div class="overflow-x-auto">
+            <table class="w-full text-[13px]">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="px-3 py-2 text-right font-medium text-gray-900">المقاس</th>
+                  <th class="px-3 py-2 text-center font-medium text-gray-900">الصدر (سم)</th>
+                  <th class="px-3 py-2 text-center font-medium text-gray-900">الطول (سم)</th>
+                  <th class="px-3 py-2 text-center font-medium text-gray-900">الأكمام (سم)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="size in sizeChart" :key="size.size" class="border-b border-gray-100">
+                  <td class="px-3 py-3 font-medium text-gray-900">{{ size.size }}</td>
+                  <td class="px-3 py-3 text-center text-gray-600">{{ size.bust }}</td>
+                  <td class="px-3 py-3 text-center text-gray-600">{{ size.length }}</td>
+                  <td class="px-3 py-3 text-center text-gray-600">{{ size.sleeve }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="mt-4 bg-blue-50 p-3 rounded-lg">
+            <div class="text-[13px] text-blue-900 font-bold mb-2">نصائح القياس:</div>
+            <ul class="text-[12px] text-blue-800 space-y-1">
+              <li>• استخدم شريط قياس مرن</li>
+              <li>• قس على الجسم مباشرة وليس فوق الملابس</li>
+              <li>• إذا كانت قياساتك بين مقاسين، اختر الأكبر</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+
+    <!-- Toast Notification -->
+    <Transition name="toast">
+      <div v-if="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-2">
+        <CheckCircle :size="18" class="text-green-400" />
+        <span class="text-[14px] font-medium">{{ toastText }}</span>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -206,194 +500,344 @@
 import { useRoute, useRouter } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useCart } from '@/store/cart'
-import { API_BASE, apiPost, apiGet } from '@/lib/api'
-import { ShoppingCart, Share, Search, Menu, Star as StarIcon, Heart as HeartIcon, Ruler as RulerIcon } from 'lucide-vue-next'
+import { API_BASE } from '@/lib/api'
+import { 
+  ShoppingCart, Share2, Search, Heart, Star, ChevronRight, ChevronDown, 
+  Truck, MapPin, Calendar, Package, Info, Ruler, Check, Minus, Plus,
+  Ticket, Zap, ThumbsUp, ShieldCheck, RotateCcw, Lock, X, CheckCircle
+} from 'lucide-vue-next'
+
 const route = useRoute()
 const router = useRouter()
-const id = computed<string>(()=> String((route.query.id as string) || (route.params as any)?.id || 'p1'))
-const title = ref('منتج تجريبي')
-const price = ref<number>(129)
-const original = ref('179 ر.س')
+const id = computed(() => route.query.id as string || route.params.id as string || 'p1')
+
+// Product Data
+const title = ref('ترندات COSMINA ملابس علوية كاجوال بأكمام قصيرة بلون سادة للسيدات')
+const price = ref<number>(27.00)
+const originalPrice = ref('35.00')
 const images = ref<string[]>([
-  'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1080&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=1080&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=1080&auto=format&fit=crop',
   'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop'
+  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
 ])
+
+// Gallery
 const activeIdx = ref(0)
-const activeImg = computed(()=> images.value[activeIdx.value] || '')
-const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
-const sizes = ref<string[]>(['S','M','L','XL'])
-const sizesSecondary = ref<string[]>([])
-const size = ref<string>('M')
-const size2 = ref<string | null>(null)
-const colorOptions = [
-  { name: 'black', hex: '#000000' },
-  { name: 'white', hex: '#ffffff' },
-  { name: 'blue', hex: '#2a62ff' },
-  { name: 'gray', hex: '#9aa0a6' },
-  { name: 'beige', hex: '#d9c3a3' },
-]
-const colorIdx = ref(0)
-function selectColor(i:number){ colorIdx.value = i }
-const qty = ref(1)
-function incQty(){ qty.value = Math.min(99, qty.value + 1) }
-function decQty(){ qty.value = Math.max(1, qty.value - 1) }
-const avgRating = ref(4.9)
-const reviews = ref<any[]>([])
-// توزيع النجوم كنِسَب مئوية (لتفادي أخطاء التشغيل عند غياب البيانات)
-const dist = computed<Record<number, number>>(()=>{
-  const base: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-  const list = Array.isArray(reviews.value) ? reviews.value : []
-  if (!list.length) return { 5: 80, 4: 12, 3: 5, 2: 2, 1: 1 }
-  for (const r of list) {
-    const s = Math.min(5, Math.max(1, Math.round((r?.stars ?? 0) as number)))
-    base[s] = (base[s] || 0) + 1
-  }
-  const total = list.length
-  return {
-    1: total ? (base[1] / total) * 100 : 0,
-    2: total ? (base[2] / total) * 100 : 0,
-    3: total ? (base[3] / total) * 100 : 0,
-    4: total ? (base[4] / total) * 100 : 0,
-    5: total ? (base[5] / total) * 100 : 0,
-  }
-})
-const stars = ref<number>(5)
-const text = ref('')
-const description = 'تصميم راقية الدانتيل قطع السمكة'
-const pDescription = ref<string>('')
-const sku = ref<string>('')
-const brand = ref<string>('')
-const material = ref<string>('')
-const care = ref<string>('')
-const related: any[] = []
-const cart = useCart()
-const toast = ref(false)
-const toastText = ref('تمت الإضافة إلى السلة')
-function addToCart(){
-  const variantNote = [size.value, (size2.value||'')].filter(Boolean).join(' / ')
-  cart.add({ id: id.value, title: title.value + (variantNote? ` (${variantNote})` : ''), price: Number(price.value)||0, img: activeImg.value }, qty.value)
-  toast.value = true
-  setTimeout(()=> toast.value=false, 1200)
-}
-const hasWish = ref(false)
-function toggleWish(){ hasWish.value = !hasWish.value }
-const sizeGuideOpen = ref(false)
-function openSizeGuide(){ sizeGuideOpen.value = true }
-function closeSizeGuide(){ sizeGuideOpen.value = false }
-const openSections = ref<Record<string, boolean>>({})
-const sections = ref<Array<{ key:string; title:string; content:string|string[] }>>([
-  { key:'details', title:'التفاصيل', content: description },
-  { key:'shipping', title:'الشحن والإرجاع', content: ['شحن خلال 2-5 أيام عمل','إرجاع خلال 14 يومًا وفق السياسة'] },
-  { key:'reviews', title:'المراجعات', content: [`التقييم المتوسط: ${avgRating.value} من 5`, `عدد المراجعات: ${reviews.value.length || 500}`] },
-])
-function toggleSection(k:string){ openSections.value[k] = !openSections.value[k] }
-function setActive(i:number){ activeIdx.value = i }
 const galleryRef = ref<HTMLDivElement|null>(null)
-const lightboxRef = ref<HTMLDivElement|null>(null)
-const lightbox = ref(false)
-const lightboxIdx = ref(0)
-function scrollToIdx(i:number){
+
+// Product Options
+const colors = ref([
+  { name: 'أسود', hex: '#000000' },
+  { name: 'أبيض', hex: '#FFFFFF' },
+  { name: 'بيج', hex: '#F5F5DC' },
+  { name: 'كحلي', hex: '#000080' }
+])
+const selectedColorIdx = ref(0)
+const selectedColor = computed(() => colors.value[selectedColorIdx.value].name)
+
+const sizes = ref(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
+const selectedSize = ref('M')
+const quantity = ref(1)
+const stock = ref(156)
+
+// Size Chart
+const sizeChart = ref([
+  { size: 'XS', bust: '84', length: '62', sleeve: '15' },
+  { size: 'S', bust: '88', length: '64', sleeve: '16' },
+  { size: 'M', bust: '92', length: '66', sleeve: '17' },
+  { size: 'L', bust: '96', length: '68', sleeve: '18' },
+  { size: 'XL', bust: '100', length: '70', sleeve: '19' },
+  { size: 'XXL', bust: '104', length: '72', sleeve: '20' }
+])
+
+// Reviews & Ratings
+const avgRating = ref(4.9)
+const reviewsCount = ref(1247)
+const sizeFitPercentage = ref(95)
+const wouldBuyAgain = ref(93)
+
+const reviews = ref([
+  { 
+    id: 1, 
+    user: 'سارة أ***', 
+    stars: 5, 
+    comment: 'قميص رائع جداً، مريح ومناسب للصيف. الجودة ممتازة والمقاس مناسب تماماً. أنصح به بشدة!', 
+    date: 'منذ يومين',
+    colorSize: 'لون: أسود، مقاس: M',
+    helpful: 24
+  },
+  { 
+    id: 2, 
+    user: 'فاطمة م***', 
+    stars: 5, 
+    comment: 'التصميم بسيط وأنيق، القماش خفيف ومناسب للطقس الحار. وصل بسرعة والتغليف ممتاز.', 
+    date: 'منذ 3 أيام',
+    colorSize: 'لون: أبيض، مقاس: L',
+    helpful: 18
+  },
+  { 
+    id: 3, 
+    user: 'نورة ع***', 
+    stars: 4, 
+    comment: 'جميل جداً وسعره مناسب. المقاس صحيح كما في الجدول. الوحيد هو أنه يحتاج كي بعد الغسيل.', 
+    date: 'منذ أسبوع',
+    colorSize: 'لون: بيج، مقاس: S',
+    helpful: 12
+  }
+])
+
+// Coupons
+const coupons = ref([
+  { title: 'خصم 15 ر.س', desc: 'للطلبات فوق 150 ر.س', code: 'SAVE15' },
+  { title: 'خصم 30 ر.س', desc: 'للطلبات فوق 300 ر.س', code: 'SAVE30' },
+  { title: 'خصم 10%', desc: 'على أول طلب', code: 'FIRST10' }
+])
+
+// Shipping
+const shippingLocation = ref('الرياض، السعودية')
+const freeShippingThreshold = ref('99.00')
+const deliveryDate = ref('12 - 15 نوفمبر')
+
+// SHEIN CLUB
+const clubSave = ref(1.35)
+
+// Model Info
+const modelSize = ref('M')
+const modelMeasurements = ref('طول: 175سم | صدر: 84سم | خصر: 62سم | ورك: 91سم')
+
+// Related Products
+const relatedProducts = ref([
+  {
+    id: 1,
+    name: 'قميص كاجوال بأكمام طويلة',
+    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=300&h=300&fit=crop',
+    price: '32.50',
+    reviews: 543
+  },
+  {
+    id: 2,
+    name: 'بلوزة صيفية بلون سادة',
+    image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=300&h=300&fit=crop',
+    price: '28.90',
+    reviews: 892
+  },
+  {
+    id: 3,
+    name: 'تيشرت كاجوال قطن',
+    image: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=300&h=300&fit=crop',
+    price: '24.00',
+    reviews: 1205
+  },
+  {
+    id: 4,
+    name: 'قميص عصري بتصميم فريد',
+    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop',
+    price: '35.70',
+    reviews: 678
+  }
+])
+
+// FAQs
+const faqs = ref([
+  { q: 'ما هي سياسة الإرجاع؟', a: 'يمكنك إرجاع المنتج خلال 30 يوم من تاريخ الاستلام بشرط أن يكون بحالته الأصلية.', open: false },
+  { q: 'كم تستغرق مدة التوصيل؟', a: 'عادة يتم التوصيل خلال 3-5 أيام عمل داخل المملكة العربية السعودية.', open: false },
+  { q: 'هل المنتج مطابق للصور؟', a: 'نعم، جميع صورنا حقيقية للمنتج. قد يختلف اللون قليلاً حسب إعدادات شاشتك.', open: false },
+  { q: 'كيف أعرف مقاسي المناسب؟', a: 'يرجى مراجعة دليل المقاسات أعلاه. ننصح بأخذ قياساتك ومقارنتها بالجدول.', open: false }
+])
+
+// UI State
+const showSizeGuide = ref(false)
+const showDetails = ref(false)
+const showDescription = ref(false)
+const hasWish = ref(false)
+const toast = ref(false)
+const toastText = ref('')
+const reviewsSection = ref<HTMLDivElement|null>(null)
+
+// Flash Sale Timer
+const showFlashSale = ref(true)
+const hours = ref('02')
+const minutes = ref('45')
+const seconds = ref('30')
+
+// Computed
+const displayPrice = computed(() => price.value.toFixed(2))
+const cart = useCart()
+
+// Functions
+function selectColor(i: number) {
+  selectedColorIdx.value = i
+}
+
+function increaseQty() {
+  if (quantity.value < stock.value) quantity.value++
+}
+
+function decreaseQty() {
+  if (quantity.value > 1) quantity.value--
+}
+
+function scrollToIdx(i: number) {
   activeIdx.value = i
   const el = galleryRef.value
   if (!el) return
   el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
 }
-function selectThumb(i:number){ selectColor(i); scrollToIdx(i) }
-function openLightbox(i:number){ lightbox.value = true; lightboxIdx.value = i; requestAnimationFrame(()=>{ const el = lightboxRef.value; if(el) el.scrollTo({ left: i * el.clientWidth }) }) }
-function closeLightbox(){ lightbox.value = false }
-function nextLightbox(){ const el = lightboxRef.value; if(!el) return; const i = Math.min(images.value.length-1, lightboxIdx.value+1); lightboxIdx.value=i; el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) }
-function prevLightbox(){ const el = lightboxRef.value; if(!el) return; const i = Math.max(0, lightboxIdx.value-1); lightboxIdx.value=i; el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) }
-function onLightboxScroll(){ const el = lightboxRef.value; if(!el) return; const i = Math.round(el.scrollLeft/el.clientWidth); if(i!==lightboxIdx.value) lightboxIdx.value=i }
-function onGalleryScroll(){
+
+function onGalleryScroll() {
   const el = galleryRef.value
   if (!el) return
   const i = Math.round(el.scrollLeft / el.clientWidth)
   if (i !== activeIdx.value) activeIdx.value = i
 }
-const scrolled = ref(false)
-function onScroll(){ scrolled.value = window.scrollY > 60 }
-onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })
-onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
-// الشحن والكوبونات وعناصر الشريط العلوي
-const shipTo = ref('السعودية')
-const etaFrom = ref('2-4 أيام')
-const etaTo = ref('5-9 أيام')
-const couponCode = ref('')
-const couponDesc = ref('')
-const couponExpiresAt = ref<number|null>(null)
-const now = ref<number>(Date.now())
-let nowTimer: any = null
-const countdown = computed(()=>{
-  if (!couponExpiresAt.value) return ''
-  const diffSec = Math.max(0, Math.floor((couponExpiresAt.value - now.value) / 1000))
-  const d = Math.floor(diffSec / 86400)
-  const h = Math.floor((diffSec % 86400) / 3600)
-  const m = Math.floor((diffSec % 3600) / 60)
-  const s = diffSec % 60
-  const parts: string[] = []
-  if (d) parts.push(`${d}ي`)
-  parts.push(`${h}س`, `${m}د`, `${s}ث`)
-  return parts.join(' ')
-})
-function goBack(){ if (window.history.length > 1) router.back(); else router.push('/') }
-async function share(){
-  try{
-    const data = { title: title.value, text: title.value, url: location.href }
-    if ((navigator as any).share) await (navigator as any).share(data)
-    else await navigator.clipboard.writeText(location.href)
-  }catch{}
+
+function getStarPercentage(star: number): number {
+  const percentages = { 5: 75, 4: 15, 3: 6, 2: 3, 1: 1 }
+  return percentages[star as keyof typeof percentages] || 0
 }
-onMounted(async ()=>{
-  try{
-    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id.value)}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
-    if(res.ok){
+
+function toggleFaq(i: number) {
+  faqs.value[i].open = !faqs.value[i].open
+}
+
+function scrollToReviews() {
+  reviewsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function addToCart() {
+  cart.add({ 
+    id: id.value, 
+    title: title.value, 
+    price: Number(price.value) || 0, 
+    img: images.value[0] 
+  }, quantity.value)
+  
+  toastText.value = 'تمت الإضافة إلى السلة بنجاح'
+  toast.value = true
+  setTimeout(() => toast.value = false, 2500)
+}
+
+function buyNow() {
+  addToCart()
+  setTimeout(() => {
+    router.push('/cart')
+  }, 300)
+}
+
+function toggleWish() {
+  hasWish.value = !hasWish.value
+  if (hasWish.value) {
+    toastText.value = 'تمت الإضافة إلى المفضلة'
+    toast.value = true
+    setTimeout(() => toast.value = false, 2000)
+  }
+}
+
+async function share() {
+  try {
+    const data = { 
+      title: title.value, 
+      text: title.value, 
+      url: location.href 
+    }
+    if ((navigator as any).share) {
+      await (navigator as any).share(data)
+    } else {
+      await navigator.clipboard.writeText(location.href)
+      toastText.value = 'تم نسخ الرابط'
+      toast.value = true
+      setTimeout(() => toast.value = false, 2000)
+    }
+  } catch {}
+}
+
+// Timer
+let timerInterval: any
+function startTimer() {
+  timerInterval = setInterval(() => {
+    let s = parseInt(seconds.value)
+    let m = parseInt(minutes.value)
+    let h = parseInt(hours.value)
+    
+    s--
+    if (s < 0) {
+      s = 59
+      m--
+    }
+    if (m < 0) {
+      m = 59
+      h--
+    }
+    if (h < 0) {
+      showFlashSale.value = false
+      clearInterval(timerInterval)
+      return
+    }
+    
+    seconds.value = s.toString().padStart(2, '0')
+    minutes.value = m.toString().padStart(2, '0')
+    hours.value = h.toString().padStart(2, '0')
+  }, 1000)
+}
+
+// Lifecycle
+onMounted(async () => {
+  startTimer()
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(id.value)}`, { 
+      credentials: 'include'
+    })
+    if (res.ok) {
       const d = await res.json()
-      title.value = d.name || title.value
-      price.value = Number(d.price||129)
-      const imgs = Array.isArray(d.images)? d.images : []
-      if (imgs.length) images.value = imgs
-      original.value = d.original ? d.original + ' ر.س' : original.value
-      // وصف ومواصفات
-      pDescription.value = (d.description || '').trim() || description
-      sku.value = (d.sku || '').toString()
-      brand.value = (d.brand || '').toString()
-      material.value = (d.material || '').toString()
-      care.value = (d.care || '').toString()
-      // sizes from API if available
-      const s1 = Array.isArray(d.sizes)? d.sizes : []
-      const s2 = Array.isArray(d.variants)? d.variants.map((v:any)=> v?.size).filter((x:any)=> typeof x==='string') : []
-      const s = [...new Set([...s1, ...s2].filter((x:any)=> typeof x==='string' && x.trim()))]
-      if (s.length){ sizes.value = s as string[]; size.value = sizes.value[0] }
-      const sSecond = Array.isArray(d.sizes2)? d.sizes2.filter((x:any)=> typeof x==='string' && x.trim()) : []
-      if (sSecond.length){ sizesSecondary.value = sSecond as string[]; size2.value = sizesSecondary.value[0] }
-      // كوبونات وشحن (اختياري من الـ API)
-      couponCode.value = (d.couponCode || '').toString()
-      couponDesc.value = (d.couponDesc || '').toString()
-      const exp = d.couponExpiresAt ? Date.parse(d.couponExpiresAt) : NaN
-      if (!Number.isNaN(exp)) couponExpiresAt.value = exp
-      shipTo.value = (d.shipTo || shipTo.value).toString()
-      if (d.etaFrom) etaFrom.value = String(d.etaFrom)
-      if (d.etaTo) etaTo.value = String(d.etaTo)
+      if (d.name) title.value = d.name
+      if (d.price) price.value = Number(d.price)
+      if (d.images?.length) images.value = d.images
     }
-  }catch{}
-  try{
-    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id.value)}`)
-    if (list && Array.isArray(list.items)){
-      reviews.value = list.items
-      const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
-      avgRating.value = list.items.length? (sum/list.items.length) : avgRating.value
-    }
-  }catch{}
-  // skip related in this design
+  } catch (e) {
+    console.error('Failed to load product:', e)
+  }
 })
-onMounted(()=>{ nowTimer = setInterval(()=> now.value = Date.now(), 1000) })
-onBeforeUnmount(()=>{ if (nowTimer) { try{ clearInterval(nowTimer) }catch{} } })
-async function submitReview(){}
-async function buyNow(){ addToCart() }
+
+onBeforeUnmount(() => {
+  if (timerInterval) clearInterval(timerInterval)
+})
 </script>
 
 <style scoped>
-/* Removed custom layout styles in favor of Tailwind classes already in template */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translate(-50%, 10px);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -10px);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 </style>
