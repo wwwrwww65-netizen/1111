@@ -4041,7 +4041,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         let colorsCandidates: string[] = []
         // Price selection (prefer OLD, then NORTH; ignore NEW/SOUTH/قعيطي/سعودي contexts)
         const NUM = '(\\d+(?:[\\.,]\\d{1,2})?)'
-        const CUR = '(?:﷼|ريال|sar|aed|usd|\\$|egp|kwd|qr)'
+        const CUR = '(?:﷼|ريال|sar|aed|usd|\\$|egp|kwd|qr|omr|jod|bhd|iqd|lyd|yer)'
         type PriceCand = { v:number; tag:number; ctx:string }
         const cands: PriceCand[] = []
         const addCand = (v:number, around:string)=>{
@@ -4055,7 +4055,8 @@ adminRest.post('/products/analyze', async (req, res) => {
           cands.push({ v, tag, ctx: around })
         }
         const hasCurrencyTok = (s:string)=> new RegExp(CUR,'i').test(s)
-        const hasPriceWord = (s:string)=> /(السعر|سعر|price|البيع)/i.test(s)
+        const hasPriceWord = (s:string)=> /(السعر|سعر|price|البيع|خصم|قبل|بعد|now|was)/i.test(s)
+        const looksPhone = (s:string)=> /\b\d{7,}\b/.test(s)
         // scan windows around numeric tokens but keep only plausible price contexts
         const rxAll = new RegExp(`${NUM}\\s*${CUR}?`, 'ig')
         let mP: RegExpExecArray | null
@@ -4064,9 +4065,10 @@ adminRest.post('/products/analyze', async (req, res) => {
           const start = Math.max(0, mP.index - 20)
           const end = Math.min(rt.length, mP.index + mP[0].length + 24)
           const ctx = rt.slice(start, end)
-          // require currency or explicit price word, and a reasonable magnitude
+          // require currency or explicit price word, and a reasonable magnitude; exclude phone-like
           if (!Number.isFinite(numVal) || numVal < 80) continue
           if (!(hasCurrencyTok(ctx) || hasPriceWord(ctx))) continue
+          if (looksPhone(ctx)) continue
           addCand(numVal, ctx)
         }
         cands.sort((a,b)=> a.tag - b.tag)
@@ -4074,7 +4076,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         // Fallback: try explicit priority scans if no valid cost yet
         if (!(typeof cost === 'number' && Number.isFinite(cost))) {
           const num = (s:string)=> Number(String(s).replace(/[٬٫,]/g,'.'))
-          const oldM = rt.match(/(?:قديم|القديم)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
+          const oldM = rt.match(/(?:(?:قديم|القديم)|(?:قبل|السعر\s*السابق|كان|was))[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
           const northM = rt.match(/(?:للشمال|الشمال|\bشمال\b|شمالي)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
           const priceM = rt.match(/(?:السعر|سعر|price|البيع)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
           const currM = rt.match(/(\d+[\.,٬٫]?\d*)\s*(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i)
@@ -4091,7 +4093,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const keywords = Array.from(new Set(kwCandidates)).slice(0,6)
 
         // Colors candidates from lexicon (Arabic + English translit)
-        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي)/gi
+        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|بيج\s*غامق|بيج\s*فاتح)/gi
         colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> s.replace(/ورديه/i,'وردي'))))
         // استثناء ألوان الزينة القريبة من مفردات الديكور
         const deco = /(خرز|تطريز|كريستال|كرستال|ترتر|سلاسل|حواف|سحاب|أزرار|زرار|تطريزات|حبات|حبوب)/i
