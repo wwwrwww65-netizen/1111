@@ -3974,7 +3974,12 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
           .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)))
         const stripDiacritics = (s:string)=> s.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
-        const stripEmoji = (s:string)=> s.replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}\u{2600}-\u{26FF}\u{FE0F}]/gu, ' ')
+        const stripEmoji = (s:string)=> s
+          .replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}\u{2600}-\u{26FF}\u{FE0F}]/gu, ' ')
+          .replace(/[\uFFFD]/g, ' ')
+        const normalizeUnicode = (s:string)=> {
+          try { return s.normalize('NFKC') } catch { return s }
+        }
         // Runtime-config for NLP lists
         const loadNlpConfig = ()=>{
           try { const fs=require('fs'); const path=require('path'); const base=process.env.NLP_CONFIG_DIR||path.join(process.cwd(),'config','nlp');
@@ -3995,7 +4000,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/\u06A9/g, '\u0643')
           .replace(/\u06CC/g, '\u064A')
         const normSpace = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim()
-        const pre = removeMarketing(stripEmoji(normalizeLetters(stripDiacritics(toLatinDigits(raw)))))
+        const pre = removeMarketing(stripEmoji(normalizeUnicode(normalizeLetters(stripDiacritics(toLatinDigits(raw))))))
         const rt = normSpace(pre)
 
         const addRow = (arr: Array<{key:string;label:string;value:string;confidence?:number}>, key:string, label:string, value?:string, conf=0.85)=>{
@@ -4003,7 +4008,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
 
         // Derive name (8–12 كلمات) من النص فقط (مع مرادفات وضجيج مستبعد)
-        const TYPE_RE = /(ملاعق|ملاعق\s*طعام|مطرقه|شاشه|طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|حذاء|شنطه|حقيبه|ساعه|كوب|قدر|خلاط|مكوى|مكواة|تي\s*شيرت|بنطال|جاكيت)/i
+        const TYPE_RE = /(ملاعق|ملاعق\s*طعام|مطرقه|شاشه|طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|حذاء|شنطه|حقيبه|ساعه|كوب|قدر|خلاط|مكوى|مكواة|تي\s*شيرت|بنطال|جاكيت|درع|قفطان|قافطان|قحطان)/i
         const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل|ستان|بوليستر|خشب|ستانلس|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك)/i
         const FEATS_RE = /(كم\s*كامل|مطرز|كريستال|كرستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي|لمس|لاسلكي|سلكي|ذكي|مضاد\s*للماء)/gi
         const type = (rt.match(TYPE_RE)||['',''])[1] || ''
@@ -4016,7 +4021,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         const noiseBase = [
           'لا','لايفوتكم','لا يفوتكم','لاطلالة','اطلاله','إطلالة','جديدنا','جديدناا','عرض','عروض','تخفيض','خصم','مجاني','مجانا','جديد','حصري','انيق','انيقه','اناقه','راقي','راقيه','مميز','مميزه','عصري','عصريه','مريح','مريحه','ناعم','جدا','مذهل','رائع','جميل','لامع','بتصميم','مميز',
           'premium','sale','offer','original','copy','free','hot','deal'
-        ]
+        ].concat([
+          'احجزي','احجز','احجزي الآن','اطلب','اطلب الآن','احصلي','لا تفوتي','لا تفوت','سارع','متوفر الآن','وصلنا','وصل حديثاً','جديد الموسم'
+        ])
         const noiseWords = new Set<string>(noiseBase.concat((nlpCfg.noisePhrases||[])))
         const applySyn = (t:string)=>{ const k=String(t||'').toLowerCase().trim(); const m=(nlpCfg.synonyms||{})[k]; return (typeof m==='string'&&m.trim())? m:t }
         const wordsFromText = [type, mat, ...feats, ...numTokens].map(s=> applySyn(String(s||'').trim())).filter(Boolean)
