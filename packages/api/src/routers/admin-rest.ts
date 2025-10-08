@@ -3984,9 +3984,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         const loadNlpConfig = ()=>{
           try { const fs=require('fs'); const path=require('path'); const base=process.env.NLP_CONFIG_DIR||path.join(process.cwd(),'config','nlp');
             const read=(f:string)=>{ try{return JSON.parse(fs.readFileSync(path.join(base,f),'utf8'))}catch{return null} };
-            const m=read('marketing.json')||{}; const syn=read('synonyms.json')||{}; const u=read('units.json')||{};
-            return { noisePhrases: Array.isArray(m.noisePhrases)? m.noisePhrases:[], synonyms: syn.synonyms||{}, unitTokens: Array.isArray(u.units)? u.units:[] };
-          } catch { return { noisePhrases:[], synonyms:{}, unitTokens:[] } }
+            const m=read('marketing.json')||{}; const syn=read('synonyms.json')||{}; const u=read('units.json')||{}; const t=read('types.json')||{}; const c=read('colors.json')||{};
+            return { noisePhrases: Array.isArray(m.noisePhrases)? m.noisePhrases:[], synonyms: syn.synonyms||{}, unitTokens: Array.isArray(u.units)? u.units:[], types: Array.isArray(t.types)? t.types:[], colorSynonyms: c.colorSynonyms||{} };
+          } catch { return { noisePhrases:[], synonyms:{}, unitTokens:[], types:[], colorSynonyms:{} } }
         }
         const nlpCfg = loadNlpConfig()
         const removeMarketing = (s:string)=> {
@@ -4008,7 +4008,10 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
 
         // Derive name (8–12 كلمات) من النص فقط (مع مرادفات وضجيج مستبعد)
-        const TYPE_RE = /(ملاعق|ملاعق\s*طعام|مطرقه|شاشه|طقم|فستان|جلابيه|جلابية|لانجري|لنجري|عبايه|عباية|قميص|بلوزه|بلوزة|سويتر|بلوفر|هودي|حذاء|شنطه|حقيبه|ساعه|كوب|قدر|خلاط|مكوى|مكواة|تي\s*شيرت|بنطال|جاكيت|درع|قفطان|قافطان|قحطان)/i
+        const builtinTypes = ['ملاعق','ملاعق\\s*طعام','مطرقه','شاشه','طقم','فستان','جلابيه','جلابية','لانجري','لنجري','عبايه','عباية','قميص','بلوزه','بلوزة','سويتر','بلوفر','هودي','حذاء','شنطه','حقيبه','ساعه','كوب','قدر','خلاط','مكوى','مكواة','تي\\s*شيرت','بنطال','جاكيت','درع','قفطان','قافطان','سديري','بدلة','طقم\\s*أطفال','قفطان\\s*مغربي'] as string[]
+        const extraTypes = Array.isArray((nlpCfg as any).types) ? (nlpCfg as any).types as string[] : []
+        const typeUnion = builtinTypes.concat(extraTypes.map((t)=> String(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')))
+        const TYPE_RE = new RegExp(`(${typeUnion.join('|')})`,'i')
         const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل|ستان|بوليستر|خشب|ستانلس|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك)/i
         const FEATS_RE = /(كم\s*كامل|مطرز|كريستال|كرستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي|لمس|لاسلكي|سلكي|ذكي|مضاد\s*للماء)/gi
         const type = (rt.match(TYPE_RE)||['',''])[1] || ''
@@ -4038,6 +4041,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         // Parse baseline via parser but we'll strictly filter sizes/colors and recompute price/keywords/stock
         const parsed = parseProductText(rt) || ({} as any)
         let sizes: string[] = []
+        let sizes2: string[] = []
         let colorsCandidates: string[] = []
         // Price selection (prefer OLD, then NORTH; ignore NEW/SOUTH/قعيطي/سعودي contexts)
         const NUM = '(\\d+(?:[\\.,]\\d{1,2})?)'
@@ -4093,8 +4097,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         const keywords = Array.from(new Set(kwCandidates)).slice(0,6)
 
         // Colors candidates from lexicon (Arabic + English translit)
-        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|بيج\s*غامق|بيج\s*فاتح)/gi
-        colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> s.replace(/ورديه/i,'وردي'))))
+        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|لبني|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|بيج\s*غامق|بيج\s*فاتح)/gi
+        const colorSyn = (nlpCfg as any).colorSynonyms || {}
+        colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> (colorSyn[s] || s).replace(/ورديه/i,'وردي'))))
         // استثناء ألوان الزينة القريبة من مفردات الديكور
         const deco = /(خرز|تطريز|كريستال|كرستال|ترتر|سلاسل|حواف|سحاب|أزرار|زرار|تطريزات|حبات|حبوب)/i
         const decorColors = new Set<string>()
@@ -4154,14 +4159,29 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (!isCosmetics && (inch || isTouch)) addRow(table,'screen','الشاشة',[inch,isTouch?'لمس': ''].filter(Boolean).join(' ').trim(),0.85)
 
         // الأبعاد والوزن (دعم x و ×)
-        const dims = rt.match(/\b\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)(?:\s*[x×X]\s*\d+(?:\.\d+)?\s*(?:cm|mm|in|"|بوصة)){0,2}/i)?.[0]
+        const dims = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)(?:\s*[x×X]\s*\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)){0,2}/i)?.[0]
         if (!isCosmetics && dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
         // Capture length/width without units if explicitly labeled
         const lenM = rt.match(/الطول\s*(\d{2,4})/i)
         if (!isCosmetics && lenM) addRow(table,'length','الطول',lenM[1],0.82)
         const widM = rt.match(/العرض\s*(\d{2,4})/i)
         if (!isCosmetics && widM) addRow(table,'width','العرض',widM[1],0.82)
-        const weight = rt.match(/\b\d+(?:\.\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
+        // Secondary sizes from dimensions or labeled length/width
+        try {
+          const m2 = rt.match(/\b(\d+(?:[\.,]\d+)?)\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)\s*[x×X]\s*(\d+(?:[\.,]\d+)?)/i)
+          const alt: string[] = []
+          if (m2) { alt.push(String(m2[1]).replace(',', '.')); alt.push(String(m2[2]).replace(',', '.')); }
+          if (lenM?.[1]) alt.push(lenM[1])
+          if (widM?.[1]) alt.push(widM[1])
+          if (alt.length) {
+            sizes2 = Array.from(new Set(alt.map(s=> s.trim()))).filter(Boolean) as string[]
+          }
+        } catch {}
+        const weight = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
+        const netWeight = rt.match(/(?:الوزن\s*الصافي|صافي\s*الوزن|net\s*(?:wt\.?|weight))\s*[:：=\-–—→»›]?\s*([^\n\r]{2,40})/i)?.[1]
+        if (!isCosmetics && netWeight) addRow(table,'net_weight','الوزن الصافي',netWeight,0.8)
+        const netVolume = rt.match(/(?:الحجم\s*الصافي|صافي\s*الحجم|net\s*(?:vol\.?|volume))\s*[:：=\-–—→»›]?\s*([^\n\r]{2,40})/i)?.[1]
+        if (!isCosmetics && netVolume) addRow(table,'net_volume','الحجم الصافي',netVolume,0.8)
 
         // السعة/الذاكرة/التخزين/البطارية
         const capacity = rt.match(/\b\d+(?:\.\d+)?\s*(?:ml|l)\b/i)?.[0]; if (!isCosmetics && capacity) addRow(table,'capacity','السعة',capacity,0.82)
@@ -4319,6 +4339,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.78 }
         if (finalColors.length) analyzed.colors = { value: finalColors, source:'rules', confidence: 0.7 }
         if (sizes.length) analyzed.sizes = { value: sizes, source:'rules', confidence: 0.7 }
+        if (sizes2.length) (analyzed as any).sizes2 = { value: sizes2, source:'rules', confidence: 0.6 }
         if (keywords.length) analyzed.tags = { value: keywords, source:'rules', confidence: 0.6 }
         if (typeof stock === 'number') analyzed.stock = { value: stock, source:'rules', confidence: 0.5 }
 
