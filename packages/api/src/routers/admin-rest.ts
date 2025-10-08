@@ -4041,6 +4041,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         // Parse baseline via parser but we'll strictly filter sizes/colors and recompute price/keywords/stock
         const parsed = parseProductText(rt) || ({} as any)
         let sizes: string[] = []
+        let sizes2: string[] = []
         let colorsCandidates: string[] = []
         // Price selection (prefer OLD, then NORTH; ignore NEW/SOUTH/قعيطي/سعودي contexts)
         const NUM = '(\\d+(?:[\\.,]\\d{1,2})?)'
@@ -4160,22 +4161,22 @@ adminRest.post('/products/analyze', async (req, res) => {
         // الأبعاد والوزن (دعم x و ×)
         const dims = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)(?:\s*[x×X]\s*\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)){0,2}/i)?.[0]
         if (!isCosmetics && dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
-        // Secondary sizes from dimensions (if present)
-        try {
-          const m2 = rt.match(/\b(\d+(?:[\.,]\d+)?)\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)\s*[x×X]\s*(\d+(?:[\.,]\d+)?)/i)
-          const alt: string[] = []
-          if (m2) { alt.push(String(m2[1]).replace(',', '.')); alt.push(String(m2[2]).replace(',', '.')); }
-          else if (lenM?.[1] || widM?.[1]) { if (lenM?.[1]) alt.push(lenM[1]); if (widM?.[1]) alt.push(widM[1]); }
-          if (alt.length) {
-            const uniq = Array.from(new Set(alt.map(s=> s.trim()))).filter(Boolean)
-            if (uniq.length) analyzed.sizes2 = { value: uniq, source: 'rules', confidence: 0.6 } as any
-          }
-        } catch {}
         // Capture length/width without units if explicitly labeled
         const lenM = rt.match(/الطول\s*(\d{2,4})/i)
         if (!isCosmetics && lenM) addRow(table,'length','الطول',lenM[1],0.82)
         const widM = rt.match(/العرض\s*(\d{2,4})/i)
         if (!isCosmetics && widM) addRow(table,'width','العرض',widM[1],0.82)
+        // Secondary sizes from dimensions or labeled length/width
+        try {
+          const m2 = rt.match(/\b(\d+(?:[\.,]\d+)?)\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)\s*[x×X]\s*(\d+(?:[\.,]\d+)?)/i)
+          const alt: string[] = []
+          if (m2) { alt.push(String(m2[1]).replace(',', '.')); alt.push(String(m2[2]).replace(',', '.')); }
+          if (lenM?.[1]) alt.push(lenM[1])
+          if (widM?.[1]) alt.push(widM[1])
+          if (alt.length) {
+            sizes2 = Array.from(new Set(alt.map(s=> s.trim()))).filter(Boolean) as string[]
+          }
+        } catch {}
         const weight = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
         const netWeight = rt.match(/(?:الوزن\s*الصافي|صافي\s*الوزن|net\s*(?:wt\.?|weight))\s*[:：=\-–—→»›]?\s*([^\n\r]{2,40})/i)?.[1]
         if (!isCosmetics && netWeight) addRow(table,'net_weight','الوزن الصافي',netWeight,0.8)
@@ -4338,6 +4339,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.78 }
         if (finalColors.length) analyzed.colors = { value: finalColors, source:'rules', confidence: 0.7 }
         if (sizes.length) analyzed.sizes = { value: sizes, source:'rules', confidence: 0.7 }
+        if (sizes2.length) (analyzed as any).sizes2 = { value: sizes2, source:'rules', confidence: 0.6 }
         if (keywords.length) analyzed.tags = { value: keywords, source:'rules', confidence: 0.6 }
         if (typeof stock === 'number') analyzed.stock = { value: stock, source:'rules', confidence: 0.5 }
 
