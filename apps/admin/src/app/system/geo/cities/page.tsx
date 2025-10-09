@@ -1,7 +1,9 @@
 "use client";
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function CitiesPage(): JSX.Element {
+  const router = useRouter();
   const [countries, setCountries] = React.useState<any[]>([]);
   const [countryId, setCountryId] = React.useState<string>("");
   const [rows, setRows] = React.useState<any[]>([]);
@@ -82,7 +84,7 @@ export default function CitiesPage(): JSX.Element {
               <tbody>
                 {rows.map((r:any)=> (
                   <tr key={r.id}><td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td><td>{r.country?.name}</td><td>{r.name}</td><td>{r.region||'-'}</td><td>{r.isActive? 'نعم':'لا'}</td><td>
-                    <button aria-label={`تعديل ${r.name}`} onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
+                    <button aria-label={`تعديل ${r.name}`} onClick={()=>router.push(`/system/geo/cities/${r.id}`)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
                     <button aria-label={`حذف ${r.name}`} onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
                   </td></tr>
                 ))}

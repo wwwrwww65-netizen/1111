@@ -1,7 +1,9 @@
 "use client";
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function CountriesPage(): JSX.Element {
+  const router = useRouter();
   const [rows, setRows] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -106,7 +108,7 @@ export default function CountriesPage(): JSX.Element {
               <tbody>
                 {rows.map((r: any) => (
                   <tr key={r.id}><td><input type="checkbox" checked={!!selected[r.id]} onChange={() => setSelected(s => ({ ...s, [r.id]: !s[r.id] }))} /></td><td>{r.code || '-'}</td><td>{r.name}</td><td>{r.isActive ? 'نعم' : 'لا'}</td><td>
-                    <button aria-label={`تعديل ${r.name}`} onClick={() => openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd: 6 }}>تعديل</button>
+                    <button aria-label={`تعديل ${r.name}`} onClick={() => router.push(`/system/geo/countries/${r.id}`)} className="btn btn-outline" style={{ marginInlineEnd: 6 }}>تعديل</button>
                     <button aria-label={`حذف ${r.name}`} onClick={() => remove(r.id)} className="btn btn-danger">حذف</button>
                   </td></tr>
                 ))}
