@@ -238,95 +238,9 @@ export default function ShippingZonesPage(): JSX.Element {
             <AreasPage />
           </div>
         )}
-        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 180 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
-          <div style={{ overflowX:'auto' }}>
-            <table className="table" role="table" aria-label="قائمة مناطق الشحن">
-              <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(r=> [r.id, v]))); }} /></th><th>الاسم</th><th>الدول</th><th>مفعّلة</th><th></th></tr></thead>
-              <tbody>
-                {rows.map(r=> (
-                  <tr key={r.id}><td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td><td>{r.name}</td><td>{(r.countryCodes||[]).join(', ')}</td><td>{r.isActive? 'نعم':'لا'}</td><td>
-                    <button aria-label={`تعديل ${r.name}`} onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
-                    <button aria-label={`حذف ${r.name}`} onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
-                  </td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* legacy zones table removed in unified view */}
 
-        {tab==='zones' && showForm && (
-          <div className="panel" style={{ marginTop:16, padding:16 }}>
-            <h2 style={{ marginTop:0 }}>{editing? 'تعديل منطقة' : 'إضافة منطقة'}</h2>
-            <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <label>الاسم<input aria-label="اسم المنطقة" value={name} onChange={(e)=> setName(e.target.value)} required className="input" /></label>
-              <label>الدول (رموز ISO مفصولة بفواصل)
-                <div style={{ display:'flex', gap:8 }}>
-                  <input aria-label="قائمة الدول" value={countryCodes} onChange={(e)=> setCountryCodes(e.target.value)} required className="input" />
-                  <select className="input" value={selCountryId} onChange={(e)=> setSelCountryId(e.target.value)}>
-                    <option value="">اختر دولة</option>
-                    {countriesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.code? ` (${c.code})`:''}</option>))}
-                  </select>
-                  <button type="button" className="btn" disabled={!selCountryId || geoLoading} onClick={()=>{
-                    const c = countriesOptions.find((x:any)=> x.id===selCountryId);
-                    const code = (c?.code || c?.name || '').toString().trim().toUpperCase(); if(!code) return;
-                    appendCSV(setCountryCodes, countryCodes, code);
-                  }}>إضافة</button>
-                </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                  {countryCodes.split(',').map(s=> s.trim()).filter(Boolean).map(code=> (
-                    <span key={code} className="chip">{code}<button type="button" aria-label={`إزالة ${code}`} onClick={()=> removeFromCSV(setCountryCodes, countryCodes, code)} className="chip-del">×</button></span>
-                  ))}
-                </div>
-              </label>
-              <label style={{ gridColumn:'1 / -1' }}>المحافظات/الأقاليم (أدخل أسماء مفصولة بفواصل)
-                <textarea value={regions} onChange={(e)=> setRegions(e.target.value)} rows={2} className="input" placeholder='الرياض، مكة، الشرقية' />
-              </label>
-              <label style={{ gridColumn:'1 / -1' }}>المدن (أدخل أسماء مفصولة بفواصل)
-                <div style={{ display:'flex', gap:8 }}>
-                  <textarea value={cities} onChange={(e)=> setCities(e.target.value)} rows={2} className="input" placeholder='الرياض، جدة، الدمام' />
-                  <select className="input" value={selCityId} onChange={(e)=> setSelCityId(e.target.value)} disabled={!selCountryId}>
-                    <option value="">اختر مدينة</option>
-                    {citiesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}</option>))}
-                  </select>
-                  <button type="button" className="btn" disabled={!selCityId || geoLoading} onClick={()=>{
-                    const c = citiesOptions.find((x:any)=> x.id===selCityId);
-                    const nm = (c?.name||'').toString().trim(); if(!nm) return;
-                    appendCSV(setCities, cities, nm);
-                  }}>إضافة</button>
-                </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                  {cities.split(',').map(s=> s.trim()).filter(Boolean).map(nm=> (
-                    <span key={nm} className="chip">{nm}<button type="button" aria-label={`إزالة ${nm}`} onClick={()=> removeFromCSV(setCities, cities, nm)} className="chip-del">×</button></span>
-                  ))}
-                </div>
-              </label>
-              <label style={{ gridColumn:'1 / -1' }}>المناطق/الأحياء (أدخل أسماء مفصولة بفواصل)
-                <div style={{ display:'flex', gap:8 }}>
-                  <textarea value={areas} onChange={(e)=> setAreas(e.target.value)} rows={2} className="input" placeholder='النسيم، العليا، الصفوة' />
-                  <select className="input" value={selAreaId} onChange={(e)=> setSelAreaId(e.target.value)} disabled={!selCityId}>
-                    <option value="">اختر منطقة</option>
-                    {areasOptions.map((a:any)=> (<option key={a.id} value={a.id}>{a.name}</option>))}
-                  </select>
-                  <button type="button" className="btn" disabled={!selAreaId || geoLoading} onClick={()=>{
-                    const a = areasOptions.find((x:any)=> x.id===selAreaId);
-                    const nm = (a?.name||'').toString().trim(); if(!nm) return;
-                    appendCSV(setAreas, areas, nm);
-                  }}>إضافة</button>
-                </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                  {areas.split(',').map(s=> s.trim()).filter(Boolean).map(nm=> (
-                    <span key={nm} className="chip">{nm}<button type="button" aria-label={`إزالة ${nm}`} onClick={()=> removeFromCSV(setAreas, areas, nm)} className="chip-del">×</button></span>
-                  ))}
-                </div>
-              </label>
-              <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّلة</label>
-              <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
-                <button aria-label="حفظ المنطقة" type="submit" className="btn">حفظ</button>
-                <button type="button" onClick={()=> { setShowForm(false); reset(); }} className="btn btn-outline">إلغاء</button>
-              </div>
-            </form>
-          </div>
-        )}
+        {/* creation/editing form removed in unified table mode */}
       </main>
     </div>
   );
