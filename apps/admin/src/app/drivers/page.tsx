@@ -153,7 +153,7 @@ export default function DriversPage(): JSX.Element {
   async function add(){
     setMsg('');
     if (!name.trim()) { setMsg('أدخل اسم السائق'); return; }
-    const payload: any = { name, phone, isActive: true, status: 'AVAILABLE', address: address||undefined, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
+    const payload: any = { name, phone, isActive: true, status: 'AVAILABLE', address: address||undefined, idType, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
     try {
       const url = new URL(`/api/admin/drivers`, resolveApiBase());
       const resp = await fetch(url.toString(), { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
