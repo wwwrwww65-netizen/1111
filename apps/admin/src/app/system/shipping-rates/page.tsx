@@ -92,6 +92,19 @@ export default function ShippingRatesPage(): JSX.Element {
     });
   }, [zones, countryId, cityId, areaId, countriesOptions, citiesOptions, areasOptions]);
 
+  // Auto-select zone when there is exactly one match; clear if current not in filtered
+  React.useEffect(()=>{
+    if (filteredZones.length === 1) {
+      const onlyId = filteredZones[0]?.id;
+      if (onlyId && zoneId !== onlyId) setZoneId(onlyId);
+      return;
+    }
+    if (zoneId && !filteredZones.some((z:any)=> z.id === zoneId)) {
+      setZoneId('');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredZones, countryId, cityId, areaId]);
+
   async function submit(e:React.FormEvent){
     e.preventDefault(); setError('');
     try{
