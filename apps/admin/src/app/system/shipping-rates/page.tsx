@@ -28,6 +28,15 @@ export default function ShippingRatesPage(): JSX.Element {
   const [activeUntil, setActiveUntil] = React.useState<string>('');
   const [isActive, setIsActive] = React.useState(true);
 
+  // Geo cascade: Country -> City -> Area (UI helper)
+  const [geoLoading, setGeoLoading] = React.useState(false);
+  const [countriesOptions, setCountriesOptions] = React.useState<any[]>([]);
+  const [citiesOptions, setCitiesOptions] = React.useState<any[]>([]);
+  const [areasOptions, setAreasOptions] = React.useState<any[]>([]);
+  const [countryId, setCountryId] = React.useState<string>('');
+  const [cityId, setCityId] = React.useState<string>('');
+  const [areaId, setAreaId] = React.useState<string>('');
+
   async function load(){
     setLoading(true); setError('');
     try{ const z = await fetch('/api/admin/shipping/zones', { credentials:'include' }); const zj = await z.json(); if (z.ok) setZones(zj.zones||[]);
@@ -37,9 +46,51 @@ export default function ShippingRatesPage(): JSX.Element {
   }
   React.useEffect(()=>{ load(); }, []);
 
+  // Load geo lists
+  async function loadCountries(){
+    try{ setGeoLoading(true); const r = await fetch('/api/admin/geo/countries', { credentials:'include' }); const j = await r.json(); if (r.ok) setCountriesOptions(j.countries||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  async function loadCities(cid:string){
+    if(!cid){ setCitiesOptions([]); return; }
+    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/cities?countryId=${encodeURIComponent(cid)}`, { credentials:'include' }); const j = await r.json(); if (r.ok) setCitiesOptions(j.cities||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  async function loadAreas(ccid:string){
+    if(!ccid){ setAreasOptions([]); return; }
+    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/areas?cityId=${encodeURIComponent(ccid)}`, { credentials:'include' }); const j = await r.json(); if (r.ok) setAreasOptions(j.areas||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  React.useEffect(()=>{ loadCountries(); }, []);
+  React.useEffect(()=>{ setCityId(''); setAreaId(''); setCitiesOptions([]); setAreasOptions([]); if(countryId) loadCities(countryId); }, [countryId]);
+  React.useEffect(()=>{ setAreaId(''); setAreasOptions([]); if(cityId) loadAreas(cityId); }, [cityId]);
+
   function reset(){ setEditing(null); setZoneId(''); setCarrier(''); setBaseFee(0); setPerKgFee(''); setMinWeightKg(''); setMaxWeightKg(''); setMinSubtotal(''); setFreeOverSubtotal(''); setEtaMinHours(''); setEtaMaxHours(''); setOfferTitle(''); setActiveFrom(''); setActiveUntil(''); setIsActive(true); }
   function openCreate(){ reset(); setShowForm(true); }
   function openEdit(r:any){ setEditing(r); setZoneId(r.zoneId||''); setCarrier(r.carrier||''); setBaseFee(Number(r.baseFee||0)); setPerKgFee(r.perKgFee??''); setMinWeightKg(r.minWeightKg??''); setMaxWeightKg(r.maxWeightKg??''); setMinSubtotal(r.minSubtotal??''); setFreeOverSubtotal(r.freeOverSubtotal??''); setEtaMinHours(r.etaMinHours??''); setEtaMaxHours(r.etaMaxHours??''); setOfferTitle(r.offerTitle||''); setActiveFrom(r.activeFrom? String(r.activeFrom).slice(0,16):''); setActiveUntil(r.activeUntil? String(r.activeUntil).slice(0,16):''); setIsActive(Boolean(r.isActive)); setShowForm(true); }
+  // Auto-filter zones by selected geo
+  const filteredZones = React.useMemo(()=>{
+    if (!countryId && !cityId && !areaId) return zones;
+    // zones are synced per country code and lists of cities/areas by name; we can heuristically filter by name match when available
+    // We only have IDs for geo; fetch names from options
+    const country = countriesOptions.find((c:any)=> c.id===countryId);
+    const city = citiesOptions.find((c:any)=> c.id===cityId);
+    const area = areasOptions.find((a:any)=> a.id===areaId);
+    return zones.filter((z:any)=>{
+      // If area selected, require zone.areas include area.name
+      if (area && Array.isArray(z.areas) && !z.areas.includes(area.name)) return false;
+      // If city selected, require zone.cities include city.name
+      if (city && Array.isArray(z.cities) && !z.cities.includes(city.name)) return false;
+      // If country selected, require countryCodes include country code or code from name
+      if (country) {
+        const codes:string[] = Array.isArray(z.countryCodes)? z.countryCodes: [];
+        const iso = (country.code||'').toUpperCase();
+        const nameCode = (country.name||'').trim().toUpperCase().slice(0,2);
+        if (!codes.includes(iso) && !codes.includes(nameCode)) return false;
+      }
+      return true;
+    });
+  }, [zones, countryId, cityId, areaId, countriesOptions, citiesOptions, areasOptions]);
 
   async function submit(e:React.FormEvent){
     e.preventDefault(); setError('');
@@ -99,10 +150,28 @@ export default function ShippingRatesPage(): JSX.Element {
           <div className="panel" style={{ marginTop:16, padding:16 }}>
             <h2 style={{ marginTop:0 }}>{editing? 'تعديل سعر' : 'إضافة سعر'}</h2>
             <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }} aria-label="نموذج سعر التوصيل">
+              <label>الدولة
+                <select value={countryId} onChange={(e)=> setCountryId(e.target.value)} className="select">
+                  <option value="">اختر دولة</option>
+                  {countriesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.code? ` (${c.code})`: ''}</option>))}
+                </select>
+              </label>
+              <label>المدينة
+                <select value={cityId} onChange={(e)=> setCityId(e.target.value)} className="select" disabled={!countryId}>
+                  <option value="">اختر مدينة</option>
+                  {citiesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.region? ` — ${c.region}`:''}</option>))}
+                </select>
+              </label>
               <label>المنطقة
+                <select value={areaId} onChange={(e)=> setAreaId(e.target.value)} className="select" disabled={!cityId}>
+                  <option value="">اختر منطقة</option>
+                  {areasOptions.map((a:any)=> (<option key={a.id} value={a.id}>{a.name}</option>))}
+                </select>
+              </label>
+              <label>منطقة الشحن
                 <select value={zoneId} onChange={(e)=> setZoneId(e.target.value)} required className="select">
                   <option value="">اختر منطقة</option>
-                  {zones.map(z=> (<option key={z.id} value={z.id}>{z.name}</option>))}
+                  {filteredZones.map(z=> (<option key={z.id} value={z.id}>{z.name}</option>))}
                 </select>
               </label>
               <label>المشغل (اختياري)<input value={carrier} onChange={(e)=> setCarrier(e.target.value)} className="input" /></label>
