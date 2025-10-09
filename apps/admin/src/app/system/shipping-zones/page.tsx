@@ -34,6 +34,17 @@ export default function ShippingZonesPage(): JSX.Element {
   const [selCityId, setSelCityId] = React.useState<string>('');
   const [selAreaId, setSelAreaId] = React.useState<string>('');
 
+  // Unified view rows (Country/City/Area) with inline edit/delete
+  const [unRows, setUnRows] = React.useState<any[]>([]);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editRow, setEditRow] = React.useState<any|null>(null);
+  const [formName, setFormName] = React.useState('');
+  const [formCode, setFormCode] = React.useState('');
+  const [formRegion, setFormRegion] = React.useState('');
+  const [formCountryId, setFormCountryId] = React.useState('');
+  const [formCityId, setFormCityId] = React.useState('');
+  const [formActive, setFormActive] = React.useState(true);
+
   async function loadCountries(){
     try{ setGeoLoading(true); const r = await fetch('/api/admin/geo/countries', { credentials:'include' }); const j = await r.json(); if(r.ok) setCountriesOptions(j.countries||[]); }
     catch{} finally{ setGeoLoading(false); }
@@ -51,6 +62,24 @@ export default function ShippingZonesPage(): JSX.Element {
   React.useEffect(()=>{ loadCountries(); }, []);
   React.useEffect(()=>{ setSelCityId(''); setAreasOptions([]); loadCities(selCountryId); }, [selCountryId]);
   React.useEffect(()=>{ setSelAreaId(''); loadAreas(selCityId); }, [selCityId]);
+
+  // Build unified rows (countries/cities/areas)
+  React.useEffect(()=>{
+    (async()=>{
+      try{
+        const [cR, ciR, aR] = await Promise.all([
+          fetch('/api/admin/geo/countries', { credentials:'include' }),
+          fetch('/api/admin/geo/cities', { credentials:'include' }),
+          fetch('/api/admin/geo/areas', { credentials:'include' }),
+        ]);
+        const cJ = await cR.json(); const ciJ = await ciR.json(); const aJ = await aR.json();
+        const countries = (cJ.countries||[]).map((c:any)=> ({ type:'country', id:c.id, name:c.name, code:c.code||'', active: !!c.isActive }));
+        const cities = (ciJ.cities||[]).map((x:any)=> ({ type:'city', id:x.id, name:x.name, region:x.region||'', countryId:x.countryId, countryName:x.country?.name||'', active: !!x.isActive }));
+        const areas = (aJ.areas||[]).map((x:any)=> ({ type:'area', id:x.id, name:x.name, cityId:x.cityId, cityName:x.city?.name||'', countryId:x.city?.country?.id||'', countryName:x.city?.country?.name||'', active: !!x.isActive }));
+        setUnRows([...countries, ...cities, ...areas]);
+      }catch{}
+    })();
+  }, [toast]);
 
   function appendCSV(setter: (v:string)=>void, current: string, value: string){
     const arr = current.split(',').map(s=>s.trim()).filter(Boolean);
@@ -158,25 +187,34 @@ export default function ShippingZonesPage(): JSX.Element {
                 <label style={{ display:'flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={onlyActive} onChange={(e)=> setOnlyActive(e.target.checked)} /> فعّالة فقط</label>
                 <button className="btn" onClick={exportCSV}>تصدير CSV</button>
                 <button className="btn" onClick={load}>تحديث</button>
-                <button className="btn danger" onClick={async ()=>{
-                  const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
-                  for (const id of ids) { try { await fetch(`/api/admin/shipping/zones/${id}`, { method:'DELETE', credentials:'include' }); } catch {} }
-                  setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد');
-                }}>حذف المحدد</button>
-                <button onClick={openCreate} className="btn">إضافة منطقة</button>
+                <button className="btn" onClick={async()=>{ try{ const r = await fetch('/api/admin/shipping/zones/sync-from-geo', { method:'POST', credentials:'include' }); if(!r.ok) throw 0; await load(); showToast('تمت المزامنة'); }catch{ showToast('فشل المزامنة'); } }}>مزامنة الآن</button>
               </div>
             </div>
 
             {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 180 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
               <div style={{ overflowX:'auto' }}>
-                <table className="table" role="table" aria-label="قائمة مناطق الشحن">
-                  <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(filtered.map((r:any)=> [r.id, v]))); }} /></th><th>الاسم</th><th>الدول</th><th>محافظات</th><th>مدن</th><th>مناطق</th><th>مفعّلة</th><th></th></tr></thead>
+                <table className="table" role="table" aria-label="قائمة موحّدة (دول/مدن/مناطق)">
+                  <thead><tr><th>النوع</th><th>الاسم</th><th>تفاصيل</th><th>مفعّلة</th><th>إجراءات</th></tr></thead>
                   <tbody>
-                    {filtered.map((r:any)=> (
-                      <tr key={r.id}><td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td><td>{r.name}</td><td>{(r.countryCodes||[]).join(', ')}</td><td>{Array.isArray(r.regions)? r.regions.length: 0}</td><td>{Array.isArray(r.cities)? r.cities.length: 0}</td><td>{Array.isArray(r.areas)? r.areas.length: 0}</td><td>{r.isActive? 'نعم':'لا'}</td><td>
-                        <button aria-label={`تعديل ${r.name}`} onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
-                        <button aria-label={`حذف ${r.name}`} onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
-                      </td></tr>
+                    {unRows.map((r:any)=> (
+                      <tr key={`${r.type}:${r.id}`}>
+                        <td>{r.type==='country'? 'دولة' : r.type==='city'? 'مدينة' : 'منطقة'}</td>
+                        <td>{r.name}{r.code? ` (${r.code})`: ''}</td>
+                        <td>{r.type==='country'? '-' : r.type==='city'? (`دولة: ${r.countryName}${r.region? ` — إقليم: ${r.region}`:''}`) : (`دولة: ${r.countryName} — مدينة: ${r.cityName}`)}</td>
+                        <td>{r.active? 'نعم':'لا'}</td>
+                        <td>
+                          <button className="btn btn-outline" onClick={()=>{ setEditRow(r); setFormName(r.name||''); setFormCode(r.code||''); setFormRegion(r.region||''); setFormCountryId(r.countryId||''); setFormCityId(r.cityId||''); setFormActive(!!r.active); setEditOpen(true); }}>تعديل</button>
+                          <button className="btn btn-danger" style={{ marginInlineStart:6 }} onClick={async()=>{
+                            try{
+                              if (!confirm('تأكيد الحذف؟')) return;
+                              if (r.type==='country') { await fetch(`/api/admin/geo/countries/${r.id}`, { method:'DELETE', credentials:'include' }); }
+                              if (r.type==='city') { await fetch(`/api/admin/geo/cities/${r.id}`, { method:'DELETE', credentials:'include' }); }
+                              if (r.type==='area') { await fetch(`/api/admin/geo/areas/${r.id}`, { method:'DELETE', credentials:'include' }); }
+                              showToast('تم الحذف');
+                            }catch{ showToast('فشل الحذف'); }
+                          }}>حذف</button>
+                        </td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
