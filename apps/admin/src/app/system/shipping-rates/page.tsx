@@ -28,6 +28,8 @@ export default function ShippingRatesPage(): JSX.Element {
   const [activeFrom, setActiveFrom] = React.useState<string>('');
   const [activeUntil, setActiveUntil] = React.useState<string>('');
   const [isActive, setIsActive] = React.useState(true);
+  const fromRef = React.useRef<HTMLInputElement|null>(null);
+  const toRef = React.useRef<HTMLInputElement|null>(null);
 
   // Geo cascade: Country -> City -> Area (UI helper)
   const [geoLoading, setGeoLoading] = React.useState(false);
@@ -111,7 +113,7 @@ export default function ShippingRatesPage(): JSX.Element {
       let r:Response; if (editing) r = await fetch(`/api/admin/shipping/rates/${editing.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       else r = await fetch('/api/admin/shipping/rates', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error||'failed'); setShowForm(false); reset(); await load();
-      alert('تم الحفظ');
+      showToast('تم الحفظ');
     }catch(err:any){ setError(err.message||'failed'); }
   }
 
@@ -213,9 +215,23 @@ export default function ShippingRatesPage(): JSX.Element {
               </label>
               <label>عنوان العرض (اختياري)<input value={offerTitle} onChange={(e)=> setOfferTitle(e.target.value)} className="input" /></label>
               <div style={{ gridColumn:'1 / -1' }}>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <label style={{ flex:1 }}>ساري من<input type="date" value={activeFrom? String(activeFrom).slice(0,10): ''} onChange={(e)=> setActiveFrom(e.target.value? `${e.target.value}T00:00` : '')} className="input" /></label>
-                  <label style={{ flex:1 }}>ساري إلى<input type="date" value={activeUntil? String(activeUntil).slice(0,10): ''} onChange={(e)=> setActiveUntil(e.target.value? `${e.target.value}T23:59` : '')} className="input" /></label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignItems:'center' }}>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <label style={{ flex:1 }}>ساري من
+                      <div style={{ display:'flex', gap:6 }}>
+                        <input ref={fromRef} type="date" value={activeFrom? String(activeFrom).slice(0,10): ''} onChange={(e)=> setActiveFrom(e.target.value? `${e.target.value}T00:00` : '')} className="input" />
+                        <button type="button" className="btn btn-outline" onClick={()=>{ try{ (fromRef.current as any)?.showPicker?.(); }catch{} fromRef.current?.focus(); }}>📅</button>
+                      </div>
+                    </label>
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <label style={{ flex:1 }}>ساري إلى
+                      <div style={{ display:'flex', gap:6 }}>
+                        <input ref={toRef} type="date" value={activeUntil? String(activeUntil).slice(0,10): ''} onChange={(e)=> setActiveUntil(e.target.value? `${e.target.value}T23:59` : '')} className="input" />
+                        <button type="button" className="btn btn-outline" onClick={()=>{ try{ (toRef.current as any)?.showPicker?.(); }catch{} toRef.current?.focus(); }}>📅</button>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
               <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّل</label>
