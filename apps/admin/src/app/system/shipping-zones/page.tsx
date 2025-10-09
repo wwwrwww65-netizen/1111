@@ -81,6 +81,17 @@ export default function ShippingZonesPage(): JSX.Element {
     })();
   }, [toast]);
 
+  // Load lists for edit form
+  React.useEffect(()=>{
+    if (!editOpen) return;
+    loadCountries();
+    if (formCountryId) loadCities(formCountryId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen]);
+  React.useEffect(()=>{ if (editOpen && formCountryId) loadCities(formCountryId); // keep city list in sync
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formCountryId]);
+
   function appendCSV(setter: (v:string)=>void, current: string, value: string){
     const arr = current.split(',').map(s=>s.trim()).filter(Boolean);
     if(!arr.includes(value)) arr.push(value);
@@ -238,7 +249,66 @@ export default function ShippingZonesPage(): JSX.Element {
             <AreasPage />
           </div>
         )}
-        {/* legacy zones table removed in unified view */}
+        {/* Edit Drawer/Modal */}
+        {editOpen && (
+          <div className="panel" style={{ marginTop:12, padding:16 }}>
+            <h3 style={{ marginTop:0 }}>تعديل {editRow?.type==='country'? 'الدولة' : editRow?.type==='city'? 'المدينة' : 'المنطقة'}</h3>
+            <form onSubmit={async (e)=>{
+              e.preventDefault();
+              try{
+                if (editRow?.type==='country') {
+                  const r = await fetch(`/api/admin/geo/countries/${editRow.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name: formName, code: formCode||undefined, isActive: formActive }) });
+                  if (!r.ok) throw 0;
+                }
+                if (editRow?.type==='city') {
+                  const payload:any = { name: formName, region: formRegion||undefined, isActive: formActive };
+                  if (formCountryId) payload.countryId = formCountryId;
+                  const r = await fetch(`/api/admin/geo/cities/${editRow.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+                  if (!r.ok) throw 0;
+                }
+                if (editRow?.type==='area') {
+                  const payload:any = { name: formName, isActive: formActive };
+                  if (formCityId) payload.cityId = formCityId;
+                  const r = await fetch(`/api/admin/geo/areas/${editRow.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+                  if (!r.ok) throw 0;
+                }
+                setEditOpen(false); setEditRow(null); setFormName(''); setFormCode(''); setFormRegion(''); setFormCountryId(''); setFormCityId('');
+                showToast('تم الحفظ');
+              }catch{ showToast('فشل الحفظ'); }
+            }} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <label>الاسم<input className="input" value={formName} onChange={(e)=> setFormName(e.target.value)} required /></label>
+              {editRow?.type==='country' && (
+                <label>رمز الدولة (ISO)<input className="input" value={formCode} onChange={(e)=> setFormCode(e.target.value.toUpperCase())} maxLength={3} /></label>
+              )}
+              {editRow?.type==='city' && (
+                <>
+                  <label>الدولة<select className="input" value={formCountryId} onChange={(e)=> setFormCountryId(e.target.value)}>
+                    <option value="">اختر الدولة</option>
+                    {countriesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.code? ` (${c.code})`: ''}</option>))}
+                  </select></label>
+                  <label style={{ gridColumn:'1 / -1' }}>الإقليم/المنطقة<input className="input" value={formRegion} onChange={(e)=> setFormRegion(e.target.value)} placeholder="اختياري" /></label>
+                </>
+              )}
+              {editRow?.type==='area' && (
+                <>
+                  <label>الدولة<select className="input" value={formCountryId} onChange={(e)=> setFormCountryId(e.target.value)}>
+                    <option value="">اختر الدولة</option>
+                    {countriesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.code? ` (${c.code})`: ''}</option>))}
+                  </select></label>
+                  <label>المدينة<select className="input" value={formCityId} onChange={(e)=> setFormCityId(e.target.value)} disabled={!formCountryId}>
+                    <option value="">اختر المدينة</option>
+                    {citiesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}</option>))}
+                  </select></label>
+                </>
+              )}
+              <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={formActive} onChange={(e)=> setFormActive(e.target.checked)} /> مفعّلة</label>
+              <div style={{ gridColumn:'1 / -1', display:'flex', justifyContent:'flex-end', gap:8 }}>
+                <button type="submit" className="btn">حفظ</button>
+                <button type="button" className="btn btn-outline" onClick={()=>{ setEditOpen(false); setEditRow(null); }}>إلغاء</button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* creation/editing form removed in unified table mode */}
       </main>
