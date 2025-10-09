@@ -62,32 +62,7 @@ export default function ShippingZonesPage(): JSX.Element {
     setter(arr.join(', '));
   }
 
-  // Geo cascade: Countries -> Cities -> Areas (picker helpers)
-  const [geoLoading, setGeoLoading] = React.useState(false);
-  const [countriesOptions, setCountriesOptions] = React.useState<any[]>([]);
-  const [citiesOptions, setCitiesOptions] = React.useState<any[]>([]);
-  const [areasOptions, setAreasOptions] = React.useState<any[]>([]);
-  const [selCountryId, setSelCountryId] = React.useState<string>('');
-  const [selCityId, setSelCityId] = React.useState<string>('');
-  const [selAreaId, setSelAreaId] = React.useState<string>('');
-
-  async function loadCountries(){
-    try{ setGeoLoading(true); const r = await fetch('/api/admin/geo/countries', { credentials:'include' }); const j = await r.json(); if(r.ok) setCountriesOptions(j.countries||[]); }
-    catch{} finally{ setGeoLoading(false); }
-  }
-  async function loadCities(countryId:string){
-    if(!countryId){ setCitiesOptions([]); return; }
-    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/cities?countryId=${encodeURIComponent(countryId)}`, { credentials:'include' }); const j = await r.json(); if(r.ok) setCitiesOptions(j.cities||[]); }
-    catch{} finally{ setGeoLoading(false); }
-  }
-  async function loadAreas(cityId:string){
-    if(!cityId){ setAreasOptions([]); return; }
-    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/areas?cityId=${encodeURIComponent(cityId)}`, { credentials:'include' }); const j = await r.json(); if(r.ok) setAreasOptions(j.areas||[]); }
-    catch{} finally{ setGeoLoading(false); }
-  }
-  React.useEffect(()=>{ loadCountries(); }, []);
-  React.useEffect(()=>{ setSelCityId(''); setAreasOptions([]); loadCities(selCountryId); }, [selCountryId]);
-  React.useEffect(()=>{ setSelAreaId(''); loadAreas(selCityId); }, [selCityId]);
+  // Geo cascade: Countries -> Cities -> Areas (duplicate handlers removed)
 
   function appendCSV(setter: (v:string)=>void, current: string, value: string){
     const arr = current.split(',').map(s=>s.trim()).filter(Boolean);
