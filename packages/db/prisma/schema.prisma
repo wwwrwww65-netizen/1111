@@ -338,6 +338,49 @@ model Currency {
   updatedAt  DateTime @updatedAt
 }
 
+// Geo hierarchy for shipping locations
+model Country {
+  id        String   @id @default(cuid())
+  code      String?  @unique // ISO2 if available (e.g., SA)
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  cities    City[]
+}
+
+model City {
+  id        String   @id @default(cuid())
+  countryId String
+  country   Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  name      String
+  region    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  areas     Area[]
+
+  @@index([countryId])
+  @@unique([countryId, name])
+}
+
+model Area {
+  id        String   @id @default(cuid())
+  cityId    String
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cityId])
+  @@unique([cityId, name])
+}
+
 // Finance: Expenses (admin-side operational expenses)
 model Expense {
   id          String   @id @default(cuid())
