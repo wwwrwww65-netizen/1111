@@ -62,6 +62,18 @@ export default function ShippingZonesPage(): JSX.Element {
     setter(arr.join(', '));
   }
 
+  // Geo cascade: Countries -> Cities -> Areas (duplicate handlers removed)
+
+  function appendCSV(setter: (v:string)=>void, current: string, value: string){
+    const arr = current.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!arr.includes(value)) arr.push(value);
+    setter(arr.join(', '));
+  }
+  function removeFromCSV(setter:(v:string)=>void, current:string, value:string){
+    const arr = current.split(',').map(s=>s.trim()).filter(Boolean).filter(v=> v!==value);
+    setter(arr.join(', '));
+  }
+
   async function load(){
     setLoading(true); setError('');
     try{ const r = await fetch('/api/admin/shipping/zones', { credentials:'include' }); const j = await r.json(); if (r.ok) setRows(j.zones||[]); else setError(j.error||'failed'); }
