@@ -5429,6 +5429,74 @@ adminRest.put('/shipping/rates/:id', async (req, res) => {
 adminRest.delete('/shipping/rates/:id', async (req, res) => {
   const { id } = req.params; try{ await db.deliveryRate.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, code:'rate_delete_failed', error:e.message||'rate_delete_failed' }); }
 });
+
+// Geo hierarchy: Countries, Cities, Areas
+// Countries CRUD
+adminRest.get('/geo/countries', async (_req, res) => {
+  try{
+    const rows = await db.country.findMany({ orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });
+    res.json({ ok:true, countries: rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error:e.message||'countries_list_failed' }); }
+});
+adminRest.post('/geo/countries', async (req, res) => {
+  const schema = z.object({ code: z.string().min(2).max(3).optional(), name: z.string().min(2), isActive: z.coerce.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const row = await db.country.create({ data }); res.json({ ok:true, country: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'country_create_failed' }); }
+});
+adminRest.put('/geo/countries/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ code: z.string().min(2).max(3).optional(), name: z.string().min(2).optional(), isActive: z.coerce.boolean().optional() });
+  try{ const d = schema.parse(req.body||{}); const row = await db.country.update({ where:{ id }, data: d }); res.json({ ok:true, country: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'country_update_failed' }); }
+});
+adminRest.delete('/geo/countries/:id', async (req, res) => {
+  const { id } = req.params; try{ await db.country.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'country_delete_failed' }); }
+});
+
+// Cities CRUD
+adminRest.get('/geo/cities', async (req, res) => {
+  try{
+    const { countryId } = req.query as any;
+    const where: any = countryId ? { countryId: String(countryId) } : {};
+    const rows = await db.city.findMany({ where, include: { country: true }, orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });
+    res.json({ ok:true, cities: rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error:e.message||'cities_list_failed' }); }
+});
+adminRest.post('/geo/cities', async (req, res) => {
+  const schema = z.object({ countryId: z.string(), name: z.string().min(2), region: z.string().optional(), isActive: z.coerce.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const row = await db.city.create({ data }); res.json({ ok:true, city: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'city_create_failed' }); }
+});
+adminRest.put('/geo/cities/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ countryId: z.string().optional(), name: z.string().min(2).optional(), region: z.string().optional(), isActive: z.coerce.boolean().optional() });
+  try{ const d = schema.parse(req.body||{}); const row = await db.city.update({ where:{ id }, data: d }); res.json({ ok:true, city: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'city_update_failed' }); }
+});
+adminRest.delete('/geo/cities/:id', async (req, res) => {
+  const { id } = req.params; try{ await db.city.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'city_delete_failed' }); }
+});
+
+// Areas CRUD
+adminRest.get('/geo/areas', async (req, res) => {
+  try{
+    const { cityId } = req.query as any;
+    const where: any = cityId ? { cityId: String(cityId) } : {};
+    const rows = await db.area.findMany({ where, include: { city: { include: { country: true } } }, orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });
+    res.json({ ok:true, areas: rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error:e.message||'areas_list_failed' }); }
+});
+adminRest.post('/geo/areas', async (req, res) => {
+  const schema = z.object({ cityId: z.string(), name: z.string().min(2), isActive: z.coerce.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const row = await db.area.create({ data }); res.json({ ok:true, area: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'area_create_failed' }); }
+});
+adminRest.put('/geo/areas/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ cityId: z.string().optional(), name: z.string().min(2).optional(), isActive: z.coerce.boolean().optional() });
+  try{ const d = schema.parse(req.body||{}); const row = await db.area.update({ where:{ id }, data: d }); res.json({ ok:true, area: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'area_update_failed' }); }
+});
+adminRest.delete('/geo/areas/:id', async (req, res) => {
+  const { id } = req.params; try{ await db.area.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'area_delete_failed' }); }
+});
 adminRest.post('/currencies', async (req, res) => {
   const schema = z.object({ code: z.string().min(2).max(6), name: z.string().min(2), symbol: z.string().min(1), precision: z.coerce.number().int().min(0).max(6).default(2), rateToBase: z.coerce.number().positive().default(1), isBase: z.coerce.boolean().default(false), isActive: z.coerce.boolean().default(true) });
   try{
