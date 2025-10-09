@@ -1380,9 +1380,9 @@ adminRest.post('/returns/:id/approve', async (req, res) => {
 });
 
 // =====================
-// Shipping rates / labels / address validation (stubs)
+// Shipping rates quote (stub) — avoid conflict with CRUD
 // =====================
-adminRest.post('/shipping/rates', async (req, res) => {
+adminRest.post('/shipping/rates/quote', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
     const { from, to, weightKg } = req.body || {};
