@@ -627,6 +627,7 @@ model Driver {
   status        DriverStatus  @default(AVAILABLE)
   location      String?
   address       String?
+  idType        String?       // 'ID' | 'PASSPORT'
   nationalId    String?
   vehicleType   String?       // "دراجة نارية" | "دباب نقل"
   ownership     String?       // "company" | "driver"

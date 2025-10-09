@@ -23,6 +23,7 @@ export default function DriversPage(): JSX.Element {
   const [phone, setPhone] = React.useState('');
   const [address, setAddress] = React.useState('');
   const [nationalId, setNationalId] = React.useState('');
+  const [idType, setIdType] = React.useState<'ID'|'PASSPORT'>('ID');
   const [vehicleType, setVehicleType] = React.useState<'دراجة نارية'|'دباب نقل'|''>('');
   const [ownership, setOwnership] = React.useState<'company'|'driver'|''>('');
   const [notes, setNotes] = React.useState('');
@@ -39,7 +40,8 @@ export default function DriversPage(): JSX.Element {
   async function load(){
     try {
       setMsg(''); setLoading(true);
-    const url = new URL(`/api/admin/drivers`, window.location.origin);
+      const base = resolveApiBase();
+      const url = new URL(`/api/admin/drivers`, base);
       if (q) url.searchParams.set('q', q);
       if (status) url.searchParams.set('status', status);
       if (veh) url.searchParams.set('veh', veh);
@@ -151,11 +153,12 @@ export default function DriversPage(): JSX.Element {
   async function add(){
     setMsg('');
     if (!name.trim()) { setMsg('أدخل اسم السائق'); return; }
-    const payload: any = { name, phone, isActive: true, status: 'AVAILABLE', address: address||undefined, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
+    const payload: any = { name, phone, isActive: true, status: 'AVAILABLE', address: address||undefined, idType, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
     try {
-      const resp = await fetch(`/api/admin/drivers`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
+      const url = new URL(`/api/admin/drivers`, resolveApiBase());
+      const resp = await fetch(url.toString(), { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
       if (!resp.ok) { const txt = await resp.text().catch(()=> ''); setMsg(`تعذر الإضافة (${resp.status}) ${txt.slice(0,120)}`); return; }
-      setName(''); setPhone(''); setAddress(''); setNationalId(''); setVehicleType(''); setOwnership(''); setNotes('');
+      setName(''); setPhone(''); setAddress(''); setNationalId(''); setVehicleType(''); setOwnership(''); setNotes(''); setIdType('ID');
       setShowAdd(false);
       await load();
     } catch {
@@ -287,7 +290,11 @@ export default function DriversPage(): JSX.Element {
             <input className="input" placeholder="اسم السائق" value={name} onChange={(e)=>setName(e.target.value)} />
             <input className="input" placeholder="رقم الهاتف" value={phone} onChange={(e)=>setPhone(e.target.value)} />
             <input className="input" placeholder="عنوان السكن" value={address} onChange={(e)=>setAddress(e.target.value)} />
-            <input className="input" placeholder="البطاقة الشخصية" value={nationalId} onChange={(e)=>setNationalId(e.target.value)} />
+            <select className="select" value={idType} onChange={(e)=> setIdType(e.target.value as any)}>
+              <option value="ID">نوع الهوية: بطاقة شخصية</option>
+              <option value="PASSPORT">نوع الهوية: جواز سفر</option>
+            </select>
+            <input className="input" placeholder={idType==='ID'? 'بطاقة شخصية' : 'جواز سفر'} value={nationalId} onChange={(e)=>setNationalId(e.target.value)} />
             <select className="select" value={vehicleType} onChange={(e)=> setVehicleType(e.target.value as any)}>
               <option value="">نوع المركبة</option>
               <option value="دراجة نارية">دراجة نارية</option>
