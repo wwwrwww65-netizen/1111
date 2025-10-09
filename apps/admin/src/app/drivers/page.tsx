@@ -116,10 +116,12 @@ export default function DriversPage(): JSX.Element {
         socket.on('connect', ()=> setIoConnected(true));
         socket.on('disconnect', ()=> setIoConnected(false));
         socket.on('driver:locations', (payload:any)=>{
-          // Merge live locations into rows
-          const map = new Map(rows.map((r:any)=> [r.id, r]));
-          for (const d of (payload?.drivers||[])) { const cur = map.get(d.id) || {}; map.set(d.id, { ...cur, ...d }); }
-          setRows(Array.from(map.values()));
+          // Merge live locations into current rows (avoid stale closure)
+          setRows((prev:any[])=>{
+            const map = new Map(prev.map((r:any)=> [r.id, r]));
+            for (const d of (payload?.drivers||[])) { const cur = map.get(d.id) || {}; map.set(d.id, { ...cur, ...d }); }
+            return Array.from(map.values());
+          });
         });
       };
       ensure();
