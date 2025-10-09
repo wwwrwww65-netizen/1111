@@ -39,7 +39,8 @@ export default function DriversPage(): JSX.Element {
   async function load(){
     try {
       setMsg(''); setLoading(true);
-    const url = new URL(`/api/admin/drivers`, window.location.origin);
+      const base = resolveApiBase();
+      const url = new URL(`/api/admin/drivers`, base);
       if (q) url.searchParams.set('q', q);
       if (status) url.searchParams.set('status', status);
       if (veh) url.searchParams.set('veh', veh);
@@ -153,7 +154,8 @@ export default function DriversPage(): JSX.Element {
     if (!name.trim()) { setMsg('أدخل اسم السائق'); return; }
     const payload: any = { name, phone, isActive: true, status: 'AVAILABLE', address: address||undefined, nationalId: nationalId||undefined, vehicleType: vehicleType||undefined, ownership: ownership||undefined, notes: notes||undefined };
     try {
-      const resp = await fetch(`/api/admin/drivers`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
+      const url = new URL(`/api/admin/drivers`, resolveApiBase());
+      const resp = await fetch(url.toString(), { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
       if (!resp.ok) { const txt = await resp.text().catch(()=> ''); setMsg(`تعذر الإضافة (${resp.status}) ${txt.slice(0,120)}`); return; }
       setName(''); setPhone(''); setAddress(''); setNationalId(''); setVehicleType(''); setOwnership(''); setNotes('');
       setShowAdd(false);
