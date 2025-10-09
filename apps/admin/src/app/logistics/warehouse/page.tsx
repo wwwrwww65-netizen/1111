@@ -11,7 +11,7 @@ export default function WarehousePage(): JSX.Element {
   async function load(){
     setLoading(true);
     try {
-      const url = new URL(`/api/admin/logistics/warehouse/list`, window.location.origin);
+      const url = new URL(`/api/admin/logistics/warehouse/list`, apiBase);
       url.searchParams.set('tab', tab);
       const j = await (await fetch(url.toString(), { credentials:'include' })).json();
       setItems(j.items||[]);
@@ -20,17 +20,17 @@ export default function WarehousePage(): JSX.Element {
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
 
   async function confirmInbound(shipmentId: string){
-    await fetch(`/api/admin/logistics/warehouse/inbound/confirm`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ shipmentId }) });
+    await fetch(`${apiBase}/api/admin/logistics/warehouse/inbound/confirm`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ shipmentId }) });
     await load();
   }
   async function addSortingResult(packageId: string, match:boolean){
-    await fetch(`/api/admin/logistics/warehouse/sorting/result`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ packageId, match }) });
+    await fetch(`${apiBase}/api/admin/logistics/warehouse/sorting/result`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ packageId, match }) });
     await load();
   }
   async function assignReady(packageId: string){
     const driverId = prompt('معرّف السائق للتسليم:') || '';
     if (!driverId) return;
-    await fetch(`/api/admin/logistics/warehouse/ready/assign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ packageId, driverId }) });
+    await fetch(`${apiBase}/api/admin/logistics/warehouse/ready/assign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ packageId, driverId }) });
     await load();
   }
   return (

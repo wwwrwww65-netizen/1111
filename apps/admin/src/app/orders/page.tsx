@@ -44,7 +44,7 @@ export default function OrdersPage(): JSX.Element {
   const loadCtlRef = React.useRef<AbortController|null>(null);
   const debounceRef = React.useRef<any>(null);
   async function load() {
-    const url = new URL(`/api/admin/orders/list`, window.location.origin);
+    const url = new URL(`/api/admin/orders/list`, apiBase);
     url.searchParams.set("page", String(page));
     url.searchParams.set("limit", String(pageSize));
     if (status) url.searchParams.set("status", status);
@@ -60,7 +60,7 @@ export default function OrdersPage(): JSX.Element {
       setBusy(true);
       if (loadCtlRef.current) { try { loadCtlRef.current.abort(); } catch {} }
       const ctl = new AbortController(); loadCtlRef.current = ctl;
-      const res = await fetch(`/api/admin/orders/list${url.search}`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal });
+      const res = await fetch(`${apiBase}/api/admin/orders/list${url.search}`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal });
       const json = await res.json();
       setRows(json.orders || []);
       setTotal(json.pagination?.total || 0);
@@ -82,33 +82,33 @@ export default function OrdersPage(): JSX.Element {
   }, [status, search, driverId, dateFrom, dateTo, amountMin, amountMax]);
   React.useEffect(()=>{
     const ctl = new AbortController();
-    (async ()=>{ try{ const j = await (await fetch(`/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal })).json(); setDrivers(j.drivers||[]);} catch{} })();
+    (async ()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store', signal: ctl.signal })).json(); setDrivers(j.drivers||[]);} catch{} })();
     return ()=> { try { ctl.abort(); } catch {} };
   }, [apiBase]);
 
   async function ship(orderId: string) {
-    await fetch(`/api/admin/orders/ship`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
+    await fetch(`${apiBase}/api/admin/orders/ship`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
     await load();
   }
   async function refund(orderId: string) {
-    await fetch(`/api/admin/payments/refund`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
+    await fetch(`${apiBase}/api/admin/payments/refund`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
     await load();
   }
   async function bulk(action: 'ship'|'cancel'){
     const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
     for (const id of ids) {
       if (action==='ship') await ship(id);
-      if (action==='cancel') await fetch(`/api/admin/orders/cancel`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ orderId:id }) });
+      if (action==='cancel') await fetch(`${apiBase}/api/admin/orders/cancel`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ orderId:id }) });
     }
     setSelected({}); await load();
   }
   async function assign(orderId: string, driverId: string) {
-    await fetch(`/api/admin/orders/assign-driver`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId, driverId }) });
+    await fetch(`${apiBase}/api/admin/orders/assign-driver`, { method:'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId, driverId }) });
     await load();
   }
 
   async function changeOrderStatus(orderId: string, action: 'approve'|'reject'|'complete'){
-    await fetch(`/api/admin/status/change`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id: orderId, action }) });
+    await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id: orderId, action }) });
     await load();
   }
 
