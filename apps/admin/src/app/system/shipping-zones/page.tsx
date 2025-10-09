@@ -19,6 +19,43 @@ export default function ShippingZonesPage(): JSX.Element {
   const [areas, setAreas] = React.useState<string>('');
   const [isActive, setIsActive] = React.useState(true);
 
+  // Geo cascade: Countries -> Cities -> Areas (picker helpers)
+  const [geoLoading, setGeoLoading] = React.useState(false);
+  const [countriesOptions, setCountriesOptions] = React.useState<any[]>([]);
+  const [citiesOptions, setCitiesOptions] = React.useState<any[]>([]);
+  const [areasOptions, setAreasOptions] = React.useState<any[]>([]);
+  const [selCountryId, setSelCountryId] = React.useState<string>('');
+  const [selCityId, setSelCityId] = React.useState<string>('');
+  const [selAreaId, setSelAreaId] = React.useState<string>('');
+
+  async function loadCountries(){
+    try{ setGeoLoading(true); const r = await fetch('/api/admin/geo/countries', { credentials:'include' }); const j = await r.json(); if(r.ok) setCountriesOptions(j.countries||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  async function loadCities(countryId:string){
+    if(!countryId){ setCitiesOptions([]); return; }
+    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/cities?countryId=${encodeURIComponent(countryId)}`, { credentials:'include' }); const j = await r.json(); if(r.ok) setCitiesOptions(j.cities||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  async function loadAreas(cityId:string){
+    if(!cityId){ setAreasOptions([]); return; }
+    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/areas?cityId=${encodeURIComponent(cityId)}`, { credentials:'include' }); const j = await r.json(); if(r.ok) setAreasOptions(j.areas||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  React.useEffect(()=>{ loadCountries(); }, []);
+  React.useEffect(()=>{ setSelCityId(''); setAreasOptions([]); loadCities(selCountryId); }, [selCountryId]);
+  React.useEffect(()=>{ setSelAreaId(''); loadAreas(selCityId); }, [selCityId]);
+
+  function appendCSV(setter: (v:string)=>void, current: string, value: string){
+    const arr = current.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!arr.includes(value)) arr.push(value);
+    setter(arr.join(', '));
+  }
+  function removeFromCSV(setter:(v:string)=>void, current:string, value:string){
+    const arr = current.split(',').map(s=>s.trim()).filter(Boolean).filter(v=> v!==value);
+    setter(arr.join(', '));
+  }
+
   async function load(){
     setLoading(true); setError('');
     try{ const r = await fetch('/api/admin/shipping/zones', { credentials:'include' }); const j = await r.json(); if (r.ok) setRows(j.zones||[]); else setError(j.error||'failed'); }
@@ -82,10 +119,66 @@ export default function ShippingZonesPage(): JSX.Element {
             <h2 style={{ marginTop:0 }}>{editing? 'تعديل منطقة' : 'إضافة منطقة'}</h2>
             <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <label>الاسم<input aria-label="اسم المنطقة" value={name} onChange={(e)=> setName(e.target.value)} required className="input" /></label>
-              <label>الدول (رموز ISO مفصولة بفواصل)<input aria-label="قائمة الدول" value={countryCodes} onChange={(e)=> setCountryCodes(e.target.value)} required className="input" /></label>
-              <label style={{ gridColumn:'1 / -1' }}>المحافظات/الأقاليم (أدخل أسماء مفصولة بفواصل)<textarea value={regions} onChange={(e)=> setRegions(e.target.value)} rows={2} className="input" placeholder='الرياض، مكة، الشرقية' /></label>
-              <label style={{ gridColumn:'1 / -1' }}>المدن (أدخل أسماء مفصولة بفواصل)<textarea value={cities} onChange={(e)=> setCities(e.target.value)} rows={2} className="input" placeholder='الرياض، جدة، الدمام' /></label>
-              <label style={{ gridColumn:'1 / -1' }}>المناطق/الأحياء (أدخل أسماء مفصولة بفواصل)<textarea value={areas} onChange={(e)=> setAreas(e.target.value)} rows={2} className="input" placeholder='النسيم، العليا، الصفوة' /></label>
+              <label>الدول (رموز ISO مفصولة بفواصل)
+                <div style={{ display:'flex', gap:8 }}>
+                  <input aria-label="قائمة الدول" value={countryCodes} onChange={(e)=> setCountryCodes(e.target.value)} required className="input" />
+                  <select className="input" value={selCountryId} onChange={(e)=> setSelCountryId(e.target.value)}>
+                    <option value="">اختر دولة</option>
+                    {countriesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.code? ` (${c.code})`:''}</option>))}
+                  </select>
+                  <button type="button" className="btn" disabled={!selCountryId || geoLoading} onClick={()=>{
+                    const c = countriesOptions.find((x:any)=> x.id===selCountryId);
+                    const code = (c?.code || c?.name || '').toString().trim().toUpperCase(); if(!code) return;
+                    appendCSV(setCountryCodes, countryCodes, code);
+                  }}>إضافة</button>
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                  {countryCodes.split(',').map(s=> s.trim()).filter(Boolean).map(code=> (
+                    <span key={code} className="chip">{code}<button type="button" aria-label={`إزالة ${code}`} onClick={()=> removeFromCSV(setCountryCodes, countryCodes, code)} className="chip-del">×</button></span>
+                  ))}
+                </div>
+              </label>
+              <label style={{ gridColumn:'1 / -1' }}>المحافظات/الأقاليم (أدخل أسماء مفصولة بفواصل)
+                <textarea value={regions} onChange={(e)=> setRegions(e.target.value)} rows={2} className="input" placeholder='الرياض، مكة، الشرقية' />
+              </label>
+              <label style={{ gridColumn:'1 / -1' }}>المدن (أدخل أسماء مفصولة بفواصل)
+                <div style={{ display:'flex', gap:8 }}>
+                  <textarea value={cities} onChange={(e)=> setCities(e.target.value)} rows={2} className="input" placeholder='الرياض، جدة، الدمام' />
+                  <select className="input" value={selCityId} onChange={(e)=> setSelCityId(e.target.value)} disabled={!selCountryId}>
+                    <option value="">اختر مدينة</option>
+                    {citiesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}</option>))}
+                  </select>
+                  <button type="button" className="btn" disabled={!selCityId || geoLoading} onClick={()=>{
+                    const c = citiesOptions.find((x:any)=> x.id===selCityId);
+                    const nm = (c?.name||'').toString().trim(); if(!nm) return;
+                    appendCSV(setCities, cities, nm);
+                  }}>إضافة</button>
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                  {cities.split(',').map(s=> s.trim()).filter(Boolean).map(nm=> (
+                    <span key={nm} className="chip">{nm}<button type="button" aria-label={`إزالة ${nm}`} onClick={()=> removeFromCSV(setCities, cities, nm)} className="chip-del">×</button></span>
+                  ))}
+                </div>
+              </label>
+              <label style={{ gridColumn:'1 / -1' }}>المناطق/الأحياء (أدخل أسماء مفصولة بفواصل)
+                <div style={{ display:'flex', gap:8 }}>
+                  <textarea value={areas} onChange={(e)=> setAreas(e.target.value)} rows={2} className="input" placeholder='النسيم، العليا، الصفوة' />
+                  <select className="input" value={selAreaId} onChange={(e)=> setSelAreaId(e.target.value)} disabled={!selCityId}>
+                    <option value="">اختر منطقة</option>
+                    {areasOptions.map((a:any)=> (<option key={a.id} value={a.id}>{a.name}</option>))}
+                  </select>
+                  <button type="button" className="btn" disabled={!selAreaId || geoLoading} onClick={()=>{
+                    const a = areasOptions.find((x:any)=> x.id===selAreaId);
+                    const nm = (a?.name||'').toString().trim(); if(!nm) return;
+                    appendCSV(setAreas, areas, nm);
+                  }}>إضافة</button>
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                  {areas.split(',').map(s=> s.trim()).filter(Boolean).map(nm=> (
+                    <span key={nm} className="chip">{nm}<button type="button" aria-label={`إزالة ${nm}`} onClick={()=> removeFromCSV(setAreas, areas, nm)} className="chip-del">×</button></span>
+                  ))}
+                </div>
+              </label>
               <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّلة</label>
               <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
                 <button aria-label="حفظ المنطقة" type="submit" className="btn">حفظ</button>
