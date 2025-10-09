@@ -37,6 +37,7 @@ export default function ShippingRatesPage(): JSX.Element {
   const [countryId, setCountryId] = React.useState<string>('');
   const [cityId, setCityId] = React.useState<string>('');
   const [areaId, setAreaId] = React.useState<string>('');
+  const [currencies, setCurrencies] = React.useState<Array<{id:string;code:string;name:string;symbol:string;isBase:boolean}>>([]);
 
   async function load(){
     setLoading(true); setError('');
@@ -63,6 +64,7 @@ export default function ShippingRatesPage(): JSX.Element {
     catch{} finally{ setGeoLoading(false); }
   }
   React.useEffect(()=>{ loadCountries(); }, []);
+  React.useEffect(()=>{ (async()=>{ try{ const r=await fetch('/api/admin/currencies', { credentials:'include' }); const j=await r.json(); if(r.ok) setCurrencies(j.currencies||[]);}catch{ setCurrencies([]);} })(); }, []);
   React.useEffect(()=>{ setCityId(''); setAreaId(''); setCitiesOptions([]); setAreasOptions([]); if(countryId) loadCities(countryId); }, [countryId]);
   React.useEffect(()=>{ setAreaId(''); setAreasOptions([]); if(cityId) loadAreas(cityId); }, [cityId]);
 
@@ -188,21 +190,34 @@ export default function ShippingRatesPage(): JSX.Element {
                   <div className="error" aria-live="polite">لا توجد منطقة شحن مطابقة — استخدم مزامنة المناطق أو أضف دولة/مدينة/منطقة</div>
                 )}
               </div>
-              <label>العملة (اختياري)
-                <input className="input" placeholder="مثلاً SAR أو YER" value={currency} onChange={(e)=> setCurrency(e.target.value.toUpperCase())} />
+              <label>العملة
+                <select className="select" value={currency} onChange={(e)=> setCurrency(e.target.value)}>
+                  <option value="">اختر عملة</option>
+                  {currencies.map((c)=> (
+                    <option key={c.id} value={c.code}>{c.code} — {c.name} {c.isBase? '(الأساسية)': ''}</option>
+                  ))}
+                </select>
               </label>
               <label>المشغل (اختياري)<input value={carrier} onChange={(e)=> setCarrier(e.target.value)} className="input" /></label>
-              <label>السعر الأساسي<input type="number" step="any" inputMode="decimal" value={baseFee} onChange={(e)=> setBaseFee(Number(String(e.target.value).replace(',','.'))||0)} className="input" required /></label>
-              <label>لكل كجم<input type="number" step="0.01" value={perKgFee} onChange={(e)=> setPerKgFee(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>الوزن الأدنى (كجم)<input type="number" step="0.01" value={minWeightKg} onChange={(e)=> setMinWeightKg(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>الوزن الأقصى (كجم)<input type="number" step="0.01" value={maxWeightKg} onChange={(e)=> setMaxWeightKg(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>المجموع الأدنى للطلب<input type="number" step="0.01" value={minSubtotal} onChange={(e)=> setMinSubtotal(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>شحن مجاني فوق<input type="number" step="0.01" value={freeOverSubtotal} onChange={(e)=> setFreeOverSubtotal(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>ETA (ساعات) من<input type="number" value={etaMinHours} onChange={(e)=> setEtaMinHours(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>ETA (ساعات) إلى<input type="number" value={etaMaxHours} onChange={(e)=> setEtaMaxHours(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
+              <label>السعر الأساسي<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={String(baseFee)} onChange={(e)=> setBaseFee(Number(String(e.target.value).replace(',','.'))||0)} className="input" placeholder="0.00" required /></label>
+              <label>لكل كجم<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={perKgFee} onChange={(e)=> setPerKgFee(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>الوزن الأدنى (كجم)<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={minWeightKg} onChange={(e)=> setMinWeightKg(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>الوزن الأقصى (كجم)<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={maxWeightKg} onChange={(e)=> setMaxWeightKg(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>المجموع الأدنى للطلب<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={minSubtotal} onChange={(e)=> setMinSubtotal(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>شحن مجاني فوق<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={freeOverSubtotal} onChange={(e)=> setFreeOverSubtotal(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>المدة (ساعات)
+                <div style={{ display:'flex', gap:8 }}>
+                  <input className="input" inputMode="numeric" pattern="[0-9]+" value={etaMinHours} onChange={(e)=> setEtaMinHours(e.target.value===''?'':Number(e.target.value))} placeholder="من" />
+                  <input className="input" inputMode="numeric" pattern="[0-9]+" value={etaMaxHours} onChange={(e)=> setEtaMaxHours(e.target.value===''?'':Number(e.target.value))} placeholder="إلى" />
+                </div>
+              </label>
               <label>عنوان العرض (اختياري)<input value={offerTitle} onChange={(e)=> setOfferTitle(e.target.value)} className="input" /></label>
-              <label>ساري من<input type="datetime-local" value={activeFrom} onChange={(e)=> setActiveFrom(e.target.value)} className="input" /></label>
-              <label>ساري إلى<input type="datetime-local" value={activeUntil} onChange={(e)=> setActiveUntil(e.target.value)} className="input" /></label>
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <label style={{ flex:1 }}>ساري من<input type="date" value={activeFrom? String(activeFrom).slice(0,10): ''} onChange={(e)=> setActiveFrom(e.target.value? `${e.target.value}T00:00` : '')} className="input" /></label>
+                  <label style={{ flex:1 }}>ساري إلى<input type="date" value={activeUntil? String(activeUntil).slice(0,10): ''} onChange={(e)=> setActiveUntil(e.target.value? `${e.target.value}T23:59` : '')} className="input" /></label>
+                </div>
+              </div>
               <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّل</label>
               <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
                 <button type="submit" className="btn">حفظ</button>
