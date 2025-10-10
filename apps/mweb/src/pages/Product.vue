@@ -1,843 +1,1321 @@
 <template>
-  <div class="bg-gray-50 min-h-screen pb-20" dir="rtl">
-    <!-- Header -->
-    <div class="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm">
-      <div class="flex items-center justify-between px-4 py-3 h-14">
-        <div class="flex items-center gap-3">
-          <button class="w-8 h-8 flex items-center justify-center relative" @click="router.push('/cart')">
-            <ShoppingCart :size="22" class="text-gray-800" />
-            <span v-if="cart.count" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 font-bold">{{ cart.count }}</span>
+  <div class="bg-[#f7f7f7] pb-24" dir="rtl">
+    <!-- Header - Dynamic with Search Bar on Scroll -->
+    <div class="fixed top-0 left-0 right-0 z-50 bg-white">
+      <!-- Main Header -->
+      <div 
+        class="flex items-center justify-between px-4 py-3 border-b transition-all duration-300"
+        :class="showHeaderSearch ? 'shadow-sm' : 'border-gray-200'"
+      >
+        <!-- Right Side - Back Button & Menu -->
+        <div class="flex items-center gap-1">
+          <button class="bg-transparent border-0" @click="router.back()" aria-label="رجوع">
+            <ChevronRight :size="28" />
           </button>
-          <button class="w-8 h-8 flex items-center justify-center" @click="share">
-            <Share2 :size="22" class="text-gray-800" />
-          </button>
-          <button class="w-8 h-8 flex items-center justify-center" @click="router.push('/search')">
-            <Search :size="22" class="text-gray-800" />
+          <button class="bg-transparent border-0" aria-label="القائمة">
+            <Menu :size="24" />
           </button>
         </div>
+
+        <!-- Center - Logo or Search Bar -->
+        <div class="flex-1 flex items-center justify-center px-2">
+          <!-- Search Bar (shows when scrolled) -->
+          <Transition name="fade" mode="out-in">
+            <div v-if="showHeaderSearch" key="search" class="w-full max-w-lg">
+              <div class="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-full mx-2">
+                <input 
+                  type="text" 
+                  placeholder="بلايز نسائي" 
+                  class="flex-1 bg-transparent border-0 outline-none text-[13px] text-gray-700 placeholder-gray-400"
+                />
+              </div>
+            </div>
+            <!-- Logo (default) -->
+            <div 
+              v-else
+              key="logo"
+              class="text-[20px] font-extrabold"
+              style="color: #8a1538"
+            >
+              جي jeeey
+            </div>
+          </Transition>
+        </div>
+
+        <!-- Left Side -->
+      <div class="flex items-center gap-3">
+          <button class="bg-transparent border-0" @click="share" aria-label="مشاركة">
+            <Share :size="24" />
+          </button>
+          <div class="relative inline-flex cursor-pointer" @click="router.push('/cart')" aria-label="السلة">
+          <ShoppingCart :size="24" />
+          <span v-if="cart.count" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 border border-white">{{ cart.count }}</span>
+        </div>
+      </div>
+      </div>
+
+      <!-- Dynamic Header Content: Price / Tabs / Recommendation Strip -->
+      <div class="relative">
+        <!-- State 1: Price Only (before tabs sticky) -->
+        <Transition name="slide-down">
+          <div 
+            v-if="showHeaderPrice && !tabsSticky && !showRecommendationStrip" 
+            class="px-4 py-2 bg-white border-b border-gray-200 shadow-sm"
+          >
+            <div class="text-[18px] font-extrabold text-black">{{ displayPrice }}</div>
+          </div>
+        </Transition>
+
+        <!-- State 2: Tabs (sticky, with optional price) -->
+        <Transition name="slide-down">
+          <div 
+            v-if="!showRecommendationStrip && tabsSticky"
+            ref="tabsRef"
+            class="bg-white border-b border-gray-200 relative z-40"
+          >
+            <div class="flex border-b border-gray-200">
+              <button 
+                v-for="tab in tabs" 
+                :key="tab.key"
+                class="flex-1 py-3 text-[15px] border-b-2 transition-colors duration-200"
+                :class="activeTab === tab.key ? 'font-bold text-black' : 'border-transparent text-gray-400'"
+                :style="activeTab === tab.key ? 'border-bottom-color: #8a1538' : ''"
+                @click="scrollToSection(tab.key)"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+            <Transition name="fade">
+              <div v-if="showHeaderPrice" class="px-4 py-2 border-b border-gray-200">
+                <div class="text-[18px] font-extrabold text-black">{{ displayPrice }}</div>
+              </div>
+            </Transition>
+          </div>
+        </Transition>
+
+        <!-- State 3: Recommendation Strip -->
+        <Transition name="slide-down">
+          <div 
+            v-if="showRecommendationStrip"
+            class="bg-white border-b border-gray-200 relative z-40"
+          >
+            <div class="flex gap-4 px-4 py-3 overflow-x-auto no-scrollbar">
+              <button class="pb-1 text-[14px] border-b-2 font-bold whitespace-nowrap text-black" style="border-bottom-color: #8a1538">
+                التوصية
+              </button>
+              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
+                مجوهرات & ساعات
+              </button>
+              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
+                ملابس واكسسوارات
+              </button>
+              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
+                ملابس داخلية & ملابس نوم
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </div>
+
+    <!-- White Container: Gallery to Size Guide -->
+    <div class="bg-white" :style="{ marginTop: (showRecommendationStrip ? '106px' : (tabsSticky ? (showHeaderPrice ? '149px' : '106px') : '57px')) }">
+      <!-- Product Image Gallery -->
+    <div class="relative">
+        <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar bg-black"
+           :style="{ height: galleryHeight ? (galleryHeight + 'px') : undefined }"
+           @scroll.passive="onGalleryScroll">
+          <div class="flex h-full">
+            <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
+              <img :src="img" :alt="title" class="max-w-full max-h-full object-contain block" loading="lazy" @click="openLightbox(idx)" />
+        </div>
+      </div>
+      </div>
+
+        <!-- Pages indicator -->
+        <div class="carousels-pagination__pages">
+          {{ images.length }}/{{ activeIdx+1 }}
+      </div>
+    </div>
+
+    <!-- Lightbox fullscreen -->
+    <div v-if="lightbox" class="fixed inset-0 bg-black/95 z-50 flex flex-col" @keydown.esc="closeLightbox" tabindex="0">
+      <div class="flex justify-between items-center p-3 text-white">
+        <button class="px-3 py-1 rounded border border-white/30" @click="closeLightbox">إغلاق</button>
+        <div class="text-[13px]">{{ lightboxIdx+1 }} / {{ images.length }}</div>
+      </div>
+      <div class="flex-1 relative">
+        <div ref="lightboxRef" class="w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
+          <div class="flex h-full">
+            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" />
+          </div>
+        </div>
+        <button class="absolute left-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="prevLightbox" aria-label="السابق">‹</button>
+        <button class="absolute right-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="nextLightbox" aria-label="التالي">›</button>
+      </div>
+      <div class="p-2 flex justify-center gap-1">
+        <span v-for="(img,i) in images" :key="'lbdot-'+i" class="w-1.5 h-1.5 rounded-full" :class="i===lightboxIdx? 'bg-white' : 'bg-white/40'" />
+      </div>
+    </div>
+
+    <!-- Trending Badge -->
+    <div class="flex items-center justify-between px-4 py-2 bg-purple-50">
+      <span class="text-[14px] font-bold text-purple-700">ترندات</span>
+      <span class="text-[13px] text-gray-600">الموضة في متناول الجميع</span>
+      </div>
+
+    <!-- Price Section -->
+    <div ref="priceRef" class="px-4 py-4">
+      <div class="text-[22px] font-extrabold text-black">{{ displayPrice }}</div>
+    </div>
+
+    <!-- SHEIN Club Bar -->
+    <div class="mx-4 mb-4 flex items-center justify-between px-3 py-2.5 bg-orange-50 rounded-md cursor-pointer hover:bg-orange-100 transition-colors">
         <div class="flex items-center gap-2">
-          <button @click="router.back()" class="w-8 h-8 flex items-center justify-center">
-            <ChevronRight :size="24" class="text-gray-800" />
-          </button>
+        <div class="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
+          <span class="text-white text-[11px] font-bold">S</span>
+        </div>
+        <span class="text-[13px] text-gray-700">وفر بخصم 1.60 ر.س على هذا المنتج بعد الانضمام</span>
+        </div>
+      <ChevronLeft :size="16" class="text-gray-600" />
+        </div>
+
+    <!-- Product Info -->
+    <div class="px-4">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="flex items-center gap-1">
+          <StarIcon :size="14" class="text-yellow-400 fill-yellow-400" />
+          <span class="font-bold text-[14px]">{{ avgRating.toFixed(1) }}</span>
+          <span class="text-gray-600 text-[13px]">(+{{ reviews.length || 1000 }})</span>
+        </div>
+        <span class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" style="background-color: #8a1538">Choices</span>
+        <span class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">ترندات</span>
+      </div>
+
+      <h1 class="text-[13px] leading-relaxed text-gray-800 mb-3">
+        SHEIN Elenzga سترة نسائية ذات نقشة زهرية
+      </h1>
+
+      <!-- Customer Images Badge -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <div class="flex -space-x-2">
+            <div v-for="i in 3" :key="i" class="w-8 h-8 rounded-full border-2 border-white overflow-hidden">
+              <img :src="images[i % images.length]" class="w-full h-full object-cover" />
+      </div>
+      </div>
+          <span class="text-[12px] text-gray-600">في أصفر الزراء أنت قُم & كابتن</span>
+      </div>
+        <div class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full">
+          <span class="text-[11px] font-bold">#4 الأفضل مبيعاً</span>
+          <Camera :size="14" />
         </div>
       </div>
-    </div>
 
-    <!-- Product Image Gallery -->
-    <div class="relative mt-14 bg-white">
-      <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide" @scroll.passive="onGalleryScroll">
-        <div class="flex">
-          <div v-for="(img,idx) in images" :key="'img-'+idx" class="w-full flex-shrink-0 snap-start relative">
-            <img :src="img" :alt="title" class="w-full h-auto object-cover block" loading="lazy" />
-          </div>
+      <!-- Color Selector -->
+      <div class="mb-4">
+        <div class="flex items-center gap-1 mb-2">
+          <span class="font-semibold text-[14px]">لون: أصفر</span>
+          <ChevronLeft :size="16" class="text-gray-600" />
         </div>
-      </div>
-      
-      <!-- Image Counter -->
-      <div class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-[13px] font-medium">
-        {{ activeIdx + 1 }}/{{ images.length }}
-      </div>
-      
-      <!--Wishlist Badge -->
-      <button @click="toggleWish" class="absolute top-3 left-3 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
-        <Heart :size="20" :class="hasWish ? 'text-red-500 fill-red-500' : 'text-gray-600'" />
-      </button>
-
-      <!-- Gallery Dots -->
-      <div class="flex justify-center gap-1.5 py-3 bg-white">
-        <div v-for="(img, i) in images" :key="'dot-'+i" 
-             class="h-1.5 rounded-full transition-all"
-             :class="i === activeIdx ? 'w-6 bg-gray-900' : 'w-1.5 bg-gray-300'">
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="space-y-3">
-      <!-- Price Section -->
-      <div class="bg-white px-4 py-4">
-        <div class="flex items-baseline gap-2 mb-2">
-          <span class="text-[28px] font-bold text-red-600">{{ displayPrice }} ر.س</span>
-          <span v-if="originalPrice" class="text-[16px] text-gray-400 line-through">{{ originalPrice }} ر.س</span>
-          <span v-if="originalPrice" class="bg-red-100 text-red-600 text-[12px] px-2 py-0.5 rounded font-bold">
-            -{{ Math.round((1 - price/parseFloat(originalPrice)) * 100) }}%
-          </span>
-        </div>
-
-        <!-- SHEIN CLUB Offer -->
-        <div class="bg-gradient-to-r from-orange-50 to-orange-100 px-3 py-2.5 rounded-lg mb-3 border border-orange-200">
-          <div class="flex items-center gap-2">
-            <div class="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded px-1.5 py-0.5 text-[11px] font-bold">S</div>
-            <span class="text-[13px] text-orange-800 font-medium">وفر {{ clubSave.toFixed(2) }} ر.س مع SHEIN CLUB</span>
-          </div>
-        </div>
-
-        <!-- Flash Sale Timer -->
-        <div v-if="showFlashSale" class="bg-gradient-to-r from-red-500 to-pink-500 px-3 py-2.5 rounded-lg flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <Zap :size="16" class="text-white" />
-            <span class="text-white text-[13px] font-bold">عرض محدود</span>
-          </div>
-          <div class="flex items-center gap-1 text-white">
-            <div class="bg-white/20 px-2 py-1 rounded text-[13px] font-bold">{{ hours }}</div>
-            <span class="text-[13px]">:</span>
-            <div class="bg-white/20 px-2 py-1 rounded text-[13px] font-bold">{{ minutes }}</div>
-            <span class="text-[13px]">:</span>
-            <div class="bg-white/20 px-2 py-1 rounded text-[13px] font-bold">{{ seconds }}</div>
+        <div class="flex gap-1 overflow-x-auto no-scrollbar pb-2">
+          <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative">
+            <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i">
+              <img :src="c.image" class="w-full h-full object-cover" />
+            </div>
+            <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">
+              HOT
+            </div>
+            <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
           </div>
         </div>
       </div>
 
-      <!-- Product Title & Rating -->
-      <div class="bg-white px-4 py-4">
-        <h1 class="text-[17px] font-semibold leading-snug text-gray-900 mb-3">{{ title }}</h1>
-        
-        <!-- Rating -->
-        <div class="flex items-center gap-3 mb-3">
-          <div class="flex items-center gap-1.5">
-            <Star v-for="i in 5" :key="i" :size="16" :class="i <= Math.floor(avgRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'" />
-          </div>
-          <span class="text-[15px] font-bold text-gray-900">{{ avgRating.toFixed(1) }}</span>
-          <button @click="scrollToReviews" class="text-[13px] text-gray-500 underline">({{ reviewsCount }}+ تقييم)</button>
+      <!-- Size Selector -->
+      <div ref="sizeSelectorRef" class="mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-semibold text-[14px]">مقاس - الافتراضي</span>
+          <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
         </div>
-
-        <!-- Tags -->
         <div class="flex flex-wrap gap-2">
-          <span class="bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full text-[12px] font-medium">#5 الأفضل مبيعاً</span>
-          <span class="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full text-[12px] font-medium">ترندات</span>
-          <span class="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[12px] font-medium">توصيل سريع</span>
+          <button 
+            v-for="s in sizeOptions" 
+            :key="s" 
+            class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
+            :class="size===s ? 'text-white' : 'bg-white text-black border-gray-300'"
+            :style="size===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
+            @click="size=s"
+          >
+            {{ s }}
+          </button>
         </div>
+      <div class="mt-2">
+          <span class="text-[13px] text-gray-600 underline cursor-pointer">ترام كيرفي ◀</span>
+      </div>
       </div>
 
-      <!-- Coupons Section -->
-      <div class="bg-white px-4 py-4" v-if="coupons.length">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <Ticket :size="18" class="text-red-500" />
-            <span class="text-[15px] font-bold text-gray-900">كوبونات متاحة</span>
-          </div>
-          <button class="text-[13px] text-blue-600">عرض الكل</button>
+      <!-- Fit Rating -->
+      <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+        <div class="flex items-center gap-2 mb-2">
+          <ThumbsUp :size="16" class="text-green-600" />
+          <span class="font-bold text-[16px]">96%</span>
+          <span class="text-[12px] text-gray-600">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
+          <ChevronLeft :size="16" class="text-gray-600 mr-auto" />
+      </div>
+        <div class="text-[12px] text-gray-600">
+          ليس مقاسك؟ اختبرنا ما هو مقاسك ◀
         </div>
-        <div class="space-y-2">
-          <div v-for="(coupon, i) in coupons.slice(0, 2)" :key="i" 
-               class="border-2 border-dashed border-red-300 rounded-lg p-3 flex items-center justify-between bg-red-50">
+      </div>
+    </div>
+    <div ref="firstContainerEnd"></div>
+    </div>
+
+    <!-- White Container: Shipping Info -->
+    <div class="bg-white px-4 mt-0.5">
+      <!-- Shipping to Bahrain -->
+      <div class="mb-4">
+        <div class="text-[16px] font-bold mb-3">الشحن الى Bahrain</div>
+        
+        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+        <div class="flex items-center gap-2">
+            <Truck :size="20" class="text-green-600" />
             <div>
-              <div class="text-[14px] font-bold text-red-600 mb-1">{{ coupon.title }}</div>
-              <div class="text-[12px] text-gray-600">{{ coupon.desc }}</div>
+              <div class="text-[14px] font-bold">شحن مجاني (طلبات ≤ 333.80#)</div>
+              <div class="text-[13px] text-gray-600">شحن سريع التوصيل: 5-7 يوم عمل</div>
+        </div>
+          </div>
+          <ChevronLeft :size="16" class="text-gray-600" />
+      </div>
+
+        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+              <span class="text-white text-[11px] font-bold">S</span>
+          </div>
+            <div class="text-[13px]">
+              انضم للحصول على X15 كوبونات شحن (بقيمة 450.00#)
+        </div>
+        </div>
+          <ChevronLeft :size="16" class="text-gray-600" />
+        </div>
+
+        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+          <div class="flex items-center gap-2">
+            <DollarSign :size="20" class="text-green-600" />
+            <span class="text-[14px]">خدمة الدفع عند الاستلام</span>
+          </div>
+          <ChevronLeft :size="16" class="text-gray-600" />
+        </div>
+
+        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+          <div class="flex items-center gap-2">
+            <RotateCcw :size="20" class="text-gray-600" />
+            <span class="text-[14px]">سياسة الإرجاع</span>
+          </div>
+          <ChevronLeft :size="16" class="text-gray-600" />
+        </div>
+
+        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+          <div class="flex items-center gap-2">
+            <ShieldCheck :size="20" class="text-green-600" />
+            <span class="text-[14px]">أمن التسوق</span>
+          </div>
+          <ChevronLeft :size="16" class="text-gray-600" />
+        </div>
+
+        <div class="mt-3 p-3 bg-gray-50 rounded-lg">
+          <div class="grid grid-cols-2 gap-2 text-[12px] text-gray-700">
+            <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>طرق دفع آمنة</div>
+            <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>شحن آمن</div>
+            <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>حماية الخصوصية</div>
+            <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>خدمة العملاء</div>
+          </div>
+      </div>
+
+        <div class="flex items-center justify-between py-3">
+        <div class="flex items-center gap-2">
+            <Truck :size="20" class="text-green-600" />
+            <span class="text-[13px]">الباع والشحن من: شي ان</span>
+          </div>
+          <ChevronLeft :size="16" class="text-gray-600" />
+        </div>
+        </div>
+      </div>
+
+    <!-- White Container: Products Section -->
+    <div class="bg-white px-4 mt-0.5">
+      <!-- Section 1: Products (Always Visible) -->
+      <div ref="productsContentRef">
+        <!-- Coupon Banner -->
+        <div class="mb-4 p-3 bg-gradient-to-r from-pink-50 to-yellow-50 rounded-lg border border-pink-200">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-[13px]">مناسبة المطلة</span>
+              <span class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">ترندات</span>
+              <span class="text-[11px] text-green-600 font-bold">⬇️ارتفاع14%</span>
+          </div>
+          </div>
+          <div class="text-[12px] text-gray-600 mt-1">
+            إطلالات عطلة ساحرة لك ولعائلتك لمغامرات منسمة!
+        </div>
+      </div>
+
+        <!-- Description -->
+        <div class="mb-4 pb-4 border-b border-gray-200">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-[15px]">وصف</span>
+            <ChevronLeft :size="16" class="text-gray-600" />
+          </div>
+          <div class="text-[13px] text-gray-700">
+            فستان طويلة بدون أكمام • الصائف • بلمع او بوهج • تصميم منسوع عند الخصر
+          </div>
+        </div>
+
+        <!-- Model Reference -->
+        <div class="mb-4 pb-4 border-b border-gray-200">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-[15px]">مرجع المقاس</span>
+            <ChevronLeft :size="16" class="text-gray-600" />
+          </div>
+        </div>
+
+        <!-- Model Measurements -->
+        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+        <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[14px] font-bold mb-2">عارضة الأزياء ترتدي: S</div>
+              <div class="text-[12px] text-gray-600">
+                <span>طول: 163.0</span> | 
+                <span>صدر: 88.0</span> | 
+                <span>خصر: 64.0</span><br>
+                <span>الوركين: 92.0</span>
+        </div>
             </div>
-            <button class="bg-red-500 text-white px-4 py-1.5 rounded-full text-[12px] font-bold hover:bg-red-600 transition">
-              احصل عليه
+            <div class="w-12 h-12 rounded-full overflow-hidden">
+              <img :src="images[0]" class="w-full h-full object-cover" />
+            </div>
+        </div>
+      </div>
+
+        <!-- Seller Info -->
+        <div class="mb-4 p-4 border border-gray-200 rounded-lg">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-[15px]">Elenzga</span>
+              <ChevronLeft :size="16" class="text-gray-600" />
+            </div>
+            <div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center">
+              <span class="text-2xl">E</span>
+            </div>
+          </div>
+          <div class="text-[11px] text-gray-600 mb-2">
+            ***w تمت متابعته منذ 10 دقيقة
+          </div>
+          <div class="flex gap-2 mb-3">
+            <span class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" style="background-color: #8a1538">Choices</span>
+            <span class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">ترندات</span>
+          </div>
+          <div class="text-[12px] text-gray-700 mb-3">
+            مصممة لمن تسلك أناقة وراقية
+          </div>
+          <div class="flex gap-2">
+            <button class="flex-1 py-2 border border-gray-300 rounded-full text-[13px]">
+              كل المنتجات
+            </button>
+            <button class="flex-1 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full text-[13px] font-bold">
+              + متابع
             </button>
           </div>
         </div>
       </div>
-
-      <!-- Color Selection -->
-      <div class="bg-white px-4 py-4">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-[15px] font-bold text-gray-900">اللون: <span class="font-normal text-gray-700">{{ selectedColor }}</span></span>
-        </div>
-        <div class="flex gap-2 flex-wrap">
-          <button v-for="(color, i) in colors" :key="i"
-                  @click="selectColor(i)"
-                  class="relative w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
-                  :class="selectedColorIdx === i ? 'border-gray-900 ring-2 ring-gray-900 ring-offset-2' : 'border-gray-200'">
-            <div class="w-full h-full" :style="{ backgroundColor: color.hex }"></div>
-            <Check v-if="selectedColorIdx === i" :size="16" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow" />
-          </button>
-        </div>
       </div>
 
-      <!-- Size Selection -->
-      <div class="bg-white px-4 py-4">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-[15px] font-bold text-gray-900">المقاس: <span class="font-normal text-gray-700">{{ selectedSize }}</span></span>
-          <button @click="showSizeGuide = true" class="flex items-center gap-1 text-blue-600 text-[13px] font-medium">
-            <Ruler :size="14" />
-            <span>دليل المقاسات</span>
-          </button>
-        </div>
-        <div class="grid grid-cols-4 gap-2">
-          <button v-for="size in sizes" :key="size"
-                  @click="selectedSize = size"
-                  class="h-11 rounded-lg border-2 text-[14px] font-medium transition-all"
-                  :class="selectedSize === size 
-                    ? 'border-gray-900 bg-gray-900 text-white' 
-                    : 'border-gray-300 text-gray-700 hover:border-gray-400'">
-            {{ size }}
-          </button>
-        </div>
-        
-        <!-- Size Recommendation -->
-        <div class="mt-3 bg-blue-50 px-3 py-2 rounded-lg flex items-start gap-2">
-          <Info :size="16" class="text-blue-600 mt-0.5 flex-shrink-0" />
-          <div class="text-[12px] text-blue-800">
-            <div class="font-bold mb-1">نصيحة المقاس</div>
-            <div>{{ sizeFitPercentage }}% من العملاء اختاروا مقاسهم المعتاد</div>
+    <!-- White Container: Reviews Section -->
+    <div class="bg-white px-4 mt-0.5">
+      <!-- Section 2: Reviews (Always Visible) -->
+      <div ref="reviewsContentRef" class="mt-8">
+        <!-- Reviews Header -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-bold text-[16px]">تعليقات(+1000)</span>
+            <span class="text-[13px] text-gray-600 cursor-pointer">عرض الكل ◀</span>
+      </div>
+
+          <!-- Overall Rating -->
+          <div class="text-center mb-4">
+            <div class="flex justify-center mb-2">
+              <StarIcon v-for="i in 5" :key="i" :size="20" class="text-yellow-400 fill-yellow-400" />
+            </div>
+            <div class="text-[32px] font-bold">{{ avgRating.toFixed(2) }}</div>
           </div>
-        </div>
-      </div>
 
-      <!-- Quantity -->
-      <div class="bg-white px-4 py-4">
-        <div class="text-[15px] font-bold text-gray-900 mb-3">الكمية</div>
-        <div class="flex items-center gap-3">
-          <button @click="decreaseQty" 
-                  class="w-10 h-10 rounded-lg border-2 border-gray-300 flex items-center justify-center text-gray-700 font-bold hover:bg-gray-50"
-                  :disabled="quantity <= 1">
-            <Minus :size="18" />
-          </button>
-          <div class="flex-1 h-10 rounded-lg border-2 border-gray-300 flex items-center justify-center text-[15px] font-bold">
-            {{ quantity }}
-          </div>
-          <button @click="increaseQty" 
-                  class="w-10 h-10 rounded-lg border-2 border-gray-300 flex items-center justify-center text-gray-700 font-bold hover:bg-gray-50">
-            <Plus :size="18" />
-          </button>
-          <div class="text-[13px] text-gray-500">متوفر: {{ stock }} قطعة</div>
-        </div>
-      </div>
-
-      <!-- Shipping & Delivery -->
-      <div class="bg-white px-4 py-4">
-        <div class="flex items-center gap-2 mb-3">
-          <Truck :size="18" class="text-gray-700" />
-          <span class="text-[15px] font-bold text-gray-900">التوصيل والشحن</span>
-        </div>
-        
-        <div class="space-y-3">
-          <!-- Location -->
-          <div class="flex items-start gap-3 pb-3 border-b border-gray-100">
-            <MapPin :size="16" class="text-gray-500 mt-0.5 flex-shrink-0" />
-            <div class="flex-1">
-              <div class="text-[13px] text-gray-600 mb-1">التوصيل إلى</div>
-              <div class="flex items-center justify-between">
-                <span class="text-[14px] font-medium text-gray-900">{{ shippingLocation }}</span>
-                <button class="text-blue-600 text-[13px] font-medium">تغيير</button>
+          <!-- Fit Survey -->
+          <div class="mb-4">
+            <div class="text-[13px] text-gray-700 mb-2">هل مقاس المنتج مناسب بشكل جيد؟</div>
+            <div class="flex items-center justify-between text-[12px] mb-1">
+              <span class="text-gray-600">صغير</span>
+              <span class="font-bold">مناسب</span>
+              <span class="text-gray-600">كبير</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-gray-600 text-[12px]">2%</span>
+              <div class="flex-1 h-2 bg-gray-200 rounded overflow-hidden">
+                <div class="h-full bg-black rounded" style="width: 96%"></div>
               </div>
+              <span class="text-gray-600 text-[12px]">2%</span>
+            </div>
+            <div class="flex justify-between text-[12px] text-gray-600 mt-1">
+              <span>صغير</span>
+              <span class="font-bold text-black">96%</span>
+              <span>مناسب</span>
+              <span>2%</span>
+              <span>كبير</span>
             </div>
           </div>
 
-          <!-- Delivery Date -->
-          <div class="flex items-start gap-3 pb-3 border-b border-gray-100">
-            <Calendar :size="16" class="text-gray-500 mt-0.5 flex-shrink-0" />
-            <div class="flex-1">
-              <div class="text-[13px] text-gray-600 mb-1">تاريخ التوصيل المتوقع</div>
-              <div class="text-[14px] font-medium text-gray-900">{{ deliveryDate }}</div>
-            </div>
+          <!-- Review Filters -->
+          <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4">
+            <button class="px-3 py-1.5 bg-gray-100 rounded-full text-[12px] whitespace-nowrap">
+              سوف اشتريه مرة أخرى (7)
+          </button>
+            <button class="px-3 py-1.5 bg-gray-100 rounded-full text-[12px] whitespace-nowrap">
+              قماش جيد (+100)
+            </button>
+            <button class="px-3 py-1.5 bg-gray-100 rounded-full text-[12px] whitespace-nowrap">
+              أنيق (+100)
+            </button>
           </div>
 
-          <!-- Shipping Cost -->
-          <div class="flex items-start gap-3">
-            <Package :size="16" class="text-gray-500 mt-0.5 flex-shrink-0" />
-            <div class="flex-1">
-              <div class="text-[13px] text-gray-600 mb-1">تكلفة الشحن</div>
-              <div class="text-[14px] font-medium text-green-600">شحن مجاني للطلبات فوق {{ freeShippingThreshold }} ر.س</div>
-            </div>
-          </div>
+          <!-- Local Reviews Badge -->
+          <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200">
+            <div class="flex">
+              <StarIcon v-for="i in 5" :key="i" :size="16" class="text-yellow-400 fill-yellow-400" />
         </div>
+            <span class="font-bold">{{ avgRating.toFixed(2) }}</span>
+            <span class="text-[13px] text-gray-600">تقييمات العملاء المحلية</span>
+            <ChevronLeft :size="16" class="text-gray-600 mr-auto" />
       </div>
 
-      <!-- Product Details -->
-      <div class="bg-white px-4 py-4">
-        <button @click="showDetails = !showDetails" class="w-full flex items-center justify-between mb-3">
-          <span class="text-[15px] font-bold text-gray-900">تفاصيل المنتج</span>
-          <ChevronDown :size="20" :class="showDetails ? 'rotate-180' : ''" class="transition-transform text-gray-600" />
-        </button>
-        
-        <div v-if="showDetails" class="space-y-2 text-[14px]">
-          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
-            <span class="text-gray-600">المادة</span>
-            <span class="text-gray-900 font-medium">100% قطن</span>
-          </div>
-          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
-            <span class="text-gray-600">النمط</span>
-            <span class="text-gray-900 font-medium">لون سادة</span>
-          </div>
-          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
-            <span class="text-gray-600">نوع الأكمام</span>
-            <span class="text-gray-900 font-medium">أكمام قصيرة</span>
-          </div>
-          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
-            <span class="text-gray-600">المناسبة</span>
-            <span class="text-gray-900 font-medium">كاجوال، يومي</span>
-          </div>
-          <div class="grid grid-cols-[100px_1fr] gap-3 py-2 border-b border-gray-100">
-            <span class="text-gray-600">الموسم</span>
-            <span class="text-gray-900 font-medium">صيف، ربيع</span>
-          </div>
-          <div class="grid grid-cols-[100px_1fr] gap-3 py-2">
-            <span class="text-gray-600">العناية</span>
-            <span class="text-gray-900 font-medium">غسيل آلي، لا تبييض</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Description -->
-      <div class="bg-white px-4 py-4">
-        <button @click="showDescription = !showDescription" class="w-full flex items-center justify-between mb-3">
-          <span class="text-[15px] font-bold text-gray-900">الوصف</span>
-          <ChevronDown :size="20" :class="showDescription ? 'rotate-180' : ''" class="transition-transform text-gray-600" />
-        </button>
-        
-        <div v-if="showDescription" class="text-[14px] text-gray-700 leading-relaxed space-y-3">
-          <p>قميص كاجوال أنيق مناسب للارتداء اليومي وفي المناسبات الصيفية. مصنوع من قطن عالي الجودة يوفر راحة فائقة طوال اليوم.</p>
-          <p>التصميم البسيط والعصري يجعله قطعة أساسية في خزانة ملابسك. يمكن تنسيقه مع الجينز أو البنطلونات الكاجوال.</p>
-          
-          <div class="bg-gray-50 p-3 rounded-lg mt-4">
-            <div class="text-[13px] font-bold text-gray-900 mb-2">معلومات المانيكان:</div>
-            <div class="text-[13px] text-gray-600">{{ modelMeasurements }}</div>
-            <div class="text-[13px] text-gray-600 mt-1">المانيكان ترتدي المقاس: {{ modelSize }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Reviews Section -->
-      <div ref="reviewsSection" class="bg-white px-4 py-4">
-        <div class="flex items-center justify-between mb-4">
-          <span class="text-[17px] font-bold text-gray-900">التقييمات ({{ reviewsCount }})</span>
-          <button class="text-blue-600 text-[13px] font-medium">عرض الكل</button>
-        </div>
-
-        <!-- Rating Summary -->
-        <div class="bg-gray-50 rounded-lg p-4 mb-4">
-          <div class="flex items-center gap-4 mb-4">
-            <div class="text-center">
-              <div class="text-[36px] font-bold text-gray-900">{{ avgRating.toFixed(1) }}</div>
-              <div class="flex items-center justify-center gap-0.5 mb-1">
-                <Star v-for="i in 5" :key="i" :size="14" :class="i <= Math.floor(avgRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'" />
-              </div>
-              <div class="text-[12px] text-gray-500">{{ reviewsCount }} تقييم</div>
-            </div>
-            
-            <div class="flex-1 space-y-2">
-              <div v-for="star in [5,4,3,2,1]" :key="star" class="flex items-center gap-2">
-                <div class="flex items-center gap-1">
-                  <Star :size="12" class="text-yellow-400 fill-yellow-400" />
-                  <span class="text-[12px] text-gray-600 w-3">{{ star }}</span>
-                </div>
-                <div class="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div class="h-full bg-yellow-400" :style="{ width: getStarPercentage(star) + '%' }"></div>
-                </div>
-                <span class="text-[11px] text-gray-500 w-8 text-right">{{ getStarPercentage(star) }}%</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Customer Stats -->
-          <div class="grid grid-cols-2 gap-3">
-            <div class="bg-white rounded-lg p-3 text-center">
-              <div class="text-[14px] font-bold text-gray-900">{{ sizeFitPercentage }}%</div>
-              <div class="text-[11px] text-gray-600">مقاس مناسب</div>
-            </div>
-            <div class="bg-white rounded-lg p-3 text-center">
-              <div class="text-[14px] font-bold text-gray-900">{{ wouldBuyAgain }}%</div>
-              <div class="text-[11px] text-gray-600">سيشترون مرة أخرى</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Reviews List -->
-        <div class="space-y-4">
-          <div v-for="review in reviews.slice(0, 3)" :key="review.id" class="border-b border-gray-100 pb-4 last:border-0">
+          <!-- Individual Reviews -->
+          <div v-for="review in customerReviews" :key="review.id" class="mb-4 pb-4 border-b border-gray-200">
             <div class="flex items-start justify-between mb-2">
-              <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-[13px] font-bold">
-                  {{ review.user.charAt(0) }}
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-[14px]">{{ review.userName }}</span>
+                  <div class="flex">
+                    <StarIcon v-for="i in review.rating" :key="i" :size="14" class="text-yellow-400 fill-yellow-400" />
+                  </div>
                 </div>
-                <div>
-                  <div class="text-[13px] font-medium text-gray-900">{{ review.user }}</div>
-                  <div class="text-[11px] text-gray-500">{{ review.date }}</div>
+                <div class="text-[12px] text-gray-600 mt-1">
+                  لون:{{ review.color || 'أصفر' }} / مقاس:{{ review.size }}
                 </div>
               </div>
-              <div class="flex items-center gap-0.5">
-                <Star v-for="i in 5" :key="i" :size="12" :class="i <= review.stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'" />
-              </div>
-            </div>
-            
-            <p class="text-[14px] text-gray-700 leading-relaxed mb-2">{{ review.comment }}</p>
-            
-            <div class="text-[12px] text-gray-500 mb-2">{{ review.colorSize }}</div>
-            
-            <button class="flex items-center gap-1 text-[12px] text-gray-600">
-              <ThumbsUp :size="14" />
-              <span>مفيد ({{ review.helpful }})</span>
-            </button>
-          </div>
-        </div>
-
-        <button class="w-full mt-4 py-3 border-2 border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition">
-          عرض جميع التقييمات ({{ reviewsCount }})
-        </button>
-      </div>
-
-      <!-- Similar Products -->
-      <div class="bg-white px-4 py-4">
-        <div class="text-[17px] font-bold text-gray-900 mb-4">منتجات مشابهة</div>
-        <div class="grid grid-cols-2 gap-3">
-          <div v-for="product in relatedProducts" :key="product.id" class="border border-gray-200 rounded-lg overflow-hidden">
-            <img :src="product.image" :alt="product.name" class="w-full aspect-square object-cover" />
-            <div class="p-2">
-              <div class="text-[13px] font-medium text-gray-900 mb-1 line-clamp-2">{{ product.name }}</div>
-              <div class="text-[15px] font-bold text-gray-900 mb-1">{{ product.price }} ر.س</div>
-              <div class="flex items-center gap-1">
-                <Star :size="12" class="text-yellow-400 fill-yellow-400" />
-                <span class="text-[11px] text-gray-600">({{ product.reviews }})</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- FAQ -->
-      <div class="bg-white px-4 py-4">
-        <div class="text-[17px] font-bold text-gray-900 mb-4">أسئلة شائعة</div>
-        <div class="space-y-3">
-          <div v-for="(faq, i) in faqs" :key="i" class="border-b border-gray-100 pb-3 last:border-0">
-            <button @click="toggleFaq(i)" class="w-full flex items-start justify-between gap-3 text-right">
-              <span class="text-[14px] font-medium text-gray-900">{{ faq.q }}</span>
-              <ChevronDown :size="18" :class="faq.open ? 'rotate-180' : ''" class="transition-transform text-gray-600 flex-shrink-0 mt-0.5" />
-            </button>
-            <div v-if="faq.open" class="text-[13px] text-gray-600 mt-2 leading-relaxed">{{ faq.a }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Trust Badges -->
-      <div class="bg-white px-4 py-4">
-        <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="space-y-2">
-            <div class="w-12 h-12 mx-auto rounded-full bg-green-100 flex items-center justify-center">
-              <ShieldCheck :size="24" class="text-green-600" />
-            </div>
-            <div class="text-[11px] text-gray-600">ضمان الجودة</div>
-          </div>
-          <div class="space-y-2">
-            <div class="w-12 h-12 mx-auto rounded-full bg-blue-100 flex items-center justify-center">
-              <RotateCcw :size="24" class="text-blue-600" />
-            </div>
-            <div class="text-[11px] text-gray-600">إرجاع مجاني</div>
-          </div>
-          <div class="space-y-2">
-            <div class="w-12 h-12 mx-auto rounded-full bg-purple-100 flex items-center justify-center">
-              <Lock :size="24" class="text-purple-600" />
-            </div>
-            <div class="text-[11px] text-gray-600">دفع آمن</div>
-          </div>
-        </div>
-      </div>
+              <span class="text-[12px] text-gray-400">{{ formatReviewDate(review.date) }}</span>
     </div>
 
-    <!-- Bottom Action Bar -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 flex items-center gap-2 pb-safe z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
-      <button @click="router.push('/cart')" class="w-12 h-12 rounded-lg border-2 border-gray-300 flex items-center justify-center relative hover:bg-gray-50 transition">
-        <ShoppingCart :size="22" class="text-gray-700" />
-        <span v-if="cart.count" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[11px] px-1 font-bold">{{ cart.count }}</span>
-      </button>
-      <button @click="buyNow" class="flex-1 h-12 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold text-[15px] hover:from-orange-600 hover:to-orange-700 transition shadow-md">
-        اشتر الآن
-      </button>
-      <button @click="addToCart" class="flex-1 h-12 rounded-lg bg-gradient-to-r from-gray-900 to-gray-800 text-white font-bold text-[15px] hover:from-black hover:to-gray-900 transition shadow-md">
-        أضف للسلة
-      </button>
+            <div class="text-[13px] text-gray-800 mb-2 leading-relaxed">
+              {{ review.text }}
+              <span v-if="review.images && review.images.length" class="text-gray-600">... 🖼️ اكثر</span>
     </div>
 
-    <!-- Size Guide Modal -->
-    <div v-if="showSizeGuide" @click="showSizeGuide = false" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-      <div @click.stop class="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
-        <div class="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between">
-          <span class="text-[17px] font-bold text-gray-900">دليل المقاسات</span>
-          <button @click="showSizeGuide = false" class="w-8 h-8 flex items-center justify-center">
-            <X :size="24" class="text-gray-600" />
+            <!-- Review Images -->
+            <div v-if="review.images && review.images.length" class="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
+              <div 
+                v-for="(img, imgIdx) in review.images" 
+                :key="imgIdx"
+                class="w-20 h-20 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                @click="openReviewImage(img)"
+              >
+                <img :src="img" class="w-full h-full object-cover" />
+        </div>
+      </div>
+
+            <!-- Helpful Button -->
+            <div class="flex items-center gap-2">
+              <button class="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-full text-[13px]">
+                <ThumbsUp :size="14" />
+                <span>مفيد ({{ review.helpful || 0 }})</span>
+              </button>
+              <button class="text-[13px] text-gray-600">...</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+    <!-- White Container: Recommendations Header -->
+    <div class="bg-white px-4 mt-0.5">
+      <!-- Section 3: Recommendations (Always Visible) -->
+      <div ref="recommendationsContentRef" class="mt-8">
+        <div class="text-[16px] font-bold mb-3">ربما يعجبك هذا أيضاً</div>
+        
+        <!-- Sub Tabs -->
+        <div ref="recommendationTabsRef" class="flex gap-4 mb-4 overflow-x-auto no-scrollbar border-b border-gray-200">
+          <button class="pb-2 text-[14px] border-b-2 font-bold whitespace-nowrap" style="border-bottom-color: #8a1538">
+            التوصية
+          </button>
+          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
+            مجوهرات & ساعات
+          </button>
+          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
+            ملابس واكسسوارات
+          </button>
+          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
+            ملابس داخلية & ملابس نوم
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Product Cards - NO container, just cards -->
+    <div class="px-2 pb-2">
+      <!-- Product Cards - same layout as Products.vue -->
+        <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
+          <div v-for="(p,i) in recommendedProducts" :key="'rec-'+i" class="mb-1 break-inside-avoid">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openRecommended(p)" @keydown.enter="openRecommended(p)" @keydown.space.prevent="openRecommended(p)">
+              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
+                <div class="flex">
+                  <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
+                </div>
+                <div v-if="p.colors && p.colors.length" class="absolute bottom-2 right-2 flex items-center">
+                  <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
+                    <span v-for="(c,idx) in p.colors.slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
+                    <span v-if="p.colorCount" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="relative p-2">
+                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden">
+                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span>
+                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700">
+                    <Store :size="14" color="#6D28D9" :stroke-width="2" />
+                    <span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span>
+                    <span class="text-violet-700 ms-0.5">&gt;</span>
+                  </span>
+                </div>
+                <div class="flex items-center gap-1 mt-1.5">
+                  <div v-if="p.discountPercent" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div>
+                  <div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div>
+                </div>
+                <div v-if="p.bestRank" class="mt-1 inline-flex items-stretch rounded overflow-hidden">
+                  <div class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div>
+                </div>
+                <div class="mt-1 flex items-center gap-1">
+                  <span class="text-red-600 font-bold text-[13px]">{{ p.price }} ريال</span>
+                  <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
+                </div>
+                <button class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCart">
+                  <ShoppingCart :size="16" class="text-black" />
+                  <span class="text-[11px] font-bold text-black">1+</span>
+                </button>
+                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
+                  <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span>
+                  <span class="text-[11px] text-orange-500">/بعد الكوبون</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         
-        <div class="p-4">
-          <div class="overflow-x-auto">
-            <table class="w-full text-[13px]">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="px-3 py-2 text-right font-medium text-gray-900">المقاس</th>
-                  <th class="px-3 py-2 text-center font-medium text-gray-900">الصدر (سم)</th>
-                  <th class="px-3 py-2 text-center font-medium text-gray-900">الطول (سم)</th>
-                  <th class="px-3 py-2 text-center font-medium text-gray-900">الأكمام (سم)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="size in sizeChart" :key="size.size" class="border-b border-gray-100">
-                  <td class="px-3 py-3 font-medium text-gray-900">{{ size.size }}</td>
-                  <td class="px-3 py-3 text-center text-gray-600">{{ size.bust }}</td>
-                  <td class="px-3 py-3 text-center text-gray-600">{{ size.length }}</td>
-                  <td class="px-3 py-3 text-center text-gray-600">{{ size.sleeve }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="mt-4 bg-blue-50 p-3 rounded-lg">
-            <div class="text-[13px] text-blue-900 font-bold mb-2">نصائح القياس:</div>
-            <ul class="text-[12px] text-blue-800 space-y-1">
-              <li>• استخدم شريط قياس مرن</li>
-              <li>• قس على الجسم مباشرة وليس فوق الملابس</li>
-              <li>• إذا كانت قياساتك بين مقاسين، اختر الأكبر</li>
-            </ul>
-          </div>
+      <!-- Loading -->
+      <div v-if="isLoadingRecommended" class="flex items-center justify-center py-8">
+        <div class="flex flex-col items-center gap-2">
+          <div class="w-8 h-8 border-4 border-gray-300 rounded-full animate-spin" style="border-top-color: #8a1538"></div>
+          <span class="text-[12px] text-gray-500">جاري التحميل...</span>
         </div>
       </div>
     </div>
 
-    <!-- Toast Notification -->
+    <!-- Back to Top Button -->
+    <button 
+      v-if="showBackToTop"
+      @click="scrollToTop"
+      class="fixed bottom-24 left-4 w-12 h-12 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center z-40 hover:scale-110 transition-all hover:shadow-xl"
+      style="border-color: #8a1538"
+    >
+      <ChevronUp :size="24" style="color: #8a1538" />
+    </button>
+
+    <!-- Bottom Actions - Fixed with shadow on scroll -->
+    <div 
+      class="fixed left-0 right-0 bottom-0 bg-white border-t p-3 flex items-center gap-2 z-50 transition-all duration-300"
+      :class="scrolled ? 'border-gray-200 shadow-lg' : 'border-gray-200'"
+    >
+      <button 
+        class="flex-1 h-12 rounded-md text-white font-bold transition-all active:scale-95 hover:opacity-90"
+        style="background-color: #8a1538"
+        @click="addToCart"
+      >
+        أضف إلى عربة التسوق بنجاح
+      </button>
+      <button 
+        class="w-12 h-12 rounded-md border border-gray-300 bg-white inline-flex items-center justify-center transition-all active:scale-90 hover:border-red-500" 
+        :aria-label="hasWish ? 'إزالة من المفضلة' : 'أضف إلى المفضلة'" 
+        @click="toggleWish"
+      >
+        <HeartIcon :size="20" :class="hasWish ? 'text-red-500 fill-red-500' : 'hover:text-red-500'" />
+      </button>
+    </div>
+
+    <!-- Toast - Enhanced Animation -->
     <Transition name="toast">
-      <div v-if="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-2">
-        <CheckCircle :size="18" class="text-green-400" />
-        <span class="text-[14px] font-medium">{{ toastText }}</span>
+      <div 
+        v-if="toast" 
+        class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2"
+      >
+        <CheckCircle :size="16" class="text-green-400" />
+        <span>{{ toastText }}</span>
       </div>
     </Transition>
+
+  <!-- ورقة مرجع المقاس السفلية -->
+  <div v-if="sizeGuideOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" @click="closeSizeGuide"></div>
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 max-h-[70vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-[16px]">مرجع المقاس</h3>
+        <button class="text-[20px]" @click="closeSizeGuide">×</button>
+      </div>
+      <div class="text-[13px] text-gray-700 leading-relaxed">
+        <p>تحويلات تقريبية: XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42) • XXL (EU 44)</p>
+        <p class="mt-2">قد تختلف المقاسات حسب التصميم والخامة. يُفضل مراجعة التعليقات لمعرفة الانطباعات عن الملاءمة.</p>
+      </div>
+    </div>
+  </div>
   </div>
 </template>
 
 <script setup lang="ts">
+// ==================== IMPORTS ====================
 import { useRoute, useRouter } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useCart } from '@/store/cart'
-import { API_BASE } from '@/lib/api'
+import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { 
-  ShoppingCart, Share2, Search, Heart, Star, ChevronRight, ChevronDown, 
-  Truck, MapPin, Calendar, Package, Info, Ruler, Check, Minus, Plus,
-  Ticket, Zap, ThumbsUp, ShieldCheck, RotateCcw, Lock, X, CheckCircle
+  ShoppingCart, Share, Menu, 
+  Star as StarIcon, Heart as HeartIcon,
+  ChevronLeft, ChevronRight, Camera, ThumbsUp, Truck, DollarSign, 
+  RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store
 } from 'lucide-vue-next'
 
+// ==================== ROUTE & ROUTER ====================
 const route = useRoute()
 const router = useRouter()
-const id = computed(() => route.query.id as string || route.params.id as string || 'p1')
+const id = route.query.id as string || 'p1'
 
-// Product Data
-const title = ref('ترندات COSMINA ملابس علوية كاجوال بأكمام قصيرة بلون سادة للسيدات')
-const price = ref<number>(27.00)
-const originalPrice = ref('35.00')
+// ==================== PRODUCT DATA ====================
+const title = ref('منتج تجريبي')
+const price = ref<number>(129)
+const original = ref('179 ر.س')
 const images = ref<string[]>([
-  'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=1080&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1080&auto=format&fit=crop',
   'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
+  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop'
 ])
-
-// Gallery
 const activeIdx = ref(0)
-const galleryRef = ref<HTMLDivElement|null>(null)
+const activeImg = computed(()=> images.value[activeIdx.value] || '')
+const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 
-// Product Options
-const colors = ref([
-  { name: 'أسود', hex: '#000000' },
-  { name: 'أبيض', hex: '#FFFFFF' },
-  { name: 'بيج', hex: '#F5F5DC' },
-  { name: 'كحلي', hex: '#000080' }
+// ==================== PRODUCT VARIANTS ====================
+// Color Variants
+const colorVariants = ref([
+  { name: 'أصفر', image: images.value[0], isHot: true },
+  { name: 'بنفسجي', image: 'https://images.unsplash.com/photo-1612423284934-2850a4ea6b0f?w=400', isHot: false },
+  { name: 'أخضر', image: 'https://images.unsplash.com/photo-1603217039863-aa499afcdb2e?w=400', isHot: false },
+  { name: 'أزرق', image: 'https://images.unsplash.com/photo-1620799140188-3b2a7c2e0e12?w=400', isHot: false },
+  { name: 'وردي', image: 'https://images.unsplash.com/photo-1611312449408-fcece27cdbb7?w=400', isHot: true }
 ])
-const selectedColorIdx = ref(0)
-const selectedColor = computed(() => colors.value[selectedColorIdx.value].name)
+const colorIdx = ref(0)
 
-const sizes = ref(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
-const selectedSize = ref('M')
-const quantity = ref(1)
-const stock = ref(156)
+// Size Options
+const sizeOptions = ref<string[]>(['L', 'M', 'S', 'XS', 'XXS', 'XL'])
+const size = ref<string>('M')
 
-// Size Chart
-const sizeChart = ref([
-  { size: 'XS', bust: '84', length: '62', sleeve: '15' },
-  { size: 'S', bust: '88', length: '64', sleeve: '16' },
-  { size: 'M', bust: '92', length: '66', sleeve: '17' },
-  { size: 'L', bust: '96', length: '68', sleeve: '18' },
-  { size: 'XL', bust: '100', length: '70', sleeve: '19' },
-  { size: 'XXL', bust: '104', length: '72', sleeve: '20' }
+// ==================== HEADER & NAVIGATION ====================
+const showHeaderSearch = ref(false)
+const showHeaderPrice = ref(false)
+const showRecommendationStrip = ref(false)
+
+// Refs for scroll calculations
+const priceRef = ref<HTMLDivElement | null>(null)
+const sizeSelectorRef = ref<HTMLDivElement | null>(null)
+const firstContainerEnd = ref<HTMLDivElement | null>(null)
+
+// Tabs
+const tabs = ref([
+  { key: 'products', label: 'سلع' },
+  { key: 'reviews', label: 'تعليقات' },
+  { key: 'recommendations', label: 'التوصية' }
 ])
+const activeTab = ref('products')
+const tabsRef = ref<HTMLDivElement | null>(null)
+const tabsSticky = ref(false)
 
-// Reviews & Ratings
-const avgRating = ref(4.9)
-const reviewsCount = ref(1247)
-const sizeFitPercentage = ref(95)
-const wouldBuyAgain = ref(93)
+// Content sections refs
+const productsContentRef = ref<HTMLDivElement | null>(null)
+const reviewsContentRef = ref<HTMLDivElement | null>(null)
+const recommendationsContentRef = ref<HTMLDivElement | null>(null)
+const recommendationTabsRef = ref<HTMLDivElement | null>(null)
 
-const reviews = ref([
-  { 
-    id: 1, 
-    user: 'سارة أ***', 
-    stars: 5, 
-    comment: 'قميص رائع جداً، مريح ومناسب للصيف. الجودة ممتازة والمقاس مناسب تماماً. أنصح به بشدة!', 
-    date: 'منذ يومين',
-    colorSize: 'لون: أسود، مقاس: M',
-    helpful: 24
-  },
-  { 
-    id: 2, 
-    user: 'فاطمة م***', 
-    stars: 5, 
-    comment: 'التصميم بسيط وأنيق، القماش خفيف ومناسب للطقس الحار. وصل بسرعة والتغليف ممتاز.', 
-    date: 'منذ 3 أيام',
-    colorSize: 'لون: أبيض، مقاس: L',
-    helpful: 18
-  },
-  { 
-    id: 3, 
-    user: 'نورة ع***', 
-    stars: 4, 
-    comment: 'جميل جداً وسعره مناسب. المقاس صحيح كما في الجدول. الوحيد هو أنه يحتاج كي بعد الغسيل.', 
-    date: 'منذ أسبوع',
-    colorSize: 'لون: بيج، مقاس: S',
-    helpful: 12
+// Scroll to section when clicking tabs
+function scrollToSection(tabKey: string) {
+  let targetRef: HTMLDivElement | null = null
+  const headerOffset = 120
+  
+  if (tabKey === 'products' && galleryRef.value) {
+    targetRef = galleryRef.value
+  } else if (tabKey === 'reviews' && reviewsContentRef.value) {
+    targetRef = reviewsContentRef.value
+  } else if (tabKey === 'recommendations' && recommendationsContentRef.value) {
+    targetRef = recommendationsContentRef.value
   }
-])
+  
+  if (targetRef) {
+    const elementPosition = targetRef.getBoundingClientRect().top + window.pageYOffset
+    const offsetPosition = elementPosition - headerOffset
+    window.scrollTo({ top: offsetPosition, behavior: 'smooth' })
+  }
+}
 
-// Coupons
-const coupons = ref([
-  { title: 'خصم 15 ر.س', desc: 'للطلبات فوق 150 ر.س', code: 'SAVE15' },
-  { title: 'خصم 30 ر.س', desc: 'للطلبات فوق 300 ر.س', code: 'SAVE30' },
-  { title: 'خصم 10%', desc: 'على أول طلب', code: 'FIRST10' }
-])
+// ==================== REVIEWS ====================
+interface CustomerReview {
+  id: number
+  userName: string
+  date: string
+  rating: number
+  text: string
+  images?: string[]
+  size: string
+  color?: string
+  helpful?: number
+}
 
-// Shipping
-const shippingLocation = ref('الرياض، السعودية')
-const freeShippingThreshold = ref('99.00')
-const deliveryDate = ref('12 - 15 نوفمبر')
-
-// SHEIN CLUB
-const clubSave = ref(1.35)
-
-// Model Info
-const modelSize = ref('M')
-const modelMeasurements = ref('طول: 175سم | صدر: 84سم | خصر: 62سم | ورك: 91سم')
-
-// Related Products
-const relatedProducts = ref([
+const customerReviews = ref<CustomerReview[]>([
   {
     id: 1,
-    name: 'قميص كاجوال بأكمام طويلة',
-    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=300&h=300&fit=crop',
-    price: '32.50',
-    reviews: 543
+    userName: '6***5',
+    date: '2025-04-20',
+    rating: 5,
+    text: 'جودة المنتج: كثير يجننننن ومرتب على اللبس. صحيح لصور المنتج. نفس',
+    images: [
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
+      'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=400',
+      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400'
+    ],
+    size: 'L',
+    helpful: 17
   },
   {
     id: 2,
-    name: 'بلوزة صيفية بلون سادة',
-    image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=300&h=300&fit=crop',
-    price: '28.90',
-    reviews: 892
+    userName: 'A***i',
+    date: '2025-05-06',
+    rating: 5,
+    text: 'جميلة أنيقه',
+    images: ['https://images.unsplash.com/photo-1551028719-00167b16eac5?w=400'],
+    size: 'L',
+    helpful: 9
   },
   {
     id: 3,
-    name: 'تيشرت كاجوال قطن',
-    image: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=300&h=300&fit=crop',
-    price: '24.00',
-    reviews: 1205
+    userName: 'h***k',
+    date: '2025-05-16',
+    rating: 5,
+    text: 'جميييييييييييييييله',
+    images: ['https://images.unsplash.com/photo-1479064555552-3ef4979f8908?w=400'],
+    size: 'M',
+    helpful: 8
+  }
+])
+
+// ==================== RECOMMENDED PRODUCTS ====================
+const isLoadingRecommended = ref(false)
+const recommendedProducts = ref([
+  {
+    brand: 'COSMINA',
+    title: 'فستان أسود كلاسيكي أنيق',
+    image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400',
+    price: 149,
+    colors: ['#000000', '#ffffff', '#2a62ff'],
+    colorCount: 3,
+    discountPercent: 20,
+    bestRank: 2,
+    soldPlus: 'باع 300+'
   },
   {
-    id: 4,
-    name: 'قميص عصري بتصميم فريد',
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop',
-    price: '35.70',
-    reviews: 678
+    brand: 'Elenzga',
+    title: 'بلوزة صيفية مريحة',
+    image: 'https://images.unsplash.com/photo-1564584217132-2271feaeb3c5?w=400',
+    price: 89,
+    colors: ['#ff6b6b', '#4ecdc4'],
+    colorCount: 2,
+    discountPercent: 15,
+    soldPlus: 'باع 500+'
+  },
+  {
+    brand: 'SHEIN',
+    title: 'إكسسوار ذهبي فاخر',
+    image: 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=400',
+    price: 59,
+    discountPercent: 25,
+    couponPrice: 44,
+    soldPlus: 'باع 200+'
+  },
+  {
+    brand: 'SHEIN',
+    title: 'جاكيت نسائي شتوي دافئ',
+    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
+    price: 120,
+    colors: ['#2c3e50', '#34495e'],
+    colorCount: 2,
+    discountPercent: 18,
+    soldPlus: 'باع 400+'
+  },
+  {
+    brand: 'Elenzga',
+    title: 'بنطلون جينز نسائي كاجوال',
+    image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400',
+    price: 95,
+    colors: ['#2c3e50'],
+    colorCount: 1,
+    discountPercent: 10,
+    bestRank: 5,
+    soldPlus: 'باع 600+'
+  },
+  {
+    brand: 'COSMINA',
+    title: 'تنورة نسائية قصيرة صيفية',
+    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
+    price: 75,
+    colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
+    colorCount: 4,
+    discountPercent: 22,
+    soldPlus: 'باع 350+'
   }
 ])
 
-// FAQs
-const faqs = ref([
-  { q: 'ما هي سياسة الإرجاع؟', a: 'يمكنك إرجاع المنتج خلال 30 يوم من تاريخ الاستلام بشرط أن يكون بحالته الأصلية.', open: false },
-  { q: 'كم تستغرق مدة التوصيل؟', a: 'عادة يتم التوصيل خلال 3-5 أيام عمل داخل المملكة العربية السعودية.', open: false },
-  { q: 'هل المنتج مطابق للصور؟', a: 'نعم، جميع صورنا حقيقية للمنتج. قد يختلف اللون قليلاً حسب إعدادات شاشتك.', open: false },
-  { q: 'كيف أعرف مقاسي المناسب؟', a: 'يرجى مراجعة دليل المقاسات أعلاه. ننصح بأخذ قياساتك ومقارنتها بالجدول.', open: false }
-])
-
-// UI State
-const showSizeGuide = ref(false)
-const showDetails = ref(false)
-const showDescription = ref(false)
-const hasWish = ref(false)
-const toast = ref(false)
-const toastText = ref('')
-const reviewsSection = ref<HTMLDivElement|null>(null)
-
-// Flash Sale Timer
-const showFlashSale = ref(true)
-const hours = ref('02')
-const minutes = ref('45')
-const seconds = ref('30')
-
-// Computed
-const displayPrice = computed(() => price.value.toFixed(2))
-const cart = useCart()
-
-// Functions
-function selectColor(i: number) {
-  selectedColorIdx.value = i
-}
-
-function increaseQty() {
-  if (quantity.value < stock.value) quantity.value++
-}
-
-function decreaseQty() {
-  if (quantity.value > 1) quantity.value--
-}
-
-function scrollToIdx(i: number) {
-  activeIdx.value = i
-  const el = galleryRef.value
-  if (!el) return
-  el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
-}
-
-function onGalleryScroll() {
-  const el = galleryRef.value
-  if (!el) return
-  const i = Math.round(el.scrollLeft / el.clientWidth)
-  if (i !== activeIdx.value) activeIdx.value = i
-}
-
-function getStarPercentage(star: number): number {
-  const percentages = { 5: 75, 4: 15, 3: 6, 2: 3, 1: 1 }
-  return percentages[star as keyof typeof percentages] || 0
-}
-
-function toggleFaq(i: number) {
-  faqs.value[i].open = !faqs.value[i].open
-}
-
-function scrollToReviews() {
-  reviewsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
-function addToCart() {
-  cart.add({ 
-    id: id.value, 
-    title: title.value, 
-    price: Number(price.value) || 0, 
-    img: images.value[0] 
-  }, quantity.value)
+// Load More Recommended Products (Infinite Scroll)
+function loadMoreRecommended() {
+  if (isLoadingRecommended.value) return
   
-  toastText.value = 'تمت الإضافة إلى السلة بنجاح'
-  toast.value = true
-  setTimeout(() => toast.value = false, 2500)
-}
-
-function buyNow() {
-  addToCart()
+  isLoadingRecommended.value = true
+  
+  // Simulate loading from API
   setTimeout(() => {
-    router.push('/cart')
-  }, 300)
-}
-
-function toggleWish() {
-  hasWish.value = !hasWish.value
-  if (hasWish.value) {
-    toastText.value = 'تمت الإضافة إلى المفضلة'
-    toast.value = true
-    setTimeout(() => toast.value = false, 2000)
-  }
-}
-
-async function share() {
-  try {
-    const data = { 
-      title: title.value, 
-      text: title.value, 
-      url: location.href 
-    }
-    if ((navigator as any).share) {
-      await (navigator as any).share(data)
-    } else {
-      await navigator.clipboard.writeText(location.href)
-      toastText.value = 'تم نسخ الرابط'
-      toast.value = true
-      setTimeout(() => toast.value = false, 2000)
-    }
-  } catch {}
-}
-
-// Timer
-let timerInterval: any
-function startTimer() {
-  timerInterval = setInterval(() => {
-    let s = parseInt(seconds.value)
-    let m = parseInt(minutes.value)
-    let h = parseInt(hours.value)
+    const newProducts = [
+      {
+        brand: 'SHEIN',
+        title: 'منتج جديد ' + (recommendedProducts.value.length + 1),
+        image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400',
+        price: 85,
+        colors: ['#ff6b6b', '#4ecdc4'],
+        colorCount: 2,
+        discountPercent: 18,
+        soldPlus: 'باع 400+'
+      },
+      {
+        brand: 'Elenzga',
+        title: 'منتج جديد ' + (recommendedProducts.value.length + 2),
+        image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
+        price: 105,
+        colors: ['#2c3e50', '#34495e'],
+        colorCount: 3,
+        discountPercent: 22,
+        soldPlus: 'باع 350+'
+      }
+    ]
     
-    s--
-    if (s < 0) {
-      s = 59
-      m--
-    }
-    if (m < 0) {
-      m = 59
-      h--
-    }
-    if (h < 0) {
-      showFlashSale.value = false
-      clearInterval(timerInterval)
-      return
-    }
-    
-    seconds.value = s.toString().padStart(2, '0')
-    minutes.value = m.toString().padStart(2, '0')
-    hours.value = h.toString().padStart(2, '0')
-  }, 1000)
+    recommendedProducts.value.push(...newProducts)
+    isLoadingRecommended.value = false
+  }, 1500)
 }
 
-// Lifecycle
-onMounted(async () => {
-  startTimer()
+// Navigate to recommended product
+function openRecommended(p:any){ router.push(`/p?id=${encodeURIComponent(p.id||'p1')}`) }
+
+// ==================== UTILITY FUNCTIONS ====================
+// Format Review Date
+function formatReviewDate(dateStr: string): string {
+  const date = new Date(dateStr)
+  const months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+  return `${months[date.getMonth()]} ${date.getDate()},${date.getFullYear()}`
+}
+
+// Open Review Image (Future Enhancement)
+function openReviewImage(img: string) {
+  console.log('Opening review image:', img)
+  // TODO: Implement lightbox for review images
+}
+
+// Share function
+async function share(){
+  try{
+    const data = { title: title.value, text: title.value, url: location.href }
+    if ((navigator as any).share) await (navigator as any).share(data)
+    else await navigator.clipboard.writeText(location.href)
+  }catch{}
+}
+
+// Back to Top Button
+const showBackToTop = ref(false)
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+// Reviews & Rating (from API)
+const avgRating = ref(4.9)
+const reviews = ref<any[]>([])
+
+// Cart & Wishlist
+const cart = useCart()
+const toast = ref(false)
+const toastText = ref('تمت الإضافة إلى السلة')
+
+function addToCart(){
+  const variantNote = size.value ? `(${size.value})` : ''
+  cart.add({ id, title: title.value + variantNote, price: Number(price.value)||0, img: activeImg.value }, 1)
+  toast.value = true
+  setTimeout(()=> toast.value=false, 1200)
+}
+const hasWish = ref(false)
+function toggleWish(){ hasWish.value = !hasWish.value }
+
+// Size Guide Modal
+const sizeGuideOpen = ref(false)
+function openSizeGuide(){ sizeGuideOpen.value = true }
+function closeSizeGuide(){ sizeGuideOpen.value = false }
+
+// ==================== IMAGE GALLERY & LIGHTBOX ====================
+const galleryRef = ref<HTMLDivElement|null>(null)
+const lightboxRef = ref<HTMLDivElement|null>(null)
+const lightbox = ref(false)
+const lightboxIdx = ref(0)
+
+// Gallery scroll handler
+function onGalleryScroll(){
+  const el = galleryRef.value
+  if (!el) return
+  const scrollLeft = Math.abs(el.scrollLeft) // Handle RTL negative scrollLeft
+  const i = Math.round(scrollLeft / el.clientWidth)
+  if (i !== activeIdx.value) activeIdx.value = Math.max(0, Math.min(i, images.value.length - 1))
+}
+
+// Lightbox functions
+function openLightbox(i:number){ 
+  lightbox.value = true
+  lightboxIdx.value = i
+  requestAnimationFrame(()=>{ 
+    const el = lightboxRef.value
+    if(el) el.scrollTo({ left: i * el.clientWidth }) 
+  }) 
+}
+function closeLightbox(){ lightbox.value = false }
+function nextLightbox(){ 
+  const el = lightboxRef.value
+  if(!el) return
+  const i = Math.min(images.value.length-1, lightboxIdx.value+1)
+  lightboxIdx.value=i
+  el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) 
+}
+function prevLightbox(){ 
+  const el = lightboxRef.value
+  if(!el) return
+  const i = Math.max(0, lightboxIdx.value-1)
+  lightboxIdx.value=i
+  el.scrollTo({ left: i*el.clientWidth, behavior:'smooth' }) 
+}
+
+// Gallery height calculation
+const galleryHeight = ref<number|undefined>(undefined)
+async function computeGalleryHeight(){
+  try{
+    const width = galleryRef.value?.clientWidth || window.innerWidth
+    const sizes: Array<{w:number,h:number}> = await Promise.all(
+      images.value.map(src => new Promise<{w:number,h:number}>(resolve=>{
+        const im = new Image()
+        im.onload = ()=> resolve({ w: im.width||width, h: im.height||width })
+        im.onerror = ()=> resolve({ w: width, h: Math.floor(width*4/3) })
+        im.src = src
+      }))
+    )
+    const maxRatio = sizes.reduce((m,s)=> Math.max(m, s.h / Math.max(1,s.w)), 4/3)
+    galleryHeight.value = Math.round(width * maxRatio)
+  }catch{}
+}
+
+// ==================== SCROLL HANDLING ====================
+const scrolled = ref(false)
+function onScroll(){ 
+  const scrollY = window.scrollY
+  scrolled.value = scrollY > 60 
+  showBackToTop.value = scrollY > 300
   
-  try {
-    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(id.value)}`, { 
-      credentials: 'include'
-    })
-    if (res.ok) {
-      const d = await res.json()
-      if (d.name) title.value = d.name
-      if (d.price) price.value = Number(d.price)
-      if (d.images?.length) images.value = d.images
-    }
-  } catch (e) {
-    console.error('Failed to load product:', e)
+  // 1. Show search bar in header when scrolled past images (approximately 600px)
+  showHeaderSearch.value = scrollY > 600
+  
+  // 2. Show price in header when scrolled past price section but hide after reviews section
+  if (priceRef.value && reviewsContentRef.value) {
+    const priceBottom = priceRef.value.getBoundingClientRect().bottom
+    const reviewsBottom = reviewsContentRef.value.getBoundingClientRect().bottom
+    // Show price when scrolled past price, but hide after passing reviews section completely
+    showHeaderPrice.value = priceBottom < 57 && reviewsBottom > 57 // Hide after reviews section passes header
   }
+  
+  // 3. Make tabs sticky when scrolled past first container
+  if (firstContainerEnd.value) {
+    const firstContainerEndTop = firstContainerEnd.value.getBoundingClientRect().top
+    tabsSticky.value = firstContainerEndTop <= 57 // Header height
+  }
+  
+  // 4. Infinite scroll for recommended products
+  const scrollHeight = document.documentElement.scrollHeight
+  const scrollTop = window.scrollY
+  const clientHeight = window.innerHeight
+  
+  if (scrollTop + clientHeight >= scrollHeight - 300 && !isLoadingRecommended.value) {
+    loadMoreRecommended()
+  }
+  
+  // 5. Auto-switch tabs based on scroll position and handle recommendation strip
+  const headerHeight = 57
+  const tabsHeight = 49
+  const viewportTop = headerHeight + tabsHeight + 50 // offset for better detection
+  
+  // Check if we've reached the products section (after recommendation tabs strip)
+  if (recommendationTabsRef.value) {
+    const recommendationTabsBottom = recommendationTabsRef.value.getBoundingClientRect().bottom
+    // Show recommendation strip and hide tabs when products section is reached (tabs strip has passed)
+    if (recommendationTabsBottom < headerHeight) {
+      activeTab.value = 'recommendations'
+      showRecommendationStrip.value = true // Show recommendation strip
+      tabsSticky.value = false // Hide normal tabs when showing recommendation strip
+    } else if (tabsSticky.value) {
+      showRecommendationStrip.value = false
+    }
+  }
+  
+  // Only check other sections if recommendation strip is not showing
+  if (tabsSticky.value && !showRecommendationStrip.value) {
+    // Check recommendations section (but don't show strip yet)
+    if (recommendationsContentRef.value) {
+      const recommendationsTop = recommendationsContentRef.value.getBoundingClientRect().top
+      if (recommendationsTop <= viewportTop) {
+        activeTab.value = 'recommendations'
+        return
+      }
+    }
+    
+    // Check reviews section
+    if (reviewsContentRef.value) {
+      const reviewsTop = reviewsContentRef.value.getBoundingClientRect().top
+      if (reviewsTop <= viewportTop) {
+        activeTab.value = 'reviews'
+        return
+      }
+    }
+    
+    // Default to products
+    activeTab.value = 'products'
+  }
+}
+
+// ==================== LIFECYCLE HOOKS ====================
+onMounted(()=>{ 
+  onScroll()
+  window.addEventListener('scroll', onScroll, { passive:true })
+  computeGalleryHeight()
+  window.addEventListener('resize', computeGalleryHeight, { passive:true })
+  loadProductData()
 })
 
-onBeforeUnmount(() => {
-  if (timerInterval) clearInterval(timerInterval)
+onBeforeUnmount(()=> {
+  window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', computeGalleryHeight)
 })
+
+// ==================== DATA LOADING ====================
+async function loadProductData() {
+  // Load product details
+  try{
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { 
+      credentials:'omit', 
+      headers:{ 'Accept':'application/json' } 
+    })
+    if(res.ok){
+      const d = await res.json()
+      title.value = d.name || title.value
+      price.value = Number(d.price||129)
+      const imgs = Array.isArray(d.images)? d.images : []
+      if (imgs.length) images.value = imgs
+      original.value = d.original ? d.original + ' ر.س' : original.value
+      
+      // Sizes from API if available
+      const s = Array.isArray(d.sizes) ? d.sizes.filter((x:any)=> typeof x==='string' && x.trim()) : []
+      if (s.length) { 
+        sizeOptions.value = s as string[]
+        size.value = sizeOptions.value[0] 
+      }
+    }
+  }catch{}
+  
+  // Load reviews
+  try{
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id)}`)
+    if (list && Array.isArray(list.items)){
+      reviews.value = list.items
+      const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
+      avgRating.value = list.items.length? (sum/list.items.length) : avgRating.value
+    }
+  }catch{}
+}
 </script>
 
 <style scoped>
-.scrollbar-hide {
-  -ms-overflow-style: none;
+/* Scrollbar hidden */
+.no-scrollbar {
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.scrollbar-hide::-webkit-scrollbar {
+.no-scrollbar::-webkit-scrollbar {
   display: none;
+  height: 0;
+  width: 0;
 }
 
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.toast-enter-active,
-.toast-leave-active {
+/* Smooth transitions */
+.transition-all {
   transition: all 0.3s ease;
 }
 
-.toast-enter-from {
-  opacity: 0;
-  transform: translate(-50%, 10px);
+.transition-transform {
+  transition: transform 0.2s ease;
 }
 
-.toast-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -10px);
+/* Hover effects */
+.hover\:scale-105:hover {
+  transform: scale(1.05);
 }
 
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.hover\:scale-110:hover {
+  transform: scale(1.1);
+}
+
+/* Gradients */
+.gradient-violet-pink {
+  background: linear-gradient(135deg, rgb(139, 92, 246) 0%, rgb(236, 72, 153) 100%);
+}
+
+/* Backdrop blur support */
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Toast Animation */
+.toast-enter-active {
+  animation: toast-in 0.3s ease-out;
+}
+
+.toast-leave-active {
+  animation: toast-out 0.3s ease-in;
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes toast-out {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+}
+
+/* Active state animations */
+.active\:scale-95:active {
+  transform: scale(0.95);
+}
+
+.active\:scale-90:active {
+  transform: scale(0.90);
+}
+
+/* Fade transition for header content - Very fast */
+.fade-enter-active {
+  transition: opacity 0.08s ease-out;
+}
+
+.fade-leave-active {
+  transition: opacity 0.05s ease-in;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1;
+}
+
+/* Slide down transition for header elements - Instant to avoid scroll blocking */
+.slide-down-enter-active {
+  transition: none;
+}
+
+.slide-down-leave-active {
+  transition: none;
+  position: absolute;
+  width: 100%;
+  pointer-events: none;
+}
+
+.slide-down-enter-from {
+  opacity: 0;
+}
+
+.slide-down-leave-to {
+  opacity: 0;
+}
+
+.slide-down-enter-to,
+.slide-down-leave-from {
+  opacity: 1;
+}
+
+/* Carousel pages indicator */
+.carousels-pagination__pages {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
 }
 </style>
