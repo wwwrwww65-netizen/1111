@@ -4778,11 +4778,12 @@ adminRest.post('/products/analyze', async (req, res) => {
       })()
       const inCI = String(process.env.CI || '').toLowerCase() === 'true'
       const usedMeta = { deepseekUsed: false, deepseekAttempted: false }
+      const disableDeepseek: boolean = String(((req.query as any)?.disableDeepseek || '')).trim() === '1'
       // Mark attempt when forced even if key/config missing (for CI observability)
       if (reqForce) deepseekAttempted = true
       // Allow force to bypass CI guard; otherwise only run when quality is low and not CI
       const QUALITY_THRESHOLD = 0.6
-      if (aiEnabled && (reqForce || (userWants && dsKey && qualityScore < QUALITY_THRESHOLD && !inCI))) {
+      if (!disableDeepseek && aiEnabled && (reqForce || (userWants && dsKey && qualityScore < QUALITY_THRESHOLD && !inCI))) {
         usedMeta.deepseekAttempted = true; deepseekAttempted = true
         if (!dsKey) {
           if (deepseekOnly) {

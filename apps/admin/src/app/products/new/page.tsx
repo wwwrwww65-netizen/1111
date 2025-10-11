@@ -695,19 +695,21 @@ export default function AdminProductCreate(): JSX.Element {
         if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
       }
 
-      // Learn from last DeepSeek-only preview (if available for the same text)
-      try{
-        const k = keyForText(paste);
-        if (dsHint && dsHintKey === k) {
-          const wc = (s:string)=> String(s||'').trim().split(/\s+/).filter(Boolean).length;
-          if ((!reviewObj.name || wc(reviewObj.name) < 6) && dsHint.name) reviewObj.name = String(dsHint.name);
-          if (reviewObj.purchasePrice === undefined && typeof dsHint.purchasePrice === 'number') reviewObj.purchasePrice = Number(dsHint.purchasePrice);
-          if ((!Array.isArray(reviewObj.sizes) || reviewObj.sizes.length===0) && Array.isArray(dsHint.sizes) && dsHint.sizes.length) reviewObj.sizes = dsHint.sizes;
-          if ((!Array.isArray(reviewObj.colors) || reviewObj.colors.length===0) && Array.isArray(dsHint.colors) && dsHint.colors.length) reviewObj.colors = dsHint.colors;
-          if ((!Array.isArray(reviewObj.keywords) || reviewObj.keywords.length<8) && Array.isArray(dsHint.keywords) && dsHint.keywords.length) reviewObj.keywords = dsHint.keywords;
-          if (!Array.isArray(reviewObj.strictDetails) && Array.isArray(dsHint.strictDetails) && dsHint.strictDetails.length) reviewObj.strictDetails = dsHint.strictDetails;
-        }
-      } catch {}
+      // Learn from last DeepSeek-only preview ONLY when DeepSeek checkbox is enabled
+      if (deepseekOn || forceDeepseek) {
+        try{
+          const k = keyForText(paste);
+          if (dsHint && dsHintKey === k) {
+            const wc = (s:string)=> String(s||'').trim().split(/\s+/).filter(Boolean).length;
+            if ((!reviewObj.name || wc(reviewObj.name) < 6) && dsHint.name) reviewObj.name = String(dsHint.name);
+            if (reviewObj.purchasePrice === undefined && typeof dsHint.purchasePrice === 'number') reviewObj.purchasePrice = Number(dsHint.purchasePrice);
+            if ((!Array.isArray(reviewObj.sizes) || reviewObj.sizes.length===0) && Array.isArray(dsHint.sizes) && dsHint.sizes.length) reviewObj.sizes = dsHint.sizes;
+            if ((!Array.isArray(reviewObj.colors) || reviewObj.colors.length===0) && Array.isArray(dsHint.colors) && dsHint.colors.length) reviewObj.colors = dsHint.colors;
+            if ((!Array.isArray(reviewObj.keywords) || reviewObj.keywords.length<8) && Array.isArray(dsHint.keywords) && dsHint.keywords.length) reviewObj.keywords = dsHint.keywords;
+            if (!Array.isArray(reviewObj.strictDetails) && Array.isArray(dsHint.strictDetails) && dsHint.strictDetails.length) reviewObj.strictDetails = dsHint.strictDetails;
+          }
+        } catch {}
+      }
       setReview(reviewObj);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
