@@ -93,6 +93,96 @@ export default function AdminProductCreate(): JSX.Element {
     return s.trim();
   }
 
+  function cleanTextStrict(raw: string): string {
+    // Start from existing cleaner
+    let s = cleanText(raw);
+    // Remove broader promotional phrases aggressively
+    const promo = [
+      'احجز', 'احجزي', 'احجزي الآن', 'لا تفوت', 'لا تفوتي', 'لايفوتك', 'العرض', 'عرض خاص', 'محدود الكمية',
+      'حصري', 'مضمون', 'أفضل', 'الأفضل', 'سارع', 'سارعي', 'تخفيض', 'خصم', 'هدية', 'مجاني', 'شحن مجاني',
+      'تواصل', 'واتس', 'whatsapp', 'link in bio', 'promo', 'discount', 'best price', 'offer', 'sale', 'free shipping'
+    ];
+    for (const w of promo) s = s.replace(new RegExp(w, 'gi'), ' ');
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s;
+  }
+
+  function generateStrictName(clean: string): string {
+    // Reuse makeSeoName baseline then enforce 8–12 words, avoid marketing
+    const base = makeSeoName(clean, '')
+      .replace(/\b(?:حصري|مجاني|عرض|خصم|أفضل|الأفضل)\b/gi, '')
+      .replace(/\s{2,}/g, ' ').trim();
+    const words = base.split(/\s+/).filter(Boolean);
+    const ensure = (arr: string[]): string[] => {
+      if (arr.length < 8) {
+        // Pad with neutral qualifiers from text (material/type/gender) if missing
+        const adds: string[] = [];
+        const type = clean.match(/(فنيلة|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i)?.[1];
+        const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
+        const feat = clean.match(/(كم\s*كامل|سحاب|أزرار|جيوب)/i)?.[1];
+        const gender = clean.match(/(نسائي|رجالي)/i)?.[1];
+        if (type && !arr.join(' ').includes(type)) adds.push(type);
+        if (mat && !arr.join(' ').includes(mat)) adds.push(mat);
+        if (feat && !arr.join(' ').includes(feat)) adds.push(feat);
+        if (gender && !arr.join(' ').includes(gender)) adds.push(gender);
+        while (arr.length < 8 && adds.length) arr.push(adds.shift()!);
+        while (arr.length < 8) arr.push('أساسي');
+      }
+      if (arr.length > 12) return arr.slice(0, 12);
+      return arr;
+    };
+    return ensure(words).join(' ');
+  }
+
+  function extractOldNorthPriceStrict(clean: string): number | undefined {
+    // Prefer mentions tagged قديم/الشمال؛ ignore سعودي/جنوبي/قعيطي/جديد
+    const ignoreCtx = /(سعودي|جنوبي|جديد|قعيطي)/i;
+    const matches = Array.from(clean.matchAll(/(?:(?:قديم|للشمال|الشمال)[^\d]{0,12})(\d+[\.,]??\d*)/gi));
+    for (const m of matches) {
+      const before = clean.slice(Math.max(0, (m.index||0)-20), (m.index||0)+m[0].length+10);
+      if (!ignoreCtx.test(before)) {
+        const v = Number(String(m[1]).replace(',','.'));
+        if (Number.isFinite(v)) return v;
+      }
+    }
+    return undefined;
+  }
+
+  function buildStrictDetailsTable(clean: string): Array<{label:string; value:string}> {
+    const rows: Array<{label:string; value:string}> = [];
+    const type = clean.match(/(فنيلة|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i)?.[1];
+    const gender = clean.match(/(نسائي|رجالي)/i)?.[1];
+    const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
+    const weight = clean.match(/وزن\s*(\d{2,3})(?:\s*[-–—\s]\s*(\d{2,3}))?\s*ك?جم?/i);
+    const sizeFree = /فري\s*سايز/i.test(clean);
+    const sizesList = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=>s.toUpperCase());
+    if (type) rows.push({ label:'النوع', value:type });
+    if (gender) rows.push({ label:'الفئة', value:gender });
+    if (mat) rows.push({ label:'الخامة', value:mat });
+    if (sizeFree) {
+      const val = weight? `فري سايز (${weight[1]}–${weight[2]||weight[1]} كجم)` : 'فري سايز';
+      rows.push({ label:'المقاس', value: val });
+    } else if (sizesList.length) {
+      rows.push({ label:'المقاسات', value: sizesList.join('، ') });
+    }
+    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي'];
+    const colors = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
+    if (colors.length) rows.push({ label:'الألوان', value: colors.join('، ') });
+    const stock = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)?.[1];
+    if (stock) rows.push({ label:'المخزون', value: stock });
+    return rows;
+  }
+
+  function generateSeoKeywordsStrict(clean: string): string[] {
+    const words = clean
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter(w=> w.length>2 && !stopwords.has(w as any));
+    const uniq = Array.from(new Set(words));
+    return uniq.slice(0, 12);
+  }
+
   function toLatinDigitsStr(input: string): string {
     return String(input||'')
       .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
@@ -302,7 +392,9 @@ export default function AdminProductCreate(): JSX.Element {
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
       let analyzed: any = {};
       try{
-        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
+        const strictMode = !!(deepseekOn || forceDeepseek);
+        const strictText = strictMode ? cleanTextStrict(paste) : paste;
+        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}${strictMode?'&strict=1':''}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: strictText, images: b64Images.map(d=> ({ dataUrl: d })) }) });
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
@@ -398,7 +490,7 @@ export default function AdminProductCreate(): JSX.Element {
         mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
       const schema = buildSchemaOutput(extracted, palettes, mapping);
-      const reviewObj = {
+      let reviewObj:any = {
         name: String(schema.product_name_seo||extracted.name||'').trim(),
         shortDesc: String(schema.description||extracted.shortDesc||'').slice(0,160),
         longDesc: String(schema.description||extracted.longDesc||''),
@@ -414,6 +506,19 @@ export default function AdminProductCreate(): JSX.Element {
         reasons: extracted.reasons || {},
         sources: extracted.sources
       } as any;
+
+      // Apply strict mode post-processing when DeepSeek enabled
+      if (deepseekOn || forceDeepseek) {
+        const strictClean = cleanTextStrict(paste);
+        const sName = generateStrictName(strictClean);
+        const sPrice = extractOldNorthPriceStrict(strictClean);
+        const sDetails = buildStrictDetailsTable(strictClean);
+        const sKeywords = generateSeoKeywordsStrict(strictClean);
+        reviewObj.name = sName;
+        if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
+        reviewObj.strictDetails = sDetails;
+        if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
+      }
       setReview(reviewObj);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
