@@ -729,6 +729,7 @@ export default function AdminProductCreate(): JSX.Element {
         if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
         reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
         if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
+        try{ const mg = extractMeasurementGroups(strictClean, paste); if (mg.length) (reviewObj as any).sizeGroups = mg; }catch{}
       }
 
       // Learn from last DeepSeek-only preview ONLY when DeepSeek checkbox is enabled
@@ -1364,6 +1365,20 @@ export default function AdminProductCreate(): JSX.Element {
                       <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: sanitizeColorsStrict(cleanTextStrict(paste), e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)) }))} className="input" />
                       {(!review.colors || review.colors.length===0) && review?.reasons?.colors && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.colors}</div>}
                     </div>
+                    {Array.isArray((review as any).sizeGroups) && (review as any).sizeGroups.length>0 && (
+                      <>
+                        {((review as any).sizeGroups as Array<{label:string;values:string[]}>).slice(0,2).map((g, idx)=> (
+                          <div key={idx} style={{ gridColumn: idx===0? '1/2':'2/3' }}>
+                            <div style={{ marginBottom:6, color:'#9ca3af' }}>{g.label}</div>
+                            <input value={g.values.join(', ')} onChange={(e)=> setReview((r:any)=>{
+                              const next = [...((r.sizeGroups||[]) as any[])];
+                              if (next[idx]) next[idx] = { ...next[idx], values: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean) };
+                              return { ...r, sizeGroups: next };
+                            })} className="input" />
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                   <div style={{ gridColumn:'1 / -1' }}>
                     <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO) <SourceBadge src={review.sources?.tags} /></div>
