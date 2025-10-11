@@ -3966,6 +3966,8 @@ adminRest.post('/products/generate', async (req, res) => {
 adminRest.post('/products/analyze', async (req, res) => {
   try{
     const { text, images } = req.body || {};
+    // Ensure teaching dataset table exists
+    await ensureAnalyzeTeachSchema().catch(()=>{});
     // Strict rules-only short-circuit (no AI, no invention). Extract from text only.
     const rulesStrict: boolean = String((req.query as any)?.rulesStrict || '').trim() === '1'
     if (rulesStrict) {
@@ -4565,6 +4567,8 @@ adminRest.post('/products/analyze', async (req, res) => {
           const uniq = Array.from(new Set(words)).slice(0,6)
           if (uniq.length) analyzed.keywords = { value: uniq, source: 'ai' }
         }
+        // Save teaching example
+        try { await saveAnalyzeTeachExample(String(text||''), analyzed).catch(()=>{}); } catch {}
         return res.json({ ok: true, analyzed, warnings, errors, meta: { deepseekUsed: true, deepseekAttempted: true } })
       } catch (e: any) {
         return res.status(500).json({ ok: false, analyzed: null, warnings: [], errors: [e?.message || 'deepseek_strict_error'] })
@@ -5063,6 +5067,27 @@ adminRest.post('/products/analyze', async (req, res) => {
         ;(sources as any).description = { source:'ai', confidence: newConf }
       }
     } catch {}
+
+    // Apply nearest teaching example to fill missing fields when DeepSeek is disabled
+    try {
+      const disableDeepseek: boolean = String(((req.query as any)?.disableDeepseek || '')).trim() === '1'
+      if (disableDeepseek) {
+        const raw = String(((req as any).body?.text) || '')
+        const teach = await findNearestTeachExample(raw)
+        if (teach) {
+          // Fill only missing/weak fields from teaching example
+          if (!out.name && teach.name) out.name = teach.name
+          if (!out.price_range && teach.price) out.price_range = { low: teach.price, high: teach.price }
+          if ((!out.sizes || (out.sizes as string[]).length===0) && Array.isArray(teach.sizes)) out.sizes = teach.sizes
+          if ((!out.colors || (out.colors as string[]).length===0) && Array.isArray(teach.colors)) out.colors = teach.colors
+          if ((!out.tags || (out.tags as string[]).length<6) && Array.isArray(teach.keywords)) out.tags = teach.keywords.slice(0,6)
+          if (!out.description && Array.isArray(teach.description_table)) {
+            const desc = teach.description_table.map((r:any)=> `• ${r.label||r.key}: ${r.value}`).join('\n')
+            if (desc) out.description = desc
+          }
+        }
+      }
+    } catch {}
     // Global enforcement: ensure product name is not generic or too short in ANY mode
     try {
       const raw = String(((req as any).body?.text) || '')
@@ -5122,6 +5147,49 @@ adminRest.post('/products/analyze', async (req, res) => {
     return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted, reason } });
   }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
+
+// Teaching dataset: schema + helpers (very light, SQLite/PG safe)
+async function ensureAnalyzeTeachSchema(): Promise<void> {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AnalyzeTeach" ("id" TEXT PRIMARY KEY, "textHash" TEXT, "name" TEXT NULL, "price" DOUBLE PRECISION NULL, "sizes" JSONB NULL, "colors" JSONB NULL, "keywords" JSONB NULL, "descriptionTable" JSONB NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+  } catch {}
+}
+
+async function saveAnalyzeTeachExample(text: string, analyzed: any): Promise<void> {
+  try {
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update(String(text||'').toLowerCase().replace(/\s+/g,' ').slice(0,2048)).digest('hex');
+    const sizes = Array.isArray(analyzed?.sizes?.value) ? analyzed.sizes.value : undefined;
+    const colors = Array.isArray(analyzed?.colors?.value) ? analyzed.colors.value : undefined;
+    const keywords = Array.isArray(analyzed?.tags?.value) ? analyzed.tags.value : undefined;
+    const descTable = Array.isArray((analyzed as any)?.description_table?.value) ? (analyzed as any).description_table.value : undefined;
+    await db.$executeRawUnsafe(
+      'INSERT INTO "AnalyzeTeach" ("id","textHash","name","price","sizes","colors","keywords","descriptionTable") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT ("id") DO NOTHING',
+      hash, hash, analyzed?.name?.value || null, analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? null, JSON.stringify(sizes||null), JSON.stringify(colors||null), JSON.stringify(keywords||null), JSON.stringify(descTable||null)
+    );
+  } catch {}
+}
+
+async function findNearestTeachExample(raw: string): Promise<any|null> {
+  try {
+    const crypto = require('crypto');
+    const key = String(raw||'').toLowerCase().replace(/\s+/g,' ').slice(0,2048);
+    const hash = crypto.createHash('sha256').update(key).digest('hex');
+    const rows:any[] = await db.$queryRawUnsafe('SELECT * FROM "AnalyzeTeach" WHERE "textHash"=$1 LIMIT 1', hash) as any[];
+    if (rows && rows.length) {
+      const r = rows[0] as any;
+      return {
+        name: r.name || undefined,
+        price: (r.price==null? undefined : Number(r.price)),
+        sizes: (()=>{ try{ return JSON.parse(r.sizes||'null')||undefined; }catch{return undefined;} })(),
+        colors: (()=>{ try{ return JSON.parse(r.colors||'null')||undefined; }catch{return undefined;} })(),
+        keywords: (()=>{ try{ return JSON.parse(r.keywords||'null')||undefined; }catch{return undefined;} })(),
+        description_table: (()=>{ try{ return JSON.parse(r.descriptionTable||'null')||undefined; }catch{return undefined;} })(),
+      }
+    }
+    return null;
+  } catch { return null; }
+}
 adminRest.post('/integrations/test', async (req, res) => {
   const { provider, config } = req.body || {};
   if (!provider || !config) return res.status(400).json({ ok:false, error:'missing' });
