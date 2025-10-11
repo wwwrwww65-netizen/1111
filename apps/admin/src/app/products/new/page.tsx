@@ -806,6 +806,24 @@ export default function AdminProductCreate(): JSX.Element {
         },
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
+      // Local image analysis: palettes + color-name mapping
+      try {
+        const urls = allProductImageUrls();
+        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        for (const u of urls.slice(0,6)) {
+          const p = await getImageDominant(u);
+          const near = nearestColorName(p.hex);
+          palettes.push({ url: p.url, hex: p.hex, name: near.name });
+        }
+        (reviewObj as any).palettes = palettes;
+        const mapping: Record<string,string|undefined> = {};
+        for (const c of (reviewObj.colors as string[]||[])) {
+          const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 }));
+          candidates.sort((a,b)=> a.score-b.score);
+          mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
+        }
+        (reviewObj as any).mapping = mapping;
+      } catch {}
       setReview(reviewObj);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
       showToast('تم تحليل DeepSeek (معاينة)', 'ok');
@@ -853,6 +871,15 @@ export default function AdminProductCreate(): JSX.Element {
           purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.75)
         }
       };
+      try {
+        const urls = allProductImageUrls();
+        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        (reviewObj as any).palettes = palettes;
+        const mapping: Record<string,string|undefined> = {};
+        for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
+        (reviewObj as any).mapping = mapping;
+      } catch {}
       setReview(reviewObj);
       showToast('تم التحليل الصارم (نص فقط)', 'ok');
       setActiveMobileTab('review');
@@ -904,6 +931,15 @@ export default function AdminProductCreate(): JSX.Element {
         },
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
+      try {
+        const urls = allProductImageUrls();
+        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        (reviewObj as any).palettes = palettes;
+        const mapping: Record<string,string|undefined> = {};
+        for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
+        (reviewObj as any).mapping = mapping;
+      } catch {}
       setReview(reviewObj);
       showToast('تم تحليل OpenRouter (معاينة)', 'ok');
       setActiveMobileTab('review');
@@ -947,6 +983,15 @@ export default function AdminProductCreate(): JSX.Element {
         },
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
+      try {
+        const urls = allProductImageUrls();
+        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        (reviewObj as any).palettes = palettes;
+        const mapping: Record<string,string|undefined> = {};
+        for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
+        (reviewObj as any).mapping = mapping;
+      } catch {}
       setReview(reviewObj);
       showToast('تم تحليل GPT (معاينة)', 'ok');
       setActiveMobileTab('review');
