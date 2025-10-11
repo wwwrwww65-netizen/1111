@@ -189,8 +189,8 @@ export default function AdminProductCreate(): JSX.Element {
     const fit = clean.match(/\b(واسع|فضفاض|ضيق|سكيني|عادي|منتظم)\b/i)?.[1];
     add('القَصّة', fit);
     const season = Array.from(new Set((clean.match(/\b(صيفي|شتوي|ربيعي|خريفي)\b/gi)||[]))); if (season.length) add('الموسم', season.join('، '));
-    const style = Array.from(new Set((clean.match(/\b(كاجوال|رسمي|رياضي|سادة|مطبوعة|مخططة)\b/gi)||[]))); if (style.length) add('النمط', style.join('، '));
-    const neckline = clean.match(/ياق(?:ة|ه)\s*(دائرية|مستديرة|مربعة|V|في|مرتفعة|عالية|قميص)/i)?.[1]; add('الياقة', neckline);
+    const style = Array.from(new Set((clean.match(/\b(كاجوال|رسمي|رياضي|سادة|مطبوعة|مخططة|مشجر|مزخرف|دانتيل|جبير)\b/gi)||[]))); if (style.length) add('النمط', style.join('، '));
+    const neckline = clean.match(/(?:ياق(?:ة|ه)|رقب(?:ة|ه))\s*(دائرية|مستديرة|مربعة|V|في|مرتفعة|عالية|قميص)/i)?.[1]; add('الياقة', neckline);
     const sleeves = clean.match(/(?:بدون\s*أكمام|كم\s*(?:طويل|قصير|نصف|كامل))/i)?.[0]; add('الأكمام', sleeves);
     const lengthType = clean.match(/(?:طول\s*)?(قصير|متوسط|طويل)\s*(?:الطول)?/i)?.[1]; add('الطول', lengthType);
     const thickness = clean.match(/\b(خفيف(?:ة)?|متوسط(?:ة)?|سميك(?:ة)?)\b/i)?.[1]; add('السماكة', thickness);
@@ -244,12 +244,33 @@ export default function AdminProductCreate(): JSX.Element {
       if (extra.length) append('ميزات إضافية', Array.from(new Set(extra)).join(' — '));
     } catch {}
 
-    // Verb phrases like "مزود بـ"، "يحتوي على"، "مع" => ميزات إضافية
+    // Verb phrases like "مزود بـ"، "يحتوي على"، "مع"، "إضافة" => ميزات إضافية
     try {
       const text = String(raw||'');
-      const featMatches = Array.from(text.matchAll(/(?:مزود\s*ب|مزودة\s*ب|مزودة\s*بـ|مزود\s*بـ|يحتوي\s*على|وبـ|وب)\s*([^\.;\n،،]+)/gi));
+      const featMatches = Array.from(text.matchAll(/(?:مزود\s*ب|مزودة\s*ب|مزودة\s*بـ|مزود\s*بـ|يحتوي\s*على|وبـ|وب|اضاف(?:ة|ه)|إضافة)\s*([^\.;\n،،]+)/gi));
       const feats = featMatches.map(m=> m[1]?.trim()).filter(Boolean);
       if (feats.length) append('ميزات إضافية', Array.from(new Set(feats)).join(' — '));
+    } catch {}
+
+    // Pieces parsing: "ثلاث قطع" + تفاصيل القطع
+    try {
+      const text = String(raw||'');
+      if (/(\b3\b|٣|ثلاث(?:ه|ة)?)\s*قطع/i.test(text)) append('عدد القطع', '3');
+      const parts: string[] = [];
+      const inner = text.match(/القطع(?:ه|ة)\s*الداخل(?:ي|يه)\s*([^\n]+)/i)?.[1] || text.match(/الداخل(?:ي|يه)\s*([^\n]+)/i)?.[1];
+      if (inner) { parts.push(inner.trim().replace(/\s{2,}/g,' ')); }
+      const outer = text.match(/القطع(?:ه|ة)\s*الخارجي(?:ه)?\s*([^\n]+)/i)?.[1] || text.match(/الخارجي(?:ه)?\s*([^\n]+)/i)?.[1];
+      if (outer) { parts.push(outer.trim().replace(/\s{2,}/g,' ')); }
+      const third = text.match(/القطع(?:ه|ة)\s*الثالث(?:ه|ة)\s*([^\n]+)/i)?.[1];
+      if (third) { parts.push(third.trim().replace(/\s{2,}/g,' ')); }
+      if (parts.length) append('محتويات العبوة', Array.from(new Set(parts)).join('، '));
+    } catch {}
+
+    // Weight range phrasing like: "تلبس من 45 الى وزن 90"
+    try {
+      const text = String(raw||'');
+      const wr = text.match(/(?:تلبس|يلبس)\s*من\s*(\d{2,3})\s*(?:الى|إلى)\s*(?:وزن\s*)?(\d{2,3})/i);
+      if (wr) append('الوزن', `${wr[1]}–${wr[2]} كجم`);
     } catch {}
 
     // Finalize rows from map
