@@ -347,6 +347,37 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(outSet);
   }
 
+  function extractMeasurementGroups(clean: string, raw?: string): Array<{ label: string; values: string[] }>{
+    const groups: Array<{ label: string; values: string[] }> = [];
+    const add = (label: string, values: string[])=>(()=>{
+      const vals = Array.from(new Set(values.map(v=> String(v).trim()).filter(Boolean)));
+      if (!vals.length) return; if (!groups.some(g=> g.label===label)) groups.push({ label, values: vals });
+    })();
+    const text = String(raw||clean||'');
+    const splitVals = (s: string): string[] => s
+      .replace(/\s*(?:الى|إلى|to)\s*/gi,'-')
+      .split(/[،,;\s]+|-/g)
+      .map(x=> x.trim())
+      .filter(Boolean);
+    // Explicit phrases: مقاس طول / مقاس عرض
+    const mLen = Array.from(text.matchAll(/مقاس\s*(?:ال)?طول\s*[:：]?\s*([^\n\.،]+)/gi)).map(m=> splitVals(m[1]||'' )).flat();
+    if (mLen.length) groups.push({ label: 'مقاس الطول', values: mLen });
+    const mWid = Array.from(text.matchAll(/مقاس\s*(?:ال)?عرض\s*[:：]?\s*([^\n\.،]+)/gi)).map(m=> splitVals(m[1]||'' )).flat();
+    if (mWid.length) groups.push({ label: 'مقاس العرض', values: mWid });
+    // Standalone طول/عرض with cm
+    const lenCm = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m=> `${m[1]} سم`);
+    if (lenCm.length) groups.push({ label: 'الطول (سم)', values: lenCm });
+    const widCm = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m=> `${m[1]} سم`);
+    if (widCm.length) groups.push({ label: 'العرض (سم)', values: widCm });
+    // Meter based
+    const lenM = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m=> `${m[1].replace(',','.') } م`);
+    if (lenM.length) groups.push({ label: 'الطول (م)', values: lenM });
+    const widM = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m=> `${m[1].replace(',','.') } م`);
+    if (widM.length) groups.push({ label: 'العرض (م)', values: widM });
+    // Generic measurement table already handled elsewhere (الصدر/الكتف/...)
+    return groups;
+  }
+
   function generateSeoKeywordsStrict(clean: string): string[] {
     const words = clean
       .toLowerCase()
@@ -688,7 +719,11 @@ export default function AdminProductCreate(): JSX.Element {
         const strictClean = cleanTextStrict(paste);
         const sName = generateStrictName(strictClean);
         const sPrice = extractOldNorthPriceStrict(strictClean);
-        const sDetails = buildStrictDetailsTable(strictClean, paste);
+        let sDetails = buildStrictDetailsTable(strictClean, paste);
+        try{
+          const mg = extractMeasurementGroups(strictClean, paste);
+          for (const g of mg) sDetails.push({ label: g.label, value: g.values.join('، ') });
+        } catch {}
         const sKeywords = generateSeoKeywordsStrict(strictClean);
         reviewObj.name = sName;
         if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
