@@ -126,7 +126,13 @@ export default function AdminProductCreate(): JSX.Element {
       if (!primary.has(t.toLowerCase())) words.push(t);
     }
     if (words.length > 12) words.splice(12);
-    // If still <8, just return what we have without artificial padding
+    // Ensure minimum 8 tokens if possible by backfilling from tokens
+    if (words.length < 8) {
+      for (const t of tokens) {
+        if (words.length >= 8) break;
+        if (!primary.has(t.toLowerCase())) words.push(t);
+      }
+    }
     return words.join(' ');
   }
 
@@ -161,12 +167,15 @@ export default function AdminProductCreate(): JSX.Element {
     add('الفئة', gender);
     add('الخامة', mat);
     if (sizeFree) {
-      const val = weight? `فري سايز (${weight[1]}–${weight[2]||weight[1]} كجم)` : 'فري سايز';
-      add('المقاس', val);
+      add('المقاس', 'فري سايز');
     } else if (sizesList.length) {
       add('المقاسات', sizesList.join('، '));
     }
-    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي'];
+    if (weight) {
+      const w = weight[2] ? `${weight[1]}–${weight[2]} كجم` : `${weight[1]} كجم`;
+      add('الوزن', w);
+    }
+    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','برتقالي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','دم\\s*غزال'];
     const colors = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
     if (colors.length) add('الألوان', colors.join('، '));
     const stock = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)?.[1];
@@ -201,6 +210,38 @@ export default function AdminProductCreate(): JSX.Element {
     // Single weight if not range
     const weightSingle = clean.match(/الوزن\s*[:\-]?\s*(\d{2,3})\s*ك?جم?/i)?.[1]; if (!weight && weightSingle) add('الوزن', `${weightSingle} كجم`);
     return rows;
+  }
+
+  function sanitizeColorsStrict(clean: string, provided?: string[]): string[] {
+    const colorTokens = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','برتقالي','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','دم\\s*غزال'];
+    const re = new RegExp(`(?:^|\\s)(${colorTokens.join('|')})(?=\\s|$)`, 'gi');
+    const outSet = new Set<string>();
+    const pushMatch = (text: string) => {
+      for (const m of text.matchAll(re)) {
+        const raw = m[1] || '';
+        const norm = raw.replace(/\s+/g, ' ').trim();
+        if (norm) outSet.add(norm);
+      }
+    };
+    pushMatch(clean);
+    if (Array.isArray(provided)) {
+      pushMatch(provided.join(' '));
+    }
+    return Array.from(outSet);
+  }
+
+  function sanitizeSizesStrict(clean: string, provided?: string[]): string[] {
+    // If Free Size is mentioned, return exactly ['فري سايز']
+    if (/فري\s*سايز/i.test(clean)) return ['فري سايز'];
+    const re = /\b(XXL|XL|L|M|S|XS|\d{2})\b/gi;
+    const outSet = new Set<string>();
+    if (Array.isArray(provided)) {
+      for (const s of provided) {
+        for (const m of String(s).matchAll(re)) outSet.add(m[1].toUpperCase());
+      }
+    }
+    for (const m of clean.matchAll(re)) outSet.add(String(m[1]).toUpperCase());
+    return Array.from(outSet);
   }
 
   function generateSeoKeywordsStrict(clean: string): string[] {
@@ -469,12 +510,13 @@ export default function AdminProductCreate(): JSX.Element {
           } else { analyzed = {}; }
         } catch { analyzed = {}; }
       }
+      const strictClean0 = (deepseekOn || forceDeepseek) ? cleanTextStrict(paste) : cleanText(paste);
       const extracted:any = {
         name: analyzed?.name?.value || '',
         shortDesc: analyzed?.description?.value || '',
         longDesc: analyzed?.description?.value || '',
-        sizes: analyzed?.sizes?.value || [],
-        colors: analyzed?.colors?.value || [],
+        sizes: sanitizeSizesStrict(strictClean0, analyzed?.sizes?.value || []),
+        colors: sanitizeColorsStrict(strictClean0, analyzed?.colors?.value || []),
         keywords: analyzed?.tags?.value || [],
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sources: {
@@ -526,8 +568,8 @@ export default function AdminProductCreate(): JSX.Element {
         longDesc: String(schema.description||extracted.longDesc||''),
                 purchasePrice: (()=>{ const v = schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined); return (v!==undefined && v<50) ? undefined : v; })(),
         stock: schema.stock_quantity!==undefined && schema.stock_quantity!==null ? Number(schema.stock_quantity) : (extracted.stock!==undefined? Number(extracted.stock): undefined),
-        sizes: Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []),
-        colors: Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: []),
+        sizes: sanitizeSizesStrict(strictClean0, Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: [])),
+        colors: sanitizeColorsStrict(strictClean0, Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: [])),
         keywords: extracted.keywords||[],
         palettes,
         mapping,
@@ -591,8 +633,8 @@ export default function AdminProductCreate(): JSX.Element {
         name: String(analyzed?.name?.value||'').slice(0,60),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
-        sizes: analyzed?.sizes?.value || [],
-        colors: analyzed?.colors?.value || [],
+        sizes: sanitizeSizesStrict(cleanTextStrict(paste), analyzed?.sizes?.value || []),
+        colors: sanitizeColorsStrict(cleanTextStrict(paste), analyzed?.colors?.value || []),
         keywords: analyzed?.tags?.value || [],
         stock: (analyzed?.stock?.value ?? undefined),
         confidence: {
@@ -1140,15 +1182,38 @@ export default function AdminProductCreate(): JSX.Element {
                   <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   
                   <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
+                  {Array.isArray(review.strictDetails) && review.strictDetails.length>0 && (
+                    <div style={{ gridColumn:'1 / -1' }}>
+                      <div style={{ marginBottom:6, color:'#9ca3af' }}>جدول تفاصيل المنتج (صارم)</div>
+                      <div style={{ overflowX:'auto' }}>
+                        <table className="table" role="table" aria-label="جدول تفاصيل المنتج">
+                          <thead>
+                            <tr>
+                              <th>البند</th>
+                              <th>القيمة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {review.strictDetails.map((r:any, idx:number)=> (
+                              <tr key={idx}>
+                                <td>{r.label}</td>
+                                <td>{r.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%) <SourceBadge src={review.sources?.sizes} /></div>
-                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)}))} className="input" />
+                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: sanitizeSizesStrict(cleanTextStrict(paste), e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)) }))} className="input" />
                       {(!review.sizes || review.sizes.length===0) && review?.reasons?.sizes && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.sizes}</div>}
                     </div>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%) <SourceBadge src={review.sources?.colors} /></div>
-                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)}))} className="input" />
+                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: sanitizeColorsStrict(cleanTextStrict(paste), e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)) }))} className="input" />
                       {(!review.colors || review.colors.length===0) && review?.reasons?.colors && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.colors}</div>}
                     </div>
                   </div>
