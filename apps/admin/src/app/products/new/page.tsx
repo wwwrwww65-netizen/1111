@@ -719,18 +719,19 @@ export default function AdminProductCreate(): JSX.Element {
         const strictClean = cleanTextStrict(paste);
         const sName = generateStrictName(strictClean);
         const sPrice = extractOldNorthPriceStrict(strictClean);
-        let sDetails = buildStrictDetailsTable(strictClean, paste);
-        try{
-          const mg = extractMeasurementGroups(strictClean, paste);
-          for (const g of mg) sDetails.push({ label: g.label, value: g.values.join('، ') });
-        } catch {}
+        const sDetails = buildStrictDetailsTable(strictClean, paste);
         const sKeywords = generateSeoKeywordsStrict(strictClean);
         reviewObj.name = sName;
         if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
         reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
         if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
-        try{ const mg = extractMeasurementGroups(strictClean, paste); if (mg.length) (reviewObj as any).sizeGroups = mg; }catch{}
       }
+
+      // Detect measurement groups (e.g., length/width) for preview fields (not part of table)
+      try{
+        const mg = extractMeasurementGroups(cleanTextStrict(paste), paste);
+        if (mg.length) (reviewObj as any).sizeGroups = mg;
+      } catch {}
 
       // Learn from last DeepSeek-only preview ONLY when DeepSeek checkbox is enabled
       if (deepseekOn || forceDeepseek) {
