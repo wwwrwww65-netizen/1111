@@ -70,7 +70,7 @@ export default function RBACPage(): JSX.Element {
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin:'0 auto', padding:16 }}>
+    <main style={{ padding:16, width:'100%' }}>
       <h1 style={{ marginBottom:12, fontSize:22, fontWeight:800 }}>الأدوار والصلاحيات</h1>
       {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
       <div style={{ display:'flex', gap:8, marginBottom:12 }}>
