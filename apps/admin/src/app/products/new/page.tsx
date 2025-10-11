@@ -22,6 +22,8 @@ export default function AdminProductCreate(): JSX.Element {
   const authHeaders = useAuthHeaders();
   const [paste, setPaste] = React.useState('');
   const [review, setReview] = React.useState<any|null>(null);
+  const [dsHint, setDsHint] = React.useState<any|null>(null);
+  const [dsHintKey, setDsHintKey] = React.useState<string>('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string>('');
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
@@ -45,6 +47,24 @@ export default function AdminProductCreate(): JSX.Element {
       <span style={{ marginInlineStart:8, fontSize:11, padding:'2px 6px', borderRadius:999, border:'1px solid var(--muted2)', color: isAi? '#22c55e':'#9ca3af' }}>{isAi? 'AI':'Rules'}</span>
     );
   }
+
+  function keyForText(s: string): string {
+    try {
+      const norm = String(s||'').toLowerCase().replace(/\s+/g,' ').slice(0, 256);
+      return `ds_hint:${norm}`;
+    } catch {
+      return 'ds_hint:';
+    }
+  }
+
+  React.useEffect(()=>{
+    try{
+      const k = keyForText(paste);
+      const raw = localStorage.getItem(k);
+      if (raw) { setDsHint(JSON.parse(raw)); setDsHintKey(k); }
+      else { setDsHint(null); setDsHintKey(k); }
+    } catch { setDsHint(null); }
+  }, [paste]);
   
   function Section({ title, subtitle, toolbar, children }:{ title:string; subtitle?:string; toolbar?:React.ReactNode; children:React.ReactNode }){
     return (
@@ -674,6 +694,20 @@ export default function AdminProductCreate(): JSX.Element {
         reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
         if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
       }
+
+      // Learn from last DeepSeek-only preview (if available for the same text)
+      try{
+        const k = keyForText(paste);
+        if (dsHint && dsHintKey === k) {
+          const wc = (s:string)=> String(s||'').trim().split(/\s+/).filter(Boolean).length;
+          if ((!reviewObj.name || wc(reviewObj.name) < 6) && dsHint.name) reviewObj.name = String(dsHint.name);
+          if (reviewObj.purchasePrice === undefined && typeof dsHint.purchasePrice === 'number') reviewObj.purchasePrice = Number(dsHint.purchasePrice);
+          if ((!Array.isArray(reviewObj.sizes) || reviewObj.sizes.length===0) && Array.isArray(dsHint.sizes) && dsHint.sizes.length) reviewObj.sizes = dsHint.sizes;
+          if ((!Array.isArray(reviewObj.colors) || reviewObj.colors.length===0) && Array.isArray(dsHint.colors) && dsHint.colors.length) reviewObj.colors = dsHint.colors;
+          if ((!Array.isArray(reviewObj.keywords) || reviewObj.keywords.length<8) && Array.isArray(dsHint.keywords) && dsHint.keywords.length) reviewObj.keywords = dsHint.keywords;
+          if (!Array.isArray(reviewObj.strictDetails) && Array.isArray(dsHint.strictDetails) && dsHint.strictDetails.length) reviewObj.strictDetails = dsHint.strictDetails;
+        }
+      } catch {}
       setReview(reviewObj);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
@@ -733,6 +767,7 @@ export default function AdminProductCreate(): JSX.Element {
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
       setReview(reviewObj);
+      try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
       showToast('تم تحليل DeepSeek (معاينة)', 'ok');
       setActiveMobileTab('review');
     } catch {
