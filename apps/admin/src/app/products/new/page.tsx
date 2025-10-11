@@ -22,6 +22,8 @@ export default function AdminProductCreate(): JSX.Element {
   const authHeaders = useAuthHeaders();
   const [paste, setPaste] = React.useState('');
   const [review, setReview] = React.useState<any|null>(null);
+  const [dsHint, setDsHint] = React.useState<any|null>(null);
+  const [dsHintKey, setDsHintKey] = React.useState<string>('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string>('');
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
@@ -45,6 +47,24 @@ export default function AdminProductCreate(): JSX.Element {
       <span style={{ marginInlineStart:8, fontSize:11, padding:'2px 6px', borderRadius:999, border:'1px solid var(--muted2)', color: isAi? '#22c55e':'#9ca3af' }}>{isAi? 'AI':'Rules'}</span>
     );
   }
+
+  function keyForText(s: string): string {
+    try {
+      const norm = String(s||'').toLowerCase().replace(/\s+/g,' ').slice(0, 256);
+      return `ds_hint:${norm}`;
+    } catch {
+      return 'ds_hint:';
+    }
+  }
+
+  React.useEffect(()=>{
+    try{
+      const k = keyForText(paste);
+      const raw = localStorage.getItem(k);
+      if (raw) { setDsHint(JSON.parse(raw)); setDsHintKey(k); }
+      else { setDsHint(null); setDsHintKey(k); }
+    } catch { setDsHint(null); }
+  }, [paste]);
   
   function Section({ title, subtitle, toolbar, children }:{ title:string; subtitle?:string; toolbar?:React.ReactNode; children:React.ReactNode }){
     return (
@@ -93,6 +113,281 @@ export default function AdminProductCreate(): JSX.Element {
     return s.trim();
   }
 
+  function cleanTextStrict(raw: string): string {
+    // Start from existing cleaner
+    let s = cleanText(raw);
+    // Remove broader promotional phrases aggressively
+    const promo = [
+      'احجز', 'احجزي', 'احجزي الآن', 'لا تفوت', 'لا تفوتي', 'لايفوتك', 'العرض', 'عرض خاص', 'عرض اليوم', 'محدود الكمية',
+      'حصري', 'مضمون', 'أفضل', 'الأفضل', 'سارع', 'سارعي', 'تخفيض', 'خصم', 'هدية', 'مجاني', 'شحن مجاني',
+      'تواصل', 'واتس', 'whatsapp', 'link in bio', 'promo', 'discount', 'best price', 'offer', 'sale', 'free shipping',
+      'معكم بكل جديد', 'معكم بكل جدي', 'نقدم لكم', 'لمسة فريدة', 'لمسه فريده', 'الكل يعرض'
+    ];
+    for (const w of promo) s = s.replace(new RegExp(w, 'gi'), ' ');
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s;
+  }
+
+  function generateStrictName(clean: string): string {
+    // Reuse makeSeoName baseline then enforce 8–12 words, avoid marketing
+    const base = makeSeoName(clean, '')
+      .replace(/\b(?:حصري|مجاني|عرض|خصم|أفضل|الأفضل)\b/gi, '')
+      .replace(/\s{2,}/g, ' ').trim();
+    const words = base.split(/\s+/).filter(Boolean);
+    // Backfill from clean text tokens (avoid filler like "أساسي")
+    const tokens = Array.from(new Set(
+      clean
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !stopwords.has(w as any) && !/^[0-9]+$/.test(w))
+    ));
+    const primary = new Set(words.map(w=>w.toLowerCase()));
+    for (const t of tokens) {
+      if (words.length >= 12) break;
+      if (!primary.has(t.toLowerCase())) words.push(t);
+    }
+    if (words.length > 12) words.splice(12);
+    // Ensure minimum 8 tokens if possible by backfilling from tokens
+    if (words.length < 8) {
+      for (const t of tokens) {
+        if (words.length >= 8) break;
+        if (!primary.has(t.toLowerCase())) words.push(t);
+      }
+    }
+    return words.join(' ');
+  }
+
+  function extractOldNorthPriceStrict(clean: string): number | undefined {
+    // Prefer mentions tagged قديم/الشمال؛ ignore سعودي/جنوبي/قعيطي/جديد
+    const ignoreCtx = /(سعودي|جنوبي|جديد|قعيطي)/i;
+    const matches = Array.from(clean.matchAll(/(?:(?:قديم|للشمال|الشمال)[^\d]{0,12})(\d+[\.,]??\d*)/gi));
+    for (const m of matches) {
+      const before = clean.slice(Math.max(0, (m.index||0)-20), (m.index||0)+m[0].length+10);
+      if (!ignoreCtx.test(before)) {
+        const v = Number(String(m[1]).replace(',','.'));
+        if (Number.isFinite(v)) return v;
+      }
+    }
+    return undefined;
+  }
+
+  function buildStrictDetailsTable(clean: string, raw?: string): Array<{label:string; value:string}> {
+    const rows: Array<{label:string; value:string}> = [];
+    const rowMap = new Map<string,string>();
+    const append = (label:string, value?:string|number|null)=>{
+      const v = (value==null)? '' : String(value).trim();
+      if (!v) return;
+      const cur = rowMap.get(label);
+      if (!cur) { rowMap.set(label, v); return; }
+      if (!cur.split(/\s*،\s*/).includes(v)) rowMap.set(label, `${cur}، ${v}`);
+    };
+    const add = (label:string, value?:string|number|null)=> append(label, value);
+    const type = clean.match(/(فنيلة|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i)?.[1];
+    const gender = clean.match(/(نسائي|رجالي)/i)?.[1];
+    const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
+    const weight = clean.match(/وزن\s*(\d{2,3})(?:\s*[-–—\s]\s*(\d{2,3}))?\s*ك?جم?/i);
+    const sizeFree = /فري\s*سايز/i.test(clean);
+    const sizesList = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=>s.toUpperCase());
+    add('النوع', type);
+    add('الفئة', gender);
+    add('الخامة', mat);
+    if (sizeFree) {
+      add('المقاس', 'فري سايز');
+    } else if (sizesList.length) {
+      add('المقاسات', sizesList.join('، '));
+    }
+    if (weight) {
+      const w = weight[2] ? `${weight[1]}–${weight[2]} كجم` : `${weight[1]} كجم`;
+      add('الوزن', w);
+    }
+    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','برتقالي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','دم\\s*غزال'];
+    const colors = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
+    if (colors.length) add('الألوان', colors.join('، '));
+    const stock = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)?.[1];
+    add('المخزون', stock);
+
+    // Dynamic attributes
+    const fit = clean.match(/\b(واسع|فضفاض|ضيق|سكيني|عادي|منتظم)\b/i)?.[1];
+    add('القَصّة', fit);
+    const season = Array.from(new Set((clean.match(/\b(صيفي|شتوي|ربيعي|خريفي)\b/gi)||[]))); if (season.length) add('الموسم', season.join('، '));
+    const style = Array.from(new Set((clean.match(/\b(كاجوال|رسمي|رياضي|سادة|مطبوعة|مخططة|مشجر|مزخرف|دانتيل|جبير)\b/gi)||[]))); if (style.length) add('النمط', style.join('، '));
+    const neckline = clean.match(/(?:ياق(?:ة|ه)|رقب(?:ة|ه))\s*(دائرية|مستديرة|مربعة|V|في|مرتفعة|عالية|قميص)/i)?.[1]; add('الياقة', neckline);
+    const sleeves = clean.match(/(?:بدون\s*أكمام|كم\s*(?:طويل|قصير|نصف|كامل))/i)?.[0]; add('الأكمام', sleeves);
+    const lengthType = clean.match(/(?:طول\s*)?(قصير|متوسط|طويل)\s*(?:الطول)?/i)?.[1]; add('الطول', lengthType);
+    const thickness = clean.match(/\b(خفيف(?:ة)?|متوسط(?:ة)?|سميك(?:ة)?)\b/i)?.[1]; add('السماكة', thickness);
+    const elasticity = clean.match(/\b(مرن|مطاطي|غير\s*مرن|بدون\s*مرونة)\b/i)?.[1]; add('المرونة', elasticity);
+    const lining = clean.match(/\b(مبطن|بدون\s*بطانة)\b/i)?.[1]; add('البطانة', lining);
+    const madeIn = clean.match(/(?:صنع\s*في|made\s*in)\s*([\p{L}\s]+)/i)?.[1]; add('بلد الصنع', madeIn);
+    // Care instructions snippets
+    const care = Array.from(new Set((clean.match(/(غسل\s*(?:يدوي|آلي)|درجة\s*حرارة\s*\d+\s*°?C|لا\s*تُ?بيض|تجفيف\s*ظل)/gi)||[]))); if (care.length) add('العناية', care.join('، '));
+    const model = clean.match(/(?:موديل|كود|رمز)\s*[:\-]?\s*([A-Za-z0-9\- _]{2,})/i)?.[1]; add('الموديل', model);
+    // Measurements (cm)
+    const meas = Array.from(clean.matchAll(/(الصدر|الكتف|الخصر|الورك|الطول)\s*[:\-]?\s*(\d{2,3})\s*سم/gi));
+    if (meas.length) {
+      const str = meas.map(m=> `${m[1]}: ${m[2]} سم`).join('، ');
+      add('المقاسات (سم)', str);
+    }
+    const closure = Array.from(new Set((clean.match(/\b(سحاب|سوستة|زر(?:ار)?|أزرار|رباط)\b/gi)||[]))); if (closure.length) add('الإغلاق', closure.join('، '));
+    const occasion = Array.from(new Set((clean.match(/\b(يومي|حفلات|عمل|رسمي|كاجوال|رياضة|زفاف|سهرة)\b/gi)||[]))); if (occasion.length) add('المناسبة', occasion.join('، '));
+    const brand = clean.match(/(?:ماركة|علامة\s*تجارية)\s*[:\-]?\s*([\p{L}\s0-9]{2,})/i)?.[1]; add('العلامة التجارية', brand);
+    // Package contents
+    const contents = clean.match(/(?:يحتوي|المحتويات|العبوة)\s*[:\-]?\s*([^\n\.\!]+)/i)?.[1]; add('محتويات العبوة', contents);
+    // Single weight if not range
+    const weightSingle = clean.match(/الوزن\s*[:\-]?\s*(\d{2,3})\s*ك?جم?/i)?.[1]; if (!weight && weightSingle) add('الوزن', `${weightSingle} كجم`);
+    // Generic label:value pairs from raw text
+    try {
+      const text = String(raw||'');
+      const pairRe = /(?:^|[\n\.;،])\s*([\p{L}\p{N}\s]{2,20}?)\s*[:：]\s*([^\n\.;]+)/gmu;
+      let m: RegExpExecArray | null;
+      while ((m = pairRe.exec(text))) {
+        const label = m[1].replace(/\s{2,}/g,' ').trim();
+        const value = m[2].replace(/\s{2,}/g,' ').trim();
+        if (!label || !value) continue;
+        // Skip forbidden labels
+        if (/\b(السعر|السعر\s*للشمال|سعر\s*البيع|الشحن|التوصيل|العرض|خصم)\b/i.test(label)) continue;
+        if (/\b(السعر|الشحن|التوصيل|عرض\s*خاص|خصم)\b/i.test(value)) continue;
+        append(label, value);
+      }
+    } catch {}
+
+    // Bullet points / descriptive fragments => "ميزات إضافية"
+    try {
+      const text = String(raw||'');
+      const bullets = text.split(/\s*•\s*/).map(s=> s.trim()).filter(Boolean);
+      const extra: string[] = [];
+      for (const b of bullets) {
+        if (!b) continue;
+        if (/^(السعر|الشحن|التوصيل|عرض|خصم)/i.test(b)) continue;
+        if (/\b(ريال|SAR|السعر|جديد|جنوب|قعيطي)\b/i.test(b)) continue;
+        if (b.length < 3) continue;
+        extra.push(b.replace(/\s{2,}/g,' '));
+      }
+      if (extra.length) append('ميزات إضافية', Array.from(new Set(extra)).join(' — '));
+    } catch {}
+
+    // Verb phrases like "مزود بـ"، "يحتوي على"، "مع"، "إضافة" => ميزات إضافية
+    try {
+      const text = String(raw||'');
+      const featMatches = Array.from(text.matchAll(/(?:مزود\s*ب|مزودة\s*ب|مزودة\s*بـ|مزود\s*بـ|يحتوي\s*على|وبـ|وب|اضاف(?:ة|ه)|إضافة)\s*([^\.;\n،،]+)/gi));
+      const feats = featMatches.map(m=> m[1]?.trim()).filter(Boolean);
+      if (feats.length) append('ميزات إضافية', Array.from(new Set(feats)).join(' — '));
+    } catch {}
+
+    // Pieces parsing: "ثلاث قطع" + تفاصيل القطع
+    try {
+      const text = String(raw||'');
+      if (/(\b3\b|٣|ثلاث(?:ه|ة)?)\s*قطع/i.test(text)) append('عدد القطع', '3');
+      const parts: string[] = [];
+      const inner = text.match(/القطع(?:ه|ة)\s*الداخل(?:ي|يه)\s*([^\n]+)/i)?.[1] || text.match(/الداخل(?:ي|يه)\s*([^\n]+)/i)?.[1];
+      if (inner) { parts.push(inner.trim().replace(/\s{2,}/g,' ')); }
+      const outer = text.match(/القطع(?:ه|ة)\s*الخارجي(?:ه)?\s*([^\n]+)/i)?.[1] || text.match(/الخارجي(?:ه)?\s*([^\n]+)/i)?.[1];
+      if (outer) { parts.push(outer.trim().replace(/\s{2,}/g,' ')); }
+      const third = text.match(/القطع(?:ه|ة)\s*الثالث(?:ه|ة)\s*([^\n]+)/i)?.[1];
+      if (third) { parts.push(third.trim().replace(/\s{2,}/g,' ')); }
+      if (parts.length) append('محتويات العبوة', Array.from(new Set(parts)).join('، '));
+    } catch {}
+
+    // Weight range phrasing like: "تلبس من 45 الى وزن 90"
+    try {
+      const text = String(raw||'');
+      const wr = text.match(/(?:تلبس|يلبس)\s*من\s*(\d{2,3})\s*(?:الى|إلى)\s*(?:وزن\s*)?(\d{2,3})/i);
+      if (wr) append('الوزن', `${wr[1]}–${wr[2]} كجم`);
+    } catch {}
+
+    // Finalize rows from map
+    for (const [label,value] of rowMap.entries()) rows.push({ label, value });
+    return rows;
+  }
+
+  function sanitizeColorsStrict(clean: string, provided?: string[]): string[] {
+    const colorTokens = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','برتقالي','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','دم\\s*غزال'];
+    const re = new RegExp(`(?:^|\\s)(${colorTokens.join('|')})(?=\\s|$)`, 'gi');
+    const outSet = new Set<string>();
+    const pushMatch = (text: string) => {
+      for (const m of text.matchAll(re)) {
+        const raw = m[1] || '';
+        const norm = raw.replace(/\s+/g, ' ').trim();
+        if (norm) outSet.add(norm);
+      }
+    };
+    pushMatch(clean);
+    if (Array.isArray(provided)) {
+      pushMatch(provided.join(' '));
+    }
+    return Array.from(outSet);
+  }
+
+  function sanitizeSizesStrict(clean: string, provided?: string[], raw?: string): string[] {
+    // If Free Size is mentioned, return exactly ['فري سايز']
+    if (/فري\s*سايز/i.test(clean) || /مقاس\s*واحد/i.test(String(raw||''))) return ['فري سايز'];
+    const outSet = new Set<string>();
+    // Letters first
+    const letterRe = /\b(XXL|XL|L|M|S|XS)\b/gi;
+    for (const m of clean.matchAll(letterRe)) outSet.add(String(m[1]).toUpperCase());
+    if (Array.isArray(provided)) {
+      for (const s of provided) for (const m of String(s).matchAll(letterRe)) outSet.add(String(m[1]).toUpperCase());
+    }
+    // Numeric sizes only when clearly sizes (preceded by مقاس/within range) and NOT weight context
+    const rawText = String(raw||'');
+    const weightNums = new Set<string>();
+    for (const m of rawText.matchAll(/(?:وزن|تلبس)\s*(?:من\s*)?(\d{2,3})(?:\s*(?:الى|إلى|-)|\s*(?:الى|إلى)?\s*وزن\s*)(\d{2,3})?/gi)) {
+      weightNums.add(String(m[1]));
+      if (m[2]) weightNums.add(String(m[2]));
+    }
+    const numericCandidates: string[] = [];
+    for (const m of rawText.matchAll(/(?:مقاس(?:اته)?\s*[:：]?)?\s*(\d{2})\s*(?:الى|إلى|to|[-–—])\s*(\d{2})/gi)) {
+      const a = Number(m[1]), b = Number(m[2]);
+      if (a>=20 && a<=60 && b>=20 && b<=60) for (let v=Math.min(a,b); v<=Math.max(a,b); v++) numericCandidates.push(String(v));
+    }
+    for (const m of rawText.matchAll(/مقاس(?:اته)?\s*[:：]?\s*((?:\d{2})(?:\s*[،,\-]\s*\d{2})+)/gi)) {
+      const parts = m[1].split(/[،,\-\s]+/).map(s=>s.trim()).filter(Boolean);
+      for (const p of parts) if (/^\d{2}$/.test(p)) numericCandidates.push(p);
+    }
+    for (const n of numericCandidates) if (!weightNums.has(n)) outSet.add(n);
+    return Array.from(outSet);
+  }
+
+  function extractMeasurementGroups(clean: string, raw?: string): Array<{ label: string; values: string[] }>{
+    const groups: Array<{ label: string; values: string[] }> = [];
+    const add = (label: string, values: string[])=>(()=>{
+      const vals = Array.from(new Set(values.map(v=> String(v).trim()).filter(Boolean)));
+      if (!vals.length) return; if (!groups.some(g=> g.label===label)) groups.push({ label, values: vals });
+    })();
+    const text = String(raw||clean||'');
+    const splitVals = (s: string): string[] => s
+      .replace(/\s*(?:الى|إلى|to)\s*/gi,'-')
+      .split(/[،,;\s]+|-/g)
+      .map(x=> x.trim())
+      .filter(Boolean);
+    // Explicit phrases: مقاس طول / مقاس عرض
+    const mLen = Array.from(text.matchAll(/مقاس\s*(?:ال)?طول\s*[:：]?\s*([^\n\.،]+)/gi)).map(m=> splitVals(m[1]||'' )).flat();
+    if (mLen.length) groups.push({ label: 'مقاس الطول', values: mLen });
+    const mWid = Array.from(text.matchAll(/مقاس\s*(?:ال)?عرض\s*[:：]?\s*([^\n\.،]+)/gi)).map(m=> splitVals(m[1]||'' )).flat();
+    if (mWid.length) groups.push({ label: 'مقاس العرض', values: mWid });
+    // Standalone طول/عرض with cm
+    const lenCm = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m=> `${m[1]} سم`);
+    if (lenCm.length) groups.push({ label: 'الطول (سم)', values: lenCm });
+    const widCm = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m=> `${m[1]} سم`);
+    if (widCm.length) groups.push({ label: 'العرض (سم)', values: widCm });
+    // Meter based
+    const lenM = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m=> `${m[1].replace(',','.') } م`);
+    if (lenM.length) groups.push({ label: 'الطول (م)', values: lenM });
+    const widM = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m=> `${m[1].replace(',','.') } م`);
+    if (widM.length) groups.push({ label: 'العرض (م)', values: widM });
+    // Generic measurement table already handled elsewhere (الصدر/الكتف/...)
+    return groups;
+  }
+
+  function generateSeoKeywordsStrict(clean: string): string[] {
+    const words = clean
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter(w=> w.length>2 && !stopwords.has(w as any));
+    const uniq = Array.from(new Set(words));
+    return uniq.slice(0, 12);
+  }
+
   function toLatinDigitsStr(input: string): string {
     return String(input||'')
       .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
@@ -106,7 +401,7 @@ export default function AdminProductCreate(): JSX.Element {
 
   function makeSeoName(clean: string, fallback: string): string {
     const model = clean.match(/موديل\s*([A-Za-z0-9_-]{2,})/i)?.[1];
-    const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|بلوفر|سويتر|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i);
+    const typeMatch = clean.match(/(جلابية|جلابيه|قفطان|فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|بلوفر|سويتر|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i);
     const type = (typeMatch?.[1]||'').replace(/فنائل/i,'فنيلة');
     const genderRaw = clean.match(/(نسائي|نسائية|رجالي|رجالية|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
     const gender = /نسائي/i.test(genderRaw) ? 'نسائية' : (/رجالي/i.test(genderRaw) ? 'رجالي' : genderRaw);
@@ -302,7 +597,10 @@ export default function AdminProductCreate(): JSX.Element {
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
       let analyzed: any = {};
       try{
-        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }) });
+        const strictMode = !!(deepseekOn || forceDeepseek);
+        const strictText = strictMode ? cleanTextStrict(paste) : paste;
+        const disableDeepseek = (!deepseekOn && !forceDeepseek) ? '&disableDeepseek=1' : '';
+        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}${strictMode?'&strict=1':''}${disableDeepseek}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: strictText, images: b64Images.map(d=> ({ dataUrl: d })) }) });
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
@@ -347,12 +645,13 @@ export default function AdminProductCreate(): JSX.Element {
           } else { analyzed = {}; }
         } catch { analyzed = {}; }
       }
+      const strictClean0 = (deepseekOn || forceDeepseek) ? cleanTextStrict(paste) : cleanText(paste);
       const extracted:any = {
         name: analyzed?.name?.value || '',
         shortDesc: analyzed?.description?.value || '',
         longDesc: analyzed?.description?.value || '',
-        sizes: analyzed?.sizes?.value || [],
-        colors: analyzed?.colors?.value || [],
+        sizes: sanitizeSizesStrict(strictClean0, analyzed?.sizes?.value || [], paste),
+        colors: sanitizeColorsStrict(strictClean0, analyzed?.colors?.value || []),
         keywords: analyzed?.tags?.value || [],
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sources: {
@@ -398,14 +697,14 @@ export default function AdminProductCreate(): JSX.Element {
         mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
       }
       const schema = buildSchemaOutput(extracted, palettes, mapping);
-      const reviewObj = {
+      let reviewObj:any = {
         name: String(schema.product_name_seo||extracted.name||'').trim(),
         shortDesc: String(schema.description||extracted.shortDesc||'').slice(0,160),
         longDesc: String(schema.description||extracted.longDesc||''),
                 purchasePrice: (()=>{ const v = schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined); return (v!==undefined && v<50) ? undefined : v; })(),
         stock: schema.stock_quantity!==undefined && schema.stock_quantity!==null ? Number(schema.stock_quantity) : (extracted.stock!==undefined? Number(extracted.stock): undefined),
-        sizes: Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []),
-        colors: Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: []),
+        sizes: sanitizeSizesStrict(strictClean0, Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []), paste),
+        colors: sanitizeColorsStrict(strictClean0, Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: [])),
         keywords: extracted.keywords||[],
         palettes,
         mapping,
@@ -414,6 +713,41 @@ export default function AdminProductCreate(): JSX.Element {
         reasons: extracted.reasons || {},
         sources: extracted.sources
       } as any;
+
+      // Apply strict mode post-processing when DeepSeek enabled
+      if (deepseekOn || forceDeepseek) {
+        const strictClean = cleanTextStrict(paste);
+        const sName = generateStrictName(strictClean);
+        const sPrice = extractOldNorthPriceStrict(strictClean);
+        const sDetails = buildStrictDetailsTable(strictClean, paste);
+        const sKeywords = generateSeoKeywordsStrict(strictClean);
+        reviewObj.name = sName;
+        if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
+        reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
+        if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
+      }
+
+      // Detect measurement groups (e.g., length/width) for preview fields (not part of table)
+      try{
+        const mg = extractMeasurementGroups(cleanTextStrict(paste), paste);
+        if (mg.length) (reviewObj as any).sizeGroups = mg;
+      } catch {}
+
+      // Learn from last DeepSeek-only preview ONLY when DeepSeek checkbox is enabled
+      if (deepseekOn || forceDeepseek) {
+        try{
+          const k = keyForText(paste);
+          if (dsHint && dsHintKey === k) {
+            const wc = (s:string)=> String(s||'').trim().split(/\s+/).filter(Boolean).length;
+            if ((!reviewObj.name || wc(reviewObj.name) < 6) && dsHint.name) reviewObj.name = String(dsHint.name);
+            if (reviewObj.purchasePrice === undefined && typeof dsHint.purchasePrice === 'number') reviewObj.purchasePrice = Number(dsHint.purchasePrice);
+            if ((!Array.isArray(reviewObj.sizes) || reviewObj.sizes.length===0) && Array.isArray(dsHint.sizes) && dsHint.sizes.length) reviewObj.sizes = dsHint.sizes;
+            if ((!Array.isArray(reviewObj.colors) || reviewObj.colors.length===0) && Array.isArray(dsHint.colors) && dsHint.colors.length) reviewObj.colors = dsHint.colors;
+            if ((!Array.isArray(reviewObj.keywords) || reviewObj.keywords.length<8) && Array.isArray(dsHint.keywords) && dsHint.keywords.length) reviewObj.keywords = dsHint.keywords;
+            if (!Array.isArray(reviewObj.strictDetails) && Array.isArray(dsHint.strictDetails) && dsHint.strictDetails.length) reviewObj.strictDetails = dsHint.strictDetails;
+          }
+        } catch {}
+      }
       setReview(reviewObj);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
@@ -432,7 +766,7 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1&strict=1`, {
         method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
         body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
       });
@@ -451,14 +785,17 @@ export default function AdminProductCreate(): JSX.Element {
         showToast('تعذر استخراج الحقول من DeepSeek', 'err');
         return;
       }
-      const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
+      let reviewObj:any = {
+        name: String(analyzed?.name?.value||''),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
         stock: (analyzed?.stock?.value ?? undefined),
+        strictDetails: Array.isArray((analyzed as any)?.description_table?.value)
+          ? (analyzed as any).description_table.value.map((r:any)=> ({ label: r.label || r.key, value: r.value }))
+          : undefined,
         confidence: {
           name: Number(analyzed?.name?.confidence ?? 0.85),
           longDesc: Number(analyzed?.description?.confidence ?? 0.85),
@@ -470,6 +807,7 @@ export default function AdminProductCreate(): JSX.Element {
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
       setReview(reviewObj);
+      try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
       showToast('تم تحليل DeepSeek (معاينة)', 'ok');
       setActiveMobileTab('review');
     } catch {
@@ -994,17 +1332,54 @@ export default function AdminProductCreate(): JSX.Element {
                   <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   
                   <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
+                  {Array.isArray(review.strictDetails) && review.strictDetails.length>0 && (
+                    <div style={{ gridColumn:'1 / -1' }}>
+                      <div style={{ marginBottom:6, color:'#9ca3af' }}>جدول تفاصيل المنتج (صارم)</div>
+                      <div style={{ overflowX:'auto' }}>
+                        <table className="table" role="table" aria-label="جدول تفاصيل المنتج">
+                          <thead>
+                            <tr>
+                              <th>البند</th>
+                              <th>القيمة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {review.strictDetails.map((r:any, idx:number)=> (
+                              <tr key={idx}>
+                                <td>{r.label}</td>
+                                <td>{r.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%) <SourceBadge src={review.sources?.sizes} /></div>
-                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)}))} className="input" />
+                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: sanitizeSizesStrict(cleanTextStrict(paste), e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean), paste) }))} className="input" />
                       {(!review.sizes || review.sizes.length===0) && review?.reasons?.sizes && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.sizes}</div>}
                     </div>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%) <SourceBadge src={review.sources?.colors} /></div>
-                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)}))} className="input" />
+                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: sanitizeColorsStrict(cleanTextStrict(paste), e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)) }))} className="input" />
                       {(!review.colors || review.colors.length===0) && review?.reasons?.colors && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.colors}</div>}
                     </div>
+                    {Array.isArray((review as any).sizeGroups) && (review as any).sizeGroups.length>0 && (
+                      <>
+                        {((review as any).sizeGroups as Array<{label:string;values:string[]}>).slice(0,2).map((g, idx)=> (
+                          <div key={idx} style={{ gridColumn: idx===0? '1/2':'2/3' }}>
+                            <div style={{ marginBottom:6, color:'#9ca3af' }}>{g.label}</div>
+                            <input value={g.values.join(', ')} onChange={(e)=> setReview((r:any)=>{
+                              const next = [...((r.sizeGroups||[]) as any[])];
+                              if (next[idx]) next[idx] = { ...next[idx], values: e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean) };
+                              return { ...r, sizeGroups: next };
+                            })} className="input" />
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                   <div style={{ gridColumn:'1 / -1' }}>
                     <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO) <SourceBadge src={review.sources?.tags} /></div>

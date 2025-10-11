@@ -116,10 +116,12 @@ export default function DriversPage(): JSX.Element {
         socket.on('connect', ()=> setIoConnected(true));
         socket.on('disconnect', ()=> setIoConnected(false));
         socket.on('driver:locations', (payload:any)=>{
-          // Merge live locations into rows
-          const map = new Map(rows.map((r:any)=> [r.id, r]));
-          for (const d of (payload?.drivers||[])) { const cur = map.get(d.id) || {}; map.set(d.id, { ...cur, ...d }); }
-          setRows(Array.from(map.values()));
+          // Merge live locations into current rows (avoid stale closure)
+          setRows((prev:any[])=>{
+            const map = new Map(prev.map((r:any)=> [r.id, r]));
+            for (const d of (payload?.drivers||[])) { const cur = map.get(d.id) || {}; map.set(d.id, { ...cur, ...d }); }
+            return Array.from(map.values());
+          });
         });
       };
       ensure();
@@ -146,7 +148,7 @@ export default function DriversPage(): JSX.Element {
 
   async function toggleActive(d:any){
     const payload = { isActive: !(d.isActive!==false) } as any;
-    await fetch(`/api/admin/drivers/${d.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+    await fetch(`${apiBase}/api/admin/drivers/${d.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
     await load();
   }
 
@@ -159,8 +161,9 @@ export default function DriversPage(): JSX.Element {
       const resp = await fetch(url.toString(), { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(payload) });
       if (!resp.ok) { const txt = await resp.text().catch(()=> ''); setMsg(`تعذر الإضافة (${resp.status}) ${txt.slice(0,120)}`); return; }
       setName(''); setPhone(''); setAddress(''); setNationalId(''); setVehicleType(''); setOwnership(''); setNotes(''); setIdType('ID');
-      setShowAdd(false);
+      setTab('list');
       await load();
+      setMsg('تمت إضافة السائق');
     } catch {
       setMsg('تعذر الاتصال بالخادم أثناء الإضافة');
     }
