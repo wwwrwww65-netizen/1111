@@ -180,7 +180,16 @@ textarea.input {
 
 /* Remove left padding beside sidebar on desktop so content is flush */
 @media (min-width: 992px){
-  .app-root .content{ padding-inline-start: 0; }
+  .app-root .content{ padding-inline-start: 0; padding-inline-end: 60px; }
 }
 /* Ensure no grid gap between sidebar and content */
 .app-root .shell{ gap: 0; }
+
+/* Desktop typography and controls scale-up for readability */
+@media (min-width: 1200px){
+  :root{
+    --fz-body: 16px;
+    --fz-h1: 26px; --fz-h2: 20px; --fz-h3: 18px;
+    --input-h: 44px; --btn-md-h: 44px; --btn-lg-h: 52px;
+  }
+}
