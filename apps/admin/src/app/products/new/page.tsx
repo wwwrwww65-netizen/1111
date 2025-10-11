@@ -98,9 +98,10 @@ export default function AdminProductCreate(): JSX.Element {
     let s = cleanText(raw);
     // Remove broader promotional phrases aggressively
     const promo = [
-      'احجز', 'احجزي', 'احجزي الآن', 'لا تفوت', 'لا تفوتي', 'لايفوتك', 'العرض', 'عرض خاص', 'محدود الكمية',
+      'احجز', 'احجزي', 'احجزي الآن', 'لا تفوت', 'لا تفوتي', 'لايفوتك', 'العرض', 'عرض خاص', 'عرض اليوم', 'محدود الكمية',
       'حصري', 'مضمون', 'أفضل', 'الأفضل', 'سارع', 'سارعي', 'تخفيض', 'خصم', 'هدية', 'مجاني', 'شحن مجاني',
-      'تواصل', 'واتس', 'whatsapp', 'link in bio', 'promo', 'discount', 'best price', 'offer', 'sale', 'free shipping'
+      'تواصل', 'واتس', 'whatsapp', 'link in bio', 'promo', 'discount', 'best price', 'offer', 'sale', 'free shipping',
+      'معكم بكل جديد', 'معكم بكل جدي', 'نقدم لكم', 'لمسة فريدة', 'لمسه فريده', 'الكل يعرض'
     ];
     for (const w of promo) s = s.replace(new RegExp(w, 'gi'), ' ');
     s = s.replace(/\s{2,}/g, ' ').trim();
@@ -296,17 +297,33 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(outSet);
   }
 
-  function sanitizeSizesStrict(clean: string, provided?: string[]): string[] {
+  function sanitizeSizesStrict(clean: string, provided?: string[], raw?: string): string[] {
     // If Free Size is mentioned, return exactly ['فري سايز']
-    if (/فري\s*سايز/i.test(clean)) return ['فري سايز'];
-    const re = /\b(XXL|XL|L|M|S|XS|\d{2})\b/gi;
+    if (/فري\s*سايز/i.test(clean) || /مقاس\s*واحد/i.test(String(raw||''))) return ['فري سايز'];
     const outSet = new Set<string>();
+    // Letters first
+    const letterRe = /\b(XXL|XL|L|M|S|XS)\b/gi;
+    for (const m of clean.matchAll(letterRe)) outSet.add(String(m[1]).toUpperCase());
     if (Array.isArray(provided)) {
-      for (const s of provided) {
-        for (const m of String(s).matchAll(re)) outSet.add(m[1].toUpperCase());
-      }
+      for (const s of provided) for (const m of String(s).matchAll(letterRe)) outSet.add(String(m[1]).toUpperCase());
     }
-    for (const m of clean.matchAll(re)) outSet.add(String(m[1]).toUpperCase());
+    // Numeric sizes only when clearly sizes (preceded by مقاس/within range) and NOT weight context
+    const rawText = String(raw||'');
+    const weightNums = new Set<string>();
+    for (const m of rawText.matchAll(/(?:وزن|تلبس)\s*(?:من\s*)?(\d{2,3})(?:\s*(?:الى|إلى|-)|\s*(?:الى|إلى)?\s*وزن\s*)(\d{2,3})?/gi)) {
+      weightNums.add(String(m[1]));
+      if (m[2]) weightNums.add(String(m[2]));
+    }
+    const numericCandidates: string[] = [];
+    for (const m of rawText.matchAll(/(?:مقاس(?:اته)?\s*[:：]?)?\s*(\d{2})\s*(?:الى|إلى|to|[-–—])\s*(\d{2})/gi)) {
+      const a = Number(m[1]), b = Number(m[2]);
+      if (a>=20 && a<=60 && b>=20 && b<=60) for (let v=Math.min(a,b); v<=Math.max(a,b); v++) numericCandidates.push(String(v));
+    }
+    for (const m of rawText.matchAll(/مقاس(?:اته)?\s*[:：]?\s*((?:\d{2})(?:\s*[،,\-]\s*\d{2})+)/gi)) {
+      const parts = m[1].split(/[،,\-\s]+/).map(s=>s.trim()).filter(Boolean);
+      for (const p of parts) if (/^\d{2}$/.test(p)) numericCandidates.push(p);
+    }
+    for (const n of numericCandidates) if (!weightNums.has(n)) outSet.add(n);
     return Array.from(outSet);
   }
 
@@ -333,7 +350,7 @@ export default function AdminProductCreate(): JSX.Element {
 
   function makeSeoName(clean: string, fallback: string): string {
     const model = clean.match(/موديل\s*([A-Za-z0-9_-]{2,})/i)?.[1];
-    const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|بلوفر|سويتر|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i);
+    const typeMatch = clean.match(/(جلابية|جلابيه|قفطان|فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|بلوفر|سويتر|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i);
     const type = (typeMatch?.[1]||'').replace(/فنائل/i,'فنيلة');
     const genderRaw = clean.match(/(نسائي|نسائية|رجالي|رجالية|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
     const gender = /نسائي/i.test(genderRaw) ? 'نسائية' : (/رجالي/i.test(genderRaw) ? 'رجالي' : genderRaw);
@@ -581,7 +598,7 @@ export default function AdminProductCreate(): JSX.Element {
         name: analyzed?.name?.value || '',
         shortDesc: analyzed?.description?.value || '',
         longDesc: analyzed?.description?.value || '',
-        sizes: sanitizeSizesStrict(strictClean0, analyzed?.sizes?.value || []),
+        sizes: sanitizeSizesStrict(strictClean0, analyzed?.sizes?.value || [], paste),
         colors: sanitizeColorsStrict(strictClean0, analyzed?.colors?.value || []),
         keywords: analyzed?.tags?.value || [],
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
@@ -634,7 +651,7 @@ export default function AdminProductCreate(): JSX.Element {
         longDesc: String(schema.description||extracted.longDesc||''),
                 purchasePrice: (()=>{ const v = schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined); return (v!==undefined && v<50) ? undefined : v; })(),
         stock: schema.stock_quantity!==undefined && schema.stock_quantity!==null ? Number(schema.stock_quantity) : (extracted.stock!==undefined? Number(extracted.stock): undefined),
-        sizes: sanitizeSizesStrict(strictClean0, Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: [])),
+        sizes: sanitizeSizesStrict(strictClean0, Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []), paste),
         colors: sanitizeColorsStrict(strictClean0, Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: [])),
         keywords: extracted.keywords||[],
         palettes,
@@ -699,7 +716,7 @@ export default function AdminProductCreate(): JSX.Element {
         name: String(analyzed?.name?.value||'').slice(0,60),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
-        sizes: sanitizeSizesStrict(cleanTextStrict(paste), analyzed?.sizes?.value || []),
+        sizes: sanitizeSizesStrict(cleanTextStrict(paste), analyzed?.sizes?.value || [], paste),
         colors: sanitizeColorsStrict(cleanTextStrict(paste), analyzed?.colors?.value || []),
         keywords: analyzed?.tags?.value || [],
         stock: (analyzed?.stock?.value ?? undefined),
@@ -1274,7 +1291,7 @@ export default function AdminProductCreate(): JSX.Element {
                   <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                     <div>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%) <SourceBadge src={review.sources?.sizes} /></div>
-                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: sanitizeSizesStrict(cleanTextStrict(paste), e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)) }))} className="input" />
+                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: sanitizeSizesStrict(cleanTextStrict(paste), e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean), paste) }))} className="input" />
                       {(!review.sizes || review.sizes.length===0) && review?.reasons?.sizes && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.sizes}</div>}
                     </div>
                     <div>
