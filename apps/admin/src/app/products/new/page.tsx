@@ -567,9 +567,10 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
+      const strictText = cleanTextStrict(paste);
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1&strict=1`, {
         method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+        body: JSON.stringify({ text: strictText, images: b64Images.map(d=> ({ dataUrl: d })) })
       });
       const aj = await resp.json().catch(()=>({}));
       if (!resp.ok) { setError('فشل تحليل DeepSeek'); showToast('فشل تحليل DeepSeek', 'err'); return; }
@@ -586,7 +587,7 @@ export default function AdminProductCreate(): JSX.Element {
         showToast('تعذر استخراج الحقول من DeepSeek', 'err');
         return;
       }
-      const reviewObj:any = {
+      let reviewObj:any = {
         name: String(analyzed?.name?.value||'').slice(0,60),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
@@ -604,6 +605,16 @@ export default function AdminProductCreate(): JSX.Element {
         },
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
+      // Strict post-processing: enforce name length, old/north price, details table, SEO keywords
+      const strictClean = cleanTextStrict(paste);
+      const sName = generateStrictName(strictClean);
+      const sPrice = extractOldNorthPriceStrict(strictClean);
+      const sDetails = buildStrictDetailsTable(strictClean);
+      const sKeywords = generateSeoKeywordsStrict(strictClean);
+      reviewObj.name = sName;
+      if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
+      reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
+      if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
       setReview(reviewObj);
       showToast('تم تحليل DeepSeek (معاينة)', 'ok');
       setActiveMobileTab('review');
