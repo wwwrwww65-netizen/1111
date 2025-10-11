@@ -155,3 +155,25 @@ html,body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,
 @media (max-width:767px){
   .content{padding:12px}
 }
+
+/* Admin page width and inputs adjustments */
+/* Expand admin content container to sit flush with sidebar */
+.app-root .content > .container { max-width: 100%; margin: 0; }
+
+/* Separate input/textarea sizing: keep inputs compact, allow textareas to grow */
+input.input { height: var(--input-h); }
+textarea.input {
+  height: auto;
+  min-height: 160px;
+  resize: vertical;
+  line-height: var(--lh-body);
+  padding-block: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Prevent grid children from overflowing and allow proper shrinking */
+.grid > * { min-width: 0; }
+
+/* Make selects fill available width instead of enforcing a fixed minimum */
+.select { min-width: 0; width: 100%; }

@@ -1361,9 +1361,9 @@ export default function AdminProductCreate(): JSX.Element {
             }} disabled={busy || !review} className="btn">توليد</button>
         </>}
       >
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
           <div style={{ display:'grid', gap:12 }}>
-            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={6} className="input" style={{ borderRadius:12 }} />
+            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
             {review && (
               <div className="panel" style={{ padding:12 }}>
