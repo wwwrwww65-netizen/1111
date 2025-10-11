@@ -150,13 +150,17 @@ export default function AdminProductCreate(): JSX.Element {
     return undefined;
   }
 
-  function buildStrictDetailsTable(clean: string): Array<{label:string; value:string}> {
+  function buildStrictDetailsTable(clean: string, raw?: string): Array<{label:string; value:string}> {
     const rows: Array<{label:string; value:string}> = [];
-    const add = (label:string, value?:string|number|null)=>{
+    const rowMap = new Map<string,string>();
+    const append = (label:string, value?:string|number|null)=>{
       const v = (value==null)? '' : String(value).trim();
       if (!v) return;
-      if (!rows.some(r=> r.label===label)) rows.push({ label, value: v });
+      const cur = rowMap.get(label);
+      if (!cur) { rowMap.set(label, v); return; }
+      if (!cur.split(/\s*،\s*/).includes(v)) rowMap.set(label, `${cur}، ${v}`);
     };
+    const add = (label:string, value?:string|number|null)=> append(label, value);
     const type = clean.match(/(فنيلة|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i)?.[1];
     const gender = clean.match(/(نسائي|رجالي)/i)?.[1];
     const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
@@ -209,6 +213,47 @@ export default function AdminProductCreate(): JSX.Element {
     const contents = clean.match(/(?:يحتوي|المحتويات|العبوة)\s*[:\-]?\s*([^\n\.\!]+)/i)?.[1]; add('محتويات العبوة', contents);
     // Single weight if not range
     const weightSingle = clean.match(/الوزن\s*[:\-]?\s*(\d{2,3})\s*ك?جم?/i)?.[1]; if (!weight && weightSingle) add('الوزن', `${weightSingle} كجم`);
+    // Generic label:value pairs from raw text
+    try {
+      const text = String(raw||'');
+      const pairRe = /(?:^|[\n\.;،])\s*([\p{L}\p{N}\s]{2,20}?)\s*[:：]\s*([^\n\.;]+)/gmu;
+      let m: RegExpExecArray | null;
+      while ((m = pairRe.exec(text))) {
+        const label = m[1].replace(/\s{2,}/g,' ').trim();
+        const value = m[2].replace(/\s{2,}/g,' ').trim();
+        if (!label || !value) continue;
+        // Skip forbidden labels
+        if (/\b(السعر|السعر\s*للشمال|سعر\s*البيع|الشحن|التوصيل|العرض|خصم)\b/i.test(label)) continue;
+        if (/\b(السعر|الشحن|التوصيل|عرض\s*خاص|خصم)\b/i.test(value)) continue;
+        append(label, value);
+      }
+    } catch {}
+
+    // Bullet points / descriptive fragments => "ميزات إضافية"
+    try {
+      const text = String(raw||'');
+      const bullets = text.split(/\s*•\s*/).map(s=> s.trim()).filter(Boolean);
+      const extra: string[] = [];
+      for (const b of bullets) {
+        if (!b) continue;
+        if (/^(السعر|الشحن|التوصيل|عرض|خصم)/i.test(b)) continue;
+        if (/\b(ريال|SAR|السعر|جديد|جنوب|قعيطي)\b/i.test(b)) continue;
+        if (b.length < 3) continue;
+        extra.push(b.replace(/\s{2,}/g,' '));
+      }
+      if (extra.length) append('ميزات إضافية', Array.from(new Set(extra)).join(' — '));
+    } catch {}
+
+    // Verb phrases like "مزود بـ"، "يحتوي على"، "مع" => ميزات إضافية
+    try {
+      const text = String(raw||'');
+      const featMatches = Array.from(text.matchAll(/(?:مزود\s*ب|مزودة\s*ب|مزودة\s*بـ|مزود\s*بـ|يحتوي\s*على|وبـ|وب)\s*([^\.;\n،،]+)/gi));
+      const feats = featMatches.map(m=> m[1]?.trim()).filter(Boolean);
+      if (feats.length) append('ميزات إضافية', Array.from(new Set(feats)).join(' — '));
+    } catch {}
+
+    // Finalize rows from map
+    for (const [label,value] of rowMap.entries()) rows.push({ label, value });
     return rows;
   }
 
@@ -584,7 +629,7 @@ export default function AdminProductCreate(): JSX.Element {
         const strictClean = cleanTextStrict(paste);
         const sName = generateStrictName(strictClean);
         const sPrice = extractOldNorthPriceStrict(strictClean);
-        const sDetails = buildStrictDetailsTable(strictClean);
+        const sDetails = buildStrictDetailsTable(strictClean, paste);
         const sKeywords = generateSeoKeywordsStrict(strictClean);
         reviewObj.name = sName;
         if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
@@ -651,7 +696,7 @@ export default function AdminProductCreate(): JSX.Element {
       const strictClean = cleanTextStrict(paste);
       const sName = generateStrictName(strictClean);
       const sPrice = extractOldNorthPriceStrict(strictClean);
-      const sDetails = buildStrictDetailsTable(strictClean);
+      const sDetails = buildStrictDetailsTable(strictClean, paste);
       const sKeywords = generateSeoKeywordsStrict(strictClean);
       reviewObj.name = sName;
       if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
