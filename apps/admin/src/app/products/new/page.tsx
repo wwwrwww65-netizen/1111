@@ -113,25 +113,21 @@ export default function AdminProductCreate(): JSX.Element {
       .replace(/\b(?:حصري|مجاني|عرض|خصم|أفضل|الأفضل)\b/gi, '')
       .replace(/\s{2,}/g, ' ').trim();
     const words = base.split(/\s+/).filter(Boolean);
-    const ensure = (arr: string[]): string[] => {
-      if (arr.length < 8) {
-        // Pad with neutral qualifiers from text (material/type/gender) if missing
-        const adds: string[] = [];
-        const type = clean.match(/(فنيلة|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i)?.[1];
-        const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
-        const feat = clean.match(/(كم\s*كامل|سحاب|أزرار|جيوب)/i)?.[1];
-        const gender = clean.match(/(نسائي|رجالي)/i)?.[1];
-        if (type && !arr.join(' ').includes(type)) adds.push(type);
-        if (mat && !arr.join(' ').includes(mat)) adds.push(mat);
-        if (feat && !arr.join(' ').includes(feat)) adds.push(feat);
-        if (gender && !arr.join(' ').includes(gender)) adds.push(gender);
-        while (arr.length < 8 && adds.length) arr.push(adds.shift()!);
-        while (arr.length < 8) arr.push('أساسي');
-      }
-      if (arr.length > 12) return arr.slice(0, 12);
-      return arr;
-    };
-    return ensure(words).join(' ');
+    // Backfill from clean text tokens (avoid filler like "أساسي")
+    const tokens = Array.from(new Set(
+      clean
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !stopwords.has(w as any) && !/^[0-9]+$/.test(w))
+    ));
+    const primary = new Set(words.map(w=>w.toLowerCase()));
+    for (const t of tokens) {
+      if (words.length >= 12) break;
+      if (!primary.has(t.toLowerCase())) words.push(t);
+    }
+    if (words.length > 12) words.splice(12);
+    // If still <8, just return what we have without artificial padding
+    return words.join(' ');
   }
 
   function extractOldNorthPriceStrict(clean: string): number | undefined {
@@ -516,7 +512,7 @@ export default function AdminProductCreate(): JSX.Element {
         const sKeywords = generateSeoKeywordsStrict(strictClean);
         reviewObj.name = sName;
         if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
-        reviewObj.strictDetails = sDetails;
+        reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
         if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
       }
       setReview(reviewObj);
