@@ -146,26 +146,60 @@ export default function AdminProductCreate(): JSX.Element {
 
   function buildStrictDetailsTable(clean: string): Array<{label:string; value:string}> {
     const rows: Array<{label:string; value:string}> = [];
+    const add = (label:string, value?:string|number|null)=>{
+      const v = (value==null)? '' : String(value).trim();
+      if (!v) return;
+      if (!rows.some(r=> r.label===label)) rows.push({ label, value: v });
+    };
     const type = clean.match(/(فنيلة|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i)?.[1];
     const gender = clean.match(/(نسائي|رجالي)/i)?.[1];
     const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
     const weight = clean.match(/وزن\s*(\d{2,3})(?:\s*[-–—\s]\s*(\d{2,3}))?\s*ك?جم?/i);
     const sizeFree = /فري\s*سايز/i.test(clean);
     const sizesList = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=>s.toUpperCase());
-    if (type) rows.push({ label:'النوع', value:type });
-    if (gender) rows.push({ label:'الفئة', value:gender });
-    if (mat) rows.push({ label:'الخامة', value:mat });
+    add('النوع', type);
+    add('الفئة', gender);
+    add('الخامة', mat);
     if (sizeFree) {
       const val = weight? `فري سايز (${weight[1]}–${weight[2]||weight[1]} كجم)` : 'فري سايز';
-      rows.push({ label:'المقاس', value: val });
+      add('المقاس', val);
     } else if (sizesList.length) {
-      rows.push({ label:'المقاسات', value: sizesList.join('، ') });
+      add('المقاسات', sizesList.join('، '));
     }
     const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي'];
     const colors = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
-    if (colors.length) rows.push({ label:'الألوان', value: colors.join('، ') });
+    if (colors.length) add('الألوان', colors.join('، '));
     const stock = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)?.[1];
-    if (stock) rows.push({ label:'المخزون', value: stock });
+    add('المخزون', stock);
+
+    // Dynamic attributes
+    const fit = clean.match(/\b(واسع|فضفاض|ضيق|سكيني|عادي|منتظم)\b/i)?.[1];
+    add('القَصّة', fit);
+    const season = Array.from(new Set((clean.match(/\b(صيفي|شتوي|ربيعي|خريفي)\b/gi)||[]))); if (season.length) add('الموسم', season.join('، '));
+    const style = Array.from(new Set((clean.match(/\b(كاجوال|رسمي|رياضي|سادة|مطبوعة|مخططة)\b/gi)||[]))); if (style.length) add('النمط', style.join('، '));
+    const neckline = clean.match(/ياق(?:ة|ه)\s*(دائرية|مستديرة|مربعة|V|في|مرتفعة|عالية|قميص)/i)?.[1]; add('الياقة', neckline);
+    const sleeves = clean.match(/(?:بدون\s*أكمام|كم\s*(?:طويل|قصير|نصف|كامل))/i)?.[0]; add('الأكمام', sleeves);
+    const lengthType = clean.match(/(?:طول\s*)?(قصير|متوسط|طويل)\s*(?:الطول)?/i)?.[1]; add('الطول', lengthType);
+    const thickness = clean.match(/\b(خفيف(?:ة)?|متوسط(?:ة)?|سميك(?:ة)?)\b/i)?.[1]; add('السماكة', thickness);
+    const elasticity = clean.match(/\b(مرن|مطاطي|غير\s*مرن|بدون\s*مرونة)\b/i)?.[1]; add('المرونة', elasticity);
+    const lining = clean.match(/\b(مبطن|بدون\s*بطانة)\b/i)?.[1]; add('البطانة', lining);
+    const madeIn = clean.match(/(?:صنع\s*في|made\s*in)\s*([\p{L}\s]+)/i)?.[1]; add('بلد الصنع', madeIn);
+    // Care instructions snippets
+    const care = Array.from(new Set((clean.match(/(غسل\s*(?:يدوي|آلي)|درجة\s*حرارة\s*\d+\s*°?C|لا\s*تُ?بيض|تجفيف\s*ظل)/gi)||[]))); if (care.length) add('العناية', care.join('، '));
+    const model = clean.match(/(?:موديل|كود|رمز)\s*[:\-]?\s*([A-Za-z0-9\- _]{2,})/i)?.[1]; add('الموديل', model);
+    // Measurements (cm)
+    const meas = Array.from(clean.matchAll(/(الصدر|الكتف|الخصر|الورك|الطول)\s*[:\-]?\s*(\d{2,3})\s*سم/gi));
+    if (meas.length) {
+      const str = meas.map(m=> `${m[1]}: ${m[2]} سم`).join('، ');
+      add('المقاسات (سم)', str);
+    }
+    const closure = Array.from(new Set((clean.match(/\b(سحاب|سوستة|زر(?:ار)?|أزرار|رباط)\b/gi)||[]))); if (closure.length) add('الإغلاق', closure.join('، '));
+    const occasion = Array.from(new Set((clean.match(/\b(يومي|حفلات|عمل|رسمي|كاجوال|رياضة|زفاف|سهرة)\b/gi)||[]))); if (occasion.length) add('المناسبة', occasion.join('، '));
+    const brand = clean.match(/(?:ماركة|علامة\s*تجارية)\s*[:\-]?\s*([\p{L}\s0-9]{2,})/i)?.[1]; add('العلامة التجارية', brand);
+    // Package contents
+    const contents = clean.match(/(?:يحتوي|المحتويات|العبوة)\s*[:\-]?\s*([^\n\.\!]+)/i)?.[1]; add('محتويات العبوة', contents);
+    // Single weight if not range
+    const weightSingle = clean.match(/الوزن\s*[:\-]?\s*(\d{2,3})\s*ك?جم?/i)?.[1]; if (!weight && weightSingle) add('الوزن', `${weightSingle} كجم`);
     return rows;
   }
 
