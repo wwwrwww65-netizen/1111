@@ -568,7 +568,8 @@ export default function AdminProductCreate(): JSX.Element {
       try{
         const strictMode = !!(deepseekOn || forceDeepseek);
         const strictText = strictMode ? cleanTextStrict(paste) : paste;
-        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}${strictMode?'&strict=1':''}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: strictText, images: b64Images.map(d=> ({ dataUrl: d })) }) });
+        const disableDeepseek = (!deepseekOn && !forceDeepseek) ? '&disableDeepseek=1' : '';
+        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}${strictMode?'&strict=1':''}${disableDeepseek}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: strictText, images: b64Images.map(d=> ({ dataUrl: d })) }) });
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
