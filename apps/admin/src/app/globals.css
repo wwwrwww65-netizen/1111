@@ -177,3 +177,10 @@ textarea.input {
 
 /* Make selects fill available width instead of enforcing a fixed minimum */
 .select { min-width: 0; width: 100%; }
+
+/* Remove left padding beside sidebar on desktop so content is flush */
+@media (min-width: 992px){
+  .app-root .content{ padding-inline-start: 0; }
+}
+/* Ensure no grid gap between sidebar and content */
+.app-root .shell{ gap: 0; }
