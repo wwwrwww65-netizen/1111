@@ -62,6 +62,8 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
           INTERNAL_API_URL: http://127.0.0.1:4000
           NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+          NEXT_PUBLIC_ADMIN_URL: http://127.0.0.1:3010
+          CORS_ALLOW_ORIGINS: http://127.0.0.1:3010
           NODE_ENV: production
         run: |
           set -e
@@ -73,8 +75,8 @@ jobs:
           
           # Start API (port 4000)
           pnpm --filter @repo/api start &
-          # Start Admin (port 3010)
-          pnpm --filter admin -- start -p 3010 &
+          # Start Admin (port 3010) using standalone server for Next.js output
+          node apps/admin/.next/standalone/server.js -p 3010 &
           
           # Wait for services to be ready
           npx -y wait-on http://127.0.0.1:4000/health http://127.0.0.1:3010/ || (echo "services failed to start"; exit 1)
