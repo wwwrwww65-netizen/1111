@@ -55,17 +55,31 @@ jobs:
       - name: Smoke - Create Order
         run: node scripts/ci/smoke.mjs || true
 
-      - name: Admin layout check (hash)
+      - name: Admin layout check (hash - local preview)
         if: ${{ github.ref_name == 'hash' || startsWith(github.ref, 'refs/heads/hash') || contains(github.ref, '/hash') || github.head_ref == 'hash' || github.base_ref == 'hash' }}
         env:
-          ADMIN_BASE: ${{ secrets.ADMIN_BASE || vars.ADMIN_BASE || 'https://admin.jeeey.com' }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || '' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+          INTERNAL_API_URL: http://127.0.0.1:4000
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+          NODE_ENV: production
         run: |
           set -e
+          # Install Playwright deps
           cd scripts/ci
           npm i --no-fund --no-audit || true
           npx playwright install --with-deps chromium
-          echo "Using ADMIN_BASE=$ADMIN_BASE"
-          ADMIN_BASE="$ADMIN_BASE" ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" node admin-layout-check.mjs || (echo "layout check failed"; exit 1)
+          cd -
+          
+          # Start API (port 4000)
+          pnpm --filter @repo/api start &
+          # Start Admin (port 3010)
+          pnpm --filter admin -- start -p 3010 &
+          
+          # Wait for services to be ready
+          npx -y wait-on http://127.0.0.1:4000/health http://127.0.0.1:3010/ || (echo "services failed to start"; exit 1)
+          
+          # Run layout check against local admin
+          echo "Using ADMIN_BASE=http://127.0.0.1:3010"
+          ADMIN_BASE="http://127.0.0.1:3010" ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" node scripts/ci/admin-layout-check.mjs || (echo "layout check failed"; exit 1)
 
