@@ -20,7 +20,24 @@ try {
     headerFound = await page.$('header.topbar');
   }
   if (!headerFound) {
+    // Attempt Login then retry
     await page.goto(adminBase + `/login?t=${Date.now()}`, { waitUntil: 'networkidle' });
+    try {
+      const email = process.env.ADMIN_EMAIL;
+      const pass = process.env.ADMIN_PASSWORD;
+      if (email && pass) {
+        // Find typical inputs by placeholders or types
+        const emailInput = await page.$('input[type="email"], input[name="email"], input[autocomplete="username"]');
+        const passInput = await page.$('input[type="password"], input[name="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]');
+        if (emailInput && passInput) {
+          await emailInput.fill(email);
+          await passInput.fill(pass);
+          // Try click a submit button
+          const submit = await page.$('button[type="submit"], button:has-text("دخول"), button:has-text("Login")');
+          if (submit) { await submit.click(); await page.waitForLoadState('networkidle', { timeout: 20000 }); }
+        }
+      }
+    } catch {}
     headerFound = await page.$('header.topbar');
   }
   if (!headerFound) {

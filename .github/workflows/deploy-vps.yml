@@ -937,12 +937,14 @@ jobs:
         if: ${{ env.HAVE_SSH == '1' }}
         env:
           ADMIN_BASE: ${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           set -e
           cd scripts/ci
-          npm ci || npm i
+          npm i --no-fund --no-audit || true
           npx playwright install --with-deps chromium
-          ADMIN_BASE="$ADMIN_BASE" node admin-layout-check.mjs
+          ADMIN_BASE="$ADMIN_BASE" ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" node admin-layout-check.mjs
 
       - name: WhatsApp live smoke (strict template)
         if: ${{ env.HAVE_SSH == '1' }}
