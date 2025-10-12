@@ -115,7 +115,7 @@ export default function AdminProducts(): JSX.Element {
           <thead>
             <tr>
               <th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(p=> [p.id, v]))); }} /></th>
-              <th style={{minWidth:160}}>ID</th>
+              {/* <th style={{minWidth:160}}>ID</th> */}
               <th style={{minWidth:120}}>صورة</th>
               <th style={{minWidth:220}}>الاسم</th>
               <th style={{minWidth:160}}>SKU/التباينات</th>
@@ -131,9 +131,9 @@ export default function AdminProducts(): JSX.Element {
               return (
                 <tr key={p.id} style={{ height:72 }}>
                   <td><input type="checkbox" checked={!!selected[p.id]} onChange={()=> setSelected(s=> ({...s, [p.id]: !s[p.id]}))} /></td>
-                  <td>{p.id.slice(0,6)}</td>
+                  {/* <td>{p.id.slice(0,6)}</td> */}
                   <td>{p.images?.[0] ? <img src={p.images[0]} alt={p.name} width={64} height={64} style={{ width:64, height:64, objectFit:'cover', borderRadius:6 }} /> : '-'}</td>
-                  <td>{p.name}</td>
+                  <td><div className="line-2" style={{maxWidth:420}}>{p.name}</div></td>
                   <td>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
                   <td>{p.price}</td>
                   <td>{totalStock}</td>
