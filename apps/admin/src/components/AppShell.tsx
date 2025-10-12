@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { ThemeToggle } from './ThemeToggle';
 import { usePathname } from 'next/navigation';
 
 type AppShellProps = { children: React.ReactNode };
@@ -116,20 +117,30 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 
   return (
     <div className="app-root">
-      <header className="topbar">
-        <button className="icon-btn" onClick={() => setSidebarOpen(v => !v)} aria-label="toggle sidebar">☰</button>
-        <div className="brand">jeeey • Admin</div>
-        <div className="top-actions">
-          <div className="search">
-            <input placeholder="بحث سريع…" value={query} onChange={(e)=>setQuery(e.target.value)} />
-          </div>
-          <div className="user">
-            <a href="/login" className="btn btn-sm btn-outline">الحساب</a>
-          </div>
+      <header className="topbar" style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', alignItems:'center', direction:'rtl' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, gridColumn:3, justifySelf:'start' }}>
+          <button className="icon-btn" onClick={() => setSidebarOpen(v => !v)} aria-label="toggle sidebar">☰</button>
+          <div className="brand">jeeey • Admin</div>
+        </div>
+        <div className="search" style={{ gridColumn:2 }}>
+          <input placeholder="بحث سريع…" value={query} onChange={(e)=>setQuery(e.target.value)} />
+        </div>
+        <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:12, gridColumn:1, justifySelf:'end' }}>
+          {/* يسار الهيدر في RTL: ضع عناصر التحكم هنا */}
+          <a href="/login" className="btn btn-sm btn-outline">الحساب</a>
+          <button className="btn btn-sm btn-outline" onClick={()=>{
+            try{ const cur=document.documentElement.getAttribute('lang')||'ar'; const next=cur==='ar'?'en':'ar'; document.documentElement.setAttribute('lang', next);}catch{}
+          }}>AR</button>
+          <ThemeToggle />
         </div>
       </header>
-      <div className="shell">
-        <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'}`}>
+      <div className="shell" style={{ direction:'ltr', gridTemplateColumns: '1fr var(--sidebar-w)', marginTop:0 }}>
+        <main className="content" style={{ direction:'rtl' }}>
+          <div className="container">
+            {children}
+          </div>
+        </main>
+        <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'} desktop`} style={{ position:'sticky', top:0 }}>
           <nav>
             {NAV_GROUPS.map((g, idx) => {
               const hasChildren = Array.isArray(g.children) && g.children.length > 0;
@@ -142,9 +153,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
               }
               return (
                 <div key={g.label+idx} className={'nav-item'}>
-                  <div className="w-full text-right" style={{fontWeight:700,opacity:.9,marginBottom:6}}>
-                    {g.label}
-                  </div>
+                  <div className="group-title w-full text-right">{g.label}</div>
                   <div className={'mt-2'}>
                     <div className="grid gap-1">
                       {(g.children||[]).map(ch => (
@@ -159,11 +168,6 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
             })}
           </nav>
         </aside>
-        <main className="content">
-          <div className="container">
-            {children}
-          </div>
-        </main>
       </div>
     </div>
   );

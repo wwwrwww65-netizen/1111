@@ -81,7 +81,7 @@ export default function WhatsAppSendPage(): JSX.Element {
   }
 
   return (
-    <main style={{ padding:16, display:'grid', gap:12, maxWidth:720 }}>
+    <main style={{ padding:16, display:'grid', gap:12, width:'100%' }}>
       <h1 style={{ fontWeight:800, fontSize:20 }}>إرسال واتساب تجريبي</h1>
       <div style={{ color:'#94a3b8', fontSize:12 }}>
         ملاحظة: عند تفعيل <b>Strict</b> سيفشل الإرسال إذا لم يطابق القالب/اللغة/الأزرار تمامًا. تأكد من أن <code>template</code> و<code>languageCode</code> مطابقان لتعريف WABA،

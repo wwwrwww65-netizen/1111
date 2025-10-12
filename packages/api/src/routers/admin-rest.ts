@@ -1380,9 +1380,9 @@ adminRest.post('/returns/:id/approve', async (req, res) => {
 });
 
 // =====================
-// Shipping rates / labels / address validation (stubs)
+// Shipping rates quote (stub) — avoid conflict with CRUD
 // =====================
-adminRest.post('/shipping/rates', async (req, res) => {
+adminRest.post('/shipping/rates/quote', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
     const { from, to, weightKg } = req.body || {};
@@ -2608,6 +2608,7 @@ async function ensureDriversSchema(): Promise<void> {
     await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP');
     await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP DEFAULT NOW()');
     await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP DEFAULT NOW()');
+    await db.$executeRawUnsafe('ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "idType" TEXT');
   } catch {}
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DriverLocation" (\n'+
@@ -2745,15 +2746,15 @@ adminRest.get('/drivers/export/pdf', async (req, res) => {
 adminRest.post('/drivers', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.create'))) return res.status(403).json({ error:'forbidden' });
     await ensureDriversSchema();
-    const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {}; if (!name) return res.status(400).json({ error: 'name_required' });
-    const d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
+    const { name, phone, isActive, status, address, idType, nationalId, vehicleType, ownership, notes, lat, lng } = req.body || {}; if (!name) return res.status(400).json({ error: 'name_required' });
+    const d = await db.driver.create({ data: { name, phone, isActive: isActive ?? true, status: status ?? 'AVAILABLE', address: address||null, idType: idType||null, nationalId: nationalId||null, vehicleType: vehicleType||null, ownership: ownership||null, notes: notes||null, lat: lat??null, lng: lng??null } });
     await audit(req, 'drivers', 'create', { id: d.id }); res.json({ driver: d });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_create_failed' }); }
 });
 adminRest.patch('/drivers/:id', async (req, res) => {
   try { const u = (req as any).user; if (!(await can(u.userId, 'drivers.update'))) return res.status(403).json({ error:'forbidden' });
-    const { id } = req.params; const { name, phone, isActive, status, address, nationalId, vehicleType, ownership, notes, lat, lng, plateNumber, rating } = req.body || {};
-    const d = await db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }), ...(address !== undefined && { address }), ...(nationalId !== undefined && { nationalId }), ...(vehicleType !== undefined && { vehicleType }), ...(ownership !== undefined && { ownership }), ...(notes !== undefined && { notes }), ...(lat !== undefined && { lat }), ...(lng !== undefined && { lng }), ...(plateNumber !== undefined && { plateNumber }), ...(rating !== undefined && { rating }) } });
+    const { id } = req.params; const { name, phone, isActive, status, address, idType, nationalId, vehicleType, ownership, notes, lat, lng, plateNumber, rating } = req.body || {};
+    const d = await db.driver.update({ where: { id }, data: { ...(name && { name }), ...(phone && { phone }), ...(isActive != null && { isActive }), ...(status && { status }), ...(address !== undefined && { address }), ...(idType !== undefined && { idType }), ...(nationalId !== undefined && { nationalId }), ...(vehicleType !== undefined && { vehicleType }), ...(ownership !== undefined && { ownership }), ...(notes !== undefined && { notes }), ...(lat !== undefined && { lat }), ...(lng !== undefined && { lng }), ...(plateNumber !== undefined && { plateNumber }), ...(rating !== undefined && { rating }) } });
     await audit(req, 'drivers', 'update', { id }); res.json({ driver: d });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_update_failed' }); }
 });
@@ -3965,6 +3966,8 @@ adminRest.post('/products/generate', async (req, res) => {
 adminRest.post('/products/analyze', async (req, res) => {
   try{
     const { text, images } = req.body || {};
+    // Ensure teaching dataset table exists
+    await ensureAnalyzeTeachSchema().catch(()=>{});
     // Strict rules-only short-circuit (no AI, no invention). Extract from text only.
     const rulesStrict: boolean = String((req.query as any)?.rulesStrict || '').trim() === '1'
     if (rulesStrict) {
@@ -4564,6 +4567,8 @@ adminRest.post('/products/analyze', async (req, res) => {
           const uniq = Array.from(new Set(words)).slice(0,6)
           if (uniq.length) analyzed.keywords = { value: uniq, source: 'ai' }
         }
+        // Save teaching example
+        try { await saveAnalyzeTeachExample(String(text||''), analyzed).catch(()=>{}); } catch {}
         return res.json({ ok: true, analyzed, warnings, errors, meta: { deepseekUsed: true, deepseekAttempted: true } })
       } catch (e: any) {
         return res.status(500).json({ ok: false, analyzed: null, warnings: [], errors: [e?.message || 'deepseek_strict_error'] })
@@ -4777,11 +4782,12 @@ adminRest.post('/products/analyze', async (req, res) => {
       })()
       const inCI = String(process.env.CI || '').toLowerCase() === 'true'
       const usedMeta = { deepseekUsed: false, deepseekAttempted: false }
+      const disableDeepseek: boolean = String(((req.query as any)?.disableDeepseek || '')).trim() === '1'
       // Mark attempt when forced even if key/config missing (for CI observability)
       if (reqForce) deepseekAttempted = true
       // Allow force to bypass CI guard; otherwise only run when quality is low and not CI
       const QUALITY_THRESHOLD = 0.6
-      if (aiEnabled && (reqForce || (userWants && dsKey && qualityScore < QUALITY_THRESHOLD && !inCI))) {
+      if (!disableDeepseek && aiEnabled && (reqForce || (userWants && dsKey && qualityScore < QUALITY_THRESHOLD && !inCI))) {
         usedMeta.deepseekAttempted = true; deepseekAttempted = true
         if (!dsKey) {
           if (deepseekOnly) {
@@ -5061,6 +5067,27 @@ adminRest.post('/products/analyze', async (req, res) => {
         ;(sources as any).description = { source:'ai', confidence: newConf }
       }
     } catch {}
+
+    // Apply nearest teaching example to fill missing fields when DeepSeek is disabled
+    try {
+      const disableDeepseek: boolean = String(((req.query as any)?.disableDeepseek || '')).trim() === '1'
+      if (disableDeepseek) {
+        const raw = String(((req as any).body?.text) || '')
+        const teach = await findNearestTeachExample(raw)
+        if (teach) {
+          // Fill only missing/weak fields from teaching example
+          if (!out.name && teach.name) out.name = teach.name
+          if (!out.price_range && teach.price) out.price_range = { low: teach.price, high: teach.price }
+          if ((!out.sizes || (out.sizes as string[]).length===0) && Array.isArray(teach.sizes)) out.sizes = teach.sizes
+          if ((!out.colors || (out.colors as string[]).length===0) && Array.isArray(teach.colors)) out.colors = teach.colors
+          if ((!out.tags || (out.tags as string[]).length<6) && Array.isArray(teach.keywords)) out.tags = teach.keywords.slice(0,6)
+          if (!out.description && Array.isArray(teach.description_table)) {
+            const desc = teach.description_table.map((r:any)=> `• ${r.label||r.key}: ${r.value}`).join('\n')
+            if (desc) out.description = desc
+          }
+        }
+      }
+    } catch {}
     // Global enforcement: ensure product name is not generic or too short in ANY mode
     try {
       const raw = String(((req as any).body?.text) || '')
@@ -5120,6 +5147,49 @@ adminRest.post('/products/analyze', async (req, res) => {
     return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted, reason } });
   }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
+
+// Teaching dataset: schema + helpers (very light, SQLite/PG safe)
+async function ensureAnalyzeTeachSchema(): Promise<void> {
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AnalyzeTeach" ("id" TEXT PRIMARY KEY, "textHash" TEXT, "name" TEXT NULL, "price" DOUBLE PRECISION NULL, "sizes" JSONB NULL, "colors" JSONB NULL, "keywords" JSONB NULL, "descriptionTable" JSONB NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
+  } catch {}
+}
+
+async function saveAnalyzeTeachExample(text: string, analyzed: any): Promise<void> {
+  try {
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update(String(text||'').toLowerCase().replace(/\s+/g,' ').slice(0,2048)).digest('hex');
+    const sizes = Array.isArray(analyzed?.sizes?.value) ? analyzed.sizes.value : undefined;
+    const colors = Array.isArray(analyzed?.colors?.value) ? analyzed.colors.value : undefined;
+    const keywords = Array.isArray(analyzed?.tags?.value) ? analyzed.tags.value : undefined;
+    const descTable = Array.isArray((analyzed as any)?.description_table?.value) ? (analyzed as any).description_table.value : undefined;
+    await db.$executeRawUnsafe(
+      'INSERT INTO "AnalyzeTeach" ("id","textHash","name","price","sizes","colors","keywords","descriptionTable") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT ("id") DO NOTHING',
+      hash, hash, analyzed?.name?.value || null, analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? null, JSON.stringify(sizes||null), JSON.stringify(colors||null), JSON.stringify(keywords||null), JSON.stringify(descTable||null)
+    );
+  } catch {}
+}
+
+async function findNearestTeachExample(raw: string): Promise<any|null> {
+  try {
+    const crypto = require('crypto');
+    const key = String(raw||'').toLowerCase().replace(/\s+/g,' ').slice(0,2048);
+    const hash = crypto.createHash('sha256').update(key).digest('hex');
+    const rows:any[] = await db.$queryRawUnsafe('SELECT * FROM "AnalyzeTeach" WHERE "textHash"=$1 LIMIT 1', hash) as any[];
+    if (rows && rows.length) {
+      const r = rows[0] as any;
+      return {
+        name: r.name || undefined,
+        price: (r.price==null? undefined : Number(r.price)),
+        sizes: (()=>{ try{ return JSON.parse(r.sizes||'null')||undefined; }catch{return undefined;} })(),
+        colors: (()=>{ try{ return JSON.parse(r.colors||'null')||undefined; }catch{return undefined;} })(),
+        keywords: (()=>{ try{ return JSON.parse(r.keywords||'null')||undefined; }catch{return undefined;} })(),
+        description_table: (()=>{ try{ return JSON.parse(r.descriptionTable||'null')||undefined; }catch{return undefined;} })(),
+      }
+    }
+    return null;
+  } catch { return null; }
+}
 adminRest.post('/integrations/test', async (req, res) => {
   const { provider, config } = req.body || {};
   if (!provider || !config) return res.status(400).json({ ok:false, error:'missing' });
@@ -5428,6 +5498,189 @@ adminRest.put('/shipping/rates/:id', async (req, res) => {
 });
 adminRest.delete('/shipping/rates/:id', async (req, res) => {
   const { id } = req.params; try{ await db.deliveryRate.delete({ where:{ id } }); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, code:'rate_delete_failed', error:e.message||'rate_delete_failed' }); }
+});
+
+// Helpers: sync ShippingZone with Country/City/Area
+function toCode(candidate?: string | null): string | null {
+  if (!candidate) return null;
+  const s = String(candidate).trim();
+  if (!s) return null;
+  return s.toUpperCase();
+}
+function asStringArray(v: any): string[] {
+  if (Array.isArray(v)) return v.map((x) => String(x));
+  if (v == null) return [];
+  return [];
+}
+function pushUnique(list: string[], value: string): string[] {
+  const set = new Set(list || []);
+  if (value && value.trim()) set.add(value.trim());
+  return Array.from(set);
+}
+function removeValue(list: string[] | null | undefined, value: string): string[] {
+  const arr = Array.isArray(list) ? list.slice() : [];
+  return arr.filter((x) => x !== value);
+}
+async function getOrCreateZoneForCountryCode(code: string, countryName?: string) {
+  let zone = await db.shippingZone.findFirst({ where: { countryCodes: { has: code } } });
+  if (!zone) {
+    zone = await db.shippingZone.create({ data: { name: `Zone - ${countryName || code}`, countryCodes: [code], isActive: true } });
+  } else if (!(zone.countryCodes || []).includes(code)) {
+    zone = await db.shippingZone.update({ where: { id: zone.id }, data: { countryCodes: pushUnique(zone.countryCodes || [], code) } });
+  }
+  return zone;
+}
+async function addCityToZoneByCode(code: string, cityName: string) {
+  const zone = await getOrCreateZoneForCountryCode(code);
+  const cities = asStringArray(zone.cities);
+  await db.shippingZone.update({ where: { id: zone.id }, data: { cities: pushUnique(cities, cityName) } });
+}
+async function removeCityFromZoneByCode(code: string, cityName: string) {
+  const zone = await db.shippingZone.findFirst({ where: { countryCodes: { has: code } } });
+  if (!zone) return;
+  const cities = asStringArray(zone.cities);
+  await db.shippingZone.update({ where: { id: zone.id }, data: { cities: cities.filter((n) => n !== cityName) } });
+}
+async function addAreaToZoneByCode(code: string, areaName: string) {
+  const zone = await getOrCreateZoneForCountryCode(code);
+  const areas = asStringArray(zone.areas);
+  await db.shippingZone.update({ where: { id: zone.id }, data: { areas: pushUnique(areas, areaName) } });
+}
+async function removeAreaFromZoneByCode(code: string, areaName: string) {
+  const zone = await db.shippingZone.findFirst({ where: { countryCodes: { has: code } } });
+  if (!zone) return;
+  const areas = asStringArray(zone.areas);
+  await db.shippingZone.update({ where: { id: zone.id }, data: { areas: areas.filter((n) => n !== areaName) } });
+}
+async function removeCountryCodeFromZones(code: string) {
+  const zones = await db.shippingZone.findMany({ where: { countryCodes: { has: code } } });
+  for (const z of zones) {
+    const updatedCodes = removeValue(z.countryCodes || [], code);
+    let data: any = { countryCodes: updatedCodes };
+    // Optional cleanup: delete empty zones (no codes, no cities, no areas)
+    if (updatedCodes.length === 0 && asStringArray(z.cities).length === 0 && asStringArray(z.areas).length === 0) {
+      await db.shippingZone.delete({ where: { id: z.id } }).catch(() => {});
+    } else {
+      await db.shippingZone.update({ where: { id: z.id }, data }).catch(() => {});
+    }
+  }
+}
+
+// Geo hierarchy: Countries, Cities, Areas
+// Countries CRUD
+adminRest.get('/geo/countries', async (_req, res) => {
+  try{
+    const rows = await db.country.findMany({ orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });
+    res.json({ ok:true, countries: rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error:e.message||'countries_list_failed' }); }
+});
+adminRest.post('/geo/countries', async (req, res) => {
+  const schema = z.object({ code: z.string().min(2).max(3).optional(), name: z.string().min(2), isActive: z.coerce.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const row = await db.country.create({ data });
+    const code = toCode(row.code) || toCode(row.name);
+    if (code) await getOrCreateZoneForCountryCode(code, row.name);
+    res.json({ ok:true, country: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'country_create_failed' }); }
+});
+adminRest.put('/geo/countries/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ code: z.string().min(2).max(3).optional(), name: z.string().min(2).optional(), isActive: z.coerce.boolean().optional() });
+  try{ const prev = await db.country.findUnique({ where:{ id } }); const d = schema.parse(req.body||{}); const row = await db.country.update({ where:{ id }, data: d });
+    const oldCode = toCode(prev?.code) || toCode(prev?.name);
+    const newCode = toCode(row.code) || toCode(row.name);
+    if (oldCode && newCode && oldCode !== newCode) { await removeCountryCodeFromZones(oldCode); await getOrCreateZoneForCountryCode(newCode, row.name); }
+    else if (newCode) { await getOrCreateZoneForCountryCode(newCode, row.name); }
+    res.json({ ok:true, country: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'country_update_failed' }); }
+});
+adminRest.delete('/geo/countries/:id', async (req, res) => {
+  const { id } = req.params; try{ const prev = await db.country.findUnique({ where:{ id } }); await db.country.delete({ where:{ id } });
+    const code = toCode(prev?.code) || toCode(prev?.name); if (code) await removeCountryCodeFromZones(code); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'country_delete_failed' }); }
+});
+
+// Cities CRUD
+adminRest.get('/geo/cities', async (req, res) => {
+  try{
+    const { countryId } = req.query as any;
+    const where: any = countryId ? { countryId: String(countryId) } : {};
+    const rows = await db.city.findMany({ where, include: { country: true }, orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });
+    res.json({ ok:true, cities: rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error:e.message||'cities_list_failed' }); }
+});
+adminRest.post('/geo/cities', async (req, res) => {
+  const schema = z.object({ countryId: z.string(), name: z.string().min(2), region: z.string().optional(), isActive: z.coerce.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const row = await db.city.create({ data });
+    const ctry = await db.country.findUnique({ where:{ id: row.countryId } }); const code = toCode(ctry?.code) || toCode(ctry?.name);
+    if (code) await addCityToZoneByCode(code, row.name);
+    res.json({ ok:true, city: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'city_create_failed' }); }
+});
+adminRest.put('/geo/cities/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ countryId: z.string().optional(), name: z.string().min(2).optional(), region: z.string().optional(), isActive: z.coerce.boolean().optional() });
+  try{ const prev = await db.city.findUnique({ where:{ id } }); const d = schema.parse(req.body||{}); const row = await db.city.update({ where:{ id }, data: d });
+    const prevCountry = prev ? await db.country.findUnique({ where:{ id: prev.countryId } }) : null;
+    const newCountry = await db.country.findUnique({ where:{ id: row.countryId } });
+    const prevCode = toCode(prevCountry?.code) || toCode(prevCountry?.name);
+    const newCode = toCode(newCountry?.code) || toCode(newCountry?.name);
+    if (prev && prevCode) await removeCityFromZoneByCode(prevCode, prev.name);
+    if (newCode) await addCityToZoneByCode(newCode, row.name);
+    res.json({ ok:true, city: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'city_update_failed' }); }
+});
+adminRest.delete('/geo/cities/:id', async (req, res) => {
+  const { id } = req.params; try{ const prev = await db.city.findUnique({ where:{ id } }); const ctry = prev ? await db.country.findUnique({ where:{ id: prev.countryId } }) : null; const code = toCode(ctry?.code) || toCode(ctry?.name);
+    await db.city.delete({ where:{ id } }); if (code && prev) await removeCityFromZoneByCode(code, prev.name); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'city_delete_failed' }); }
+});
+
+// Areas CRUD
+adminRest.get('/geo/areas', async (req, res) => {
+  try{
+    const { cityId } = req.query as any;
+    const where: any = cityId ? { cityId: String(cityId) } : {};
+    const rows = await db.area.findMany({ where, include: { city: { include: { country: true } } }, orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });
+    res.json({ ok:true, areas: rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error:e.message||'areas_list_failed' }); }
+});
+adminRest.post('/geo/areas', async (req, res) => {
+  const schema = z.object({ cityId: z.string(), name: z.string().min(2), isActive: z.coerce.boolean().default(true) });
+  try{ const data = schema.parse(req.body||{}); const row = await db.area.create({ data });
+    const city = await db.city.findUnique({ where:{ id: row.cityId } }); const ctry = city ? await db.country.findUnique({ where:{ id: city.countryId } }) : null; const code = toCode(ctry?.code) || toCode(ctry?.name);
+    if (code) await addAreaToZoneByCode(code, row.name);
+    res.json({ ok:true, area: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'area_create_failed' }); }
+});
+adminRest.put('/geo/areas/:id', async (req, res) => {
+  const { id } = req.params; const schema = z.object({ cityId: z.string().optional(), name: z.string().min(2).optional(), isActive: z.coerce.boolean().optional() });
+  try{ const prev = await db.area.findUnique({ where:{ id } }); const d = schema.parse(req.body||{}); const row = await db.area.update({ where:{ id }, data: d });
+    const prevCity = prev ? await db.city.findUnique({ where:{ id: prev.cityId } }) : null; const prevCtry = prevCity ? await db.country.findUnique({ where:{ id: prevCity.countryId } }) : null; const prevCode = toCode(prevCtry?.code) || toCode(prevCtry?.name);
+    const newCity = await db.city.findUnique({ where:{ id: row.cityId } }); const newCtry = newCity ? await db.country.findUnique({ where:{ id: newCity.countryId } }) : null; const newCode = toCode(newCtry?.code) || toCode(newCtry?.name);
+    if (prev && prevCode) await removeAreaFromZoneByCode(prevCode, prev.name);
+    if (newCode) await addAreaToZoneByCode(newCode, row.name);
+    res.json({ ok:true, area: row }); }
+  catch(e:any){ res.status(400).json({ ok:false, error:e.message||'area_update_failed' }); }
+});
+adminRest.delete('/geo/areas/:id', async (req, res) => {
+  const { id } = req.params; try{ const prev = await db.area.findUnique({ where:{ id } }); const city = prev ? await db.city.findUnique({ where:{ id: prev.cityId } }) : null; const ctry = city ? await db.country.findUnique({ where:{ id: city.countryId } }) : null; const code = toCode(ctry?.code) || toCode(ctry?.name);
+    await db.area.delete({ where:{ id } }); if (code && prev) await removeAreaFromZoneByCode(code, prev.name); res.json({ ok:true }); } catch(e:any){ res.status(400).json({ ok:false, error:e.message||'area_delete_failed' }); }
+});
+
+// Sync zones from geo (rebuild non-destructively)
+adminRest.post('/shipping/zones/sync-from-geo', async (_req, res) => {
+  try{
+    const countries = await db.country.findMany({ orderBy: { name: 'asc' } });
+    for (const c of countries) {
+      const code = toCode(c.code) || toCode(c.name); if (!code) continue;
+      const zone = await getOrCreateZoneForCountryCode(code, c.name);
+      const cities = await db.city.findMany({ where: { countryId: c.id }, orderBy: { name: 'asc' } });
+      const areas = await db.area.findMany({ where: { city: { countryId: c.id } }, orderBy: { name: 'asc' } });
+      await db.shippingZone.update({ where: { id: zone.id }, data: {
+        countryCodes: pushUnique(zone.countryCodes || [], code),
+        cities: Array.from(new Set(cities.map((x)=> x.name))).sort(),
+        areas: Array.from(new Set(areas.map((x)=> x.name))).sort(),
+        isActive: c.isActive ?? true,
+      }});
+    }
+    res.json({ ok:true, countries: countries.length });
+  }catch(e:any){ res.status(500).json({ ok:false, error:e.message||'sync_failed' }); }
 });
 adminRest.post('/currencies', async (req, res) => {
   const schema = z.object({ code: z.string().min(2).max(6), name: z.string().min(2), symbol: z.string().min(1), precision: z.coerce.number().int().min(0).max(6).default(2), rateToBase: z.coerce.number().positive().default(1), isBase: z.coerce.boolean().default(false), isActive: z.coerce.boolean().default(true) });

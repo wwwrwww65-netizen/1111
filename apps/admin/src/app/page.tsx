@@ -126,7 +126,7 @@ export default function AdminHome(): JSX.Element {
     return ()=> { try { socket && socket.disconnect(); } catch {}; if (timer) clearInterval(timer); };
   }, [apiBase]);
   return (
-    <div className="grid" style={{gap:16}}>
+    <div className="grid" style={{ gap:16, width:'100%' }}>
       <div className="panel" style={{display:'grid',gap:12}}>
         <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
           <label style={{display:'grid',gap:4}}>

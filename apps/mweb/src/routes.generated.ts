@@ -745,7 +745,6 @@ export const routes = [
   { path: '/users', component: () => import('./pages/Users.vue') },
   { path: '/two-tone', component: () => import('./pages/twotone.vue') },
   { path: '/emails-messages', component: () => import('./pages/EmailsMessages.vue') },
-  { path: '/design-tools', component: () => import('./pages/DesignTools.vue') },
   { path: '/paintbucket', component: () => import('./pages/paintbucket.vue') },
   { path: '/additem', component: () => import('./pages/additem.vue') },
   { path: '/designtools', component: () => import('./pages/designtools.vue') },

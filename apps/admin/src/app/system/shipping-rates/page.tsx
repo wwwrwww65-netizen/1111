@@ -15,6 +15,7 @@ export default function ShippingRatesPage(): JSX.Element {
 
   const [zoneId, setZoneId] = React.useState('');
   const [carrier, setCarrier] = React.useState('');
+  const [currency, setCurrency] = React.useState<string>('');
   const [baseFee, setBaseFee] = React.useState<number>(0);
   const [perKgFee, setPerKgFee] = React.useState<number|''>('');
   const [minWeightKg, setMinWeightKg] = React.useState<number|''>('');
@@ -27,6 +28,18 @@ export default function ShippingRatesPage(): JSX.Element {
   const [activeFrom, setActiveFrom] = React.useState<string>('');
   const [activeUntil, setActiveUntil] = React.useState<string>('');
   const [isActive, setIsActive] = React.useState(true);
+  const fromRef = React.useRef<HTMLInputElement|null>(null);
+  const toRef = React.useRef<HTMLInputElement|null>(null);
+
+  // Geo cascade: Country -> City -> Area (UI helper)
+  const [geoLoading, setGeoLoading] = React.useState(false);
+  const [countriesOptions, setCountriesOptions] = React.useState<any[]>([]);
+  const [citiesOptions, setCitiesOptions] = React.useState<any[]>([]);
+  const [areasOptions, setAreasOptions] = React.useState<any[]>([]);
+  const [countryId, setCountryId] = React.useState<string>('');
+  const [cityId, setCityId] = React.useState<string>('');
+  const [areaId, setAreaId] = React.useState<string>('');
+  const [currencies, setCurrencies] = React.useState<Array<{id:string;code:string;name:string;symbol:string;isBase:boolean}>>([]);
 
   async function load(){
     setLoading(true); setError('');
@@ -37,18 +50,70 @@ export default function ShippingRatesPage(): JSX.Element {
   }
   React.useEffect(()=>{ load(); }, []);
 
+  // Load geo lists
+  async function loadCountries(){
+    try{ setGeoLoading(true); const r = await fetch('/api/admin/geo/countries', { credentials:'include' }); const j = await r.json(); if (r.ok) setCountriesOptions(j.countries||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  async function loadCities(cid:string){
+    if(!cid){ setCitiesOptions([]); return; }
+    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/cities?countryId=${encodeURIComponent(cid)}`, { credentials:'include' }); const j = await r.json(); if (r.ok) setCitiesOptions(j.cities||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  async function loadAreas(ccid:string){
+    if(!ccid){ setAreasOptions([]); return; }
+    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/areas?cityId=${encodeURIComponent(ccid)}`, { credentials:'include' }); const j = await r.json(); if (r.ok) setAreasOptions(j.areas||[]); }
+    catch{} finally{ setGeoLoading(false); }
+  }
+  React.useEffect(()=>{ loadCountries(); }, []);
+  React.useEffect(()=>{ (async()=>{ try{ const r=await fetch('/api/admin/currencies', { credentials:'include' }); const j=await r.json(); if(r.ok) setCurrencies(j.currencies||[]);}catch{ setCurrencies([]);} })(); }, []);
+  React.useEffect(()=>{ setCityId(''); setAreaId(''); setCitiesOptions([]); setAreasOptions([]); if(countryId) loadCities(countryId); }, [countryId]);
+  React.useEffect(()=>{ setAreaId(''); setAreasOptions([]); if(cityId) loadAreas(cityId); }, [cityId]);
+
   function reset(){ setEditing(null); setZoneId(''); setCarrier(''); setBaseFee(0); setPerKgFee(''); setMinWeightKg(''); setMaxWeightKg(''); setMinSubtotal(''); setFreeOverSubtotal(''); setEtaMinHours(''); setEtaMaxHours(''); setOfferTitle(''); setActiveFrom(''); setActiveUntil(''); setIsActive(true); }
   function openCreate(){ reset(); setShowForm(true); }
-  function openEdit(r:any){ setEditing(r); setZoneId(r.zoneId||''); setCarrier(r.carrier||''); setBaseFee(Number(r.baseFee||0)); setPerKgFee(r.perKgFee??''); setMinWeightKg(r.minWeightKg??''); setMaxWeightKg(r.maxWeightKg??''); setMinSubtotal(r.minSubtotal??''); setFreeOverSubtotal(r.freeOverSubtotal??''); setEtaMinHours(r.etaMinHours??''); setEtaMaxHours(r.etaMaxHours??''); setOfferTitle(r.offerTitle||''); setActiveFrom(r.activeFrom? String(r.activeFrom).slice(0,16):''); setActiveUntil(r.activeUntil? String(r.activeUntil).slice(0,16):''); setIsActive(Boolean(r.isActive)); setShowForm(true); }
+  function openEdit(r:any){ setEditing(r); setZoneId(r.zoneId||''); setCarrier(r.carrier||''); setCurrency(r.currency||''); setBaseFee(Number(r.baseFee||0)); setPerKgFee(r.perKgFee??''); setMinWeightKg(r.minWeightKg??''); setMaxWeightKg(r.maxWeightKg??''); setMinSubtotal(r.minSubtotal??''); setFreeOverSubtotal(r.freeOverSubtotal??''); setEtaMinHours(r.etaMinHours??''); setEtaMaxHours(r.etaMaxHours??''); setOfferTitle(r.offerTitle||''); setActiveFrom(r.activeFrom? String(r.activeFrom).slice(0,16):''); setActiveUntil(r.activeUntil? String(r.activeUntil).slice(0,16):''); setIsActive(Boolean(r.isActive)); setShowForm(true); }
+  // Auto-filter zones by selected geo
+  const filteredZones = React.useMemo(()=>{
+    if (!countryId && !cityId && !areaId) return zones;
+    // zones are synced per country code and lists of cities/areas by name; we can heuristically filter by name match when available
+    // We only have IDs for geo; fetch names from options
+    const country = countriesOptions.find((c:any)=> c.id===countryId);
+    const city = citiesOptions.find((c:any)=> c.id===cityId);
+    const area = areasOptions.find((a:any)=> a.id===areaId);
+    return zones.filter((z:any)=>{
+      // If area selected, require zone.areas include area.name
+      if (area && Array.isArray(z.areas) && !z.areas.includes(area.name)) return false;
+      // If city selected, require zone.cities include city.name
+      if (city && Array.isArray(z.cities) && !z.cities.includes(city.name)) return false;
+      // If country selected, require countryCodes include country code or code from name
+      if (country) {
+        const codes:string[] = Array.isArray(z.countryCodes)? z.countryCodes: [];
+        const iso = (country.code||'').toUpperCase();
+        const nameCode = (country.name||'').trim().toUpperCase().slice(0,2);
+        if (!codes.includes(iso) && !codes.includes(nameCode)) return false;
+      }
+      return true;
+    });
+  }, [zones, countryId, cityId, areaId, countriesOptions, citiesOptions, areasOptions]);
+
+  // Auto-select zone when there is a match; prefer the first if multiple; clear if current not in filtered
+  React.useEffect(()=>{
+    if (filteredZones.length >= 1) {
+      const preferId = zoneId && filteredZones.some((z:any)=> z.id===zoneId) ? zoneId : filteredZones[0]?.id;
+      if (preferId && zoneId !== preferId) setZoneId(preferId);
+    } else if (zoneId) { setZoneId(''); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredZones, countryId, cityId, areaId]);
 
   async function submit(e:React.FormEvent){
     e.preventDefault(); setError('');
     try{
-      const payload:any = { zoneId, carrier: carrier||undefined, baseFee: Number(baseFee), perKgFee: perKgFee===''? undefined : Number(perKgFee), minWeightKg: minWeightKg===''? undefined : Number(minWeightKg), maxWeightKg: maxWeightKg===''? undefined : Number(maxWeightKg), minSubtotal: minSubtotal===''? undefined : Number(minSubtotal), freeOverSubtotal: freeOverSubtotal===''? undefined : Number(freeOverSubtotal), etaMinHours: etaMinHours===''? undefined : Number(etaMinHours), etaMaxHours: etaMaxHours===''? undefined : Number(etaMaxHours), offerTitle: offerTitle||undefined, activeFrom: activeFrom||undefined, activeUntil: activeUntil||undefined, isActive };
+      const payload:any = { zoneId, carrier: carrier||undefined, currency: currency||undefined, baseFee: Number(baseFee), perKgFee: perKgFee===''? undefined : Number(perKgFee), minWeightKg: minWeightKg===''? undefined : Number(minWeightKg), maxWeightKg: maxWeightKg===''? undefined : Number(maxWeightKg), minSubtotal: minSubtotal===''? undefined : Number(minSubtotal), freeOverSubtotal: freeOverSubtotal===''? undefined : Number(freeOverSubtotal), etaMinHours: etaMinHours===''? undefined : Number(etaMinHours), etaMaxHours: etaMaxHours===''? undefined : Number(etaMaxHours), offerTitle: offerTitle||undefined, activeFrom: activeFrom||undefined, activeUntil: activeUntil||undefined, isActive };
       let r:Response; if (editing) r = await fetch(`/api/admin/shipping/rates/${editing.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       else r = await fetch('/api/admin/shipping/rates', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error||'failed'); setShowForm(false); reset(); await load();
-      alert('تم الحفظ');
+      showToast('تم الحفظ');
     }catch(err:any){ setError(err.message||'failed'); }
   }
 
@@ -99,24 +164,76 @@ export default function ShippingRatesPage(): JSX.Element {
           <div className="panel" style={{ marginTop:16, padding:16 }}>
             <h2 style={{ marginTop:0 }}>{editing? 'تعديل سعر' : 'إضافة سعر'}</h2>
             <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }} aria-label="نموذج سعر التوصيل">
+              <label>الدولة
+                <select value={countryId} onChange={(e)=> setCountryId(e.target.value)} className="select">
+                  <option value="">اختر دولة</option>
+                  {countriesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.code? ` (${c.code})`: ''}</option>))}
+                </select>
+              </label>
+              <label>المدينة
+                <select value={cityId} onChange={(e)=> setCityId(e.target.value)} className="select" disabled={!countryId}>
+                  <option value="">اختر مدينة</option>
+                  {citiesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.region? ` — ${c.region}`:''}</option>))}
+                </select>
+              </label>
               <label>المنطقة
-                <select value={zoneId} onChange={(e)=> setZoneId(e.target.value)} required className="select">
+                <select value={areaId} onChange={(e)=> setAreaId(e.target.value)} className="select" disabled={!cityId}>
                   <option value="">اختر منطقة</option>
-                  {zones.map(z=> (<option key={z.id} value={z.id}>{z.name}</option>))}
+                  {areasOptions.map((a:any)=> (<option key={a.id} value={a.id}>{a.name}</option>))}
+                </select>
+              </label>
+              <div style={{ gridColumn:'1 / -1' }}>
+                {filteredZones.length>0 ? (
+                  <div className="panel" style={{ padding:10 }}>
+                    <div style={{ color:'#666', fontSize:12, marginBottom:6 }}>سيتم استخدام منطقة الشحن المطابقة تلقائيًا</div>
+                    <div><b>{(zones.find(z=> z.id===zoneId)?.name) || filteredZones[0]?.name}</b></div>
+                  </div>
+                ) : (
+                  <div className="error" aria-live="polite">لا توجد منطقة شحن مطابقة — استخدم مزامنة المناطق أو أضف دولة/مدينة/منطقة</div>
+                )}
+              </div>
+              <label>العملة
+                <select className="select" value={currency} onChange={(e)=> setCurrency(e.target.value)}>
+                  <option value="">اختر عملة</option>
+                  {currencies.map((c)=> (
+                    <option key={c.id} value={c.code}>{c.code} — {c.name} {c.isBase? '(الأساسية)': ''}</option>
+                  ))}
                 </select>
               </label>
               <label>المشغل (اختياري)<input value={carrier} onChange={(e)=> setCarrier(e.target.value)} className="input" /></label>
-              <label>الرسوم الأساسية<input type="number" step="0.01" value={baseFee} onChange={(e)=> setBaseFee(Number(e.target.value)||0)} className="input" required /></label>
-              <label>لكل كجم<input type="number" step="0.01" value={perKgFee} onChange={(e)=> setPerKgFee(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>الوزن الأدنى (كجم)<input type="number" step="0.01" value={minWeightKg} onChange={(e)=> setMinWeightKg(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>الوزن الأقصى (كجم)<input type="number" step="0.01" value={maxWeightKg} onChange={(e)=> setMaxWeightKg(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>المجموع الأدنى للطلب<input type="number" step="0.01" value={minSubtotal} onChange={(e)=> setMinSubtotal(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>شحن مجاني فوق<input type="number" step="0.01" value={freeOverSubtotal} onChange={(e)=> setFreeOverSubtotal(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>ETA (ساعات) من<input type="number" value={etaMinHours} onChange={(e)=> setEtaMinHours(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
-              <label>ETA (ساعات) إلى<input type="number" value={etaMaxHours} onChange={(e)=> setEtaMaxHours(e.target.value===''?'':Number(e.target.value))} className="input" /></label>
+              <label>السعر الأساسي<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={String(baseFee)} onChange={(e)=> setBaseFee(Number(String(e.target.value).replace(',','.'))||0)} className="input" placeholder="0.00" required /></label>
+              <label>لكل كجم<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={perKgFee} onChange={(e)=> setPerKgFee(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>الوزن الأدنى (كجم)<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={minWeightKg} onChange={(e)=> setMinWeightKg(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>الوزن الأقصى (كجم)<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={maxWeightKg} onChange={(e)=> setMaxWeightKg(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>المجموع الأدنى للطلب<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={minSubtotal} onChange={(e)=> setMinSubtotal(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>شحن مجاني فوق<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={freeOverSubtotal} onChange={(e)=> setFreeOverSubtotal(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
+              <label>المدة (ساعات)
+                <div style={{ display:'flex', gap:8 }}>
+                  <input className="input" inputMode="numeric" pattern="[0-9]+" value={etaMinHours} onChange={(e)=> setEtaMinHours(e.target.value===''?'':Number(e.target.value))} placeholder="من" />
+                  <input className="input" inputMode="numeric" pattern="[0-9]+" value={etaMaxHours} onChange={(e)=> setEtaMaxHours(e.target.value===''?'':Number(e.target.value))} placeholder="إلى" />
+                </div>
+              </label>
               <label>عنوان العرض (اختياري)<input value={offerTitle} onChange={(e)=> setOfferTitle(e.target.value)} className="input" /></label>
-              <label>ساري من<input type="datetime-local" value={activeFrom} onChange={(e)=> setActiveFrom(e.target.value)} className="input" /></label>
-              <label>ساري إلى<input type="datetime-local" value={activeUntil} onChange={(e)=> setActiveUntil(e.target.value)} className="input" /></label>
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignItems:'center' }}>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <label style={{ flex:1 }}>ساري من
+                      <div style={{ display:'flex', gap:6 }}>
+                        <input ref={fromRef} type="date" value={activeFrom? String(activeFrom).slice(0,10): ''} onChange={(e)=> setActiveFrom(e.target.value? `${e.target.value}T00:00` : '')} className="input" />
+                        <button type="button" className="btn btn-outline" onClick={()=>{ try{ (fromRef.current as any)?.showPicker?.(); }catch{} fromRef.current?.focus(); }}>📅</button>
+                      </div>
+                    </label>
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <label style={{ flex:1 }}>ساري إلى
+                      <div style={{ display:'flex', gap:6 }}>
+                        <input ref={toRef} type="date" value={activeUntil? String(activeUntil).slice(0,10): ''} onChange={(e)=> setActiveUntil(e.target.value? `${e.target.value}T23:59` : '')} className="input" />
+                        <button type="button" className="btn btn-outline" onClick={()=>{ try{ (toRef.current as any)?.showPicker?.(); }catch{} toRef.current?.focus(); }}>📅</button>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
               <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّل</label>
               <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
                 <button type="submit" className="btn">حفظ</button>

@@ -5,7 +5,9 @@
   <main class="bg-gray-50 min-h-screen" dir="rtl" lang="ar" v-else-if="user.isLoggedIn">
     <!-- Header -->
     <div class="bg-white px-4 py-3 flex items-center justify-between">
-      <Settings class="w-6 h-6 text-gray-600" />
+      <button @click="goToSettings" aria-label="الإعدادات">
+        <Settings class="w-6 h-6 text-gray-600" />
+      </button>
       <div class="flex items-center gap-2">
         <span class="bg-gray-400 text-white px-2 py-1 rounded text-xs">SO %</span>
         <span class="text-lg font-medium">{{ username }}</span>
@@ -192,6 +194,7 @@ const user = useUser()
 const username = computed(()=> props.userName || user.username || 'jeeey')
 const router = useRouter()
 function go(path:string){ router.push(path) }
+function goToSettings(){ router.push('/settings') }
 
 onMounted(async ()=>{
   // Helpers

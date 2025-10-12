@@ -21,7 +21,7 @@ export default function PickupPage(): JSX.Element {
   async function load(){
     setLoading(true);
     try{
-      const url = new URL(`/api/admin/logistics/pickup/list`, window.location.origin);
+      const url = new URL(`/api/admin/logistics/pickup/list`, apiBase);
       url.searchParams.set('status', tab);
       const j = await (await fetch(url.toString(), { credentials:'include' })).json();
       // API returns { pickups: [...] }
@@ -33,7 +33,7 @@ export default function PickupPage(): JSX.Element {
   async function doAssign(){
     setMessage('');
     if (!assignPo || !assignDriver) { setMessage('ادخل المورد والسائق'); return; }
-    const res = await fetch(`/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: assignPo, action:'assign', extra:{ driverId: assignDriver } }) });
+    const res = await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: assignPo, action:'assign', extra:{ driverId: assignDriver } }) });
     if (!res.ok) { push({ type:'err', message:'تعذر الإسناد' }); setMessage('تعذر الإسناد'); return; }
     push({ type:'ok', message:'تم إسناد السائق' });
     setMessage('تم الإسناد'); setAssignPo(''); setAssignDriver('');
@@ -42,7 +42,7 @@ export default function PickupPage(): JSX.Element {
   async function changeStatus(poId: string, status: string){
     const ok = await ask({ title:'تأكيد تغيير الحالة؟' });
     if(!ok) return;
-    await fetch(`/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: poId, action: status }) });
+    await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: poId, action: status }) });
     push({ type:'ok', message:'تم تحديث الحالة' });
     await load();
   }

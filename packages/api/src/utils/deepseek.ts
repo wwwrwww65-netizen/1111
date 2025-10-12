@@ -414,37 +414,47 @@ export async function callDeepseekPreviewStrict(opts: {
   colors?: string[]
   sizes?: string[]
   keywords?: string[]
+  stock?: number
 } | null> {
   const { apiKey, model, input } = opts
   const timeoutMs = Math.min(Math.max(opts.timeoutMs ?? 15000, 3000), 20000)
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const systemPrompt = `أنت نظام تحليل منتجات صارم يُخرج JSON من النص فقط (بدون اختراع أو مزج بقواعد خارجية).
+    const systemPrompt = `أنت نظام تحليل منتجات صارم. التزم حرفيًا بالقواعد التالية وأعد JSON فقط.
 
-المطلوب (JSON فقط):
-{
-  "name": string?,
-  "description": string?,
-  "description_table": Array<{"key": string, "label": string, "value": string, "confidence"?: number}>?,
-  "price": number?,
-  "colors": string[]?,
-  "sizes": string[]?,
-  "keywords": string[]?
-}
+1) تنظيف النص:
+- احذف الإيموجي والرموز والزخارف وكل العبارات الترويجية/التسويقية (مثل: احجزي الآن، لا تفوتي، عرض خاص...).
+- اعمل على النص الصافي الذي يصف المنتج فقط.
 
-القواعد:
-- المصدر الوحيد هو النص المُدخل. لا تُخمن إن غاب الدليل؛ احذف الحقل.
-- name: جملة عربية موجزة (≤ 60 حرفاً) تصف النوع والصفات والاستخدام إن وُجد.
-- description: 2-3 جمل جمالية بلا أسعار/مقاسات/ألوان.
-- description_table: صفوف اختيارية مما ورد بالنص فقط. مفاتيح شائعة: material, design, fit, details, usage, colors_text, sizes_text, notes.
-- price: رقم واحد بالأرقام الإنجليزية إن وُجد في النص (لا أوزان، لا اشتقاق خارجي).
-- colors: كما وردت بالنص (مثل "3 ألوان" أو أسماء ألوان).
-- sizes: مثل "فري سايز" أو نطاق كما في النص.
-- keywords: 6-8 كلمات من النص فقط دون كلمات توقف.
-- الأرقام داخل الحقول النصية بالأرقام الإنجليزية.
+2) اسم المنتج (name):
+- أعد صياغة اسم موجز وواضح من 8 إلى 12 كلمة بالضبط.
+- يعبر بدقة عن الهوية: الاسم/النوع + الخامة + الميزة الأبرز + الفئة إن وجدت.
+- بدون رموز أو كلمات تسويقية.
 
-«JSON فقط» دون أي سطور إضافية.`
+3) وصف المنتج كجدول (description_table):
+- أعد جدول تفاصيل من صفوف {label,value} فقط بناءً على ما ورد في النص.
+- أمثلة لعناوين مسموحة: النوع، الفئة، الخامة، القَصّة، الموسم، النمط، الياقة، الأكمام، الطول، السماكة، المرونة، البطانة، بلد الصنع، العناية، الموديل، المقاسات (سم)، الإغلاق، المناسبة، العلامة التجارية، محتويات العبوة، الوزن، الألوان، المقاسات.
+- إذا ذُكرت المقاسات أو الألوان أو الوزن أو وصف المقاس فأضفها للجدول.
+- ممنوع إدراج السعر/التوصيل/العروض أو أي عبارة تسويقية داخل الجدول.
+- يقتصر الجدول على وصف المنتج نفسه فقط.
+
+4) السعر (price):
+- استخرج فقط سعر الشراء الصحيح بالعملة القديمة/للشمال (كلمات مثل: قديم، للـشمال، الشمال، عملة قديمة).
+- تجاهل بالكامل: ريال جديد، جنوبي، سعودي، قعيطي، أو أي عملة/وصف غير مرغوب.
+
+5) المقاسات/الألوان/المخزون:
+- sizes/colors/stock تُستخرج فقط إذا ذُكرت بوضوح في النص؛ وإلا اترك الحقول فارغة (لا تضع شرطات أو رموز).
+- إذا لم تُذكر أنواع الألوان صراحة (أسماء ألوان)، تجاهل الألوان ولا تُرجع عبارات عامة مثل "ألوان متعددة".
+- إذا ذُكر "فري سايز" اجعل sizes: ["فري سايز"] فقط، وضع الوزن ضمن صف في description_table عند وجوده.
+
+6) كلمات SEO (keywords):
+- أنشئ 8 إلى 12 كلمة/عبارة واقعية مرتبطة فعلاً بمواصفات المنتج، بدون رموز أو علامات تجارية غير مذكورة.
+
+تنسيقات وإخراج:
+- أعد JSON فقط بالحقول: {"name"?, "description"?, "description_table"?, "price"?, "colors"?, "sizes"?, "keywords"?, "stock"?}.
+- استخدم الأرقام الإنجليزية داخل الحقول.
+- لا تخمّن: إذا غاب الدليل اترك الحقل غير موجود.`
     const payload = {
       model,
       messages: [
@@ -508,6 +518,16 @@ export async function callDeepseekPreviewStrict(opts: {
       out.price = m ? Number(m[0]) : undefined
       if (out.price == null) delete out.price
     }
+    // Enforce colors rule: drop general color phrases if no explicit color names exist
+    try {
+      const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|وردي|بيج|رمادي|رصاصي|ذهبي|فضي|كحلي|تركواز|تركوازي|سماوي|زيتي|عنابي|خمري|عسلي|كريمي)/i
+      if (Array.isArray(out.colors)) {
+        const explicit = (out.colors as string[]).filter((c:string)=> colorLex.test(c))
+        if (explicit.length) out.colors = explicit
+        else delete (out as any).colors
+      }
+    } catch {}
+    // Normalize sizes: if mentions Free Size with weight, keep sizes as ["فري سايز"] and weight goes to table (model should have done this)
     return out
   } catch { return null } finally { clearTimeout(t) }
 }

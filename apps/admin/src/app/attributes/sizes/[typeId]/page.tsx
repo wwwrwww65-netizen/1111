@@ -29,7 +29,7 @@ export default function SizeTypePage({ params }: { params: { typeId: string } })
     await load();
   }
   return (
-    <main style={{ maxWidth: 900, margin:'0 auto', padding:16 }}>
+    <main style={{ padding:16, width:'100%' }}>
       <h1 style={{ marginBottom:16, fontSize:22, fontWeight:700 }}>أنواع المقاسات</h1>
       <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16, marginBottom:16 }}>
         {error && (<div style={{ marginBottom:8, background:'#7f1d1d', color:'#fee2e2', padding:'8px 10px', borderRadius:8 }}>{error}</div>)}
