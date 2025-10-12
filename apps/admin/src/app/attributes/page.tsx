@@ -171,7 +171,7 @@ function BrandsTab(): JSX.Element {
 export default function AttributesPage(): JSX.Element {
   const [tab, setTab] = React.useState<'colors'|'sizes'|'brands'>('colors');
   return (
-    <main style={{ maxWidth: 1100, margin:'0 auto', padding:16 }}>
+    <main style={{ padding:16, width:'100%' }}>
       <h1 style={{ marginBottom:16, fontSize:22, fontWeight:700 }}>السمات</h1>
       <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom:16 }}>
         <TabButton active={tab==='colors'} onClick={()=>setTab('colors')}>الألوان</TabButton>

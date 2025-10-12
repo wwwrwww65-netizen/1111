@@ -75,7 +75,7 @@ export default function CurrenciesPage(): JSX.Element {
           <button onClick={openCreate} className="btn">إضافة عملة</button>
         </div>
         <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-          <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder="بحث بالاسم/الكود" className="input" style={{ maxWidth:260 }} />
+          <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder="بحث بالاسم/الكود" className="input" />
           <button className="btn danger" onClick={async ()=>{
             const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
             for (const id of ids) { try { await fetch(`/api/admin/currencies/${id}`, { method:'DELETE', credentials:'include' }); } catch {} }
