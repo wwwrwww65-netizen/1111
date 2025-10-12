@@ -641,16 +641,15 @@ jobs:
             PASS=${ADMIN_PASSWORD:-admin123}
             CJ=/tmp/admin_login_$$.cookies
             rm -f "$CJ"
-            echo '--- Admin login via same-origin proxy (/api/admin/auth/login) ---'
+            echo '--- Admin login via API domain (JSON) ---'
             curl -k -sSi -c "$CJ" \
-              -H 'origin: https://admin.jeeey.com' \
               -H 'content-type: application/json' \
-              -X POST 'https://admin.jeeey.com/api/admin/auth/login' \
+              -X POST 'https://api.jeeey.com/api/admin/auth/login' \
               --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" | sed -n '1,60p'
             echo
             echo '--- Extract token from response body (fallback to cookie if missing) ---'
             BODY=/tmp/admin_login_body_$$.json
-            curl -k -s -c "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST 'https://admin.jeeey.com/api/admin/auth/login' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
+            curl -k -s -c "$CJ" -H 'content-type: application/json' -X POST 'https://api.jeeey.com/api/admin/auth/login' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
             if [ -n "${TOKEN:-}" ]; then echo "token: ${#TOKEN} bytes"; else echo 'token: (not present, will rely on cookie)'; fi
             echo
