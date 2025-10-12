@@ -36,7 +36,8 @@ export default function AdminProductCreate(): JSX.Element {
   React.useEffect(()=>{ try{ localStorage.setItem('aiDeepseekOn', deepseekOn? '1':'0'); } catch {} },[deepseekOn]);
   const [lastMeta, setLastMeta] = React.useState<any>(null);
   const [useOpenRouter, setUseOpenRouter] = React.useState<boolean>(false);
-  const [draft, setDraft] = React.useState<boolean>(true);
+  // default to published when creating via form, allow draft toggle later if needed
+  const [draft, setDraft] = React.useState<boolean>(false);
   const [seoTitle, setSeoTitle] = React.useState("");
   const [seoDescription, setSeoDescription] = React.useState("");
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
