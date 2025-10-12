@@ -55,12 +55,12 @@ jobs:
       - name: Smoke - Create Order
         run: node scripts/ci/smoke.mjs || true
 
-      - name: Admin layout check (hash - optional)
-        if: ${{ env.ADMIN_BASE != '' }}
+      - name: Admin layout check (hash)
+        if: ${{ github.ref_name == 'hash' || startsWith(github.ref, 'refs/heads/hash') }}
         env:
-          ADMIN_BASE: ${{ secrets.ADMIN_BASE }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_BASE: ${{ secrets.ADMIN_BASE || vars.ADMIN_BASE || 'https://admin.jeeey.com' }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || '' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || '' }}
         run: |
           set -e
           cd scripts/ci
