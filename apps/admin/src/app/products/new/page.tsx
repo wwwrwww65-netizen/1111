@@ -728,7 +728,14 @@ export default function AdminProductCreate(): JSX.Element {
       const palettes: Array<{url:string;hex:string;name:string}> = [];
       const allUrls = allProductImageUrls();
       // Recompute quick palette client-side for mapping visual review
-      for (const url of allUrls.slice(0,6)) {
+      // Include newly uploaded files too
+      const localFiles = Array.isArray(files)? files.slice(0,6 - Math.min(allUrls.length,6)) : [];
+      for (const f of localFiles) {
+        const p = await getImageDominant(f);
+        const near = nearestColorName(p.hex);
+        palettes.push({ url: p.url, hex: p.hex, name: near.name });
+      }
+      for (const url of allUrls.slice(0, 6 - palettes.length)) {
         const p = await getImageDominant(url);
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
@@ -767,7 +774,12 @@ export default function AdminProductCreate(): JSX.Element {
         const sKeywords = generateSeoKeywordsStrict(strictClean);
         reviewObj.name = sName;
         if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
+        // Merge strict details into longDesc and text-area auto expands
+        const tableInline = sDetails.filter(r=> r.value && String(r.value).trim().length>0)
+          .map(r=> `${r.label}: ${r.value}`).join('\n');
         reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
+        const baseLong = String(reviewObj.longDesc||'').trim();
+        reviewObj.longDesc = baseLong ? (baseLong + '\n' + tableInline) : tableInline;
         if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
       }
 
@@ -1420,7 +1432,7 @@ export default function AdminProductCreate(): JSX.Element {
                   <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%) <SourceBadge src={review.sources?.price_range} /><input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   
-                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
+                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea ref={longDescRef} value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
                   {Array.isArray(review.strictDetails) && review.strictDetails.length>0 && (
                     <div style={{ gridColumn:'1 / -1' }}>
                       <div style={{ marginBottom:6, color:'#9ca3af' }}>جدول تفاصيل المنتج (صارم)</div>
@@ -1740,7 +1752,7 @@ export default function AdminProductCreate(): JSX.Element {
                 </div>
                 {variantRows.length > 0 ? (
                   <div style={{ overflowX:'auto' }}>
-                    <table className="table">
+            <table className="table" style={{ width:'100%' }}>
                       <thead>
                         <tr>
                           <th>المجموعة</th>
