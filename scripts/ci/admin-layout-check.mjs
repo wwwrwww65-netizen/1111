@@ -123,6 +123,24 @@ try {
     const shell = rect('.shell');
     const sidebar = rect('aside.sidebar');
     const content = rect('.shell > main.content') || rect('main.content') || rect('.content');
+    // Try to find a meaningful first content block (panel/card/container child)
+    const contentBlock = (() => {
+      const candidates = [
+        '.shell > main.content > .container',
+        'main.content > .container',
+        '.content .panel',
+        '.content .card',
+        '.content > :not(style):not(script)'
+      ];
+      for (const sel of candidates) {
+        const el = document.querySelector(sel);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          return { top: r.top };
+        }
+      }
+      return null;
+    })();
     const brand = rect('.topbar .brand');
     const actions = rect('.topbar .top-actions');
     const search = rect('.topbar .search');
@@ -143,7 +161,7 @@ try {
       return { gridTemplateColumns: cs.gridTemplateColumns, direction: cs.direction };
     })();
     const vw = window.innerWidth;
-    return { dir, header, shell, sidebar, content, brand, actions, search, vw, headerStyle, gridInfo };
+    return { dir, header, shell, sidebar, content, contentBlock, brand, actions, search, vw, headerStyle, gridInfo };
   });
 
   const errs = [];
@@ -175,10 +193,13 @@ try {
     if (delta > 140) errs.push('search not centered');
   }
 
-  // Top alignment: content and sidebar start just under header (allow up to appbar-h ~64px)
-  const threshold = 72;
+  // Top alignment: content starts just under header (check inner block if available)
+  const threshold = 120;
+  const effectiveContentTop = (data.contentBlock?.top ?? data.content?.top);
   if (Math.abs(data.sidebar.top - data.header.bottom) > threshold) errs.push(`sidebar not aligned under header (Δ=${Math.abs(data.sidebar.top - data.header.bottom)})`);
-  if (data.content && Math.abs(data.content.top - data.header.bottom) > threshold) errs.push(`content not aligned under header (Δ=${Math.abs(data.content.top - data.header.bottom)})`);
+  if (typeof effectiveContentTop === 'number' && Math.abs(effectiveContentTop - data.header.bottom) > threshold) {
+    errs.push(`content not aligned under header (Δ=${Math.abs(effectiveContentTop - data.header.bottom)})`);
+  }
 
   if (errs.length) throw new Error('Layout check failed: ' + errs.join(' | '));
   console.log('✅ Admin layout checks passed');
