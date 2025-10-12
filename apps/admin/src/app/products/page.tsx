@@ -63,6 +63,25 @@ export default function AdminProducts(): JSX.Element {
     return isActive ? 'badge ok' : 'badge err';
   }
 
+  async function setStatus(id: string, status: 'PUBLISHED'|'ARCHIVED'|'DISABLED') {
+    try {
+      const r = await fetch('/api/admin/trpc', {
+        method: 'POST',
+        headers: { 'content-type':'application/json', ...authHeaders() },
+        credentials:'include',
+        body: JSON.stringify({
+          path: 'admin.setProductStatus',
+          input: { id, status }
+        })
+      });
+      if (!r.ok) throw new Error('status failed');
+      await load();
+      showToast('تم تحديث الحالة');
+    } catch {
+      showToast('فشل تحديث الحالة');
+    }
+  }
+
   return (
     <main className="panel">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
@@ -118,7 +137,16 @@ export default function AdminProducts(): JSX.Element {
                   <td>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
                   <td>{p.price}</td>
                   <td>{totalStock}</td>
-                  <td><span className={activeBadge(!!p.isActive)}>{p.isActive ? 'active' : 'archived'}</span></td>
+                  <td>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span className={activeBadge(!!p.isActive)}>{p.isActive ? 'active' : 'archived'}</span>
+                      <select className="select" defaultValue={p.isActive ? 'PUBLISHED' : 'ARCHIVED'} onChange={(e)=> setStatus(p.id, e.target.value as any)}>
+                        <option value="PUBLISHED">نشر</option>
+                        <option value="ARCHIVED">مؤرشف</option>
+                        <option value="DISABLED">متوقف</option>
+                      </select>
+                    </div>
+                  </td>
                   <td>
                     <a href={`/products/${p.id}`} className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
                     <a href={`/products/new?id=${p.id}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>

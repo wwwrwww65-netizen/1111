@@ -202,6 +202,18 @@ export const adminRouter = router({
       return { product };
     }),
 
+  // Toggle or set product active/archive status
+  setProductStatus: protectedProcedure
+    .use(adminMiddleware)
+    .input(z.object({ id: z.string(), status: z.enum(['PUBLISHED','ARCHIVED','DISABLED']) }))
+    .mutation(async ({ input }) => {
+      // Map UI statuses to isActive flag; extend later for richer status
+      const { id, status } = input;
+      const isActive = status === 'PUBLISHED';
+      const product = await db.product.update({ where: { id }, data: { isActive } });
+      return { product };
+    }),
+
   deleteProduct: protectedProcedure
     .use(adminMiddleware)
     .input(z.object({ id: z.string() }))
