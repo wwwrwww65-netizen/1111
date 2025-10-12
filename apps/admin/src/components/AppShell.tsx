@@ -117,7 +117,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 
   return (
     <div className="app-root">
-      <header className="topbar" style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', gap:12, alignItems:'center' }}>
+      <header className="topbar">
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <button className="icon-btn" onClick={() => setSidebarOpen(v => !v)} aria-label="toggle sidebar">☰</button>
           <div className="brand">jeeey • Admin</div>
