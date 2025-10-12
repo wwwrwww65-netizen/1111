@@ -196,7 +196,7 @@ html:dir(ltr) .topbar .top-actions { justify-self: end; }
 .h3 { font-size: var(--fz-h3); margin: 0 0 var(--space-2); font-weight:600; }
 
 /* buttons */
-.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height: var(--touch-size); padding: 0 var(--space-4); border-radius: 10px; border:none; background:var(--primary); color:#fff; font-weight:600; cursor:pointer; transition: transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height: var(--touch-size); padding: 0 var(--space-4); border-radius: 10px; border:none; background:var(--primary); color:#fff; font-weight:600; font-size:14px; cursor:pointer; transition: transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
 .btn:hover{ filter:brightness(0.96); }
 .btn:active{ transform: translateY(1px); }
 .btn + .btn{ margin-inline-start:8px }
@@ -210,7 +210,7 @@ html:dir(ltr) .topbar .top-actions { justify-self: end; }
 .btn-lg{ min-height:48px; padding:0 16px; font-size:16px; }
 
 /* inputs */
-.input, .select, textarea { display:inline-block; min-height: var(--touch-size); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: var(--text); box-sizing:border-box; width:100%; }
+.input, .select, textarea { display:inline-block; min-height: var(--touch-size); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: var(--text); box-sizing:border-box; width:100%; font-size:15px; }
 textarea.input { min-height:160px; resize: vertical; white-space: pre-wrap; word-break: break-word; }
 
 /* form labels */
@@ -291,6 +291,11 @@ a, button, .btn { touch-action: manipulation; -webkit-tap-highlight-color: trans
 .w-full { width:100%; }
 .text-center { text-align:center; }
 .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Toolbar: filters/search layout */
+.toolbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.toolbar .search{ flex:1; min-width:260px; }
+.toolbar .actions{ margin-inline-start:auto; display:flex; gap:8px; }
 
 /* quick fixes */
 .shell > .content, .shell > main { width: 100%; min-width: 0; }
