@@ -226,6 +226,8 @@ textarea.input { height: auto; min-height: 160px; resize: vertical; white-space:
 .nav-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid transparent; border-radius:10px; color:var(--text); text-decoration:none; background:transparent }
 .nav-item:hover{ background:#101828; border-color:#1f2937 }
 .nav-item.active{ background:linear-gradient(180deg,#0c1220,#0a0f1a); border-color:#233046 }
+.sidebar .group-title{ font-size:14px; font-weight:700; opacity:.95; margin-bottom:6px }
+.nav-item .label{ font-size:14px }
 
 /* =========================
    Tables (responsive) — supports both wrapper and direct .table on <table>

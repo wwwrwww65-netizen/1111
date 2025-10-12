@@ -153,9 +153,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
               }
               return (
                 <div key={g.label+idx} className={'nav-item'}>
-                  <div className="w-full text-right" style={{fontWeight:700,opacity:.9,marginBottom:6}}>
-                    {g.label}
-                  </div>
+                  <div className="group-title w-full text-right">{g.label}</div>
                   <div className={'mt-2'}>
                     <div className="grid gap-1">
                       {(g.children||[]).map(ch => (
