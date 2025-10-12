@@ -122,6 +122,7 @@ html,body{
   border-bottom: 1px solid rgba(255,255,255,0.02);
   color: var(--text);
 }
+.topbar .search{ max-width:520px; width:100%; margin-inline:auto; }
 .topbar{ direction: rtl; }
 
 /* shell with persistent sidebar (desktop) */
@@ -186,6 +187,7 @@ html,body{
 .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height: var(--touch-size); padding: 0 var(--space-4); border-radius: 10px; border: none; background: var(--primary); color: #fff; font-weight:600; cursor:pointer; transition: transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
 .btn:hover{ filter:brightness(0.96); }
 .btn:active{ transform: translateY(1px); }
+.btn + .btn{ margin-inline-start:8px }
 .btn.secondary{ background: transparent; border: 1px solid rgba(255,255,255,0.06); color: var(--text); }
 .btn.ghost{ background: transparent; border: none; color: var(--text); }
 .btn.btn-outline{ background:transparent; border:1px solid rgba(255,255,255,0.08); color:var(--text); }
