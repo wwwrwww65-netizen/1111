@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import { resolveApiBase } from "../../lib/apiBase";
 
@@ -18,10 +18,12 @@ function useAuthHeaders(){
 
 export default function AdminProductCreate(): JSX.Element {
   const router = useRouter();
+  const search = useSearchParams();
   const apiBase = useApiBase();
   const authHeaders = useAuthHeaders();
   const [paste, setPaste] = React.useState('');
   const [review, setReview] = React.useState<any|null>(null);
+  const [loadingExisting, setLoadingExisting] = React.useState<boolean>(false);
   const [dsHint, setDsHint] = React.useState<any|null>(null);
   const [dsHintKey, setDsHintKey] = React.useState<string>('');
   const [busy, setBusy] = React.useState(false);
@@ -39,6 +41,38 @@ export default function AdminProductCreate(): JSX.Element {
   const [seoDescription, setSeoDescription] = React.useState("");
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
   React.useEffect(()=>{ try{ localStorage.setItem('aiOpenRouterOn', useOpenRouter? '1':'0'); } catch {} },[useOpenRouter]);
+  // Load existing product when id is provided in query (?id=...)
+  React.useEffect(()=>{
+    const id = search?.get('id');
+    if (!id) return;
+    (async ()=>{
+      try {
+        setLoadingExisting(true);
+        const r = await fetch(`${apiBase}/api/products/getById`, { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ id }) });
+        const j = await r.json();
+        if (j && j.id) {
+          // Map API to local form state: paste/review fields
+          setReview({
+            name: j.name,
+            description: j.description,
+            price: j.price,
+            images: Array.isArray(j.images)? j.images : [],
+            categoryId: j.categoryId,
+            vendorId: j.vendorId || '',
+            stockQuantity: j.stockQuantity,
+            sku: j.sku || '',
+            weight: j.weight || undefined,
+            dimensions: j.dimensions || '',
+            brand: j.brand || '',
+            tags: Array.isArray(j.tags)? j.tags : [],
+            variants: Array.isArray(j.variants)? j.variants : [],
+            isActive: !!j.isActive,
+          });
+        }
+      } finally { setLoadingExisting(false); }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   function SourceBadge({ src }: { src?: string }){
     const s = String(src||'rules').toLowerCase();
