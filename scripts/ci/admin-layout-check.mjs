@@ -105,6 +105,12 @@ try {
     }
   }
 
+  // Ensure we're at the top of the page before measuring
+  try {
+    await page.evaluate(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; });
+    await page.waitForTimeout(250);
+  } catch {}
+
   const data = await page.evaluate(() => {
     function rect(sel) {
       const el = document.querySelector(sel);
@@ -120,6 +126,16 @@ try {
     const brand = rect('.topbar .brand');
     const actions = rect('.topbar .top-actions');
     const search = rect('.topbar .search');
+    const gridInfo = (()=>{
+      function colOf(sel){
+        const el = document.querySelector(sel);
+        if (!el) return undefined;
+        const cs = getComputedStyle(el);
+        const start = parseInt(cs.gridColumnStart || '0', 10);
+        return isNaN(start)? undefined : start;
+      }
+      return { brandCol: colOf('.topbar .brand') ?? 0, actionsCol: colOf('.topbar .top-actions') ?? 0 };
+    })();
     const headerStyle = (()=>{
       const el = document.querySelector('header.topbar');
       if (!el) return {};
@@ -127,7 +143,7 @@ try {
       return { gridTemplateColumns: cs.gridTemplateColumns, direction: cs.direction };
     })();
     const vw = window.innerWidth;
-    return { dir, header, shell, sidebar, content, brand, actions, search, vw, headerStyle };
+    return { dir, header, shell, sidebar, content, brand, actions, search, vw, headerStyle, gridInfo };
   });
 
   const errs = [];
@@ -140,10 +156,19 @@ try {
   if (!(data.sidebar.left > data.content.left)) errs.push('sidebar is not to the right of content');
   if (!((data.vw - data.sidebar.right) <= 12)) errs.push('sidebar not aligned to right edge');
 
-  // Header placement: brand right, actions left, search center
-  // Header child order checks (tolerant; allow grid-based placement in RTL)
-  if (data.brand && !(data.brand.left > data.vw * 0.45)) errs.push('brand not at right side');
-  if (data.actions && !(data.actions.left < data.vw * 0.35)) errs.push('actions not at left side');
+  // Header placement: prefer grid column checks; fallback to x-position
+  if (data.gridInfo) {
+    if (data.gridInfo.brandCol && data.gridInfo.actionsCol) {
+      if (!(data.gridInfo.brandCol > data.gridInfo.actionsCol)) errs.push('brand not at right side');
+    } else {
+      if (data.brand && !(data.brand.left > data.vw * 0.45)) errs.push('brand not at right side');
+    }
+    if (data.gridInfo.brandCol && data.gridInfo.actionsCol) {
+      if (!(data.gridInfo.actionsCol < data.gridInfo.brandCol)) errs.push('actions not at left side');
+    } else {
+      if (data.actions && !(data.actions.left < data.vw * 0.35)) errs.push('actions not at left side');
+    }
+  }
   if (data.search) {
     const center = (data.search.left + data.search.right) / 2;
     const delta = Math.abs(center - data.vw / 2);
