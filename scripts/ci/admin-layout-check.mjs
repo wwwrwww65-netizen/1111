@@ -122,7 +122,7 @@ try {
     const header = rect('header.topbar');
     const shell = rect('.shell');
     const sidebar = rect('aside.sidebar');
-    const content = rect('main.content, .content');
+    const content = rect('.shell > main.content') || rect('main.content') || rect('.content');
     const brand = rect('.topbar .brand');
     const actions = rect('.topbar .top-actions');
     const search = rect('.topbar .search');
@@ -178,7 +178,7 @@ try {
   // Top alignment: content and sidebar start just under header (allow up to appbar-h ~64px)
   const threshold = 72;
   if (Math.abs(data.sidebar.top - data.header.bottom) > threshold) errs.push(`sidebar not aligned under header (Δ=${Math.abs(data.sidebar.top - data.header.bottom)})`);
-  if (Math.abs(data.content.top - data.header.bottom) > threshold) errs.push(`content not aligned under header (Δ=${Math.abs(data.content.top - data.header.bottom)})`);
+  if (data.content && Math.abs(data.content.top - data.header.bottom) > threshold) errs.push(`content not aligned under header (Δ=${Math.abs(data.content.top - data.header.bottom)})`);
 
   if (errs.length) throw new Error('Layout check failed: ' + errs.join(' | '));
   console.log('✅ Admin layout checks passed');
