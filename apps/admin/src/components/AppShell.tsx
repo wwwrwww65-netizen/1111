@@ -134,13 +134,13 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
           <ThemeToggle />
         </div>
       </header>
-      <div className="shell" style={{ gridTemplateColumns: '1fr var(--sidebar-w)' }}>
-        <main className="content">
+      <div className="shell" style={{ direction:'ltr', gridTemplateColumns: '1fr var(--sidebar-w)', marginTop:'var(--appbar-h)' }}>
+        <main className="content" style={{ direction:'rtl' }}>
           <div className="container">
             {children}
           </div>
         </main>
-        <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'} desktop`}>
+        <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'} desktop`} style={{ position:'sticky', top:'var(--appbar-h)' }}>
           <nav>
             {NAV_GROUPS.map((g, idx) => {
               const hasChildren = Array.isArray(g.children) && g.children.length > 0;
