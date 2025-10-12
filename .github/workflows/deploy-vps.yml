@@ -933,6 +933,17 @@ jobs:
               fi
             done
 
+      - name: Admin layout check (UI sanity)
+        if: ${{ env.HAVE_SSH == '1' }}
+        env:
+          ADMIN_BASE: ${{ secrets.ADMIN_BASE || 'https://admin.jeeey.com' }}
+        run: |
+          set -e
+          cd scripts/ci
+          npm ci || npm i
+          npx playwright install --with-deps chromium
+          ADMIN_BASE="$ADMIN_BASE" node admin-layout-check.mjs
+
       - name: WhatsApp live smoke (strict template)
         if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
