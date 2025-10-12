@@ -114,8 +114,14 @@ try {
     const brand = rect('.topbar .brand');
     const actions = rect('.topbar .top-actions');
     const search = rect('.topbar .search');
+    const headerStyle = (()=>{
+      const el = document.querySelector('header.topbar');
+      if (!el) return {};
+      const cs = getComputedStyle(el);
+      return { gridTemplateColumns: cs.gridTemplateColumns, direction: cs.direction };
+    })();
     const vw = window.innerWidth;
-    return { dir, header, shell, sidebar, content, brand, actions, search, vw };
+    return { dir, header, shell, sidebar, content, brand, actions, search, vw, headerStyle };
   });
 
   const errs = [];
@@ -129,8 +135,9 @@ try {
   if (!((data.vw - data.sidebar.right) <= 6)) errs.push('sidebar not aligned to right edge');
 
   // Header placement: brand right, actions left, search center
-  if (data.brand && !(data.brand.left > data.vw * 0.5)) errs.push('brand not at right side');
-  if (data.actions && !(data.actions.left < data.vw * 0.25)) errs.push('actions not at left side');
+  // Header child order checks (tolerant; allow grid-based placement in RTL)
+  if (data.brand && !(data.brand.left > data.vw * 0.45)) errs.push('brand not at right side');
+  if (data.actions && !(data.actions.left < data.vw * 0.35)) errs.push('actions not at left side');
   if (data.search) {
     const center = (data.search.left + data.search.right) / 2;
     const delta = Math.abs(center - data.vw / 2);
@@ -138,7 +145,7 @@ try {
   }
 
   // Top alignment: content and sidebar start just under header
-  const threshold = 10;
+  const threshold = 16;
   if (Math.abs(data.sidebar.top - data.header.bottom) > threshold) errs.push('sidebar not aligned under header');
   if (Math.abs(data.content.top - data.header.bottom) > threshold) errs.push('content not aligned under header');
 

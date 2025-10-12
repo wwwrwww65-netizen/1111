@@ -155,7 +155,7 @@ html,body{
   border-radius: var(--radius-sm);
   height: calc(100vh - var(--appbar-h));
   position: sticky;
-  top: var(--appbar-h);
+  top: 0; /* container is already pushed by shell margin-top */
   overflow:auto;
   box-shadow: var(--shadow-sm);
   transition: width var(--dur) var(--ease), transform var(--dur) var(--ease);
