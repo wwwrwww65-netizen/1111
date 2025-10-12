@@ -4,39 +4,56 @@
 */
 import { chromium } from 'playwright';
 
-const adminBase = process.env.ADMIN_BASE || 'https://admin.jeeey.com';
+const adminBase = (process.env.ADMIN_BASE || 'https://admin.jeeey.com').replace(/\/$/, '');
+const defaultEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+const defaultPass = process.env.ADMIN_PASSWORD || 'admin123';
 const url = `${adminBase}`;
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ ignoreHTTPSErrors: true });
 const page = await context.newPage();
 page.setDefaultTimeout(20000);
 try {
-  const res = await page.goto(url + `?t=${Date.now()}`, { waitUntil: 'networkidle', timeout: 45000 });
+  const res = await page.goto(url + `?t=${Date.now()}`, { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForSelector('body', { timeout: 30000 });
   // Try to find header; if missing, try root and login
   let headerFound = await page.$('header.topbar');
   if (!headerFound) {
-    await page.goto(adminBase + `/?t=${Date.now()}`, { waitUntil: 'networkidle' });
+    await page.goto(adminBase + `/?t=${Date.now()}`, { waitUntil: 'networkidle', timeout: 60000 });
     headerFound = await page.$('header.topbar');
   }
   if (!headerFound) {
     // Attempt Login then retry
-    await page.goto(adminBase + `/login?t=${Date.now()}`, { waitUntil: 'networkidle' });
+    await page.goto(adminBase + `/login?t=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     try {
-      const email = process.env.ADMIN_EMAIL;
-      const pass = process.env.ADMIN_PASSWORD;
-      if (email && pass) {
-        // Find typical inputs by placeholders or types
-        const emailInput = await page.$('input[type="email"], input[name="email"], input[autocomplete="username"]');
-        const passInput = await page.$('input[type="password"], input[name="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]');
-        if (emailInput && passInput) {
-          await emailInput.fill(email);
-          await passInput.fill(pass);
-          // Try click a submit button
-          const submit = await page.$('button[type="submit"], button:has-text("دخول"), button:has-text("Login")');
-          if (submit) { await submit.click(); await page.waitForLoadState('networkidle', { timeout: 20000 }); }
+      const email = defaultEmail;
+      const pass = defaultPass;
+
+      // Prefer accessible label in Arabic
+      let emailInput = await page.$('label:has-text("البريد") input');
+      if (!emailInput) {
+        // Try common selectors and heuristics
+        emailInput = await page.$('input[type="email"], input[name="email"], input[autocomplete="username"], input[placeholder*="البريد"], input[placeholder*="email" i]');
+      }
+      // Fallback to first text input in form
+      if (!emailInput) emailInput = await page.$('form input:not([type="password"]):not([type="checkbox"])');
+
+      const passInput = await page.$('input[type="password"], input[name="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]');
+
+      if (emailInput && passInput) {
+        await emailInput.fill(email);
+        await passInput.fill(pass);
+        const submit = await page.$('button[type="submit"], button:has-text("دخول"), button:has-text("Login")');
+        if (submit) {
+          await Promise.all([
+            submit.click(),
+            page.waitForLoadState('networkidle', { timeout: 60000 }).catch(()=>{}),
+          ]);
         }
       }
+    } catch {}
+    // After login attempt, try root and check header again
+    try {
+      await page.goto(adminBase + `/?t=${Date.now()}`, { waitUntil: 'networkidle', timeout: 60000 });
     } catch {}
     headerFound = await page.$('header.topbar');
   }
