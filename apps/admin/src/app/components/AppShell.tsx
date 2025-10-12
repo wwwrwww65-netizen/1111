@@ -60,10 +60,13 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
     <div className={`app-root ${forceDesktop ? 'force-desktop' : ''}`}>
       <CommandPalette open={openCmd} onClose={()=> setOpenCmd(false)} />
       <header className="topbar">
-        <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!(isDesktop || forceDesktop)) setOpen(o=>!o); else setDesktopOpen(v=>!v); }}>
-          ☰
-        </button>
-        <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
+        <div className="brand-wrap">
+          <button className="icon-btn menu-toggle" aria-label="Toggle menu" onClick={()=> { if (!(isDesktop || forceDesktop)) setOpen(o=>!o); else setDesktopOpen(v=>!v); }}>
+            ☰
+          </button>
+          <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
+        </div>
+        <div className="search" />
         <div className="top-actions">
           <button className="icon-btn" title="Command Palette (Ctrl+K)" onClick={()=> setOpenCmd(true)}>⌘</button>
           <button className="icon-btn" aria-pressed={forceDesktop} title="عرض سطح المكتب" onClick={()=> setForceDesktop(v=> !v)}>
@@ -88,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
             <div className="overlay" style={{display: open ? 'block' : 'none'}} onClick={()=> setOpen(false)} aria-hidden={!open} />
           </>
         )}
-        <main className="content container" style={{ marginRight: (isDesktop || forceDesktop) && desktopOpen ? 260 : 0 }}>
+        <main className="content container">
           {children}
         </main>
       </div>
