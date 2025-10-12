@@ -22,7 +22,7 @@ try {
     headerFound = await page.$('header.topbar');
   }
   if (!headerFound) {
-    // Attempt Login then retry
+    // Attempt Login then retry (form-based first)
     await page.goto(adminBase + `/login?t=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     try {
       const email = defaultEmail;
@@ -50,6 +50,36 @@ try {
           ]);
         }
       }
+    } catch {}
+    // Programmatic login fallback (bypass UI flakiness)
+    try {
+      await page.goto(adminBase + `/login?t=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      const result = await page.evaluate(async (creds) => {
+        try {
+          const res = await fetch('/api/admin/auth/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ email: creds.email, password: creds.pass, remember: true })
+          });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) return { ok: false, status: res.status, err: j?.error || j?.message || 'login_failed' };
+          if (j?.token) {
+            const res2 = await fetch('/api/auth/set', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ token: j.token, remember: true })
+            });
+            return { ok: res2.ok, status: res2.status };
+          }
+          return { ok: false, status: 200, err: 'no_token' };
+        } catch (e) {
+          return { ok: false, status: 0, err: String(e) };
+        }
+      }, { email: defaultEmail, pass: defaultPass });
+      // go home after programmatic login
+      await page.goto(adminBase + `/?t=${Date.now()}`, { waitUntil: 'networkidle', timeout: 60000 }).catch(()=>{});
     } catch {}
     // After login attempt, try root and check header again
     try {
