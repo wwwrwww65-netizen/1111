@@ -1,21 +1,13 @@
-/* global.css — مُحسّن لتجربة مستخدم حديثة (UI/UX)
-   - responsive typography (clamp)
-   - fluid container + optional centered constraint
-   - stable sidebar + predictable gap to main
-   - accessible touch targets and focus styles
-   - responsive tables and cards
-*/
+/* global.css — مُحسّن لتجربة مستخدم حديثة (UI/UX) */
 
 /* =========================
    Variables (design system)
-   ========================= */
+   ========================== */
 :root{
-  /* Colors */
   --bg: #0b0e14;
   --panel: #0f1420;
   --muted: #1c2333;
   --muted-2: #101828;
-  --muted2: #101828; /* back-compat */
   --text: #e2e8f0;
   --sub: #9ca3af;
   --primary: #0B5FFF;
@@ -26,13 +18,11 @@
   --neutral: #e5e7eb;
   --overlay: rgba(0,0,0,.5);
 
-  /* Shadows */
   --shadow-xs: 0 1px 2px rgba(0,0,0,.18);
   --shadow-sm: 0 4px 12px rgba(0,0,0,.22);
   --shadow-md: 0 8px 28px rgba(0,0,0,.25);
   --shadow-lg: 0 18px 48px rgba(0,0,0,.32);
 
-  /* Spacing scale (8px base) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -42,25 +32,21 @@
   --space-8: 32px;
   --space-10: 40px;
 
-  /* Radii */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  /* Layout */
-  --sidebar-w: 260px;            /* default sidebar width */
+  --sidebar-w: 260px;
   --sidebar-w-collapsed: 72px;
-  --gutter: 24px;                /* container horizontal padding */
-  --container-max: 1400px;       /* centered max width when used */
+  --gutter: 24px;
+  --container-max: 1400px;
   --appbar-h: 64px;
   --appbar-h-sm: 56px;
 
-  /* Motion */
   --ease: cubic-bezier(.2,.7,.2,1);
   --dur-fast: 120ms;
   --dur: 180ms;
 
-  /* Typography (responsive via clamp) */
   --fz-base: clamp(14px, 1rem + 0.12vw, 16px);
   --fz-small: clamp(12px, 0.85rem, 13px);
   --fz-h1: clamp(20px, 1.6rem + 1vw, 28px);
@@ -68,17 +54,15 @@
   --fz-h3: clamp(16px, 1.15rem + 0.3vw, 18px);
   --leading: 1.6;
 
-  /* touch / click targets */
   --touch-size: 40px;
 }
 
-/* Light / Dark theme examples */
+/* theme examples */
 .theme-light{ --bg:#ffffff; --panel:#f8fafc; --muted:#e6e9ef; --muted-2:#f3f4f6; --text:#0f172a; --sub:#475569; }
-.theme-dark { /* defaults already set */ }
 
 /* =========================
    Base / resets
-   ========================= */
+   ========================== */
 *,
 *::before,
 *::after { box-sizing: border-box; }
@@ -94,7 +78,7 @@ html,body{
   -moz-osx-font-smoothing:grayscale;
 }
 
-/* improve scrollbars a bit on desktop */
+/* scrollbar polish */
 :root { scrollbar-color: rgba(255,255,255,0.08) transparent; }
 *::-webkit-scrollbar { height:10px; width:10px; }
 *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 999px; }
@@ -102,50 +86,52 @@ html,body{
 
 /* =========================
    App layout (sidebar + main)
-   ========================= */
+   ========================== */
 
-/* main app wrapper */
+/* app wrapper */
 .app-root{ min-height:100vh; display:flex; flex-direction:column; }
-.app-root{ direction: rtl; }
 
-/* topbar */
+/* topbar: use explicit classes (.brand, .search, .top-actions) not nth-child */
 .topbar{
   position: sticky;
   top: 0;
   z-index: 60;
   height: var(--appbar-h);
-  display:grid; grid-template-columns: auto 1fr auto; align-items:center;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
   gap: var(--space-3);
-  padding: 0 calc(var(--gutter));
+  padding-inline: calc(var(--gutter));
   background: linear-gradient(90deg,#0f1420,#101939);
   border-bottom: 1px solid rgba(255,255,255,0.02);
   color: var(--text);
+  box-sizing: border-box;
 }
-.topbar .search{ max-width:520px; width:100%; margin-inline:auto; }
-.topbar .top-actions{ margin-inline-start: 0; }
-.topbar{ direction: rtl; }
-/* Force placement: [brand | search | actions] -> [right | center | left] in RTL */
-.topbar > *:nth-child(1){ grid-column: 3; justify-self: start; }
-.topbar > *:nth-child(2){ grid-column: 2; }
-.topbar > *:nth-child(3){ grid-column: 1; justify-self: end; }
 
-/* shell with persistent sidebar (desktop) */
+/* explicit placement by class — robust vs DOM order changes */
+.topbar .brand       { justify-self: end; }   /* brand on the right for RTL dashboard */
+.topbar .search      { justify-self: center; max-width:520px; width:100%; }
+.topbar .top-actions { justify-self: start; display:flex; gap:12px; align-items:center; }
+
+/* LTR override: if page is LTR, flip brand/actions */
+html:dir(ltr) .topbar .brand       { justify-self: start; }
+html:dir(ltr) .topbar .top-actions { justify-self: end; }
+
+/* shell layout: content (left) then sidebar (right) — fills width */
 .shell{
   display:grid;
-  grid-template-columns: 1fr var(--sidebar-w); /* main then sidebar (right) */
-  gap: 0; /* flush with sidebar */
+  grid-template-columns: 1fr var(--sidebar-w);
+  gap:0;
   min-height: calc(100vh - var(--appbar-h));
-  padding: 0;
+  padding:0;
   align-items:start;
-  direction: ltr; /* enforce physical columns: left=content, right=sidebar */
+  box-sizing: border-box;
 }
-/* Force placement regardless of DOM order */
-.shell > .content{ grid-column: 1; }
-.shell > .sidebar{ grid-column: 2; width: var(--sidebar-w); }
-.shell > .content, .shell > .sidebar{ direction: rtl; }
+.shell > * { min-width: 0; } /* allow children to shrink */
 
-/* ensure children can shrink inside grid */
-.shell > * { min-width: 0; }
+/* enforce explicit grid placement when DOM different */
+.shell > .content { grid-column: 1; }
+.shell > .sidebar  { grid-column: 2; width: var(--sidebar-w); }
 
 /* sidebar */
 .sidebar{
@@ -161,36 +147,43 @@ html,body{
   transition: width var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 
-/* collapsed state (narrow nav icons) */
+/* collapsed */
 .sidebar.collapsed{ width: var(--sidebar-w-collapsed) !important; padding-inline: 8px; }
 
-/* drawer variant for mobile */
+/* drawer variant */
 .sidebar.drawer{ display:none; position: fixed; inset: var(--appbar-h) 0 0 auto; z-index: 80; max-width: 80%; transform: translateX(100%); box-shadow: var(--shadow-lg); }
 .sidebar.drawer.is-open{ transform: translateX(0); }
 
-/* overlay for drawer */
-.overlay{ display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 79; }
+/* overlay */
+.overlay{ display:none; position:fixed; inset:0; background: rgba(0,0,0,0.45); z-index: 79; }
 
-/* main content area */
-.content{ min-width: 0; width: 100%; display:block; position: relative; top: 0; }
+/* main content */
+.content{
+  min-width: 0;
+  width:100%;
+  display:block;
+  position: relative;
+  box-sizing: border-box;
+  /* ensure content starts below header on all sizes */
+  padding-top: calc(var(--appbar-h) + var(--space-2));
+  padding-bottom: var(--space-6);
+}
 
-/* container used inside content (fluid by default) */
-.container{ width:100%; max-width: none; margin: 0; padding-inline: clamp(12px, 2vw, var(--gutter)); box-sizing:border-box; }
-/* optionally use centered constrained width: add .centered */
+/* container inside content (fluid by default) */
+.container{ width:100%; max-width:none; margin:0; padding-inline: clamp(12px, 2vw, var(--gutter)); box-sizing:border-box; }
 .container.centered{ max-width: var(--container-max); margin: 0 auto; }
 
 /* =========================
    Cards / Panels / UI elements
-   ========================= */
+   ========================== */
 .panel, .card { background: var(--panel); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius-md); padding: var(--space-4); box-shadow: var(--shadow-xs); color: var(--text); }
 
-/* headline styles */
 .h1 { font-size: var(--fz-h1); margin: 0 0 var(--space-4); font-weight:700; }
 .h2 { font-size: var(--fz-h2); margin: 0 0 var(--space-3); font-weight:600; }
 .h3 { font-size: var(--fz-h3); margin: 0 0 var(--space-2); font-weight:600; }
 
 /* buttons */
-.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height: var(--touch-size); padding: 0 var(--space-4); border-radius: 10px; border: none; background: var(--primary); color: #fff; font-weight:600; cursor:pointer; transition: transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height: var(--touch-size); padding: 0 var(--space-4); border-radius: 10px; border:none; background:var(--primary); color:#fff; font-weight:600; cursor:pointer; transition: transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease); }
 .btn:hover{ filter:brightness(0.96); }
 .btn:active{ transform: translateY(1px); }
 .btn + .btn{ margin-inline-start:8px }
@@ -198,80 +191,67 @@ html,body{
 .btn.ghost{ background: transparent; border: none; color: var(--text); }
 .btn.btn-outline{ background:transparent; border:1px solid rgba(255,255,255,0.08); color:var(--text); }
 .btn.danger{ background: var(--err); }
-.btn-sm{ min-height: 32px; padding: 0 10px; font-size: 12px; }
-.btn-md{ min-height: 40px; padding: 0 12px; font-size: 14px; }
-.btn-lg{ min-height: 48px; padding: 0 16px; font-size: 16px; }
 
-/* input / selects */
+.btn-sm{ min-height:32px; padding:0 10px; font-size:12px; }
+.btn-md{ min-height:40px; padding:0 12px; font-size:14px; }
+.btn-lg{ min-height:48px; padding:0 16px; font-size:16px; }
+
+/* inputs */
 .input, .select, textarea { display:inline-block; min-height: var(--touch-size); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: var(--text); box-sizing:border-box; width:100%; }
-input.input { height: auto; }
-textarea.input { height: auto; min-height: 160px; resize: vertical; white-space: pre-wrap; word-break: break-word; }
-.select { min-width: 0; }
+textarea.input { min-height:160px; resize: vertical; white-space: pre-wrap; word-break: break-word; }
 
 /* form labels */
 .form-label{ display:block; margin-bottom:8px; color:var(--sub); font-size:var(--fz-small); }
 
-/* helper / subtle text */
 .muted { color: var(--sub); font-size: var(--fz-small); }
 
-/* thumbnails */
 .thumb { width:64px; height:64px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.06); }
 
-/* badges */
 .badge { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; height:28px; border-radius:999px; font-size:12px; background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); color:var(--text); }
 .badge.ok{ background:rgba(22,163,74,.1); border-color:#14532d; color:#22c55e }
 .badge.warn{ background:rgba(245,158,11,.1); border-color:#92400e; color:#f59e0b }
 .badge.err{ background:rgba(224,36,36,.1); border-color:#7f1d1d; color:#ef4444 }
 
-/* toasts */
 .toast { position: fixed; right: 16px; bottom: 20px; background: #0b1220; border-radius: 10px; padding: 12px 16px; box-shadow: var(--shadow-md); z-index: 120; border: 1px solid rgba(255,255,255,0.06); }
 .toast.ok{ border-color:#14532d; background:#052e16 }
 .toast.err{ border-color:#7f1d1d; background:#2a0f0f }
 
-/* nav item (back-compat) */
-.nav-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid transparent; border-radius:10px; color:var(--text); text-decoration:none; background:transparent }
-.nav-item:hover{ background:#101828; border-color:#1f2937 }
-.nav-item.active{ background:linear-gradient(180deg,#0c1220,#0a0f1a); border-color:#233046 }
+.nav-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid transparent; border-radius:10px; color:var(--text); text-decoration:none; background:transparent; }
+.nav-item:hover{ background:#101828; border-color:#1f2937; }
+.nav-item.active{ background:linear-gradient(180deg,#0c1220,#0a0f1a); border-color:#233046; }
 .sidebar .group-title{ font-size:14px; font-weight:700; opacity:.95; margin-bottom:6px }
 .nav-item .label{ font-size:14px }
 
 /* =========================
-   Tables (responsive) — supports both wrapper and direct .table on <table>
-   ========================= */
-/* Wrapper (preferred) */
+   Tables (responsive)
+   ========================== */
 .table-wrapper { width:100%; display:block; overflow-x:auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
 .table-wrapper table { width:100%; border-collapse: collapse; table-layout: auto; min-width: 640px; }
-/* Direct table usage (back-compat) */
+
 .table { width:100%; border-collapse: separate; border-spacing: 0; }
 .table th, .table td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: right; font-size: var(--fz-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table th { font-weight: 600; background: rgba(255,255,255,0.03); position: sticky; top: 0; z-index: 2; }
 
-/* small screens allow wrapping to improve readability */
 @media (max-width: 640px) {
   .table-wrapper table { min-width: 0; }
-  .table th, .table td { white-space: normal; font-size: var(--fz-small); }
+  .table th, .table td { white-space: normal; font-size: var(--fz-small); text-align: start; }
 }
 
 /* =========================
    Responsive / Accessibility
-   ========================= */
-
-/* focus ring (visible and accessible) */
+   ========================== */
 :focus { outline: none; }
 :focus-visible { outline: 3px solid rgba(11,95,255,0.35); outline-offset: 2px; border-radius: 8px; }
 
-/* minimum touch target for clickable elements */
 a, button, .btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
-/* Desktop polish: keep right breathing room; shift content below topbar */
+/* desktop: ensure content under header and breathing room */
 @media (min-width: 992px) {
-  .shell { margin-top: 0; }
-  .content { padding-inline-end: 60px; padding-top: var(--appbar-h); }
+  .content { padding-top: calc(var(--appbar-h) + var(--space-2)); padding-inline-end: 60px; }
 }
 
-/* Mobile-first adjustments */
+/* mobile adjustments */
 @media (max-width: 991px) {
-  /* switch to drawer layout */
   .shell { display:block; padding: 12px; gap:12px; }
   .sidebar.desktop { display:none; }
   .sidebar.drawer { display:block; }
@@ -279,15 +259,14 @@ a, button, .btn { touch-action: manipulation; -webkit-tap-highlight-color: trans
   .topbar { height: var(--appbar-h-sm); }
   .container.centered { padding-inline: 12px; }
   .panel { padding:12px; border-radius:10px; }
+  .content { padding-top: calc(var(--appbar-h-sm) + var(--space-2)); }
 }
 
-/* Wide screen polish */
+/* wide screens */
 @media (min-width: 1440px) { :root { --fz-base: clamp(15px, 1rem + 0.16vw, 17px); } }
 @media (min-width: 1600px) { :root { --container-max: 1800px; } .panel { padding: var(--space-5); } .h1 { font-size: clamp(22px, 2.2rem + 1vw, 36px); } }
 
-/* =========================
-   Utility helpers
-   ========================= */
+/* utilities */
 .flex { display:flex; }
 .items-center { align-items:center; }
 .justify-between { justify-content:space-between; }
@@ -300,16 +279,17 @@ a, button, .btn { touch-action: manipulation; -webkit-tap-highlight-color: trans
 .text-center { text-align:center; }
 .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-/* ======= Quick fixes for dashboard spacing, fluid content & RTL ======= */
-/* Make main column expand to fill available width (important when sidebar present) */
+/* quick fixes */
 .shell > .content, .shell > main { width: 100%; min-width: 0; }
-/* Avoid enforcing a large min-width on tables (lets them stretch with columns) */
 .table table { min-width: 0; }
-/* RTL support — flip layout when page dir=rtl */
-/* RTL keeps sidebar on the right (same grid), only adjust borders */
-html[dir="rtl"] .shell { grid-template-columns: 1fr var(--sidebar-w); }
-html[dir="rtl"] .sidebar { border-inline-end: none; border-inline-start: 1px solid rgba(255,255,255,0.03); direction: rtl; }
-/* Density toggle */
+
+/* RTL support: use html[dir="rtl"] to flip alignments */
+html[dir="rtl"] .topbar .brand       { justify-self: end; }
+html[dir="rtl"] .topbar .top-actions { justify-self: start; }
+html[dir="rtl"] .table th, html[dir="rtl"] .table td { text-align: right; }
+html[dir="rtl"] .sidebar { border-left: 1px solid rgba(255,255,255,0.03); }
+
+/* density toggle */
 body.density-compact .panel,
 body.density-compact .card,
 body.density-compact .table th,
