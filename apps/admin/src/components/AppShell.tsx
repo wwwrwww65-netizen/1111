@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { ThemeToggle } from './ThemeToggle';
 import { usePathname } from 'next/navigation';
 
 type AppShellProps = { children: React.ReactNode };
@@ -125,10 +126,15 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
           <input placeholder="بحث سريع…" value={query} onChange={(e)=>setQuery(e.target.value)} />
         </div>
         <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:12 }}>
+          {/* يسار الهيدر في RTL: ضع عناصر التحكم هنا */}
           <a href="/login" className="btn btn-sm btn-outline">الحساب</a>
+          <button className="btn btn-sm btn-outline" onClick={()=>{
+            try{ const cur=document.documentElement.getAttribute('lang')||'ar'; const next=cur==='ar'?'en':'ar'; document.documentElement.setAttribute('lang', next);}catch{}
+          }}>AR</button>
+          <ThemeToggle />
         </div>
       </header>
-      <div className="shell">
+      <div className="shell" style={{ gridTemplateColumns: '1fr var(--sidebar-w)' }}>
         <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'} desktop`}>
           <nav>
             {NAV_GROUPS.map((g, idx) => {
