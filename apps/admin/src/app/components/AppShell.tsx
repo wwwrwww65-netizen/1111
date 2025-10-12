@@ -77,7 +77,10 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
           <AccountMenu />
         </div>
       </header>
-      <div className="shell">
+      <div className="shell" style={{ direction: 'ltr' }}>
+        <main className="content container">
+          {children}
+        </main>
         {/* Desktop static sidebar */}
         <aside className={`sidebar desktop ${(isDesktop || forceDesktop) && desktopOpen ? 'open' : 'collapsed'}`} style={{ display: (isDesktop || forceDesktop) ? 'block' : 'none' }}>
           <Sidebar />
@@ -91,9 +94,6 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
             <div className="overlay" style={{display: open ? 'block' : 'none'}} onClick={()=> setOpen(false)} aria-hidden={!open} />
           </>
         )}
-        <main className="content container">
-          {children}
-        </main>
       </div>
     </div>
   );
