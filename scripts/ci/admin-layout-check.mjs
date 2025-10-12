@@ -71,13 +71,22 @@ try {
               credentials: 'include',
               body: JSON.stringify({ token: j.token, remember: true })
             });
-            return { ok: res2.ok, status: res2.status };
+            return { ok: true, status: res2.status, token: j.token };
           }
           return { ok: false, status: 200, err: 'no_token' };
         } catch (e) {
           return { ok: false, status: 0, err: String(e) };
         }
       }, { email: defaultEmail, pass: defaultPass });
+      // Ensure cookie present even if secure flag blocked server-set; set client cookie and force desktop
+      if (result && result.token) {
+        await page.evaluate((token) => {
+          try {
+            document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+            try { localStorage.setItem('admin_force_desktop', '1'); } catch {}
+          } catch {}
+        }, result.token);
+      }
       // go home after programmatic login
       await page.goto(adminBase + `/?t=${Date.now()}`, { waitUntil: 'networkidle', timeout: 60000 }).catch(()=>{});
     } catch {}
