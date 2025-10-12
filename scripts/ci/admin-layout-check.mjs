@@ -96,7 +96,13 @@ try {
   if (!hasSidebar) {
     await page.goto(`${adminBase}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('header.topbar');
-    hasSidebar = await page.$('aside.sidebar');
+    // Some pages center content; ensure we visit a dashboard route with shell
+    const candidates = ['/', '/products', '/orders'];
+    for (const p of candidates) {
+      await page.goto(`${adminBase}${p}?t=${Date.now()}`, { waitUntil: 'domcontentloaded' }).catch(()=>{});
+      hasSidebar = await page.$('aside.sidebar');
+      if (hasSidebar) break;
+    }
   }
 
   const data = await page.evaluate(() => {
