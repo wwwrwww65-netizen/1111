@@ -75,8 +75,15 @@ jobs:
           
           # Start API (port 4000)
           pnpm --filter @repo/api start &
-          # Start Admin (port 3010) using standalone server for Next.js output
-          node apps/admin/.next/standalone/server.js -p 3010 &
+          # Build Admin if standalone is missing, then start Admin on port 3010
+          if [ ! -f apps/admin/.next/standalone/server.js ]; then
+            pnpm --filter admin build || true
+          fi
+          if [ -f apps/admin/.next/standalone/server.js ]; then
+            PORT=3010 node apps/admin/.next/standalone/server.js &
+          else
+            pnpm --filter admin -- start -p 3010 &
+          fi
           
           # Wait for services to be ready
           npx -y wait-on http://127.0.0.1:4000/health http://127.0.0.1:3010/ || (echo "services failed to start"; exit 1)
