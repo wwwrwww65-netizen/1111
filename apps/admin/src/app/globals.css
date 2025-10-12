@@ -122,6 +122,7 @@ html,body{
   color: var(--text);
 }
 .topbar .search{ max-width:520px; width:100%; margin-inline:auto; }
+.topbar .top-actions{ margin-inline-start: 0; }
 .topbar{ direction: rtl; }
 
 /* shell with persistent sidebar (desktop) */
@@ -132,10 +133,12 @@ html,body{
   min-height: calc(100vh - var(--appbar-h));
   padding: 0;
   align-items:start;
+  direction: ltr; /* enforce physical columns: left=content, right=sidebar */
 }
 /* Force placement regardless of DOM order */
 .shell > .content{ grid-column: 1; }
 .shell > .sidebar{ grid-column: 2; width: var(--sidebar-w); }
+.shell > .content, .shell > .sidebar{ direction: rtl; }
 
 /* ensure children can shrink inside grid */
 .shell > * { min-width: 0; }
@@ -143,7 +146,7 @@ html,body{
 /* sidebar */
 .sidebar{
   background: var(--panel);
-  border-inline-start: 1px solid rgba(255,255,255,0.03);
+  border-left: 1px solid rgba(255,255,255,0.03);
   padding: var(--space-4);
   border-radius: var(--radius-sm);
   height: calc(100vh - var(--appbar-h));
