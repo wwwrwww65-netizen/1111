@@ -164,6 +164,7 @@ html:dir(ltr) .topbar .top-actions { justify-self: end; }
   display:block;
   position: relative;
   box-sizing: border-box;
+  direction: rtl; /* ensure content/text flows RTL inside LTR shell grid */
   /* ensure content starts below header on all sizes */
   padding-top: calc(var(--appbar-h) + var(--space-2));
   padding-bottom: var(--space-6);
