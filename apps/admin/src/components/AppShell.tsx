@@ -134,7 +134,7 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
           <ThemeToggle />
         </div>
       </header>
-      <div className="shell" style={{ direction:'ltr', gridTemplateColumns: '1fr var(--sidebar-w)', marginTop:'var(--appbar-h)' }}>
+      <div className="shell" style={{ direction:'ltr', gridTemplateColumns: '1fr var(--sidebar-w)', marginTop:0 }}>
         <main className="content" style={{ direction:'rtl' }}>
           <div className="container">
             {children}
