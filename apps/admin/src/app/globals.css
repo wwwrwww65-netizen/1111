@@ -145,6 +145,7 @@ html:dir(ltr) .topbar .top-actions { justify-self: end; }
   overflow:auto;
   box-shadow: var(--shadow-sm);
   transition: width var(--dur) var(--ease), transform var(--dur) var(--ease);
+  direction: rtl; /* sidebar content flows RTL */
 }
 
 /* collapsed */
@@ -173,6 +174,17 @@ html:dir(ltr) .topbar .top-actions { justify-self: end; }
 /* container inside content (fluid by default) */
 .container{ width:100%; max-width:none; margin:0; padding-inline: clamp(12px, 2vw, var(--gutter)); box-sizing:border-box; }
 .container.centered{ max-width: var(--container-max); margin: 0 auto; }
+
+/* grid utilities for content layout */
+.grid{ display:grid; gap: var(--space-4); }
+.grid.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+.grid.cols-3{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+@media (max-width: 1200px){
+  .grid.cols-3{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 768px){
+  .grid.cols-2, .grid.cols-3{ grid-template-columns: 1fr; }
+}
 
 /* =========================
    Cards / Panels / UI elements
@@ -220,8 +232,8 @@ textarea.input { min-height:160px; resize: vertical; white-space: pre-wrap; word
 .nav-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid transparent; border-radius:10px; color:var(--text); text-decoration:none; background:transparent; }
 .nav-item:hover{ background:#101828; border-color:#1f2937; }
 .nav-item.active{ background:linear-gradient(180deg,#0c1220,#0a0f1a); border-color:#233046; }
-.sidebar .group-title{ font-size:14px; font-weight:700; opacity:.95; margin-bottom:6px }
-.nav-item .label{ font-size:14px }
+.sidebar .group-title{ font-size:16px; font-weight:700; opacity:.95; margin-bottom:6px }
+.nav-item .label{ font-size:15px }
 
 /* =========================
    Tables (responsive)
