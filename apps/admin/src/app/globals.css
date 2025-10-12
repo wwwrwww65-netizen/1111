@@ -114,8 +114,7 @@ html,body{
   top: 0;
   z-index: 60;
   height: var(--appbar-h);
-  display:flex;
-  align-items:center;
+  display:grid; grid-template-columns: auto 1fr auto; align-items:center;
   gap: var(--space-3);
   padding: 0 calc(var(--gutter));
   background: linear-gradient(90deg,#0f1420,#101939);
