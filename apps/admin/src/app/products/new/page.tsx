@@ -40,6 +40,9 @@ export default function AdminProductCreate(): JSX.Element {
   const [draft, setDraft] = React.useState<boolean>(false);
   const [seoTitle, setSeoTitle] = React.useState("");
   const [seoDescription, setSeoDescription] = React.useState("");
+  const [files, setFiles] = React.useState<File[]>([]);
+  const longDescRef = React.useRef<HTMLTextAreaElement|null>(null);
+  React.useEffect(()=>{ const el=longDescRef.current; if (!el) return; el.style.height='auto'; el.style.height = el.scrollHeight + 'px'; }, [review?.longDesc]);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
   React.useEffect(()=>{ try{ localStorage.setItem('aiOpenRouterOn', useOpenRouter? '1':'0'); } catch {} },[useOpenRouter]);
   // Load existing product when id is provided in query (?id=...)
@@ -335,7 +338,12 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   function sanitizeColorsStrict(clean: string, provided?: string[]): string[] {
-    const colorTokens = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','برتقالي','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','دم\\s*غزال'];
+    const colorTokens = [
+      // Arabic
+      'أحمر','أزرق','أخضر','أسود','أبيض','أصفر','برتقالي','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','ذهبي','فضي','نحاسي','فيروزي','تركويز','تركواز','كستنائي','بيج فاتح','بيج غامق',
+      // English
+      'red','blue','green','black','white','yellow','orange','brown','beige','gray','grey','pink','purple','turquoise','navy','cyan','maroon','olive','teal','indigo','gold','silver','copper'
+    ];
     const re = new RegExp(`(?:^|\\s)(${colorTokens.join('|')})(?=\\s|$)`, 'gi');
     const outSet = new Set<string>();
     const pushMatch = (text: string) => {
@@ -464,9 +472,10 @@ export default function AdminProductCreate(): JSX.Element {
     const dr = a.r-b.r, dg = a.g-b.g, db = a.b-b.b; return Math.sqrt(dr*dr+dg*dg+db*db);
   }
 
-  async function getImageDominant(file: File): Promise<{url:string;hex:string}> {
-    const url = URL.createObjectURL(file);
-    const img = await new Promise<HTMLImageElement>((resolve, reject)=>{ const i = new Image(); i.onload=()=>resolve(i); i.onerror=reject; i.src=url; });
+  async function getImageDominant(fileOrUrl: File | string): Promise<{url:string;hex:string}> {
+    const isUrl = typeof fileOrUrl === 'string';
+    const url = isUrl ? String(fileOrUrl) : URL.createObjectURL(fileOrUrl as File);
+    const img = await new Promise<HTMLImageElement>((resolve, reject)=>{ const i = new Image(); i.crossOrigin='anonymous'; i.onload=()=>resolve(i); i.onerror=reject; i.src=url; });
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return { url, hex: '#cccccc' };
