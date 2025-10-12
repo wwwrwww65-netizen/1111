@@ -217,6 +217,22 @@ html:dir(ltr) .topbar .top-actions { justify-self: end; }
 .input, .select, textarea { display:inline-block; min-height: var(--touch-size); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: var(--text); box-sizing:border-box; width:100%; font-size:15px; }
 textarea.input { min-height:160px; resize: vertical; white-space: pre-wrap; word-break: break-word; }
 
+/* native select dropdown panel (user-agent menu) cannot be fully themed cross-browser,
+   but we improve the trigger and common custom menus */
+select.select, select.input { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color:#e2e8f0; }
+select.select option, select.input option { background:#0f1420; color:#e2e8f0; }
+
+/* generic dropdown/menu theming for custom popovers */
+.menu, .dropdown, [role="listbox"], .select-menu {
+  background:#0f1420; color:#e2e8f0; border:1px solid #1f2937; border-radius:10px; box-shadow: var(--shadow-sm);
+}
+.menu .item, .dropdown .item, [role="listbox"] [role="option"], .select-menu .item,
+.dropdown .nav-item, .menu .nav-item {
+  color:#e2e8f0;
+}
+.menu .item:hover, .dropdown .item:hover, [role="listbox"] [role="option"]:hover, .select-menu .item:hover,
+.dropdown .nav-item:hover, .menu .nav-item:hover { background:#101828; }
+
 /* form labels */
 .form-label{ display:block; margin-bottom:8px; color:var(--sub); font-size:var(--fz-small); }
 

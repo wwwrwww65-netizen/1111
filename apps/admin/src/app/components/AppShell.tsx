@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
           </button>
           <div className="brand" style={{marginInlineStart:12,fontWeight:800}}>جي jeeey</div>
         </div>
-        <div className="search"><input className="input" placeholder="بحث سريع…" /></div>
+        <div className="search"><form action="/search" method="GET" onSubmit={(e)=>{ e.preventDefault(); const form=e.currentTarget; const q=(form.querySelector('input[name="q"]') as HTMLInputElement)?.value?.trim(); if (!q) return; window.location.assign(`/search?q=${encodeURIComponent(q)}`); }}><input name="q" className="input" placeholder="بحث سريع…" /></form></div>
         <div className="top-actions">
           <button className="icon-btn" title="Command Palette (Ctrl+K)" onClick={()=> setOpenCmd(true)}>⌘</button>
           <button className="icon-btn" aria-pressed={forceDesktop} title="عرض سطح المكتب" onClick={()=> setForceDesktop(v=> !v)}>
