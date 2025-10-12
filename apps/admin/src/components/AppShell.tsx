@@ -135,6 +135,11 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
         </div>
       </header>
       <div className="shell" style={{ gridTemplateColumns: '1fr var(--sidebar-w)' }}>
+        <main className="content">
+          <div className="container">
+            {children}
+          </div>
+        </main>
         <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'} desktop`}>
           <nav>
             {NAV_GROUPS.map((g, idx) => {
@@ -165,11 +170,6 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
             })}
           </nav>
         </aside>
-        <main className="content">
-          <div className="container">
-            {children}
-          </div>
-        </main>
       </div>
     </div>
   );
