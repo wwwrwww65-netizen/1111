@@ -216,6 +216,7 @@ export function Sidebar(): JSX.Element {
           <div key={idx} style={{ marginBottom: 12 }}>
             {g.title ? (
               <button onClick={() => toggle(idx)}
+                className="group-title"
                 style={{
                   width: '100%',
                   display: 'flex',
@@ -223,8 +224,6 @@ export function Sidebar(): JSX.Element {
                   alignItems: 'center',
                   background: 'transparent',
                   border: 'none',
-                  color: 'var(--sub)',
-                  fontSize: 12,
                   padding: '6px 8px',
                   cursor: 'pointer'
                 }}>
@@ -232,7 +231,7 @@ export function Sidebar(): JSX.Element {
                 <span aria-hidden="true">{isGroupOpen ? '▾' : '▸'}</span>
               </button>
             ) : (
-              <div style={{ color: 'var(--sub)', fontSize: 12, padding: '6px 8px' }}></div>
+              <div style={{ padding: '6px 8px' }}></div>
             )}
             {isGroupOpen && (
               <div style={{ display: 'grid', gap: 6 }}>
