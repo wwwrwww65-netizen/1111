@@ -263,9 +263,10 @@ textarea.input { height: auto; min-height: 160px; resize: vertical; white-space:
 /* minimum touch target for clickable elements */
 a, button, .btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
-/* Desktop polish: keep right breathing room and start content below topbar */
+/* Desktop polish: keep right breathing room; shift whole shell below topbar */
 @media (min-width: 992px) {
-  .content { padding-inline-end: 60px; padding-top: var(--appbar-h); }
+  .shell { margin-top: var(--appbar-h); }
+  .content { padding-inline-end: 60px; padding-top: 0; }
 }
 
 /* Mobile-first adjustments */
