@@ -106,6 +106,7 @@ html,body{
 
 /* main app wrapper */
 .app-root{ min-height:100vh; display:flex; flex-direction:column; }
+.app-root{ direction: rtl; }
 
 /* topbar */
 .topbar{
@@ -121,6 +122,7 @@ html,body{
   border-bottom: 1px solid rgba(255,255,255,0.02);
   color: var(--text);
 }
+.topbar{ direction: rtl; }
 
 /* shell with persistent sidebar (desktop) */
 .shell{
@@ -141,10 +143,12 @@ html,body{
 /* sidebar */
 .sidebar{
   background: var(--panel);
-  border-inline-end: 1px solid rgba(255,255,255,0.03);
+  border-inline-start: 1px solid rgba(255,255,255,0.03);
   padding: var(--space-4);
   border-radius: var(--radius-sm);
   height: calc(100vh - var(--appbar-h));
+  position: sticky;
+  top: var(--appbar-h);
   overflow:auto;
   box-shadow: var(--shadow-sm);
   transition: width var(--dur) var(--ease), transform var(--dur) var(--ease);

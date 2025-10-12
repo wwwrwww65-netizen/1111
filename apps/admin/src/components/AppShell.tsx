@@ -116,20 +116,20 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 
   return (
     <div className="app-root">
-      <header className="topbar">
-        <button className="icon-btn" onClick={() => setSidebarOpen(v => !v)} aria-label="toggle sidebar">☰</button>
-        <div className="brand">jeeey • Admin</div>
-        <div className="top-actions">
-          <div className="search">
-            <input placeholder="بحث سريع…" value={query} onChange={(e)=>setQuery(e.target.value)} />
-          </div>
-          <div className="user">
-            <a href="/login" className="btn btn-sm btn-outline">الحساب</a>
-          </div>
+      <header className="topbar" style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', gap:12, alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button className="icon-btn" onClick={() => setSidebarOpen(v => !v)} aria-label="toggle sidebar">☰</button>
+          <div className="brand">jeeey • Admin</div>
+        </div>
+        <div className="search">
+          <input placeholder="بحث سريع…" value={query} onChange={(e)=>setQuery(e.target.value)} />
+        </div>
+        <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <a href="/login" className="btn btn-sm btn-outline">الحساب</a>
         </div>
       </header>
       <div className="shell">
-        <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'}`}>
+        <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'} desktop`}>
           <nav>
             {NAV_GROUPS.map((g, idx) => {
               const hasChildren = Array.isArray(g.children) && g.children.length > 0;
