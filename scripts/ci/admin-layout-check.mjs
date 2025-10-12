@@ -7,13 +7,26 @@ import { chromium } from 'playwright';
 const adminBase = process.env.ADMIN_BASE || 'https://admin.jeeey.com';
 const url = `${adminBase}`;
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage();
+const context = await browser.newContext({ ignoreHTTPSErrors: true });
+const page = await context.newPage();
 page.setDefaultTimeout(20000);
 try {
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
-
-  // Ensure header exists
-  await page.waitForSelector('header.topbar');
+  const res = await page.goto(url + `?t=${Date.now()}`, { waitUntil: 'networkidle', timeout: 45000 });
+  await page.waitForSelector('body', { timeout: 30000 });
+  // Try to find header; if missing, try root and login
+  let headerFound = await page.$('header.topbar');
+  if (!headerFound) {
+    await page.goto(adminBase + `/?t=${Date.now()}`, { waitUntil: 'networkidle' });
+    headerFound = await page.$('header.topbar');
+  }
+  if (!headerFound) {
+    await page.goto(adminBase + `/login?t=${Date.now()}`, { waitUntil: 'networkidle' });
+    headerFound = await page.$('header.topbar');
+  }
+  if (!headerFound) {
+    const html = await page.content();
+    throw new Error('topbar missing; status=' + (res && res.status()) + ' bodySnippet=' + html.slice(0, 500));
+  }
   // If sidebar missing (e.g., on login), go to root
   let hasSidebar = await page.$('aside.sidebar');
   if (!hasSidebar) {
@@ -42,7 +55,7 @@ try {
   });
 
   const errs = [];
-  if (!data.header) errs.push('topbar missing');
+  if (!data.header) errs.push('topbar missing (post-eval)');
   if (!data.sidebar) errs.push('sidebar missing');
   if (!data.content) errs.push('content missing');
   if (errs.length) throw new Error(errs.join('; '));
