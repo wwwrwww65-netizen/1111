@@ -73,13 +73,14 @@ export default function AdminProducts(): JSX.Element {
       {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
       <div className="toolbar" style={{ marginBottom:12 }}>
         <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/sku" className="input" /></div>
-        <button onClick={()=>{ setPage(1); load(); }} className="btn btn-md btn-outline">بحث</button>
         <select value={status} onChange={(e)=>{ setStatus(e.target.value); setPage(1); }} className="select">
           <option value="">الكل</option>
           <option value="active">نشط</option>
           <option value="archived">مؤرشف</option>
         </select>
-        <button className="btn btn-md danger" onClick={async ()=>{
+        <div className="actions">
+          <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
+          <button className="btn danger" onClick={async ()=>{
           const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
           const r = await fetch(`/api/admin/products/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
           if (r.ok) { setSelected({}); setAllChecked(false); await load(); showToast('تم حذف العناصر المحددة'); }
@@ -87,6 +88,7 @@ export default function AdminProducts(): JSX.Element {
             try { const j = await r.json(); alert(j?.error||'فشل حذف العناصر'); } catch { alert('فشل حذف العناصر'); }
           }
         }}>حذف المحدد</button>
+        </div>
       </div>
 
       <div style={{ overflowX:'auto' }}>

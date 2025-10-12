@@ -177,6 +177,7 @@ html:dir(ltr) .topbar .top-actions { justify-self: end; }
 
 /* grid utilities for content layout */
 .grid{ display:grid; gap: var(--space-4); }
+.grid.auto-fit{ grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)); }
 .grid.cols-3{ grid-template-columns: repeat(3, minmax(0,1fr)); }
 @media (max-width: 1200px){
@@ -296,6 +297,14 @@ a, button, .btn { touch-action: manipulation; -webkit-tap-highlight-color: trans
 .toolbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .toolbar .search{ flex:1; min-width:260px; }
 .toolbar .actions{ margin-inline-start:auto; display:flex; gap:8px; }
+.toolbar .btn{ min-height:44px; font-size:14px; padding-inline:14px; }
+.toolbar .input, .toolbar .select{ min-height:44px; font-size:15px; }
+
+/* form grid helper */
+.form-grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+@media (max-width: 768px){
+  .form-grid{ grid-template-columns: 1fr; }
+}
 
 /* quick fixes */
 .shell > .content, .shell > main { width: 100%; min-width: 0; }
