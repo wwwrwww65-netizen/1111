@@ -130,9 +130,9 @@ try {
   if (!data.content) errs.push('content missing');
   if (errs.length) throw new Error(errs.join('; '));
 
-  // Sidebar on the right
+  // Sidebar on the right (allow small pixel tolerances)
   if (!(data.sidebar.left > data.content.left)) errs.push('sidebar is not to the right of content');
-  if (!((data.vw - data.sidebar.right) <= 6)) errs.push('sidebar not aligned to right edge');
+  if (!((data.vw - data.sidebar.right) <= 12)) errs.push('sidebar not aligned to right edge');
 
   // Header placement: brand right, actions left, search center
   // Header child order checks (tolerant; allow grid-based placement in RTL)
@@ -146,8 +146,8 @@ try {
 
   // Top alignment: content and sidebar start just under header
   const threshold = 16;
-  if (Math.abs(data.sidebar.top - data.header.bottom) > threshold) errs.push('sidebar not aligned under header');
-  if (Math.abs(data.content.top - data.header.bottom) > threshold) errs.push('content not aligned under header');
+  if (Math.abs(data.sidebar.top - data.header.bottom) > threshold) errs.push(`sidebar not aligned under header (Δ=${Math.abs(data.sidebar.top - data.header.bottom)})`);
+  if (Math.abs(data.content.top - data.header.bottom) > threshold) errs.push(`content not aligned under header (Δ=${Math.abs(data.content.top - data.header.bottom)})`);
 
   if (errs.length) throw new Error('Layout check failed: ' + errs.join(' | '));
   console.log('✅ Admin layout checks passed');

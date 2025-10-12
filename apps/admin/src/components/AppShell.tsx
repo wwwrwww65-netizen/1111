@@ -117,15 +117,15 @@ export function AppShell({ children }: AppShellProps): JSX.Element {
 
   return (
     <div className="app-root">
-      <header className="topbar" style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', alignItems:'center' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8, gridColumn:3, justifySelf:'end' }}>
+      <header className="topbar" style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', alignItems:'center', direction:'rtl' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, gridColumn:3, justifySelf:'start' }}>
           <button className="icon-btn" onClick={() => setSidebarOpen(v => !v)} aria-label="toggle sidebar">☰</button>
           <div className="brand">jeeey • Admin</div>
         </div>
         <div className="search" style={{ gridColumn:2 }}>
           <input placeholder="بحث سريع…" value={query} onChange={(e)=>setQuery(e.target.value)} />
         </div>
-        <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:12, gridColumn:1, justifySelf:'start' }}>
+        <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:12, gridColumn:1, justifySelf:'end' }}>
           {/* يسار الهيدر في RTL: ضع عناصر التحكم هنا */}
           <a href="/login" className="btn btn-sm btn-outline">الحساب</a>
           <button className="btn btn-sm btn-outline" onClick={()=>{
