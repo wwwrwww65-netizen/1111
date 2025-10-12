@@ -172,7 +172,7 @@ html,body{
 .overlay{ display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 79; }
 
 /* main content area */
-.content{ min-width: 0; width: 100%; display:block; }
+.content{ min-width: 0; width: 100%; display:block; position: relative; top: 0; }
 
 /* container used inside content (fluid by default) */
 .container{ width:100%; max-width: none; margin: 0; padding-inline: clamp(12px, 2vw, var(--gutter)); box-sizing:border-box; }
