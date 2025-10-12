@@ -81,6 +81,29 @@ r.post('/categories/reorder', async (req, res) => {
   } catch { res.status(500).json({ error: 'Failed to reorder' }); }
 });
 
+// -------- Products (minimal REST helpers for admin UI) --------
+r.get('/products/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const product = await db.product.findUnique({
+      where: { id },
+      include: { category: true, variants: true }
+    });
+    if (!product) return res.status(404).json({ error: 'not_found' });
+    res.json(product);
+  } catch (e) { res.status(500).json({ error: 'Failed to load product' }); }
+});
+
+r.post('/products/:id/status', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const status = String((req.body||{}).status||'').toUpperCase();
+    const isActive = status === 'PUBLISHED';
+    const product = await db.product.update({ where: { id }, data: { isActive } });
+    res.json({ ok: true, product });
+  } catch (e) { res.status(500).json({ error: 'Failed to update status' }); }
+});
+
 // -------- Media upload (base64 passthrough/demo) --------
 r.post('/media/upload', async (req, res) => {
   try {
