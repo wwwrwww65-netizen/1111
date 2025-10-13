@@ -63,7 +63,7 @@ export default function AdminProducts(): JSX.Element {
     return isActive ? 'badge ok' : 'badge err';
   }
 
-  async function setStatus(id: string, status: 'PUBLISHED'|'ARCHIVED'|'DISABLED') {
+  async function applyProductStatus(id: string, status: 'PUBLISHED'|'ARCHIVED'|'DISABLED') {
     try {
       const r = await fetch('/api/admin/trpc', {
         method: 'POST',
@@ -140,7 +140,7 @@ export default function AdminProducts(): JSX.Element {
                   <td>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <span className={activeBadge(!!p.isActive)}>{p.isActive ? 'active' : 'archived'}</span>
-                      <select className="select" defaultValue={p.isActive ? 'PUBLISHED' : 'ARCHIVED'} onChange={(e)=> setStatus(p.id, e.target.value as any)}>
+                      <select className="select" defaultValue={p.isActive ? 'PUBLISHED' : 'ARCHIVED'} onChange={(e)=> applyProductStatus(p.id, e.target.value as any)}>
                         <option value="PUBLISHED">نشر</option>
                         <option value="ARCHIVED">مؤرشف</option>
                         <option value="DISABLED">متوقف</option>
