@@ -465,6 +465,7 @@ npm run build
 VITE_API_BASE=https://api.jeeey.com
 VITE_GA_MEASUREMENT_ID=GA-XXXXXXXXX
 VITE_FB_PIXEL_ID=XXXXXXXXXXXXXXX
+VITE_GOOGLE_MAPS_KEY=YOUR_GOOGLE_MAPS_API_KEY
 ```
 
 ## 📈 الأداء والتحسين

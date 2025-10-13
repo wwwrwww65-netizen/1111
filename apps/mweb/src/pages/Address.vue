@@ -114,7 +114,7 @@
             <!-- Second container -->
             <section class="mt-2 bg-white border-t border-b px-4 py-3">
               <button class="w-full flex items-center justify-between bg-white border px-3 py-2 text-[13px]"
-                      style="border-radius:0; border-color:#ccc" @click="openMap = true">
+                      style="border-radius:0; border-color:#ccc" @click="goMap">
                 <span class="text-gray-900">حدد موقعك عبر الخريطة</span>
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -212,45 +212,7 @@
           </div>
         </div>
 
-        <!-- Map drawer -->
-        <transition name="drawer-left">
-          <div v-if="openMap" class="fixed inset-0 z-[60]">
-            <div class="absolute inset-0 bg-black/40" @click="openMap=false"></div>
-            <div class="absolute inset-0 bg-white flex flex-col">
-              <div class="h-12 border-b flex items-center justify-center relative">
-                <h3 class="text-base font-semibold">الموقع</h3>
-                <button class="absolute left-3 text-gray-700" @click="openMap=false">✕</button>
-              </div>
-              <div class="flex-1 relative">
-                <div class="absolute inset-0 bg-gray-200 flex items-center justify-center text-gray-600">
-                  هنا تظهر الخريطة
-                </div>
-                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-[#8a1538]" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z"/>
-                  </svg>
-                </div>
-                <div class="absolute top-3 right-3">
-                  <button class="flex items-center gap-1 bg-white border px-2 py-1 text-xs shadow" @click="mapLocationSet = true">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-                      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2"/>
-                    </svg>
-                    تحديد موقعي
-                  </button>
-                </div>
-              </div>
-              <div class="p-3 border-t">
-                <button class="w-full font-semibold py-2 text-sm"
-                        :class="mapLocationSet ? 'bg-[#8a1538] text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'"
-                        :disabled="!mapLocationSet"
-                        @click="confirmMapLocation">
-                  حفظ العنوان
-                </button>
-              </div>
-            </div>
-          </div>
-        </transition>
+        <!-- Map moved to dedicated page /map -->
 
         <!-- Gov picker -->
         <transition name="drawer-left">
@@ -304,8 +266,6 @@ const storeColor = '#8a1538'
 const addresses = ref<any[]>([])
 const loading = ref(false)
 const openDrawer = ref(false)
-const openMap = ref(false)
-const mapLocationSet = ref(false)
 
 const form = ref({ fullName: '', phone: '', altPhone: '', country: 'اليمن', street: '', landmarks: '' })
 const isDefault = ref(false)
@@ -392,11 +352,27 @@ function editAddress(idx: number){
   openDrawer.value = true
 }
 
-function confirmMapLocation(){ if (!mapLocationSet.value) return; openMap.value = false }
+function goMap(){ router.push('/map') }
+function confirmMapLocation(){}
 function selectGovernorate(gov: string){ selectedGovernorate.value = gov; selectedCity.value = null; validateField('governorate'); openGovPicker.value = false }
 function selectCity(city: string){ selectedCity.value = city; validateField('city'); openCityPicker.value = false }
 
 loadAddresses()
+
+// Consume map selection (if coming back from /map)
+try{
+  const raw = sessionStorage.getItem('gmaps_selection')
+  if (raw){
+    const data = JSON.parse(raw)
+    selectedGovernorate.value = data.state || selectedGovernorate.value
+    selectedCity.value = data.city || selectedCity.value
+    form.value.country = data.country || form.value.country
+    form.value.street = data.street || form.value.street
+    form.value.landmarks = data.addressLine || form.value.landmarks
+    validateField('governorate'); validateField('city'); validateField('street')
+    sessionStorage.removeItem('gmaps_selection')
+  }
+}catch{}
 </script>
 
 <style scoped>

@@ -25,6 +25,7 @@ const manualRoutes = [
   { path: '/p', component: () => import('./pages/Product.vue') },
   { path: '/confirm', component: () => import('./pages/Confirm.vue') },
   { path: '/address', component: () => import('./pages/Address.vue') },
+  { path: '/map', component: () => import('./pages/Map.vue') },
   { path: '/register', component: () => import('./pages/Register.vue') },
   { path: '/forgot', component: () => import('./pages/Forgot.vue') },
   { path: '/verify', component: () => import('./pages/Verify.vue') },
