@@ -1079,7 +1079,6 @@ export default function AdminProductCreate(): JSX.Element {
   const [salePrice, setSalePrice] = React.useState<number | ''>('');
   const [stockQuantity, setStockQuantity] = React.useState<number | ''>('');
   const [images, setImages] = React.useState<string>('');
-  const [files, setFiles] = React.useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
