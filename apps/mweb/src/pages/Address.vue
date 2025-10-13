@@ -150,23 +150,14 @@
                 <p v-if="errors.governorate" class="mt-1 text-xs text-red-600">{{ errors.governorate }}</p>
               </div>
 
-              <!-- المدينة/المديرية -->
-              <div class="mt-3">
-                <label>المدينة/المديرية<span class="text-red-600">*</span></label>
+              <!-- المدينة/المديرية: مخفية حسب طلب العميل -->
+              <div class="mt-3" style="display:none">
+                <label>المدينة/المديرية</label>
                 <div class="relative">
-                  <button class="w-full text-right border px-2 py-2 bg-white"
-                          :class="inputClass(errors.city)" :disabled="!selectedGovernorate" @click="openCities()">
-                    <span :class="!selectedGovernorate ? 'text-gray-400' : 'text-gray-700'">
-                      {{ selectedCityName || (selectedGovernorate ? 'اختر المدينة/المديرية' : 'اختر المحافظة أولاً') }}
-                    </span>
+                  <button class="w-full text-right border px-2 py-2 bg-white" disabled>
+                    <span class="text-gray-400">تم الإخفاء</span>
                   </button>
-                  <svg v-if="selectedGovernorate" xmlns="http://www.w3.org/2000/svg"
-                       class="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-gray-600"
-                       fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
-                  </svg>
                 </div>
-                <p v-if="errors.city" class="mt-1 text-xs text-red-600">{{ errors.city }}</p>
               </div>
 
               <!-- الحي/المنطقة -->
@@ -174,12 +165,12 @@
                 <label>الحي/المنطقة</label>
                 <div class="relative">
                   <button class="w-full text-right border px-2 py-2 bg-white"
-                          :disabled="!selectedCityId" @click="openAreas()">
-                    <span :class="!selectedCityId ? 'text-gray-400' : 'text-gray-700'">
-                      {{ selectedArea || (selectedCityId ? 'اختر الحي/المنطقة (اختياري)' : 'اختر المدينة أولاً') }}
+                          :disabled="!selectedGovernorate" @click="openAreas()">
+                    <span :class="!selectedGovernorate ? 'text-gray-400' : 'text-gray-700'">
+                      {{ selectedArea || (selectedGovernorate ? 'اختر الحي/المنطقة (اختياري)' : 'اختر المحافظة أولاً') }}
                     </span>
                   </button>
-                  <svg v-if="selectedCityId" xmlns="http://www.w3.org/2000/svg"
+                  <svg v-if="selectedGovernorate" xmlns="http://www.w3.org/2000/svg"
                        class="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-gray-600"
                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
@@ -295,26 +286,8 @@
           </div>
         </transition>
 
-        <!-- منبثق اختيار المدينة/المديرية -->
-        <transition name="drawer-left">
-          <div v-if="openCityPicker" class="fixed inset-0 z-[60]">
-            <div class="absolute inset-0 bg-black/40" @click="openCityPicker=false"></div>
-            <div class="absolute inset-0 bg-white flex flex-col">
-              <div class="h-12 border-b flex items-center justify-center relative">
-                <h3 class="text-base font-semibold">اختر المدينة/المديرية</h3>
-                <button class="absolute left-3 text-gray-700" @click="openCityPicker=false">✕</button>
-              </div>
-              <div class="flex-1 overflow-y-auto">
-                <div v-if="!selectedGovernorate" class="p-4 text-sm text-gray-600">اختر المحافظة أولاً.</div>
-                <ul v-else class="divide-y">
-                  <li v-for="c in cities" :key="c.id" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectCity(c)">
-                    {{ c.name }}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </transition>
+        <!-- منبثق اختيار المدينة/المديرية: مخفي -->
+        <transition name="drawer-left"></transition>
 
         <!-- منبثق اختيار الحي/المنطقة -->
         <transition name="drawer-left">
@@ -395,7 +368,8 @@ function validateField(field: string){
     case 'altPhone': errors.value.altPhone = form.value.altPhone.trim() && !/^7[0-9]{8}$/.test(form.value.altPhone) ? 'يجب أن يبدأ الرقم البديل بـ 7 ويتكون من 9 أرقام' : ''; break
     case 'street': errors.value.street = form.value.street.trim() ? '' : 'يرجى إدخال اسم الشارع'; break
     case 'governorate': errors.value.governorate = selectedGovernorate.value ? '' : 'يرجى اختيار المحافظة'; break
-    case 'city': errors.value.city = selectedCityId.value ? '' : 'يرجى اختيار المدينة/المديرية'; break
+    // خيار المدينة مخفي حالياً
+    case 'city': errors.value.city = ''; break
   }
 }
 
@@ -404,7 +378,6 @@ const canSave = computed(()=>{
     form.value.fullName.trim() &&
     /^7[0-9]{8}$/.test(form.value.phone) &&
     selectedGovernorate.value &&
-    selectedCityId.value &&
     form.value.street.trim()
   )
 })
@@ -415,7 +388,8 @@ function onSave(){
   apiPost('/api/addresses', {
     country: form.value.country,
     province: selectedGovernorate.value,
-    city: selectedCityName.value,
+    // المدينة مخفية، سنخزن الحي/المنطقة كمدينة عند توافرها
+    city: selectedArea.value || '',
     street: form.value.street,
     details: [selectedArea.value, form.value.landmarks].filter(Boolean).join(' - '),
     postalCode: ''
@@ -502,34 +476,39 @@ async function loadCities(){
 
 async function loadAreas(){
   areas.value = []
-  if (!selectedCityId.value && !selectedCityName.value) return
-  const params = selectedCityId.value ? `cityId=${encodeURIComponent(String(selectedCityId.value))}` : `city=${encodeURIComponent(String(selectedCityName||''))}`
-  const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(`/api/geo/areas?${params}`)
+  let url = ''
+  if (selectedCityId.value) url = `/api/geo/areas?cityId=${encodeURIComponent(String(selectedCityId.value))}`
+  else if (selectedCityName.value) url = `/api/geo/areas?city=${encodeURIComponent(String(selectedCityName.value))}`
+  else if (selectedGovernorate.value) url = `/api/geo/areas?governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
+  if (!url) return
+  const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(url)
   areas.value = Array.isArray(r?.items) ? r!.items : []
 }
 
 function openGovernorates(){ openGovPicker.value = true; if (!governorates.value.length) loadGovernorates() }
 function openCities(){ if (!selectedGovernorate.value) return; openCityPicker.value = true; loadCities() }
-function openAreas(){ if (!selectedCityId.value) return; openAreaPicker.value = true; loadAreas() }
+function openAreas(){ if (!selectedGovernorate.value) return; openAreaPicker.value = true; loadAreas() }
 
 async function loadAddresses(){
-  // تحميل عنوان المستخدم الوحيد من الخادم (إن وجد)
-  const r = await apiGet<any>('/api/addresses')
-  const a = r || null
-  addresses.value = a ? [{
+  // واجهة API تُعيد مصفوفة عناوين (نموذج عنوان واحد لكل مستخدم)
+  const r = await apiGet<any[]>('/api/addresses')
+  const list = Array.isArray(r) ? r : []
+  if (!list.length) { addresses.value = []; return }
+  const a = list[0]
+  addresses.value = [{
     id: 'primary',
-    fullName: form.value.fullName || '—',
-    phone: form.value.phone || '—',
-    altPhone: form.value.altPhone || '',
+    fullName: a.fullName || form.value.fullName || '',
+    phone: a.phone || form.value.phone || '',
+    altPhone: a.altPhone || '',
     country: a.country || 'اليمن',
     governorate: a.state || a.province || '',
     city: a.city || '',
     cityId: a.cityId || null,
-    area: '',
+    area: (a.details || '').split(' - ')[0] || '',
     street: a.street || '',
     landmarks: a.details || '',
     isDefault: true
-  }] : []
+  }]
 }
 
 function prefillFromMap(){
@@ -622,6 +601,13 @@ function reverseGeocode(pos: {lat:number; lng:number}){
         if (cityC?.long_name){ selectedCityName.value = cityC.long_name; selectedCityId.value = null }
         if (routeC?.long_name) form.value.street = routeC.long_name
         if (addr.formatted_address && !form.value.landmarks) form.value.landmarks = addr.formatted_address
+        // محاولة مزامنة الحي/المنطقة مع لوحة التحكم بعد تحديد المحافظة
+        if (selectedGovernorate.value) {
+          loadAreas().then(()=>{
+            const match = areas.value.find(a => a.name === (selectedCityName.value||''))
+            if (match) selectedArea.value = match.name
+          })
+        }
       }
     })
   }catch{}

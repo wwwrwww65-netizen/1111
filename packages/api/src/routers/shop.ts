@@ -1138,6 +1138,17 @@ shop.get('/geo/areas', async (req, res) => {
   try {
     const byId = String(req.query.cityId || '').trim();
     const byName = String(req.query.city || '').trim();
+    const byGov = String(req.query.governorate || '').trim();
+    // Governorate shortcut: collect all areas for cities under this governorate
+    if (byGov) {
+      const cities = await db.city.findMany({ where: { OR: [{ region: byGov }, { name: byGov }] }, select: { id: true } });
+      if (!cities.length) return res.json({ items: [] });
+      const ids = cities.map(c => c.id);
+      const rows = await db.area.findMany({ where: { cityId: { in: ids } }, select: { id: true, name: true } });
+      // Deduplicate by name
+      const uniq = Array.from(new Map(rows.map(r => [r.name, r])).values());
+      return res.json({ items: uniq });
+    }
     if (!byId && !byName) return res.json({ items: [] });
     let city: any = null;
     if (byId) {

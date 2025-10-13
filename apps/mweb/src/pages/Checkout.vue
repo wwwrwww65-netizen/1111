@@ -19,7 +19,7 @@
 
     <main class="pt-14 pb-28">
       <!-- العنوان -->
-      <section class="bg-white px-4 py-3 mb-2 flex justify-between items-center">
+      <section class="bg-white px-4 py-3 mb-2 flex justify-between items-center" @click="openAddressPicker">
         <div class="flex items-start gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -31,7 +31,9 @@
             <div class="text-xs text-gray-600">{{ addrLineDisplay }}</div>
           </div>
         </div>
-        <button @click="openAddressPicker" aria-label="إدارة العنوان" class="text-[#8a1538] text-sm">تغيير</button>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-600 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
       </section>
 
       <!-- تفاصيل الطلب -->
@@ -63,12 +65,12 @@
             <!-- دائرة فارغة تتعبأ عند الاختيار -->
             <div class="relative mt-1">
               <div class="w-5 h-5 rounded-full border-2 border-gray-400 flex items-center justify-center"
-                   :class="selectedShipping === ship.name ? 'bg-[#8a1538] border-[#8a1538]' : 'bg-white'">
-                <svg v-if="selectedShipping === ship.name" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                   :class="selectedShipping === ship.id ? 'bg-[#8a1538] border-[#8a1538]' : 'bg-white'">
+                <svg v-if="selectedShipping === ship.id" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                 </svg>
               </div>
-              <input type="radio" :value="ship.name" v-model="selectedShipping" class="absolute inset-0 opacity-0 cursor-pointer"/>
+              <input type="radio" :value="ship.id" v-model="selectedShipping" class="absolute inset-0 opacity-0 cursor-pointer"/>
             </div>
             <div class="flex-1">
               <div class="flex items-center gap-2">
@@ -79,7 +81,7 @@
                 </svg>
                 <span>{{ ship.name }}</span>
               </div>
-              <div class="text-xs text-gray-600 ml-7">{{ ship.desc }}</div>
+              <div class="text-xs text-gray-600 ml-7">{{ ship.desc }} - {{ Number(ship.price||0).toFixed(2) }} {{ currency }}</div>
             </div>
           </div>
         </div>
@@ -99,9 +101,9 @@
         </div>
         <div class="divide-y divide-gray-300 text-sm">
           <label v-for="(pay, i) in paymentOptions" :key="i" class="flex items-center gap-2 py-3">
-            <input type="radio" :value="pay.name" v-model="selectedPayment"/>
+            <input type="radio" :value="pay.id" v-model="selectedPayment"/>
             <svg class="w-5 h-5 text-[#8a1538]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path v-if="pay.name === 'الدفع عند الاستلام'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+              <path v-if="pay.id === 'cod'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
               <path v-else-if="pay.name === 'خدمة حاسب عبر الكريمي'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               <path v-else-if="pay.name === 'محفظة جوالي'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
@@ -126,7 +128,7 @@
   </div>
   <!-- المحفظة -->
   <div class="py-3 flex items-center gap-2">
-    <div class="flex-1">رصيد المحفظة: {{ walletBalance.toFixed(2) }} ر.س</div>
+    <div class="flex-1">رصيد المحفظة: {{ walletBalance.toFixed(2) }} {{ currency }}</div>
     <button class="px-3 py-1 border" @click="useWallet = !useWallet">{{ useWallet ? 'إلغاء' : 'استخدم' }}</button>
   </div>
   <!-- النقاط -->
@@ -139,8 +141,8 @@
 
       <!-- الأسعار -->
       <section class="bg-white px-4 py-3 space-y-2">
-        <div class="flex justify-between text-sm"><span>سعر الوحدة</span><span>‏74.00 ر.س</span></div>
-        <div class="flex justify-between text-sm"><span>الشحن</span><span>‏15.00 ر.س</span></div>
+        <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotal.toFixed(2) }} {{ currency }}</span></div>
+        <div class="flex justify-between text-sm"><span>الشحن</span><span>{{ shippingPrice.toFixed(2) }} {{ currency }}</span></div>
 
         <!-- الخصم -->
         <div class="flex justify-between text-sm items-center">
@@ -152,7 +154,7 @@
             </div>
             <span>الخصم</span>
           </div>
-          <span class="text-orange-500">-‏0.74 ر.س</span>
+          <span class="text-orange-500">-{{ discountFromPromo.toFixed(2) }} {{ currency }}</span>
         </div>
 
         <!-- الكوبون -->
@@ -165,15 +167,15 @@
             </div>
             <span>كوبون</span>
           </div>
-          <span class="text-orange-500">-‏14.65 ر.س</span>
+          <span class="text-orange-500">-{{ discountFromCoupon.toFixed(2) }} {{ currency }}</span>
         </div>
 
         <!-- الإجمالي -->
         <div class="flex justify-between items-center border-t pt-2">
           <span class="font-semibold text-base">الإجمالي</span>
-          <span class="text-orange-500 font-bold text-xl">‏88.61 ر.س</span>
+          <span class="text-orange-500 font-bold text-xl">{{ totalAll.toFixed(2) }} {{ currency }}</span>
         </div>
-        <div class="text-xs text-green-600">تم توفير ‏15.39 ر.س</div>
+        <div class="text-xs text-green-600">تم توفير {{ savingAll.toFixed(2) }} {{ currency }}</div>
       </section>
 
       <!-- نقاط المكافأة -->
@@ -283,6 +285,7 @@ const selectedShipping = ref('')
 
 const paymentOptions = ref<Array<{ id:string; name:string }>>([])
 const selectedPayment = ref('')
+const currency = 'ر.س'
 
 const showPointsInfo = ref(false)
 

@@ -322,15 +322,15 @@ function goShopping() {
   router.push('/')
 }
 
-function goToCheckout() {
-  // if no saved address -> go to address first
-  import('@/lib/api').then(async ({ apiGet })=>{
-    try{
-      const a = await apiGet<any>('/api/addresses')
-      if (!a || !a.city || !a.street) { router.push('/address?return=/checkout'); return }
-    }catch{}
-    router.push('/checkout')
-  })
+async function goToCheckout() {
+  const { apiGet } = await import('@/lib/api')
+  try{
+    const list = await apiGet<any[]>('/api/addresses')
+    if (!list || list.length === 0) { router.push('/address?return=/checkout'); return }
+  }catch{
+    router.push('/address?return=/checkout'); return
+  }
+  router.push('/checkout')
 }
 
 // وظائف إدارة السلة
