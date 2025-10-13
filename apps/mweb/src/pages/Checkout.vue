@@ -26,15 +26,12 @@
                   d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z"/>
           </svg>
           <div>
-            <div class="font-semibold text-sm">hesham jaifi</div>
-            <div class="text-sm text-gray-700">22545625</div>
-            <div class="text-xs text-gray-600">sanaa Abu Baham Capital Governorate Bahrain 999089</div>
+            <div class="font-semibold text-sm">{{ addrNameDisplay }}</div>
+            <div class="text-sm text-gray-700">{{ addrPhoneDisplay }}</div>
+            <div class="text-xs text-gray-600">{{ addrLineDisplay }}</div>
           </div>
         </div>
-        <!-- سهم معكوس -->
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-600 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-        </svg>
+        <button @click="openAddressPicker" aria-label="إدارة العنوان" class="text-[#8a1538] text-sm">تغيير</button>
       </section>
 
       <!-- تفاصيل الطلب -->
@@ -116,15 +113,28 @@
 
       <!-- الخصومات -->
       <section class="bg-white px-4 py-3 mb-2">
-        <div class="divide-y divide-gray-300 text-sm">
-          <div class="py-3 flex justify-between"><span>رمز القسيمة:</span><span class="text-lg">›</span></div>
-          <div class="py-3 flex justify-between"><span>بطاقة هدية</span><span class="text-lg">›</span></div>
-          <div class="py-3 flex justify-between"><span>المحفظة:</span><span class="text-lg">›</span></div>
-          <div class="py-3 flex justify-between">
-            <span>النقاط:</span>
-            <span class="text-gray-400">إجمالي النقاط: 0 ›</span>
-          </div>
-        </div>
+<div class="divide-y divide-gray-300 text-sm">
+  <!-- القسيمة -->
+  <div class="py-3 flex items-center gap-2">
+    <input v-model="couponCode" type="text" placeholder="ادخل رمز القسيمة" class="flex-1 border px-2 py-1"/>
+    <button class="px-3 py-1 bg-[#8a1538] text-white" @click="applyCoupon">تطبيق</button>
+  </div>
+  <!-- بطاقة هدية -->
+  <div class="py-3 flex items-center gap-2">
+    <input v-model="giftCode" type="text" placeholder="ادخل كود بطاقة الهدية" class="flex-1 border px-2 py-1"/>
+    <button class="px-3 py-1 border border-[#8a1538] text-[#8a1538]" @click="applyGift">تطبيق</button>
+  </div>
+  <!-- المحفظة -->
+  <div class="py-3 flex items-center gap-2">
+    <div class="flex-1">رصيد المحفظة: {{ walletBalance.toFixed(2) }} ر.س</div>
+    <button class="px-3 py-1 border" @click="useWallet = !useWallet">{{ useWallet ? 'إلغاء' : 'استخدم' }}</button>
+  </div>
+  <!-- النقاط -->
+  <div class="py-3 flex items-center gap-2">
+    <div class="flex-1">نقاطك: {{ points }}</div>
+    <button class="px-3 py-1 border" @click="usePoints">استخدم</button>
+  </div>
+</div>
       </section>
 
       <!-- الأسعار -->
@@ -248,41 +258,96 @@
 
     <!-- زر الدفع -->
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-3">
-      <button class="w-full bg-[#8a1538] text-white font-semibold py-2 text-sm">تأكيد الطلب</button>
+      <button class="w-full bg-[#8a1538] text-white font-semibold py-2 text-sm" @click="placeOrder">تأكيد الطلب</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { apiGet, apiPost } from '@/lib/api'
 
 const router = useRouter()
 function goBack(){ router.back() }
 
-const items = ref([
-  { name: 'حقيبة كتف نسائية ذات طابع فاخر، ذات سعة كبيرة، مع حقيبة صغيرة', color: 'رمادي', price: '58.61', qty: 1 }
-])
+const items = ref<any[]>([])
 
 function increaseQty(idx:number){ items.value[idx].qty++ }
 function decreaseQty(idx:number){ if(items.value[idx].qty>1) items.value[idx].qty-- }
 
 const totalItems = computed(()=> items.value.reduce((s,i)=>s+i.qty,0))
 
-const shippingOptions = [
-  { name:'شحن مجاني', desc:'12 - 20 يوم عمل', icon:'📦' },
-  { name:'شحن سريع', desc:'2 - 5 أيام عمل', icon:'🚀' },
-  { name:'شحن عادي', desc:'7 - 10 أيام عمل', icon:'🚚' }
-]
-const selectedShipping = ref('شحن مجاني')
+const shippingOptions = ref<Array<{ id:string; name:string; desc:string; price:number }>>([])
+const selectedShipping = ref('')
 
-const paymentOptions = [
-  { name:'الدفع عند الاستلام', icon:'💵' },
-  { name:'خدمة حاسب عبر الكريمي', icon:'🧮' },
-  { name:'محفظة جوالي', icon:'📱' },
-  { name:'محفظة جيب', icon:'👛' }
-]
-const selectedPayment = ref('الدفع عند الاستلام')
+const paymentOptions = ref<Array<{ id:string; name:string }>>([])
+const selectedPayment = ref('')
 
 const showPointsInfo = ref(false)
+
+const addr = ref<any>(null)
+const addrNameDisplay = computed(()=> addr?.value?.name || '—')
+const addrPhoneDisplay = computed(()=> addr?.value?.phone || '—')
+const addrLineDisplay = computed(()=> [addr.value?.province, addr.value?.city, addr.value?.street].filter(Boolean).join('، '))
+const shippingPrice = computed(()=> {
+  const m = (shippingOptions.value||[]).find(x=> x.id===selectedShipping.value)
+  return m ? Number(m.price||0) : 0
+})
+const subtotal = computed(()=> items.value.reduce((s,i)=> s + Number(i.price||0)*Number(i.qty||1), 0))
+const discountFromPromo = ref(0)
+const discountFromCoupon = ref(0)
+const savingAll = computed(()=> (discountFromPromo.value + discountFromCoupon.value))
+const totalAll = computed(()=> Math.max(0, subtotal.value + shippingPrice.value - savingAll.value))
+
+async function loadCart(){ try{ const { useCart } = await import('@/store/cart'); const c = useCart(); items.value = c.items }catch{ items.value = [] } }
+async function loadAddress(){ addr.value = await apiGet('/api/addresses') }
+async function loadShipping(){ const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?city=${encodeURIComponent(addr.value?.city||'')}`); shippingOptions.value = r?.items||[]; if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id }
+async function loadPayments(){ const r = await apiGet<{ items:any[] }>(`/api/payments/methods`); paymentOptions.value = r?.items?.map((x:any)=>({ id:x.id, name:x.name }))||[]; if (!selectedPayment.value && paymentOptions.value[0]) selectedPayment.value = paymentOptions.value[0].id }
+
+function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
+async function placeOrder(){
+  // إنشاء الطلب من السلة مع الشحن والخصومات
+  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value }
+  const ord = await apiPost('/api/orders', payload)
+  if (ord && (ord as any).order?.id){
+    // الدفع عند الاستلام: لا توجد بوابة دفع، انتقل مباشرةً لتأكيد الطلب/تفاصيله
+    if (selectedPayment.value === 'cod') { router.push(`/order/${(ord as any).order.id}`); return }
+    // إنشاء جلسة دفع (اختصار عبر /api/payments/session الجاهزة في API)
+    const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: 'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
+    if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
+    // إن لم يكن هناك إعادة توجيه، انتقل لصفحة المعالجة
+    router.push('/pay/processing')
+  }
+}
+
+onMounted(async ()=>{
+  await loadCart()
+  await loadAddress()
+  await Promise.all([loadShipping(), loadPayments()])
+  await loadBalances()
+})
+
+// خصومات ومحفظة/نقاط
+const couponCode = ref('')
+const giftCode = ref('')
+const walletBalance = ref(0)
+const useWallet = ref(false)
+const points = ref(0)
+
+async function applyCoupon(){
+  if (!couponCode.value) return
+  const r = await apiPost('/api/coupons/apply', { code: couponCode.value })
+  if (r && (r as any).ok) discountFromCoupon.value = Number((r as any).discount?.value || 0)
+}
+async function applyGift(){
+  if (!giftCode.value) return
+  const r = await apiPost('/api/giftcards/apply', { code: giftCode.value })
+  if (r && (r as any).ok) discountFromPromo.value = Number((r as any).giftcard?.value || 0)
+}
+async function loadBalances(){
+  try{ const w = await apiGet<{ balance:number }>('/api/wallet/balance'); walletBalance.value = Number(w?.balance||0) }catch{}
+  try{ const p = await apiGet<{ points:number }>('/api/points/balance'); points.value = Number(p?.points||0) }catch{}
+}
+function usePoints(){ if (points.value>0) discountFromPromo.value += Math.min(points.value, subtotal.value) }
 </script>

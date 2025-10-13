@@ -11,7 +11,7 @@
     </header>
 
     <!-- المحتوى -->
-    <main class="pt-16">
+<main class="pt-16">
       <!-- الحالة الفارغة -->
       <div v-if="!addresses.length" class="bg-white min-h-screen flex flex-col items-center justify-center">
         <div class="mb-4">
@@ -41,7 +41,7 @@
             </div>
           </div>
           <div class="px-3 mt-2 text-[12px] text-gray-900">
-            {{ addr.country }} / {{ addr.governorate }} / {{ addr.city }} / {{ addr.street }}
+            {{ addr.country }} / {{ addr.governorate }} / {{ addr.city }}<span v-if="addr.area"> / {{ addr.area }}</span> / {{ addr.street }}
             <span v-if="addr.landmarks"> / {{ addr.landmarks }}</span>
             <span v-if="addr.postal"> / {{ addr.postal }}</span>
           </div>
@@ -56,11 +56,14 @@
               </span>
               <span class="text-[12px] text-gray-900">{{ addr.isDefault ? 'رئيسي' : 'أجعله افتراضيًا' }}</span>
             </button>
-            <button class="text-gray-700" @click.stop="removeAddress(idx)" aria-label="حذف">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 7h12v2H6zM9 10h2v7H9zM13 10h2v7h-2zM10 4h4v2h5v2H5V6h5z"/>
-              </svg>
-            </button>
+            <div class="flex items-center gap-3">
+              <button v-if="returnTo" class="px-3 py-1 text-[12px] border border-[#8a1538] text-[#8a1538]" @click.stop="selectAndReturn()">اختيار</button>
+              <button class="text-gray-700" @click.stop="removeAddress(idx)" aria-label="حذف">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 7h12v2H6zM9 10h2v7H9zM13 10h2v7h-2zM10 4h4v2h5v2H5V6h5z"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -116,7 +119,7 @@
             <section class="mt-2 bg-white border-t border-b px-4 py-3">
               <!-- زر تحديد الموقع -->
               <button class="w-full flex items-center justify-between bg-white border px-3 py-2 text-[13px]"
-                      style="border-radius:0; border-color:#ccc" @click="openMap = true">
+                      style="border-radius:0; border-color:#ccc" @click="openMapClick">
                 <span class="text-gray-900">حدد موقعك عبر الخريطة</span>
                 <!-- أيقونة حديثة -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -137,7 +140,7 @@
                 <label>المحافظة<span class="text-red-600">*</span></label>
                 <div class="relative">
                   <button class="w-full text-right border px-2 py-2 bg-white"
-                          :class="inputClass(errors.governorate)" @click="openGovPicker = true">
+                          :class="inputClass(errors.governorate)" @click="openGovernorates()">
                     <span>{{ selectedGovernorate || 'اختر المحافظة' }}</span>
                   </button>
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -152,9 +155,9 @@
                 <label>المدينة/المديرية<span class="text-red-600">*</span></label>
                 <div class="relative">
                   <button class="w-full text-right border px-2 py-2 bg-white"
-                          :class="inputClass(errors.city)" :disabled="!selectedGovernorate" @click="openCityPicker = true">
+                          :class="inputClass(errors.city)" :disabled="!selectedGovernorate" @click="openCities()">
                     <span :class="!selectedGovernorate ? 'text-gray-400' : 'text-gray-700'">
-                      {{ selectedCity || (selectedGovernorate ? 'اختر المدينة/المديرية' : 'اختر المحافظة أولاً') }}
+                      {{ selectedCityName || (selectedGovernorate ? 'اختر المدينة/المديرية' : 'اختر المحافظة أولاً') }}
                     </span>
                   </button>
                   <svg v-if="selectedGovernorate" xmlns="http://www.w3.org/2000/svg"
@@ -164,6 +167,24 @@
                   </svg>
                 </div>
                 <p v-if="errors.city" class="mt-1 text-xs text-red-600">{{ errors.city }}</p>
+              </div>
+
+              <!-- الحي/المنطقة -->
+              <div class="mt-3">
+                <label>الحي/المنطقة</label>
+                <div class="relative">
+                  <button class="w-full text-right border px-2 py-2 bg-white"
+                          :disabled="!selectedCityId" @click="openAreas()">
+                    <span :class="!selectedCityId ? 'text-gray-400' : 'text-gray-700'">
+                      {{ selectedArea || (selectedCityId ? 'اختر الحي/المنطقة (اختياري)' : 'اختر المدينة أولاً') }}
+                    </span>
+                  </button>
+                  <svg v-if="selectedCityId" xmlns="http://www.w3.org/2000/svg"
+                       class="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-gray-600"
+                       fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+                  </svg>
+                </div>
               </div>
 
               <!-- الشارع -->
@@ -230,19 +251,10 @@
                 <button class="absolute left-3 text-gray-700" @click="openMap=false">✕</button>
               </div>
               <div class="flex-1 relative">
-                <div class="absolute inset-0 bg-gray-200 flex items-center justify-center text-gray-600">
-                  هنا تظهر الخريطة
-                </div>
-                <!-- Pin -->
-                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-[#8a1538]" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z"/>
-                  </svg>
-                </div>
+                <div id="addr_map" class="absolute inset-0"></div>
                 <!-- زر تحديد موقعي صغير يمين -->
                 <div class="absolute top-3 right-3">
-                  <button class="flex items-center gap-1 bg-white border px-2 py-1 text-xs shadow"
-                          @click="mapLocationSet = true">
+                  <button class="flex items-center gap-1 bg-white border px-2 py-1 text-xs shadow" @click="locateMe">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
                       <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2"/>
@@ -254,8 +266,8 @@
               <!-- زر حفظ العنوان -->
               <div class="p-3 border-t">
                 <button class="w-full font-semibold py-2 text-sm"
-                        :class="mapLocationSet ? 'bg-[#8a1538] text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'"
-                        :disabled="!mapLocationSet"
+                        :class="mapSelection ? 'bg-[#8a1538] text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'"
+                        :disabled="!mapSelection"
                         @click="confirmMapLocation">
                   حفظ العنوان
                 </button>
@@ -274,8 +286,8 @@
               </div>
               <div class="flex-1 overflow-y-auto">
                 <ul class="divide-y">
-                  <li v-for="gov in governorates" :key="gov" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectGovernorate(gov)">
-                    {{ gov }}
+                  <li v-for="gov in governorates" :key="gov.name" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectGovernorate(gov.name)">
+                    {{ gov.name }}
                   </li>
                 </ul>
               </div>
@@ -295,8 +307,28 @@
               <div class="flex-1 overflow-y-auto">
                 <div v-if="!selectedGovernorate" class="p-4 text-sm text-gray-600">اختر المحافظة أولاً.</div>
                 <ul v-else class="divide-y">
-                  <li v-for="city in (citiesByGovernorate[selectedGovernorate] || [])" :key="city" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectCity(city)">
-                    {{ city }}
+                  <li v-for="c in cities" :key="c.id" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectCity(c)">
+                    {{ c.name }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </transition>
+
+        <!-- منبثق اختيار الحي/المنطقة -->
+        <transition name="drawer-left">
+          <div v-if="openAreaPicker" class="fixed inset-0 z-[60]">
+            <div class="absolute inset-0 bg-black/40" @click="openAreaPicker=false"></div>
+            <div class="absolute inset-0 bg-white flex flex-col">
+              <div class="h-12 border-b flex items-center justify-center relative">
+                <h3 class="text-base font-semibold">اختر الحي/المنطقة</h3>
+                <button class="absolute left-3 text-gray-700" @click="openAreaPicker=false">✕</button>
+              </div>
+              <div class="flex-1 overflow-y-auto">
+                <ul class="divide-y">
+                  <li v-for="a in areas" :key="a.id" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectArea(a.name)">
+                    {{ a.name }}
                   </li>
                 </ul>
               </div>
@@ -309,10 +341,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { apiGet, apiPost } from '@/lib/api'
 
 const router = useRouter()
+const route = useRoute()
 const storeColor = '#8a1538'
 
 function goBack(){ router.back() }
@@ -320,7 +354,11 @@ function goBack(){ router.back() }
 const addresses = ref<any[]>([])
 const openDrawer = ref(false)
 const openMap = ref(false)
-const mapLocationSet = ref(false)
+const mapSelection = ref<{ lat:number; lng:number }|null>(null)
+let gmap: any = null
+let gmarker: any = null
+let ggeocoder: any = null
+const gmapsKey = ref<string>('')
 
 const form = ref({
   fullName: '',
@@ -333,24 +371,18 @@ const form = ref({
 
 const isDefault = ref(false)
 const selectedGovernorate = ref<string | null>(null)
-const selectedCity = ref<string | null>(null)
+const selectedCityId = ref<string | null>(null)
+const selectedCityName = ref<string | null>(null)
+const selectedArea = ref<string | null>(null)
 const errors = ref<Record<string, string>>({})
 
 const openGovPicker = ref(false)
 const openCityPicker = ref(false)
+const openAreaPicker = ref(false)
 
-const governorates = [
-  'صنعاء', 'عدن', 'تعز', 'إب', 'الحديدة', 'حضرموت'
-]
-
-const citiesByGovernorate: Record<string, string[]> = {
-  'صنعاء': ['التحرير', 'معين', 'السبعين', 'بني الحارث'],
-  'عدن': ['كريتر', 'المنصورة', 'خور مكسر', 'دار سعد'],
-  'تعز': ['المظفر', 'صالة', 'القاهرة'],
-  'إب': ['المدينة', 'المشنة'],
-  'الحديدة': ['الحوك', 'الميناء'],
-  'حضرموت': ['المكلا', 'سيئون']
-}
+const governorates = ref<Array<{ name: string }>>([])
+const cities = ref<Array<{ id: string; name: string }>>([])
+const areas = ref<Array<{ id: string; name: string }>>([])
 
 function closeDrawer(){ openDrawer.value = false }
 
@@ -363,7 +395,7 @@ function validateField(field: string){
     case 'altPhone': errors.value.altPhone = form.value.altPhone.trim() && !/^7[0-9]{8}$/.test(form.value.altPhone) ? 'يجب أن يبدأ الرقم البديل بـ 7 ويتكون من 9 أرقام' : ''; break
     case 'street': errors.value.street = form.value.street.trim() ? '' : 'يرجى إدخال اسم الشارع'; break
     case 'governorate': errors.value.governorate = selectedGovernorate.value ? '' : 'يرجى اختيار المحافظة'; break
-    case 'city': errors.value.city = selectedCity.value ? '' : 'يرجى اختيار المدينة/المديرية'; break
+    case 'city': errors.value.city = selectedCityId.value ? '' : 'يرجى اختيار المدينة/المديرية'; break
   }
 }
 
@@ -372,39 +404,44 @@ const canSave = computed(()=>{
     form.value.fullName.trim() &&
     /^7[0-9]{8}$/.test(form.value.phone) &&
     selectedGovernorate.value &&
-    selectedCity.value &&
+    selectedCityId.value &&
     form.value.street.trim()
   )
 })
 
 function onSave(){
   if (!canSave.value) return
-  addresses.value.unshift({
-    id: Date.now(),
-    fullName: form.value.fullName,
-    phone: form.value.phone,
-    altPhone: form.value.altPhone,
+  // حفظ على الخادم
+  apiPost('/api/addresses', {
     country: form.value.country,
-    governorate: selectedGovernorate.value,
-    city: selectedCity.value,
+    province: selectedGovernorate.value,
+    city: selectedCityName.value,
     street: form.value.street,
-    landmarks: form.value.landmarks,
-    isDefault: isDefault.value
+    details: [selectedArea.value, form.value.landmarks].filter(Boolean).join(' - '),
+    postalCode: ''
+  }).then(()=> loadAddresses()).finally(()=>{
+    openDrawer.value = false
+    // إعادة تعيين النموذج
+    form.value = { fullName: '', phone: '', altPhone: '', country: 'اليمن', street: '', landmarks: '' }
+    selectedGovernorate.value = null
+    selectedCityId.value = null
+    selectedCityName.value = null
+    selectedArea.value = null
+    isDefault.value = false
+    errors.value = {}
+    // العودة للصفحة السابقة إذا كانت مطلوبة
+    if (returnTo.value) router.push(returnTo.value)
   })
-  openDrawer.value = false
-  // إعادة تعيين النموذج
-  form.value = { fullName: '', phone: '', altPhone: '', country: 'اليمن', street: '', landmarks: '' }
-  selectedGovernorate.value = null
-  selectedCity.value = null
-  isDefault.value = false
-  errors.value = {}
 }
 
 function togglePrimary(idx: number){
   addresses.value = addresses.value.map((a, i) => ({ ...a, isDefault: i === idx }))
 }
 
-function removeAddress(idx: number){ addresses.value.splice(idx, 1) }
+function removeAddress(idx: number){
+  // حذف من الخادم ثم التحديث محلياً
+  apiPost('/api/addresses/delete', {}).finally(()=>{ loadAddresses() })
+}
 
 function editAddress(idx: number){
   const a = addresses.value[idx]
@@ -413,7 +450,9 @@ function editAddress(idx: number){
   form.value.altPhone = a.altPhone
   form.value.country = a.country
   selectedGovernorate.value = a.governorate
-  selectedCity.value = a.city
+  selectedCityName.value = a.city
+  selectedCityId.value = a.cityId || null
+  selectedArea.value = a.area || null
   form.value.street = a.street
   form.value.landmarks = a.landmarks
   isDefault.value = a.isDefault
@@ -421,21 +460,182 @@ function editAddress(idx: number){
 }
 
 function confirmMapLocation(){
-  if (!mapLocationSet.value) return
+  if (!mapSelection.value) return
   openMap.value = false
 }
 
 function selectGovernorate(gov: string){
   selectedGovernorate.value = gov
-  selectedCity.value = null
+  selectedCityId.value = null
+  selectedCityName.value = null
+  selectedArea.value = null
   openGovPicker.value = false
   validateField('governorate')
 }
 
-function selectCity(city: string){
-  selectedCity.value = city
+function selectCity(city: { id: string; name: string }){
+  selectedCityId.value = city.id
+  selectedCityName.value = city.name
+  selectedArea.value = null
   openCityPicker.value = false
   validateField('city')
+}
+
+function selectArea(name: string){
+  selectedArea.value = name
+  openAreaPicker.value = false
+}
+
+async function loadGovernorates(){
+  const r = await apiGet<{ items: Array<{ name: string }> }>('/api/geo/governorates?country=YE')
+  governorates.value = Array.isArray(r?.items) ? r!.items : []
+}
+
+async function loadCities(){
+  cities.value = []
+  areas.value = []
+  if (!selectedGovernorate.value) return
+  const q = encodeURIComponent(selectedGovernorate.value)
+  const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(`/api/geo/cities?country=YE&governorate=${q}`)
+  cities.value = Array.isArray(r?.items) ? r!.items : []
+}
+
+async function loadAreas(){
+  areas.value = []
+  if (!selectedCityId.value && !selectedCityName.value) return
+  const params = selectedCityId.value ? `cityId=${encodeURIComponent(String(selectedCityId.value))}` : `city=${encodeURIComponent(String(selectedCityName||''))}`
+  const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(`/api/geo/areas?${params}`)
+  areas.value = Array.isArray(r?.items) ? r!.items : []
+}
+
+function openGovernorates(){ openGovPicker.value = true; if (!governorates.value.length) loadGovernorates() }
+function openCities(){ if (!selectedGovernorate.value) return; openCityPicker.value = true; loadCities() }
+function openAreas(){ if (!selectedCityId.value) return; openAreaPicker.value = true; loadAreas() }
+
+async function loadAddresses(){
+  // تحميل عنوان المستخدم الوحيد من الخادم (إن وجد)
+  const r = await apiGet<any>('/api/addresses')
+  const a = r || null
+  addresses.value = a ? [{
+    id: 'primary',
+    fullName: form.value.fullName || '—',
+    phone: form.value.phone || '—',
+    altPhone: form.value.altPhone || '',
+    country: a.country || 'اليمن',
+    governorate: a.state || a.province || '',
+    city: a.city || '',
+    cityId: a.cityId || null,
+    area: '',
+    street: a.street || '',
+    landmarks: a.details || '',
+    isDefault: true
+  }] : []
+}
+
+function prefillFromMap(){
+  try{
+    const snap = sessionStorage.getItem('gmaps_selection') || sessionStorage.getItem('gmaps_selection_latest')
+    if (!snap) return
+    const s = JSON.parse(snap)
+    if (s.country) form.value.country = s.country
+    if (s.state) selectedGovernorate.value = s.state
+    if (s.city){ selectedCityName.value = s.city; selectedCityId.value = null }
+    if (s.street) form.value.street = s.street
+    if (s.addressLine && !form.value.landmarks) form.value.landmarks = s.addressLine
+  }catch{}
+}
+
+onMounted(()=>{ loadGovernorates(); loadAddresses(); prefillFromMap() })
+
+const returnTo = ref<string | null>(null)
+onMounted(()=>{
+  const r = String((route.query?.return as string)||'').trim()
+  if (r) returnTo.value = r
+})
+
+function selectAndReturn(){ if (returnTo.value) router.push(returnTo.value) }
+
+function openMapClick(){
+  openMap.value = true
+  setTimeout(initMap, 50)
+}
+
+async function loadGoogle(): Promise<void>{
+  if ((window as any).google?.maps) return
+  // resolve key from env or Admin Integrations (/api/tracking/keys)
+  let key = (import.meta as any)?.env?.VITE_GOOGLE_MAPS_KEY || gmapsKey.value
+  if (!key){
+    try{ const tk = await apiGet<{ keys: Record<string,string> }>(`/api/tracking/keys`); key = tk?.keys?.GOOGLE_MAPS_API_KEY || '' }catch{}
+    if (key) gmapsKey.value = key
+  }
+  await new Promise<void>((resolve, reject)=>{
+    if ((window as any).google?.maps){ resolve(); return }
+    const s = document.createElement('script')
+    const qs = key ? `key=${encodeURIComponent(key)}&` : ''
+    s.src = `https://maps.googleapis.com/maps/api/js?${qs}libraries=places&language=ar`
+    s.async = true
+    s.onload = ()=> resolve()
+    s.onerror = ()=> reject(new Error('gmaps load failed'))
+    document.head.appendChild(s)
+  })
+}
+
+async function initMap(){
+  try{ await loadGoogle() }catch{}
+  try{
+    const el = document.getElementById('addr_map') as HTMLElement
+    if (!el) return
+    const center = { lat: 15.3694, lng: 44.1910 }
+    gmap = new (window as any).google.maps.Map(el, { center, zoom: 13, disableDefaultUI: false })
+    gmap.addListener('click', (e: any)=>{ if (e.latLng){ setMapSelection({ lat: e.latLng.lat(), lng: e.latLng.lng() }) } })
+    setMapSelection(center)
+  }catch{}
+}
+
+function setMapSelection(pos: { lat:number; lng:number }){
+  mapSelection.value = { lat: pos.lat, lng: pos.lng }
+  try{
+    if (!gmarker){ gmarker = new (window as any).google.maps.Marker({ position: pos, map: gmap!, draggable: true })
+      gmarker.addListener('dragend', ()=>{ const p = gmarker!.getPosition()!; setMapSelection({ lat: p.lat(), lng: p.lng() }) })
+    } else { gmarker.setPosition(pos) }
+    reverseGeocode(pos)
+  }catch{}
+}
+
+function ensureGeocoder(){ try{ if (!ggeocoder) ggeocoder = new (window as any).google.maps.Geocoder() }catch{} }
+
+function reverseGeocode(pos: {lat:number; lng:number}){
+  try{
+    ensureGeocoder()
+    if (!ggeocoder) return
+    ggeocoder.geocode({ location: pos }, (results: any[], status: string)=>{
+      if (status === 'OK' && results && results[0]){
+        const addr = results[0]
+        const comps = addr.address_components || []
+        const byType = (t:string)=> comps.find((c:any)=> (c.types||[]).includes(t))
+        const countryC = byType('country')
+        const stateC = byType('administrative_area_level_1') || byType('administrative_area_level_2')
+        const cityC = byType('locality') || byType('sublocality') || byType('administrative_area_level_2')
+        const routeC = byType('route')
+        if (countryC?.long_name) form.value.country = countryC.long_name
+        if (stateC?.long_name) selectedGovernorate.value = stateC.long_name
+        if (cityC?.long_name){ selectedCityName.value = cityC.long_name; selectedCityId.value = null }
+        if (routeC?.long_name) form.value.street = routeC.long_name
+        if (addr.formatted_address && !form.value.landmarks) form.value.landmarks = addr.formatted_address
+      }
+    })
+  }catch{}
+}
+
+function locateMe(){
+  try{
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition((res)=>{
+      const pos = { lat: res.coords.latitude, lng: res.coords.longitude }
+      try{ gmap && gmap.setCenter(pos); gmap && gmap.setZoom(15) }catch{}
+      setMapSelection(pos)
+    })
+  }catch{}
 }
 </script>
 

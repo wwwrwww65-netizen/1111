@@ -323,7 +323,14 @@ function goShopping() {
 }
 
 function goToCheckout() {
-  router.push('/checkout')
+  // if no saved address -> go to address first
+  import('@/lib/api').then(async ({ apiGet })=>{
+    try{
+      const a = await apiGet<any>('/api/addresses')
+      if (!a || !a.city || !a.street) { router.push('/address?return=/checkout'); return }
+    }catch{}
+    router.push('/checkout')
+  })
 }
 
 // وظائف إدارة السلة

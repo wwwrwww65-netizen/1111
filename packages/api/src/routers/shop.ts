@@ -977,6 +977,15 @@ shop.post('/cart/clear', requireAuth, async (req: any, res) => {
   }
 });
 
+// Addresses delete (single-address schema): soft-delete by removing row
+shop.post('/addresses/delete', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId;
+    await db.address.delete({ where: { userId } }).catch(()=>{})
+    return res.json({ ok:true })
+  }catch{ return res.status(500).json({ error:'failed' }) }
+})
+
 // Orders
 shop.get('/orders/me', requireAuth, async (req: any, res) => {
   try {
@@ -995,16 +1004,20 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId, ref } = req.body || {};
+    const { shippingAddressId, ref, shippingPrice, discount } = req.body || {};
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
-    const total = cart.items.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
+    const subtotal = cart.items.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
+    const ship = Number(shippingPrice || 0);
+    const disc = Number(discount || 0);
+    const total = Math.max(0, subtotal + ship - disc);
     const order = await db.order.create({
       data: {
         userId,
         status: 'PENDING',
         total,
         shippingAddressId: shippingAddressId || null,
+        discountAmount: disc,
         items: { create: cart.items.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0) })) },
       },
       include: { items: true },
@@ -1083,6 +1096,60 @@ shop.get('/addresses', requireAuth, async (req: any, res) => {
   } catch {
     res.status(500).json({ error: 'failed' });
   }
+});
+
+// Geo: governorates (regions) by country code, derived from City table
+shop.get('/geo/governorates', async (req, res) => {
+  try {
+    const code = String(req.query.country || 'YE').toUpperCase();
+    // Resolve country by code (fallback to any if missing)
+    let country: any = null;
+    try { country = await db.country.findFirst({ where: { OR: [{ code }, { name: code }] } }); } catch {}
+    const where: any = country ? { countryId: country.id } : {};
+    const cities = await db.city.findMany({ where, select: { name: true, region: true } });
+    // Prefer distinct regions when present; else distinct city names as top-level governorates
+    const regions = Array.from(new Set((cities || []).map((c: any) => (String(c.region || '').trim())))).filter(Boolean);
+    const list = regions.length ? regions : Array.from(new Set((cities || []).map((c: any) => String(c.name || '').trim()))).filter(Boolean);
+    res.json({ items: list.map((n) => ({ name: n })) });
+  } catch { res.status(500).json({ error: 'failed' }); }
+});
+
+// Geo: cities by governorate name (matches City.region when available; falls back to City.name filter)
+shop.get('/geo/cities', async (req, res) => {
+  try {
+    const code = String(req.query.country || 'YE').toUpperCase();
+    const governorate = String(req.query.governorate || '').trim();
+    if (!governorate) return res.json({ items: [] });
+    let country: any = null;
+    try { country = await db.country.findFirst({ where: { OR: [{ code }, { name: code }] } }); } catch {}
+    const whereBase: any = country ? { countryId: country.id } : {};
+    // Try matching by region first
+    let rows = await db.city.findMany({ where: { ...whereBase, region: governorate }, select: { id: true, name: true } });
+    if (!rows.length) {
+      // Fallback: treat governorate as a parent city; return same as one item
+      rows = await db.city.findMany({ where: { ...whereBase, name: governorate }, select: { id: true, name: true } });
+    }
+    res.json({ items: rows.map((c: any) => ({ id: c.id, name: c.name })) });
+  } catch { res.status(500).json({ error: 'failed' }); }
+});
+
+// Geo: areas by city (name or id)
+shop.get('/geo/areas', async (req, res) => {
+  try {
+    const byId = String(req.query.cityId || '').trim();
+    const byName = String(req.query.city || '').trim();
+    if (!byId && !byName) return res.json({ items: [] });
+    let city: any = null;
+    if (byId) {
+      city = await db.city.findUnique({ where: { id: byId } });
+    }
+    if (!city && byName) {
+      city = await db.city.findFirst({ where: { name: byName } });
+    }
+    if (!city) return res.json({ items: [] });
+    const areas = await db.area.findMany({ where: { cityId: city.id }, select: { id: true, name: true } });
+    res.json({ items: areas });
+  } catch { res.status(500).json({ error: 'failed' }); }
 });
 
 shop.post('/addresses', requireAuth, async (req: any, res) => {
@@ -1220,6 +1287,22 @@ shop.post('/coupons/apply', requireAuth, async (req:any, res) => {
   }catch(e:any){ res.status(500).json({ error:e.message||'failed' }) }
 })
 
+// Gift cards apply (reuse coupon rules under a different namespace if present)
+shop.post('/giftcards/apply', requireAuth, async (req:any, res) => {
+  try{
+    const { code } = req.body || {}
+    if (!code) return res.status(400).json({ error:'code_required' })
+    const codeUp = String(code).toUpperCase()
+    // Lookup setting giftcard:CODE for value
+    const s = await db.setting.findUnique({ where: { key: `giftcard:${codeUp}` } })
+    const gv: any = s?.value || null
+    if (!gv || gv.enabled === false) return res.status(404).json({ error:'not_found' })
+    const value = Number(gv.amount||0)
+    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ error:'invalid_amount' })
+    return res.json({ ok:true, giftcard: { code: codeUp, value } })
+  }catch(e:any){ return res.status(500).json({ error:e.message||'failed' }) }
+})
+
 // Public: Theme config for sites (web/mweb)
 shop.get('/theme/config', async (req, res) => {
   try{
@@ -1277,9 +1360,75 @@ function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c)
 shop.get('/shipping/quote', async (req, res) => {
   try{
     const method = String(req.query.method||'std')
-    const base = method==='fast' ? 30 : 18
-    res.json({ price: base })
+    // fallback defaults
+    let price = method==='fast' ? 30 : 18
+    // If DeliveryRate exists for city via zones, try to compute minimal price
+    try{
+      const city = String(req.query.city||'').trim()
+      if (city){
+        // naive: pick lowest active rate
+        const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { baseFee: true, perKgFee: true } } as any)
+        if (rates && rates.length){ price = Number(rates.map(r => Number(r.baseFee||0)).sort((a,b)=>a-b)[0] || price) }
+      }
+    }catch{}
+    res.json({ price })
   }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Shipping methods list from DeliveryRate
+shop.get('/shipping/methods', async (req, res) => {
+  try{
+    const city = String(req.query.city||'').trim()
+    const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true } } as any)
+    const items = (rates||[]).map((r:any)=>({
+      id: r.id,
+      name: r.carrier || 'شحن',
+      desc: r.offerTitle || (r.etaMinHours||r.etaMaxHours ? `توصيل خلال ${r.etaMinHours||r.etaMaxHours} - ${r.etaMaxHours||r.etaMinHours} ساعة` : ''),
+      price: Number(r.baseFee||0)
+    }))
+    // Fallback when no rates configured
+    const out = items.length ? items : [
+      { id:'std', name:'شحن عادي', desc:'4 - 9 أيام عمل', price:18 },
+      { id:'fast', name:'شحن سريع', desc:'2 - 6 أيام عمل', price:30 }
+    ]
+    res.json({ items: out })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Payments methods from PaymentGateway
+shop.get('/payments/methods', requireAuth, async (req: any, res) => {
+  try{
+    const list = await db.paymentGateway.findMany({ where: { isActive: true }, select: { id:true, name:true, provider:true, mode:true } } as any)
+    const items = (list||[]).map((g:any)=> ({ id: g.id, name: g.name, provider: g.provider, mode: g.mode }))
+    // Add COD if configured in settings
+    try{
+      const s = await db.setting.findUnique({ where: { key: 'payments:cod' } });
+      const enableCod = !s?.value || (s?.value as any)?.enabled !== false
+      if (enableCod) items.push({ id:'cod', name:'الدفع عند الاستلام', provider:'cod', mode:'LIVE' })
+    }catch{}
+    res.json({ items })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Points balance
+shop.get('/points/balance', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    // Prefer PointLedger if exists
+    let pts = 0
+    try {
+      const rows: any[] = await db.$queryRawUnsafe('SELECT COALESCE(SUM(points),0) as s FROM "PointLedger" WHERE "userId"=$1', userId) as any
+      pts = Number(rows?.[0]?.s || 0)
+    } catch {}
+    // Fallback to LoyaltyPoint sum
+    if (pts===0){ try{ const rows2: any[] = await db.$queryRawUnsafe('SELECT COALESCE(SUM(points),0) as s FROM "LoyaltyPoint" WHERE "userId"=$1', userId) as any; pts = Number(rows2?.[0]?.s||0) }catch{} }
+    res.json({ points: pts })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Wallet balance (placeholder)
+shop.get('/wallet/balance', requireAuth, async (_req: any, res) => {
+  try{ res.json({ balance: 0 }) }catch{ res.status(500).json({ error:'failed' }) }
 })
 
 // Search suggestions
