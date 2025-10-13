@@ -2,7 +2,7 @@ name: Web/Admin Next.js build
 
 on:
   push:
-    branches: [ hash ]
+    branches: [ hash, jam ]
   pull_request:
     branches: [ hash, main ]
 
