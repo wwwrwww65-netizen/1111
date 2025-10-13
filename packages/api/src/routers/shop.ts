@@ -1396,7 +1396,7 @@ shop.get('/shipping/methods', async (req, res) => {
 })
 
 // Payments methods from PaymentGateway
-shop.get('/payments/methods', requireAuth, async (req: any, res) => {
+shop.get('/payments/methods', async (req: any, res) => {
   try{
     const list = await db.paymentGateway.findMany({ where: { isActive: true }, select: { id:true, name:true, provider:true, mode:true } } as any)
     const items = (list||[]).map((g:any)=> ({ id: g.id, name: g.name, provider: g.provider, mode: g.mode }))
