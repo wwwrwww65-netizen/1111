@@ -228,7 +228,6 @@ const shippingCost = computed(()=> shipping.value?.price || 0)
 const discountTotal = ref(0)
 const grandTotal = computed(()=> Math.max(0, unitTotal.value + shippingCost.value - discountTotal.value))
 const canConfirm = computed(()=> !!(checkout.address && payment.value && shipping.value && items.value.length))
-const totalItems = computed(()=> cart.count)
 
 // Qty change
 function increaseQty(id:string){ const it = items.value.find(i=>i.id===id); if (!it) return; cart.update(id, it.qty+1) }
