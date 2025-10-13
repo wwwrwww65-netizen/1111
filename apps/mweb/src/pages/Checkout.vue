@@ -169,8 +169,8 @@ async function goConfirm(){
     } else { router.push('/pay/failure') }
     return
   }
-  const session = await apiPost('/api/payments/session', { amount: Number(grandTotal.value.toFixed(2)), currency: 'SAR', method: 'CARD', ref: sessionStorage.getItem('affiliate_ref')||undefined, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure' })
-  if (session && (session as any).redirectUrl){ router.push('/pay/processing'); location.href = (session as any).redirectUrl } else { router.push('/pay/failure') }
+  // لطرق الدفع الأخرى ننقل إلى صفحة المعالجة الجديدة
+  router.push('/pay/processor')
 }
 
 async function applyCoupon(){
