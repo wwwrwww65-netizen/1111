@@ -706,31 +706,20 @@ const id = route.query.id as string || 'p1'
 // ==================== PRODUCT DATA ====================
 const title = ref('منتج تجريبي')
 const price = ref<number>(129)
-const original = ref('179 ر.س')
-const images = ref<string[]>([
-  'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1080&auto=format&fit=crop'
-])
+const original = ref('')
+const images = ref<string[]>([])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 
 // ==================== PRODUCT VARIANTS ====================
 // Color Variants
-const colorVariants = ref([
-  { name: 'أصفر', image: images.value[0], isHot: true },
-  { name: 'بنفسجي', image: 'https://images.unsplash.com/photo-1612423284934-2850a4ea6b0f?w=400', isHot: false },
-  { name: 'أخضر', image: 'https://images.unsplash.com/photo-1603217039863-aa499afcdb2e?w=400', isHot: false },
-  { name: 'أزرق', image: 'https://images.unsplash.com/photo-1620799140188-3b2a7c2e0e12?w=400', isHot: false },
-  { name: 'وردي', image: 'https://images.unsplash.com/photo-1611312449408-fcece27cdbb7?w=400', isHot: true }
-])
+const colorVariants = ref<any[]>([])
 const colorIdx = ref(0)
 
 // Size Options
-const sizeOptions = ref<string[]>(['L', 'M', 'S', 'XS', 'XXS', 'XL'])
-const size = ref<string>('M')
+const sizeOptions = ref<string[]>([])
+const size = ref<string>('')
 
 // ==================== HEADER & NAVIGATION ====================
 const showHeaderSearch = ref(false)
@@ -830,7 +819,7 @@ const customerReviews = ref<CustomerReview[]>([
 
 // ==================== RECOMMENDED PRODUCTS ====================
 const isLoadingRecommended = ref(false)
-const recommendedProducts = ref([
+const recommendedProducts = ref<any[]>([
   {
     brand: 'COSMINA',
     title: 'فستان أسود كلاسيكي أنيق',
@@ -931,7 +920,7 @@ function loadMoreRecommended() {
 }
 
 // Navigate to recommended product
-function openRecommended(p:any){ router.push(`/p?id=${encodeURIComponent(p.id||'p1')}`) }
+function openRecommended(p:any){ router.push(`/p?id=${encodeURIComponent(p.id||'')}`) }
 
 // ==================== UTILITY FUNCTIONS ====================
 // Format Review Date
@@ -1147,7 +1136,12 @@ async function loadProductData() {
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
       if (imgs.length) images.value = imgs
-      original.value = d.original ? d.original + ' ر.س' : original.value
+      // map variants/colors if available
+      const variants = Array.isArray(d.variants)? d.variants : []
+      colorVariants.value = variants.map((v:any)=> ({ name: v.name||v.value||'', image: (imgs[0]||''), isHot: false }))
+      if (variants.length){ sizeOptions.value = Array.from(new Set(variants.map((v:any)=> String(v.value||v.name||'').trim()).filter(Boolean))) as string[] }
+      size.value = sizeOptions.value[0] || ''
+      original.value = ''
       
       // Sizes from API if available
       const s = Array.isArray(d.sizes) ? d.sizes.filter((x:any)=> typeof x==='string' && x.trim()) : []

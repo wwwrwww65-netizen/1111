@@ -750,12 +750,45 @@ shop.get('/product/:id', async (req, res) => {
   try {
     const p = await db.product.findUnique({
       where: { id: String(req.params.id) },
-      include: { category: { select: { id: true, name: true } }, reviews: true },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        reviews: true,
+        variants: true,
+      },
     });
     if (!p) return res.status(404).json({ error: 'not_found' });
     res.json(p);
   } catch {
     res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Public: product reviews (REST helper for mweb)
+shop.get('/reviews', async (req, res) => {
+  try {
+    const productId = String(req.query.productId || '').trim();
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)));
+    if (!productId) return res.json({ items: [] });
+    const rows = await db.review.findMany({
+      where: { productId, isApproved: true },
+      include: { user: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    const items = rows.map((r: any) => ({
+      id: r.id,
+      userName: r.user?.name || 'ضيف',
+      rating: Number(r.rating || 0),
+      text: String(r.comment || ''),
+      date: (r.createdAt ? new Date(r.createdAt) : new Date()).toISOString(),
+      images: [] as string[],
+      size: '',
+      color: '',
+      helpful: 0,
+    }));
+    return res.json({ items });
+  } catch (e) {
+    return res.status(500).json({ error: 'reviews_failed' });
   }
 });
 
