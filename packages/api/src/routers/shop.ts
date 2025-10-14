@@ -1390,20 +1390,24 @@ shop.get('/shipping/quote', async (req, res) => {
 shop.get('/shipping/methods', async (req, res) => {
   try{
     const city = String(req.query.city||'').trim()
-    const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true } } as any)
-    const items = (rates||[]).map((r:any)=>({
-      id: r.id,
-      name: r.carrier || 'شحن',
-      desc: r.offerTitle || (r.etaMinHours||r.etaMaxHours ? `توصيل خلال ${r.etaMinHours||r.etaMaxHours} - ${r.etaMaxHours||r.etaMinHours} ساعة` : ''),
-      price: Number(r.baseFee||0)
-    }))
-    // Fallback when no rates configured
-    const out = items.length ? items : [
-      { id:'std', name:'شحن عادي', desc:'4 - 9 أيام عمل', price:18 },
-      { id:'fast', name:'شحن سريع', desc:'2 - 6 أيام عمل', price:30 }
-    ]
-    res.json({ items: out })
-  }catch{ res.status(500).json({ error:'failed' }) }
+    let items: Array<{ id: string; name: string; desc: string; price: number }> = []
+    try{
+      const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true } } as any)
+      items = (rates||[]).map((r:any)=>({
+        id: r.id,
+        name: r.carrier || 'شحن',
+        desc: r.offerTitle || (r.etaMinHours||r.etaMaxHours ? `توصيل خلال ${r.etaMinHours||r.etaMaxHours} - ${r.etaMaxHours||r.etaMinHours} ساعة` : ''),
+        price: Number(r.baseFee||0)
+      }))
+    }catch{}
+    if (!items.length) {
+      items = [
+        { id:'std', name:'شحن عادي', desc:'4 - 9 أيام عمل', price:18 },
+        { id:'fast', name:'شحن سريع', desc:'2 - 6 أيام عمل', price:30 }
+      ]
+    }
+    res.json({ items })
+  }catch{ res.status(200).json({ items: [] }) }
 })
 
 // Payments methods from PaymentGateway

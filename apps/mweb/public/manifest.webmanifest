@@ -1,0 +1,10 @@
+{
+  "name": "Jeeey mweb",
+  "short_name": "Jeeey",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8a1538",
+  "icons": []
+}
+

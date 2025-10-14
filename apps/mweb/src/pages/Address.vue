@@ -244,7 +244,7 @@
               <div class="flex-1 relative">
                 <div id="addr_map" class="absolute inset-0"></div>
                 <!-- زر تحديد موقعي صغير يمين -->
-                <div class="absolute top-3 right-3">
+                <div class="absolute top-3 right-3 z-[1000]">
                   <button class="flex items-center gap-1 bg-white border px-2 py-1 text-xs shadow" @click="locateMe">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
@@ -331,7 +331,12 @@ const mapSelection = ref<{ lat:number; lng:number }|null>(null)
 let gmap: any = null
 let gmarker: any = null
 let ggeocoder: any = null
+let lmap: any = null
+let lmarker: any = null
+const disableGoogleMaps = true
 const gmapsKey = ref<string>('')
+const gmapsLoading = ref<boolean>(false)
+const gmapsError = ref<string>('')
 
 const form = ref({
   fullName: '',
@@ -524,7 +529,15 @@ function prefillFromMap(){
   }catch{}
 }
 
-onMounted(()=>{ loadGovernorates(); loadAddresses(); prefillFromMap() })
+onMounted(()=>{ loadGovernorates(); loadAddresses(); prefillFromMap(); fetchMapsKey() })
+
+async function fetchMapsKey(){
+  try {
+    const tk = await apiGet<{ keys: Record<string,string> }>(`/api/tracking/keys`)
+    const k = tk?.keys?.GOOGLE_MAPS_API_KEY || ''
+    if (k) gmapsKey.value = k
+  } catch {}
+}
 
 const returnTo = ref<string | null>(null)
 onMounted(()=>{
@@ -541,34 +554,96 @@ function openMapClick(){
 
 async function loadGoogle(): Promise<void>{
   if ((window as any).google?.maps) return
+  gmapsLoading.value = true
+  gmapsError.value = ''
   // resolve key from env or Admin Integrations (/api/tracking/keys)
   let key = (import.meta as any)?.env?.VITE_GOOGLE_MAPS_KEY || gmapsKey.value
   if (!key){
     try{ const tk = await apiGet<{ keys: Record<string,string> }>(`/api/tracking/keys`); key = tk?.keys?.GOOGLE_MAPS_API_KEY || '' }catch{}
     if (key) gmapsKey.value = key
   }
-  await new Promise<void>((resolve, reject)=>{
-    if ((window as any).google?.maps){ resolve(); return }
-    const s = document.createElement('script')
-    const qs = key ? `key=${encodeURIComponent(key)}&` : ''
-    s.src = `https://maps.googleapis.com/maps/api/js?${qs}libraries=places&language=ar`
-    s.async = true
-    s.onload = ()=> resolve()
-    s.onerror = ()=> reject(new Error('gmaps load failed'))
-    document.head.appendChild(s)
-  })
+  try {
+    await new Promise<void>((resolve, reject)=>{
+      if ((window as any).google?.maps){ resolve(); return }
+      const s = document.createElement('script')
+      const qs = key ? `key=${encodeURIComponent(key)}&` : ''
+      s.src = `https://maps.googleapis.com/maps/api/js?${qs}libraries=places&language=ar`
+      s.async = true
+      s.onload = ()=> resolve()
+      s.onerror = ()=> reject(new Error('gmaps load failed'))
+      document.head.appendChild(s)
+    })
+  } catch (e) {
+    gmapsError.value = 'تعذر تحميل خريطة جوجل. تحقق من صلاحيات المفتاح.'
+    // محاولة أخيرة بدون مفتاح (تعمل في حدود ضيقة)
+    try {
+      await new Promise<void>((resolve, reject)=>{
+        const s = document.createElement('script')
+        s.src = `https://maps.googleapis.com/maps/api/js?libraries=places&language=ar`
+        s.async = true
+        s.onload = ()=> resolve()
+        s.onerror = ()=> reject(new Error('gmaps load failed'))
+        document.head.appendChild(s)
+      })
+      gmapsError.value = ''
+    } catch {}
+  } finally {
+    gmapsLoading.value = false
+  }
 }
 
 async function initMap(){
-  try{ await loadGoogle() }catch{}
-  try{
-    const el = document.getElementById('addr_map') as HTMLElement
-    if (!el) return
-    const center = { lat: 15.3694, lng: 44.1910 }
-    gmap = new (window as any).google.maps.Map(el, { center, zoom: 13, disableDefaultUI: false })
-    gmap.addListener('click', (e: any)=>{ if (e.latLng){ setMapSelection({ lat: e.latLng.lat(), lng: e.latLng.lng() }) } })
-    setMapSelection(center)
-  }catch{}
+  const el = document.getElementById('addr_map') as HTMLElement
+  if (!el) return
+  const center = { lat: 15.3694, lng: 44.1910 }
+  // Try Google Maps first
+  if (!disableGoogleMaps){
+    try { await loadGoogle() } catch {}
+  }
+  if (!disableGoogleMaps && (window as any).google?.maps){
+    try{
+      gmap = new (window as any).google.maps.Map(el, { center, zoom: 13, disableDefaultUI: false })
+      gmap.addListener('click', (e: any)=>{ if (e.latLng){ setMapSelection({ lat: e.latLng.lat(), lng: e.latLng.lng() }) } })
+      setMapSelection(center)
+      return
+    }catch{}
+  }
+  // Fallback to Leaflet + OSM
+  await initLeafletMap(el, center)
+}
+
+async function loadLeaflet(): Promise<void>{
+  if ((window as any).L) return
+  await new Promise<void>((resolve, reject)=>{
+    const onCss = ()=>{
+      const s = document.createElement('script')
+      s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+      s.async = true
+      s.onload = ()=> resolve()
+      s.onerror = ()=> reject(new Error('leaflet load failed'))
+      document.head.appendChild(s)
+    }
+    const l = document.createElement('link')
+    l.rel = 'stylesheet'
+    l.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+    l.onload = onCss
+    l.onerror = ()=> reject(new Error('leaflet css load failed'))
+    document.head.appendChild(l)
+  })
+}
+
+async function initLeafletMap(el: HTMLElement, center: {lat:number; lng:number}){
+  try{ await loadLeaflet() }catch{}
+  const L = (window as any).L
+  if (!L) return
+  lmap = L.map(el).setView([center.lat, center.lng], 13)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(lmap)
+  lmap.on('click', (e: any)=>{
+    if (e?.latlng){ setMapSelection({ lat: e.latlng.lat, lng: e.latlng.lng }) }
+  })
+  setMapSelection(center)
 }
 
 function setMapSelection(pos: { lat:number; lng:number }){
@@ -584,32 +659,60 @@ function setMapSelection(pos: { lat:number; lng:number }){
 function ensureGeocoder(){ try{ if (!ggeocoder) ggeocoder = new (window as any).google.maps.Geocoder() }catch{} }
 
 function reverseGeocode(pos: {lat:number; lng:number}){
-  try{
-    ensureGeocoder()
-    if (!ggeocoder) return
-    ggeocoder.geocode({ location: pos }, (results: any[], status: string)=>{
-      if (status === 'OK' && results && results[0]){
-        const addr = results[0]
-        const comps = addr.address_components || []
-        const byType = (t:string)=> comps.find((c:any)=> (c.types||[]).includes(t))
-        const countryC = byType('country')
-        const stateC = byType('administrative_area_level_1') || byType('administrative_area_level_2')
-        const cityC = byType('locality') || byType('sublocality') || byType('administrative_area_level_2')
-        const routeC = byType('route')
-        if (countryC?.long_name) form.value.country = countryC.long_name
-        if (stateC?.long_name) selectedGovernorate.value = stateC.long_name
-        if (cityC?.long_name){ selectedCityName.value = cityC.long_name; selectedCityId.value = null }
-        if (routeC?.long_name) form.value.street = routeC.long_name
-        if (addr.formatted_address && !form.value.landmarks) form.value.landmarks = addr.formatted_address
-        // محاولة مزامنة الحي/المنطقة مع لوحة التحكم بعد تحديد المحافظة
-        if (selectedGovernorate.value) {
-          loadAreas().then(()=>{
-            const match = areas.value.find(a => a.name === (selectedCityName.value||''))
-            if (match) selectedArea.value = match.name
-          })
+  // Prefer Google if available, otherwise use OSM Nominatim
+  if (!disableGoogleMaps && (window as any).google?.maps){
+    try{
+      ensureGeocoder()
+      if (!ggeocoder) return
+      ggeocoder.geocode({ location: pos }, (results: any[], status: string)=>{
+        if (status === 'OK' && results && results[0]){
+          const addr = results[0]
+          const comps = addr.address_components || []
+          const byType = (t:string)=> comps.find((c:any)=> (c.types||[]).includes(t))
+          const countryC = byType('country')
+          const stateC = byType('administrative_area_level_1') || byType('administrative_area_level_2')
+          const cityC = byType('locality') || byType('sublocality') || byType('administrative_area_level_2')
+          const routeC = byType('route')
+          if (countryC?.long_name) form.value.country = countryC.long_name
+          if (stateC?.long_name) selectedGovernorate.value = stateC.long_name
+          if (cityC?.long_name){ selectedCityName.value = cityC.long_name; selectedCityId.value = null }
+          if (routeC?.long_name) form.value.street = routeC.long_name
+          if (addr.formatted_address && !form.value.landmarks) form.value.landmarks = addr.formatted_address
+          if (selectedGovernorate.value) {
+            loadAreas().then(()=>{
+              const match = areas.value.find(a => a.name === (selectedCityName.value||''))
+              if (match) selectedArea.value = match.name
+            })
+          }
         }
-      }
-    })
+      })
+      return
+    }catch{}
+  }
+  reverseGeocodeOSM(pos)
+}
+
+async function reverseGeocodeOSM(pos: {lat:number; lng:number}){
+  try{
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(pos.lat)}&lon=${encodeURIComponent(pos.lng)}&accept-language=ar&addressdetails=1`
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+    if (!res.ok) return
+    const data = await res.json()
+    const a = data?.address || {}
+    if (a.country) form.value.country = a.country
+    const state = a.state || a.region || a.county || a.province
+    if (state) selectedGovernorate.value = state
+    const city = a.city || a.town || a.village || a.suburb || a.neighbourhood
+    if (city){ selectedCityName.value = city; selectedCityId.value = null }
+    const road = a.road || a.pedestrian || a.path
+    if (road) form.value.street = road
+    const disp = data?.display_name
+    if (disp && !form.value.landmarks) form.value.landmarks = disp
+    if (selectedGovernorate.value) {
+      await loadAreas()
+      const match = areas.value.find(x => x.name === (selectedCityName.value||''))
+      if (match) selectedArea.value = match.name
+    }
   }catch{}
 }
 
@@ -618,7 +721,10 @@ function locateMe(){
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition((res)=>{
       const pos = { lat: res.coords.latitude, lng: res.coords.longitude }
-      try{ gmap && gmap.setCenter(pos); gmap && gmap.setZoom(15) }catch{}
+      try{
+        if (gmap){ gmap.setCenter(pos); gmap.setZoom(15) }
+        if (lmap){ lmap.setView([pos.lat, pos.lng], 15) }
+      }catch{}
       setMapSelection(pos)
     })
   }catch{}

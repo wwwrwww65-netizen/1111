@@ -4,7 +4,7 @@
       <picture>
         <source :srcset="`${img}&fm=avif 1x, ${img}&fm=avif&w=1200 2x`" type="image/avif" />
         <source :srcset="`${img}&fm=webp 1x, ${img}&fm=webp&w=1200 2x`" type="image/webp" />
-        <img class="product-img" :src="img" :alt="title" loading="lazy" decoding="async" fetchpriority="low" />
+        <img class="product-img" :src="img" :alt="title" loading="lazy" decoding="async" fetchpriority="low" @error="onImgError" />
       </picture>
       <div v-if="discountPercent" class="discount-badge">-{{ discountPercent }}%</div>
       <div v-if="badgeRank" class="rank-badge">#{{ badgeRank }}</div>
@@ -45,6 +45,12 @@ const { id = Math.random().toString(36).slice(2), img, title, price, original, a
 const cart = useCart()
 const wl = useWishlist()
 const router = useRouter()
+function onImgError(e: Event){
+  const t = e.target as HTMLImageElement
+  if (!t) return
+  t.onerror = null
+  t.src = '/images/placeholder-product.jpg'
+}
 function go(){
   const to = href || `/p?id=${encodeURIComponent(id)}`
   router.push(to)

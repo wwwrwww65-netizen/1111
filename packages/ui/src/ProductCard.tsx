@@ -41,7 +41,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     isWishlisted,
   } = product;
 
-  const mainImage = images[0] || '/placeholder-product.jpg';
+  const mainImage = images[0] || '/images/placeholder-product.jpg';
   const isOutOfStock = stock <= 0;
 
   const formatPrice = (value: number) =>
@@ -57,7 +57,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           className="absolute inset-0 w-full h-full object-cover"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
-            target.src = '/placeholder-product.jpg';
+            target.onerror = null;
+            target.src = '/images/placeholder-product.jpg';
           }}
         />
         {!!discountPct && (

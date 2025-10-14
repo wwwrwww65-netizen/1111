@@ -1,4 +1,11 @@
-export const API_BASE = (import.meta as any)?.env?.VITE_API_BASE || 'https://api.jeeey.com'
+const VITE_BASE = (import.meta as any)?.env?.VITE_API_BASE
+let LOCAL_BASE = 'https://api.jeeey.com'
+try {
+  const host = typeof window !== 'undefined' ? window.location.hostname : ''
+  const isLocal = host === 'localhost' || host === '127.0.0.1'
+  if (isLocal) LOCAL_BASE = 'http://localhost:4000'
+} catch {}
+export const API_BASE = VITE_BASE || LOCAL_BASE
 
 function getAuthHeader(): Record<string,string> {
   try {

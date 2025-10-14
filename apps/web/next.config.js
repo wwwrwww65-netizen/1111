@@ -17,6 +17,12 @@ const nextConfig = {
   trailingSlash: false,
   headers: async () => ([
     { source: '/:path*', headers: [{ key: 'Service-Worker-Allowed', value: '/' }] }
+  ]),
+  rewrites: async () => ([
+    {
+      source: '/uploads/:path*',
+      destination: `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/uploads/:path*`,
+    },
   ])
 };
 

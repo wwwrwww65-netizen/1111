@@ -28,6 +28,18 @@ export default function AdminProducts(): JSX.Element {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
   const ctlRef = React.useRef<AbortController|null>(null);
+  const normalizeImageSrc = React.useCallback((src?: string): string | undefined => {
+    if (!src) return undefined;
+    if (/^https?:\/\//i.test(src)) return src;
+    const s = src.startsWith('/') ? src : `/${src}`;
+    // If it's an uploads path, prefer app-local rewrite to backend
+    if (s.startsWith('/uploads/')) return s;
+    return s;
+  }, []);
+  function isAbortError(err: unknown): boolean {
+    const e = err as any;
+    return e?.name === 'AbortError' || e?.code === 20;
+  }
   async function load(){
     if (ctlRef.current) { try { ctlRef.current.abort(); } catch {} }
     const ctl = new AbortController(); ctlRef.current = ctl;
@@ -40,11 +52,19 @@ export default function AdminProducts(): JSX.Element {
     // request lean payload for faster first paint
     url.searchParams.set('suggest','1');
     if (nextCursor && page>1) { url.searchParams.set('afterId', nextCursor.id); url.searchParams.set('afterCreated', nextCursor.createdAt); }
-    const j = await (await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal })).json();
-    setRows(j.products||[]);
-    setTotal(j.pagination?.total?? null);
-    setHasMore(Boolean(j.pagination?.hasMore));
-    setNextCursor(j.pagination?.nextCursor||null);
+    try {
+      const res = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal });
+      const j = await res.json();
+      if (ctl.signal.aborted) return;
+      setRows(j.products||[]);
+      setTotal(j.pagination?.total?? null);
+      setHasMore(Boolean(j.pagination?.hasMore));
+      setNextCursor(j.pagination?.nextCursor||null);
+    } catch (err) {
+      if (isAbortError(err)) return; // ignore cancels
+      // Optional: surface a lightweight error indicator without crashing the page
+      // console.error('products load error', err);
+    }
   }
   React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
   React.useEffect(()=>{
@@ -132,7 +152,7 @@ export default function AdminProducts(): JSX.Element {
                 <tr key={p.id} style={{ height:72 }}>
                   <td><input type="checkbox" checked={!!selected[p.id]} onChange={()=> setSelected(s=> ({...s, [p.id]: !s[p.id]}))} /></td>
                   {/* <td>{p.id.slice(0,6)}</td> */}
-                  <td>{p.images?.[0] ? <img src={p.images[0]} alt={p.name} width={64} height={64} style={{ width:64, height:64, objectFit:'cover', borderRadius:6 }} /> : '-'}</td>
+                  <td>{p.images?.[0] ? <img src={normalizeImageSrc(p.images[0])} alt={p.name} width={64} height={64} style={{ width:64, height:64, objectFit:'cover', borderRadius:6 }} onError={(e)=>{ const t=e.currentTarget; t.onerror=null; t.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='; }} /> : '-'}</td>
                   <td><div className="line-2" style={{maxWidth:420}}>{p.name}</div></td>
                   <td>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
                   <td>{p.price}</td>
