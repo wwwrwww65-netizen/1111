@@ -791,8 +791,8 @@ adminRest.use(async (req: Request, res: Response, next) => {
   }
 });
 
-// Rate limit admin REST globally (disable in production to avoid proxy trust issues)
-if (process.env.NODE_ENV !== 'production') {
+// Rate limit admin REST globally (enable only in production)
+if (process.env.NODE_ENV === 'production') {
   adminRest.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
 }
 

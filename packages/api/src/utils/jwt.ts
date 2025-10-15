@@ -18,7 +18,8 @@ export const getJwtSecret = (): string => {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('JWT_SECRET is required in production');
     }
-    return 'secret_for_tests';
+    // Align with admin login signer fallback in admin-rest.ts
+    return 'jeeey_fallback_secret_change_me';
   }
   return secret;
 };

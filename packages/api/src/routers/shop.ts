@@ -5,6 +5,124 @@ import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express'
 
 const shop = Router();
+// Reverse geocoding proxy (Nominatim) to avoid browser CORS
+shop.get('/reverse-geocode', async (req: any, res) => {
+  try {
+    const lat = parseFloat(String(req.query.lat || ''));
+    const lng = parseFloat(String(req.query.lng || ''));
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return res.status(400).json({ error: 'invalid_coordinates' });
+    }
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=ar&addressdetails=1`;
+    const ua = process.env.NOMINATIM_UA || 'jeeey-local-dev/1.0 (+contact@jeeey.com)';
+    const r = await fetch(url, { headers: { 'User-Agent': ua, 'Accept': 'application/json' } });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: 'reverse_failed' });
+    }
+    const j = await r.json();
+    return res.json(j);
+  } catch (e: any) {
+    return res.status(500).json({ error: 'reverse_exception', message: e?.message || 'failed' });
+  }
+});
+
+// Geo helpers
+async function ensureCountry(code?: string | null, name?: string | null) {
+  const codeNorm = (code || '').trim().toUpperCase() || null;
+  const nameNorm = (name || '').trim();
+  let country: any = null;
+  try {
+    if (codeNorm) country = await db.country.findFirst({ where: { code: codeNorm } });
+    if (!country && nameNorm) country = await db.country.findFirst({ where: { name: nameNorm } });
+  } catch {}
+  if (!country) {
+    country = await db.country.create({ data: { code: codeNorm, name: nameNorm || (codeNorm || 'YE') } });
+  } else if (!country.code && codeNorm) {
+    try { country = await db.country.update({ where: { id: country.id }, data: { code: codeNorm } }); } catch {}
+  }
+  return country;
+}
+
+// List governorates (distinct city.region) for a country
+shop.get('/geo/governorates', async (req: any, res) => {
+  try {
+    const countryCode = String(req.query.country || 'YE').toUpperCase();
+    const country = await ensureCountry(countryCode, countryCode);
+    const cities = await db.city.findMany({ where: { countryId: country.id }, select: { region: true }, orderBy: { region: 'asc' } });
+    const uniq = Array.from(new Set((cities.map(c => (c.region || '').trim()).filter(Boolean))));
+    return res.json({ items: uniq.map(name => ({ name })) });
+  } catch (e: any) {
+    return res.status(500).json({ items: [], error: e?.message || 'failed' });
+  }
+});
+
+// List cities by governorate or whole country
+shop.get('/geo/cities', async (req: any, res) => {
+  try {
+    const countryCode = String(req.query.country || 'YE').toUpperCase();
+    const governorate = String(req.query.governorate || '').trim();
+    const country = await ensureCountry(countryCode, countryCode);
+    const where: any = { countryId: country.id };
+    if (governorate) where.region = governorate;
+    const list = await db.city.findMany({ where, orderBy: { name: 'asc' }, select: { id: true, name: true } });
+    return res.json({ items: list });
+  } catch (e: any) {
+    return res.status(500).json({ items: [], error: e?.message || 'failed' });
+  }
+});
+
+// List areas for a city
+shop.get('/geo/areas', async (req: any, res) => {
+  try {
+    const cityId = String(req.query.cityId || '').trim();
+    const cityName = String(req.query.city || '').trim();
+    const governorate = String(req.query.governorate || '').trim();
+    const countryCode = String(req.query.country || 'YE').toUpperCase();
+    let city: any = null;
+    if (cityId) {
+      city = await db.city.findUnique({ where: { id: cityId } });
+    } else if (cityName) {
+      const country = await ensureCountry(countryCode, countryCode);
+      const where: any = { countryId: country.id, name: cityName };
+      if (governorate) where.region = governorate;
+      city = await db.city.findFirst({ where });
+    }
+    if (!city) return res.json({ items: [] });
+    const areas = await db.area.findMany({ where: { cityId: city.id }, orderBy: { name: 'asc' }, select: { id: true, name: true } });
+    return res.json({ items: areas });
+  } catch (e: any) {
+    return res.status(500).json({ items: [], error: e?.message || 'failed' });
+  }
+});
+
+// Ensure (upsert) geo entries from reverse geocoding or user input
+shop.post('/geo/ensure', async (req: any, res) => {
+  try {
+    const countryCode = String(req.body?.countryCode || req.body?.country || 'YE').toUpperCase();
+    const countryName = String(req.body?.countryName || req.body?.country || 'اليمن');
+    const governorate = String(req.body?.governorate || '').trim();
+    const cityName = String(req.body?.city || '').trim();
+    const areaName = String(req.body?.area || '').trim();
+    const country = await ensureCountry(countryCode, countryName || countryCode);
+    let city = null as any;
+    if (cityName) {
+      city = await db.city.findFirst({ where: { countryId: country.id, name: cityName } });
+      if (!city) {
+        city = await db.city.create({ data: { countryId: country.id, name: cityName, region: governorate || null } });
+      } else if (governorate && !city.region) {
+        try { city = await db.city.update({ where: { id: city.id }, data: { region: governorate } }); } catch {}
+      }
+    }
+    let area = null as any;
+    if (city && areaName) {
+      area = await db.area.findFirst({ where: { cityId: city.id, name: areaName } });
+      if (!area) area = await db.area.create({ data: { cityId: city.id, name: areaName } });
+    }
+    return res.json({ ok: true, country: { id: country.id, code: country.code, name: country.name }, city: city ? { id: city.id, name: city.name, region: city.region } : null, area: area ? { id: area.id, name: area.name } : null });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e?.message || 'failed' });
+  }
+});
 // WhatsApp Webhook Verification (GET)
 shop.get('/webhooks/whatsapp', (req: any, res) => {
   try{

@@ -11,6 +11,10 @@ function computeApiBase(req: Request): string {
     try {
         const u = new URL(req.url)
         const host = u.host
+        // If running on localhost admin, prefer localhost API to avoid external redirects
+        if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) {
+            return 'http://localhost:4000'
+        }
         // On production default to public API hostname to avoid localhost dependency
         if (process.env.NODE_ENV === 'production') {
             return 'https://api.jeeey.com'

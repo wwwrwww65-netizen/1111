@@ -68,7 +68,7 @@ export const corsOptions = {
   optionsSuccessStatus: 204,
 };
 
-// Rate limiting configuration
+// Rate limiting configuration (enabled for production only)
 export const rateLimitConfig = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -126,8 +126,8 @@ export const applySecurityMiddleware = (app: Express) => {
     next();
   });
 
-  // Rate limiting (disable in production to avoid proxy validation issues)
-  if (process.env.NODE_ENV !== 'production') {
+  // Rate limiting (enable only in production)
+  if (process.env.NODE_ENV === 'production') {
     app.use(rateLimitConfig);
   }
 

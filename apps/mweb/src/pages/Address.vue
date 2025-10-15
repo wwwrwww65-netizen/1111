@@ -139,7 +139,7 @@
               <div class="mt-3">
                 <label>المحافظة<span class="text-red-600">*</span></label>
                 <div class="relative">
-                  <button class="w-full text-right border px-2 py-2 bg-white"
+                  <button class="w-full text-right border px-2 py-2 bg-white" ref="governorateBtnRef"
                           :class="inputClass(errors.governorate)" @click="openGovernorates()">
                     <span>{{ selectedGovernorate || 'اختر المحافظة' }}</span>
                   </button>
@@ -181,7 +181,7 @@
               <!-- الشارع -->
               <div class="mt-3">
                 <label>الشارع<span class="text-red-600">*</span></label>
-                <input v-model="form.street" @blur="validateField('street')" type="text"
+                <input v-model="form.street" @blur="validateField('street')" type="text" ref="streetInputRef"
                        class="w-full border px-2 py-2" :class="inputClass(errors.street)" placeholder="اسم الشارع"/>
                 <p v-if="errors.street" class="mt-1 text-xs text-red-600">{{ errors.street }}</p>
               </div>
@@ -314,7 +314,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { apiGet, apiPost } from '@/lib/api'
 
@@ -333,7 +333,9 @@ let gmarker: any = null
 let ggeocoder: any = null
 let lmap: any = null
 let lmarker: any = null
-const disableGoogleMaps = true
+const governorateBtnRef = ref<HTMLElement | null>(null)
+const streetInputRef = ref<HTMLInputElement | null>(null)
+const disableGoogleMaps = false
 const gmapsKey = ref<string>('')
 const gmapsLoading = ref<boolean>(false)
 const gmapsError = ref<string>('')
@@ -441,6 +443,15 @@ function editAddress(idx: number){
 function confirmMapLocation(){
   if (!mapSelection.value) return
   openMap.value = false
+  nextTick(()=>{
+    try{
+      if (!selectedGovernorate.value){
+        governorateBtnRef.value?.focus()
+      } else {
+        streetInputRef.value?.focus()
+      }
+    }catch{}
+  })
 }
 
 function selectGovernorate(gov: string){
@@ -529,7 +540,7 @@ function prefillFromMap(){
   }catch{}
 }
 
-onMounted(()=>{ loadGovernorates(); loadAddresses(); prefillFromMap(); fetchMapsKey() })
+onMounted(()=>{ loadGovernorates(); loadAddresses(); prefillFromMap(); fetchMapsKey(); loadLeaflet().catch(()=>{}) })
 
 async function fetchMapsKey(){
   try {
@@ -602,7 +613,7 @@ async function initMap(){
   }
   if (!disableGoogleMaps && (window as any).google?.maps){
     try{
-      gmap = new (window as any).google.maps.Map(el, { center, zoom: 13, disableDefaultUI: false })
+      gmap = new (window as any).google.maps.Map(el, { center, zoom: 17, disableDefaultUI: false })
       gmap.addListener('click', (e: any)=>{ if (e.latLng){ setMapSelection({ lat: e.latLng.lat(), lng: e.latLng.lng() }) } })
       setMapSelection(center)
       return
@@ -636,10 +647,13 @@ async function initLeafletMap(el: HTMLElement, center: {lat:number; lng:number})
   try{ await loadLeaflet() }catch{}
   const L = (window as any).L
   if (!L) return
-  lmap = L.map(el).setView([center.lat, center.lng], 13)
+  lmap = L.map(el, { preferCanvas: true, zoomControl: true }).setView([center.lat, center.lng], 17)
+  // High-precision OSM tiles and attribution
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
   }).addTo(lmap)
+  // Add geolocation control for finer accuracy if available
+  try { (navigator as any).permissions?.query?.({ name: 'geolocation' as any }).then(()=>{}).catch(()=>{}) } catch {}
   lmap.on('click', (e: any)=>{
     if (e?.latlng){ setMapSelection({ lat: e.latlng.lat, lng: e.latlng.lng }) }
   })
@@ -654,6 +668,28 @@ function setMapSelection(pos: { lat:number; lng:number }){
     } else { gmarker.setPosition(pos) }
     reverseGeocode(pos)
   }catch{}
+  try{
+    const L = (window as any).L
+    if (lmap && L){
+      if (!lmarker){
+        const pin = L.divIcon({ className:'leaflet-div-icon', html:`<div style="width:24px;height:24px;border-radius:50%;background:#8a1538;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25)"></div>`, iconSize:[24,24], iconAnchor:[12,24] })
+        lmarker = L.marker([pos.lat, pos.lng], { draggable: true, icon: pin }).addTo(lmap)
+        lmarker.on('dragend', (e: any)=>{
+          const p = e.target.getLatLng()
+          setMapSelection({ lat: p.lat, lng: p.lng })
+        })
+      } else {
+        lmarker.setLatLng([pos.lat, pos.lng])
+      }
+      // Keep map centered when selection updates
+      try { lmap.panTo([pos.lat, pos.lng]) } catch {}
+      reverseGeocode(pos)
+    }
+  }catch{}
+  // Ensure form has coordinates saved even if reverse geocoding fails
+  try {
+    form.value.landmarks = form.value.landmarks || `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`
+  } catch {}
 }
 
 function ensureGeocoder(){ try{ if (!ggeocoder) ggeocoder = new (window as any).google.maps.Geocoder() }catch{} }
@@ -671,19 +707,38 @@ function reverseGeocode(pos: {lat:number; lng:number}){
           const byType = (t:string)=> comps.find((c:any)=> (c.types||[]).includes(t))
           const countryC = byType('country')
           const stateC = byType('administrative_area_level_1') || byType('administrative_area_level_2')
-          const cityC = byType('locality') || byType('sublocality') || byType('administrative_area_level_2')
+          const cityC = byType('locality') || byType('administrative_area_level_2') || byType('sublocality')
+          const areaC = byType('sublocality') || byType('neighborhood') || byType('sublocality_level_1') || byType('administrative_area_level_3')
           const routeC = byType('route')
           if (countryC?.long_name) form.value.country = countryC.long_name
           if (stateC?.long_name) selectedGovernorate.value = stateC.long_name
           if (cityC?.long_name){ selectedCityName.value = cityC.long_name; selectedCityId.value = null }
           if (routeC?.long_name) form.value.street = routeC.long_name
           if (addr.formatted_address && !form.value.landmarks) form.value.landmarks = addr.formatted_address
+          const areaName = areaC?.long_name || ''
+          // Resolve area against known list
           if (selectedGovernorate.value) {
             loadAreas().then(()=>{
-              const match = areas.value.find(a => a.name === (selectedCityName.value||''))
-              if (match) selectedArea.value = match.name
+              const norm = (s:string)=> String(s||'').toLowerCase().replace(/\s+/g,'')
+              const candidates = [areaName, selectedCityName.value].filter(Boolean) as string[]
+              for (const cand of candidates){
+                const found = areas.value.find(x => norm(x.name)===norm(cand) || norm(x.name).includes(norm(cand)))
+                if (found){ selectedArea.value = found.name; break }
+              }
+              if (!selectedArea.value && areaName) selectedArea.value = areaName
             })
+          } else {
+            if (areaName) selectedArea.value = areaName
           }
+          // Ensure backend has geo entries
+          try {
+            fetch('/api/geo/ensure', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type':'application/json' },
+              body: JSON.stringify({ countryCode: 'YE', countryName: form.value.country, governorate: selectedGovernorate.value, city: selectedCityName.value, area: selectedArea.value || areaName })
+            })
+          } catch {}
         }
       })
       return
@@ -694,25 +749,46 @@ function reverseGeocode(pos: {lat:number; lng:number}){
 
 async function reverseGeocodeOSM(pos: {lat:number; lng:number}){
   try{
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(pos.lat)}&lon=${encodeURIComponent(pos.lng)}&accept-language=ar&addressdetails=1`
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+    // Use backend proxy to avoid CORS
+    const url = `/api/reverse-geocode?lat=${encodeURIComponent(pos.lat)}&lng=${encodeURIComponent(pos.lng)}`
+    const res = await fetch(url, { credentials:'include', headers: { 'Accept': 'application/json' } })
     if (!res.ok) return
     const data = await res.json()
     const a = data?.address || {}
     if (a.country) form.value.country = a.country
-    const state = a.state || a.region || a.county || a.province
-    if (state) selectedGovernorate.value = state
-    const city = a.city || a.town || a.village || a.suburb || a.neighbourhood
+    // Governorate (state-level)
+    const gov = a.state || a.state_district || a.region || a.province || a.county
+    if (gov) selectedGovernorate.value = gov
+    // City/district
+    const city = a.city || a.town || a.municipality || a.district || a.village || a.hamlet
     if (city){ selectedCityName.value = city; selectedCityId.value = null }
-    const road = a.road || a.pedestrian || a.path
+    // Area (sub-level)
+    const areaName = a.suburb || a.neighbourhood || a.quarter || a.village || a.hamlet || a.locality
+    // Street
+    const road = a.road || a.residential || a.pedestrian || a.path
     if (road) form.value.street = road
     const disp = data?.display_name
     if (disp && !form.value.landmarks) form.value.landmarks = disp
     if (selectedGovernorate.value) {
       await loadAreas()
-      const match = areas.value.find(x => x.name === (selectedCityName.value||''))
-      if (match) selectedArea.value = match.name
+      const norm = (s:string)=> String(s||'').toLowerCase().replace(/\s+/g,'')
+      const candidates = [areaName, selectedCityName.value].filter(Boolean) as string[]
+      for (const cand of candidates){
+        const found = areas.value.find(x => norm(x.name)===norm(cand) || norm(x.name).includes(norm(cand)))
+        if (found){ selectedArea.value = found.name; break }
+      }
+      // If no match, just keep areaName as text for user context
+      if (!selectedArea.value && areaName) selectedArea.value = areaName
     }
+  // Ensure backend has these geo entries for future lists
+  try {
+    await fetch('/api/geo/ensure', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type':'application/json' },
+      body: JSON.stringify({ countryCode: 'YE', countryName: form.value.country, governorate: selectedGovernorate.value, city: selectedCityName.value, area: selectedArea.value })
+    })
+  } catch {}
   }catch{}
 }
 
@@ -722,11 +798,23 @@ function locateMe(){
     navigator.geolocation.getCurrentPosition((res)=>{
       const pos = { lat: res.coords.latitude, lng: res.coords.longitude }
       try{
-        if (gmap){ gmap.setCenter(pos); gmap.setZoom(15) }
-        if (lmap){ lmap.setView([pos.lat, pos.lng], 15) }
+        if (gmap){ gmap.setCenter(pos); gmap.setZoom(18) }
+        if (lmap){ lmap.setView([pos.lat, pos.lng], 18) }
       }catch{}
       setMapSelection(pos)
-    })
+    }, (_err)=>{
+      // fallback accuracy: keep existing center
+      try{
+        if (lmap){ const c = lmap.getCenter(); setMapSelection({ lat:c.lat, lng:c.lng }) }
+      }catch{}
+    }, { enableHighAccuracy:true, timeout:8000, maximumAge:1000 })
+  }catch{}
+}
+
+function pinCenter(){
+  try{
+    if (gmap){ const c = gmap.getCenter(); setMapSelection({ lat: c.lat(), lng: c.lng() }) }
+    else if (lmap){ const c = lmap.getCenter(); setMapSelection({ lat: c.lat, lng: c.lng }) }
   }catch{}
 }
 </script>
