@@ -101,6 +101,12 @@ export default function CategoriesPage(): JSX.Element {
   const [allChecked, setAllChecked] = React.useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = React.useState<string | null>(null);
   const confirmTimerRef = React.useRef<any>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editLoading, setEditLoading] = React.useState(false);
+  const [editSaving, setEditSaving] = React.useState(false);
+  const [edit, setEdit] = React.useState<any | null>(null);
+  const [mediaOpen, setMediaOpen] = React.useState(false);
+  const [mediaFor, setMediaFor] = React.useState<'add'|'edit'|null>(null);
   async function existsOnServer(id:string): Promise<boolean> {
     try {
       const res = await fetch(`/api/admin/categories?search=${encodeURIComponent(id)}`, { credentials:'include', cache:'no-store' });
@@ -125,6 +131,76 @@ export default function CategoriesPage(): JSX.Element {
     await Promise.all([loadList(), loadTree()]);
     if (deletedCount < 1 || stillExists) { showToast('فشل الحذف'); return; }
     showToast('تم الحذف');
+  }
+  async function openEdit(cat: any){
+    try{
+      setEditOpen(true);
+      // Prefill from current row immediately (fallback if fetch fails)
+      setEdit({
+        id: cat.id,
+        name: cat.name || '',
+        description: cat.description || '',
+        image: cat.image || '',
+        parentId: cat.parentId || '',
+        slug: cat.slug || '',
+        seoTitle: cat.seoTitle || '',
+        seoDescription: cat.seoDescription || '',
+        seoKeywords: Array.isArray(cat.seoKeywords) ? cat.seoKeywords.join(',') : '',
+        translations: cat.translations ? JSON.stringify(cat.translations, null, 2) : '{\n  "ar": { "name": "", "description": "" },\n  "en": { "name": "", "description": "" }\n}'
+      });
+      setEditLoading(true);
+      const r = await fetch(`/api/admin/categories/${cat.id}`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      if (!r.ok) { showToast('تعذر جلب البيانات'); return; }
+      const j = await r.json();
+      const c = j?.category || {};
+      setEdit({
+        id: c.id,
+        name: c.name || '',
+        description: c.description || '',
+        image: c.image || '',
+        parentId: c.parentId || '',
+        slug: c.slug || '',
+        seoTitle: c.seoTitle || '',
+        seoDescription: c.seoDescription || '',
+        seoKeywords: Array.isArray(c.seoKeywords) ? c.seoKeywords.join(',') : '',
+        translations: c.translations ? JSON.stringify(c.translations, null, 2) : '{\n  "ar": { "name": "", "description": "" },\n  "en": { "name": "", "description": "" }\n}'
+      });
+    } catch { showToast('تعذر جلب البيانات'); }
+    finally { setEditLoading(false); }
+  }
+  async function saveEdit(){
+    if (!edit || !edit.id) return;
+    setEditSaving(true);
+    try {
+      let finalImage = edit.image || '';
+      if (finalImage && finalImage.startsWith('data:')) {
+        try {
+          const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
+          if (up.ok) { const j = await up.json(); finalImage = j.url || j.presign?.url || finalImage; }
+        } catch {}
+      }
+      let translations: any = undefined;
+      try { const parsed = JSON.parse(String(edit.translations||'{}')); if (parsed && typeof parsed==='object') translations = parsed; } catch {}
+      const payload: any = {
+        name: edit.name,
+        description: edit.description,
+        image: finalImage,
+        parentId: edit.parentId || null,
+        slug: edit.slug,
+        seoTitle: edit.seoTitle,
+        seoDescription: edit.seoDescription,
+        seoKeywords: String(edit.seoKeywords||'').split(',').map((s:string)=>s.trim()).filter(Boolean),
+        translations
+      };
+      const r = await fetch(`/api/admin/categories/${edit.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+      if (!r.ok) {
+        if (r.status === 409) { showToast('Slug مستخدم بالفعل'); return; }
+        try { const j = await r.json(); showToast(j?.error||'فشل الحفظ'); } catch { showToast('فشل الحفظ'); }
+        return;
+      }
+      await Promise.all([loadList(), loadTree()]);
+      showToast('تم الحفظ'); setEditOpen(false); setEdit(null);
+    } finally { setEditSaving(false); }
   }
   const [confirmingBulk, setConfirmingBulk] = React.useState(false);
   async function removeSelected(){
@@ -192,6 +268,7 @@ export default function CategoriesPage(): JSX.Element {
               <tr>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.currentTarget.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(c=> [c.id, v]))); }} /></th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>ID</th>
+                <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>الصورة</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>الاسم</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>Slug</th>
                 <th style={{ textAlign:'right', padding:12, borderBottom:'1px solid #1c2333', background:'#0f1320' }}>أب</th>
@@ -203,6 +280,9 @@ export default function CategoriesPage(): JSX.Element {
                 <tr key={c.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}><input type="checkbox" checked={!!selected[c.id]} onChange={()=> setSelected(s=> ({...s, [c.id]: !s[c.id]}))} /></td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{c.id.slice(0,6)}</td>
+                  <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
+                    {c.image ? (<img src={c.image} alt="cat" style={{ width:42, height:42, objectFit:'cover', borderRadius:8, border:'1px solid #1c2333' }} />) : (<span style={{ color:'#94a3b8' }}>—</span>)}
+                  </td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
                     <input defaultValue={c.name} onBlur={(e)=> update({ ...c, name: (e.target as HTMLInputElement).value })} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
                   </td>
@@ -216,7 +296,10 @@ export default function CategoriesPage(): JSX.Element {
                     </select>
                   </td>
                   <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
-                    <button onClick={()=> remove(c.id)} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={()=> openEdit(c)} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>تعديل</button>
+                      <button onClick={()=> remove(c.id)} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -275,7 +358,10 @@ export default function CategoriesPage(): JSX.Element {
                 </div>
               )}
             </div>
-            <label>صورة (URL)<input value={image} onChange={(e)=>setImage(e.target.value)} placeholder="https://...jpg" style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} /></label>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <button onClick={()=>{ setMediaFor('add'); setMediaOpen(true); }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختر من الوسائط</button>
+              {image && (<span style={{ color:'#94a3b8', fontSize:12 }}>تم اختيار صورة</span>)}
+            </div>
             <div onDragOver={(e)=>{ e.preventDefault(); }} onDrop={async (e)=>{
               e.preventDefault();
               const f = e.dataTransfer?.files?.[0]; if (!f) return;
@@ -332,6 +418,129 @@ export default function CategoriesPage(): JSX.Element {
           </div>
         </div>
       </section>
+      <EditModal open={editOpen} loading={editLoading} saving={editSaving} edit={edit} setEdit={setEdit} onClose={()=>{ setEditOpen(false); }} onSave={saveEdit} rows={rows} />
+      <MediaPicker open={mediaOpen} onClose={()=>{ setMediaOpen(false); setMediaFor(null); }} onSelect={(url)=>{
+        if (mediaFor==='edit') setEdit((c:any)=> ({...c, image: url }));
+        if (mediaFor==='add') setImage(url);
+      }} />
     </main>
+  );
+}
+
+// Modal styles are inline to match existing style usage on this page
+function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows }:{ open:boolean; loading:boolean; saving:boolean; edit:any; setEdit:(u:any)=>void; onClose:()=>void; onSave:()=>void; rows:any[] }): JSX.Element|null {
+  if (!open) return null;
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}>
+      <div style={{ width:'min(900px, 92vw)', maxHeight:'85vh', overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <h2 style={{ margin:0, fontSize:18 }}>تعديل التصنيف</h2>
+          <button onClick={onClose} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>إغلاق</button>
+        </div>
+        {loading ? (
+          <div className="panel">جارٍ التحميل…</div>
+        ) : (
+          <div style={{ display:'grid', gap:10 }}>
+            <label>الاسم
+              <input value={edit?.name||''} onChange={(e)=> setEdit((c:any)=> ({...c, name: (e.target as HTMLInputElement).value}))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>الوصف
+              <textarea value={edit?.description||''} onChange={(e)=> setEdit((c:any)=> ({...c, description: (e.target as HTMLTextAreaElement).value}))} rows={3} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <label>Slug
+                <input value={edit?.slug||''} onChange={(e)=> setEdit((c:any)=> ({...c, slug: (e.target as HTMLInputElement).value}))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              </label>
+              <label>التصنيف الأب
+                <select value={edit?.parentId||''} onChange={(e)=> setEdit((c:any)=> ({...c, parentId: (e.target as HTMLSelectElement).value}))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }}>
+                  <option value="">(لا يوجد)</option>
+                  {rows.filter((r:any)=> r.id !== edit?.id).map((r:any)=> (<option key={r.id} value={r.id}>{r.name}</option>))}
+                </select>
+              </label>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <label>SEO Title
+                <input value={edit?.seoTitle||''} onChange={(e)=> setEdit((c:any)=> ({...c, seoTitle: (e.target as HTMLInputElement).value}))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              </label>
+              <label>SEO Description
+                <input value={edit?.seoDescription||''} onChange={(e)=> setEdit((c:any)=> ({...c, seoDescription: (e.target as HTMLInputElement).value}))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              </label>
+            </div>
+            <label>SEO Keywords (comma)
+              <input value={edit?.seoKeywords||''} onChange={(e)=> setEdit((c:any)=> ({...c, seoKeywords: (e.target as HTMLInputElement).value}))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>صورة (URL)
+              <input value={edit?.image||''} onChange={(e)=> setEdit((c:any)=> ({...c, image: (e.target as HTMLInputElement).value}))} placeholder="https://...jpg" style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <button onClick={()=>{ setMediaFor('edit'); setMediaOpen(true); }} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختر من الوسائط</button>
+              {edit?.image && (<span style={{ color:'#94a3b8', fontSize:12 }}>تم اختيار صورة</span>)}
+            </div>
+            <div onDragOver={(e)=>{ e.preventDefault(); }} onDrop={async (e)=>{
+              e.preventDefault();
+              const f = e.dataTransfer?.files?.[0]; if (!f) return;
+              try {
+                const reader = new FileReader();
+                reader.onload = ()=> { const data = String(reader.result||''); setEdit((c:any)=> ({...c, image: data })); };
+                reader.readAsDataURL(f);
+              } catch {}
+            }} style={{ border:'1px dashed #334155', borderRadius:10, padding:14, textAlign:'center', color:'#94a3b8' }}>
+              اسحب وأسقط صورة هنا لرفعها
+              {edit?.image && (<div style={{ marginTop:10 }}><img src={edit.image} alt="preview" style={{ maxWidth:'100%', borderRadius:8, border:'1px solid #1c2333' }} /></div>)}
+            </div>
+            {/* translations UI removed as requested */}
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
+              <button onClick={onClose} style={{ padding:'10px 14px', background:'#111827', color:'#e5e7eb', borderRadius:10 }}>إلغاء</button>
+              <button onClick={onSave} disabled={saving} style={{ padding:'10px 14px', background: saving? '#6b7280':'#800020', color:'#fff', borderRadius:10 }}>{saving? 'جارٍ الحفظ…' : 'حفظ'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MediaPicker({ open, onClose, onSelect }:{ open:boolean; onClose:()=>void; onSelect:(url:string)=>void }): JSX.Element|null {
+  const apiBase = resolveApiBase();
+  const [rows, setRows] = React.useState<any[]>([]);
+  const [search, setSearch] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
+  const limit = 24;
+  React.useEffect(()=>{ if(!open) return; (async()=>{
+    try{
+      const r = await fetch(`${apiBase}/api/admin/media/list?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, { credentials:'include' });
+      const j = await r.json(); setRows(j.assets||[]); setTotal(j.total||0);
+    }catch{}
+  })(); },[open, page, search, apiBase]);
+  if (!open) return null;
+  const pages = Math.max(1, Math.ceil(total/limit));
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:60 }}>
+      <div style={{ width:'min(1000px, 94vw)', maxHeight:'85vh', overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <h3 style={{ margin:0 }}>الوسائط</h3>
+          <button onClick={onClose} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>إغلاق</button>
+        </div>
+        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+          <input value={search} onChange={(e)=> setSearch((e.target as HTMLInputElement).value)} placeholder="بحث" style={{ flex:1, padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(6, minmax(120px, 1fr))', gap:10 }}>
+          {rows.map((a:any)=> (
+            <button key={a.id} onClick={()=>{ onSelect(a.url); onClose(); }} style={{ background:'#0f1320', border:'1px solid #1c2333', borderRadius:8, padding:6 }}>
+              <img src={a.url} alt={a.alt||''} style={{ width:'100%', borderRadius:6 }} />
+            </button>
+          ))}
+        </div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
+          <div style={{ color:'#94a3b8', fontSize:12 }}>{total} عنصر</div>
+          <div style={{ display:'flex', gap:6 }}>
+            <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1, p-1))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>السابق</button>
+            <span style={{ color:'#94a3b8' }}>{page} / {pages}</span>
+            <button disabled={page>=pages} onClick={()=> setPage(p=> Math.min(pages, p+1))} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>التالي</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

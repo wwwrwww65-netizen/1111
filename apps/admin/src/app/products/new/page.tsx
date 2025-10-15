@@ -52,25 +52,54 @@ export default function AdminProductCreate(): JSX.Element {
     (async ()=>{
       try {
         setLoadingExisting(true);
-        const r = await fetch(`${apiBase}/api/products/getById`, { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ id }) });
-        const j = await r.json();
-        if (j && j.id) {
-          // Map API to local form state: paste/review fields
+        // Use admin REST (proxied) to fetch full product for edit
+        const r = await fetch(`/api/admin/products/${id}`, { credentials:'include' });
+        const j = await r.json().catch(()=>({}));
+        const p = j?.product || j;
+        if (p && p.id) {
+          // Prefill primary fields for editing
+          setName(String(p.name||''));
+          setDescription(String(p.description||''));
+          setCategoryId(String(p.categoryId||''));
+          setVendorId(String(p.vendorId||''));
+          setSku(String(p.sku||''));
+          if (typeof p.price === 'number') setSalePrice(p.price);
+          if (typeof p.stockQuantity === 'number') setStockQuantity(p.stockQuantity);
+          setBrand(String(p.brand||''));
+          setImages(Array.isArray(p.images) ? p.images.join(', ') : '');
+          setSeoTitle(String(p.seoTitle||''));
+          setSeoDescription(String(p.seoDescription||''));
+          setDraft(!Boolean(p.isActive));
+          if (Array.isArray(p.variants) && p.variants.length) {
+            setType('variable');
+            try {
+              const rows = (p.variants||[]).map((v:any)=> ({
+                name: (v.color && v.size) ? 'لون/مقاس' : (v.color ? 'لون' : (v.size ? 'مقاس' : 'متغير')),
+                value: [v.color, v.size].filter(Boolean).join(' / '),
+                price: typeof v.price==='number' ? v.price : undefined,
+                purchasePrice: typeof v.purchasePrice==='number' ? v.purchasePrice : undefined,
+                stockQuantity: typeof v.stock==='number' ? v.stock : (typeof v.stockQuantity==='number' ? v.stockQuantity : 0),
+                sku: v.sku || undefined,
+              }));
+              setVariantRows(rows);
+              const colorNames = Array.from(new Set((p.variants||[]).map((x:any)=> x.color).filter(Boolean)));
+              if (colorNames.length) setSelectedColors(colorNames as string[]);
+            } catch {}
+          }
+          // Keep review in sync for any dependent UI
           setReview({
-            name: j.name,
-            description: j.description,
-            price: j.price,
-            images: Array.isArray(j.images)? j.images : [],
-            categoryId: j.categoryId,
-            vendorId: j.vendorId || '',
-            stockQuantity: j.stockQuantity,
-            sku: j.sku || '',
-            weight: j.weight || undefined,
-            dimensions: j.dimensions || '',
-            brand: j.brand || '',
-            tags: Array.isArray(j.tags)? j.tags : [],
-            variants: Array.isArray(j.variants)? j.variants : [],
-            isActive: !!j.isActive,
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            images: Array.isArray(p.images)? p.images : [],
+            categoryId: p.categoryId,
+            vendorId: p.vendorId || '',
+            stockQuantity: p.stockQuantity,
+            sku: p.sku || '',
+            brand: p.brand || '',
+            tags: Array.isArray(p.tags)? p.tags : [],
+            variants: Array.isArray(p.variants)? p.variants : [],
+            isActive: !!p.isActive,
           });
         }
       } finally { setLoadingExisting(false); }
@@ -95,6 +124,15 @@ export default function AdminProductCreate(): JSX.Element {
     }
   }
 
+  function escapeHtml(text: string): string {
+    return String(text||'').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch] as string));
+  }
+  function detailsToHtmlTable(rows: Array<{ label: string; value: string }>|undefined|null): string {
+    if (!Array.isArray(rows) || rows.length===0) return '';
+    const body = rows.map(r=> `<tr><td>${escapeHtml(r.label)}</td><td>${escapeHtml(r.value)}</td></tr>`).join('');
+    return `<table><thead><tr><th>البند</th><th>القيمة</th></tr></thead><tbody>${body}</tbody></table>`;
+  }
+
   React.useEffect(()=>{
     try{
       const k = keyForText(paste);
@@ -103,6 +141,14 @@ export default function AdminProductCreate(): JSX.Element {
       else { setDsHint(null); setDsHintKey(k); }
     } catch { setDsHint(null); }
   }, [paste]);
+  React.useEffect(()=>{
+    try{
+      const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
+      if (Array.isArray(rows) && rows.length>0) {
+        setDescription(detailsToHtmlTable(rows));
+      }
+    } catch {}
+  }, [review?.strictDetails]);
   
   function Section({ title, subtitle, toolbar, children }:{ title:string; subtitle?:string; toolbar?:React.ReactNode; children:React.ReactNode }){
     return (
@@ -1079,6 +1125,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [salePrice, setSalePrice] = React.useState<number | ''>('');
   const [stockQuantity, setStockQuantity] = React.useState<number | ''>('');
   const [images, setImages] = React.useState<string>('');
+  const [showImagesInput, setShowImagesInput] = React.useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
   const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
@@ -1414,6 +1461,12 @@ export default function AdminProductCreate(): JSX.Element {
               }
               setVariantRows(rows);
             }} disabled={busy || !review} className="btn">توليد</button>
+            <button type="button" onClick={()=>{
+              const rows = (review as any)?.strictDetails as Array<{label:string;value:string}> | undefined;
+              const html = detailsToHtmlTable(rows);
+              setDescription(html || (review?.longDesc || ''));
+              showToast('تم توليد جدول التفاصيل داخل الوصف','ok');
+            }} disabled={busy || !review} className="btn btn-outline">توليد جدول التفاصيل للوصف</button>
         </>}
       >
         <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
@@ -1818,38 +1871,39 @@ export default function AdminProductCreate(): JSX.Element {
           )}
         </div>
 
-        {/* Right column: summary + media */}
+        {/* Right column: media only; move preview/SEO to bottom */}
         <div style={{ gridColumn: 'span 4', display:'grid', gap:12, alignSelf:'start' }}>
-          <div className="panel" style={{ position:'sticky', top:16, padding:12 }}>
-            <div style={{ display:'grid', gap:8 }}>
-              <div style={{ display:'flex', justifyContent:'space-between' }}>
-                <div style={{ color:'var(--sub)' }}>المعاينة</div>
-                <span className="badge">{type==='variable' ? 'متعدد' : 'بسيط'}</span>
+          <div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div>صور المنتج</div>
+              <button type="button" className="btn btn-outline" onClick={()=> setShowImagesInput(s=>!s)}>{showImagesInput? 'إخفاء الروابط' : 'إضافة/تحرير الروابط'}</button>
               </div>
-              <div style={{ fontWeight:700 }}>{name || '— بدون اسم —'}</div>
-              <div style={{ color:'var(--sub)', fontSize:12 }}>{categoryOptions.find(c=>c.id===categoryId)?.name || 'بدون تصنيف'}</div>
-              <div className="panel" style={{ padding:10 }}>
-                <div style={{ marginBottom:6, color:'#9ca3af' }}>SEO</div>
-                <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
-                  <input className="input" placeholder="SEO Title" value={seoTitle} onChange={(e)=> setSeoTitle(e.target.value)} />
-                  <input className="input" placeholder="SEO Description" value={seoDescription} onChange={(e)=> setSeoDescription(e.target.value)} />
+            {(() => {
+              const list = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+              if (!list.length) return <div style={{ color:'var(--sub)', marginTop:6 }}>لا توجد صور حالية</div>;
+              return (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginTop:8 }}>
+                  {list.map((u, idx) => (
+                    <div key={idx} className="panel" style={{ padding:0 }}>
+                      <img src={u} alt={String(idx)} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                      <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <a href={u} target="_blank" rel="noreferrer" className="btn btn-outline">فتح</a>
+                        <button type="button" className="icon-btn" onClick={()=>{
+                          const next = list.filter((_,i)=> i!==idx);
+                          setImages(next.join(', '));
+                        }}>إزالة</button>
                 </div>
               </div>
-              <div style={{ display:'flex', gap:12, marginTop:6 }}>
-                <div><div style={{ color:'var(--sub)', fontSize:12 }}>سعر البيع</div><div>{salePrice || '—'}</div></div>
-                <div><div style={{ color:'var(--sub)', fontSize:12 }}>المخزون</div><div>{stockQuantity || 0}</div></div>
-                <div><div style={{ color:'var(--sub)', fontSize:12 }}>الصور</div><div>{(images||'').split(',').filter(Boolean).length + files.length}</div></div>
+                  ))}
               </div>
-              <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
-              <div style={{ display:'flex', gap:8, marginTop:8 }}>
-                <button type="submit" className="btn" disabled={!name || !categoryId || salePrice==='' || salePrice===undefined}>حفظ المنتج</button>
-                <a href="/products" className="btn btn-outline">رجوع</a>
-              </div>
-            </div>
-          </div>
-          <label>الصور (روابط مفصولة بفواصل)
+              );
+            })()}
+            {showImagesInput && (
+              <label style={{ display:'block', marginTop:8 }}>الصور (روابط مفصولة بفواصل)
             <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
           </label>
+            )}
+          </div>
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -1897,8 +1951,31 @@ export default function AdminProductCreate(): JSX.Element {
           {/* removed duplicate side variants panel */}
         </div>
 
-        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        {/* Moved preview + SEO + draft to bottom for unobstructed view */}
+        <div className="panel" style={{ gridColumn:'1 / -1', marginTop: 8, padding:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ color:'var(--sub)' }}>المعاينة</div>
+            <span className="badge">{type==='variable' ? 'متعدد' : 'بسيط'}</span>
+          </div>
+          <div style={{ fontWeight:700, marginTop:6 }}>{name || '— بدون اسم —'}</div>
+          <div style={{ color:'var(--sub)', fontSize:12 }}>{categoryOptions.find(c=>c.id===categoryId)?.name || 'بدون تصنيف'}</div>
+          <div className="panel" style={{ padding:10, marginTop:8 }}>
+            <div style={{ marginBottom:6, color:'#9ca3af' }}>SEO</div>
+            <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
+              <input className="input" placeholder="SEO Title" value={seoTitle} onChange={(e)=> setSeoTitle(e.target.value)} />
+              <input className="input" placeholder="SEO Description" value={seoDescription} onChange={(e)=> setSeoDescription(e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:12, marginTop:6 }}>
+            <div><div style={{ color:'var(--sub)', fontSize:12 }}>سعر البيع</div><div>{salePrice || '—'}</div></div>
+            <div><div style={{ color:'var(--sub)', fontSize:12 }}>المخزون</div><div>{stockQuantity || 0}</div></div>
+            <div><div style={{ color:'var(--sub)', fontSize:12 }}>الصور</div><div>{(images||'').split(',').filter(Boolean).length + files.length}</div></div>
+          </div>
+          <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
+          <div style={{ display:'flex', gap:8, marginTop:8, justifyContent:'flex-end' }}>
           <button type="submit" className="btn">حفظ المنتج</button>
+            <a href="/products" className="btn btn-outline">رجوع</a>
+          </div>
         </div>
       </form>
       {toast && (<div className={`toast ${toast.type==='ok'?'ok':'err'}`}>{toast.text}</div>)}

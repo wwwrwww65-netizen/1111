@@ -91,8 +91,8 @@ function SizesTab(): JSX.Element {
   async function load(){ const res = await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }); const j = await res.json(); setRows(j.types||[]); }
   React.useEffect(()=>{ load(); },[apiBase]);
   async function add(){ const r = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name }) }); if(!r.ok){ showToast('فشل الإضافة','err'); return; } setName(""); await load(); showToast('تمت الإضافة','ok'); }
-  async function update(id: string, partial: any){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(partial) }); if(!r.ok){ showToast('فشل الحفظ','err'); return;} await load(); showToast('تم الحفظ','ok'); }
-  async function remove(id: string){ const r = await fetch(`${apiBase}/api/admin/attributes/sizes/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok){ showToast('لا يمكن الحذف لأنه مستخدم','err'); return;} await load(); showToast('تم الحذف','ok'); }
+  async function renameType(id: string, newName: string){ const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${id}`, { method:'PATCH', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ name: newName }) }); if(!r.ok){ showToast('فشل الحفظ','err'); return;} await load(); showToast('تم الحفظ','ok'); }
+  async function removeType(id: string){ if(!confirm('تأكيد حذف نوع المقاسات؟ سيتم حذف المقاسات التابعة إن لم تكن مستخدمة.')) return; const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${id}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }); if(!r.ok){ showToast('لا يمكن الحذف لأنه مستخدم','err'); return;} await load(); showToast('تم الحذف','ok'); }
   return (
     <section style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
       <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:12, marginBottom:12 }}>
@@ -110,9 +110,12 @@ function SizesTab(): JSX.Element {
         <tbody>
           {rows.filter((t:any)=> !search || t.name?.toLowerCase().includes(search.toLowerCase())).map((t:any, idx:number)=> (
             <tr key={t.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
-              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>{t.name}</td>
               <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
-                <a href={`/attributes/sizes/${t.id}`} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, textDecoration:'none' }}>عرض المقاسات</a>
+                <input defaultValue={t.name} onBlur={(e)=> renameType(t.id, (e.target as HTMLInputElement).value)} style={{ padding:8, borderRadius:8, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              </td>
+              <td style={{ padding:12, borderBottom:'1px solid #1c2333' }}>
+                <a href={`/attributes/sizes/${t.id}`} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, textDecoration:'none', marginInlineEnd:8 }}>عرض المقاسات</a>
+                <button onClick={()=> removeType(t.id)} style={{ padding:'8px 12px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف النوع</button>
               </td>
             </tr>
           ))}

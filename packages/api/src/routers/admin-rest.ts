@@ -6515,6 +6515,26 @@ adminRest.patch('/attributes/sizes/:id', async (req, res) => {
   const s = await db.attributeSize.update({ where: { id }, data: { ...(name && { name }) } });
   res.json({ size: s });
 });
+// Size types: rename
+adminRest.patch('/attributes/size-types/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  const t = await db.attributeSizeType.update({ where: { id }, data: { ...(name && { name: String(name).trim() }) } });
+  res.json({ type: t });
+});
+// Size types: safe delete (ensure contained sizes not used)
+adminRest.delete('/attributes/size-types/:id', async (req, res) => {
+  const { id } = req.params;
+  const sizes = await db.attributeSize.findMany({ where: { typeId: id }, select: { id: true } });
+  if (sizes.length) {
+    const sizeIds = sizes.map(s => s.id);
+    const used = await db.productVariant.count({ where: { value: { in: sizeIds } } }).catch(()=>0);
+    if (used) return res.status(409).json({ error: 'in_use' });
+    await db.attributeSize.deleteMany({ where: { id: { in: sizeIds } } });
+  }
+  await db.attributeSizeType.delete({ where: { id } });
+  res.json({ success: true });
+});
 adminRest.delete('/attributes/sizes/:id', async (req, res) => {
   const { id } = req.params;
   // Prevent delete when referenced by product variants
@@ -6593,7 +6613,7 @@ adminRest.get('/categories', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) { await audit(req,'categories','forbidden_list',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     const search = (req.query.search as string | undefined)?.trim();
     if (search) {
-      const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null }> = await db.$queryRawUnsafe(
+      const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null; image?: string | null }> = await db.$queryRawUnsafe(
         `SELECT id, name,
            CASE WHEN EXISTS (
              SELECT 1 FROM information_schema.columns c
@@ -6602,7 +6622,11 @@ adminRest.get('/categories', async (req, res) => {
            CASE WHEN EXISTS (
              SELECT 1 FROM information_schema.columns c
              WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='parentid'
-           ) THEN "parentId" ELSE NULL END AS "parentId"
+           ) THEN "parentId" ELSE NULL END AS "parentId",
+           CASE WHEN EXISTS (
+             SELECT 1 FROM information_schema.columns c
+             WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='image'
+           ) THEN image ELSE NULL END AS image
          FROM "Category"
          WHERE name ILIKE '%' || $1 || '%'
          ORDER BY "createdAt" DESC
@@ -6610,7 +6634,7 @@ adminRest.get('/categories', async (req, res) => {
       );
       return res.json({ categories: cats });
     }
-    const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null }> = await db.$queryRawUnsafe(
+    const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null; image?: string | null }> = await db.$queryRawUnsafe(
       `SELECT id, name,
          CASE WHEN EXISTS (
            SELECT 1 FROM information_schema.columns c
@@ -6619,7 +6643,11 @@ adminRest.get('/categories', async (req, res) => {
          CASE WHEN EXISTS (
            SELECT 1 FROM information_schema.columns c
            WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='parentid'
-         ) THEN "parentId" ELSE NULL END AS "parentId"
+         ) THEN "parentId" ELSE NULL END AS "parentId",
+         CASE WHEN EXISTS (
+           SELECT 1 FROM information_schema.columns c
+           WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='image'
+         ) THEN image ELSE NULL END AS image
        FROM "Category"
        ORDER BY "createdAt" DESC
        LIMIT 200`
@@ -6684,6 +6712,29 @@ adminRest.get('/categories/tree', async (req, res) => {
     res.json({ tree: build(null) });
   } catch (e:any) {
     res.status(500).json({ error: e?.message || 'categories_tree_failed' });
+  }
+});
+// Fetch category by id (include optional columns when present)
+adminRest.get('/categories/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) { await audit(req,'categories','forbidden_get',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
+    const { id } = req.params;
+    const cols = await getCategoryColumnFlags();
+    const fields: string[] = ['id', 'name'];
+    if (cols.slug) fields.push('"slug"');
+    if (cols.description) fields.push('"description"');
+    if (cols.image) fields.push('"image"');
+    if (cols.parentid) fields.push('"parentId"');
+    if (cols.seotitle) fields.push('"seoTitle"');
+    if (cols.seodescription) fields.push('"seoDescription"');
+    if (cols.seokeywords) fields.push('"seoKeywords"');
+    if (cols.translations) fields.push('"translations"');
+    const sql = `SELECT ${fields.join(', ')} FROM "Category" WHERE id = $1 LIMIT 1`;
+    const rows: any[] = await db.$queryRawUnsafe(sql, id);
+    if (!rows || rows.length === 0) return res.status(404).json({ error: 'not_found' });
+    return res.json({ category: rows[0] });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'category_get_failed' });
   }
 });
 adminRest.post('/categories/reorder', async (req, res) => {
@@ -6771,7 +6822,10 @@ adminRest.patch('/categories/:id', async (req, res) => {
     if (image !== undefined && cols.image) data.image = image;
     if (parentId !== undefined && cols.parentid) data.parentId = parentId;
     if (slug !== undefined && cols.slug) data.slug = slug;
-    // omit seo* and translations on patch to avoid column mismatch
+    if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
+    if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
+    if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
+    if (translations !== undefined && cols.translations) data.translations = translations;
     if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
     const c = await db.category.update({ where: { id }, data });
     await audit(req, 'categories', 'update', { id });
@@ -6781,7 +6835,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
     if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
       try {
         await ensureCategorySeo();
-        const { name, description, image, parentId, slug, sortOrder } = req.body || {};
+        const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
         const cols = await getCategoryColumnFlags();
         const data: any = {};
         if (name) data.name = name;
@@ -6789,7 +6843,10 @@ adminRest.patch('/categories/:id', async (req, res) => {
         if (image !== undefined && cols.image) data.image = image;
         if (parentId !== undefined && cols.parentid) data.parentId = parentId;
         if (slug !== undefined && cols.slug) data.slug = slug;
-        // omit seo* and translations on retry
+        if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
+        if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
+        if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
+        if (translations !== undefined && cols.translations) data.translations = translations;
         if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
         const c = await db.category.update({ where: { id }, data });
         await audit(req, 'categories', 'update', { id });

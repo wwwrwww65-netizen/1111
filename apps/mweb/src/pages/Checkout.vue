@@ -113,33 +113,21 @@
         </div>
       </section>
 
+
       <!-- الخصومات -->
       <section class="bg-white px-4 py-3 mb-2">
-<div class="divide-y divide-gray-300 text-sm">
-  <!-- القسيمة -->
-  <div class="py-3 flex items-center gap-2">
-    <input v-model="couponCode" type="text" placeholder="ادخل رمز القسيمة" class="flex-1 border px-2 py-1"/>
-    <button class="px-3 py-1 bg-[#8a1538] text-white" @click="applyCoupon">تطبيق</button>
-  </div>
-  <!-- بطاقة هدية -->
-  <div class="py-3 flex items-center gap-2">
-    <input v-model="giftCode" type="text" placeholder="ادخل كود بطاقة الهدية" class="flex-1 border px-2 py-1"/>
-    <button class="px-3 py-1 border border-[#8a1538] text-[#8a1538]" @click="applyGift">تطبيق</button>
-  </div>
-  <!-- المحفظة -->
-  <div class="py-3 flex items-center gap-2">
-    <div class="flex-1">رصيد المحفظة: {{ walletBalance.toFixed(2) }} {{ currency }}</div>
-    <button class="px-3 py-1 border" @click="useWallet = !useWallet">{{ useWallet ? 'إلغاء' : 'استخدم' }}</button>
-  </div>
-  <!-- النقاط -->
-  <div class="py-3 flex items-center gap-2">
-    <div class="flex-1">نقاطك: {{ points }}</div>
-    <button class="px-3 py-1 border" @click="usePoints">استخدم</button>
-  </div>
-</div>
-      </section>
-
-      <!-- الأسعار -->
+        <div class="divide-y divide-gray-300 text-sm">
+          <div class="py-3 flex justify-between"><span>رمز القسيمة:</span><span class="text-lg">›</span></div>
+          <div class="py-3 flex justify-between"><span>بطاقة هدية</span><span class="text-lg">›</span></div>
+          <div class="py-3 flex justify-between"><span>المحفظة:</span><span class="text-lg">›</span></div>
+          <div class="py-3 flex justify-between">
+            <span>النقاط:</span>
+            <span class="text-gray-400">إجمالي النقاط: 0 ›</span>
+          </div>
+        </div>
+      </section> 
+      
+    <!-- الأسعار -->
       <section class="bg-white px-4 py-3 space-y-2">
         <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotal.toFixed(2) }} {{ currency }}</span></div>
         <div class="flex justify-between text-sm"><span>الشحن</span><span>{{ shippingPrice.toFixed(2) }} {{ currency }}</span></div>

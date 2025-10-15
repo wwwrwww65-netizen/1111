@@ -19,6 +19,7 @@ export default function AdminProducts(): JSX.Element {
   const [allChecked, setAllChecked] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m:string)=>{ setToast(m); setTimeout(()=>setToast(""), 1600); };
+  const [bulkStatus, setBulkStatus] = React.useState<'PUBLISHED'|'ARCHIVED'|'DISABLED'>('PUBLISHED');
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const authHeaders = React.useCallback(() => {
     if (typeof document === 'undefined') return {} as Record<string,string>;
@@ -85,14 +86,11 @@ export default function AdminProducts(): JSX.Element {
 
   async function applyProductStatus(id: string, status: 'PUBLISHED'|'ARCHIVED'|'DISABLED') {
     try {
-      const r = await fetch('/api/admin/trpc', {
+      const r = await fetch(`/api/admin/products/${id}/status`, {
         method: 'POST',
         headers: { 'content-type':'application/json', ...authHeaders() },
         credentials:'include',
-        body: JSON.stringify({
-          path: 'admin.setProductStatus',
-          input: { id, status }
-        })
+        body: JSON.stringify({ status })
       });
       if (!r.ok) throw new Error('status failed');
       await load();
@@ -119,6 +117,29 @@ export default function AdminProducts(): JSX.Element {
         </select>
         <div className="actions">
           <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
+          <div style={{ display:'inline-flex', gap:8, alignItems:'center', marginInlineStart:8 }}>
+            <select className="select" value={bulkStatus} onChange={(e)=> setBulkStatus(e.target.value as any)}>
+              <option value="PUBLISHED">نشر</option>
+              <option value="ARCHIVED">أرشفة</option>
+              <option value="DISABLED">إيقاف</option>
+            </select>
+            <button className="btn" onClick={async ()=>{
+              const ids = Object.keys(selected).filter(id=> selected[id]);
+              if (!ids.length) return;
+              for (const id of ids) { await applyProductStatus(id, bulkStatus); }
+              setSelected({}); setAllChecked(false); await load(); showToast('تم تحديث حالة العناصر المحددة');
+            }}>تغيير حالة المحدد</button>
+          </div>
+          <button className="btn" onClick={async ()=>{
+            const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
+            for (const id of ids) { await applyProductStatus(id, 'PUBLISHED'); }
+            setSelected({}); setAllChecked(false); await load(); showToast('تم نشر العناصر المحددة');
+          }}>نشر المحدد</button>
+          <button className="btn btn-outline" onClick={async ()=>{
+            const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
+            for (const id of ids) { await applyProductStatus(id, 'ARCHIVED'); }
+            setSelected({}); setAllChecked(false); await load(); showToast('تمت أرشفة العناصر المحددة');
+          }}>أرشفة المحدد</button>
           <button className="btn danger" onClick={async ()=>{
           const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
           const r = await fetch(`/api/admin/products/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
