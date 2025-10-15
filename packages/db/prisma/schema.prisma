@@ -504,6 +504,23 @@ model Review {
   @@unique([productId, userId])
 }
 
+// Product Q&A (admin-rest expects `db.productQA` mapped to `ProductQA`)
+model ProductQA {
+  id         String   @id @default(cuid())
+  productId  String
+  userId     String?
+  question   String
+  answer     String?
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  // Relations
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+}
+
 model Coupon {
   id             String     @id @default(cuid())
   code           String     @unique
@@ -746,6 +763,22 @@ model MediaAsset {
   dominantColors String[]
   meta      Json?
   createdAt DateTime @default(now())
+}
+
+// User Generated Content Photos (admin-rest expects `db.uGCPhoto` mapped to `UGCPhoto`)
+model UGCPhoto {
+  id         String   @id @default(cuid())
+  productId  String
+  userId     String?
+  url        String
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  // Relations
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
 }
 
 // Integrations
