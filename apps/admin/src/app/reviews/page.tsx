@@ -35,6 +35,8 @@ export default function ReviewsPage(): JSX.Element {
   async function approve(id:string){ await fetch(`${apiBase}/api/admin/reviews/${id}/approve`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
   async function reject(id:string){ await fetch(`${apiBase}/api/admin/reviews/${id}/reject`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
   async function remove(id:string){ await fetch(`${apiBase}/api/admin/reviews/${id}`, { method:'DELETE', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
+  async function hide(id:string){ await fetch(`${apiBase}/api/admin/reviews/${id}/hide`, { method:'POST', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
+  async function feature(id:string, on:boolean){ await fetch(`${apiBase}/api/admin/reviews/${id}/feature`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ on }) }); await load(); }
 
   return (
     <main className="panel">
@@ -80,6 +82,8 @@ export default function ReviewsPage(): JSX.Element {
                 <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>
                   <button className="btn" onClick={()=>approve(r.id)} disabled={r.isApproved}>قبول</button>
                   <button className="btn" onClick={()=>reject(r.id)} style={{ marginInlineStart:6 }} disabled={!r.isApproved}>تعليق</button>
+                  <button className="btn" onClick={()=>hide(r.id)} style={{ marginInlineStart:6 }}>إخفاء</button>
+                  <button className="btn" onClick={()=>feature(r.id, !r.featured)} style={{ marginInlineStart:6, background: r.featured? '#0b0e14':'#1d4ed8', color:'#fff' }}>{r.featured? 'إلغاء تمييز':'تمييز'}</button>
                   <button className="btn" onClick={()=>remove(r.id)} style={{ marginInlineStart:6, background:'#7c2d12', color:'#fff' }}>حذف</button>
                 </td>
               </tr>

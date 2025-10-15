@@ -8,6 +8,7 @@ import './tailwind.css';
 import './styles.css';
 import { injectTracking } from './tracking';
 import { useCart } from './store/cart'
+import { initCurrency } from './lib/currency'
 // Track affiliate ref
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
@@ -57,4 +58,5 @@ app.use(router);
 app.mount('#app');
 injectTracking();
 try{ const cart = useCart(); cart.loadLocal() }catch{}
+try{ initCurrency() }catch{}
 

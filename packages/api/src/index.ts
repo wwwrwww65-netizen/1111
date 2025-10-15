@@ -326,6 +326,14 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     // Ensure Currency table exists (Prisma-compatible)
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Currency" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "code" TEXT NOT NULL, "symbol" TEXT NOT NULL, "precision" INTEGER NOT NULL DEFAULT 2, "rateToBase" DOUBLE PRECISION NOT NULL DEFAULT 1, "isBase" BOOLEAN NOT NULL DEFAULT FALSE, "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Currency_code_key" ON "Currency"("code")');
+    // Ensure AddressBook for multi-address per user (separate from Prisma Address single-record)
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AddressBook" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "fullName" TEXT, "phone" TEXT, "altPhone" TEXT, "country" TEXT, "state" TEXT, "city" TEXT, "street" TEXT, "details" TEXT, "postalCode" TEXT, "lat" DOUBLE PRECISION NULL, "lng" DOUBLE PRECISION NULL, "isDefault" BOOLEAN NOT NULL DEFAULT FALSE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AddressBook_user_idx" ON "AddressBook"("userId")');
+    // Harden columns for legacy deployments
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \"AddressBook\" AND column_name = \"lat\") THEN ALTER TABLE "AddressBook" ADD COLUMN "lat" DOUBLE PRECISION; END IF; END $$;');
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \"AddressBook\" AND column_name = \"lng\") THEN ALTER TABLE "AddressBook" ADD COLUMN "lng" DOUBLE PRECISION; END IF; END $$;');
+    // Ensure OrderItem has attributes JSONB for variant meta (color/size)
+    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \'OrderItem\' AND column_name = \'attributes\') THEN ALTER TABLE "OrderItem" ADD COLUMN "attributes" JSONB; END IF; END $$;');
     // Ensure Shipping/Payments/Carts tables exist (Prisma-compatible)
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ShippingZone" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "countryCodes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], "regionCodes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], "cityNames" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], "zipCodes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], "isActive" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "ShippingZone_name_key" ON "ShippingZone"("name")');

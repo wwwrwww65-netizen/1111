@@ -3530,6 +3530,94 @@ adminRest.get('/cms/pages', async (_req, res) => {
   const pages = await db.cMSPage.findMany({ orderBy: { updatedAt: 'desc' } });
   res.json({ pages });
 });
+
+// ---------- PDP Settings (stored in Setting: key 'pdp:settings') ----------
+adminRest.get('/pdp/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.read'))) return res.status(403).json({ error:'forbidden' });
+    const row = await db.setting.findUnique({ where: { key: 'pdp:settings' } });
+    return res.json({ settings: (row?.value as any) || {} });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'pdp_settings_failed' }); }
+});
+adminRest.put('/pdp/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.write'))) return res.status(403).json({ error:'forbidden' });
+    const settings = req.body || {};
+    const row = await db.setting.upsert({ where: { key: 'pdp:settings' }, update: { value: settings }, create: { key: 'pdp:settings', value: settings } } as any);
+    return res.json({ ok:true, settings: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'pdp_settings_save_failed' }); }
+});
+
+// ---------- SEO Defaults for Product (key 'seo:product:defaults') ----------
+adminRest.get('/seo/product/defaults', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.read'))) return res.status(403).json({ error:'forbidden' });
+    const row = await db.setting.findUnique({ where: { key: 'seo:product:defaults' } });
+    return res.json({ defaults: (row?.value as any) || {} });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'seo_defaults_failed' }); }
+});
+adminRest.put('/seo/product/defaults', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.write'))) return res.status(403).json({ error:'forbidden' });
+    const defaults = req.body || {};
+    const row = await db.setting.upsert({ where: { key: 'seo:product:defaults' }, update: { value: defaults }, create: { key: 'seo:product:defaults', value: defaults } } as any);
+    return res.json({ ok:true, defaults: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'seo_defaults_save_failed' }); }
+});
+
+// ---------- Size Guides: list and assignments ----------
+// List all CMS pages with slug starting with 'size-guide:'
+adminRest.get('/size-guides', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cms.read'))) return res.status(403).json({ error:'forbidden' });
+    const pages = await db.cMSPage.findMany({ where: { slug: { startsWith: 'size-guide:' } } as any, orderBy: { updatedAt: 'desc' } });
+    const map = await db.setting.findUnique({ where: { key: 'size-guides:index' } });
+    return res.json({ pages, assignments: (map?.value as any)||{} });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'size_guides_failed' }); }
+});
+// Save assignments: { brandToSlug: Record<string,string>, categoryToSlug: Record<string,string>, defaultSlug?: string }
+adminRest.put('/size-guides/assignments', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cms.write'))) return res.status(403).json({ error:'forbidden' });
+    const body = req.body || {};
+    const row = await db.setting.upsert({ where: { key: 'size-guides:index' }, update: { value: body }, create: { key: 'size-guides:index', value: body } } as any);
+    return res.json({ ok:true, assignments: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'size_guides_assign_failed' }); }
+});
+
+// ---------- Recommendations Rules ----------
+adminRest.get('/recommendations/rules', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const row = await db.setting.findUnique({ where: { key: 'recommendations:rules' } });
+    return res.json({ rules: (row?.value as any)||{} });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'recommend_rules_failed' }); }
+});
+adminRest.put('/recommendations/rules', async (req, res) => {
+  try { const u = (req as any).user; if (!(await can(u.userId, 'analytics.write'))) return res.status(403).json({ error:'forbidden' });
+    const rules = req.body || {};
+    const row = await db.setting.upsert({ where: { key: 'recommendations:rules' }, update: { value: rules }, create: { key: 'recommendations:rules', value: rules } } as any);
+    return res.json({ ok:true, rules: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'recommend_rules_save_failed' }); }
+});
+
+// ---------- Product Variants Bulk (Matrix) ----------
+adminRest.post('/products/:id/variants/bulk', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'products.write'))) return res.status(403).json({ error:'forbidden' });
+    const productId = String(req.params.id);
+    const list: Array<any> = Array.isArray(req.body?.variants) ? req.body.variants : [];
+    for (const it of list){
+      const id = it.id ? String(it.id) : null;
+      const data: any = { productId, name: String(it.name||''), value: String(it.value||''), sku: it.sku? String(it.sku): null };
+      if (it.price!=null) data.price = Number(it.price);
+      if (it.purchasePrice!=null) data.purchasePrice = Number(it.purchasePrice);
+      if (it.stockQuantity!=null) data.stockQuantity = Number(it.stockQuantity);
+      if (id) await db.productVariant.update({ where: { id }, data });
+      else await db.productVariant.create({ data });
+    }
+    return res.json({ ok:true });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'variants_bulk_failed' }); }
+});
 adminRest.post('/vendors', async (req, res) => {
   try {
     const { name, contactEmail, phone, address, storeName, storeNumber, vendorCode } = req.body || {};
@@ -5819,6 +5907,91 @@ adminRest.get('/reviews/list', async (req, res) => {
     db.review.count({ where })
   ]);
   res.json({ reviews: rows, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+});
+
+// Reviews moderate: approve/reject/hide/feature
+adminRest.post('/reviews/:id/approve', async (req, res) => {
+  try { const u=(req as any).user; if (!(await can(u.userId,'reviews.write'))) return res.status(403).json({ error:'forbidden' });
+    const id=String(req.params.id); await db.review.update({ where:{ id }, data:{ isApproved:true } }); return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'approve_failed' }); }
+});
+adminRest.post('/reviews/:id/reject', async (req, res) => {
+  try { const u=(req as any).user; if (!(await can(u.userId,'reviews.write'))) return res.status(403).json({ error:'forbidden' });
+    const id=String(req.params.id); await db.review.update({ where:{ id }, data:{ isApproved:false } }); return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'reject_failed' }); }
+});
+adminRest.post('/reviews/:id/hide', async (req, res) => {
+  try { const u=(req as any).user; if (!(await can(u.userId,'reviews.write'))) return res.status(403).json({ error:'forbidden' });
+    const id=String(req.params.id); await db.review.update({ where:{ id }, data:{ hidden:true } } as any); return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'hide_failed' }); }
+});
+adminRest.post('/reviews/:id/feature', async (req, res) => {
+  try { const u=(req as any).user; if (!(await can(u.userId,'reviews.write'))) return res.status(403).json({ error:'forbidden' });
+    const id=String(req.params.id); const on=!!req.body?.on; await db.review.update({ where:{ id }, data:{ featured:on } } as any); return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'feature_failed' }); }
+});
+
+// ---------- Q&A (ensure table if missing) ----------
+adminRest.get('/qa/list', async (req, res) => {
+  try {
+    const u=(req as any).user; if (!(await can(u.userId,'reviews.read'))) return res.status(403).json({ error:'forbidden' });
+    const productId=String(req.query.productId||'');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ProductQA" (id TEXT PRIMARY KEY, "productId" TEXT, "userId" TEXT, question TEXT, answer TEXT, "isApproved" BOOLEAN DEFAULT FALSE, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const where = productId? { productId } : {} as any;
+    const rows = await db.productQA.findMany({ where, orderBy:{ createdAt:'desc' } } as any);
+    return res.json({ items: rows });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'qa_list_failed' }); }
+});
+adminRest.post('/qa/answer', async (req, res) => {
+  try { const u=(req as any).user; if (!(await can(u.userId,'reviews.write'))) return res.status(403).json({ error:'forbidden' });
+    const { id, answer } = req.body||{}; if (!id) return res.status(400).json({ error:'id_required' });
+    await db.productQA.update({ where:{ id:String(id) }, data:{ answer:String(answer||'') } } as any); return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'qa_answer_failed' }); }
+});
+adminRest.post('/qa/approve', async (req, res) => {
+  try { const u=(req as any).user; if (!(await can(u.userId,'reviews.write'))) return res.status(403).json({ error:'forbidden' });
+    const { id, on=true } = req.body||{}; if (!id) return res.status(400).json({ error:'id_required' });
+    await db.productQA.update({ where:{ id:String(id) }, data:{ isApproved: !!on } } as any); return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'qa_approve_failed' }); }
+});
+
+// ---------- UGC Photos ----------
+adminRest.get('/photos/list', async (req, res) => {
+  try{
+    const u=(req as any).user; if (!(await can(u.userId,'reviews.read'))) return res.status(403).json({ error:'forbidden' });
+    const productId=String(req.query.productId||'');
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UGCPhoto" (id TEXT PRIMARY KEY, "productId" TEXT, "userId" TEXT, url TEXT, "isApproved" BOOLEAN DEFAULT FALSE, "createdAt" TIMESTAMP DEFAULT NOW())');
+    const where = productId? { productId } : {} as any;
+    const rows = await db.uGCPhoto.findMany({ where, orderBy:{ createdAt:'desc' } } as any);
+    return res.json({ items: rows });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'photos_list_failed' }); }
+});
+adminRest.post('/photos/approve', async (req, res) => {
+  try{ const u=(req as any).user; if (!(await can(u.userId,'reviews.write'))) return res.status(403).json({ error:'forbidden' });
+    const { id, on=true } = req.body||{}; if (!id) return res.status(400).json({ error:'id_required' });
+    await db.uGCPhoto.update({ where:{ id:String(id) }, data:{ isApproved: !!on } } as any); return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'photos_approve_failed' }); }
+});
+
+// ---------- Bundles ----------
+adminRest.get('/bundles/:productId', async (req, res) => {
+  try{
+    const u=(req as any).user; if (!(await can(u.userId,'products.read'))) return res.status(403).json({ error:'forbidden' });
+    const productId = String(req.params.productId);
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "ProductBundle" ("productId" TEXT, "itemId" TEXT)');
+    const items:any[] = await db.$queryRawUnsafe('SELECT "itemId" FROM "ProductBundle" WHERE "productId"=$1', productId) as any[];
+    return res.json({ items: items.map(r=> r.itemId) });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'bundles_get_failed' }); }
+});
+adminRest.put('/bundles/:productId', async (req, res) => {
+  try{
+    const u=(req as any).user; if (!(await can(u.userId,'products.write'))) return res.status(403).json({ error:'forbidden' });
+    const productId = String(req.params.productId);
+    const itemIds: string[] = Array.isArray(req.body?.items)? req.body.items.map(String) : [];
+    await db.$executeRawUnsafe('DELETE FROM "ProductBundle" WHERE "productId"=$1', productId);
+    for (const iid of itemIds){ await db.$executeRawUnsafe('INSERT INTO "ProductBundle" ("productId","itemId") VALUES ($1,$2)', productId, iid); }
+    return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e.message||'bundles_save_failed' }); }
 });
 
 // Extended Analytics

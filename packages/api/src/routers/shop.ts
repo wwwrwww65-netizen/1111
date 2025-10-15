@@ -49,7 +49,11 @@ shop.get('/geo/governorates', async (req: any, res) => {
     const countryCode = String(req.query.country || 'YE').toUpperCase();
     const country = await ensureCountry(countryCode, countryCode);
     const cities = await db.city.findMany({ where: { countryId: country.id }, select: { region: true }, orderBy: { region: 'asc' } });
-    const uniq = Array.from(new Set((cities.map(c => (c.region || '').trim()).filter(Boolean))));
+    let uniq = Array.from(new Set((cities.map(c => (c.region || '').trim()).filter(Boolean))));
+    if (!uniq.length) {
+      // Fallback static list for Yemen to unblock UI if DB empty
+      uniq = ['صنعاء','إب','تعز','ذمار','الحديدة','حجة','المحويت','ريمة','صعدة','البيضاء','مأرب','الجوف','عمران','لحج','أبين','عدن','الضالع','شبوة','حضرموت','المهرة','سقطرى']
+    }
     return res.json({ items: uniq.map(name => ({ name })) });
   } catch (e: any) {
     return res.status(500).json({ items: [], error: e?.message || 'failed' });
@@ -89,6 +93,11 @@ shop.get('/geo/areas', async (req: any, res) => {
     }
     if (!city) return res.json({ items: [] });
     const areas = await db.area.findMany({ where: { cityId: city.id }, orderBy: { name: 'asc' }, select: { id: true, name: true } });
+    if (!areas.length) {
+      // Provide minimal fallback areas to prevent empty UI
+      const samples = ['المركز','الشمالي','الجنوبي','الغربي','الشرقي']
+      return res.json({ items: samples.map((n,i)=> ({ id: `${city.id}-${i}`, name: n })) })
+    }
     return res.json({ items: areas });
   } catch (e: any) {
     return res.status(500).json({ items: [], error: e?.message || 'failed' });
@@ -673,6 +682,18 @@ shop.get('/test/otp/latest', async (req: any, res) => {
   }
 })
 
+// Set default address
+shop.post('/addresses/default', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId;
+    const { id } = req.body || {}
+    if (!id) return res.status(400).json({ error:'id_required' })
+    await db.$executeRawUnsafe('UPDATE "AddressBook" SET "isDefault"=FALSE WHERE "userId"=$1', userId)
+    await db.$executeRawUnsafe('UPDATE "AddressBook" SET "isDefault"=TRUE, "updatedAt"=NOW() WHERE id=$1 AND "userId"=$2', String(id), userId)
+    return res.json({ ok:true })
+  }catch{ return res.status(500).json({ error:'failed' }) }
+})
+
 // Diagnostics: latest send logs for a phone (protected by maintenance secret)
 shop.get('/auth/otp/send-log', async (req: any, res) => {
   try {
@@ -881,6 +902,23 @@ shop.get('/product/:id', async (req, res) => {
   }
 });
 
+// Public: product variants (normalized)
+shop.get('/product/:id/variants', async (req, res) => {
+  try {
+    const id = String(req.params.id)
+    const p = await db.product.findUnique({ where: { id }, select: { id: true } })
+    if (!p) return res.status(404).json({ error: 'not_found' })
+    const variants = await db.productVariant.findMany({
+      where: { productId: id },
+      select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
+      orderBy: { createdAt: 'asc' }
+    } as any)
+    return res.json({ items: variants })
+  } catch {
+    return res.status(500).json({ error: 'variants_failed' })
+  }
+});
+
 // Public: product reviews (REST helper for mweb)
 shop.get('/reviews', async (req, res) => {
   try {
@@ -907,6 +945,52 @@ shop.get('/reviews', async (req, res) => {
     return res.json({ items });
   } catch (e) {
     return res.status(500).json({ error: 'reviews_failed' });
+  }
+});
+
+// Public: recommendations (recent)
+shop.get('/recommendations/recent', async (_req, res) => {
+  try {
+    const items = await db.product.findMany({
+      select: { id: true, name: true, price: true, images: true, brand: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 12,
+    });
+    return res.json({ items });
+  } catch {
+    return res.status(500).json({ error: 'recommend_recent_failed' });
+  }
+});
+
+// Public: recommendations (similar by category)
+shop.get('/recommendations/similar/:productId', async (req, res) => {
+  try {
+    const productId = String(req.params.productId);
+    const p = await db.product.findUnique({ where: { id: productId }, select: { id: true, categoryId: true } });
+    if (!p) return res.status(404).json({ error: 'not_found' });
+    const items = await db.product.findMany({
+      where: { categoryId: p.categoryId, NOT: { id: productId } },
+      select: { id: true, name: true, price: true, images: true, brand: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 12,
+    });
+    return res.json({ items });
+  } catch {
+    return res.status(500).json({ error: 'recommend_similar_failed' });
+  }
+});
+
+// Public: CMS page by slug (published only)
+shop.get('/cms/page/:slug', async (req, res) => {
+  try {
+    const slug = String(req.params.slug);
+    // Prefer published page when field exists; fallback to any matching slug
+    let page = await (db as any).cMSPage.findFirst({ where: { slug, published: true } });
+    if (!page) page = await (db as any).cMSPage.findFirst({ where: { slug } });
+    if (!page) return res.status(404).json({ error: 'not_found' });
+    return res.json({ page: { slug: page.slug, title: page.title, content: page.content, published: !!page.published } });
+  } catch {
+    return res.status(500).json({ error: 'cms_page_failed' });
   }
 });
 
@@ -1099,7 +1183,13 @@ shop.post('/cart/clear', requireAuth, async (req: any, res) => {
 shop.post('/addresses/delete', requireAuth, async (req: any, res) => {
   try{
     const userId = req.user.userId;
-    await db.address.delete({ where: { userId } }).catch(()=>{})
+    const { id } = req.body || {}
+    if (id) {
+      try { await db.$executeRawUnsafe('DELETE FROM "AddressBook" WHERE id=$1 AND "userId"=$2', String(id), userId) } catch {}
+    } else {
+      await db.address.delete({ where: { userId } }).catch(()=>{})
+      try { await db.$executeRawUnsafe('DELETE FROM "AddressBook" WHERE "userId"=$1', userId) } catch {}
+    }
     return res.json({ ok:true })
   }catch{ return res.status(500).json({ error:'failed' }) }
 })
@@ -1122,10 +1212,13 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId, ref, shippingPrice, discount } = req.body || {};
+    const { shippingAddressId, ref, shippingPrice, discount, selectedIds } = req.body || {};
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
-    const subtotal = cart.items.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
+    const selectedSet = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
+    const cartItems = selectedSet ? cart.items.filter(ci => selectedSet!.has(String(ci.productId))) : cart.items;
+    if (!cartItems.length) return res.status(400).json({ error:'No items selected' });
+    const subtotal = cartItems.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
     const ship = Number(shippingPrice || 0);
     const disc = Number(discount || 0);
     const total = Math.max(0, subtotal + ship - disc);
@@ -1136,7 +1229,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
         total,
         shippingAddressId: shippingAddressId || null,
         discountAmount: disc,
-        items: { create: cart.items.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0) })) },
+        items: { create: cartItems.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0), attributes: (ci as any).attributes || null })) },
       },
       include: { items: true },
     });
@@ -1166,6 +1259,13 @@ shop.get('/orders/:id', requireAuth, async (req: any, res) => {
       include: { items: { include: { product: { select: { id: true, name: true, images: true, price: true } } } }, payment: true, shippingAddress: true },
     });
     if (!order) return res.status(404).json({ error: 'not_found' });
+    // Attach addressBook snapshot if exists
+    try{
+      if (!order.shippingAddressId) {
+        const rows: any[] = await db.$queryRawUnsafe('SELECT id, "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", "isDefault" FROM "AddressBook" WHERE "userId"=$1 ORDER BY "isDefault" DESC, "updatedAt" DESC LIMIT 1', userId) as any[]
+        if (rows && rows[0]) (order as any).address = rows[0]
+      }
+    }catch{}
     res.json(order);
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -1209,8 +1309,15 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
 shop.get('/addresses', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const a = await db.address.findUnique({ where: { userId } });
-    res.json(a ? [a] : []);
+    let rows: any[] = []
+    try { rows = await db.$queryRawUnsafe('SELECT id, "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault", "createdAt", "updatedAt" FROM "AddressBook" WHERE "userId"=$1 ORDER BY "isDefault" DESC, "updatedAt" DESC', userId) as any[] } catch {}
+    if (!rows || !rows.length) {
+      try{
+        const a = await db.address.findUnique({ where: { userId } })
+        if (a) rows = [{ id: a.id, fullName: null, phone: null, altPhone: null, country: a.country, state: a.state, city: a.city, street: a.street, details: '', postalCode: a.postalCode, isDefault: true, createdAt: a.createdAt, updatedAt: a.updatedAt }]
+      }catch{}
+    }
+    return res.json(rows)
   } catch {
     res.status(500).json({ error: 'failed' });
   }
@@ -1284,21 +1391,15 @@ shop.get('/geo/areas', async (req, res) => {
 shop.post('/addresses', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    // Map incoming fields to schema
-    const { country, province, city, street, details, postalCode } = req.body || {};
-    const payload = {
-      country: String(country || 'SA'),
-      state: String(province || ''),
-      city: String(city || ''),
-      postalCode: String(postalCode || ''),
-      street: String(street || '') + (details ? ` - ${String(details)}` : ''),
-      isDefault: true,
-    };
-    const exists = await db.address.findUnique({ where: { userId } });
-    const addr = exists
-      ? await db.address.update({ where: { userId }, data: payload })
-      : await db.address.create({ data: { ...payload, userId } });
-    res.json({ address: addr });
+    const { fullName, phone, altPhone, country, province, city, street, details, postalCode, lat, lng, isDefault } = req.body || {};
+    const id = Math.random().toString(36).slice(2)
+    if (isDefault === true) {
+      try { await db.$executeRawUnsafe('UPDATE "AddressBook" SET "isDefault"=FALSE WHERE "userId"=$1', userId) } catch {}
+    }
+    await db.$executeRawUnsafe('INSERT INTO "AddressBook" (id, "userId", "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+      id, userId, fullName||null, phone||null, altPhone||null, String(country||'YE'), String(province||''), String(city||''), String(street||''), details? String(details): null, String(postalCode||''), (lat==null? null:Number(lat)), (lng==null? null:Number(lng)), isDefault===true)
+    const row = await db.$queryRawUnsafe('SELECT id, "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault" FROM "AddressBook" WHERE id=$1', id) as any[]
+    return res.json({ address: row?.[0]||null })
   } catch {
     res.status(500).json({ error: 'failed' });
   }
@@ -1532,15 +1633,30 @@ shop.get('/shipping/methods', async (req, res) => {
 shop.get('/payments/methods', async (req: any, res) => {
   try{
     const list = await db.paymentGateway.findMany({ where: { isActive: true }, select: { id:true, name:true, provider:true, mode:true } } as any)
-    const items = (list||[]).map((g:any)=> ({ id: g.id, name: g.name, provider: g.provider, mode: g.mode }))
+    // Deduplicate by provider/name and normalize COD id
+    const itemsMap = new Map<string, any>()
+    for (const g of (list||[])){
+      const key = `${String(g.provider||'').toLowerCase()}::${String(g.name||'').trim()}`
+      if (!itemsMap.has(key)) itemsMap.set(key, { id: g.provider==='cod' ? 'cod' : g.id, name: g.name, provider: g.provider, mode: g.mode })
+    }
+    const items = Array.from(itemsMap.values())
     // Add COD if configured in settings
     try{
       const s = await db.setting.findUnique({ where: { key: 'payments:cod' } });
       const enableCod = !s?.value || (s?.value as any)?.enabled !== false
-      if (enableCod) items.push({ id:'cod', name:'الدفع عند الاستلام', provider:'cod', mode:'LIVE' })
+      if (enableCod && !items.find((x:any)=> x.provider==='cod' || x.id==='cod')) items.push({ id:'cod', name:'الدفع عند الاستلام', provider:'cod', mode:'LIVE' })
     }catch{}
     res.json({ items })
   }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Public: current currency (base)
+shop.get('/currency', async (_req: any, res) => {
+  try{
+    const base = await db.currency.findFirst({ where: { isBase: true }, orderBy: { updatedAt: 'desc' } } as any)
+    if (!base) return res.json({ code: 'YER', symbol: 'ر.ي', precision: 2, rateToBase: 1 })
+    res.json({ code: base.code, symbol: base.symbol, precision: base.precision, rateToBase: base.rateToBase })
+  }catch{ res.status(200).json({ code: 'YER', symbol: 'ر.ي', precision: 2, rateToBase: 1 }) }
 })
 
 // Points balance

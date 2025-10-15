@@ -160,7 +160,7 @@ const totalOld = computed(()=> round2(subTotalOld.value + shipPrice.value))
 const codAvailable = computed(()=> total.value >= 75.01 && total.value <= 1875.35)
 
 function round2(n:number){ return Math.round(n*100)/100 }
-function fmtPrice(n:number){ return `${n.toFixed(2)} ر.س` }
+function fmtPrice(n:number){ return `${n.toFixed(2)} ${(window as any).__CURRENCY_SYMBOL__||'ر.س'}` }
 
 function onContinue(){
   if (payment.value==='cod' && !codAvailable.value){

@@ -40,12 +40,15 @@
       <section class="bg-white mb-2">
         <div class="px-4 py-2 text-sm font-semibold text-gray-800">تفاصيل الطلب</div>
         <div v-for="(item, idx) in items" :key="idx" class="px-4 py-3 flex gap-3" :class="{'border-t border-gray-200': idx>0}">
-          <img src="https://via.placeholder.com/80" class="w-20 h-20 object-cover border" />
+          <img :src="item.img" class="w-20 h-20 object-cover border bg-gray-100" />
           <div class="flex-1">
-            <div class="text-sm text-gray-800">{{ item.name }}</div>
-            <div class="text-xs text-gray-500 mt-1">اللون: {{ item.color }}</div>
+            <div class="text-sm text-gray-800">{{ item.title }}</div>
+            <div class="text-xs text-gray-500 mt-1">
+              <span v-if="item.variantColor">اللون: {{ item.variantColor }}</span>
+              <span v-if="item.variantSize" class="mr-2">المقاس: {{ item.variantSize }}</span>
+            </div>
             <div class="flex justify-between items-center mt-2">
-              <span class="text-[#8a1538] font-semibold">{{ item.price }} ر.س</span>
+              <span class="text-[#8a1538] font-semibold">{{ Number(item.price).toFixed(2) }} {{ currencySymbol }}</span>
               <!-- عداد -->
               <div class="flex items-center border rounded">
                 <button class="px-2" @click="decreaseQty(idx)">-</button>
@@ -81,7 +84,7 @@
                 </svg>
                 <span>{{ ship.name }}</span>
               </div>
-              <div class="text-xs text-gray-600 ml-7">{{ ship.desc }} - {{ Number(ship.price||0).toFixed(2) }} {{ currency }}</div>
+              <div class="text-xs text-gray-600 ml-7">{{ ship.desc }} - {{ Number(ship.price||0).toFixed(2) }} {{ currencySymbol }}</div>
             </div>
           </div>
         </div>
@@ -117,20 +120,20 @@
       <!-- الخصومات -->
       <section class="bg-white px-4 py-3 mb-2">
         <div class="divide-y divide-gray-300 text-sm">
-          <div class="py-3 flex justify-between"><span>رمز القسيمة:</span><span class="text-lg">›</span></div>
-          <div class="py-3 flex justify-between"><span>بطاقة هدية</span><span class="text-lg">›</span></div>
-          <div class="py-3 flex justify-between"><span>المحفظة:</span><span class="text-lg">›</span></div>
-          <div class="py-3 flex justify-between">
-            <span>النقاط:</span>
-            <span class="text-gray-400">إجمالي النقاط: 0 ›</span>
-          </div>
+          <button class="w-full text-right py-3 flex justify-between" @click="openCouponDrawer"><span>رمز القسيمة</span><span class="text-lg">›</span></button>
+          <button class="w-full text-right py-3 flex justify-between" @click="openGiftDrawer"><span>بطاقة هدية</span><span class="text-lg">›</span></button>
+          <button class="w-full text-right py-3 flex justify-between" @click="openWalletSheet"><span>المحفظة</span><span class="text-lg">›</span></button>
+          <button class="w-full text-right py-3 flex justify-between" @click="openPointsSheet">
+            <span>النقاط</span>
+            <span class="text-gray-600">إجمالي النقاط: {{ points }}</span>
+          </button>
         </div>
       </section> 
       
     <!-- الأسعار -->
       <section class="bg-white px-4 py-3 space-y-2">
-        <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotal.toFixed(2) }} {{ currency }}</span></div>
-        <div class="flex justify-between text-sm"><span>الشحن</span><span>{{ shippingPrice.toFixed(2) }} {{ currency }}</span></div>
+        <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotal.toFixed(2) }} {{ currencySymbol }}</span></div>
+        <div class="flex justify-between text-sm"><span>الشحن</span><span>{{ shippingPrice.toFixed(2) }} {{ currencySymbol }}</span></div>
 
         <!-- الخصم -->
         <div class="flex justify-between text-sm items-center">
@@ -142,7 +145,7 @@
             </div>
             <span>الخصم</span>
           </div>
-          <span class="text-orange-500">-{{ discountFromPromo.toFixed(2) }} {{ currency }}</span>
+          <span class="text-orange-500">-{{ promoTotal.toFixed(2) }} {{ currencySymbol }}</span>
         </div>
 
         <!-- الكوبون -->
@@ -155,15 +158,15 @@
             </div>
             <span>كوبون</span>
           </div>
-          <span class="text-orange-500">-{{ discountFromCoupon.toFixed(2) }} {{ currency }}</span>
+          <span class="text-orange-500">-{{ discountFromCoupon.toFixed(2) }} {{ currencySymbol }}</span>
         </div>
 
         <!-- الإجمالي -->
         <div class="flex justify-between items-center border-t pt-2">
           <span class="font-semibold text-base">الإجمالي</span>
-          <span class="text-orange-500 font-bold text-xl">{{ totalAll.toFixed(2) }} {{ currency }}</span>
+          <span class="text-orange-500 font-bold text-xl">{{ totalAll.toFixed(2) }} {{ currencySymbol }}</span>
         </div>
-        <div class="text-xs text-green-600">تم توفير {{ savingAll.toFixed(2) }} {{ currency }}</div>
+        <div class="text-xs text-green-600">تم توفير {{ savingAll.toFixed(2) }} {{ currencySymbol }}</div>
       </section>
 
       <!-- نقاط المكافأة -->
@@ -246,6 +249,52 @@
       </section>
     </main>
 
+    <!-- Drawer: Coupon -->
+    <div v-if="couponOpen" class="fixed inset-0 z-50 flex">
+      <div class="flex-1 bg-black/40" @click="couponOpen=false"></div>
+      <div class="w-80 max-w-[80%] bg-white h-full p-4 overflow-y-auto">
+        <div class="font-semibold mb-2">إدخال رمز القسيمة</div>
+        <input v-model="couponCode" class="w-full border px-2 py-2 mb-3" placeholder="أدخل الرمز" />
+        <button class="w-full bg-[#8a1538] text-white py-2" :disabled="!couponCode" @click="onApplyCoupon">تطبيق</button>
+      </div>
+    </div>
+
+    <!-- Drawer: Gift Card -->
+    <div v-if="giftOpen" class="fixed inset-0 z-50 flex">
+      <div class="flex-1 bg-black/40" @click="giftOpen=false"></div>
+      <div class="w-80 max-w-[80%] bg-white h-full p-4 overflow-y-auto">
+        <div class="font-semibold mb-2">إدخال كود بطاقة الهدية</div>
+        <input v-model="giftCode" class="w-full border px-2 py-2 mb-3" placeholder="أدخل الكود" />
+        <button class="w-full bg-[#8a1538] text-white py-2" :disabled="!giftCode" @click="onApplyGift">تطبيق</button>
+      </div>
+    </div>
+
+    <!-- Bottom Sheet: Wallet -->
+    <div v-if="walletOpen" class="fixed inset-0 z-50">
+      <div class="absolute inset-0 bg-black/40" @click="walletOpen=false"></div>
+      <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-xl p-4">
+        <div class="text-sm mb-2">إجمالي الرصيد: {{ walletBalance.toFixed(2) }} {{ currencySymbol }}</div>
+        <div class="flex items-center gap-2 mb-3">
+          <input v-model.number="walletAmount" type="number" min="0" :max="walletBalance" class="flex-1 border px-2 py-2" placeholder="اكتب المبلغ" />
+          <button class="text-blue-600" @click="walletAmount = walletBalance">جميع</button>
+        </div>
+        <button class="w-full py-2 text-white" :style="{ backgroundColor: '#8a1538', opacity: walletAmount>0 ? 1 : 0.5 }" :disabled="!(walletAmount>0)" @click="applyWallet">تقديم</button>
+      </div>
+    </div>
+
+    <!-- Bottom Sheet: Points -->
+    <div v-if="pointsOpen" class="fixed inset-0 z-50">
+      <div class="absolute inset-0 bg-black/40" @click="pointsOpen=false"></div>
+      <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-xl p-4">
+        <div class="text-sm mb-2">إجمالي النقاط: {{ points }}</div>
+        <div class="flex items-center gap-2 mb-3">
+          <input v-model.number="pointsAmount" type="number" min="0" :max="points" class="flex-1 border px-2 py-2" placeholder="اكتب المبلغ" />
+          <button class="text-blue-600" @click="pointsAmount = points">جميع</button>
+        </div>
+        <button class="w-full py-2 text-white" :style="{ backgroundColor: '#8a1538', opacity: pointsAmount>0 ? 1 : 0.5 }" :disabled="!(pointsAmount>0)" @click="applyPoints">تقديم</button>
+      </div>
+    </div>
+
     <!-- زر الدفع -->
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-3">
       <button class="w-full bg-[#8a1538] text-white font-semibold py-2 text-sm" @click="placeOrder">تأكيد الطلب</button>
@@ -262,6 +311,7 @@ const router = useRouter()
 function goBack(){ router.back() }
 
 const items = ref<any[]>([])
+let selectedIds: string[] = []
 
 function increaseQty(idx:number){ items.value[idx].qty++ }
 function decreaseQty(idx:number){ if(items.value[idx].qty>1) items.value[idx].qty-- }
@@ -273,14 +323,14 @@ const selectedShipping = ref('')
 
 const paymentOptions = ref<Array<{ id:string; name:string }>>([])
 const selectedPayment = ref('')
-const currency = 'ر.س'
+const currencySymbol = ref('ر.س')
 
 const showPointsInfo = ref(false)
 
 const addr = ref<any>(null)
-const addrNameDisplay = computed(()=> addr?.value?.name || '—')
+const addrNameDisplay = computed(()=> addr?.value?.fullName || addr?.value?.name || '—')
 const addrPhoneDisplay = computed(()=> addr?.value?.phone || '—')
-const addrLineDisplay = computed(()=> [addr.value?.province, addr.value?.city, addr.value?.street].filter(Boolean).join('، '))
+const addrLineDisplay = computed(()=> [addr.value?.state||addr.value?.province, addr.value?.city, addr.value?.street].filter(Boolean).join('، '))
 const shippingPrice = computed(()=> {
   const m = (shippingOptions.value||[]).find(x=> x.id===selectedShipping.value)
   return m ? Number(m.price||0) : 0
@@ -288,24 +338,39 @@ const shippingPrice = computed(()=> {
 const subtotal = computed(()=> items.value.reduce((s,i)=> s + Number(i.price||0)*Number(i.qty||1), 0))
 const discountFromPromo = ref(0)
 const discountFromCoupon = ref(0)
-const savingAll = computed(()=> (discountFromPromo.value + discountFromCoupon.value))
+const walletApplied = ref(0)
+const pointsApplied = ref(0)
+const promoTotal = computed(()=> discountFromPromo.value + walletApplied.value + pointsApplied.value)
+const savingAll = computed(()=> (promoTotal.value + discountFromCoupon.value))
 const totalAll = computed(()=> Math.max(0, subtotal.value + shippingPrice.value - savingAll.value))
 
-async function loadCart(){ try{ const { useCart } = await import('@/store/cart'); const c = useCart(); items.value = c.items }catch{ items.value = [] } }
-async function loadAddress(){ addr.value = await apiGet('/api/addresses') }
+async function loadCart(){
+  try{
+    const { useCart } = await import('@/store/cart');
+    const c = useCart();
+    try{ const raw = sessionStorage.getItem('checkout_selected_ids'); selectedIds = raw ? (JSON.parse(raw)||[]) : [] }catch{ selectedIds = [] }
+    const idsSet = new Set((selectedIds||[]).map(String))
+    const all = c.items
+    items.value = idsSet.size? all.filter((it:any)=> idsSet.has(String(it.id))) : all
+  }catch{ items.value = [] }
+}
+async function loadAddress(){
+  const list = await apiGet<any[]>('/api/addresses')
+  addr.value = Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null
+}
 async function loadShipping(){ const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?city=${encodeURIComponent(addr.value?.city||'')}`); shippingOptions.value = r?.items||[]; if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id }
 async function loadPayments(){ const r = await apiGet<{ items:any[] }>(`/api/payments/methods`); paymentOptions.value = r?.items?.map((x:any)=>({ id:x.id, name:x.name }))||[]; if (!selectedPayment.value && paymentOptions.value[0]) selectedPayment.value = paymentOptions.value[0].id }
 
 function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
 async function placeOrder(){
   // إنشاء الطلب من السلة مع الشحن والخصومات
-  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value }
+  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedIds }
   const ord = await apiPost('/api/orders', payload)
   if (ord && (ord as any).order?.id){
     // الدفع عند الاستلام: لا توجد بوابة دفع، انتقل مباشرةً لتأكيد الطلب/تفاصيله
     if (selectedPayment.value === 'cod') { router.push(`/order/${(ord as any).order.id}`); return }
     // إنشاء جلسة دفع (اختصار عبر /api/payments/session الجاهزة في API)
-    const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: 'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
+    const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: (window as any).__CURRENCY_CODE__||'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
     if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
     // إن لم يكن هناك إعادة توجيه، انتقل لصفحة المعالجة
     router.push('/pay/processing')
@@ -317,6 +382,7 @@ onMounted(async ()=>{
   await loadAddress()
   await Promise.all([loadShipping(), loadPayments()])
   await loadBalances()
+  try{ const c = await apiGet<any>('/api/currency'); if (c && c.symbol) { currencySymbol.value = c.symbol; (window as any).__CURRENCY_CODE__ = c.code; (window as any).__CURRENCY_SYMBOL__ = c.symbol } }catch{}
 })
 
 // خصومات ومحفظة/نقاط
@@ -325,20 +391,41 @@ const giftCode = ref('')
 const walletBalance = ref(0)
 const useWallet = ref(false)
 const points = ref(0)
+const couponOpen = ref(false)
+const giftOpen = ref(false)
+const walletOpen = ref(false)
+const pointsOpen = ref(false)
+const walletAmount = ref(0)
+const pointsAmount = ref(0)
+
+function openCouponDrawer(){ couponOpen.value = true }
+function openGiftDrawer(){ giftOpen.value = true }
+function openWalletSheet(){ walletOpen.value = true }
+function openPointsSheet(){ pointsOpen.value = true }
 
 async function applyCoupon(){
   if (!couponCode.value) return
   const r = await apiPost('/api/coupons/apply', { code: couponCode.value })
   if (r && (r as any).ok) discountFromCoupon.value = Number((r as any).discount?.value || 0)
 }
+function onApplyCoupon(){ applyCoupon().then(()=>{ couponOpen.value = false }) }
 async function applyGift(){
   if (!giftCode.value) return
   const r = await apiPost('/api/giftcards/apply', { code: giftCode.value })
-  if (r && (r as any).ok) discountFromPromo.value = Number((r as any).giftcard?.value || 0)
+  if (r && (r as any).ok) { discountFromPromo.value += Number((r as any).giftcard?.value || 0); giftOpen.value = false }
 }
 async function loadBalances(){
   try{ const w = await apiGet<{ balance:number }>('/api/wallet/balance'); walletBalance.value = Number(w?.balance||0) }catch{}
   try{ const p = await apiGet<{ points:number }>('/api/points/balance'); points.value = Number(p?.points||0) }catch{}
 }
-function usePoints(){ if (points.value>0) discountFromPromo.value += Math.min(points.value, subtotal.value) }
+function applyWallet(){
+  const amt = Math.max(0, Math.min(walletAmount.value||0, walletBalance.value, subtotal.value))
+  walletApplied.value = amt
+  walletOpen.value = false
+}
+function applyPoints(){
+  const amt = Math.max(0, Math.min(pointsAmount.value||0, points.value, subtotal.value))
+  pointsApplied.value = amt
+  pointsOpen.value = false
+}
 </script>

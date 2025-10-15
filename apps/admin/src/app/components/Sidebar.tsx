@@ -37,6 +37,8 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/products', label: 'المنتجات' },
       { href: '/categories', label: 'الفئات' },
       { href: '/attributes', label: 'السمات' },
+      { href: '/catalog/pdp-settings', label: 'إعدادات صفحة المنتج' },
+      { href: '/catalog/variants-matrix', label: 'مصفوفة المتغيرات' },
     ],
   },
   {
@@ -88,6 +90,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/promotions', label: 'العروض' },
       { href: '/trends/management', label: 'الاتجاهات' },
       { href: '/marketing/facebook', label: 'تسويق فيسبوك' },
+      { href: '/recommendations/rules', label: 'قواعد التوصيات' },
     ],
   },
   {
@@ -95,6 +98,9 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     items: [
       { href: '/cms', label: 'المحتوى (CMS)' },
       { href: '/media', label: 'الوسائط' },
+      { href: '/cms/size-guides', label: 'دلائل المقاسات' },
+      { href: '/cms/qa', label: 'أسئلة وأجوبة' },
+      { href: '/cms/photos', label: 'صور العملاء' },
     ],
   },
   {
@@ -162,6 +168,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     title: 'الإعدادات',
     items: [
       { href: '/settings', label: 'الإعدادات' },
+      { href: '/settings/seo-product', label: 'SEO المنتجات (افتراضات)' },
     ],
   },
   {

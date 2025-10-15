@@ -393,13 +393,19 @@ function onSave(){
   if (!canSave.value) return
   // حفظ على الخادم
   apiPost('/api/addresses', {
+    fullName: form.value.fullName,
+    phone: form.value.phone,
+    altPhone: form.value.altPhone,
     country: form.value.country,
     province: selectedGovernorate.value,
     // المدينة مخفية، سنخزن الحي/المنطقة كمدينة عند توافرها
     city: selectedArea.value || '',
     street: form.value.street,
     details: [selectedArea.value, form.value.landmarks].filter(Boolean).join(' - '),
-    postalCode: ''
+    postalCode: '',
+    lat: mapSelection.value?.lat,
+    lng: mapSelection.value?.lng,
+    isDefault: isDefault.value
   }).then(()=> loadAddresses()).finally(()=>{
     openDrawer.value = false
     // إعادة تعيين النموذج
@@ -416,12 +422,15 @@ function onSave(){
 }
 
 function togglePrimary(idx: number){
-  addresses.value = addresses.value.map((a, i) => ({ ...a, isDefault: i === idx }))
+  const id = addresses.value[idx]?.id
+  if (!id) return
+  apiPost('/api/addresses/default', { id }).finally(()=> loadAddresses())
 }
 
 function removeAddress(idx: number){
   // حذف من الخادم ثم التحديث محلياً
-  apiPost('/api/addresses/delete', {}).finally(()=>{ loadAddresses() })
+  const id = addresses.value[idx]?.id
+  apiPost('/api/addresses/delete', id? { id } : {}).finally(()=>{ loadAddresses() })
 }
 
 function editAddress(idx: number){
@@ -440,8 +449,14 @@ function editAddress(idx: number){
   openDrawer.value = true
 }
 
-function confirmMapLocation(){
+async function confirmMapLocation(){
   if (!mapSelection.value) return
+  try{
+    await fetch('/api/geo/ensure', {
+      method: 'POST', credentials: 'include', headers: { 'content-type':'application/json' },
+      body: JSON.stringify({ countryCode: 'YE', countryName: form.value.country, governorate: selectedGovernorate.value, city: selectedCityName.value, area: selectedArea.value })
+    })
+  }catch{}
   openMap.value = false
   nextTick(()=>{
     try{
@@ -506,13 +521,11 @@ function openCities(){ if (!selectedGovernorate.value) return; openCityPicker.va
 function openAreas(){ if (!selectedGovernorate.value) return; openAreaPicker.value = true; loadAreas() }
 
 async function loadAddresses(){
-  // واجهة API تُعيد مصفوفة عناوين (نموذج عنوان واحد لكل مستخدم)
+  // واجهة API تُعيد مصفوفة عناوين (متعددة لكل مستخدم)
   const r = await apiGet<any[]>('/api/addresses')
   const list = Array.isArray(r) ? r : []
-  if (!list.length) { addresses.value = []; return }
-  const a = list[0]
-  addresses.value = [{
-    id: 'primary',
+  addresses.value = list.map((a:any)=> ({
+    id: a.id,
     fullName: a.fullName || form.value.fullName || '',
     phone: a.phone || form.value.phone || '',
     altPhone: a.altPhone || '',
@@ -523,8 +536,8 @@ async function loadAddresses(){
     area: (a.details || '').split(' - ')[0] || '',
     street: a.street || '',
     landmarks: a.details || '',
-    isDefault: true
-  }]
+    isDefault: !!a.isDefault
+  }))
 }
 
 function prefillFromMap(){
@@ -554,9 +567,18 @@ const returnTo = ref<string | null>(null)
 onMounted(()=>{
   const r = String((route.query?.return as string)||'').trim()
   if (r) returnTo.value = r
+  const open = String((route.query?.open as string)||'').trim()
+  if (open === '1') openDrawer.value = true
 })
 
-function selectAndReturn(){ if (returnTo.value) router.push(returnTo.value) }
+function selectAndReturn(){
+  // اضبط العنوان المحدد كافتراضي قبل العودة
+  try{
+    const a = addresses.value.find(x=> x.isDefault) || addresses.value[0]
+    if (a?.id) apiPost('/api/addresses/default', { id: a.id }).catch(()=>{})
+  }catch{}
+  if (returnTo.value) router.push(returnTo.value)
+}
 
 function openMapClick(){
   openMap.value = true

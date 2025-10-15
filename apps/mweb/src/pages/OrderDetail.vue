@@ -11,7 +11,7 @@
         </div>
         <div style="text-align:end">
           <div class="muted">الإجمالي</div>
-          <div style="font-weight:700">{{ Number(order.total||0).toFixed(2) }} ر.س</div>
+          <div style="font-weight:700">{{ Number(order.total||0).toFixed(2) }} {{ currencySymbol }}</div>
         </div>
       </div>
       <div class="card">
@@ -23,9 +23,13 @@
               <div>
                 <div style="font-weight:600">{{ it.product?.name }}</div>
                 <div class="muted">الكمية: {{ it.quantity }}</div>
+                <div class="muted" v-if="(it as any).attributes">
+                  <span v-if="(it as any).attributes?.color">اللون: {{ (it as any).attributes.color }}</span>
+                  <span v-if="(it as any).attributes?.size" style="margin-right:6px">المقاس: {{ (it as any).attributes.size }}</span>
+                </div>
               </div>
             </div>
-            <div style="font-weight:700">{{ Number(it.price||0).toFixed(2) }} ر.س</div>
+            <div style="font-weight:700">{{ Number(it.price||0).toFixed(2) }} {{ currencySymbol }}</div>
           </div>
         </div>
       </div>
@@ -56,6 +60,7 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 const id = String(route.params.id||'')
 const order = ref<any|null>(null)
+const currencySymbol = ref('ر.س')
 
 function t(s:string){
   const m: any = { PENDING:'قيد المعالجة', PAID:'تم الدفع', SHIPPED:'قيد الشحن', DELIVERED:'مكتمل', CANCELLED:'ملغي' }
@@ -64,6 +69,7 @@ function t(s:string){
 
 onMounted(async ()=>{
   order.value = await apiGet(`/api/orders/${encodeURIComponent(id)}`)
+  try{ const c = await apiGet<any>('/api/currency'); if (c && c.symbol) currencySymbol.value = c.symbol }catch{}
 })
 
 async function payNow(){

@@ -17,18 +17,19 @@
         </button>
       </div>
 
-      <!-- معرض الصور: صورتين واضحتين + الثالثة يظهر جزء منها -->
+      <!-- معرض الصور: صورتان واضحتان + الثالثة يظهر جزء منها (218×164) -->
       <div class="w-full overflow-x-auto no-scrollbar mb-3">
-        <div class="flex gap-2 w-max pr-2">
+        <div class="flex gap-2 w-max">
           <div
-            v-for="(src, idx) in galleryImages"
+            v-for="(src, idx) in gallery"
             :key="idx"
-            class="w-[48%] h-40 rounded-[8px] overflow-hidden shrink-0 bg-gray-100"
+            class="w-[164px] h-[218px] rounded-[8px] overflow-hidden shrink-0 bg-gray-100"
           >
             <img
               :src="src"
               :alt="`صورة ${idx + 1}`"
               class="w-full h-full object-cover"
+              loading="lazy"
             />
           </div>
         </div>
@@ -37,9 +38,9 @@
       <!-- اسم المنتج + السعر -->
       <div class="mb-4">
         <div class="text-[13px] font-semibold text-gray-900 leading-5">
-          تيشيرت نسائي بياقة مستديرة وقماش مريح
+          {{ product?.title || '' }}
         </div>
-        <div class="text-[13px] text-[#8a1538] font-bold">34.00 ر.س</div>
+        <div class="text-[13px] text-[#8a1538] font-bold">{{ displayPrice }}</div>
       </div>
 
       <!-- الألوان -->
@@ -49,7 +50,7 @@
         </div>
         <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
           <button
-            v-for="color in colors"
+            v-for="color in productColors"
             :key="color.label"
             @click="selectedColor = color.label"
             :class="`w-14 h-14 rounded-[6px] overflow-hidden border ${
@@ -62,6 +63,7 @@
               :src="color.img"
               :alt="color.label"
               class="w-full h-full object-cover"
+              loading="lazy"
             />
           </button>
         </div>
@@ -72,16 +74,16 @@
         <div class="text-[12px] text-gray-700 mb-2">اختر المقاس:</div>
         <div class="flex items-center flex-wrap gap-2">
           <button
-            v-for="size in sizes"
-            :key="size"
-            @click="selectedSize = size"
+            v-for="s in productSizes"
+            :key="s"
+            @click="selectedSize = s"
             :class="`px-3 h-8 rounded-full border text-[12px] ${
-              selectedSize === size
+              selectedSize === s
                 ? 'border-[#8a1538] text-[#8a1538]'
                 : 'border-gray-300'
             }`"
           >
-            {{ size }}
+            {{ s }}
           </button>
         </div>
       </div>
@@ -98,35 +100,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watchEffect } from 'vue'
 import { X } from 'lucide-vue-next'
 
 const props = defineProps<{
   onClose: () => void
+  onSave: (payload: { color: string; size: string }) => void
+  product: { id: string; title: string; price: number; images?: string[]; colors?: Array<{ label: string; img: string }>; sizes?: string[] } | null
+  selectedColor?: string
+  selectedSize?: string
 }>()
 
-const selectedColor = ref('أبيض')
-const selectedSize = ref('S')
+const selectedColor = ref(props.selectedColor || 'أبيض')
+const selectedSize = ref(props.selectedSize || 'S')
 
-const galleryImages = [
-  'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=200&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=200&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=200&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=200&auto=format&fit=crop'
-]
+const gallery = computed(()=>{
+  const imgs = Array.isArray(props.product?.images) ? props.product!.images! : []
+  const filtered = imgs.filter(u => /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+  return filtered.length ? filtered : ['/images/placeholder-product.jpg']
+})
 
-const colors = [
-  { label: 'أبيض', img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=100&auto=format&fit=crop' },
-  { label: 'بيج', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=100&auto=format&fit=crop' },
-  { label: 'زهري', img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=100&auto=format&fit=crop' },
-  { label: 'أحمر', img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=100&auto=format&fit=crop' },
-  { label: 'أسود', img: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=100&auto=format&fit=crop' }
-]
+const productColors = computed(()=> Array.isArray(props.product?.colors) ? props.product!.colors! : [])
+const productSizes = computed(()=> Array.isArray(props.product?.sizes) ? props.product!.sizes! : ['XS','S','M','L','XL'])
+import { fmtPrice } from '@/lib/currency'
+const displayPrice = computed(()=> fmtPrice(Number(props.product?.price||0)))
 
-const sizes = ['XS', 'S', 'M', 'L', 'XL']
+watchEffect(()=>{
+  if (props.selectedColor) selectedColor.value = props.selectedColor
+  if (props.selectedSize) selectedSize.value = props.selectedSize
+})
 
 function updateOptions() {
-  // هنا يمكن إضافة منطق تحديث خيارات المنتج
+  props.onSave({ color: selectedColor.value, size: selectedSize.value })
   props.onClose()
 }
 </script>

@@ -127,7 +127,7 @@
            @scroll.passive="onGalleryScroll">
           <div class="flex h-full">
             <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
-              <img :src="img" :alt="title" class="max-w-full max-h-full object-contain block" loading="lazy" @click="openLightbox(idx)" />
+              <img :src="img" :alt="title" class="max-w-full max-h-full object-contain block" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" />
         </div>
       </div>
       </div>
@@ -147,7 +147,7 @@
       <div class="flex-1 relative">
         <div ref="lightboxRef" class="w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
           <div class="flex h-full">
-            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" />
+            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="100vw" />
           </div>
         </div>
         <button class="absolute left-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="prevLightbox" aria-label="السابق">‹</button>
@@ -193,7 +193,7 @@
       </div>
 
       <h1 class="text-[13px] leading-relaxed text-gray-800 mb-3">
-        SHEIN Elenzga سترة نسائية ذات نقشة زهرية
+        {{ title }}
       </h1>
 
       <!-- Customer Images Badge -->
@@ -201,7 +201,7 @@
         <div class="flex items-center gap-2">
           <div class="flex -space-x-2">
             <div v-for="i in 3" :key="i" class="w-8 h-8 rounded-full border-2 border-white overflow-hidden">
-              <img :src="images[i % images.length]" class="w-full h-full object-cover" />
+              <img :src="images[i % images.length]" class="w-full h-full object-cover" loading="lazy" decoding="async" sizes="64px" />
       </div>
       </div>
           <span class="text-[12px] text-gray-600">في أصفر الزراء أنت قُم & كابتن</span>
@@ -215,7 +215,7 @@
       <!-- Color Selector -->
       <div class="mb-4">
         <div class="flex items-center gap-1 mb-2">
-          <span class="font-semibold text-[14px]">لون: أصفر</span>
+          <span class="font-semibold text-[14px]">لون: {{ currentColorName || '—' }}</span>
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
         <div class="flex gap-1 overflow-x-auto no-scrollbar pb-2">
@@ -234,7 +234,7 @@
       <!-- Size Selector -->
       <div ref="sizeSelectorRef" class="mb-4">
         <div class="flex items-center justify-between mb-2">
-          <span class="font-semibold text-[14px]">مقاس - الافتراضي</span>
+          <span class="font-semibold text-[14px]">مقاس - {{ size || 'الافتراضي' }}</span>
           <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -277,12 +277,12 @@
         <div class="text-[16px] font-bold mb-3">الشحن الى Bahrain</div>
         
         <div class="flex items-center justify-between py-3 border-b border-gray-200">
-        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2">
             <Truck :size="20" class="text-green-600" />
             <div>
-              <div class="text-[14px] font-bold">شحن مجاني (طلبات ≤ 333.80#)</div>
-              <div class="text-[13px] text-gray-600">شحن سريع التوصيل: 5-7 يوم عمل</div>
-        </div>
+              <div class="text-[14px] font-bold">{{ shippingTitleText }}</div>
+              <div class="text-[13px] text-gray-600">{{ shippingEtaText }}</div>
+            </div>
           </div>
           <ChevronLeft :size="16" class="text-gray-600" />
       </div>
@@ -367,7 +367,7 @@
             <ChevronLeft :size="16" class="text-gray-600" />
           </div>
           <div class="text-[13px] text-gray-700">
-            فستان طويلة بدون أكمام • الصائف • بلمع او بوهج • تصميم منسوع عند الخصر
+            {{ product?.description || '...' }}
           </div>
         </div>
 
@@ -401,7 +401,7 @@
         <div class="mb-4 p-4 border border-gray-200 rounded-lg">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
-              <span class="font-bold text-[15px]">Elenzga</span>
+              <span class="font-bold text-[15px]">{{ brand || 'Elenzga' }}</span>
               <ChevronLeft :size="16" class="text-gray-600" />
             </div>
             <div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center">
@@ -575,7 +575,7 @@
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openRecommended(p)" @keydown.enter="openRecommended(p)" @keydown.space.prevent="openRecommended(p)">
               <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
                 <div class="flex">
-                  <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
+                  <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="(max-width:640px) 50vw, 33vw" />
                 </div>
                 <div v-if="p.colors && p.colors.length" class="absolute bottom-2 right-2 flex items-center">
                   <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
@@ -677,8 +677,11 @@
         <button class="text-[20px]" @click="closeSizeGuide">×</button>
       </div>
       <div class="text-[13px] text-gray-700 leading-relaxed">
-        <p>تحويلات تقريبية: XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42) • XXL (EU 44)</p>
-        <p class="mt-2">قد تختلف المقاسات حسب التصميم والخامة. يُفضل مراجعة التعليقات لمعرفة الانطباعات عن الملاءمة.</p>
+        <div v-if="sizeGuideHtml" v-html="sizeGuideHtml"></div>
+        <template v-else>
+          <p>تحويلات تقريبية: XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42) • XXL (EU 44)</p>
+          <p class="mt-2">قد تختلف المقاسات حسب التصميم والخامة. يُفضل مراجعة التعليقات لمعرفة الانطباعات عن الملاءمة.</p>
+        </template>
       </div>
     </div>
   </div>
@@ -688,7 +691,7 @@
 <script setup lang="ts">
 // ==================== IMPORTS ====================
 import { useRoute, useRouter } from 'vue-router'
-import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, watch } from 'vue'
 import { useCart } from '@/store/cart'
 import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { 
@@ -704,6 +707,7 @@ const router = useRouter()
 const id = route.query.id as string || 'p1'
 
 // ==================== PRODUCT DATA ====================
+const product = ref<any>(null)
 const title = ref('منتج تجريبي')
 const price = ref<number>(129)
 const original = ref('')
@@ -711,6 +715,8 @@ const images = ref<string[]>([])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
+const categorySlug = ref<string>('')
+const brand = ref<string>('')
 
 // ==================== PRODUCT VARIANTS ====================
 // Color Variants
@@ -720,6 +726,19 @@ const colorIdx = ref(0)
 // Size Options
 const sizeOptions = ref<string[]>([])
 const size = ref<string>('')
+const variantByKey = ref<Record<string, { id:string; price?:number; stock?:number }>>({})
+const selectedVariantId = computed<string|undefined>(()=>{
+  const colorName = colorVariants.value[colorIdx.value]?.name || ''
+  const key = `${colorName}::${size.value}`.trim()
+  return variantByKey.value[key]?.id
+})
+const currentColorName = computed<string>(()=> colorVariants.value[colorIdx.value]?.name || '')
+const selectedVariantStock = computed<number|undefined>(()=>{
+  const colorName = colorVariants.value[colorIdx.value]?.name || ''
+  const key = `${colorName}::${size.value}`.trim()
+  const v = variantByKey.value[key]
+  return v?.stock
+})
 
 // ==================== HEADER & NAVIGATION ====================
 const showHeaderSearch = ref(false)
@@ -954,20 +973,53 @@ function scrollToTop() {
 // Reviews & Rating (from API)
 const avgRating = ref(4.9)
 const reviews = ref<any[]>([])
+// map API reviews to UI list without changing design
+watch(reviews, ()=>{
+  try{
+    const mapped = (reviews.value||[]).slice(0,10).map((r:any,idx:number)=>({
+      id: r.id ?? idx+1,
+      userName: r.user?.name || r.userName || 'عميل',
+      date: r.createdAt || r.date || new Date().toISOString(),
+      rating: Number(r.rating || r.stars || 5),
+      text: r.comment || r.text || '',
+      images: Array.isArray(r.images)? r.images : [],
+      size: r.size || size.value || '—',
+      color: r.color || currentColorName.value || undefined,
+      helpful: r.helpful || r.votes || 0,
+    }))
+    customerReviews.value = mapped
+  }catch{}
+}, { immediate: true })
 
 // Cart & Wishlist
 const cart = useCart()
 const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
 
-function addToCart(){
+async function addToCart(){
   const variantNote = size.value ? `(${size.value})` : ''
   cart.add({ id, title: title.value + variantNote, price: Number(price.value)||0, img: activeImg.value }, 1)
+  try { await apiPost('/api/cart/add', { productId: id, variantId: selectedVariantId.value, quantity: 1 }) } catch {}
+  try { trackAddToCart() } catch {}
   toast.value = true
   setTimeout(()=> toast.value=false, 1200)
 }
 const hasWish = ref(false)
-function toggleWish(){ hasWish.value = !hasWish.value }
+async function loadWishlist(){
+  try{
+    const j = await apiGet<any>('/api/wishlist')
+    const items: any[] = Array.isArray(j) ? j : Array.isArray(j?.items) ? j!.items : []
+    const found = items.find((w:any)=> String(w.id||w.productId||'') === String(id))
+    hasWish.value = !!found
+  }catch{ hasWish.value = false }
+}
+async function toggleWish(){
+  try{
+    const r = await apiPost<any>('/api/wishlist/toggle', { productId: id })
+    if (r && (r.added || r.removed)) hasWish.value = !!r.added
+    else hasWish.value = !hasWish.value
+  }catch{ hasWish.value = !hasWish.value }
+}
 
 // Size Guide Modal
 const sizeGuideOpen = ref(false)
@@ -1115,6 +1167,9 @@ onMounted(()=>{
   computeGalleryHeight()
   window.addEventListener('resize', computeGalleryHeight, { passive:true })
   loadProductData()
+  loadShipping()
+  trackViewItem()
+  injectHeadMeta()
 })
 
 onBeforeUnmount(()=> {
@@ -1132,6 +1187,7 @@ async function loadProductData() {
     })
     if(res.ok){
       const d = await res.json()
+      product.value = d
       title.value = d.name || title.value
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
@@ -1142,6 +1198,8 @@ async function loadProductData() {
       if (variants.length){ sizeOptions.value = Array.from(new Set(variants.map((v:any)=> String(v.value||v.name||'').trim()).filter(Boolean))) as string[] }
       size.value = sizeOptions.value[0] || ''
       original.value = ''
+      categorySlug.value = String(d?.category?.slug||'')
+      brand.value = String(d?.brand||'')
       
       // Sizes from API if available
       const s = Array.isArray(d.sizes) ? d.sizes.filter((x:any)=> typeof x==='string' && x.trim()) : []
@@ -1149,6 +1207,14 @@ async function loadProductData() {
         sizeOptions.value = s as string[]
         size.value = sizeOptions.value[0] 
       }
+      try { await loadNormalizedVariants() } catch {}
+      
+      // After primary data is ready, fire dependent loads (non-blocking)
+      try { fetchRecommendations() } catch {}
+      try { fetchSizeGuide() } catch {}
+      try { loadWishlist() } catch {}
+      try { injectProductJsonLd() } catch {}
+      try { injectHeadMeta() } catch {}
     }
   }catch{}
   
@@ -1160,6 +1226,193 @@ async function loadProductData() {
       const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
       avgRating.value = list.items.length? (sum/list.items.length) : avgRating.value
     }
+  }catch{}
+}
+
+// ==================== VARIANTS (normalized API) ====================
+async function loadNormalizedVariants(){
+  const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`)
+  const list: any[] = Array.isArray(j?.items) ? j!.items : []
+  const map: Record<string, { id:string; price?:number; stock?:number }> = {}
+  // Heuristic: split name/value into color/size when possible
+  for (const it of list){
+    const name = String(it.name||'')
+    const val = String(it.value||'')
+    let color = ''
+    let sz = ''
+    if (name && val){
+      // If name hints color/size, prefer val as size
+      if (/color|لون/i.test(name)) { color = val; }
+      if (/size|مقاس/i.test(name)) { sz = val; }
+    }
+    if (!color || !sz){
+      // Try parse like "Yellow - M" or "M - Yellow"
+      const parts = (name||val).split(/[-|x|×|\|,]/).map(s=>s.trim()).filter(Boolean)
+      if (parts.length===2){
+        // If one looks like size token, assign accordingly
+        const a = parts[0], b = parts[1]
+        const sizeToken = /^(xxs|xs|s|m|l|xl|xxl|xxxl|[0-9]{2}|[0-9]+)$/i
+        if (sizeToken.test(a)) { sz = a; color = b }
+        else if (sizeToken.test(b)) { sz = b; color = a }
+        else { color = a; sz = b }
+      } else {
+        sz = val || name
+      }
+    }
+    const key = `${color}::${sz}`.trim()
+    map[key] = { id: String(it.id), price: (it.price!=null? Number(it.price): undefined), stock: (it.stockQuantity!=null? Number(it.stockQuantity): undefined) }
+  }
+  variantByKey.value = map
+  // Update price if exact variant selected
+  const colorName = colorVariants.value[colorIdx.value]?.name || ''
+  const k = `${colorName}::${size.value}`.trim()
+  if (map[k] && typeof map[k].price === 'number') price.value = Number(map[k].price)
+}
+
+// React on variant change
+watch([colorIdx, size], ()=>{
+  try{
+    const colorName = colorVariants.value[colorIdx.value]?.name || ''
+    const k = `${colorName}::${size.value}`.trim()
+    const v = variantByKey.value[k]
+    if (v && typeof v.price === 'number') price.value = Number(v.price)
+  }catch{}
+})
+
+// ==================== RECOMMENDATIONS FETCH ====================
+async function fetchRecommendations(){
+  try{
+    isLoadingRecommended.value = true
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`)
+    const list = Array.isArray(sim?.items) ? sim!.items : []
+    if (list.length) {
+      recommendedProducts.value = list.map((it:any)=> ({
+        id: it.id,
+        brand: it.brand||'',
+        title: it.name||'',
+        image: Array.isArray(it.images)&&it.images[0]? it.images[0]: '',
+        price: Number(it.price||0),
+      }))
+      return
+    }
+  }catch{}
+  try{
+    const rec = await apiGet<any>('/api/recommendations/recent')
+    const items = Array.isArray(rec?.items) ? rec!.items : []
+    recommendedProducts.value = items.map((it:any)=> ({
+      id: it.id,
+      brand: it.brand||'',
+      title: it.name||'',
+      image: Array.isArray(it.images)&&it.images[0]? it.images[0]: '',
+      price: Number(it.price||0),
+    }))
+  }catch{} finally { isLoadingRecommended.value = false }
+}
+
+// ==================== SIZE GUIDE (CMS) ====================
+const sizeGuideHtml = ref<string>('')
+async function fetchSizeGuide(){
+  const slugs: string[] = []
+  if (brand.value && String(brand.value).trim()) slugs.push(`size-guide:${String(brand.value).trim().toLowerCase()}`)
+  if (categorySlug.value) slugs.push(`size-guide:${categorySlug.value}`)
+  slugs.push('size-guide:default')
+  for (const s of slugs){
+    try{
+      const j = await apiGet<any>(`/api/cms/page/${encodeURIComponent(s)}`)
+      if (j?.page?.content) { sizeGuideHtml.value = String(j.page.content); break }
+    }catch{}
+  }
+}
+
+// ==================== SHIPPING/RETURNS DYNAMIC ====================
+const shippingMethods = ref<Array<{ id:string; name:string; desc:string; price:number }>>([])
+const shippingQuote = ref<number|undefined>(undefined)
+const shippingTitleText = computed(()=>{
+  const m = shippingMethods.value?.[0]
+  if (!m) return 'شحن سريع'
+  const priceNum = Number(m.price||0)
+  const priceText = priceNum>0 ? `${priceNum} ر.س` : 'مجاني'
+  return `${m.name} (${priceText})`
+})
+const shippingEtaText = computed(()=>{
+  // Using quote or method desc
+  if (shippingQuote.value!=null) return `التكلفة التقديرية: ${shippingQuote.value} ر.س`
+  const m = shippingMethods.value?.[0]
+  return m?.desc || 'شحن سريع التوصيل'
+})
+async function loadShipping(){
+  try{
+    const m = await apiGet<any>('/api/shipping/methods')
+    shippingMethods.value = Array.isArray(m?.items)? m!.items : []
+  }catch{}
+  try{
+    const q = await apiGet<any>('/api/shipping/quote?method=std')
+    if (q && typeof q.price === 'number') shippingQuote.value = Number(q.price)
+  }catch{}
+}
+
+// ==================== ANALYTICS EVENTS ====================
+function trackViewItem(){
+  try{
+    ;(window as any).dataLayer = (window as any).dataLayer || []
+    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0) }] } })
+  }catch{}
+  try{
+    const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','ViewContent',{ content_ids:[id], content_type:'product', value:Number(price.value||0), currency:'SAR' })
+  }catch{}
+}
+function trackAddToCart(){
+  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1 }] } }) }catch{}
+  try{ const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','AddToCart',{ content_ids:[selectedVariantId.value||id], content_type:'product', value:Number(price.value||0), currency:'SAR' }) }catch{}
+}
+
+// ==================== SEO: JSON-LD ====================
+function injectProductJsonLd(){
+  try{
+    const data: any = {
+      '@context': 'https://schema.org/',
+      '@type': 'Product',
+      name: title.value,
+      image: images.value && images.value.length ? images.value : undefined,
+      brand: brand.value ? { '@type':'Brand', name: brand.value } : undefined,
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'SAR',
+        price: Number(price.value||0),
+        availability: 'https://schema.org/InStock',
+      }
+    }
+    if (reviews.value && reviews.value.length){
+      const sum = reviews.value.reduce((s:any,r:any)=> s + Number(r.rating||r.stars||0), 0)
+      const avg = reviews.value.length ? (sum / reviews.value.length) : 0
+      data.aggregateRating = { '@type':'AggregateRating', ratingValue: Number(avg.toFixed(1)), reviewCount: reviews.value.length }
+    }
+    const elId = 'pdp-jsonld'
+    let el = document.getElementById(elId) as HTMLScriptElement | null
+    if (!el){
+      const s = document.createElement('script')
+      s.type = 'application/ld+json'
+      s.id = elId
+      document.head.appendChild(s)
+      el = s
+    }
+    if (el) el.textContent = JSON.stringify(data)
+  }catch{}
+}
+
+// ==================== SEO HEAD (canonical/OG) ====================
+function injectHeadMeta(){
+  try{
+    const url = new URL(window.location.href)
+    const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
+    ;(canonical as HTMLLinkElement).href = url.href
+    const setMeta = (p:string,c:string)=>{ let m = document.querySelector(`meta[property="${p}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', p); document.head.appendChild(m) } m.content = c }
+    setMeta('og:title', title.value)
+    setMeta('og:type', 'product')
+    if (images.value[0]) setMeta('og:image', images.value[0])
+    setMeta('og:url', url.href)
+    setMeta('product:price:amount', String(Number(price.value||0)))
+    setMeta('product:price:currency', 'SAR')
   }catch{}
 }
 </script>
