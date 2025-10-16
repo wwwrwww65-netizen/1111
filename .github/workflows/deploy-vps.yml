@@ -304,6 +304,7 @@ jobs:
             export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
             # Clean old dist on server before deploy script to ensure fresh build
             rm -rf "$PATH_ON_HOST/packages/api/dist" || true
+            pnpm install --frozen-lockfile=false
             bash infra/scripts/deploy.sh "$PATH_ON_HOST"
             echo '--- Prisma migrate (deploy) ---'
             if [ -f "$PATH_ON_HOST/.env.api" ]; then
