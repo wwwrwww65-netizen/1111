@@ -19,14 +19,16 @@ export default function AdminLogin(): JSX.Element {
     setError("");
     try {
       setBusy(true);
-      const res = await fetch(`${apiBase}/api/auth/login`, {
+      // Prefer same-origin proxy if available
+      const target = typeof window !== 'undefined' && window.location.origin ? `${window.location.origin}/api/admin/auth/login` : `${apiBase}/api/admin/auth/login`;
+      const res = await fetch(target, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ email, password, remember })
       });
+      const j = await res.json().catch(()=>null) as any;
       if (!res.ok) {
-        const j = await res.json().catch(()=>null) as any;
         let msg = (j && (j.error || j.message)) || 'فشل تسجيل الدخول';
         if (String(j?.error||'').includes('locked')) msg = 'تم حظر الحساب مؤقتًا بسبب محاولات فاشلة. حاول لاحقًا.';
         setError(msg);
@@ -34,9 +36,12 @@ export default function AdminLogin(): JSX.Element {
         setTimeout(()=> setToast(""), 4000);
         return;
       }
-
-      // On successful login, the HttpOnly cookie is set by the server.
-      // We can now redirect the user.
+      // Prefer token from response, else try read from cookie, else validate session
+      let token: string | undefined = j?.token;
+      if (!token && typeof document !== 'undefined') {
+        const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+        if (m) { try { token = decodeURIComponent(m[1]); } catch { token = m[1]; } }
+      }
       const params = new URLSearchParams(window.location.search);
       const rawNext = params.get('next') || '/';
       // Sanitize next: allow only same-origin targets; fallback to '/'
@@ -47,8 +52,29 @@ export default function AdminLogin(): JSX.Element {
           ? (u.pathname + (u.search || '') + (u.hash || ''))
           : '/';
       } catch { redirectTo = '/'; }
-
-      window.location.assign(redirectTo);
+      // Set auth cookie via same-origin API, then redirect internally (ignore external next to avoid client rewrites)
+      if (token) {
+        try {
+          await fetch('/api/auth/set', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ token, remember })
+          });
+        } catch {}
+        window.location.assign('/');
+        return;
+      }
+      // Fallback to session check
+      const sess = await fetch(`${apiBase}/api/admin/auth/sessions`, { credentials:'include', cache:'no-store' });
+      if (sess.ok) {
+        window.location.assign('/');
+      } else {
+        const msg = 'فشل تسجيل الدخول';
+        setError(msg);
+        setToast(msg);
+        setTimeout(()=> setToast(""), 4000);
+      }
     } catch {
       const msg = 'خطأ غير متوقع';
       setError(msg);

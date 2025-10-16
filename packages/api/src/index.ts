@@ -208,9 +208,6 @@ async function ensureCategoryColumnsAlways(): Promise<void> {
 
 applySecurityMiddleware(app);
 app.use(cookieParser());
-import { publicAuthRouter } from './routers/public-auth';
-
-app.use('/api/auth', publicAuthRouter);
 app.use('/api/admin', adminRest);
 app.use('/api/admin', adminExtra);
 // Public shop API for mweb

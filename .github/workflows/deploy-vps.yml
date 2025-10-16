@@ -482,6 +482,7 @@ jobs:
             if [ -d "$ROOT/apps/admin/.next/standalone" ]; then
               ln -sfn "$ROOT/apps/admin/public" "$ROOT/apps/admin/.next/standalone/public"
               if [ -d "$ROOT/apps/admin/.next/static" ]; then
+                mkdir -p "$ROOT/apps/admin/.next/standalone/.next"
                 ln -sfn "$ROOT/apps/admin/.next/static" "$ROOT/apps/admin/.next/standalone/.next/static"
               fi
             fi
