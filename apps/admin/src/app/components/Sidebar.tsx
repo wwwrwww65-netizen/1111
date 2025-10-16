@@ -39,6 +39,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/attributes', label: 'السمات' },
       { href: '/catalog/pdp-settings', label: 'إعدادات صفحة المنتج' },
       { href: '/catalog/variants-matrix', label: 'مصفوفة المتغيرات' },
+      { href: '/catalog/pdp-meta', label: 'بيانات PDP (شارات/مقاس/عارضة)' },
     ],
   },
   {

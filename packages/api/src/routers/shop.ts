@@ -60,6 +60,34 @@ shop.get('/geo/governorates', async (req: any, res) => {
   }
 });
 
+// Public: PDP Meta by product (badges, fit score/text, best-seller rank, model, shipping destination override)
+shop.get('/product/:id/meta', async (req: any, res) => {
+  try {
+    const id = String(req.params.id);
+    const key = `pdp_meta:${id}`;
+    let meta: any = null;
+    try {
+      const row: any = await db.setting.findUnique({ where: { key } } as any);
+      meta = row ? row.value : null;
+    } catch {}
+    const out = Object.assign({ badges: [], bestRank: null, fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null }, meta || {});
+    return res.json({ productId: id, meta: out });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'pdp_meta_failed' });
+  }
+});
+
+// Public: Seller summary for a product
+shop.get('/product/:id/seller', async (req: any, res) => {
+  try{
+    const id = String(req.params.id);
+    const p = await db.product.findUnique({ where: { id }, select: { vendor: { select: { id: true, name: true, storeName: true, storeNumber: true, updatedAt: true } } } } as any);
+    const v = (p as any)?.vendor || null;
+    if (!v) return res.json({ vendor: null });
+    return res.json({ vendor: v });
+  }catch(e:any){ return res.status(500).json({ error: e?.message || 'seller_failed' }) }
+});
+
 // List cities by governorate or whole country
 shop.get('/geo/cities', async (req: any, res) => {
   try {

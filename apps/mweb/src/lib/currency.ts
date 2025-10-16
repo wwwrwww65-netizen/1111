@@ -13,7 +13,9 @@ export function getSymbol(){ return symbol }
 export async function initCurrency(): Promise<void> {
   if (initialized) return
   try{
-    const res = await fetch('/api/currency', { headers: { 'Accept': 'application/json' }, credentials: 'include' })
+    // Use API_BASE to avoid hitting Vite dev server (5173) which has no /api proxy
+    const base = (await import('@/lib/api')).API_BASE
+    const res = await fetch(`${base}/api/currency`, { headers: { 'Accept': 'application/json' }, credentials: 'omit' })
     if (res.ok){
       const d = await res.json()
       const code = d?.code || d?.base || d?.currency || current

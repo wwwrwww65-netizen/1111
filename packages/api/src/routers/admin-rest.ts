@@ -390,6 +390,39 @@ adminRest.get('/notifications/logs', async (req, res) => {
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'failed' }) }
 });
 
+  // Admin: PDP Meta by product (badges, fit, model, rank, shipping overrides)
+  adminRest.get('/pdp/meta/:productId', async (req, res) => {
+    try {
+      const productId = String(req.params.productId);
+      const key = `pdp_meta:${productId}`;
+      const row = await db.setting.findUnique({ where: { key } }).catch(()=>null) as any;
+      const meta = row ? (row.value as any) : null;
+      // Default structure to keep UI stable
+      const out = Object.assign({ badges: [], bestRank: null, fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null }, meta || {});
+      return res.json({ productId, meta: out });
+    } catch (e:any) {
+      return res.status(500).json({ error: e?.message || 'pdp_meta_get_failed' });
+    }
+  });
+
+  adminRest.put('/pdp/meta/:productId', async (req, res) => {
+    try {
+      const productId = String(req.params.productId);
+      const key = `pdp_meta:${productId}`;
+      const meta = req.body && typeof req.body === 'object' ? req.body : {};
+      const exists = await db.setting.findUnique({ where: { key } }).catch(()=>null);
+      let row: any;
+      if (exists) {
+        row = await db.setting.update({ where: { key }, data: { value: meta, updatedAt: new Date() } } as any);
+      } else {
+        row = await db.setting.create({ data: { key, value: meta } } as any);
+      }
+      return res.json({ ok: true, meta: row.value });
+    } catch (e:any) {
+      return res.status(500).json({ ok:false, error: e?.message || 'pdp_meta_put_failed' });
+    }
+  });
+
 // Defense-in-depth: ensure admin-extra tables exist if migrations were not applied yet.
 let __adminExtrasEnsured = false;
 adminRest.use(async (_req, _res, next) => {

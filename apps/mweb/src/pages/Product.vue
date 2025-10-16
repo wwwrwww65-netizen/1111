@@ -127,7 +127,7 @@
            @scroll.passive="onGalleryScroll">
           <div class="flex h-full">
             <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
-              <img :src="img" :alt="title" class="max-w-full max-h-full object-contain block" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" />
+              <img :src="img" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" />
         </div>
       </div>
       </div>
@@ -158,10 +158,10 @@
       </div>
     </div>
 
-    <!-- Trending Badge -->
-    <div class="flex items-center justify-between px-4 py-2 bg-purple-50">
-      <span class="text-[14px] font-bold text-purple-700">ترندات</span>
-      <span class="text-[13px] text-gray-600">الموضة في متناول الجميع</span>
+    <!-- Trending Badge (dynamic) -->
+    <div class="flex items-center justify-between px-4 py-2 bg-purple-50" v-if="pdpMeta.badges && pdpMeta.badges.length">
+      <span class="text-[14px] font-bold text-purple-700">{{ pdpMeta.badges[0]?.title || '' }}</span>
+      <span class="text-[13px] text-gray-600">{{ pdpMeta.badges[0]?.subtitle || '' }}</span>
       </div>
 
     <!-- Price Section -->
@@ -188,8 +188,7 @@
           <span class="font-bold text-[14px]">{{ avgRating.toFixed(1) }}</span>
           <span class="text-gray-600 text-[13px]">(+{{ reviews.length || 1000 }})</span>
         </div>
-        <span class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" style="background-color: #8a1538">Choices</span>
-        <span class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">ترندات</span>
+        <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-top-'+i" class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" :style="b.bgColor ? ('background-color:'+b.bgColor) : 'background-color:#8a1538'">{{ b.title }}</span>
       </div>
 
       <h1 class="text-[13px] leading-relaxed text-gray-800 mb-3">
@@ -207,7 +206,7 @@
           <span class="text-[12px] text-gray-600">في أصفر الزراء أنت قُم & كابتن</span>
       </div>
         <div class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full">
-          <span class="text-[11px] font-bold">#4 الأفضل مبيعاً</span>
+          <span class="text-[11px] font-bold" v-if="pdpMeta.bestRank">#{{ pdpMeta.bestRank }} الأفضل مبيعاً</span>
           <Camera :size="14" />
         </div>
       </div>
@@ -258,8 +257,8 @@
       <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
         <div class="flex items-center gap-2 mb-2">
           <ThumbsUp :size="16" class="text-green-600" />
-          <span class="font-bold text-[16px]">96%</span>
-          <span class="text-[12px] text-gray-600">يعتقد من العملاء أن المقاس حقيقي ومناسب</span>
+          <span class="font-bold text-[16px]">{{ pdpMeta.fitPercent ?? 96 }}%</span>
+          <span class="text-[12px] text-gray-600">{{ pdpMeta.fitText || 'يعتقد من العملاء أن المقاس حقيقي ومناسب' }}</span>
           <ChevronLeft :size="16" class="text-gray-600 mr-auto" />
       </div>
         <div class="text-[12px] text-gray-600">
@@ -272,9 +271,9 @@
 
     <!-- White Container: Shipping Info -->
     <div class="bg-white px-4 mt-0.5">
-      <!-- Shipping to Bahrain -->
+      <!-- Shipping to destination -->
       <div class="mb-4">
-        <div class="text-[16px] font-bold mb-3">الشحن الى Bahrain</div>
+        <div class="text-[16px] font-bold mb-3">الشحن الى {{ pdpMeta.shippingDestinationOverride || (product?.shippingCountry || 'السعودية') }}</div>
         
         <div class="flex items-center justify-between py-3 border-b border-gray-200">
           <div class="flex items-center gap-2">
@@ -351,7 +350,7 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="text-[13px]">مناسبة المطلة</span>
-              <span class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">ترندات</span>
+              <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-fit-'+i" class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">{{ b.title }}</span>
               <span class="text-[11px] text-green-600 font-bold">⬇️ارتفاع14%</span>
           </div>
           </div>
@@ -383,12 +382,12 @@
         <div class="mb-4 p-3 bg-gray-50 rounded-lg">
         <div class="flex items-center justify-between">
             <div>
-              <div class="text-[14px] font-bold mb-2">عارضة الأزياء ترتدي: S</div>
+              <div class="text-[14px] font-bold mb-2">عارضة الأزياء ترتدي: {{ pdpMeta.model?.size || 'S' }}</div>
               <div class="text-[12px] text-gray-600">
-                <span>طول: 163.0</span> | 
-                <span>صدر: 88.0</span> | 
-                <span>خصر: 64.0</span><br>
-                <span>الوركين: 92.0</span>
+                <span>طول: {{ pdpMeta.model?.height || 163 }}</span> | 
+                <span>صدر: {{ pdpMeta.model?.bust || 88 }}</span> | 
+                <span>خصر: {{ pdpMeta.model?.waist || 64 }}</span><br>
+                <span>الوركين: {{ pdpMeta.model?.hips || 92 }}</span>
         </div>
             </div>
             <div class="w-12 h-12 rounded-full overflow-hidden">
@@ -409,14 +408,13 @@
             </div>
           </div>
           <div class="text-[11px] text-gray-600 mb-2">
-            ***w تمت متابعته منذ 10 دقيقة
+            {{ sellerFollowText }}
           </div>
           <div class="flex gap-2 mb-3">
-            <span class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" style="background-color: #8a1538">Choices</span>
-            <span class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">ترندات</span>
+            <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-seller-'+i" class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" :style="b.bgColor ? ('background-color:'+b.bgColor) : 'background-color:#8a1538'">{{ b.title }}</span>
           </div>
           <div class="text-[12px] text-gray-700 mb-3">
-            مصممة لمن تسلك أناقة وراقية
+            {{ pdpMeta.sellerBlurb || '' }}
           </div>
           <div class="flex gap-2">
             <button class="flex-1 py-2 border border-gray-300 rounded-full text-[13px]">
@@ -691,7 +689,7 @@
 <script setup lang="ts">
 // ==================== IMPORTS ====================
 import { useRoute, useRouter } from 'vue-router'
-import { ref, onMounted, computed, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useCart } from '@/store/cart'
 import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { 
@@ -739,6 +737,40 @@ const selectedVariantStock = computed<number|undefined>(()=>{
   const v = variantByKey.value[key]
   return v?.stock
 })
+
+// ==================== VARIANT TOKEN HELPERS ====================
+// Normalize token spacing/case for robust comparisons
+function normToken(s: string): string { return String(s||'').trim().toLowerCase() }
+// Common Arabic/English color words and patterns
+const COLOR_WORDS = new Set([
+  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+])
+function isColorWord(s: string): boolean {
+  const t = normToken(s)
+  if (!t) return false
+  if (COLOR_WORDS.has(t)) return true
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return true
+  // Heuristics: words ending with "ي" in Arabic often denote color adjectives (e.g., سماوي، وردي، رمادي)
+  if (/^[\p{L}\s]{2,}$/u.test(s) && /ي$/.test(s)) return true
+  return false
+}
+// Size detection supports EN codes, numbers, and common Arabic words
+function looksSizeToken(s: string): boolean {
+  const t = normToken(s)
+  if (!t) return false
+  if (/^(xxs|xs|s|m|l|xl|xxl|xxxl)$/i.test(t)) return true
+  if (/^(\d{2}|\d{1,3})$/.test(t)) return true
+  // Arabic size words
+  if (/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true
+  return false
+}
+// Split composite like "أحمر - M" or "Red / XL"
+function splitTokens(s: string): string[] {
+  return String(s||'')
+    .split(/[,\/\-\|]+/)
+    .map(x=>x.trim())
+    .filter(Boolean)
+}
 
 // ==================== HEADER & NAVIGATION ====================
 const showHeaderSearch = ref(false)
@@ -1005,6 +1037,15 @@ async function addToCart(){
   setTimeout(()=> toast.value=false, 1200)
 }
 const hasWish = ref(false)
+// PDP Meta (badges, bestRank, fit, model, shipping destination override)
+const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null }>({ badges: [] })
+async function loadPdpMeta(){
+  try{
+    const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/meta`)
+    const meta = (j && j.meta) ? j.meta : j
+    if (meta && typeof meta==='object') pdpMeta.value = Object.assign({ badges: [] }, meta)
+  }catch{}
+}
 async function loadWishlist(){
   try{
     const j = await apiGet<any>('/api/wishlist')
@@ -1019,6 +1060,25 @@ async function toggleWish(){
     if (r && (r.added || r.removed)) hasWish.value = !!r.added
     else hasWish.value = !hasWish.value
   }catch{ hasWish.value = !hasWish.value }
+}
+
+// Seller info
+const seller = ref<{ id?: string; name?: string; storeName?: string; storeNumber?: string; updatedAt?: string }|null>(null)
+const sellerFollowText = computed(()=>{
+  if (!seller.value?.updatedAt) return ''
+  try{
+    const dt = new Date(seller.value.updatedAt as any)
+    const diff = Math.max(0, Date.now() - dt.getTime())
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return `تمت متابعته منذ ${mins} دقيقة`
+    const hours = Math.floor(mins/60)
+    if (hours < 24) return `تمت متابعته منذ ${hours} ساعة`
+    const days = Math.floor(hours/24)
+    return `تمت متابعته منذ ${days} يوم`
+  }catch{ return '' }
+})
+async function loadSeller(){
+  try{ const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/seller`); seller.value = j?.vendor || null }catch{}
 }
 
 // Size Guide Modal
@@ -1068,20 +1128,45 @@ function prevLightbox(){
 
 // Gallery height calculation
 const galleryHeight = ref<number|undefined>(undefined)
+const maxAspect = ref<number>(4/3)
+const maxAspectIndex = ref<number>(0)
+const maxAreaIndex = ref<number>(0)
+const tallestIndex = ref<number>(0)
 async function computeGalleryHeight(){
   try{
     const width = galleryRef.value?.clientWidth || window.innerWidth
-    const sizes: Array<{w:number,h:number}> = await Promise.all(
-      images.value.map(src => new Promise<{w:number,h:number}>(resolve=>{
+    const sizes: Array<{w:number,h:number,ratio:number,area:number,scaled:number}> = await Promise.all(
+      images.value.map(src => new Promise<{w:number,h:number,ratio:number,area:number,scaled:number}>(resolve=>{
         const im = new Image()
-        im.onload = ()=> resolve({ w: im.width||width, h: im.height||width })
-        im.onerror = ()=> resolve({ w: width, h: Math.floor(width*4/3) })
+        im.onload = ()=> {
+          const w = im.width||width; const h = im.height||width; const ratio = h/Math.max(1,w); resolve({ w, h, ratio, area: w*h, scaled: width*ratio })
+        }
+        im.onerror = ()=> { const w = width, h = Math.floor(width*4/3); const ratio = h/Math.max(1,w); resolve({ w, h, ratio, area: w*h, scaled: width*ratio }) }
         im.src = src
       }))
     )
-    const maxRatio = sizes.reduce((m,s)=> Math.max(m, s.h / Math.max(1,s.w)), 4/3)
+    const maxRatio = sizes.reduce((m,s)=> Math.max(m, s.ratio), 4/3)
     galleryHeight.value = Math.round(width * maxRatio)
+    maxAspect.value = maxRatio
+    // Mark the first image that matches max aspect (within tolerance)
+    const tol = 0.005
+    maxAspectIndex.value = Math.max(0, sizes.findIndex(s=> Math.abs(s.ratio - maxRatio) <= tol))
+    // Choose tallest image (by scaled height at current container width)
+    const maxScaled = sizes.reduce((m,s)=> Math.max(m, s.scaled), 0)
+    const tallestIdx = sizes.findIndex(s=> s.scaled === maxScaled)
+    if (tallestIdx >= 0) tallestIndex.value = tallestIdx
+    // Set frame height to that tallest scaled height
+    if (maxScaled > 0) galleryHeight.value = Math.round(maxScaled)
   }catch{}
+}
+// Recompute when images array updates
+watch(images, async ()=>{ try{ await nextTick(); await computeGalleryHeight() }catch{} }, { deep: true })
+
+function getImgFitClass(idx: number): string {
+  try{
+    if (idx === tallestIndex.value) return 'object-contain'
+  }catch{}
+  return 'object-cover'
 }
 
 // ==================== SCROLL HANDLING ====================
@@ -1168,6 +1253,8 @@ onMounted(()=>{
   window.addEventListener('resize', computeGalleryHeight, { passive:true })
   loadProductData()
   loadShipping()
+  loadPdpMeta()
+  loadSeller()
   trackViewItem()
   injectHeadMeta()
 })
@@ -1191,23 +1278,31 @@ async function loadProductData() {
       title.value = d.name || title.value
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
-      if (imgs.length) images.value = imgs
-      // map variants/colors if available
-      const variants = Array.isArray(d.variants)? d.variants : []
-      colorVariants.value = variants.map((v:any)=> ({ name: v.name||v.value||'', image: (imgs[0]||''), isHot: false }))
-      if (variants.length){ sizeOptions.value = Array.from(new Set(variants.map((v:any)=> String(v.value||v.name||'').trim()).filter(Boolean))) as string[] }
-      size.value = sizeOptions.value[0] || ''
+      if (imgs.length) { images.value = imgs; try { await nextTick(); await computeGalleryHeight() } catch {} }
+      // defer color/size mapping to normalized loader
       original.value = ''
       categorySlug.value = String(d?.category?.slug||'')
       brand.value = String(d?.brand||'')
       
-      // Sizes from API if available
-      const s = Array.isArray(d.sizes) ? d.sizes.filter((x:any)=> typeof x==='string' && x.trim()) : []
-      if (s.length) { 
+      // Sizes from API if available (accept only real size tokens)
+  const s = Array.isArray(d.sizes) ? (d.sizes as any[]).filter((x:any)=> typeof x==='string' && looksSizeToken(String(x).trim()) && !isColorWord(String(x).trim())) : []
+      if (s.length) {
         sizeOptions.value = s as string[]
-        size.value = sizeOptions.value[0] 
+        size.value = sizeOptions.value[0]
+      } else {
+        // If provided sizes are invalid (e.g., color names), ignore and reset
+        if (!Array.isArray(d.variants) || !d.variants.length) {
+          sizeOptions.value = []
+          size.value = ''
+        }
       }
       try { await loadNormalizedVariants() } catch {}
+      // Ensure default color and size after variants load
+      try {
+        if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
+        if (!currentColorName.value && colorVariants.value[0]?.name) colorIdx.value = 0
+        if (!size.value && sizeOptions.value.length) size.value = sizeOptions.value[0]
+      } catch {}
       
       // After primary data is ready, fire dependent loads (non-blocking)
       try { fetchRecommendations() } catch {}
@@ -1231,42 +1326,112 @@ async function loadProductData() {
 
 // ==================== VARIANTS (normalized API) ====================
 async function loadNormalizedVariants(){
-  const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`)
-  const list: any[] = Array.isArray(j?.items) ? j!.items : []
-  const map: Record<string, { id:string; price?:number; stock?:number }> = {}
-  // Heuristic: split name/value into color/size when possible
+  const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`).catch(()=>null)
+  let list: any[] = Array.isArray(j?.items) ? j!.items : []
+  if (!list.length && Array.isArray(product.value?.variants)) {
+    list = product.value.variants as any[]
+  }
+  // Derive colors and sizes separately to avoid swapping
+  const colorSet = new Set<string>()
+  const sizeSet = new Set<string>()
+  const norm = (s:string)=> String(s||'').trim()
   for (const it of list){
-    const name = String(it.name||'')
-    const val = String(it.value||'')
-    let color = ''
-    let sz = ''
-    if (name && val){
-      // If name hints color/size, prefer val as size
-      if (/color|لون/i.test(name)) { color = val; }
-      if (/size|مقاس/i.test(name)) { sz = val; }
-    }
-    if (!color || !sz){
-      // Try parse like "Yellow - M" or "M - Yellow"
-      const parts = (name||val).split(/[-|x|×|\|,]/).map(s=>s.trim()).filter(Boolean)
-      if (parts.length===2){
-        // If one looks like size token, assign accordingly
-        const a = parts[0], b = parts[1]
-        const sizeToken = /^(xxs|xs|s|m|l|xl|xxl|xxxl|[0-9]{2}|[0-9]+)$/i
-        if (sizeToken.test(a)) { sz = a; color = b }
-        else if (sizeToken.test(b)) { sz = b; color = a }
-        else { color = a; sz = b }
-      } else {
-        sz = val || name
+    const name = norm((it as any).name)
+    const val = norm((it as any).value)
+    const colorField = norm((it as any).color)
+    const sizeField = norm((it as any).size)
+    if (colorField && !looksSizeToken(colorField)) colorSet.add(colorField)
+    if (sizeField && looksSizeToken(sizeField)) sizeSet.add(sizeField)
+    if (/color|لون/i.test(name)) { if (val && !looksSizeToken(val)) colorSet.add(val) }
+    else if (/size|مقاس/i.test(name)) { if (val && looksSizeToken(val)) sizeSet.add(val) }
+    else {
+      const tokens = splitTokens(`${name} ${val}`)
+      for (const t of tokens){
+        if (looksSizeToken(t)) sizeSet.add(t)
+        else if (isColorWord(t)) colorSet.add(t)
       }
     }
-    const key = `${color}::${sz}`.trim()
-    map[key] = { id: String(it.id), price: (it.price!=null? Number(it.price): undefined), stock: (it.stockQuantity!=null? Number(it.stockQuantity): undefined) }
+  }
+  // Build colorVariants: images represent colors
+  const colors = Array.from(colorSet)
+  if (colors.length === 0) colors.push('—')
+  // Map colors to images: pick the first product image that visually matches token if possible; else fallback by index
+  const imgs = images.value.slice()
+  const pickImageFor = (c:string, idx:number): string => {
+    const t = normToken(c)
+    // Try filename contains color token
+    for (const u of imgs){
+      const file = u.split('/').pop() || ''
+      if (normToken(file).includes(t)) return u
+    }
+    return images.value[idx] || images.value[0] || ''
+  }
+  colorVariants.value = colors.map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
+  if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) {
+    colorIdx.value = 0
+  }
+  // Build size options as text chips (global baseline)
+  const sizes = Array.from(sizeSet)
+  sizeOptions.value = sizes.length ? sizes : []
+  if (!size.value) size.value = sizeOptions.value[0] || ''
+  // Best-effort variant map (color::size) when records encode both tokens in name/value
+  const map: Record<string, { id:string; price?:number; stock?:number }> = {}
+  for (const it of list){
+    const tokens = `${norm(it.name)} ${norm(it.value)}`.toLowerCase()
+    for (const c of colors){
+      for (const s of (sizeOptions.value.length? sizeOptions.value : [''])){
+        const key = `${c}::${s}`.trim()
+        const hasC = c && (tokens.includes(String(c).toLowerCase()) || String((it as any).color||'').toLowerCase()===String(c).toLowerCase())
+        const hasS = s ? (tokens.includes(String(s).toLowerCase()) || String((it as any).size||'').toLowerCase()===String(s).toLowerCase()) : true
+        if (hasC && hasS && !map[key]){
+          map[key] = { id:String(it.id), price: (it.price!=null? Number(it.price): undefined), stock: (it.stockQuantity!=null? Number(it.stockQuantity): undefined) }
+        }
+      }
+    }
   }
   variantByKey.value = map
-  // Update price if exact variant selected
+  // Update price if exact variant selected is known
   const colorName = colorVariants.value[colorIdx.value]?.name || ''
   const k = `${colorName}::${size.value}`.trim()
   if (map[k] && typeof map[k].price === 'number') price.value = Number(map[k].price)
+
+  // If variants explicitly provide size per color, adjust size options when color changes
+  const listHasColorSize = list.some((it:any)=> it && (it.color || it.size))
+  if (listHasColorSize){
+    const recomputeSizesForColor = ()=>{
+      const curColor = colorVariants.value[colorIdx.value]?.name || ''
+      if (!curColor) return
+      // Prefer explicit fields when available
+      let sizesForColor = Array.from(new Set(
+        list.filter((v:any)=> String(v.color||'').toLowerCase()===curColor.toLowerCase())
+            .map((v:any)=> norm(v.size))
+            .filter(x=> x && looksSizeToken(x) && !isColorWord(x))
+      ))
+      // Fallback to token matching when fields are not present in schema
+      if (!sizesForColor.length){
+        const col = curColor.toLowerCase()
+        const candidates = sizeOptions.value.slice()
+        const hitSizes = new Set<string>()
+        for (const s of candidates){
+          const st = String(s||'').toLowerCase()
+          const hit = list.some((it:any)=>{
+            const t = `${norm(it.name)} ${norm(it.value)}`.toLowerCase()
+            return t.includes(col) && (st? t.includes(st) : true)
+          })
+          if (hit) hitSizes.add(s)
+        }
+        sizesForColor = Array.from(hitSizes)
+      }
+      if (sizesForColor.length){
+        sizeOptions.value = sizesForColor
+        if (!sizesForColor.includes(size.value)) size.value = sizesForColor[0]
+      }
+    }
+    // initial
+    recomputeSizesForColor()
+    // on color change
+    watch(colorIdx, recomputeSizesForColor)
+  }
 }
 
 // React on variant change
