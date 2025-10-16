@@ -1,6 +1,9 @@
+import { config } from 'dotenv';
+config();
+
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'secret_for_tests';
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/app';
+  process.env.DATABASE_URL = 'postgresql://user:password@localhost:5432/ecom_db?schema=public';
 }
 if (!process.env.DIRECT_URL) {
   process.env.DIRECT_URL = process.env.DATABASE_URL;

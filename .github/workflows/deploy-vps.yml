@@ -478,6 +478,13 @@ jobs:
               journalctl -u ecom-admin --no-pager -n 200 || true
               exit 1
             fi
+            echo '--- Standalone symlinks for admin ---'
+            if [ -d "$ROOT/apps/admin/.next/standalone" ]; then
+              ln -sfn "$ROOT/apps/admin/public" "$ROOT/apps/admin/.next/standalone/public"
+              if [ -d "$ROOT/apps/admin/.next/static" ]; then
+                ln -sfn "$ROOT/apps/admin/.next/static" "$ROOT/apps/admin/.next/standalone/.next/static"
+              fi
+            fi
             echo '--- Verify static chunk is served by app ---'
             CHUNK=$(find "$ROOT/apps/admin/.next/static" -type f -name '*.js' -printf '%P\n' | head -n1 || true)
             if [ -n "$CHUNK" ]; then

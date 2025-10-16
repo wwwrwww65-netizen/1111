@@ -80,36 +80,6 @@ export const authRouter = router({
       return { user };
     }),
 
-  // Login user
-  login: publicProcedure
-    .input(loginSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { email, password } = input;
-
-      // Find user
-      const user = await db.user.findUnique({
-        where: { email },
-        select: { id: true, email: true, password: true, name: true, role: true, isVerified: true },
-      });
-
-      if (!user) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
-      }
-
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
-      }
-
-      // Generate JWT token and set cookie
-      const token = createToken({ userId: user.id, email: user.email, role: user.role });
-      setAuthCookies(ctx.res as any, token);
-
-      const { password: _, ...userWithoutPassword } = user;
-      return { user: userWithoutPassword };
-    }),
-
   // Logout user
   logout: publicProcedure
     .mutation(async ({ ctx }) => {
