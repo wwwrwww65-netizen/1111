@@ -80,6 +80,8 @@ model User {
   addresses         Address[]
   orders            Order[]
   reviews           Review[]
+  productQAs        ProductQA[]
+  ugcPhotos         UGCPhoto[]
   cart              Cart?
   wishlist          WishlistItem[]
   userRoles         UserRoleLink[]
@@ -139,6 +141,8 @@ model Product {
   vendor        Vendor?      @relation(fields: [vendorId], references: [id])
   variants      ProductVariant[]
   reviews       Review[]
+  productQAs    ProductQA[]
+  ugcPhotos     UGCPhoto[]
   orderItems    OrderItem[]
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
