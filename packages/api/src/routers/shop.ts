@@ -964,11 +964,11 @@ shop.get('/product/:id', async (req, res) => {
       if (/size|مقاس/i.test(name) && looksSizeToken(value)) sizes.add(value);
       if (/color|لون/i.test(name) && isColorWord(value)) colors.add(value);
     }
-    // Fallback: if sizes are still empty, derive from variant value/name tokens directly
+    // Fallback: if sizes are still empty, derive from variant value/name when they look like sizes
     if (sizes.size === 0 && Array.isArray(p.variants) && (p.variants as any[]).length){
       for (const v of (p.variants as any[])){
-        const tok = String((v as any).value || (v as any).name || '').trim();
-        if (tok) sizes.add(tok);
+        const raw = String((v as any).value || (v as any).name || '').trim();
+        if (raw && looksSizeToken(raw) && !isColorWord(raw)) sizes.add(raw);
       }
     }
     const out: any = Object.assign({}, p, {
