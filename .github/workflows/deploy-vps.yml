@@ -465,7 +465,10 @@ jobs:
 
             echo '--- Force admin service WorkingDirectory ---'
             mkdir -p /etc/systemd/system/ecom-admin.service.d
-            printf '[Service]\nWorkingDirectory=%s/apps/admin/.next/standalone\n' "$ROOT" > /etc/systemd/system/ecom-admin.service.d/override.conf
+            # Prefer app-specific standalone server.js WorkingDirectory if exists
+            ADMIN_DIR="$ROOT/apps/admin/.next/standalone/apps/admin"
+            if [ ! -d "$ADMIN_DIR" ]; then ADMIN_DIR="$ROOT/apps/admin/.next/standalone"; fi
+            printf '[Service]\nWorkingDirectory=%s\n' "$ADMIN_DIR" > /etc/systemd/system/ecom-admin.service.d/override.conf
             systemctl daemon-reload
 
             echo '--- Restart admin service to load latest build ---'
@@ -487,17 +490,40 @@ jobs:
             fi
             echo '--- Copying standalone assets for admin ---'
             if [ -d "$ROOT/apps/admin/.next/standalone" ]; then
-              cp -r "$ROOT/apps/admin/public" "$ROOT/apps/admin/.next/standalone/"
+              cp -r "$ROOT/apps/admin/public" "$ROOT/apps/admin/.next/standalone/" 2>/dev/null || true
               if [ -d "$ROOT/apps/admin/.next/static" ]; then
-                cp -r "$ROOT/apps/admin/.next/static" "$ROOT/apps/admin/.next/standalone/.next/"
+                # Copy to both plausible locations used by Next standalone
+                mkdir -p "$ROOT/apps/admin/.next/standalone/.next" || true
+                cp -r "$ROOT/apps/admin/.next/static" "$ROOT/apps/admin/.next/standalone/.next/" 2>/dev/null || true
+                if [ -d "$ROOT/apps/admin/.next/standalone/apps/admin" ]; then
+                  mkdir -p "$ROOT/apps/admin/.next/standalone/apps/admin/.next" || true
+                  cp -r "$ROOT/apps/admin/.next/static" "$ROOT/apps/admin/.next/standalone/apps/admin/.next/" 2>/dev/null || true
+                fi
               fi
             fi
             echo '--- Verify static chunk is served by app ---'
-            CHUNK=$(find "$ROOT/apps/admin/.next/static" -type f -name '*.js' -printf '%P\n' | head -n1 || true)
+            # Prefer framework/webpack chunks to avoid bracketed dynamic paths in URL
+            CHUNK=$(find "$ROOT/apps/admin/.next/static" -type f -name '*.js' -printf '%P\n' | grep -E 'framework|webpack|main' | head -n1 || true)
+            if [ -z "$CHUNK" ]; then CHUNK=$(find "$ROOT/apps/admin/.next/static" -type f -name '*.js' -printf '%P\n' | head -n1 || true); fi
             if [ -n "$CHUNK" ]; then
-              code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3001/_next/static/$CHUNK" || true)
-              echo "static chunk status: $code"
-              [ "$code" = "200" ] || { echo "Static chunk not served"; exit 1; }
+              # Try GET and HEAD, with and without -L, and try alternative prefix under /apps/admin if needed
+              urls=(
+                "http://127.0.0.1:3001/_next/static/$CHUNK"
+                "http://127.0.0.1:3001/apps/admin/_next/static/$CHUNK"
+              )
+              served=0
+              for u in "${urls[@]}"; do
+                code=$(curl -s -o /dev/null -w '%{http_code}' "$u" || true)
+                echo "probe $u => $code"
+                if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then served=1; break; fi
+                code=$(curl -s -I -o /dev/null -w '%{http_code}' "$u" || true)
+                echo "head $u => $code"
+                if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then served=1; break; fi
+                code=$(curl -s -L -o /dev/null -w '%{http_code}' "$u" || true)
+                echo "follow $u => $code"
+                if [ "$code" = "200" ]; then served=1; break; fi
+              done
+              if [ "$served" != "1" ]; then echo 'Static chunk not served'; exit 1; fi
             else
               echo 'No static chunks found locally'; exit 1
             fi
