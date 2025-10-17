@@ -1368,7 +1368,8 @@ async function loadNormalizedVariants(){
     const colorField = norm((it as any).color)
     const sizeField = norm((it as any).size)
     if (colorField && !looksSizeToken(colorField)) colorSet.add(colorField)
-    if (sizeField && looksSizeToken(sizeField)) sizeSet.add(sizeField)
+    // Accept explicit size field even if not a strict token, as long as it's not a color word
+    if (sizeField && !isColorWord(sizeField)) sizeSet.add(sizeField)
     if (/color|لون/i.test(name)) { if (val && !looksSizeToken(val)) colorSet.add(val) }
     else if (/size|مقاس/i.test(name)) { if (val && looksSizeToken(val)) sizeSet.add(val) }
     else {
