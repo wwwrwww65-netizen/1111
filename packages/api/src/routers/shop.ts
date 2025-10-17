@@ -964,6 +964,13 @@ shop.get('/product/:id', async (req, res) => {
       if (/size|مقاس/i.test(name) && looksSizeToken(value)) sizes.add(value);
       if (/color|لون/i.test(name) && isColorWord(value)) colors.add(value);
     }
+    // Fallback: if sizes are still empty, derive from variant value/name tokens directly
+    if (sizes.size === 0 && Array.isArray(p.variants) && (p.variants as any[]).length){
+      for (const v of (p.variants as any[])){
+        const tok = String((v as any).value || (v as any).name || '').trim();
+        if (tok) sizes.add(tok);
+      }
+    }
     const out: any = Object.assign({}, p, {
       colors: Array.from(colors),
       sizes: Array.from(sizes),
@@ -985,7 +992,7 @@ shop.get('/product/:id/variants', async (req, res) => {
       select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
       orderBy: { createdAt: 'asc' }
     } as any)
-    const items = (rows||[]).map((v:any)=>{
+    let items = (rows||[]).map((v:any)=>{
       const name = String(v.name||'');
       const value = String(v.value||'');
       const tokens = splitTokens(`${name} ${value}`);
@@ -996,6 +1003,11 @@ shop.get('/product/:id/variants', async (req, res) => {
       if (!size && /size|مقاس/i.test(name) && looksSizeToken(value)) size = value;
       return Object.assign({}, v, { color, size })
     })
+    // Fallback: if no variant got color/size, map size to value/name to provide a minimal dimension selector
+    const hasMeta = items.some((x:any)=> !!x.color || !!x.size);
+    if (!hasMeta){
+      items = items.map((v:any)=> Object.assign({}, v, { size: String(v.value||v.name||'').trim() || undefined }));
+    }
     return res.json({ items })
   } catch {
     return res.status(500).json({ error: 'variants_failed' })
