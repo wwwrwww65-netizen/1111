@@ -48,6 +48,16 @@ jobs:
         run: pnpm -w turbo run typecheck || true
       - name: Build
         run: pnpm build
+      - name: MWeb tests (Playwright preview)
+        if: ${{ github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') }}
+        working-directory: apps/mweb
+        run: |
+          pnpm i --no-frozen-lockfile
+          npx playwright install --with-deps chromium
+          pnpm build
+          pnpm preview &
+          npx wait-on http://localhost:3002
+          npx playwright test
       - name: Unit tests
         run: pnpm test || true
       - name: Smoke - Admin flows
