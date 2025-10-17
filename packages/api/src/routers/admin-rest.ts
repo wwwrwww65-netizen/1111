@@ -6598,6 +6598,11 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     const p = await db.product.findUnique({ where: { id }, select: { id: true } });
     if (!p) return res.status(404).json({ error: 'product_not_found' });
     const out: any[] = [];
+    const looksSize = (s:string)=> /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(String(s||'').trim());
+    const isColor = (s:string)=> {
+      const t = String(s||'').trim().toLowerCase();
+      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
+    };
     for (const v of rows) {
       const data: any = {
         productId: id,
@@ -6613,8 +6618,22 @@ adminRest.post('/products/:id/variants', async (req, res) => {
         const ov = Array.isArray((v as any).option_values)? (v as any).option_values : (Array.isArray((v as any).optionValues)? (v as any).optionValues : (Array.isArray((v as any).options)? (v as any).options : (Array.isArray((v as any).attributes)? (v as any).attributes : null)));
         const sz = (v as any).size;
         const col = (v as any).color;
-        if (ov || sz || col) {
-          data.value = JSON.stringify({ label: String(v.value||'').slice(0,120), size: sz||undefined, color: col||undefined, option_values: ov||undefined });
+        let sizeVal: string|undefined = sz;
+        let colorVal: string|undefined = col;
+        // Derive if missing from name/value tokens
+        if (!sizeVal || !colorVal) {
+          const src = `${String(v.name||'')} ${String(v.value||'')}`;
+          const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
+          if (!colorVal && hex) colorVal = hex[0];
+          if (!sizeVal) {
+            const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+            if (m) sizeVal = m[1];
+          }
+        }
+        // Normalize option_values
+        const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
+        if (normalizedOV || sizeVal || colorVal) {
+          data.value = JSON.stringify({ label: String(v.value||'').slice(0,120), size: sizeVal||undefined, color: colorVal||undefined, option_values: normalizedOV||undefined });
         }
       } catch {}
       if (v.sku) {
