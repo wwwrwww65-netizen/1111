@@ -1397,8 +1397,10 @@ async function loadNormalizedVariants(){
   if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) {
     colorIdx.value = 0
   }
-  // Build size options as text chips (global baseline)
-  const sizes = Array.from(sizeSet)
+  // Build size options as text chips (prefer variants; fallback to product.sizes from API)
+  const sizesFromVariants = Array.from(sizeSet)
+  const sizesFromProduct = Array.isArray(product.value?.sizes) ? (product.value!.sizes as string[]) : []
+  const sizes = sizesFromVariants.length ? sizesFromVariants : sizesFromProduct
   sizeOptions.value = sizes.length ? sizes : []
   if (!size.value) size.value = sizeOptions.value[0] || ''
   // Best-effort variant map (color::size) when records encode both tokens in name/value
@@ -1458,6 +1460,11 @@ async function loadNormalizedVariants(){
     recomputeSizesForColor()
     // on color change
     watch(colorIdx, recomputeSizesForColor)
+  }
+  // If still no sizes, fallback to product.sizes
+  if (!sizeOptions.value.length && Array.isArray(product.value?.sizes)){
+    sizeOptions.value = (product.value!.sizes as string[])
+    if (!size.value && sizeOptions.value.length) size.value = sizeOptions.value[0]
   }
 }
 
