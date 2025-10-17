@@ -34,7 +34,12 @@ export const productsRouter = router({
         include: {
           category: { select: { id: true, name: true } },
           reviews: { include: { user: { select: { name: true } } } },
-          variants: true,
+          variants: {
+            include: {
+              color: true,
+              size: true,
+            }
+          },
         },
       });
       if (!product) {
