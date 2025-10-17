@@ -5,6 +5,31 @@ import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express'
 
 const shop = Router();
+
+// ===================== Variant normalization helpers =====================
+function normToken(s: string): string { return String(s||'').trim().toLowerCase() }
+const COLOR_WORDS = new Set<string>([
+  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+]);
+function isColorWord(s: string): boolean {
+  const t = normToken(s);
+  if (!t) return false;
+  if (COLOR_WORDS.has(t)) return true;
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return true;
+  if (/^[\p{L}\s]{2,}$/u.test(s) && /ي$/.test(s)) return true; // Arabic adjective ending heuristic
+  return false;
+}
+function looksSizeToken(s: string): boolean {
+  const t = normToken(s);
+  if (!t) return false;
+  if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|xxxxxxl)$/i.test(t)) return true;
+  if (/^(\d{2}|\d{1,3})$/.test(t)) return true;
+  if (/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true;
+  return false;
+}
+function splitTokens(s: string): string[] {
+  return String(s||'').split(/[,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
+}
 // Reverse geocoding proxy (Nominatim) to avoid browser CORS
 shop.get('/reverse-geocode', async (req: any, res) => {
   try {
@@ -924,7 +949,26 @@ shop.get('/product/:id', async (req, res) => {
       },
     });
     if (!p) return res.status(404).json({ error: 'not_found' });
-    res.json(p);
+    // Derive colors/sizes arrays from variants
+    const colors = new Set<string>();
+    const sizes = new Set<string>();
+    for (const v of (p.variants as any[] || [])){
+      const name = String((v as any).name||'');
+      const value = String((v as any).value||'');
+      const tokens = splitTokens(`${name} ${value}`);
+      for (const t of tokens){
+        if (looksSizeToken(t)) sizes.add(t);
+        else if (isColorWord(t)) colors.add(t);
+      }
+      // Keyword hints
+      if (/size|مقاس/i.test(name) && looksSizeToken(value)) sizes.add(value);
+      if (/color|لون/i.test(name) && isColorWord(value)) colors.add(value);
+    }
+    const out: any = Object.assign({}, p, {
+      colors: Array.from(colors),
+      sizes: Array.from(sizes),
+    });
+    res.json(out);
   } catch {
     res.status(500).json({ error: 'failed' });
   }
@@ -936,12 +980,23 @@ shop.get('/product/:id/variants', async (req, res) => {
     const id = String(req.params.id)
     const p = await db.product.findUnique({ where: { id }, select: { id: true } })
     if (!p) return res.status(404).json({ error: 'not_found' })
-    const variants = await db.productVariant.findMany({
+    const rows = await db.productVariant.findMany({
       where: { productId: id },
       select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
       orderBy: { createdAt: 'asc' }
     } as any)
-    return res.json({ items: variants })
+    const items = (rows||[]).map((v:any)=>{
+      const name = String(v.name||'');
+      const value = String(v.value||'');
+      const tokens = splitTokens(`${name} ${value}`);
+      let color: string|undefined;
+      let size: string|undefined;
+      for (const t of tokens){ if (!color && isColorWord(t)) color = t; if (!size && looksSizeToken(t)) size = t }
+      if (!color && /color|لون/i.test(name) && isColorWord(value)) color = value;
+      if (!size && /size|مقاس/i.test(name) && looksSizeToken(value)) size = value;
+      return Object.assign({}, v, { color, size })
+    })
+    return res.json({ items })
   } catch {
     return res.status(500).json({ error: 'variants_failed' })
   }
