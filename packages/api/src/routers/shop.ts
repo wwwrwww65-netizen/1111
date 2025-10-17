@@ -1015,7 +1015,15 @@ shop.get('/cms/page/:slug', async (req, res) => {
     // Prefer published page when field exists; fallback to any matching slug
     let page = await (db as any).cMSPage.findFirst({ where: { slug, published: true } });
     if (!page) page = await (db as any).cMSPage.findFirst({ where: { slug } });
-    if (!page) return res.status(404).json({ error: 'not_found' });
+    if (!page) {
+      // Fallback: return a generic default for size-guide:* slugs to avoid noisy 404s on mweb
+      if (slug.startsWith('size-guide:')) {
+        const brandOrCat = slug.split(':')[1] || 'default'
+        const content = `<h3>مرجع المقاس (${brandOrCat})</h3><p>XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42)</p>`
+        return res.json({ page: { slug, title: 'مرجع المقاس', content, published: true } })
+      }
+      return res.status(404).json({ error: 'not_found' });
+    }
     return res.json({ page: { slug: page.slug, title: page.title, content: page.content, published: !!page.published } });
   } catch {
     return res.status(500).json({ error: 'cms_page_failed' });
