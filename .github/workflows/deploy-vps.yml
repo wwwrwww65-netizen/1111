@@ -506,13 +506,9 @@ jobs:
             CHUNK=$(find "$ROOT/apps/admin/.next/static" -type f -name '*.js' -printf '%P\n' | grep -E 'framework|webpack|main' | head -n1 || true)
             if [ -z "$CHUNK" ]; then CHUNK=$(find "$ROOT/apps/admin/.next/static" -type f -name '*.js' -printf '%P\n' | head -n1 || true); fi
             if [ -n "$CHUNK" ]; then
-              # Try GET and HEAD, with and without -L, and try alternative prefix under /apps/admin if needed
-              urls=(
-                "http://127.0.0.1:3001/_next/static/$CHUNK"
-                "http://127.0.0.1:3001/apps/admin/_next/static/$CHUNK"
-              )
+              # Try GET and HEAD, with and without -L, and try alternative prefix under /apps/admin if needed (POSIX-compatible loop)
               served=0
-              for u in "${urls[@]}"; do
+              for u in "http://127.0.0.1:3001/_next/static/$CHUNK" "http://127.0.0.1:3001/apps/admin/_next/static/$CHUNK"; do
                 code=$(curl -s -o /dev/null -w '%{http_code}' "$u" || true)
                 echo "probe $u => $code"
                 if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then served=1; break; fi
