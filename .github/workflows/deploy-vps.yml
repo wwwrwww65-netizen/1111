@@ -462,6 +462,12 @@ jobs:
               journalctl -u ecom-api --no-pager -n 200 || true
               exit 1
             fi
+
+            echo '--- Force admin service WorkingDirectory ---'
+            mkdir -p /etc/systemd/system/ecom-admin.service.d
+            printf '[Service]\nWorkingDirectory=%s/apps/admin/.next/standalone\n' "$ROOT" > /etc/systemd/system/ecom-admin.service.d/override.conf
+            systemctl daemon-reload
+
             echo '--- Restart admin service to load latest build ---'
             systemctl reset-failed ecom-admin || true
             systemctl try-restart ecom-admin || true
