@@ -60,6 +60,15 @@ jobs:
           npx playwright test
       - name: Unit tests
         run: pnpm test || true
+      - name: Admin analyze → direct fill → variants smoke
+        if: ${{ github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') || github.ref_name == 'main' || startsWith(github.ref, 'refs/heads/main') }}
+        env:
+          API_BASE: http://127.0.0.1:4000
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        run: |
+          set -e
+          node scripts/ci/create-test-product.mjs
       - name: Smoke - Admin flows
         run: node scripts/ci/smoke-admin-extras.mjs || true
       - name: Smoke - Create Order

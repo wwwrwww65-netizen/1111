@@ -30,6 +30,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [error, setError] = React.useState<string>('');
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
   const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
+  // Preview tab removed: fill fields directly
   const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
   const [deepseekOn, setDeepseekOn] = React.useState<boolean>(true);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiDeepseekOn'); if (v!==null) setDeepseekOn(v==='1'); } catch {} },[]);
@@ -145,7 +146,8 @@ export default function AdminProductCreate(): JSX.Element {
     try{
       const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
       if (Array.isArray(rows) && rows.length>0) {
-        setDescription(detailsToHtmlTable(rows));
+        const html = detailsToHtmlTable(rows);
+        if (html && html.length) setDescription(html);
       }
     } catch {}
   }, [review?.strictDetails]);
@@ -854,7 +856,61 @@ export default function AdminProductCreate(): JSX.Element {
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
       }
-      setActiveMobileTab('review');
+      // Direct-fill: write results into original fields instead of preview
+      try {
+        const limitedName = String(reviewObj.name||'').slice(0,60);
+        if (limitedName) setName(limitedName);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        // Merge palette images into images field
+        try{
+          const palettes = (reviewObj as any).palettes || [];
+          const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+          const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+          const merged = Array.from(new Set([...cur, ...urls]));
+          if (merged.length) setImages(merged.join(', '));
+        }catch{}
+        // Generate variant rows with structured option_values + size/color
+        const rows: typeof variantRows = [] as any;
+        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+        if (sList.length && cList.length) {
+          for (const sz of sList) {
+            for (const col of cList) {
+              rows.push({
+                name: 'متغير',
+                value: `${sz} / ${col}`,
+                price: undefined,
+                purchasePrice: baseCost,
+                stockQuantity: Number(reviewObj.stock||stockQuantity||0),
+                size: sz,
+                color: col,
+                option_values: [ { name: 'size', value: sz }, { name: 'color', value: col } ]
+              });
+            }
+          }
+        } else if (sList.length) {
+          for (const sz of sList) {
+            rows.push({
+              name: 'مقاس', value: sz, price: undefined, purchasePrice: baseCost, stockQuantity: Number(reviewObj.stock||stockQuantity||0),
+              size: sz, option_values: [ { name: 'size', value: sz } ]
+            });
+          }
+        } else if (cList.length) {
+          for (const col of cList) {
+            rows.push({
+              name: 'لون', value: col, price: undefined, purchasePrice: baseCost, stockQuantity: Number(reviewObj.stock||stockQuantity||0),
+              color: col, option_values: [ { name: 'color', value: col } ]
+            });
+          }
+        }
+        if (rows.length) setVariantRows(rows as any);
+      } catch {}
+      setActiveMobileTab('compose');
       showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
       setError('فشل التحليل. حاول مجدداً.');
@@ -926,10 +982,37 @@ export default function AdminProductCreate(): JSX.Element {
         }
         (reviewObj as any).mapping = mapping;
       } catch {}
+      // Direct fill
       setReview(reviewObj);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
-      showToast('تم تحليل DeepSeek (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      try{
+        const limitedName = String(reviewObj.name||'').slice(0,60);
+        if (limitedName) setName(limitedName);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        const palettes = (reviewObj as any).palettes || [];
+        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        const rows: typeof variantRows = [] as any;
+        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+        if (sList.length && cList.length) {
+          for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, price: undefined, purchasePrice: baseCost, stockQuantity: Number(reviewObj.stock||stockQuantity||0), size: sz, color: col, option_values:[{name:'size', value:sz},{name:'color', value:col}] });
+        } else if (sList.length) {
+          for (const sz of sList) rows.push({ name:'مقاس', value:sz, price: undefined, purchasePrice: baseCost, stockQuantity: Number(reviewObj.stock||stockQuantity||0), size: sz, option_values:[{name:'size', value:sz}] });
+        } else if (cList.length) {
+          for (const col of cList) rows.push({ name:'لون', value:col, price: undefined, purchasePrice: baseCost, stockQuantity: Number(reviewObj.stock||stockQuantity||0), color: col, option_values:[{name:'color', value:col}] });
+        }
+        if (rows.length) setVariantRows(rows as any);
+      } catch {}
+      showToast('تم تحليل DeepSeek وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل تحليل DeepSeek');
       showToast('فشل تحليل DeepSeek', 'err');
@@ -983,8 +1066,29 @@ export default function AdminProductCreate(): JSX.Element {
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم التحليل الصارم (نص فقط)', 'ok');
-      setActiveMobileTab('review');
+      try{
+        const limitedName = String(reviewObj.name||'').slice(0,60);
+        if (limitedName) setName(limitedName);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        const palettes = (reviewObj as any).palettes || [];
+        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        const rows: typeof variantRows = [] as any;
+        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
+        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
+        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
+        if (rows.length) setVariantRows(rows as any);
+      } catch {}
+      showToast('تم التحليل الصارم وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل التحليل الصارم');
       showToast('فشل التحليل الصارم', 'err');
@@ -1043,8 +1147,29 @@ export default function AdminProductCreate(): JSX.Element {
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم تحليل OpenRouter (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      try{
+        const limitedName = String(reviewObj.name||'').slice(0,60);
+        if (limitedName) setName(limitedName);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        const palettes = (reviewObj as any).palettes || [];
+        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        const rows: typeof variantRows = [] as any;
+        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
+        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
+        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
+        if (rows.length) setVariantRows(rows as any);
+      } catch {}
+      showToast('تم تحليل OpenRouter وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل تحليل OpenRouter');
       showToast('فشل تحليل OpenRouter', 'err');
@@ -1095,8 +1220,29 @@ export default function AdminProductCreate(): JSX.Element {
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم تحليل GPT (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      try{
+        const limitedName = String(reviewObj.name||'').slice(0,60);
+        if (limitedName) setName(limitedName);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        const palettes = (reviewObj as any).palettes || [];
+        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        const rows: typeof variantRows = [] as any;
+        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
+        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
+        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
+        if (rows.length) setVariantRows(rows as any);
+      } catch {}
+      showToast('تم تحليل GPT وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch { setError('فشل تحليل GPT'); showToast('فشل تحليل GPT', 'err'); }
     finally { setBusy(false); }
   }
@@ -1128,7 +1274,17 @@ export default function AdminProductCreate(): JSX.Element {
   const [showImagesInput, setShowImagesInput] = React.useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
-  const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
+  const [variantRows, setVariantRows] = React.useState<Array<{
+    name: string;
+    value: string;
+    price?: number;
+    purchasePrice?: number;
+    stockQuantity: number;
+    sku?: string;
+    size?: string;
+    color?: string;
+    option_values?: Array<{ name: string; value: string; label?: string }>;
+  }>>([]);
   const formRef = React.useRef<HTMLFormElement>(null);
   const [autoFilled, setAutoFilled] = React.useState(false);
 
@@ -1309,6 +1465,14 @@ export default function AdminProductCreate(): JSX.Element {
       showToast('أكمل الحقول المطلوبة', 'err');
       return;
     }
+    // Guard: ensure description table (strictDetails) is embedded if available
+    try {
+      const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
+      const html = detailsToHtmlTable(rows);
+      if (html && html.length && (!description || description.indexOf('<table') === -1)) {
+        setDescription(html);
+      }
+    } catch {}
     setBusy(true);
     const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean).filter(u => !u.startsWith('blob:'));
     let uploadedOrBase64: string[] = [];
@@ -1376,10 +1540,19 @@ export default function AdminProductCreate(): JSX.Element {
       let variants = variantRows;
       if (!variants?.length) variants = generateVariantRows();
       if (variants.length) {
+        // Normalize variants to include explicit size/color/option_values for reliable extraction downstream
+        const normalized = variants.map(v => {
+          const sizeToken = v.size || (/size|مقاس/i.test(v.name) ? v.value : undefined);
+          const colorToken = v.color || (!sizeToken ? v.value : undefined);
+          const ov = Array.isArray(v.option_values) ? v.option_values : [];
+          const withSize = sizeToken ? ov.filter(o=>o.name!=='size').concat([{ name:'size', value:String(sizeToken) }]) : ov;
+          const withBoth = colorToken ? withSize.filter(o=>o.name!=='color').concat([{ name:'color', value:String(colorToken) }]) : withSize;
+          return { ...v, size: sizeToken, color: colorToken, option_values: withBoth };
+        });
         try {
           await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
             method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-            body: JSON.stringify({ variants })
+            body: JSON.stringify({ variants: normalized })
           });
         } catch {}
       }
@@ -1409,71 +1582,16 @@ export default function AdminProductCreate(): JSX.Element {
             <input type="checkbox" checked={deepseekOn} onChange={(e)=> setDeepseekOn(e.target.checked)} />
             <span>DeepSeek</span>
           </label>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-            <input type="checkbox" checked={useOpenRouter} onChange={(e)=> setUseOpenRouter(e.target.checked)} />
-            <span>OpenRouter</span>
-          </label>
-          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
-          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
-          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
-          <button type="button" onClick={()=>handleRulesStrictPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل صارم (نص فقط)">{busy? '...' : 'تحليل صارم (بدون اختراع)'}</button>
-          <button type="button" onClick={()=>handleOpenRouterOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر OpenRouter فقط (معاينة)">{busy? '...' : 'تحليل عبر OpenRouter (معاينة)'}</button>
-          <button type="button" onClick={()=>handleGptOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر GPT فقط (معاينة)">{busy? '...' : 'تحليل عبر GPT (معاينة)'}</button>
-          <button type="button" onClick={()=>{
-              if (!review) return;
-              const limitedName = String(review.name||'').slice(0,60);
-              setName(limitedName);
-              setDescription(String(review.longDesc||''));
-              if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
-              if (review.stock!==undefined) setStockQuantity(review.stock);
-              if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
-              if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
-              const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
-              const cList: string[] = Array.isArray(review.colors)? review.colors : [];
-              // Auto-add images from palettes mapping if provided
-              try{
-                const palettes = (review as any).palettes || [];
-                const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
-                const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
-                const merged = Array.from(new Set([...cur, ...urls]));
-                setImages(merged.join(', '));
-              }catch{}
-              const rows: typeof variantRows = [];
-              const baseSale = undefined;
-              const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-              if (sList.length && cList.length) {
-                for (const sz of sList) {
-                  for (const col of cList) {
-                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}-${col}`;
-                    rows.push({ name: sz, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                  }
-                }
-              } else if (sList.length) {
-                for (const sz of sList) {
-                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}`;
-                  rows.push({ name: sz, value: sz, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                }
-              } else if (cList.length) {
-                for (const col of cList) {
-                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${col}`;
-                  rows.push({ name: col, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                }
-              }
-              setVariantRows(rows);
-            }} disabled={busy || !review} className="btn">توليد</button>
-            <button type="button" onClick={()=>{
-              const rows = (review as any)?.strictDetails as Array<{label:string;value:string}> | undefined;
-              const html = detailsToHtmlTable(rows);
-              setDescription(html || (review?.longDesc || ''));
-              showToast('تم توليد جدول التفاصيل داخل الوصف','ok');
-            }} disabled={busy || !review} className="btn btn-outline">توليد جدول التفاصيل للوصف</button>
+          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn">{busy? 'جارِ التحليل...' : 'حلّل واملأ الحقول'}</button>
+          <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
         </>}
       >
         <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
           <div style={{ display:'grid', gap:12 }}>
             <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            {review && (
+            {/* review UI removed to simplify flow; fields are filled directly */}
+            {false && review && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -1654,7 +1772,8 @@ export default function AdminProductCreate(): JSX.Element {
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
           </label>
           <label style={{ gridColumn:'1 / -1' }}>الوصف
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="input" />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className="input" />
+            <small style={{ color:'var(--sub)' }}>سيتم توليد جدول تفاصيل تلقائياً عند توفر بيانات صارمة.</small>
           </label>
           <label>المورّد
             <select value={vendorId} onChange={async (e) => {
@@ -1798,9 +1917,7 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
               <div className="panel" style={{ paddingTop:12 }}>
                 <div className="toolbar" style={{ gap:8 }}>
-                  <button type="button" onClick={() => {
-                    setVariantRows(generateVariantRows());
-                  }} className="btn btn-outline">توليد التباينات المتعددة</button>
+                  <button type="button" onClick={() => { setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
                 </div>
                 {variantRows.length > 0 ? (
                   <div style={{ overflowX:'auto' }}>
@@ -1809,6 +1926,7 @@ export default function AdminProductCreate(): JSX.Element {
                         <tr>
                           <th>المجموعة</th>
                           <th>القيمة</th>
+                          <th>السمات</th>
                           <th>سعر الشراء</th>
                           <th>سعر البيع</th>
                           <th>المخزون</th>
@@ -1822,6 +1940,18 @@ export default function AdminProductCreate(): JSX.Element {
                           <tr key={idx}>
                             <td>{row.name}</td>
                             <td>{row.value}</td>
+                            <td style={{minWidth:200}}>
+                              <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
+                                <input placeholder="Size" value={row.size||''} onChange={(e)=>{
+                                  const v = e.target.value || undefined;
+                                  setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, size: v, option_values: [ ...(r.option_values||[]).filter(ov=>ov.name!=='size'), ...(v? [{name:'size', value:v}] : []) ] } : r));
+                                }} className="input" style={{width:100}} />
+                                <input placeholder="Color" value={row.color||''} onChange={(e)=>{
+                                  const v = e.target.value || undefined;
+                                  setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, color: v, option_values: [ ...(r.option_values||[]).filter(ov=>ov.name!=='color'), ...(v? [{name:'color', value:v}] : []) ] } : r));
+                                }} className="input" style={{width:100}} />
+                              </div>
+                            </td>
                             <td>
                               <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
@@ -1973,7 +2103,7 @@ export default function AdminProductCreate(): JSX.Element {
           </div>
           <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
           <div style={{ display:'flex', gap:8, marginTop:8, justifyContent:'flex-end' }}>
-          <button type="submit" className="btn">حفظ المنتج</button>
+            <button type="submit" className="btn">حفظ المنتج</button>
             <a href="/products" className="btn btn-outline">رجوع</a>
           </div>
         </div>
