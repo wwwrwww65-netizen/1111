@@ -479,12 +479,11 @@ jobs:
               journalctl -u ecom-admin --no-pager -n 200 || true
               exit 1
             fi
-            echo '--- Standalone symlinks for admin ---'
+            echo '--- Copying standalone assets for admin ---'
             if [ -d "$ROOT/apps/admin/.next/standalone" ]; then
-              ln -sfn "$ROOT/apps/admin/public" "$ROOT/apps/admin/.next/standalone/public"
+              cp -r "$ROOT/apps/admin/public" "$ROOT/apps/admin/.next/standalone/"
               if [ -d "$ROOT/apps/admin/.next/static" ]; then
-                mkdir -p "$ROOT/apps/admin/.next/standalone/.next"
-                ln -sfn "$ROOT/apps/admin/.next/static" "$ROOT/apps/admin/.next/standalone/.next/static"
+                cp -r "$ROOT/apps/admin/.next/static" "$ROOT/apps/admin/.next/standalone/.next/"
               fi
             fi
             echo '--- Verify static chunk is served by app ---'
