@@ -772,7 +772,7 @@ export default function AdminProductCreate(): JSX.Element {
         keywords: 0.5,
       };
       const palettes: Array<{url:string;hex:string;name:string}> = [];
-      const allUrls = allProductImageUrls(true);
+      const allUrls = allProductImageUrls();
       // Recompute quick palette client-side for mapping visual review
       // Include newly uploaded files too
       const localFiles = Array.isArray(files)? files.slice(0,6 - Math.min(allUrls.length,6)) : [];
@@ -1231,8 +1231,8 @@ export default function AdminProductCreate(): JSX.Element {
     });
   }
 
-  function allProductImageUrls(excludeBlobs = false): string[] {
-    const urlFiles = excludeBlobs ? [] : files.map(f => URL.createObjectURL(f));
+  function allProductImageUrls(): string[] {
+    const urlFiles = files.map(f => URL.createObjectURL(f));
     const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
     return [...urlStrings, ...urlFiles];
   }

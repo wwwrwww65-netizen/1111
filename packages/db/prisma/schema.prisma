@@ -2,13 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider      = "prisma-client-js"
+  provider = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -60,60 +60,60 @@ enum CouponType {
 }
 
 model User {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  password            String
-  name                String
-  role                UserRole  @default(USER)
-  phone               String?
-  isVerified          Boolean   @default(false)
-  twoFactorEnabled    Boolean   @default(false)
-  twoFactorSecret     String?
-  stripeCustomerId    String?   @unique
-  failedLoginAttempts Int       @default(0)
-  lockUntil           DateTime?
-  vendorId            String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  name              String
+  role              UserRole  @default(USER)
+  phone             String?
+  isVerified        Boolean   @default(false)
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String?
+  stripeCustomerId  String?   @unique
+  failedLoginAttempts Int     @default(0)
+  lockUntil         DateTime?
+  vendorId          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
-  addresses       Address[]
-  orders          Order[]
-  reviews         Review[]
-  productQAs      ProductQA[]
-  ugcPhotos       UGCPhoto[]
-  cart            Cart?
-  wishlist        WishlistItem[]
-  userRoles       UserRoleLink[]
-  auditLogs       AuditLog[]
-  couponUsage     CouponUsage[]
-  supportTickets  SupportTicket[]
-  ticketsAssigned SupportTicket[] @relation("TicketAssignee")
-  loyaltyPoints   LoyaltyPoint[]
-  events          Event[]
-  sessions        Session[]
-  vendor          Vendor?         @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  addresses         Address[]
+  orders            Order[]
+  reviews           Review[]
+  productQAs        ProductQA[]
+  ugcPhotos         UGCPhoto[]
+  cart              Cart?
+  wishlist          WishlistItem[]
+  userRoles         UserRoleLink[]
+  auditLogs         AuditLog[]
+  couponUsage       CouponUsage[]
+  supportTickets    SupportTicket[]
+  ticketsAssigned   SupportTicket[] @relation("TicketAssignee")
+  loyaltyPoints     LoyaltyPoint[]
+  events            Event[]
+  sessions          Session[]
+  vendor            Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 }
 
 model Category {
-  id             String   @id @default(cuid())
-  name           String
-  description    String?
-  image          String?
-  parentId       String?
-  slug           String?  @unique
-  seoTitle       String?
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  image       String?
+  parentId    String?
+  slug        String?  @unique
+  seoTitle    String?
   seoDescription String?
-  seoKeywords    String[]
-  translations   Json?
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  seoKeywords String[]
+  translations Json?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryHierarchy")
-  products Product[]
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
 
   @@index([parentId, sortOrder])
 }
@@ -137,84 +137,76 @@ model Product {
   updatedAt     DateTime @updatedAt
 
   // Relations
-  category        Category         @relation(fields: [categoryId], references: [id])
-  vendor          Vendor?          @relation(fields: [vendorId], references: [id])
-  variants        ProductVariant[]
-  reviews         Review[]
-  productQAs      ProductQA[]
-  ugcPhotos       UGCPhoto[]
-  orderItems      OrderItem[]
-  cartItems       CartItem[]
-  wishlistItems   WishlistItem[]
+  category      Category     @relation(fields: [categoryId], references: [id])
+  vendor        Vendor?      @relation(fields: [vendorId], references: [id])
+  variants      ProductVariant[]
+  reviews       Review[]
+  productQAs    ProductQA[]
+  ugcPhotos     UGCPhoto[]
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
   inventoryLevels InventoryLevel[] @relation("ProductInventoryLevels")
-  guestCartItems  GuestCartItem[]
+  guestCartItems GuestCartItem[]
 }
 
 model ProductVariant {
-  id            String   @id @default(cuid())
-  productId     String
-  name          String // e.g., "Red", "Large"
-  value         String // e.g., "red", "L"
-  price         Float?
+  id        String   @id @default(cuid())
+  productId String
+  name      String   // e.g., "Red", "Large"
+  value     String   // e.g., "red", "L"
+  price     Float?
   purchasePrice Float?
-  stockQuantity Int      @default(0)
-  sku           String?  @unique
-  colorId       String?
-  sizeId        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  stockQuantity Int  @default(0)
+  sku       String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
-  color           AttributeColor?  @relation(fields: [colorId], references: [id], onDelete: SetNull)
-  size            AttributeSize?   @relation(fields: [sizeId], references: [id], onDelete: SetNull)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   inventoryLevels InventoryLevel[] @relation("VariantInventoryLevels")
-
-  @@index([colorId])
-  @@index([sizeId])
 }
 
 model InventoryLevel {
-  id        String   @id @default(cuid())
-  productId String?
-  variantId String?
-  location  String? // default warehouse
-  quantity  Int      @default(0)
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  productId  String?
+  variantId  String?
+  location   String?  // default warehouse
+  quantity   Int      @default(0)
+  updatedAt  DateTime @updatedAt
 
-  product Product?        @relation("ProductInventoryLevels", fields: [productId], references: [id], onDelete: Cascade)
-  variant ProductVariant? @relation("VariantInventoryLevels", fields: [variantId], references: [id], onDelete: Cascade)
+  product    Product? @relation("ProductInventoryLevels", fields: [productId], references: [id], onDelete: Cascade)
+  variant    ProductVariant? @relation("VariantInventoryLevels", fields: [variantId], references: [id], onDelete: Cascade)
 }
 
 // Sessions for login tracking and revocation
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  userAgent String?
-  ip        String?
-  createdAt DateTime @default(now())
-  expiresAt DateTime
+  id         String   @id @default(cuid())
+  userId     String
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId])
 }
 
 model Address {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id])
-  street     String
-  city       String
-  state      String
-  postalCode String
-  country    String
-  isDefault  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  street      String
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  orders Order[] @relation("OrderShippingAddress")
+  orders      Order[]  @relation("OrderShippingAddress")
 }
 
 model Cart {
@@ -225,7 +217,7 @@ model Cart {
   updatedAt DateTime @updatedAt
 
   // Relations
-  items CartItem[]
+  items     CartItem[]
 }
 
 model CartItem {
@@ -237,22 +229,22 @@ model CartItem {
   updatedAt DateTime @updatedAt
 
   // Relations
-  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
 
   @@unique([cartId, productId])
 }
 
 // Guest carts (for visitors without accounts)
 model GuestCart {
-  id        String   @id @default(cuid())
-  sessionId String   @unique
-  userAgent String?
-  ip        String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  sessionId  String   @unique
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  items GuestCartItem[]
+  items      GuestCartItem[]
 }
 
 model GuestCartItem {
@@ -283,12 +275,12 @@ model Order {
   updatedAt         DateTime    @updatedAt
 
   // Relations
-  payment        Payment?
-  items          OrderItem[]
-  coupon         Coupon?         @relation(fields: [couponId], references: [id])
-  tickets        SupportTicket[]
-  assignedDriver Driver?         @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
-  shipments      Shipment[]
+  payment           Payment?
+  items             OrderItem[]
+  coupon            Coupon?     @relation(fields: [couponId], references: [id])
+  tickets           SupportTicket[]
+  assignedDriver    Driver?     @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  shipments         Shipment[]
 }
 
 model OrderItem {
@@ -301,8 +293,8 @@ model OrderItem {
   updatedAt DateTime @updatedAt
 
   // Relations
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
 }
 
 model Payment {
@@ -321,17 +313,17 @@ model Payment {
 // Payment Gateways / Methods configuration
 model PaymentGateway {
   id          String   @id @default(cuid())
-  name        String // display name
-  provider    String // e.g., stripe, paypal, cod
+  name        String   // display name
+  provider    String   // e.g., stripe, paypal, cod
   mode        String   @default("TEST") // TEST | LIVE
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
-  feesFixed   Float? // fixed fee per transaction
-  feesPercent Float? // percentage fee e.g., 2.9
+  feesFixed   Float?   // fixed fee per transaction
+  feesPercent Float?   // percentage fee e.g., 2.9
   minAmount   Float?
   maxAmount   Float?
-  credentials Json? // keys/secrets
-  options     Json? // extra options (installments, 3DS, etc.)
+  credentials Json?    // keys/secrets
+  options     Json?    // extra options (installments, 3DS, etc.)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -341,7 +333,7 @@ model Currency {
   id         String   @id @default(cuid())
   code       String   @unique // e.g., SAR, USD, EUR
   name       String
-  symbol     String // e.g., ر.س, $
+  symbol     String   // e.g., ر.س, $
   precision  Int      @default(2)
   rateToBase Float    @default(1) // conversion to base currency
   isBase     Boolean  @default(false)
@@ -360,7 +352,7 @@ model Country {
   updatedAt DateTime @updatedAt
 
   // Relations
-  cities City[]
+  cities    City[]
 }
 
 model City {
@@ -374,10 +366,10 @@ model City {
   updatedAt DateTime @updatedAt
 
   // Relations
-  areas Area[]
+  areas     Area[]
 
-  @@unique([countryId, name])
   @@index([countryId])
+  @@unique([countryId, name])
 }
 
 model Area {
@@ -389,8 +381,8 @@ model Area {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([cityId, name])
   @@index([cityId])
+  @@unique([cityId, name])
 }
 
 // Finance: Expenses (admin-side operational expenses)
@@ -407,11 +399,11 @@ model Expense {
 
 // Logistics: Shipment legs across the delivery pipeline
 enum ShipmentLegType {
-  PICKUP // supplier to warehouse
-  INBOUND // warehouse receiving
-  PROCESSING // packing/ready
-  OUTBOUND // warehouse to customer dispatch
-  DELIVERY // customer delivery
+  PICKUP       // supplier to warehouse
+  INBOUND      // warehouse receiving
+  PROCESSING   // packing/ready
+  OUTBOUND     // warehouse to customer dispatch
+  DELIVERY     // customer delivery
 }
 
 enum ShipmentLegStatus {
@@ -422,19 +414,19 @@ enum ShipmentLegStatus {
 }
 
 model ShipmentLeg {
-  id           String            @id @default(cuid())
-  orderId      String?
-  poId         String? // purchase order id (for supplier pickups)
-  legType      ShipmentLegType
-  status       ShipmentLegStatus @default(SCHEDULED)
+  id          String            @id @default(cuid())
+  orderId     String?
+  poId        String?           // purchase order id (for supplier pickups)
+  legType     ShipmentLegType
+  status      ShipmentLegStatus @default(SCHEDULED)
   fromLocation String?
   toLocation   String?
-  driverId     String?
-  scheduledAt  DateTime?
-  startedAt    DateTime?
-  completedAt  DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  driverId    String?
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 }
 
 enum PackageStatus {
@@ -448,16 +440,16 @@ enum PackageStatus {
 }
 
 model Package {
-  id         String        @id @default(cuid())
-  orderId    String?
-  poId       String?
-  barcode    String        @unique
-  weight     Float?
-  dimensions String?
-  priority   String? // High/Normal/Low
-  status     PackageStatus @default(CREATED)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id          String         @id @default(cuid())
+  orderId     String?
+  poId        String?
+  barcode     String         @unique
+  weight      Float?
+  dimensions  String?
+  priority    String?        // High/Normal/Low
+  status      PackageStatus  @default(CREATED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
 
 enum ScanType {
@@ -469,49 +461,49 @@ enum ScanType {
 }
 
 model BarcodeScan {
-  id            String   @id @default(cuid())
-  packageId     String?
+  id         String   @id @default(cuid())
+  packageId  String?
   shipmentLegId String?
-  scanType      ScanType
-  lat           Float?
-  lng           Float?
-  actorUserId   String?
+  scanType   ScanType
+  lat        Float?
+  lng        Float?
+  actorUserId  String?
   actorDriverId String?
-  ts            DateTime @default(now())
+  ts         DateTime @default(now())
 }
 
 model DriverLocation {
-  id       String   @id @default(cuid())
-  driverId String
-  lat      Float
-  lng      Float
-  speed    Float?
-  heading  Float?
-  ts       DateTime @default(now())
+  id        String   @id @default(cuid())
+  driverId  String
+  lat       Float
+  lng       Float
+  speed     Float?
+  heading   Float?
+  ts        DateTime @default(now())
 }
 
 model Signature {
-  id       String   @id @default(cuid())
-  orderId  String?
-  legId    String?
-  imageUrl String
-  signedBy String?
-  ts       DateTime @default(now())
+  id        String   @id @default(cuid())
+  orderId   String?
+  legId     String?
+  imageUrl  String
+  signedBy  String?
+  ts        DateTime @default(now())
 }
 
 model Review {
-  id         String   @id @default(cuid())
-  productId  String
-  userId     String
-  rating     Int
-  comment    String?
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  rating    Int
+  comment   String?
   isApproved Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id])
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id])
 
   @@unique([productId, userId])
 }
@@ -527,8 +519,8 @@ model ProductQA {
   createdAt  DateTime @default(now())
 
   // Relations
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([productId, createdAt])
 }
@@ -548,20 +540,20 @@ model Coupon {
   updatedAt      DateTime   @updatedAt
 
   // Relations
-  orders Order[]
-  usage  CouponUsage[]
+  orders         Order[]
+  usage          CouponUsage[]
 }
 
 model CouponUsage {
-  id       String   @id @default(cuid())
-  couponId String
-  userId   String
-  orderId  String
-  usedAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  couponId  String
+  userId    String
+  orderId   String
+  usedAt    DateTime @default(now())
 
   // Relations
-  coupon Coupon @relation(fields: [couponId], references: [id])
-  user   User   @relation(fields: [userId], references: [id])
+  coupon    Coupon   @relation(fields: [couponId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([couponId, userId, orderId])
 }
@@ -573,29 +565,30 @@ model WishlistItem {
   createdAt DateTime @default(now())
 
   // Relations
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([userId, productId])
 }
 
 // RBAC & Audit
 
+
 // Customer Support
 model SupportTicket {
-  id               String   @id @default(cuid())
-  userId           String?
+  id        String   @id @default(cuid())
+  userId    String?
   assignedToUserId String?
-  orderId          String?
-  subject          String
-  status           String   @default("OPEN")
-  priority         String   @default("NORMAL")
-  messages         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  assignee         User?    @relation("TicketAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
-  order            Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId   String?
+  subject   String
+  status    String   @default("OPEN")
+  priority  String   @default("NORMAL")
+  messages  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assignee  User?    @relation("TicketAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
 }
 
 // Returns & Refunds
@@ -631,42 +624,42 @@ model CMSPage {
 
 // Vendors
 model Vendor {
-  id           String    @id @default(cuid())
-  name         String    @unique
+  id           String   @id @default(cuid())
+  name         String   @unique
   contactEmail String?
   phone        String?
   address      String?
   storeName    String?
   storeNumber  String?
-  vendorCode   String?   @unique
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  vendorCode   String?  @unique
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   products     Product[]
   users        User[]
 }
 
 // Logistics: Drivers
 model Driver {
-  id            String              @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String
   phone         String?
-  isActive      Boolean             @default(true)
-  status        DriverStatus        @default(AVAILABLE)
+  isActive      Boolean       @default(true)
+  status        DriverStatus  @default(AVAILABLE)
   location      String?
   address       String?
-  idType        String? // 'ID' | 'PASSPORT'
+  idType        String?       // 'ID' | 'PASSPORT'
   nationalId    String?
-  vehicleType   String? // "دراجة نارية" | "دباب نقل"
-  ownership     String? // "company" | "driver"
+  vehicleType   String?       // "دراجة نارية" | "دباب نقل"
+  ownership     String?       // "company" | "driver"
   notes         String?
   lat           Float?
   lng           Float?
   plateNumber   String?
   rating        Float?
   lastSeenAt    DateTime?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   orders        Order[]
   shipments     Shipment[]
   ledgerEntries DriverLedgerEntry[]
@@ -679,77 +672,74 @@ enum LedgerEntryType {
 }
 
 model DriverLedgerEntry {
-  id        String          @id @default(cuid())
+  id        String   @id @default(cuid())
   driverId  String
   amount    Float
   type      LedgerEntryType
   note      String?
-  createdAt DateTime        @default(now())
+  createdAt DateTime @default(now())
 
-  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 }
 
 model DriverDocument {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   driverId  String
   docType   String
   url       String
   expiresAt DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 }
 
 // Logistics: Carriers
 model Carrier {
-  id           String     @id @default(cuid())
-  name         String     @unique
-  isActive     Boolean    @default(true)
-  mode         String     @default("TEST")
-  credentials  Json?
-  pricingRules Json?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  shipments    Shipment[]
+  id            String   @id @default(cuid())
+  name          String   @unique
+  isActive      Boolean  @default(true)
+  mode          String   @default("TEST")
+  credentials   Json?
+  pricingRules  Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  shipments     Shipment[]
 }
 
 // Logistics: Shipments
 model Shipment {
-  id             String         @id @default(cuid())
-  orderId        String
-  carrierId      String?
-  driverId       String?
+  id            String         @id @default(cuid())
+  orderId       String
+  carrierId     String?
+  driverId      String?
   trackingNumber String?
-  status         ShipmentStatus @default(LABEL_CREATED)
-  weight         Float?
-  dimensions     String?
-  cost           Float?
-  labelUrl       String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  status        ShipmentStatus @default(LABEL_CREATED)
+  weight        Float?
+  dimensions    String?
+  cost          Float?
+  labelUrl      String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  carrier Carrier? @relation(fields: [carrierId], references: [id], onDelete: SetNull)
-  driver  Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier       Carrier?       @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  driver        Driver?        @relation(fields: [driverId], references: [id], onDelete: SetNull)
 }
 
 // Attributes
 model AttributeColor {
-  id        String           @id @default(cuid())
-  name      String           @unique
+  id        String   @id @default(cuid())
+  name      String   @unique
   hex       String
-  imageUrl  String?
-  createdAt DateTime         @default(now())
-  variants  ProductVariant[]
+  createdAt DateTime @default(now())
 }
 
 model AttributeSize {
-  id             String             @id @default(cuid())
-  name           String
-  typeId         String?
-  type           AttributeSizeType? @relation(fields: [typeId], references: [id])
-  createdAt      DateTime           @default(now())
-  ProductVariant ProductVariant[]
+  id        String   @id @default(cuid())
+  name      String
+  typeId    String?
+  type      AttributeSizeType? @relation(fields: [typeId], references: [id])
+  createdAt DateTime @default(now())
 
   @@unique([name, typeId])
 }
@@ -761,22 +751,22 @@ model AttributeBrand {
 }
 
 model AttributeSizeType {
-  id        String          @id @default(cuid())
-  name      String          @unique
-  createdAt DateTime        @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
   sizes     AttributeSize[]
 }
 
 // Media Library
 model MediaAsset {
-  id             String   @id @default(cuid())
-  url            String
-  type           String
-  alt            String?
-  checksum       String?  @unique
+  id        String   @id @default(cuid())
+  url       String
+  type      String
+  alt       String?
+  checksum  String?  @unique
   dominantColors String[]
-  meta           Json?
-  createdAt      DateTime @default(now())
+  meta      Json?
+  createdAt DateTime @default(now())
 }
 
 // User Generated Content Photos (admin-rest expects `db.uGCPhoto` mapped to `UGCPhoto`)
@@ -789,8 +779,8 @@ model UGCPhoto {
   createdAt  DateTime @default(now())
 
   // Relations
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([productId, createdAt])
 }
@@ -815,21 +805,21 @@ model Setting {
 
 // Shipping Zones and Delivery Rates
 model ShippingZone {
-  id           String   @id @default(cuid())
-  name         String
-  countryCodes String[] // e.g., ["SA", "AE"]
-  regions      Json? // optional: governorates/provinces
-  cities       Json? // optional: cities list or patterns
-  areas        Json? // optional: districts/areas
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  countryCodes  String[]         // e.g., ["SA", "AE"]
+  regions       Json?            // optional: governorates/provinces
+  cities        Json?            // optional: cities list or patterns
+  areas         Json?            // optional: districts/areas
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  rates DeliveryRate[]
+  rates         DeliveryRate[]
 }
 
 model DeliveryRate {
-  id               String       @id @default(cuid())
+  id               String   @id @default(cuid())
   zoneId           String
   zone             ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
   carrier          String?
@@ -844,21 +834,21 @@ model DeliveryRate {
   offerTitle       String?
   activeFrom       DateTime?
   activeUntil      DateTime?
-  isActive         Boolean      @default(true)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([zoneId, isActive])
 }
 
 // Events for Recommendations & Trends
 model Event {
-  id         String   @id @default(cuid())
-  userId     String?
-  name       String
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String
   properties Json?
-  createdAt  DateTime @default(now())
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
 // Backups
@@ -872,11 +862,11 @@ model BackupJob {
 
 // RBAC & Audit
 model Role {
-  id          String           @id @default(cuid())
-  name        String           @unique
+  id          String         @id @default(cuid())
+  name        String         @unique
   description String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   users       UserRoleLink[]
   permissions RolePermission[]
 }
@@ -896,17 +886,15 @@ model UserRoleLink {
   roleId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
   @@unique([userId, roleId])
 }
 
 model RolePermission {
-  id           String     @id @default(cuid())
+  id           String      @id @default(cuid())
   roleId       String
   permissionId String
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
   @@unique([roleId, permissionId])
 }
 
