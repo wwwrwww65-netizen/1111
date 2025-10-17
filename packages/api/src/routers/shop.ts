@@ -30,6 +30,53 @@ function looksSizeToken(s: string): boolean {
 function splitTokens(s: string): string[] {
   return String(s||'').split(/[,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
 }
+
+function extractOptions(rec: any): { sizes: string[]; colors: string[] } {
+  const sizes = new Set<string>();
+  const colors = new Set<string>();
+  const visit = (name: string, value: string) => {
+    const n = normToken(name);
+    const v = String(value||'').trim();
+    if (!v) return;
+    if (/size|مقاس/i.test(n)) {
+      if (!isColorWord(v)) sizes.add(v);
+      return;
+    }
+    if (/color|لون/i.test(n)) {
+      if (isColorWord(v)) colors.add(v);
+      return;
+    }
+    // Heuristics
+    if (looksSizeToken(v) && !isColorWord(v)) sizes.add(v);
+    else if (isColorWord(v)) colors.add(v);
+  };
+  const arrays: any[] = [];
+  try { if (Array.isArray(rec?.option_values)) arrays.push(rec.option_values); } catch {}
+  try { if (Array.isArray(rec?.optionValues)) arrays.push(rec.optionValues); } catch {}
+  try { if (Array.isArray(rec?.options)) arrays.push(rec.options); } catch {}
+  try { if (Array.isArray(rec?.attributes)) arrays.push(rec.attributes); } catch {}
+  for (const arr of arrays) {
+    for (const it of (arr||[])) {
+      if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+    }
+  }
+  const tryParseJSON = (raw: string) => {
+    try {
+      const j = JSON.parse(raw);
+      if (Array.isArray(j)) {
+        for (const it of j) {
+          if (typeof it === 'string') visit('auto', it);
+          else if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+        }
+      } else if (j && typeof j === 'object') {
+        for (const [k, v] of Object.entries(j)) visit(String(k), String(v as any));
+      }
+    } catch {}
+  };
+  if (typeof rec?.value === 'string' && (rec.value.startsWith('{') || rec.value.startsWith('['))) tryParseJSON(rec.value);
+  if (typeof rec?.name === 'string' && (rec.name.startsWith('{') || rec.name.startsWith('['))) tryParseJSON(rec.name);
+  return { sizes: Array.from(sizes), colors: Array.from(colors) };
+}
 // Reverse geocoding proxy (Nominatim) to avoid browser CORS
 shop.get('/reverse-geocode', async (req: any, res) => {
   try {
@@ -963,6 +1010,10 @@ shop.get('/product/:id', async (req, res) => {
       // Keyword hints
       if (/size|مقاس/i.test(name) && looksSizeToken(value)) sizes.add(value);
       if (/color|لون/i.test(name) && isColorWord(value)) colors.add(value);
+      // option_values extraction if present
+      const opt = extractOptions(v);
+      opt.sizes.forEach(s=> sizes.add(s));
+      opt.colors.forEach(c=> colors.add(c));
     }
     // Fallback: if sizes are still empty, derive from variant value/name when they look like sizes
     if (sizes.size === 0 && Array.isArray(p.variants) && (p.variants as any[]).length){
@@ -1001,6 +1052,12 @@ shop.get('/product/:id/variants', async (req, res) => {
       for (const t of tokens){ if (!color && isColorWord(t)) color = t; if (!size && looksSizeToken(t)) size = t }
       if (!color && /color|لون/i.test(name) && isColorWord(value)) color = value;
       if (!size && /size|مقاس/i.test(name) && looksSizeToken(value)) size = value;
+      // From explicit option_values if present
+      if (!color || !size) {
+        const opt = extractOptions(v);
+        if (!color && opt.colors[0]) color = opt.colors[0];
+        if (!size && opt.sizes[0]) size = opt.sizes[0];
+      }
       return Object.assign({}, v, { color, size })
     })
     // Fallback: if no variant got color/size, map size to value/name to provide a minimal dimension selector
