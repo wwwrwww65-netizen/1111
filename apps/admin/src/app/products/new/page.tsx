@@ -1310,7 +1310,7 @@ export default function AdminProductCreate(): JSX.Element {
       return;
     }
     setBusy(true);
-    const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean);
+    const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean).filter(u => !u.startsWith('blob:'));
     let uploadedOrBase64: string[] = [];
     try {
       if (files.length > 0) {
@@ -1334,7 +1334,7 @@ export default function AdminProductCreate(): JSX.Element {
         uploadedOrBase64 = results.filter((u): u is string => Boolean(u));
       }
     } catch {}
-    const baseImages: string[] = [...existingImageUrls, ...uploadedOrBase64];
+    const baseImages: string[] = Array.from(new Set([...existingImageUrls, ...uploadedOrBase64]));
     const productPayload: any = {
       name,
       description,
