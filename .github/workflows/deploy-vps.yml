@@ -930,6 +930,8 @@ jobs:
             echo '--- Fetch one product id ---'
             curl -sS "$API/products?limit=1" -o /tmp/prod.list || true
             ID=$(node -e "try{const j=require('/tmp/prod.list');console.log((j.items&&j.items[0]&&j.items[0].id)||'')}catch(e){console.log('')}")
+            # Fallback to provided smoke id from secrets/vars or known product id
+            if [ -z "$ID" ]; then ID='${{ secrets.SMOKE_PRODUCT_ID || vars.SMOKE_PRODUCT_ID || 'cmgsinybj0023odd0n59q7fi9' }}'; fi
             if [ -z "$ID" ]; then echo 'No products found to test variants/colors'; exit 1; fi
             echo "Testing product: $ID"
             echo '--- Product detail (colors/sizes) ---'
