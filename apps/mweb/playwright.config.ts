@@ -8,5 +8,9 @@ export default defineConfig({
     timeout: 60_000,
   },
   testDir: './tests',
+  use: {
+    baseURL: 'http://localhost:3002',
+    trace: 'off',
+  },
 });
 

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, hash, jam ]
+    branches: [ main, hash, jam, mishash ]
   pull_request:
     branches: [ main ]
 
@@ -48,6 +48,16 @@ jobs:
         run: pnpm -w turbo run typecheck || true
       - name: Build
         run: pnpm build
+      - name: MWeb tests (Playwright preview)
+        if: ${{ github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') }}
+        working-directory: apps/mweb
+        run: |
+          pnpm i --no-frozen-lockfile
+          npx playwright install --with-deps chromium
+          pnpm build
+          pnpm preview &
+          npx wait-on http://localhost:3002
+          npx playwright test
       - name: Unit tests
         run: pnpm test || true
       - name: Smoke - Admin flows
@@ -55,8 +65,8 @@ jobs:
       - name: Smoke - Create Order
         run: node scripts/ci/smoke.mjs || true
 
-      - name: Admin layout check (hash - local preview)
-        if: ${{ github.ref_name == 'hash' || startsWith(github.ref, 'refs/heads/hash') || contains(github.ref, '/hash') || github.head_ref == 'hash' || github.base_ref == 'hash' }}
+      - name: Admin layout check (hash/mishash - local preview)
+        if: ${{ github.ref_name == 'hash' || startsWith(github.ref, 'refs/heads/hash') || contains(github.ref, '/hash') || github.head_ref == 'hash' || github.base_ref == 'hash' || github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') || contains(github.ref, '/mishash') || github.head_ref == 'mishash' || github.base_ref == 'mishash' }}
         env:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
