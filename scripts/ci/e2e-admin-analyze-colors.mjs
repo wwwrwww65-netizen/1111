@@ -1,7 +1,7 @@
 import { chromium } from 'playwright'
 
 const ADMIN_BASE = process.env.ADMIN_BASE || process.env.NEXT_PUBLIC_ADMIN_URL || 'http://127.0.0.1:3010'
-one of const API_BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000'
+const API_BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 
