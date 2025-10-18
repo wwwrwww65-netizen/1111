@@ -941,7 +941,9 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1&strict=1`, {
+      // Relax strictness for colors when using DeepSeek preview so colors get populated
+      // Keep deepseekOnly=1 but remove strict=1 to allow general color phrases and broader extraction
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
         method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
         body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
       });
@@ -998,6 +1000,14 @@ export default function AdminProductCreate(): JSX.Element {
           mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
         }
         (reviewObj as any).mapping = mapping;
+        // If DeepSeek returned no colors OR only general color phrases, fallback to palette-derived names
+        const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
+        const noColors = !Array.isArray(reviewObj.colors) || reviewObj.colors.length === 0
+        const generalOnly = Array.isArray(reviewObj.colors) && reviewObj.colors.length>0 && reviewObj.colors.every((c:string)=> generalColorsRe.test(String(c)))
+        if (noColors || generalOnly) {
+          const fromPalettes = Array.from(new Set(palettes.map(pl => pl.name))).slice(0, 3)
+          if (fromPalettes.length) reviewObj.colors = fromPalettes
+        }
       } catch {}
       // Direct fill
       setReview(reviewObj);
