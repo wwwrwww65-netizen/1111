@@ -14,7 +14,8 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   const [activeIdx, setActiveIdx] = React.useState(0);
   const [qty, setQty] = React.useState(1);
   const [tab, setTab] = React.useState<'desc' | 'specs' | 'reviews'>("desc");
-  const [selectedSize, setSelectedSize] = React.useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
+  const [selectedSizes, setSelectedSizes] = React.useState<Record<string,string>>({});
   const [showShip, setShowShip] = React.useState(false);
   const [showReturn, setShowReturn] = React.useState(false);
   const [rating, setRating] = React.useState(5);
@@ -29,6 +30,28 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
 
   const product = data;
   const images = product.images && product.images.length ? product.images : ["/images/placeholder-product.jpg"];
+  const variants = Array.isArray((product as any).variants) ? (product as any).variants : [];
+  // Build dimension sets from variants: colors + multiple size groups if encoded in value/name JSON
+  const colorSet = new Set<string>();
+  const sizeGroups = new Map<string, Set<string>>();
+  const tryParseMeta = (raw: string): any => { try{ return JSON.parse(raw); } catch { return null; } };
+  for (const v of variants as any[]) {
+    // Extract from explicit option_values JSON when present in value
+    let parsed = tryParseMeta(String(v.value||''));
+    if (!parsed || (Array.isArray(parsed) && parsed.length===0)) parsed = tryParseMeta(String(v.name||''));
+    const opts: Array<{name:string;value:string}> = Array.isArray(parsed?.option_values)? parsed.option_values : (Array.isArray(parsed)? parsed : []);
+    for (const o of opts) {
+      const n = String(o?.name||'').toLowerCase();
+      const val = String(o?.value||'').trim();
+      if (!val) continue;
+      if (n === 'color' || /لون/i.test(n)) colorSet.add(val);
+      else if (n === 'size' || /size|مقاس/i.test(n)) {
+        const [label, only] = val.includes(':') ? val.split(':',2) as [string,string] : ['المقاس', val];
+        if (!sizeGroups.has(label)) sizeGroups.set(label, new Set());
+        sizeGroups.get(label)!.add(only);
+      }
+    }
+  }
 
   return (
     <main className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
@@ -77,23 +100,40 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           )}
           {tab === 'specs' && (
             <div className="mt-4">
-              {/* Size swatches */}
-              {product.variants && product.variants.length > 0 && (
+              {/* Color selector */}
+              {colorSet.size>0 && (
                 <div className="mb-4">
-                  <div className="text-sm text-gray-600 mb-2">{t('size')}</div>
+                  <div className="text-sm text-gray-600 mb-2">اللون</div>
                   <div className="flex flex-wrap gap-2">
-                    {product.variants.map((v: any) => (
+                    {Array.from(colorSet).map((c) => (
                       <button
-                        key={v.id}
-                        onClick={() => setSelectedSize(v.name)}
-                        className={`px-3 py-1.5 border rounded ${selectedSize===v.name? 'border-black bg-black text-white':'bg-white'}`}
+                        key={c}
+                        onClick={() => setSelectedColor(prev => prev===c ? null : c)}
+                        className={`px-3 py-1.5 border rounded ${selectedColor===c? 'border-black bg-black text-white':'bg-white'}`}
                       >
-                        {v.name}
+                        {c}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
+              {/* Multiple size-type selectors */}
+              {Array.from(sizeGroups.entries()).map(([label, set]) => (
+                <div key={label} className="mb-4">
+                  <div className="text-sm text-gray-600 mb-2">{label}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from(set).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setSelectedSizes(prev => ({ ...prev, [label]: prev[label]===s ? '' : s }))}
+                        className={`px-3 py-1.5 border rounded ${selectedSizes[label]===s? 'border-black bg-black text-white':'bg-white'}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
               <ul className="space-y-1 text-sm text-gray-600 list-disc pr-5">
                 {(product.specs || []).map((s: any, idx: number) => (
                   <li key={idx}>{typeof s === 'string' ? s : `${s.name}: ${s.value}`}</li>
