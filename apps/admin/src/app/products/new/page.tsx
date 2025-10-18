@@ -1562,21 +1562,34 @@ export default function AdminProductCreate(): JSX.Element {
     setSelectedColors(unique as string[]);
   }, [colorCards]);
 
-  function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> {
+  function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> {
     const priceValue = Number(salePrice || 0);
     const purchaseValue = purchasePrice === '' ? undefined : Number(purchasePrice || 0);
     const stockValue = Number(stockQuantity || 0);
     const activeSizeTypes = selectedSizeTypes.filter(t => t.selectedSizes?.length);
     const colorList = selectedColors;
-    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> = [];
+    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
 
     if (activeSizeTypes.length >= 2 && colorList.length) {
       const [t1, t2] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
         for (const s2 of t2.selectedSizes) {
           for (const c of colorList) {
-            const isPrimary = primaryColorName && c===primaryColorName;
-            rows.push({ name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+            rows.push({
+              name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`,
+              value: c,
+              price: priceValue,
+              purchasePrice: purchaseValue,
+              stockQuantity: stockValue,
+              sku: undefined,
+              size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+              color: c,
+              option_values: [
+                { name: 'size', value: `${t1.name}:${s1}` },
+                { name: 'size', value: `${t2.name}:${s2}` },
+                { name: 'color', value: c },
+              ],
+            });
           }
         }
       }
@@ -1587,7 +1600,18 @@ export default function AdminProductCreate(): JSX.Element {
       const [t1, t2] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
         for (const s2 of t2.selectedSizes) {
-          rows.push({ name: `${t1.name}: ${s1}`, value: `${t2.name}: ${s2}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+          rows.push({
+            name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`,
+            value: `${t1.name}: ${s1} - ${t2.name}: ${s2}`,
+            price: priceValue,
+            purchasePrice: purchaseValue,
+            stockQuantity: stockValue,
+            size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+            option_values: [
+              { name: 'size', value: `${t1.name}:${s1}` },
+              { name: 'size', value: `${t2.name}:${s2}` },
+            ],
+          });
         }
       }
       return rows;
@@ -1597,8 +1621,20 @@ export default function AdminProductCreate(): JSX.Element {
       const [t1] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
         for (const c of colorList) {
-          const isPrimary = primaryColorName && c===primaryColorName;
-          rows.push({ name: `${t1.name}: ${s1}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+          rows.push({
+            name: `${t1.name}: ${s1}`,
+            value: c,
+            price: priceValue,
+            purchasePrice: purchaseValue,
+            stockQuantity: stockValue,
+            sku: undefined,
+            size: `${t1.name}:${s1}`,
+            color: c,
+            option_values: [
+              { name: 'size', value: `${t1.name}:${s1}` },
+              { name: 'color', value: c },
+            ],
+          });
         }
       }
       return rows;
@@ -1607,14 +1643,31 @@ export default function AdminProductCreate(): JSX.Element {
     if (activeSizeTypes.length === 1) {
       const [t1] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
-        rows.push({ name: `${t1.name}: ${s1}`, value: `${t1.name}: ${s1}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+        rows.push({
+          name: `${t1.name}: ${s1}`,
+          value: `${t1.name}: ${s1}`,
+          price: priceValue,
+          purchasePrice: purchaseValue,
+          stockQuantity: stockValue,
+          size: `${t1.name}:${s1}`,
+          option_values: [{ name: 'size', value: `${t1.name}:${s1}` }],
+        });
       }
       return rows;
     }
 
     if (colorList.length) {
       for (const c of colorList) {
-        rows.push({ name: c, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+        rows.push({
+          name: c,
+          value: c,
+          price: priceValue,
+          purchasePrice: purchaseValue,
+          stockQuantity: stockValue,
+          sku: undefined,
+          color: c,
+          option_values: [{ name: 'color', value: c }],
+        });
       }
       return rows;
     }
@@ -1755,8 +1808,8 @@ export default function AdminProductCreate(): JSX.Element {
           <div style={{ display:'grid', gap:12 }}>
             <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            {/* review UI removed to simplify flow; fields are filled directly */}
-            {false && review && (
+            {/* عرض معاينة التحليل (DeepSeek/محلي) بما في ذلك لوحات الألوان أسفل كل صورة */}
+            {review && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -2237,12 +2290,12 @@ export default function AdminProductCreate(): JSX.Element {
             </div>
           )}
           {files.length > 0 && (
-            <button type="button" onClick={() => {
+            <button type="button" disabled={!analysisDone} onClick={() => {
               const fileNames = files.map(f => f.name);
               const current = (images || '').split(',').map(s=>s.trim()).filter(Boolean);
               const next = Array.from(new Set([...current, ...fileNames]));
               setImages(next.join(', '));
-            }} className="btn btn-outline">إضافة الملفات إلى قائمة الصور</button>
+            }} className="btn btn-outline" title={analysisDone? undefined : 'لن تتم إضافة الصور حتى يكتمل التحليل'}>إضافة الملفات إلى قائمة الصور</button>
           )}
 
           {/* removed duplicate side variants panel */}
