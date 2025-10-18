@@ -68,6 +68,9 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
         run: |
           set -e
+          # Start local API and wait for health
+          pnpm --filter @repo/api start &
+          npx -y wait-on http://127.0.0.1:4000/health
           node scripts/ci/create-test-product.mjs
       - name: Smoke - Admin flows
         run: node scripts/ci/smoke-admin-extras.mjs || true
