@@ -2141,35 +2141,20 @@ export default function AdminProductCreate(): JSX.Element {
                   <div style={{ overflowX:'auto' }}>
             <table className="table" style={{ width:'100%' }}>
                       <thead>
-                        <tr>
-                          <th>المجموعة</th>
-                          <th>القيمة</th>
-                          {/* حذف حقل السمات لمطابقة صفحة المنتج */}
-                          <th>سعر الشراء</th>
-                          <th>سعر البيع</th>
-                          <th>المخزون</th>
-                          <th>SKU</th>
-                          <th>صورة</th>
-                          <th></th>
-                        </tr>
+                <tr>
+                  <th>المجموعة</th>
+                  <th>سعر الشراء</th>
+                  <th>سعر البيع</th>
+                  <th>المخزون</th>
+                  <th>SKU</th>
+                  <th>صورة اللون</th>
+                  <th></th>
+                </tr>
                       </thead>
                       <tbody>
                         {variantRows.map((row, idx) => (
                           <tr key={idx}>
                             <td>{row.name}</td>
-                            <td>{row.value}</td>
-                            <td style={{minWidth:200}}>
-                              <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
-                                <input placeholder="Size" value={row.size||''} onChange={(e)=>{
-                                  const v = e.target.value || undefined;
-                                  setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, size: v, option_values: [ ...(r.option_values||[]).filter(ov=>ov.name!=='size'), ...(v? [{name:'size', value:v}] : []) ] } : r));
-                                }} className="input" style={{width:100}} />
-                                <input placeholder="Color" value={row.color||''} onChange={(e)=>{
-                                  const v = e.target.value || undefined;
-                                  setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, color: v, option_values: [ ...(r.option_values||[]).filter(ov=>ov.name!=='color'), ...(v? [{name:'color', value:v}] : []) ] } : r));
-                                }} className="input" style={{width:100}} />
-                              </div>
-                            </td>
                             <td>
                               <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
@@ -2195,9 +2180,10 @@ export default function AdminProductCreate(): JSX.Element {
                               }} className="input" />
                             </td>
                             <td>
-                              <select value={(()=>{ const mapped = (review?.mapping||{})[row.value]; return mapped || ''; })()} onChange={(e)=>{
+                              <select value={(()=>{ const key = row.color || row.value; const mapped = (review?.mapping||{})[key!]; return mapped || ''; })()} onChange={(e)=>{
                                 const url = e.target.value || undefined;
-                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [row.value]: url }}));
+                                const key = row.color || row.value;
+                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [key!]: url }}));
                               }} className="select">
                                 <option value="">(بدون)</option>
                                 {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
