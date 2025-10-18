@@ -366,9 +366,7 @@
             <span class="font-semibold text-[15px]">وصف</span>
             <ChevronLeft :size="16" class="text-gray-600" />
           </div>
-          <div class="text-[13px] text-gray-700">
-            {{ product?.description || '...' }}
-          </div>
+          <div class="prose prose-sm max-w-none text-gray-800" v-html="safeDescription"></div>
         </div>
 
         <!-- Model Reference -->
@@ -716,6 +714,12 @@ const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
+const safeDescription = computed(()=>{
+  try{
+    const html = String(product.value?.description||'')
+    return html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'')
+  }catch{ return '' }
+})
 
 // ==================== PRODUCT VARIANTS ====================
 // Color Variants

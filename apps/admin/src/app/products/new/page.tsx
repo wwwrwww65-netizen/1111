@@ -134,6 +134,54 @@ export default function AdminProductCreate(): JSX.Element {
     return `<table><thead><tr><th>البند</th><th>القيمة</th></tr></thead><tbody>${body}</tbody></table>`;
   }
 
+  function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }){
+    const editorRef = React.useRef<HTMLDivElement|null>(null);
+    const lastHtmlRef = React.useRef<string>('');
+    React.useEffect(()=>{
+      const el = editorRef.current; if (!el) return;
+      if (lastHtmlRef.current !== value && el.innerHTML !== value){
+        el.innerHTML = value || '';
+        lastHtmlRef.current = value || '';
+      }
+    }, [value]);
+    function focusEditor(){ try{ editorRef.current?.focus(); } catch {}
+    }
+    function exec(cmd: string, arg?: string){
+      focusEditor();
+      try { document.execCommand(cmd, false, arg); } catch {}
+      try { const el = editorRef.current; if (el) onChange(el.innerHTML); } catch {}
+    }
+    function insertTable(rows = 2, cols = 2){
+      const cells = new Array(cols).fill('<td> </td>').join('');
+      const body = new Array(rows).fill(`<tr>${cells}</tr>`).join('');
+      const html = `<table><tbody>${body}</tbody></table>`;
+      exec('insertHTML', html);
+    }
+    return (
+      <div className="panel" style={{ padding: 8 }}>
+        <div className="toolbar" style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('bold')}>B</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('italic')}>I</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('underline')}>U</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('insertUnorderedList')}>• قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('insertOrderedList')}>1. قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={()=> insertTable(2,2)}>إدراج جدول 2×2</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('removeFormat')}>إزالة التنسيق</button>
+        </div>
+        <div
+          ref={editorRef}
+          role="textbox"
+          aria-multiline="true"
+          contentEditable
+          suppressContentEditableWarning
+          onInput={(e)=> onChange((e.currentTarget as HTMLDivElement).innerHTML)}
+          className="input"
+          style={{ minHeight: 160, padding: 10, overflowY:'auto' }}
+        />
+      </div>
+    );
+  }
+
   React.useEffect(()=>{
     try{
       const k = keyForText(paste);
@@ -1778,8 +1826,8 @@ export default function AdminProductCreate(): JSX.Element {
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
           </label>
           <label style={{ gridColumn:'1 / -1' }}>الوصف
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className="input" />
-            <small style={{ color:'var(--sub)' }}>سيتم توليد جدول تفاصيل تلقائياً عند توفر بيانات صارمة.</small>
+            <RichTextEditor value={description} onChange={setDescription} />
+            <small style={{ color:'var(--sub)' }}>يعرض المحرر التنسيق مباشرة (جداول، قوائم، نص منسّق). سيتم حفظ HTML كما هو.</small>
           </label>
           <label>المورّد
             <select value={vendorId} onChange={async (e) => {
