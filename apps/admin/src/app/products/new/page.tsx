@@ -1380,82 +1380,6 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
   }
 
-  // WooCommerce-like attributes for variations
-  const [wooAttrs, setWooAttrs] = React.useState<Array<{
-    id: string;
-    key: 'color' | 'size';
-    label: string;
-    sizeTypeId?: string;
-    options: string[];
-    terms: string[];
-    useForVariations: boolean;
-  }>>([]);
-
-  async function addWooAttr(kind: 'color'|'size', sizeTypeId?: string): Promise<void> {
-    try{
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      if (kind === 'color'){
-        const opts = (colorOptions||[]).map(o=> o.name);
-        setWooAttrs(prev=> [...prev, { id, key:'color', label:'اللون', options: opts, terms: [], useForVariations: true }]);
-        return;
-      }
-      if (kind === 'size' && sizeTypeId){
-        const sizes = await loadSizesForType(sizeTypeId);
-        const opts = sizes.map(s=> s.name);
-        const label = getTypeNameById(sizeTypeId) || 'مقاس';
-        setWooAttrs(prev=> [...prev, { id, key:'size', label, sizeTypeId, options: opts, terms: [], useForVariations: true }]);
-      }
-    } catch {}
-  }
-
-  function toggleWooTerm(attrIdx: number, term: string): void {
-    setWooAttrs(prev => prev.map((a,i)=>{
-      if (i!==attrIdx) return a;
-      const have = a.terms.includes(term);
-      const next = have ? a.terms.filter(t=> t!==term) : [...a.terms, term];
-      return { ...a, terms: next };
-    }));
-  }
-
-  function makeSkuFrom(parts: string[]): string {
-    const base = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,8) || 'PRD';
-    const tail = parts.map(p=> String(p||'').toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9]+/g,'').slice(0,6)).filter(Boolean).join('-');
-    return [base, tail].filter(Boolean).join('-');
-  }
-
-  function generateWooVariations(): void {
-    const ready = wooAttrs.filter(a=> a.useForVariations && a.terms.length>0);
-    if (!ready.length) { showToast('أضف سمات وحدد قيماً ثم أنشئ التباينات', 'err'); return; }
-    const cart: Array<Array<{ label:string; key:'color'|'size'; value:string }>> = [];
-    const backtrack = (i: number, cur: Array<{label:string;key:'color'|'size';value:string}>): void => {
-      if (i>=ready.length) { cart.push(cur.slice()); return; }
-      for (const v of ready[i].terms) { cur.push({ label: ready[i].label, key: ready[i].key, value: v }); backtrack(i+1, cur); cur.pop(); }
-    };
-    backtrack(0, []);
-    const rows: typeof variantRows = [] as any;
-    for (const combo of cart){
-      const group = combo.map(x=> `${x.label}: ${x.value}`).join(' • ');
-      const colorVal = (combo.find(x=> x.key==='color')?.value) || undefined;
-      const sizeVals = combo.filter(x=> x.key==='size').map(x=> `${x.label}:${x.value}`).join('|') || undefined;
-      const ov: Array<{ name:string; value:string; label?:string }> = [];
-      if (colorVal) ov.push({ name:'color', value: colorVal });
-      for (const s of combo.filter(x=> x.key==='size')) ov.push({ name:'size', value: `${s.label}:${s.value}` });
-      rows.push({
-        name: group,
-        value: group,
-        purchasePrice: (purchasePrice===''? undefined : Number(purchasePrice||0)),
-        price: (salePrice===''? undefined : Number(salePrice||0)),
-        stockQuantity: Number(stockQuantity||0),
-        sku: makeSkuFrom([...(sizeVals? [sizeVals]:[]), ...(colorVal? [colorVal]:[])]),
-        size: sizeVals,
-        color: colorVal,
-        option_values: ov,
-      });
-    }
-    setVariantRows(rows);
-    showToast(`تم إنشاء ${rows.length} تباين`, 'ok');
-  }
-
   // Auto-apply analyzed sizes/colors to pickers without generating variants
   async function applyAnalyzedSizesColors(sizesIn: string[], colorsIn: string[]): Promise<void> {
     try {
@@ -2113,38 +2037,103 @@ export default function AdminProductCreate(): JSX.Element {
           {type === 'variable' && (
             <>
               <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
-                {/* WooCommerce-like Attributes */}
                 <div className="panel" style={{ padding:10 }}>
-                  <div style={{ marginBottom:8, fontWeight:700 }}>السمات (WooCommerce)</div>
-                  <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:10 }}>
-                    <button type="button" className="btn btn-outline" onClick={()=> addWooAttr('color')}>+ إضافة سمة اللون</button>
-                    <div style={{ display:'inline-flex', gap:8, alignItems:'center' }}>
-                      <select defaultValue="" onChange={(e)=>{ const v=e.target.value; if(v){ addWooAttr('size', v); e.currentTarget.value=''; } }} className="select">
-                        <option value="">+ إضافة سمة نوع مقاس</option>
-                        {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
-                      </select>
-                    </div>
+                  <div style={{ marginBottom:8, color:'#9ca3af' }}>إضافة نوع مقاس</div>
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    <select defaultValue="" onChange={(e)=> { addSizeType(e.target.value); e.currentTarget.value=''; }} className="select">
+                      <option value="">اختر نوعًا</option>
+                      {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
+                    </select>
                   </div>
-                  <div style={{ display:'grid', gap:10 }}>
-                    {wooAttrs.map((a, idx)=> (
-                      <div key={a.id} className="panel" style={{ padding:10 }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                          <div style={{ fontWeight:600 }}>{a.label}</div>
-                          <div style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                            <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-                              <input type="checkbox" checked={a.useForVariations} onChange={(e)=> setWooAttrs(prev=> prev.map((x,i)=> i===idx? { ...x, useForVariations: e.target.checked }: x))} />
-                              <span style={{ fontSize:12 }}>استخدم للتباينات</span>
-                            </label>
-                            <button type="button" className="icon-btn" onClick={()=> setWooAttrs(prev=> prev.filter((_,i)=> i!==idx))}>حذف</button>
-                          </div>
-                        </div>
+                  <div style={{ display:'grid', gap:10, marginTop:10 }}>
+                    {selectedSizeTypes.map((t)=>(
+                      <div key={t.id} className="panel" style={{ padding:10 }}>
+                        <div style={{ marginBottom:6, fontWeight:600 }}>{t.name}</div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
-                          {a.options.map((name)=> (
-                            <label key={name} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                              <input type="checkbox" checked={a.terms.includes(name)} onChange={()=> toggleWooTerm(idx, name)} />
-                              <span>{name}</span>
+                          {t.sizes.map(s=> (
+                            <label key={s.id} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                              <input type="checkbox" checked={t.selectedSizes.includes(s.name)} onChange={()=> toggleSizeForType(t.id, s.name)} />
+                              <span>{s.name}</span>
                             </label>
                           ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="panel" style={{ padding:10 }}>
+                  <div style={{ marginBottom:8, color:'#9ca3af', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>الألوان</span>
+                    <button type="button" className="btn btn-outline" onClick={()=>{
+                      const key = String(Date.now())+'-'+Math.random().toString(36).slice(2);
+                      setColorCards(prev => [...prev, { key, selectedImageIdxs: [] }]);
+                    }}>إضافة لون</button>
+                  </div>
+                  <div style={{ display:'grid', gap:10 }}>
+                    {colorCards.map((card, idx) => (
+                      <div key={card.key} className="panel" style={{ padding:10 }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, alignItems:'center' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <select value={card.color||''} onChange={(e)=>{
+                              const val = e.target.value || undefined;
+                              setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, color: val } : c));
+                            }} className="select" style={{ minWidth:220 }}>
+                              <option value="">اختر لونًا</option>
+                              {colorOptions.map(opt => (<option key={opt.id} value={opt.name}>{opt.name}</option>))}
+                            </select>
+                            {(() => { const opt = colorOptions.find(o=>o.name===card.color); return opt ? (<span style={{ width:14, height:14, borderRadius:999, background:opt.hex, border:'1px solid #111827' }} />) : null; })()}
+                          </div>
+                          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                            <input type="radio" name="primary-color" checked={primaryColorCardKey===card.key} onChange={()=>{
+                              setPrimaryColorCardKey(card.key);
+                              setPrimaryColorName(card.color);
+                              const urls = allProductImageUrls();
+                              const url = (card.primaryImageIdx!==undefined) ? urls[card.primaryImageIdx] : undefined;
+                              setPrimaryImageUrl(url);
+                              const colorName = card.color;
+                              if (colorName && url) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: url } }));
+                            }} />
+                            <span>اللون الرئيسي للمنتج</span>
+                          </label>
+                        </div>
+                        <div style={{ marginTop:10 }}>
+                          <div style={{ marginBottom:6, color:'#9ca3af' }}>اختر صور هذا اللون</div>
+                          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:10 }}>
+                            {allProductImageUrls().map((u, imgIdx) => (
+                              <div key={imgIdx} className="panel" style={{ padding:0 }}>
+                                <img src={u} alt={String(imgIdx)} style={{ width:'100%', height:90, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                                <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                    <input type="checkbox" checked={card.selectedImageIdxs.includes(imgIdx)} onChange={()=>{
+                                      setColorCards(prev => prev.map((c,i)=>{
+                                        if (i!==idx) return c;
+                                        const have = c.selectedImageIdxs.includes(imgIdx);
+                                        const sel = have ? c.selectedImageIdxs.filter(x=>x!==imgIdx) : [...c.selectedImageIdxs, imgIdx];
+                                        let primaryImageIdx = c.primaryImageIdx;
+                                        if (primaryImageIdx!==undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
+                                        return { ...c, selectedImageIdxs: sel, primaryImageIdx };
+                                      }));
+                                    }} />
+                                    <span style={{ fontSize:12 }}>اختيار</span>
+                                  </label>
+                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                    <input type="radio" name={`primary-image-${card.key}`} checked={card.primaryImageIdx===imgIdx} onChange={()=>{
+                                      setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, primaryImageIdx: imgIdx } : c));
+                                      if (primaryColorCardKey===card.key) {
+                                        setPrimaryImageUrl(u);
+                                        const colorName = card.color;
+                                        if (colorName) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: u } }));
+                                      }
+                                    }} />
+                                    <span style={{ fontSize:12 }}>صورة اللون الرئيسية</span>
+                                  </label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ marginTop:10, display:'flex', justifyContent:'flex-end' }}>
+                          <button type="button" className="icon-btn" onClick={()=> setColorCards(prev => prev.filter((_,i)=> i!==idx))}>إزالة اللون</button>
                         </div>
                       </div>
                     ))}
@@ -2153,7 +2142,7 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
               <div className="panel" style={{ paddingTop:12 }}>
                 <div className="toolbar" style={{ gap:8 }}>
-                  <button type="button" onClick={generateWooVariations} className="btn btn-outline">إنشاء التباينات (WooCommerce)</button>
+                  <button type="button" onClick={() => { setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
                 </div>
                 {variantRows.length > 0 ? (
                   <div style={{ overflowX:'auto' }}>
