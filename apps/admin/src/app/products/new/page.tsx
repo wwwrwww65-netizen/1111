@@ -1331,6 +1331,39 @@ export default function AdminProductCreate(): JSX.Element {
     color?: string;
     option_values?: Array<{ name: string; value: string; label?: string }>;
   }>>([]);
+  // Derive size-type labels present in variant rows (e.g., "مقاس بالطول", "مقاس بالعرض")
+  const sizeTypeLabels = React.useMemo((): string[] => {
+    const labels: string[] = [];
+    for (const r of variantRows) {
+      const comp = String(r.size||'');
+      if (!comp) continue;
+      const parts = comp.split('|').map(t=> t.trim()).filter(Boolean);
+      for (const p of parts) {
+        const idx = p.indexOf(':');
+        if (idx>0) {
+          const label = p.slice(0, idx).trim();
+          if (label && !labels.includes(label)) labels.push(label);
+        }
+      }
+    }
+    return labels;
+  }, [variantRows]);
+  const parseCompositeSizes = React.useCallback((s?: string): Record<string,string> => {
+    const out: Record<string,string> = {};
+    const raw = String(s||'');
+    if (!raw) return out;
+    for (const part of raw.split('|')) {
+      const t = String(part||'').trim();
+      if (!t) continue;
+      const idx = t.indexOf(':');
+      if (idx>0) {
+        const label = t.slice(0, idx).trim();
+        const val = t.slice(idx+1).trim();
+        if (label) out[label] = val;
+      }
+    }
+    return out;
+  }, []);
   const formRef = React.useRef<HTMLFormElement>(null);
   const [autoFilled, setAutoFilled] = React.useState(false);
 
@@ -2149,19 +2182,29 @@ export default function AdminProductCreate(): JSX.Element {
             <table className="table" style={{ width:'100%' }}>
                       <thead>
                 <tr>
-                  <th>المجموعة</th>
+                  {sizeTypeLabels.map(lbl=> (<th key={lbl}>{lbl}</th>))}
+                  <th>اللون</th>
                   <th>سعر الشراء</th>
                   <th>سعر البيع</th>
                   <th>المخزون</th>
                   <th>SKU</th>
-                  <th>صورة اللون</th>
+                  <th>صورة</th>
+                  <th>المجموعة (قراءة فقط)</th>
                   <th></th>
                 </tr>
                       </thead>
                       <tbody>
-                        {variantRows.map((row, idx) => (
+                        {variantRows.map((row, idx) => {
+                          const parts = parseCompositeSizes(row.size);
+                          return (
                           <tr key={idx}>
-                            <td>{row.name}</td>
+                            {sizeTypeLabels.map((lbl)=> (<td key={lbl}><input value={parts[lbl]||''} onChange={(e)=>{
+                              const next = { ...parts, [lbl]: e.target.value };
+                              const comp = Object.entries(next).filter(([k,v])=> (k&&v)).map(([k,v])=> `${k}:${v}`).join('|');
+                              setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, size: comp, option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='size'), ...(comp? [{ name:'size', value: comp }]:[]) ] }: r));
+                            }} className="input" />
+                            </td>))}
+                            <td><input value={row.color||''} onChange={(e)=> setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, color: (e.target.value||undefined), option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='color'), ...(e.target.value? [{ name:'color', value: e.target.value }]:[]) ] }: r))} className="input" /></td>
                             <td>
                               <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
@@ -2196,11 +2239,12 @@ export default function AdminProductCreate(): JSX.Element {
                                 {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
                               </select>
                             </td>
+                            <td style={{ minWidth:280, color:'#6b7280' }}>{[...sizeTypeLabels.map(lbl=> parts[lbl]||'—'), (row.color||'—')].join(' • ')}</td>
                             <td>
                               <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
                             </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
