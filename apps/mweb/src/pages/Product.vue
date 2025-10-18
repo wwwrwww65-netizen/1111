@@ -212,7 +212,7 @@
       </div>
 
       <!-- Color Selector -->
-      <div class="mb-4">
+      <div class="mb-4" v-if="colorVariants.length">
         <div class="flex items-center gap-1 mb-2">
           <span class="font-semibold text-[14px]">لون: {{ currentColorName || '—' }}</span>
           <ChevronLeft :size="16" class="text-gray-600" />
@@ -231,7 +231,7 @@
       </div>
 
       <!-- Size Selector -->
-      <div ref="sizeSelectorRef" class="mb-4">
+      <div ref="sizeSelectorRef" class="mb-4" v-if="sizeOptions.length">
         <div class="flex items-center justify-between mb-2">
           <span class="font-semibold text-[14px]">مقاس - {{ size || 'الافتراضي' }}</span>
           <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
@@ -251,6 +251,27 @@
         </div>
       <div class="mt-2">
           <span class="text-[13px] text-gray-600 underline cursor-pointer">ترام كيرفي ◀</span>
+      </div>
+
+      <!-- Multi size-type selectors (length/width etc.) if available -->
+      <div v-if="sizeGroups.length" class="mb-4 space-y-3">
+        <div v-for="(g,gi) in sizeGroups" :key="'g-'+gi">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-[14px]">{{ g.label }}</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button 
+              v-for="s in g.values" 
+              :key="g.label+'-'+s" 
+              class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
+              :class="selectedGroupValues[g.label]===s ? 'text-white' : 'bg-white text-black border-gray-300'"
+              :style="selectedGroupValues[g.label]===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
+              @click="onPickGroupValue(g.label, s)"
+            >
+              {{ s }}
+            </button>
+          </div>
+        </div>
       </div>
       </div>
 
@@ -729,6 +750,10 @@ const colorIdx = ref(0)
 // Size Options
 const sizeOptions = ref<string[]>([])
 const size = ref<string>('')
+// Multi-group sizes support
+const sizeGroups = ref<Array<{ label: string; values: string[] }>>([])
+const selectedGroupValues = ref<Record<string,string>>({})
+function onPickGroupValue(label: string, val: string){ selectedGroupValues.value = { ...selectedGroupValues.value, [label]: val } }
 const variantByKey = ref<Record<string, { id:string; price?:number; stock?:number }>>({})
 const selectedVariantId = computed<string|undefined>(()=>{
   const colorName = colorVariants.value[colorIdx.value]?.name || ''
@@ -1408,12 +1433,38 @@ async function loadNormalizedVariants(){
   const sizes = sizesFromProduct.length ? sizesFromProduct : sizesFromVariants
   sizeOptions.value = sizes.length ? sizes : []
   if (!size.value) size.value = sizeOptions.value[0] || ''
+
+  // Detect size groups in variant names/values like "مقاس بالطول: 55 • مقاس بالعرض: 20"
+  const groupMap = new Map<string, Set<string>>()
+  for (const it of list){
+    const txt = `${norm(it.name)} ${norm(it.value)}`
+    const parts = txt.split(/•/).map(s=> s.trim())
+    for (const p of parts){
+      const m = p.match(/^(?:مقاس\s*بال|مقاس\s*ب|نوع\s*المقاس\s*|المقاس\s*):?\s*([^:]+):?\s*(.+)$/)
+      if (m && m[1] && m[2]){
+        const label = String(m[1]).trim()
+        const val = String(m[2]).trim()
+        if (!isColorWord(val)){
+          if (!groupMap.has(label)) groupMap.set(label, new Set())
+          groupMap.get(label)!.add(val)
+        }
+      }
+    }
+  }
+  sizeGroups.value = Array.from(groupMap.entries()).map(([label, set])=> ({ label, values: Array.from(set) }))
+  if (sizeGroups.value.length){
+    const init: Record<string,string> = {}
+    for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
+    selectedGroupValues.value = init
+  }
   // Best-effort variant map (color::size) when records encode both tokens in name/value
   const map: Record<string, { id:string; price?:number; stock?:number }> = {}
   for (const it of list){
     const tokens = `${norm(it.name)} ${norm(it.value)}`.toLowerCase()
     for (const c of colors){
-      for (const s of (sizeOptions.value.length? sizeOptions.value : [''])){
+      const baseSizes = (sizeOptions.value.length? sizeOptions.value : [''])
+      const composite = sizeGroups.value.length ? [ Array.from(new Set(sizeGroups.value.map(g=> `${g.label}:${g.values[0]}`))).join('|') ] : baseSizes
+      for (const s of composite){
         const key = `${c}::${s}`.trim()
         const hasC = c && (tokens.includes(String(c).toLowerCase()) || String((it as any).color||'').toLowerCase()===String(c).toLowerCase())
         const hasS = s ? (tokens.includes(String(s).toLowerCase()) || String((it as any).size||'').toLowerCase()===String(s).toLowerCase()) : true
@@ -1474,10 +1525,11 @@ async function loadNormalizedVariants(){
 }
 
 // React on variant change
-watch([colorIdx, size], ()=>{
+watch([colorIdx, size, selectedGroupValues], ()=>{
   try{
     const colorName = colorVariants.value[colorIdx.value]?.name || ''
-    const k = `${colorName}::${size.value}`.trim()
+    const composite = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
+    const k = `${colorName}::${composite}`.trim()
     const v = variantByKey.value[k]
     if (v && typeof v.price === 'number') price.value = Number(v.price)
   }catch{}
