@@ -1583,6 +1583,7 @@ export default function AdminProductCreate(): JSX.Element {
             <span>DeepSeek</span>
           </label>
           <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn">{busy? 'جارِ التحليل...' : 'حلّل واملأ الحقول'}</button>
+          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'حلّل واملأ الحقول (DeepSeek)'}</button>
           <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
         </>}
       >
