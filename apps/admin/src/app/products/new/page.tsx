@@ -1808,8 +1808,9 @@ export default function AdminProductCreate(): JSX.Element {
           <div style={{ display:'grid', gap:12 }}>
             <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            {/* عرض معاينة التحليل (DeepSeek/محلي) بما في ذلك لوحات الألوان أسفل كل صورة */}
-            {review && (
+            {/* إخفاء واجهة المعاينة، مع استمرار تعبئة الحقول تلقائياً خلف الكواليس */}
+            {false && review && (
+              {false && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -1926,6 +1927,7 @@ export default function AdminProductCreate(): JSX.Element {
                   </div>
                 </div>
               </div>
+              )}
             )}
           </div>
         <div>
@@ -2219,13 +2221,11 @@ export default function AdminProductCreate(): JSX.Element {
           )}
         </div>
 
-        {/* Right column: media only; move preview/SEO to bottom */}
+        {/* Right column: media (product images area minimal, no header toolbar) */}
         <div style={{ gridColumn: 'span 4', display:'grid', gap:12, alignSelf:'start' }}>
           <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div>صور المنتج</div>
-              <button type="button" className="btn btn-outline" onClick={()=> setShowImagesInput(s=>!s)}>{showImagesInput? 'إخفاء الروابط' : 'إضافة/تحرير الروابط'}</button>
-              </div>
+            {/* Removed flex header row to avoid duplicate look */}
+            <div style={{ fontWeight:600 }}>صور المنتج</div>
             {(() => {
               const list = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
               // Do not show product images preview until analysis completes and we have confirmed mapping
@@ -2250,8 +2250,8 @@ export default function AdminProductCreate(): JSX.Element {
             })()}
             {showImagesInput && (
               <label style={{ display:'block', marginTop:8 }}>الصور (روابط مفصولة بفواصل)
-            <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
-          </label>
+                <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
+              </label>
             )}
           </div>
           <div
