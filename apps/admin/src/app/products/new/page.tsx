@@ -1808,9 +1808,8 @@ export default function AdminProductCreate(): JSX.Element {
           <div style={{ display:'grid', gap:12 }}>
             <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            {/* إخفاء واجهة المعاينة، مع استمرار تعبئة الحقول تلقائياً خلف الكواليس */}
-            {false && review && (
-              {false && (
+            {/* إخفاء واجهة المعاينة (مُعطل بالكامل) */}
+            {false && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -1927,7 +1926,6 @@ export default function AdminProductCreate(): JSX.Element {
                   </div>
                 </div>
               </div>
-              )}
             )}
           </div>
         <div>
