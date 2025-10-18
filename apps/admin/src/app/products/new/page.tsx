@@ -763,7 +763,7 @@ export default function AdminProductCreate(): JSX.Element {
           }
           if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
           // Auto-apply safe fields: name and purchase price only
-          const autoName = analyzed?.name?.value ? String(analyzed.name.value).slice(0,60) : '';
+          const autoName = analyzed?.name?.value ? String(analyzed.name.value).trim() : '';
           if (autoName) setName(autoName);
         } else { throw new Error('analyze_failed'); }
       } catch {
@@ -906,8 +906,8 @@ export default function AdminProductCreate(): JSX.Element {
       }
       // Direct-fill: write results into original fields instead of preview
       try {
-        const limitedName = String(reviewObj.name||'').slice(0,60);
-        if (limitedName) setName(limitedName);
+        const fullNameAnalyze = String(reviewObj.name||'').trim();
+        if (fullNameAnalyze) setName(fullNameAnalyze);
         if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
@@ -1062,7 +1062,7 @@ export default function AdminProductCreate(): JSX.Element {
         .replace(/[\uFFFD]/g,' ')
         .replace(/\s{2,}/g,' ').trim();
       const reviewObj:any = {
-        name: sanitize(String(analyzed?.name?.value||'').slice(0,60)),
+        name: sanitize(String(analyzed?.name?.value||'')),
         longDesc: sanitize(String((analyzed?.description_table?.value||[]).map((r:any)=> `${r.label}: ${r.value}`).join('\n')||'')),
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -1092,8 +1092,8 @@ export default function AdminProductCreate(): JSX.Element {
       } catch {}
       setReview(reviewObj);
       try{
-        const limitedName = String(reviewObj.name||'').slice(0,60);
-        if (limitedName) setName(limitedName);
+        const fullNameRules = String(reviewObj.name||'').trim();
+        if (fullNameRules) setName(fullNameRules);
         if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
@@ -1140,7 +1140,7 @@ export default function AdminProductCreate(): JSX.Element {
         return;
       }
       const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
+        name: String(analyzed?.name?.value||'').trim(),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -1168,8 +1168,8 @@ export default function AdminProductCreate(): JSX.Element {
       } catch {}
       setReview(reviewObj);
       try{
-        const limitedName = String(reviewObj.name||'').slice(0,60);
-        if (limitedName) setName(limitedName);
+        const fullNameOR = String(reviewObj.name||'').trim();
+        if (fullNameOR) setName(fullNameOR);
         if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
@@ -1209,7 +1209,7 @@ export default function AdminProductCreate(): JSX.Element {
       const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
       if (!hasUseful) { setError('لم يتم استخراج أي حقول من GPT'); showToast('تعذر استخراج الحقول من GPT', 'err'); return; }
       const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
+        name: String(analyzed?.name?.value||'').trim(),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -1237,8 +1237,8 @@ export default function AdminProductCreate(): JSX.Element {
       } catch {}
       setReview(reviewObj);
       try{
-        const limitedName = String(reviewObj.name||'').slice(0,60);
-        if (limitedName) setName(limitedName);
+        const fullNameGPT = String(reviewObj.name||'').trim();
+        if (fullNameGPT) setName(fullNameGPT);
         if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
