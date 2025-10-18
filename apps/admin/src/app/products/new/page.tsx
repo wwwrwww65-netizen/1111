@@ -1013,9 +1013,15 @@ export default function AdminProductCreate(): JSX.Element {
       setReview(reviewObj);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
       try{
-        const limitedName = String(reviewObj.name||'').slice(0,60);
-        if (limitedName) setName(limitedName);
-        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        // Name: use full DeepSeek-generated name (no truncation)
+        const fullName = String(reviewObj.name||'').trim();
+        if (fullName) setName(fullName);
+        // Description: prefer strictDetails table when available
+        try {
+          const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
+          if (html && html.length) setDescription(html);
+          else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
