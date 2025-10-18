@@ -520,15 +520,12 @@ export async function callDeepseekPreviewStrict(opts: {
     }
     // Enforce colors rule: keep explicit color names (Arabic or English); drop purely general phrases
     try {
-      // Recognize a broad set of Arabic and English color tokens
-      const colorLex = /(
-        أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|وردي|بيج|رمادي|رمادي\s*فاتح|رمادي\s*غامق|رصاصي|ذهبي|فضي|كحلي|تركواز|تركوازي|سماوي|زيتي|عنابي|خمري|عسلي|كريمي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|
-        Black|White|Red|Blue|Green|Yellow|Brown|Beige|Gray|Grey|Pink|Purple|Navy|Cyan|Teal|Olive|Indigo|Maroon|Gold|Silver|Copper|Off\s*-?\s*White|Light\s*Gray|Dark\s*Gray
-      )/i
+      // Recognize a broad set of Arabic and English color tokens (single-line regex literal)
+      const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|وردي|بيج|رمادي|رمادي\s*فاتح|رمادي\s*غامق|رصاصي|ذهبي|فضي|كحلي|تركواز|تركوازي|سماوي|زيتي|عنابي|خمري|عسلي|كريمي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|Black|White|Red|Blue|Green|Yellow|Brown|Beige|Gray|Grey|Pink|Purple|Navy|Cyan|Teal|Olive|Indigo|Maroon|Gold|Silver|Copper|Off\s*-?\s*White|Light\s*Gray|Dark\s*Gray)/i;
       if (Array.isArray(out.colors)) {
         const explicit = (out.colors as string[])
-          .map((c:string)=> String(c||'').trim())
-          .filter((c:string)=> !!c && colorLex.test(c))
+          .map((c: string) => String(c || '').trim())
+          .filter((c: string) => !!c && colorLex.test(c))
         if (explicit.length) {
           out.colors = explicit
         } else {
