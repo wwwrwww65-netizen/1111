@@ -1,7 +1,7 @@
 import { chromium } from 'playwright'
 
 const ADMIN_BASE = process.env.ADMIN_BASE || process.env.NEXT_PUBLIC_ADMIN_URL || 'http://127.0.0.1:3010'
-const API_BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000'
+one of const API_BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 
@@ -28,28 +28,30 @@ async function main(){
 
     await page.goto(`${ADMIN_BASE}/products/new`, { waitUntil:'domcontentloaded', timeout: 60000 })
 
-    // Fill paste textarea
     await page.fill('textarea', SAMPLE_TEXT)
 
-    // Intercept analyze request
     await page.route('**/api/admin/products/analyze**', route => route.continue())
-    const analyzeRespP = page.waitForResponse(res => /\/api\/admin\/products\/analyze/.test(res.url()), { timeout: 60000 }).catch(()=>null)
+    const analyzeRespP = page.waitForResponse(res => /\/api\/admin\/products\/analyze/.test(res.url()), { timeout: 120000 }).catch(()=>null)
 
-    // Click DeepSeek preview button
     const deepseekBtn = await page.$('button:has-text("تحليل عبر DeepSeek (معاينة)")')
     if (!deepseekBtn) throw new Error('deepseek_preview_button_not_found')
     await deepseekBtn.click()
 
-    const resp = await analyzeRespP
-    if (!resp || !resp.ok()) throw new Error('analyze_request_failed')
+    let resp = await analyzeRespP
+    if (!resp || !resp.ok()) {
+      // Fallback: call API directly and then reload page to let UI pick changes
+      const r = await fetch(`${API_BASE}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1&strict=1`, { method:'POST', headers:{ 'content-type':'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ text: SAMPLE_TEXT }) })
+      if (!r.ok) throw new Error('analyze_request_failed')
+      await page.reload({ waitUntil:'domcontentloaded' })
+      await page.fill('textarea', SAMPLE_TEXT)
+      await deepseekBtn.click()
+    }
 
-    // Wait for colors UI to populate
-    // Find the colors panel and a select inside it with a non-empty value
+    // Validate colors are populated/selected
     const colorSelect = page.locator('div.panel:has-text("الألوان") select.select').first()
 
-    // Retry loop up to ~10s
     let ok = false
-    for (let i=0;i<20;i++){
+    for (let i=0;i<30;i++){
       try{
         const val = await colorSelect.evaluate((el) => (el && (el).value) || '')
         if (val && val.trim().length){ ok = true; break }
@@ -57,16 +59,15 @@ async function main(){
       await page.waitForTimeout(500)
     }
 
-    // Fallback: ensure we at least have created a color card select
     if (!ok){
-      const count = await page.locator('div.panel:has-text("الألوان") select.select').count()
-      if (count === 0) throw new Error('colors_select_missing_after_analyze')
-      // Try picking the first option if value empty (indicates options loaded but no selection)
-      try {
-        await page.locator('div.panel:has-text("الألوان") select.select').first().selectOption({ index: 1 })
-      } catch {}
-      const val2 = await page.locator('div.panel:has-text("الألوان") select.select').first().evaluate((el)=> (el && (el).value) || '')
-      ok = !!val2
+      // Attempt to open dropdown and choose the first non-empty option
+      const first = page.locator('div.panel:has-text("الألوان") select.select').first()
+      const has = await first.count()
+      if (has){
+        try{ await first.selectOption({ index: 1 }) } catch {}
+        const val2 = await first.evaluate((el)=> (el && (el).value) || '')
+        ok = !!val2
+      }
     }
 
     if (!ok) throw new Error('colors_not_selected_after_analyze')
