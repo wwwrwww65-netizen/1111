@@ -4576,8 +4576,13 @@ adminRest.post('/products/analyze', async (req, res) => {
         let ds: any = null
         const attempts = 3
         for (let i=1;i<=attempts;i++){
+          // Prefer non-strict preview to allow colors (including general phrases) for admin preview UX
+          try { ds = await callDeepseekPreview({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
+          if (ds) break
+          // Fallback to strict preview for a conservative result
           try { ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
           if (ds) break
+          // Last resort: base model (name/desc/price/sizes)
           try { ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String(text || ''), base: {} }, timeoutMs: 20000 }) as any; } catch {}
           if (ds) break
           await new Promise(r=> setTimeout(r, 700))
