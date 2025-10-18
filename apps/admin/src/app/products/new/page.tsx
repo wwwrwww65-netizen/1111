@@ -941,9 +941,8 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      // Relax strictness for colors when using DeepSeek preview so colors get populated
-      // Keep deepseekOnly=1 but remove strict=1 to allow general color phrases and broader extraction
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
+      // Use strict mode for DeepSeek-only preview so name/description table follow strict format
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1&strict=1`, {
         method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
         body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
       });
