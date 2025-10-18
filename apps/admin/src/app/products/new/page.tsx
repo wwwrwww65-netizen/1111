@@ -983,6 +983,24 @@ export default function AdminProductCreate(): JSX.Element {
         },
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
+
+      // Strict fallbacks to match legacy DeepSeek behavior for name and description table
+      try {
+        const strictClean = cleanTextStrict(paste);
+        try {
+          const sName = generateStrictName(strictClean);
+          if (sName && sName.trim().length > (String(reviewObj.name||'').trim().length)) {
+            reviewObj.name = sName.trim();
+          }
+        } catch {}
+        try {
+          const sDetails = buildStrictDetailsTable(strictClean, paste);
+          const filtered = Array.isArray(sDetails) ? sDetails.filter((r:any)=> r && String(r.value||'').trim().length>0) : [];
+          if (filtered.length) {
+            reviewObj.strictDetails = filtered;
+          }
+        } catch {}
+      } catch {}
       // Local image analysis: palettes + color-name mapping
       try {
         const urls = allProductImageUrls();
