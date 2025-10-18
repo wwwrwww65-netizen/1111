@@ -42,6 +42,8 @@ export default function AdminProductCreate(): JSX.Element {
   const [seoTitle, setSeoTitle] = React.useState("");
   const [seoDescription, setSeoDescription] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
+  // Becomes true after any successful analysis (rules/AI preview or full analyze)
+  const [analysisDone, setAnalysisDone] = React.useState<boolean>(false);
   const longDescRef = React.useRef<HTMLTextAreaElement|null>(null);
   React.useEffect(()=>{ const el=longDescRef.current; if (!el) return; el.style.height='auto'; el.style.height = el.scrollHeight + 'px'; }, [review?.longDesc]);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
@@ -590,6 +592,18 @@ export default function AdminProductCreate(): JSX.Element {
     return best;
   }
 
+  function dedupePalettes(list: Array<{ url: string; hex: string; name: string }>): Array<{ url: string; hex: string; name: string }>{
+    const seen = new Set<string>();
+    const out: Array<{ url: string; hex: string; name: string }> = [];
+    for (const p of list) {
+      const key = String(p.url||'').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+    }
+    return out;
+  }
+
   function extractKeywords(t: string, productName: string): string[] {
     const stopWords = new Set(['تول','شفاف','ربطة','أكمام','فقط','عمله','بلصدر']);
     const words = String(t||'').split(/\s+/).filter(w => w.length>2 && !stopWords.has(w));
@@ -821,7 +835,7 @@ export default function AdminProductCreate(): JSX.Element {
         stock: 0,
         keywords: 0.5,
       };
-      const palettes: Array<{url:string;hex:string;name:string}> = [];
+      let palettes: Array<{url:string;hex:string;name:string}> = [];
       const allUrls = allProductImageUrls();
       // Recompute quick palette client-side for mapping visual review
       // Include newly uploaded files too
@@ -835,6 +849,7 @@ export default function AdminProductCreate(): JSX.Element {
         const p = await getImageDominant(url);
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
+        palettes = dedupePalettes(palettes);
         setReview((prev:any)=> ({ ...(prev||extracted), palettes: [...palettes] }));
       }
       const mapping: Record<string, string|undefined> = {};
@@ -901,6 +916,7 @@ export default function AdminProductCreate(): JSX.Element {
         } catch {}
       }
       setReview(reviewObj);
+      setAnalysisDone(true);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
       }
@@ -928,6 +944,7 @@ export default function AdminProductCreate(): JSX.Element {
         // Do not generate variant rows automatically; user will click "توليد التباينات المتعددة" بعد اختيار المقاسات والألوان
       } catch {}
       setActiveMobileTab('compose');
+      setAnalysisDone(true);
       showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
       setError('فشل التحليل. حاول مجدداً.');
@@ -988,12 +1005,13 @@ export default function AdminProductCreate(): JSX.Element {
       // Local image analysis: palettes + color-name mapping
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) {
           const p = await getImageDominant(u);
           const near = nearestColorName(p.hex);
           palettes.push({ url: p.url, hex: p.hex, name: near.name });
         }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) {
@@ -1013,6 +1031,7 @@ export default function AdminProductCreate(): JSX.Element {
       } catch {}
       // Direct fill
       setReview(reviewObj);
+      setAnalysisDone(true);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
       try{
         // Name: use full DeepSeek-generated name (no truncation)
@@ -1031,13 +1050,14 @@ export default function AdminProductCreate(): JSX.Element {
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         await applyAnalyzedSizesColors(sList, cList);
-        const palettes = (reviewObj as any).palettes || [];
-        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
         const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
         // Do not auto-generate variant rows
       } catch {}
+      setAnalysisDone(true);
       showToast('تم تحليل DeepSeek وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
     } catch {
@@ -1085,14 +1105,16 @@ export default function AdminProductCreate(): JSX.Element {
       };
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
+      setAnalysisDone(true);
       try{
         const fullNameRules = String(reviewObj.name||'').trim();
         if (fullNameRules) setName(fullNameRules);
@@ -1103,12 +1125,13 @@ export default function AdminProductCreate(): JSX.Element {
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         await applyAnalyzedSizesColors(sList, cList);
-        const palettes = (reviewObj as any).palettes || [];
-        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
         const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
       } catch {}
+      setAnalysisDone(true);
       showToast('تم التحليل الصارم وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
     } catch {
@@ -1161,14 +1184,16 @@ export default function AdminProductCreate(): JSX.Element {
       };
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
+      setAnalysisDone(true);
       try{
         const fullNameOR = String(reviewObj.name||'').trim();
         if (fullNameOR) setName(fullNameOR);
@@ -1179,13 +1204,14 @@ export default function AdminProductCreate(): JSX.Element {
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         await applyAnalyzedSizesColors(sList, cList);
-        const palettes = (reviewObj as any).palettes || [];
-        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
         const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
         // do not generate variant rows automatically here
       } catch {}
+      setAnalysisDone(true);
       showToast('تم تحليل OpenRouter وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
     } catch {
@@ -1238,6 +1264,7 @@ export default function AdminProductCreate(): JSX.Element {
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
+      setAnalysisDone(true);
       try{
         const fullNameGPT = String(reviewObj.name||'').trim();
         if (fullNameGPT) setName(fullNameGPT);
@@ -1247,8 +1274,8 @@ export default function AdminProductCreate(): JSX.Element {
         const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
-        const palettes = (reviewObj as any).palettes || [];
-        const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
         const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
@@ -1259,6 +1286,7 @@ export default function AdminProductCreate(): JSX.Element {
         else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
         if (rows.length) setVariantRows(rows as any);
       } catch {}
+      setAnalysisDone(true);
       showToast('تم تحليل GPT وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
     } catch { setError('فشل تحليل GPT'); showToast('فشل تحليل GPT', 'err'); }
@@ -1719,7 +1747,7 @@ export default function AdminProductCreate(): JSX.Element {
           </label>
           <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn">{busy? 'جارِ التحليل...' : 'حلّل واملأ الحقول'}</button>
           <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'حلّل واملأ الحقول (DeepSeek)'}</button>
-          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
+          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek محلياً (بدون رفع)">{busy? '...' : 'تحليل عبر DeepSeek (محلي)'} </button>
           <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
         </>}
       >
@@ -2063,7 +2091,7 @@ export default function AdminProductCreate(): JSX.Element {
                         <tr>
                           <th>المجموعة</th>
                           <th>القيمة</th>
-                          <th>السمات</th>
+                          {/* حذف حقل السمات لمطابقة صفحة المنتج */}
                           <th>سعر الشراء</th>
                           <th>سعر البيع</th>
                           <th>المخزون</th>
@@ -2147,6 +2175,8 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
             {(() => {
               const list = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+              // Do not show product images preview until analysis completes and we have confirmed mapping
+              if (!analysisDone) return <div style={{ color:'var(--sub)', marginTop:6 }}>لن يتم عرض صور المنتج هنا حتى اكتمال التحليل.</div>;
               if (!list.length) return <div style={{ color:'var(--sub)', marginTop:6 }}>لا توجد صور حالية</div>;
               return (
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginTop:8 }}>
