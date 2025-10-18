@@ -1348,6 +1348,14 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       const targetSizes = Array.from(new Set((sizesIn||[]).map(s=>String(s||'').trim()).filter(Boolean)));
       const targetColors = Array.from(new Set((colorsIn||[]).map(c=>String(c||'').trim()).filter(Boolean)));
+      // Ensure we have latest palettes/colors list before matching
+      try {
+        if (!Array.isArray(colorOptions) || colorOptions.length === 0) {
+          const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } });
+          const j = await r.json().catch(()=>({}));
+          setColorOptions(j.colors||[]);
+        }
+      } catch {}
 
       // Choose the size type that best matches targetSizes
       if (targetSizes.length && Array.isArray(sizeTypeOptions) && sizeTypeOptions.length) {
@@ -1385,6 +1393,29 @@ export default function AdminProductCreate(): JSX.Element {
         }
       }
 
+      // Helper: guess hex for common Arabic/English color names
+      const guessHex = (name: string): string => {
+        const t = String(name||'').toLowerCase();
+        const map: Record<string,string> = {
+          'أسود':'#000000','اسود':'#000000','black':'#000000',
+          'أبيض':'#ffffff','ابيض':'#ffffff','white':'#ffffff',
+          'أحمر':'#ff0000','احمر':'#ff0000','red':'#ff0000',
+          'أزرق':'#0000ff','ازرق':'#0000ff','blue':'#0000ff',
+          'أخضر':'#008000','اخضر':'#008000','green':'#008000',
+          'أصفر':'#ffff00','اصفر':'#ffff00','yellow':'#ffff00',
+          'وردي':'#ffc0cb','زهري':'#ffc0cb','pink':'#ffc0cb',
+          'بنفسجي':'#8a2be2','purple':'#800080','violet':'#8a2be2',
+          'برتقالي':'#ffa500','orange':'#ffa500',
+          'بني':'#8b4513','brown':'#8b4513',
+          'رمادي':'#808080','gray':'#808080','grey':'#808080',
+          'كحلي':'#000080','navy':'#000080',
+          'بيج':'#f5f5dc','beige':'#f5f5dc',
+          'ذهبي':'#ffd700','gold':'#ffd700',
+          'فضي':'#c0c0c0','silver':'#c0c0c0'
+        };
+        return map[t] || '#666666';
+      };
+
       // Map colors to known options and add color cards
       if (targetColors.length) {
         const mappedCards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
@@ -1401,16 +1432,31 @@ export default function AdminProductCreate(): JSX.Element {
         for (const raw of toCreate){
           try{
             const name = String(raw).slice(0,40)
-            const rc = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name, hex: '#666666' }) })
+            const hex = guessHex(name)
+            const rc = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name, hex }) })
             const cj = await rc.json().catch(()=>({}))
             if (rc.ok && cj?.color?.name){
               mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: cj.color.name, selectedImageIdxs: [] })
+            } else {
+              // Fallback: ensure UI select contains this color temporarily
+              setColorOptions(prev => {
+                const exists = (prev||[]).some(o=> String(o.name||'').toLowerCase()===name.toLowerCase());
+                return exists ? prev : [...(prev||[]), { id: `tmp:${name}`, name, hex } as any];
+              });
+              mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: name, selectedImageIdxs: [] })
             }
           } catch {}
         }
         // refresh colors
         try{ const r=await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setColorOptions(j.colors||[]); } catch {}
-        if (mappedCards.length) setColorCards(mappedCards);
+        if (mappedCards.length) {
+          setColorCards(mappedCards);
+          // Also ensure selectedColors reflect target colors immediately
+          setSelectedColors(Array.from(new Set(mappedCards.map(c=>c.color).filter(Boolean))) as string[])
+        } else if (targetColors.length) {
+          // Last-resort fallback: reflect target colors in selection
+          setSelectedColors(targetColors)
+        }
       }
     } catch {}
   }
