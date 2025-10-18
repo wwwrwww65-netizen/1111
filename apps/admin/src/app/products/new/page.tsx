@@ -1569,6 +1569,11 @@ export default function AdminProductCreate(): JSX.Element {
     const activeSizeTypes = selectedSizeTypes.filter(t => t.selectedSizes?.length);
     const colorList = selectedColors;
     const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
+    const makeSku = (parts: string[]): string => {
+      const base = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,8) || 'PRD';
+      const tail = parts.map(p=> String(p||'').toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9]+/g,'').slice(0,6)).filter(Boolean).join('-');
+      return [base, tail].filter(Boolean).join('-');
+    };
 
     if (activeSizeTypes.length >= 2 && colorList.length) {
       const [t1, t2] = activeSizeTypes;
@@ -1576,12 +1581,12 @@ export default function AdminProductCreate(): JSX.Element {
         for (const s2 of t2.selectedSizes) {
           for (const c of colorList) {
             rows.push({
-              name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`,
-              value: c,
+              name: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
+              value: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
               price: priceValue,
               purchasePrice: purchaseValue,
               stockQuantity: stockValue,
-              sku: undefined,
+              sku: makeSku([s1, s2, c]),
               size: `${t1.name}:${s1}|${t2.name}:${s2}`,
               color: c,
               option_values: [
@@ -1601,11 +1606,12 @@ export default function AdminProductCreate(): JSX.Element {
       for (const s1 of t1.selectedSizes) {
         for (const s2 of t2.selectedSizes) {
           rows.push({
-            name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`,
-            value: `${t1.name}: ${s1} - ${t2.name}: ${s2}`,
+            name: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
+            value: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
             price: priceValue,
             purchasePrice: purchaseValue,
             stockQuantity: stockValue,
+            sku: makeSku([s1, s2]),
             size: `${t1.name}:${s1}|${t2.name}:${s2}`,
             option_values: [
               { name: 'size', value: `${t1.name}:${s1}` },
@@ -1622,12 +1628,12 @@ export default function AdminProductCreate(): JSX.Element {
       for (const s1 of t1.selectedSizes) {
         for (const c of colorList) {
           rows.push({
-            name: `${t1.name}: ${s1}`,
-            value: c,
+            name: `${t1.name}: ${s1} • اللون: ${c}`,
+            value: `${t1.name}: ${s1} • اللون: ${c}`,
             price: priceValue,
             purchasePrice: purchaseValue,
             stockQuantity: stockValue,
-            sku: undefined,
+            sku: makeSku([s1, c]),
             size: `${t1.name}:${s1}`,
             color: c,
             option_values: [
@@ -1649,6 +1655,7 @@ export default function AdminProductCreate(): JSX.Element {
           price: priceValue,
           purchasePrice: purchaseValue,
           stockQuantity: stockValue,
+          sku: makeSku([s1]),
           size: `${t1.name}:${s1}`,
           option_values: [{ name: 'size', value: `${t1.name}:${s1}` }],
         });
@@ -1659,12 +1666,12 @@ export default function AdminProductCreate(): JSX.Element {
     if (colorList.length) {
       for (const c of colorList) {
         rows.push({
-          name: c,
-          value: c,
+          name: `اللون: ${c}`,
+          value: `اللون: ${c}`,
           price: priceValue,
           purchasePrice: purchaseValue,
           stockQuantity: stockValue,
-          sku: undefined,
+          sku: makeSku([c]),
           color: c,
           option_values: [{ name: 'color', value: c }],
         });
@@ -2180,10 +2187,10 @@ export default function AdminProductCreate(): JSX.Element {
                               }} className="input" />
                             </td>
                             <td>
-                              <select value={(()=>{ const key = row.color || row.value; const mapped = (review?.mapping||{})[key!]; return mapped || ''; })()} onChange={(e)=>{
+                              <select value={(()=>{ const key = (row.color || row.value || '').toString(); const mapped = (review?.mapping||{})[key]; return mapped || ''; })()} onChange={(e)=>{
                                 const url = e.target.value || undefined;
-                                const key = row.color || row.value;
-                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [key!]: url }}));
+                                const key = (row.color || row.value || '').toString();
+                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [key]: url }}));
                               }} className="select">
                                 <option value="">(بدون)</option>
                                 {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
@@ -2205,85 +2212,7 @@ export default function AdminProductCreate(): JSX.Element {
           )}
         </div>
 
-        {/* Right column: media (product images area minimal, no header toolbar) */}
-        <div style={{ gridColumn: 'span 4', display:'grid', gap:12, alignSelf:'start' }}>
-          <div>
-            {/* Removed flex header row to avoid duplicate look */}
-            <div style={{ fontWeight:600 }}>صور المنتج</div>
-            {(() => {
-              const list = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
-              // Do not show product images preview until analysis completes and we have confirmed mapping
-              if (!analysisDone) return <div style={{ color:'var(--sub)', marginTop:6 }}>لن يتم عرض صور المنتج هنا حتى اكتمال التحليل.</div>;
-              if (!list.length) return <div style={{ color:'var(--sub)', marginTop:6 }}>لا توجد صور حالية</div>;
-              return (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginTop:8 }}>
-                  {list.map((u, idx) => (
-                    <div key={idx} className="panel" style={{ padding:0 }}>
-                      <img src={u} alt={String(idx)} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                      <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <a href={u} target="_blank" rel="noreferrer" className="btn btn-outline">فتح</a>
-                        <button type="button" className="icon-btn" onClick={()=>{
-                          const next = list.filter((_,i)=> i!==idx);
-                          setImages(next.join(', '));
-                        }}>إزالة</button>
-                </div>
-              </div>
-                  ))}
-              </div>
-              );
-            })()}
-            {showImagesInput && (
-              <label style={{ display:'block', marginTop:8 }}>الصور (روابط مفصولة بفواصل)
-                <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
-              </label>
-            )}
-          </div>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const dropped = Array.from(e.dataTransfer.files || []);
-              if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
-            }}
-            className="dropzone"
-            style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
-          >
-            اسحب وأفلت الصور هنا أو
-            <br />
-            <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
-              اختر من جهازك
-              <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
-                const selected = Array.from(e.target.files || []);
-                if (selected.length) setFiles((prev) => [...prev, ...selected]);
-              }} />
-            </label>
-            <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
-          </div>
-          {files.length > 0 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-              {files.map((f, idx) => (
-                <div key={idx} className="panel" style={{ padding:0 }}>
-                  <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                  <div style={{ padding:8, textAlign:'right' }}>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {files.length > 0 && (
-            <button type="button" disabled={!analysisDone} onClick={() => {
-              const fileNames = files.map(f => f.name);
-              const current = (images || '').split(',').map(s=>s.trim()).filter(Boolean);
-              const next = Array.from(new Set([...current, ...fileNames]));
-              setImages(next.join(', '));
-            }} className="btn btn-outline" title={analysisDone? undefined : 'لن تتم إضافة الصور حتى يكتمل التحليل'}>إضافة الملفات إلى قائمة الصور</button>
-          )}
-
-          {/* removed duplicate side variants panel */}
-        </div>
+        {/* Right column product images panel removed as requested */}
 
         {/* Moved preview + SEO + draft to bottom for unobstructed view */}
         <div className="panel" style={{ gridColumn:'1 / -1', marginTop: 8, padding:12 }}>
