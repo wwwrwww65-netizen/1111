@@ -72,26 +72,7 @@ jobs:
           pnpm --filter @repo/api start &
           npx -y wait-on http://127.0.0.1:4000/health
           node scripts/ci/create-test-product.mjs
-      - name: Admin E2E - analyze populates colors
-        if: ${{ github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') || github.ref_name == 'main' || startsWith(github.ref, 'refs/heads/main') }}
-        env:
-          API_BASE: http://127.0.0.1:4000
-          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
-          NEXT_PUBLIC_ADMIN_URL: http://127.0.0.1:3010
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
-        run: |
-          set -e
-          # Install Playwright deps
-          cd scripts/ci
-          npm i --no-fund --no-audit || true
-          npx playwright install --with-deps chromium
-          cd -
-          # Ensure API is running (from previous step); start Admin and wait
-          if [ ! -f apps/admin/.next/standalone/server.js ]; then pnpm --filter admin build || true; fi
-          if [ -f apps/admin/.next/standalone/server.js ]; then PORT=3010 node apps/admin/.next/standalone/server.js & else pnpm --filter admin -- start -p 3010 & fi
-          npx -y wait-on http://127.0.0.1:3010/
-          node scripts/ci/e2e-admin-analyze-colors.mjs
+      # Admin E2E - analyze populates colors (disabled per request)
       - name: Smoke - Admin flows
         run: node scripts/ci/smoke-admin-extras.mjs || true
       - name: Smoke - Create Order

@@ -1084,17 +1084,12 @@ export default function AdminProductCreate(): JSX.Element {
         const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, cList);
         const palettes = (reviewObj as any).palettes || [];
         const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
         const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
-        const rows: typeof variantRows = [] as any;
-        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
-        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
-        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
-        if (rows.length) setVariantRows(rows as any);
       } catch {}
       showToast('تم التحليل الصارم وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
@@ -1165,17 +1160,13 @@ export default function AdminProductCreate(): JSX.Element {
         const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, cList);
         const palettes = (reviewObj as any).palettes || [];
         const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
         const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
-        const rows: typeof variantRows = [] as any;
-        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
-        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
-        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
-        if (rows.length) setVariantRows(rows as any);
+        // do not generate variant rows automatically here
       } catch {}
       showToast('تم تحليل OpenRouter وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
