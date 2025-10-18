@@ -1370,18 +1370,54 @@ export default function AdminProductCreate(): JSX.Element {
           const chosen = best;
           const selected = targetSizes.filter(s=> chosen.sizes.some(x=> String(x.name||'').toLowerCase() === String(s).toLowerCase()));
           setSelectedSizeTypes([ { id: chosen.id, name: chosen.name, sizes: chosen.sizes, selectedSizes: selected } ]);
+        } else {
+          // Create a new size-type and sizes if none matches
+          const typeName = `مخصص: ${targetSizes.slice(0,3).join('/')}`.slice(0,40)
+          try {
+            const rt = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name: typeName }) })
+            const tj = await rt.json().catch(()=>({}))
+            if (rt.ok && tj?.type?.id){
+              const newTypeId = tj.type.id as string
+              // create sizes under it
+              for (const s of targetSizes){
+                try {
+                  await fetch(`${apiBase}/api/admin/attributes/size-types/${newTypeId}/sizes`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name: s }) })
+                } catch {}
+              }
+              const sizes = await loadSizesForType(newTypeId)
+              setSelectedSizeTypes([ { id: newTypeId, name: typeName, sizes, selectedSizes: targetSizes } ])
+              // refresh type options
+              try{ const r=await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setSizeTypeOptions(j.types||[]); } catch {}
+            }
+          } catch {}
         }
       }
 
       // Map colors to known options and add color cards
       if (targetColors.length) {
         const mappedCards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
+        const toCreate: string[] = []
         for (const c of targetColors) {
           const match = colorOptions.find(o=> String(o.name||'').toLowerCase() === String(c).toLowerCase());
           if (match) {
             mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: match.name, selectedImageIdxs: [] });
+          } else {
+            toCreate.push(c)
           }
         }
+        // Create missing colors
+        for (const raw of toCreate){
+          try{
+            const name = String(raw).slice(0,40)
+            const rc = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name, hex: '#666666' }) })
+            const cj = await rc.json().catch(()=>({}))
+            if (rc.ok && cj?.color?.name){
+              mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: cj.color.name, selectedImageIdxs: [] })
+            }
+          } catch {}
+        }
+        // refresh colors
+        try{ const r=await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setColorOptions(j.colors||[]); } catch {}
         if (mappedCards.length) setColorCards(mappedCards);
       }
     } catch {}
