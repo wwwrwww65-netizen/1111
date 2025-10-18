@@ -867,6 +867,8 @@ export default function AdminProductCreate(): JSX.Element {
         const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
+        // Apply into pickers (size type + colors), but DO NOT auto-generate variant rows
+        await applyAnalyzedSizesColors(sList, cList);
         // Merge palette images into images field
         try{
           const palettes = (reviewObj as any).palettes || [];
@@ -875,40 +877,7 @@ export default function AdminProductCreate(): JSX.Element {
           const merged = Array.from(new Set([...cur, ...urls]));
           if (merged.length) setImages(merged.join(', '));
         }catch{}
-        // Generate variant rows with structured option_values + size/color
-        const rows: typeof variantRows = [] as any;
-        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-        if (sList.length && cList.length) {
-          for (const sz of sList) {
-            for (const col of cList) {
-              rows.push({
-                name: 'متغير',
-                value: `${sz} / ${col}`,
-                price: undefined,
-                purchasePrice: baseCost,
-                stockQuantity: Number(reviewObj.stock||stockQuantity||0),
-                size: sz,
-                color: col,
-                option_values: [ { name: 'size', value: sz }, { name: 'color', value: col } ]
-              });
-            }
-          }
-        } else if (sList.length) {
-          for (const sz of sList) {
-            rows.push({
-              name: 'مقاس', value: sz, price: undefined, purchasePrice: baseCost, stockQuantity: Number(reviewObj.stock||stockQuantity||0),
-              size: sz, option_values: [ { name: 'size', value: sz } ]
-            });
-          }
-        } else if (cList.length) {
-          for (const col of cList) {
-            rows.push({
-              name: 'لون', value: col, price: undefined, purchasePrice: baseCost, stockQuantity: Number(reviewObj.stock||stockQuantity||0),
-              color: col, option_values: [ { name: 'color', value: col } ]
-            });
-          }
-        }
-        if (rows.length) setVariantRows(rows as any);
+        // Do not generate variant rows automatically; user will click "توليد التباينات المتعددة" بعد اختيار المقاسات والألوان
       } catch {}
       setActiveMobileTab('compose');
       showToast('تم التحليل بنجاح', 'ok');
@@ -1334,6 +1303,42 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
   }
 
+  // Auto-apply analyzed sizes/colors to pickers without generating variants
+  async function applyAnalyzedSizesColors(sizesIn: string[], colorsIn: string[]): Promise<void> {
+    try {
+      const targetSizes = Array.from(new Set((sizesIn||[]).map(s=>String(s||'').trim()).filter(Boolean)));
+      const targetColors = Array.from(new Set((colorsIn||[]).map(c=>String(c||'').trim()).filter(Boolean)));
+
+      // Choose the size type that best matches targetSizes
+      if (targetSizes.length && Array.isArray(sizeTypeOptions) && sizeTypeOptions.length) {
+        let best: { id: string; name: string; sizes: Array<{id:string;name:string}>; score: number } | null = null;
+        for (const t of sizeTypeOptions) {
+          const sizes = await loadSizesForType(t.id);
+          const names = sizes.map(s=> String(s.name||'').toLowerCase());
+          const score = targetSizes.reduce((acc, s)=> acc + (names.includes(String(s).toLowerCase()) ? 1 : 0), 0);
+          if (!best || score > best.score) best = { id: t.id, name: t.name, sizes, score };
+        }
+        if (best && best.score > 0) {
+          const chosen = best;
+          const selected = targetSizes.filter(s=> chosen.sizes.some(x=> String(x.name||'').toLowerCase() === String(s).toLowerCase()));
+          setSelectedSizeTypes([ { id: chosen.id, name: chosen.name, sizes: chosen.sizes, selectedSizes: selected } ]);
+        }
+      }
+
+      // Map colors to known options and add color cards
+      if (targetColors.length) {
+        const mappedCards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
+        for (const c of targetColors) {
+          const match = colorOptions.find(o=> String(o.name||'').toLowerCase() === String(c).toLowerCase());
+          if (match) {
+            mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: match.name, selectedImageIdxs: [] });
+          }
+        }
+        if (mappedCards.length) setColorCards(mappedCards);
+      }
+    } catch {}
+  }
+
   async function fileToBase64(file: File): Promise<string> {
     // Compress to WebP with max dimension for optimal upload; fallback to original if failure
     try {
@@ -1537,9 +1542,8 @@ export default function AdminProductCreate(): JSX.Element {
     const j = await res.json();
     const productId = j?.product?.id;
     if (type === 'variable' && productId) {
-      let variants = variantRows;
-      if (!variants?.length) variants = generateVariantRows();
-      if (variants.length) {
+      const variants = variantRows; // Do not auto-generate; require explicit user action
+      if (variants && variants.length) {
         // Normalize variants to include explicit size/color/option_values for reliable extraction downstream
         const normalized = variants.map(v => {
           const sizeToken = v.size || (/size|مقاس/i.test(v.name) ? v.value : undefined);
