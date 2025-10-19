@@ -24,16 +24,25 @@ async function verifyMweb(productId){
   if (needStart){
     const { spawn } = await import('node:child_process')
     proc = spawn('pnpm', ['-C','apps/mweb','preview'], { stdio:'inherit' })
-    await wait(1500)
+    await wait(2000)
   }
+  const { launch } = await import('puppeteer')
+  const browser = await launch({ headless: 'new', args: ['--no-sandbox','--disable-setuid-sandbox'] })
+  const page = await browser.newPage()
   try {
     const url = `${MWEB_ORIGIN}/#/p?id=${encodeURIComponent(productId)}`
-    const html = await (await fetch(url)).text()
-    // Basic checks: presence of color swatches, size buttons labels
-    assert.ok(/data-testid="color-swatch"/.test(html), 'mweb_color_swatch_missing')
-    assert.ok(/data-size="M"/.test(html) || />M<\/button>/.test(html), 'mweb_size_alpha_missing')
-    assert.ok(/98/.test(html) || /99/.test(html), 'mweb_size_numeric_missing')
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 })
+    await page.waitForSelector('[data-testid="color-swatch"]', { timeout: 30000 })
+    const hasAlphaLabel = await page.evaluate(() => document.body.innerText.includes('المقاس بالأحرف'))
+    const hasNumLabel = await page.evaluate(() => document.body.innerText.includes('المقاس بالأرقام'))
+    if (!hasAlphaLabel) throw new Error('mweb_alpha_group_label_missing')
+    if (!hasNumLabel) throw new Error('mweb_numeric_group_label_missing')
+    const btnM = await page.$x("//button[contains(normalize-space(.), 'M')]")
+    if ((btnM||[]).length === 0) throw new Error('mweb_size_alpha_missing')
+    const btnNum = await page.$x("//button[contains(normalize-space(.), '98') or contains(normalize-space(.), '99')]")
+    if ((btnNum||[]).length === 0) throw new Error('mweb_size_numeric_missing')
   } finally {
+    await browser.close().catch(()=>{})
     try { if (proc) proc.kill() } catch {}
   }
 }
