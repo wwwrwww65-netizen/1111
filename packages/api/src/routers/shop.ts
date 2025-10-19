@@ -1106,37 +1106,57 @@ shop.get('/product/:id', async (req, res) => {
 shop.get('/product/:id/variants', async (req, res) => {
   try {
     const id = String(req.params.id)
-    const p = await db.product.findUnique({ where: { id }, select: { id: true } })
+    const p = await db.product.findUnique({ where: { id }, select: { id: true, images: true } })
     if (!p) return res.status(404).json({ error: 'not_found' })
     const rows = await db.productVariant.findMany({
       where: { productId: id },
       select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
       orderBy: { createdAt: 'asc' }
     } as any)
-    let items = (rows||[]).map((v:any)=>{
-      const name = String(v.name||'');
-      const value = String(v.value||'');
-      const tokens = splitTokens(`${name} ${value}`);
-      let color: string|undefined;
-      let size: string|undefined;
-      for (const t of tokens){ if (!color && isColorWord(t)) color = t; if (!size && looksSizeToken(t)) size = t }
-      if (!color && /color|لون/i.test(name) && isColorWord(value)) color = value;
-      if (!size && /size|مقاس/i.test(name) && looksSizeToken(value)) size = value;
-      // From explicit option_values if present
-      if (!color || !size) {
-        const opt = extractOptions(v);
-        if (!color && opt.colors[0]) color = opt.colors[0];
-        if (!size && opt.sizes[0]) size = opt.sizes[0];
+    const items = (rows||[]).map((v:any)=>{
+      // Build attributes_map using structured groups first
+      const attrs = extractAttributeGroups(v)
+      const attributes_map: Record<string,string> = {}
+      for (const [label, set] of attrs.sizeGroups.entries()){
+        const slug = 'size_' + String(label||'').trim().toLowerCase().replace(/\s+/g,'_')
+        const first = Array.from(set)[0]
+        if (first) attributes_map[slug] = first
       }
-      return Object.assign({}, v, { color, size })
+      if (attrs.colors.size){ attributes_map['color'] = Array.from(attrs.colors)[0] }
+      // Fallbacks from extractOptions/tokens to ensure minimal map
+      if (!attributes_map['color'] || Object.keys(attributes_map).length===0){
+        const opt = extractOptions(v)
+        if (opt.colors[0] && !attributes_map['color']) attributes_map['color'] = opt.colors[0]
+        if (opt.sizes[0] && !Object.keys(attributes_map).some(k=> k.startsWith('size_'))) attributes_map['size'] = opt.sizes[0]
+        if (!Object.keys(attributes_map).some(k=> k.startsWith('size_'))){
+          const name = String(v.name||''); const value = String(v.value||'');
+          const tokens = splitTokens(`${name} ${value}`)
+          const tokenSize = tokens.find(t=> looksSizeToken(t) && !isColorWord(t))
+          if (tokenSize) attributes_map['size'] = tokenSize
+          const tokenColor = tokens.find(t=> isColorWord(t))
+          if (tokenColor && !attributes_map['color']) attributes_map['color'] = tokenColor
+        }
+      }
+      // Image fallback: pick first product image whose filename contains color token if any; else undefined
+      let image: string|undefined
+      try{
+        const col = String(attributes_map['color']||'').toLowerCase()
+        if (col && Array.isArray(p.images)){
+          image = (p.images as string[]).find(u=> (u.split('/').pop()||'').toLowerCase().includes(col))
+        }
+      } catch {}
+      return {
+        id: v.id,
+        product_id: id,
+        sku: v.sku || undefined,
+        price: typeof v.price === 'number' ? v.price : undefined,
+        stock: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
+        image,
+        attributes_map
+      }
     })
-    // Fallback: if no variant got color/size, map size to value/name to provide a minimal dimension selector
-    const hasMeta = items.some((x:any)=> !!x.color || !!x.size);
-    if (!hasMeta){
-      items = items.map((v:any)=> Object.assign({}, v, { size: String(v.value||v.name||'').trim() || undefined }));
-    }
     return res.json({ items })
-  } catch {
+  } catch (e) {
     return res.status(500).json({ error: 'variants_failed' })
   }
 });
