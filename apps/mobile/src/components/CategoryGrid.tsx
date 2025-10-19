@@ -2,22 +2,21 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { trpc } from '../lib/trpc';
 
-const ProductGrid = ({ title }: { title: string }) => {
-  const { data, isLoading, error } = trpc.products.list.useQuery({ limit: 10 });
+const CategoryGrid = ({ title }: { title: string }) => {
+  const { data, isLoading, error } = trpc.products.listCategories.useQuery({ limit: 30 });
 
   if (isLoading) {
     return <ActivityIndicator />;
   }
 
   if (error) {
-    return <Text>Error loading products</Text>;
+    return <Text>Error loading categories</Text>;
   }
 
   const renderItem = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.product}>
-      <Image source={{ uri: item.images[0] }} style={styles.image} />
-      <Text style={styles.title}>{item.name}</Text>
-      <Text style={styles.price}>{item.price} ر.س</Text>
+    <TouchableOpacity style={styles.category}>
+      <Image source={{ uri: item.image || `https://csspicker.dev/api/image/?q=${encodeURIComponent(item.name||'fashion')}&image_type=photo` }} style={styles.image} />
+      <Text style={styles.name}>{item.name}</Text>
     </TouchableOpacity>
   );
 
@@ -28,7 +27,7 @@ const ProductGrid = ({ title }: { title: string }) => {
         data={data?.items}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        numColumns={2}
+        numColumns={3}
         scrollEnabled={false}
       />
     </View>
@@ -45,24 +44,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
     paddingHorizontal: 8,
+    textAlign: 'center',
   },
-  product: {
+  category: {
     flex: 1,
     margin: 8,
+    alignItems: 'center',
   },
   image: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 8,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     marginBottom: 8,
   },
-  title: {
-    fontSize: 14,
-  },
-  price: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  name: {
+    fontSize: 12,
+    textAlign: 'center',
   },
 });
 
-export default ProductGrid;
+export default CategoryGrid;

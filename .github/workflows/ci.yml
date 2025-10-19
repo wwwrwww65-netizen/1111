@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "feature/**" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.6.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Start services
+        run: sudo docker compose -f infra/dev-docker-compose.yml up -d
+
+      - name: Copy .env files
+        run: |
+          cp packages/api/.env.example packages/api/.env
+          cp packages/api/.env.example packages/db/.env
+
+      - name: Run database migrations
+        run: pnpm db:migrate
+
+      - name: Seed database
+        run: pnpm db:seed
+
+      - name: Run tests
+        run: pnpm test
