@@ -31,8 +31,9 @@ async function verifyMweb(productId){
   const page = await browser.newPage()
   try {
     const url = `${MWEB_ORIGIN}/#/p?id=${encodeURIComponent(productId)}`
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 })
-    await page.waitForSelector('[data-testid="color-swatch"]', { timeout: 30000 })
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    // Wait up to 10s for Arabic labels to appear after SPA hydration
+    await page.waitForFunction(() => document.body.innerText.includes('لون'), { timeout: 10000 })
     const hasAlphaLabel = await page.evaluate(() => document.body.innerText.includes('المقاس بالأحرف'))
     const hasNumLabel = await page.evaluate(() => document.body.innerText.includes('المقاس بالأرقام'))
     if (!hasAlphaLabel) throw new Error('mweb_alpha_group_label_missing')
