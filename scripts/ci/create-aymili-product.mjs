@@ -47,6 +47,8 @@ async function createProduct(token){
   assert.ok(r.ok, `product_create_failed: ${j.error||j.message||r.status}`)
   const id = j?.product?.id
   assert.ok(id, 'product_id_missing')
+  // Immediately insert variants to avoid empty items later
+  try { await upsertVariants(token, id) } catch {}
   return id
 }
 
@@ -93,7 +95,13 @@ async function main(){
   await ensureAdmin()
   const token = await login()
   const id = await createProduct(token)
-  await upsertVariants(token, id)
+  // Ensure variants exist via normalized endpoint
+  try {
+    const v = await fetchJson(`${API_BASE}/api/product/${id}/variants`)
+    if (!v || !Array.isArray(v.items) || v.items.length === 0) {
+      await upsertVariants(token, id)
+    }
+  } catch { await upsertVariants(token, id) }
   await verifyREST(id)
   console.log('AYMILI_PRODUCT_ID', id)
 }

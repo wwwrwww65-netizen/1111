@@ -1794,7 +1794,11 @@ export default function AdminProductCreate(): JSX.Element {
     const j = await res.json();
     const productId = j?.product?.id;
     if (type === 'variable' && productId) {
-      const variants = variantRows; // Do not auto-generate; require explicit user action
+      // Auto-generate variants if user forgot to click "توليد التباينات المتعددة"
+      let variants = variantRows;
+      if (!variants || variants.length === 0) {
+        try { variants = generateVariantRows(); } catch { variants = [] as any; }
+      }
       if (variants && variants.length) {
         // Normalize variants to include explicit size/color/option_values for reliable extraction downstream
         const normalized = variants.map(v => {

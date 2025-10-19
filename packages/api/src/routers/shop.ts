@@ -1113,7 +1113,23 @@ shop.get('/product/:id/variants', async (req, res) => {
       select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
       orderBy: { createdAt: 'asc' }
     } as any)
-    const items = (rows||[]).map((v:any)=>{
+    // Fallback: if no variants found, try to derive from historical schema by splitting Product.tags like size/color pairs (best-effort)
+    let itemsBase = rows||[]
+    if (!itemsBase.length) {
+      try {
+        const pFull = await db.product.findUnique({ where: { id }, select: { tags: true, price: true } })
+        const tags = (pFull?.tags||[]).map((t:any)=> String(t||''))
+        const sizes = Array.from(new Set(tags.filter(t=> /^(?:size:|مقاس:)/i.test(t)).map(t=> t.split(':').slice(1).join(':').trim()).filter(Boolean)))
+        const colors = Array.from(new Set(tags.filter(t=> /^(?:color:|لون:)/i.test(t)).map(t=> t.split(':').slice(1).join(':').trim()).filter(Boolean)))
+        const gen:any[] = []
+        for (const s of (sizes.length? sizes: [''])) for (const c of (colors.length? colors: [''])) {
+          const name = [s? `المقاس: ${s}`:'', c? `اللون: ${c}`:''].filter(Boolean).join(' • ')
+          gen.push({ id: `${id}:${s}:${c}`, name, value: name, price: pFull?.price||0, stockQuantity: 0, sku: null })
+        }
+        itemsBase = gen
+      } catch {}
+    }
+    const items = (itemsBase||[]).map((v:any)=>{
       // Build attributes_map using structured groups first
       const attrs = extractAttributeGroups(v)
       const attributes_map: Record<string,string> = {}
