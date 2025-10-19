@@ -11,6 +11,20 @@ const COLORS = ['دم الغزال','لحمي']
 const SIZE_ALPHA = ['M','L','XL','2XL']
 const SIZE_NUM = ['98','99']
 
+async function ensureAdmin(){
+  try{
+    const secret = process.env.MAINTENANCE_SECRET || ''
+    if (!secret) return
+    const r = await fetch(`${API_BASE}/api/admin/maintenance/create-admin`, {
+      method:'POST',
+      headers:{ 'content-type':'application/json', 'x-maintenance-secret': secret },
+      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: 'CI Admin' })
+    })
+    // ignore non-200 (may already exist)
+    await r.text().catch(()=>{})
+  }catch{}
+}
+
 async function login(){
   const r = await fetch(`${API_BASE}/api/admin/auth/login`, { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, remember: true }) })
   const j = await r.json().catch(()=> ({}))
@@ -76,6 +90,7 @@ async function verifyREST(productId){
 }
 
 async function main(){
+  await ensureAdmin()
   const token = await login()
   const id = await createProduct(token)
   await upsertVariants(token, id)
