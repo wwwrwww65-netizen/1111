@@ -31,7 +31,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   const product = data;
   const images = product.images && product.images.length ? product.images : ["/images/placeholder-product.jpg"];
   const variants = Array.isArray((product as any).variants) ? (product as any).variants : [];
-  // Build dimension sets from variants: colors + multiple size groups
+  // Build dimension sets from server-provided attributes (preferred) or derive from variants
   const colorSet = new Set<string>();
   const sizeGroups = new Map<string, Set<string>>();
   const normToken = (s: string) => String(s||'').trim().toLowerCase();
@@ -56,7 +56,21 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   };
   const splitTokens = (s: string): string[] => String(s||'').split(/[ ,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
   const tryParseMeta = (raw: string): any => { try{ return JSON.parse(raw); } catch { return null; } };
-  for (const v of variants as any[]) {
+  // Prefer attributes returned by API (products.getById enriched via server)
+  const apiAttributes: Array<{ key: string; label: string; values: string[] }> = Array.isArray((product as any).attributes) ? (product as any).attributes : [];
+  if (apiAttributes.length) {
+    for (const a of apiAttributes) {
+      if (a.key === 'color') {
+        for (const v of a.values) colorSet.add(String(v));
+      } else if (a.key === 'size') {
+        const label = String(a.label || 'المقاس');
+        if (!sizeGroups.has(label)) sizeGroups.set(label, new Set());
+        for (const v of a.values) sizeGroups.get(label)!.add(String(v));
+      }
+    }
+  }
+  // Derive as fallback when attributes are not present (backward compatible)
+  if (colorSet.size === 0 && sizeGroups.size === 0) for (const v of variants as any[]) {
     // Prefer explicit option_values JSON when present
     let parsed = tryParseMeta(String(v.value||''));
     if (!parsed || (Array.isArray(parsed) && parsed.length===0)) parsed = tryParseMeta(String(v.name||''));

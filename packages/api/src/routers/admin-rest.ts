@@ -3641,10 +3641,36 @@ adminRest.post('/products/:id/variants/bulk', async (req, res) => {
     const list: Array<any> = Array.isArray(req.body?.variants) ? req.body.variants : [];
     for (const it of list){
       const id = it.id ? String(it.id) : null;
-      const data: any = { productId, name: String(it.name||''), value: String(it.value||''), sku: it.sku? String(it.sku): null };
+      const data: any = { productId, name: String(it.name||'').slice(0,120), value: String(it.value||'').slice(0,240), sku: it.sku? String(it.sku): null };
       if (it.price!=null) data.price = Number(it.price);
       if (it.purchasePrice!=null) data.purchasePrice = Number(it.purchasePrice);
       if (it.stockQuantity!=null) data.stockQuantity = Number(it.stockQuantity);
+
+      // If size/color/option_values provided (or derivable), encode them as JSON in value
+      try {
+        const ov = Array.isArray((it as any).option_values)
+          ? (it as any).option_values
+          : (Array.isArray((it as any).optionValues)
+              ? (it as any).optionValues
+              : (Array.isArray((it as any).options)
+                  ? (it as any).options
+                  : (Array.isArray((it as any).attributes) ? (it as any).attributes : null)));
+        let sizeVal: string | undefined = (it as any).size || undefined;
+        let colorVal: string | undefined = (it as any).color || undefined;
+        // Derive missing size/color from name/value tokens
+        const src = `${String(it.name||'')} ${String(it.value||'')}`;
+        const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
+        if (!colorVal && hex) colorVal = hex[0];
+        if (!sizeVal) {
+          const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+          if (m) sizeVal = m[1];
+        }
+        const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
+        if (normalizedOV || sizeVal || colorVal) {
+          data.value = JSON.stringify({ label: String(it.value||'').slice(0,120), size: sizeVal||undefined, color: colorVal||undefined, option_values: normalizedOV||undefined });
+        }
+      } catch {}
+
       if (id) await db.productVariant.update({ where: { id }, data });
       else await db.productVariant.create({ data });
     }

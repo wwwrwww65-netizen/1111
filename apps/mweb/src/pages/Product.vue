@@ -1382,146 +1382,97 @@ async function loadProductData() {
 
 // ==================== VARIANTS (normalized API) ====================
 async function loadNormalizedVariants(){
+  // 1) Fetch normalized variants list
   const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`).catch(()=>null)
   let list: any[] = Array.isArray(j?.items) ? j!.items : []
-  if (!list.length && Array.isArray(product.value?.variants)) {
-    list = product.value.variants as any[]
-  }
-  // Derive colors and sizes separately to avoid swapping
-  const colorSet = new Set<string>()
-  const sizeSet = new Set<string>()
-  const norm = (s:string)=> String(s||'').trim()
-  for (const it of list){
-    const name = norm((it as any).name)
-    const val = norm((it as any).value)
-    const colorField = norm((it as any).color)
-    const sizeField = norm((it as any).size)
-    if (colorField && !looksSizeToken(colorField)) colorSet.add(colorField)
-    // Accept explicit size field even if not a strict token, as long as it's not a color word
-    if (sizeField && !isColorWord(sizeField)) sizeSet.add(sizeField)
-    if (/color|لون/i.test(name)) { if (val && !looksSizeToken(val)) colorSet.add(val) }
-    else if (/size|مقاس/i.test(name)) { if (val && looksSizeToken(val)) sizeSet.add(val) }
-    else {
-      const tokens = splitTokens(`${name} ${val}`)
-      for (const t of tokens){
-        if (looksSizeToken(t)) sizeSet.add(t)
-        else if (isColorWord(t)) colorSet.add(t)
-      }
-    }
-  }
-  // Build colorVariants: images represent colors
-  const colors = Array.from(colorSet)
-  if (colors.length === 0) colors.push('—')
-  // Map colors to images: pick the first product image that visually matches token if possible; else fallback by index
-  const imgs = images.value.slice()
-  const pickImageFor = (c:string, idx:number): string => {
-    const t = normToken(c)
-    // Try filename contains color token
-    for (const u of imgs){
-      const file = u.split('/').pop() || ''
-      if (normToken(file).includes(t)) return u
-    }
-    return images.value[idx] || images.value[0] || ''
-  }
-  colorVariants.value = colors.map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
-  if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) {
-    colorIdx.value = 0
-  }
-  // Build size options as text chips (prefer product.sizes; then variants)
-  const sizesFromProduct = Array.isArray(product.value?.sizes) ? (product.value!.sizes as string[]) : []
-  const sizesFromVariants = Array.from(sizeSet)
-  const sizes = sizesFromProduct.length ? sizesFromProduct : sizesFromVariants
-  sizeOptions.value = sizes.length ? sizes : []
-  if (!size.value) size.value = sizeOptions.value[0] || ''
+  if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
 
-  // Detect size groups in variant names/values like "مقاس بالطول: 55 • مقاس بالعرض: 20"
-  const groupMap = new Map<string, Set<string>>()
-  for (const it of list){
-    const txt = `${norm(it.name)} ${norm(it.value)}`
-    const parts = txt.split(/•/).map(s=> s.trim())
-    for (const p of parts){
-      const m = p.match(/^(?:مقاس\s*بال|مقاس\s*ب|نوع\s*المقاس\s*|المقاس\s*):?\s*([^:]+):?\s*(.+)$/)
-      if (m && m[1] && m[2]){
-        const label = String(m[1]).trim()
-        const val = String(m[2]).trim()
-        if (!isColorWord(val)){
-          if (!groupMap.has(label)) groupMap.set(label, new Set())
-          groupMap.get(label)!.add(val)
-        }
+  // 2) Prefer grouped attributes from product endpoint to render buttons per group
+  try {
+    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`).catch(()=>null)
+    const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
+    // Colors group
+    const col = attrs.find(a=> a.key==='color')
+    const colVals: string[] = Array.isArray(col?.values) ? col!.values : []
+    // Map colors to images
+    const imgs = images.value.slice()
+    const pickImageFor = (c:string, idx:number): string => {
+      const t = normToken(c)
+      for (const u of imgs){ const file = u.split('/').pop() || ''; if (normToken(file).includes(t)) return u }
+      return images.value[idx] || images.value[0] || ''
+    }
+    colorVariants.value = (colVals.length? colVals : ['—']).map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
+    if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
+    // Size groups
+    const groups = attrs.filter(a=> a.key==='size')
+    sizeGroups.value = groups.map(g=> ({ label: g.label || 'المقاس', values: Array.from(new Set(g.values||[])) }))
+    if (sizeGroups.value.length){
+      const init: Record<string,string> = {}
+      for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
+      selectedGroupValues.value = init
+    }
+  } catch {}
+
+  // 3) Derive fallback if attributes not present
+  if (!colorVariants.value.length || !sizeGroups.value.length){
+    const colorSet = new Set<string>()
+    const sizeSet = new Set<string>()
+    const norm = (s:string)=> String(s||'').trim()
+    for (const it of list){
+      const name = norm((it as any).name)
+      const val = norm((it as any).value)
+      const colorField = norm((it as any).color)
+      const sizeField = norm((it as any).size)
+      if (colorField && !looksSizeToken(colorField)) colorSet.add(colorField)
+      if (sizeField && !isColorWord(sizeField)) sizeSet.add(sizeField)
+      if (/color|لون/i.test(name)) { if (val && !looksSizeToken(val)) colorSet.add(val) }
+      else if (/size|مقاس/i.test(name)) { if (val && looksSizeToken(val)) sizeSet.add(val) }
+      else {
+        const tokens = splitTokens(`${name} ${val}`)
+        for (const t of tokens){ if (looksSizeToken(t)) sizeSet.add(t); else if (isColorWord(t)) colorSet.add(t) }
       }
     }
+    const colors = Array.from(colorSet)
+    if (!colorVariants.value.length){
+      const imgs = images.value.slice()
+      const pickImageFor = (c:string, idx:number): string => {
+        const t = normToken(c)
+        for (const u of imgs){ const file = u.split('/').pop() || ''; if (normToken(file).includes(t)) return u }
+        return images.value[idx] || images.value[0] || ''
+      }
+      colorVariants.value = (colors.length? colors : ['—']).map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
+      if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
+    }
+    if (!sizeOptions.value.length){
+      const sizesFromProduct = Array.isArray(product.value?.sizes) ? (product.value!.sizes as string[]) : []
+      const sizesFromVariants = Array.from(sizeSet)
+      const sizes = sizesFromProduct.length ? sizesFromProduct : sizesFromVariants
+      sizeOptions.value = sizes.length ? sizes : []
+      if (!size.value) size.value = sizeOptions.value[0] || ''
+    }
   }
-  sizeGroups.value = Array.from(groupMap.entries()).map(([label, set])=> ({ label, values: Array.from(set) }))
-  if (sizeGroups.value.length){
-    const init: Record<string,string> = {}
-    for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
-    selectedGroupValues.value = init
-  }
-  // Best-effort variant map (color::size) when records encode both tokens in name/value
+
+  // 4) Build a best-effort variant map for selection to stock/price
+  const norm = (s:string)=> String(s||'').trim()
+  const colors = colorVariants.value.map(c=>c.name)
   const map: Record<string, { id:string; price?:number; stock?:number }> = {}
   for (const it of list){
-    const tokens = `${norm(it.name)} ${norm(it.value)}`.toLowerCase()
+    const tokens = `${norm((it as any).name)} ${norm((it as any).value)}`.toLowerCase()
     for (const c of colors){
       const baseSizes = (sizeOptions.value.length? sizeOptions.value : [''])
-      const composite = sizeGroups.value.length ? [ Array.from(new Set(sizeGroups.value.map(g=> `${g.label}:${g.values[0]}`))).join('|') ] : baseSizes
+      const composite = sizeGroups.value.length ? [ Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') ] : baseSizes
       for (const s of composite){
         const key = `${c}::${s}`.trim()
         const hasC = c && (tokens.includes(String(c).toLowerCase()) || String((it as any).color||'').toLowerCase()===String(c).toLowerCase())
         const hasS = s ? (tokens.includes(String(s).toLowerCase()) || String((it as any).size||'').toLowerCase()===String(s).toLowerCase()) : true
-        if (hasC && hasS && !map[key]){
-          map[key] = { id:String(it.id), price: (it.price!=null? Number(it.price): undefined), stock: (it.stockQuantity!=null? Number(it.stockQuantity): undefined) }
-        }
+        if (hasC && hasS && !map[key]) map[key] = { id:String(it.id), price: (it.price!=null? Number(it.price): undefined), stock: (it.stockQuantity!=null? Number(it.stockQuantity): undefined) }
       }
     }
   }
   variantByKey.value = map
-  // Update price if exact variant selected is known
   const colorName = colorVariants.value[colorIdx.value]?.name || ''
   const k = `${colorName}::${size.value}`.trim()
   if (map[k] && typeof map[k].price === 'number') price.value = Number(map[k].price)
-
-  // If variants explicitly provide size per color, adjust size options when color changes
-  const listHasColorSize = list.some((it:any)=> it && (it.color || it.size))
-  if (listHasColorSize){
-    const recomputeSizesForColor = ()=>{
-      const curColor = colorVariants.value[colorIdx.value]?.name || ''
-      if (!curColor) return
-      // Prefer explicit fields when available
-      let sizesForColor = Array.from(new Set(
-        list.filter((v:any)=> String(v.color||'').toLowerCase()===curColor.toLowerCase())
-            .map((v:any)=> norm(v.size))
-            .filter(x=> x && looksSizeToken(x) && !isColorWord(x))
-      ))
-      // Fallback to token matching when fields are not present in schema
-      if (!sizesForColor.length){
-        const col = curColor.toLowerCase()
-        const candidates = sizeOptions.value.slice()
-        const hitSizes = new Set<string>()
-        for (const s of candidates){
-          const st = String(s||'').toLowerCase()
-          const hit = list.some((it:any)=>{
-            const t = `${norm(it.name)} ${norm(it.value)}`.toLowerCase()
-            return t.includes(col) && (st? t.includes(st) : true)
-          })
-          if (hit) hitSizes.add(s)
-        }
-        sizesForColor = Array.from(hitSizes)
-      }
-      if (sizesForColor.length){
-        sizeOptions.value = sizesForColor
-        if (!sizesForColor.includes(size.value)) size.value = sizesForColor[0]
-      }
-    }
-    // initial
-    recomputeSizesForColor()
-    // on color change
-    watch(colorIdx, recomputeSizesForColor)
-  }
-  // If still no sizes, fallback to product.sizes
-  if (!sizeOptions.value.length && Array.isArray(product.value?.sizes)){
-    sizeOptions.value = (product.value!.sizes as string[])
-    if (!size.value && sizeOptions.value.length) size.value = sizeOptions.value[0]
-  }
 }
 
 // React on variant change
