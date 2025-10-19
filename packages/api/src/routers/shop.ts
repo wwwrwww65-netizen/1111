@@ -77,6 +77,61 @@ function extractOptions(rec: any): { sizes: string[]; colors: string[] } {
   if (typeof rec?.name === 'string' && (rec.name.startsWith('{') || rec.name.startsWith('['))) tryParseJSON(rec.name);
   return { sizes: Array.from(sizes), colors: Array.from(colors) };
 }
+
+// Derive structured attributes from a variant record
+function extractAttributeGroups(rec: any): { sizeGroups: Map<string, Set<string>>; colors: Set<string> } {
+  const sizeGroups = new Map<string, Set<string>>();
+  const colors = new Set<string>();
+  const norm = (s: string) => String(s||'').trim();
+  const visit = (name: string, value: string) => {
+    const n = norm(name).toLowerCase();
+    const v = norm(value);
+    if (!v) return;
+    if (/color|لون/i.test(n)) { colors.add(v); return; }
+    if (/size|مقاس/i.test(n)) {
+      const [label, only] = v.includes(':') ? (v.split(':',2) as [string,string]) : ['المقاس', v];
+      const key = norm(label);
+      if (!sizeGroups.has(key)) sizeGroups.set(key, new Set());
+      sizeGroups.get(key)!.add(norm(only));
+      return;
+    }
+  };
+  const arrays: any[] = [];
+  try { if (Array.isArray(rec?.option_values)) arrays.push(rec.option_values); } catch {}
+  try { if (Array.isArray(rec?.optionValues)) arrays.push(rec.optionValues); } catch {}
+  try { if (Array.isArray(rec?.options)) arrays.push(rec.options); } catch {}
+  try { if (Array.isArray(rec?.attributes)) arrays.push(rec.attributes); } catch {}
+  for (const arr of arrays) {
+    for (const it of (arr||[])) {
+      if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+    }
+  }
+  const tryParseJSON = (raw: string) => {
+    try {
+      const j = JSON.parse(raw);
+      if (Array.isArray(j)) {
+        for (const it of j as any[]) {
+          if (typeof it === 'string') visit('size', it);
+          else if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+        }
+      } else if (j && typeof j === 'object') {
+        const ov = (j as any).option_values;
+        if (Array.isArray(ov)) {
+          for (const it of ov) { if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||'')); }
+        } else {
+          for (const [k,v] of Object.entries(j)) visit(String(k), String(v as any));
+        }
+      }
+    } catch {}
+  };
+  if (typeof rec?.value === 'string') tryParseJSON(rec.value);
+  if (typeof rec?.name === 'string') tryParseJSON(rec.name);
+  // Heuristic fallback from tokens
+  const tokens = splitTokens(`${norm(rec?.name)} ${norm(rec?.value)}`);
+  for (const t of tokens){ if (looksSizeToken(t) && !isColorWord(t)) { if (!sizeGroups.has('المقاس')) sizeGroups.set('المقاس', new Set()); sizeGroups.get('المقاس')!.add(t); } }
+  for (const t of tokens){ if (isColorWord(t)) colors.add(t); }
+  return { sizeGroups, colors };
+}
 // Reverse geocoding proxy (Nominatim) to avoid browser CORS
 shop.get('/reverse-geocode', async (req: any, res) => {
   try {
@@ -999,6 +1054,7 @@ shop.get('/product/:id', async (req, res) => {
     // Derive colors/sizes arrays from variants
     const colors = new Set<string>();
     const sizes = new Set<string>();
+    const sizeGroupMap = new Map<string, Set<string>>();
     for (const v of (p.variants as any[] || [])){
       const name = String((v as any).name||'');
       const value = String((v as any).value||'');
@@ -1014,6 +1070,13 @@ shop.get('/product/:id', async (req, res) => {
       const opt = extractOptions(v);
       opt.sizes.forEach(s=> sizes.add(s));
       opt.colors.forEach(c=> colors.add(c));
+      // Structured attributes
+      const grp = extractAttributeGroups(v);
+      for (const [label, set] of grp.sizeGroups.entries()){
+        if (!sizeGroupMap.has(label)) sizeGroupMap.set(label, new Set());
+        const dst = sizeGroupMap.get(label)!; for (const val of set) dst.add(val);
+      }
+      for (const c of grp.colors) colors.add(c);
     }
     // Fallback: if sizes are still empty, derive from variant value/name when they look like sizes
     if (sizes.size === 0 && Array.isArray(p.variants) && (p.variants as any[]).length){
@@ -1022,9 +1085,16 @@ shop.get('/product/:id', async (req, res) => {
         if (raw && looksSizeToken(raw) && !isColorWord(raw)) sizes.add(raw);
       }
     }
+    // Build attributes array
+    const attributes: Array<{ key: string; label: string; values: string[] }> = [];
+    for (const [label, set] of sizeGroupMap.entries()){
+      attributes.push({ key: 'size', label, values: Array.from(set) });
+    }
+    if (colors.size) attributes.push({ key: 'color', label: 'اللون', values: Array.from(colors) });
     const out: any = Object.assign({}, p, {
       colors: Array.from(colors),
       sizes: Array.from(sizes),
+      attributes,
     });
     res.json(out);
   } catch {
