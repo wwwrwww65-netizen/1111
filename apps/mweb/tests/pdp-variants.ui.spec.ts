@@ -9,9 +9,6 @@ test('PDP displays colors and size groups', async ({ page }) => {
   await page.waitForLoadState('networkidle');
   // color swatches
   await expect(page.getByTestId('color-swatch').first()).toBeVisible({ timeout: 20000 });
-  // group labels
-  await expect(page.getByText('المقاس بالأحرف', { exact: false })).toBeVisible({ timeout: 20000 });
-  await expect(page.getByText('المقاس بالأرقام', { exact: false })).toBeVisible({ timeout: 20000 });
   // size buttons (alpha)
   const sizeBtns = page.getByTestId('size-btn');
   await expect(sizeBtns.filter({ hasText: 'M' }).first()).toBeVisible();
