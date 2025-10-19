@@ -83,6 +83,9 @@ jobs:
 
       - name: UI E2E - PDP variants
         env:
+          API_BASE: http://127.0.0.1:4000
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           MWEB_ORIGIN: http://127.0.0.1:3002
           AYMILI_PRODUCT_ID: ${{ env.AYMILI_PRODUCT_ID }}
         run: pnpm -C apps/mweb exec playwright test --project=chromium --reporter=line
