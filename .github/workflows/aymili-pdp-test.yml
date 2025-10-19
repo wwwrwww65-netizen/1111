@@ -45,7 +45,9 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecom
           DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ecom
         run: |
-          npx -y prisma@5.14.0 migrate deploy --schema packages/db/prisma/schema.prisma
+          pnpm -w -r -F @repo/db db:deploy
+          # Seed essential admin/rbac baseline to avoid maintenance endpoints 500
+          ADMIN_EMAIL='${{ secrets.ADMIN_EMAIL }}' ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}' pnpm -w -r -F @repo/db db:seed:admin-only || true
 
       - name: Start API
         run: |
@@ -62,10 +64,7 @@ jobs:
             curl -fsS http://127.0.0.1:4000/health && break || sleep 1;
           done
 
-      - name: Bootstrap RBAC (idempotent)
-        run: |
-          curl -fsS -X POST "http://127.0.0.1:4000/api/admin/maintenance/ensure-rbac" \
-            -H 'x-maintenance-secret: maint_ci'
+      # RBAC ensured by seed-admin-only; skip maintenance to avoid 500 on cold start
 
       - name: Ensure admin exists (maintenance endpoint)
         run: |
