@@ -1,0 +1,45 @@
+name: Aymili PDP Test
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: pnpm -w -r -F @repo/api build
+
+      - name: Start API
+        run: |
+          node packages/api/dist/index.js &
+          echo $! > api.pid
+          sleep 3
+
+      - name: Create Aymili product and verify
+        env:
+          API_BASE: http://127.0.0.1:4000
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: node scripts/ci/create-aymili-product.mjs
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f api.pid ]; then kill $(cat api.pid) || true; fi
