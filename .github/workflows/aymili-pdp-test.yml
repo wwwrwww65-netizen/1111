@@ -73,7 +73,17 @@ jobs:
           API_BASE: http://127.0.0.1:4000
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-        run: node scripts/ci/create-aymili-product.mjs
+        run: |
+          node scripts/ci/create-aymili-product.mjs | tee /tmp/aymili_create.log
+          export AYMILI_PRODUCT_ID=$(grep -oE 'AYMILI_PRODUCT_ID\s+\S+' /tmp/aymili_create.log | awk '{print $2}')
+          echo "AYMILI_PRODUCT_ID=$AYMILI_PRODUCT_ID" >> $GITHUB_ENV
+
+      - name: Verify display on mweb
+        env:
+          API_BASE: http://127.0.0.1:4000
+          MWEB_ORIGIN: http://127.0.0.1:3002
+          AYMILI_PRODUCT_ID: ${{ env.AYMILI_PRODUCT_ID }}
+        run: node scripts/ci/verify-aymili-display.mjs
 
       - name: Stop API
         if: always()
