@@ -43,13 +43,14 @@ jobs:
       - name: Prepare database schema (Prisma migrate)
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecom
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ecom
         run: |
           npx -y prisma@5.14.0 migrate deploy --schema packages/db/prisma/schema.prisma
 
       - name: Start API
         run: |
           export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecom
-          export DIRECT_URL=$DATABASE_URL
+          export DIRECT_URL=${DATABASE_URL}
           export JWT_SECRET=ci_test_secret
           export ADMIN_EMAIL='${{ secrets.ADMIN_EMAIL }}'
           export ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}'
