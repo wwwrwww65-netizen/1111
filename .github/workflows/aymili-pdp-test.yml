@@ -6,6 +6,20 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecom
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,11 +40,25 @@ jobs:
       - name: Build API
         run: pnpm -w -r -F @repo/api build
 
+      - name: Prepare database schema (Prisma migrate)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecom
+        run: |
+          npx -y prisma@5.14.0 migrate deploy --schema packages/db/prisma/schema.prisma
+
       - name: Start API
         run: |
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecom
+          export DIRECT_URL=$DATABASE_URL
+          export JWT_SECRET=ci_test_secret
+          export ADMIN_EMAIL='${{ secrets.ADMIN_EMAIL }}'
+          export ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}'
           node packages/api/dist/index.js &
           echo $! > api.pid
-          sleep 3
+          # wait for health
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4000/health && break || sleep 1;
+          done
 
       - name: Create Aymili product and verify
         env:
