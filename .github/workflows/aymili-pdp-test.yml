@@ -62,6 +62,11 @@ jobs:
             curl -fsS http://127.0.0.1:4000/health && break || sleep 1;
           done
 
+      - name: Bootstrap RBAC (idempotent)
+        run: |
+          curl -fsS -X POST "http://127.0.0.1:4000/api/admin/maintenance/ensure-rbac" \
+            -H 'x-maintenance-secret: maint_ci'
+
       - name: Ensure admin exists (maintenance endpoint)
         run: |
           curl -fsS -X POST "http://127.0.0.1:4000/api/admin/maintenance/create-admin" \
