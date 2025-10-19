@@ -85,7 +85,7 @@ jobs:
         env:
           MWEB_ORIGIN: http://127.0.0.1:3002
           AYMILI_PRODUCT_ID: ${{ env.AYMILI_PRODUCT_ID }}
-        run: pnpm -C apps/mweb exec playwright test ../../apps/mweb/tests/pdp-variants.ui.spec.ts --project=chromium --reporter=line
+        run: pnpm -C apps/mweb exec playwright test --project=chromium --reporter=line
 
       - name: Stop services
         if: always()
