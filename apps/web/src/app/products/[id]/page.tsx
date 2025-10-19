@@ -164,7 +164,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
                   </div>
                 </div>
               )}
-              {/* Multiple size-type selectors */}
+              {/* Multiple size-type selectors (skip duplicate of the simple sizeOptions block) */}
               {Array.from(sizeGroups.entries()).map(([label, set]) => (
                 <div key={label} className="mb-4">
                   <div className="text-sm text-gray-600 mb-2">{label}</div>

@@ -230,8 +230,8 @@
         </div>
       </div>
 
-      <!-- Size Selector -->
-      <div ref="sizeSelectorRef" class="mb-4" v-if="sizeOptions.length">
+      <!-- Size Selector (hidden when multi size-groups exist) -->
+      <div ref="sizeSelectorRef" class="mb-4" v-if="sizeOptions.length && !sizeGroups.length">
         <div class="flex items-center justify-between mb-2">
           <span class="font-semibold text-[14px]">مقاس - {{ size || 'الافتراضي' }}</span>
           <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
