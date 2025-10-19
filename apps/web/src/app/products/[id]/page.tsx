@@ -39,22 +39,26 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
     const t = normToken(s);
     if (!t) return false;
     const COLOR_WORDS = new Set<string>([
-      'احمر','أحمر','red','ازرق','أزرق','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+      'احمر','أحمر','red','ازرق','أزرق','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver',
+      // Arabic commercial color names
+      'دم الغزال','لحمي','خمري','عنابي','طوبي'
     ]);
     if (COLOR_WORDS.has(t)) return true;
     if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return true;
     if (/^[\p{L}\s]{2,}$/u.test(s) && /ي$/.test(s)) return true;
     return false;
   };
+  const normalizeDigits = (input: string): string => String(input||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
   const looksSizeToken = (s: string): boolean => {
-    const t = normToken(s);
+    const t = normToken(normalizeDigits(s));
     if (!t) return false;
     if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|xxxxxxl)$/i.test(t)) return true;
+    if (/^\d{1,2}xl$/i.test(t)) return true; // 2XL, 3XL etc.
     if(/^(\d{2}|\d{1,3})$/.test(t)) return true;
     if(/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true;
     return false;
   };
-  const splitTokens = (s: string): string[] => String(s||'').split(/[ ,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
+  const splitTokens = (s: string): string[] => String(s||'').split(/[\s,،\/\-\|·•:]+/).map(x=>x.trim()).filter(Boolean);
   const tryParseMeta = (raw: string): any => { try{ return JSON.parse(raw); } catch { return null; } };
   // Prefer attributes returned by API (products.getById enriched via server)
   const apiAttributes: Array<{ key: string; label: string; values: string[] }> = Array.isArray((product as any).attributes) ? (product as any).attributes : [];

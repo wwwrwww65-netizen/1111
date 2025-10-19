@@ -8,8 +8,14 @@ const shop = Router();
 
 // ===================== Variant normalization helpers =====================
 function normToken(s: string): string { return String(s||'').trim().toLowerCase() }
+function normalizeDigits(input: string): string {
+  // Convert Arabic-Indic digits to ASCII to improve numeric matching
+  return String(input||'').replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660));
+}
 const COLOR_WORDS = new Set<string>([
-  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver',
+  // Common Arabic commercial color phrases/synonyms
+  'دم الغزال','لحمي','خمري','عنابي','طوبي'
 ]);
 function isColorWord(s: string): boolean {
   const t = normToken(s);
@@ -20,15 +26,18 @@ function isColorWord(s: string): boolean {
   return false;
 }
 function looksSizeToken(s: string): boolean {
-  const t = normToken(s);
+  const t = normToken(normalizeDigits(s));
   if (!t) return false;
   if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|xxxxxxl)$/i.test(t)) return true;
+  // Numeric multiplier sizes like 2XL, 3XL, 4XL ...
+  if (/^\d{1,2}xl$/i.test(t)) return true;
   if (/^(\d{2}|\d{1,3})$/.test(t)) return true;
   if (/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true;
   return false;
 }
 function splitTokens(s: string): string[] {
-  return String(s||'').split(/[,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
+  // Split on commas (EN/AR), whitespace, slashes, dashes, pipes, bullets, and colons
+  return String(s||'').split(/[\s,،\/\-\|·•:]+/).map(x=>x.trim()).filter(Boolean);
 }
 
 function extractOptions(rec: any): { sizes: string[]; colors: string[] } {

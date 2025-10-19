@@ -774,7 +774,9 @@ const selectedVariantStock = computed<number|undefined>(()=>{
 function normToken(s: string): string { return String(s||'').trim().toLowerCase() }
 // Common Arabic/English color words and patterns
 const COLOR_WORDS = new Set([
-  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver',
+  // Arabic commercial color synonyms
+  'دم الغزال','لحمي','خمري','عنابي','طوبي'
 ])
 function isColorWord(s: string): boolean {
   const t = normToken(s)
@@ -787,9 +789,11 @@ function isColorWord(s: string): boolean {
 }
 // Size detection supports EN codes, numbers, and common Arabic words
 function looksSizeToken(s: string): boolean {
-  const t = normToken(s)
+  const normalized = String(s||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660))
+  const t = normToken(normalized)
   if (!t) return false
   if (/^(xxs|xs|s|m|l|xl|xxl|xxxl)$/i.test(t)) return true
+  if (/^\d{1,2}xl$/i.test(t)) return true // 2XL, 3XL ...
   if (/^(\d{2}|\d{1,3})$/.test(t)) return true
   // Arabic size words
   if (/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true
@@ -798,7 +802,7 @@ function looksSizeToken(s: string): boolean {
 // Split composite like "أحمر - M" or "Red / XL"
 function splitTokens(s: string): string[] {
   return String(s||'')
-    .split(/[,\/\-\|]+/)
+    .split(/[\s,،\/\-\|:]+/)
     .map(x=>x.trim())
     .filter(Boolean)
 }
