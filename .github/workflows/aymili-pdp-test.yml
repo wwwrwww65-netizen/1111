@@ -40,12 +40,12 @@ jobs:
       - name: Build API
         run: pnpm -w -r -F @repo/api build
 
-      - name: Prepare database schema (Prisma migrate)
+      - name: Prepare database schema (Prisma db push)
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecom
           DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ecom
         run: |
-          pnpm -w -r -F @repo/db db:deploy
+          pnpm -w -r -F @repo/db db:push
           # Seed essential admin/rbac baseline to avoid maintenance endpoints 500
           ADMIN_EMAIL='${{ secrets.ADMIN_EMAIL }}' ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}' pnpm -w -r -F @repo/db db:seed:admin-only || true
 
