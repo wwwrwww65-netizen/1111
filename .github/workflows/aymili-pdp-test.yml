@@ -66,12 +66,7 @@ jobs:
 
       # RBAC ensured by seed-admin-only; skip maintenance to avoid 500 on cold start
 
-      - name: Ensure admin exists (maintenance endpoint)
-        run: |
-          curl -fsS -X POST "http://127.0.0.1:4000/api/admin/maintenance/create-admin" \
-            -H 'content-type: application/json' \
-            -H 'x-maintenance-secret: maint_ci' \
-            -d '{"email":"'${{ secrets.ADMIN_EMAIL }}'","password":"'${{ secrets.ADMIN_PASSWORD }}'","name":"CI Admin"}'
+      # Admin is created by seed; do not call maintenance endpoint
 
       - name: Create Aymili product and verify
         env:
