@@ -23,8 +23,13 @@ async function verifyMweb(productId){
   let proc
   if (needStart){
     const { spawn } = await import('node:child_process')
+    // Build before preview for reliable assets
+    await new Promise((resolve, reject)=>{
+      const b = spawn('pnpm', ['-C','apps/mweb','build'], { stdio:'inherit' })
+      b.on('exit', (code)=> code===0? resolve(null): reject(new Error('mweb_build_failed')))
+    })
     proc = spawn('pnpm', ['-C','apps/mweb','preview'], { stdio:'inherit' })
-    await wait(2000)
+    await wait(3000)
   }
   const { launch } = await import('puppeteer')
   const browser = await launch({ headless: 'new', args: ['--no-sandbox','--disable-setuid-sandbox'] })
@@ -32,8 +37,8 @@ async function verifyMweb(productId){
   try {
     const url = `${MWEB_ORIGIN}/#/p?id=${encodeURIComponent(productId)}`
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
-    // Wait up to 10s for Arabic labels to appear after SPA hydration
-    await page.waitForFunction(() => document.body.innerText.includes('لون'), { timeout: 10000 })
+    // Wait up to 20s for Arabic labels to appear after SPA hydration
+    await page.waitForFunction(() => document.body && document.body.innerText && (document.body.innerText.includes('لون') || document.body.innerText.includes('مقاس')), { timeout: 20000 })
     const hasAlphaLabel = await page.evaluate(() => document.body.innerText.includes('المقاس بالأحرف'))
     const hasNumLabel = await page.evaluate(() => document.body.innerText.includes('المقاس بالأرقام'))
     if (!hasAlphaLabel) throw new Error('mweb_alpha_group_label_missing')
