@@ -1145,6 +1145,14 @@ shop.get('/product/:id/variants', async (req, res) => {
           image = (p.images as string[]).find(u=> (u.split('/').pop()||'').toLowerCase().includes(col))
         }
       } catch {}
+      // Back-compat aliases for clients expecting color/size fields
+      const color = attributes_map['color'] || undefined
+      let size: string|undefined
+      if (attributes_map['size']) size = attributes_map['size']
+      else {
+        const sk = Object.keys(attributes_map).find(k=> k.startsWith('size_'))
+        if (sk) size = attributes_map[sk]
+      }
       return {
         id: v.id,
         product_id: id,
@@ -1152,7 +1160,10 @@ shop.get('/product/:id/variants', async (req, res) => {
         price: typeof v.price === 'number' ? v.price : undefined,
         stock: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
         image,
-        attributes_map
+        attributes_map,
+        // aliases
+        color,
+        size
       }
     })
     return res.json({ items })
