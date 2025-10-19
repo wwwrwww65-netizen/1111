@@ -267,8 +267,9 @@
               :class="selectedGroupValues[g.label]===s ? 'text-white' : 'bg-white text-black border-gray-300'"
               :style="selectedGroupValues[g.label]===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
               @click="onPickGroupValue(g.label, s)"
+              data-testid="size-btn"
             >
-              {{ s }}
+              {{ displayGroupValue(s) }}
             </button>
           </div>
         </div>
@@ -800,6 +801,11 @@ function splitTokens(s: string): string[] {
     .split(/[,\/\-\|]+/)
     .map(x=>x.trim())
     .filter(Boolean)
+}
+
+// Normalize display for Arabic-Indic digits to ensure consistent buttons text in CI and UI
+function displayGroupValue(val: string): string {
+  try { return String(val||'').replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660)) } catch { return String(val||'') }
 }
 
 // ==================== HEADER & NAVIGATION ====================
