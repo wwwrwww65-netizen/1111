@@ -31,12 +31,33 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   const product = data;
   const images = product.images && product.images.length ? product.images : ["/images/placeholder-product.jpg"];
   const variants = Array.isArray((product as any).variants) ? (product as any).variants : [];
-  // Build dimension sets from variants: colors + multiple size groups if encoded in value/name JSON
+  // Build dimension sets from variants: colors + multiple size groups
   const colorSet = new Set<string>();
   const sizeGroups = new Map<string, Set<string>>();
+  const normToken = (s: string) => String(s||'').trim().toLowerCase();
+  const isColorWord = (s: string): boolean => {
+    const t = normToken(s);
+    if (!t) return false;
+    const COLOR_WORDS = new Set<string>([
+      'احمر','أحمر','red','ازرق','أزرق','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+    ]);
+    if (COLOR_WORDS.has(t)) return true;
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return true;
+    if (/^[\p{L}\s]{2,}$/u.test(s) && /ي$/.test(s)) return true;
+    return false;
+  };
+  const looksSizeToken = (s: string): boolean => {
+    const t = normToken(s);
+    if (!t) return false;
+    if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|xxxxxxl)$/i.test(t)) return true;
+    if(/^(\d{2}|\d{1,3})$/.test(t)) return true;
+    if(/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true;
+    return false;
+  };
+  const splitTokens = (s: string): string[] => String(s||'').split(/[ ,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
   const tryParseMeta = (raw: string): any => { try{ return JSON.parse(raw); } catch { return null; } };
   for (const v of variants as any[]) {
-    // Extract from explicit option_values JSON when present in value
+    // Prefer explicit option_values JSON when present
     let parsed = tryParseMeta(String(v.value||''));
     if (!parsed || (Array.isArray(parsed) && parsed.length===0)) parsed = tryParseMeta(String(v.name||''));
     const opts: Array<{name:string;value:string}> = Array.isArray(parsed?.option_values)? parsed.option_values : (Array.isArray(parsed)? parsed : []);
@@ -51,6 +72,18 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
         sizeGroups.get(label)!.add(only);
       }
     }
+    // Fallbacks: derive from fields and tokens when JSON not available
+    const nameStr = String((v as any).name||'');
+    const valueStr = String((v as any).value||'');
+    const tokens = splitTokens(`${nameStr} ${valueStr}`);
+    for (const t of tokens){ if (isColorWord(t)) colorSet.add(t); }
+    const explicitColor = (v as any).color; if (explicitColor) colorSet.add(String(explicitColor));
+    const explicitSize = (v as any).size; if (explicitSize) {
+      const [label, only] = String(explicitSize).includes(':') ? String(explicitSize).split(':',2) as [string,string] : ['المقاس', String(explicitSize)];
+      if (!sizeGroups.has(label)) sizeGroups.set(label, new Set());
+      sizeGroups.get(label)!.add(only);
+    }
+    for (const t of tokens){ if (looksSizeToken(t) && !isColorWord(t)) { if (!sizeGroups.has('المقاس')) sizeGroups.set('المقاس', new Set()); sizeGroups.get('المقاس')!.add(t); } }
   }
 
   return (
