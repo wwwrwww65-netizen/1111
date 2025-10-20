@@ -25,8 +25,12 @@ export default function MobileProductDetail(): JSX.Element {
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
       if(alive) {
-        setData(j);
-        try{ setVariants(Array.isArray(j?.variants)? j.variants.map((v:any)=> ({ id: v.id||`${v.color||''}:${v.size||''}`, color:v.color, size:v.size, price:v.price, stock:v.stock })):[]); }catch{ setVariants([]); }
+        const prod = (j && (j.product||j)) as any;
+        setData(prod);
+        try{
+          const rows = Array.isArray(prod?.variants)? prod.variants : [];
+          setVariants(rows.map((v:any)=> ({ id: v.id||`${v.color||''}:${v.size||''}`, color:v.color, size:v.size, price:v.price, stock: (v.stock ?? v.stockQuantity ?? 0) })));
+        }catch{ setVariants([]); }
       }
     }catch{ if(alive) setErr('تعذر الجلب'); }
     finally{ if(alive) setLoading(false); }
