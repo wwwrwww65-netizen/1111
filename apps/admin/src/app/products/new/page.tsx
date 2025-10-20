@@ -980,10 +980,21 @@ export default function AdminProductCreate(): JSX.Element {
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
       // Relax strictness for colors when using DeepSeek preview so colors get populated
       // Keep deepseekOnly=1 but remove strict=1 to allow general color phrases and broader extraction
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
+      const controller = new AbortController();
+      const timeoutMs = 25000;
+      const to = setTimeout(()=> controller.abort(), timeoutMs);
+      let resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
         method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
-      });
+        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }),
+        signal: controller.signal
+      }).catch(()=> null as any);
+      clearTimeout(to);
+      if (!resp || !resp.ok) {
+        resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
+          method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+          body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+        });
+      }
       const aj = await resp.json().catch(()=>({}));
       if (!resp.ok) { setError('فشل تحليل DeepSeek'); showToast('فشل تحليل DeepSeek', 'err'); return; }
       // Guard: if DeepSeek غير متاح أو لم يرجع أي حقول مفيدة، لا نعدّل المعاينة الحالية
@@ -1057,11 +1068,16 @@ export default function AdminProductCreate(): JSX.Element {
       } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
-        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        // Colors: ignore generic phrases and normalize definite article to match list
+        const generics = /\b(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة))\b/i;
+        const colorList = (Array.isArray(reviewObj.colors)? reviewObj.colors: [])
+          .filter((c:string)=> !generics.test(String(c||'')))
+          .map((c:string)=> String(c||'').replace(/^ال/,'').trim());
+        if (colorList.length) setSelectedColors(colorList);
         const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
         const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
-        await applyAnalyzedSizesColors(sList, cList);
+        await applyAnalyzedSizesColors(sList, colorList);
         const palettes = dedupePalettes(((reviewObj as any).palettes || []));
         const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
         const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
