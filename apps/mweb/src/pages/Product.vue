@@ -1426,10 +1426,18 @@ async function loadNormalizedVariants(){
       const pick = candidates.find(x=> looksSizeToken(x) && !isColorWord(x)) || candidates[0] || String(val||'')
       return pick
     }
-    sizeGroups.value = groups.map(g=> ({
-      label: g.label || 'المقاس',
-      values: Array.from(new Set((g.values||[]).map(v=> sanitizeSizeVal(String(v))))),
-    }))
+    // Map and order values consistently, ensure letters group appears before numbers
+    const normDigits = (s:string)=> String(s||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660))
+    const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+    const orderValues = (label:string, values:string[]): string[] => {
+      if (/بالأرقام/.test(label)) return Array.from(values).sort((a,b)=> (parseInt(normDigits(a),10)||0)-(parseInt(normDigits(b),10)||0))
+      if (/بالأحرف/.test(label)) return Array.from(values).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
+      return Array.from(values)
+    }
+    const mapped = groups.map(g=> ({ label: g.label || 'المقاس', values: Array.from(new Set((g.values||[]).map(v=> sanitizeSizeVal(String(v))))) }))
+    // letters first, then numbers
+    const orderedGroups = mapped.sort((a,b)=> (a.label.includes('بالأحرف')? -1 : a.label.includes('بالأرقام')? 1 : 0) - (b.label.includes('بالأحرف')? -1 : b.label.includes('بالأرقام')? 1 : 0))
+    sizeGroups.value = orderedGroups.map(g=> ({ label: g.label, values: orderValues(g.label, g.values) }))
     if (sizeGroups.value.length){
       const init: Record<string,string> = {}
       for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
@@ -1508,7 +1516,14 @@ async function loadNormalizedVariants(){
     if (letters.size) nextGroups.push({ label: 'مقاسات بالأحرف', values: Array.from(letters) })
     if (numbers.size) nextGroups.push({ label: 'مقاسات بالأرقام', values: Array.from(numbers) })
     if (nextGroups.length) {
-      sizeGroups.value = nextGroups
+      const normDigits = (s:string)=> String(s||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660))
+      const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+      const orderValues = (label:string, values:string[]): string[] => {
+        if (/بالأرقام/.test(label)) return Array.from(values).sort((a,b)=> (parseInt(normDigits(a),10)||0)-(parseInt(normDigits(b),10)||0))
+        if (/بالأحرف/.test(label)) return Array.from(values).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
+        return Array.from(values)
+      }
+      sizeGroups.value = nextGroups.map(g=> ({ label: g.label, values: orderValues(g.label, g.values) }))
       const init: Record<string,string> = {}
       for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
       selectedGroupValues.value = init
