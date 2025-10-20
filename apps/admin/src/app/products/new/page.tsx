@@ -1040,36 +1040,20 @@ export default function AdminProductCreate(): JSX.Element {
           mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
         }
         (reviewObj as any).mapping = mapping;
-        // If DeepSeek returned no colors OR only general color phrases, fallback to palette-derived names
-        const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
-        const noColors = !Array.isArray(reviewObj.colors) || reviewObj.colors.length === 0
-        const generalOnly = Array.isArray(reviewObj.colors) && reviewObj.colors.length>0 && reviewObj.colors.every((c:string)=> generalColorsRe.test(String(c)))
-        if (noColors || generalOnly) {
-          const fromPalettes = Array.from(new Set(palettes.map(pl => pl.name))).slice(0, 3)
-          if (fromPalettes.length) reviewObj.colors = fromPalettes
-        }
+        // DeepSeek-only: لا نستبدل قيم الألوان بناتج محلي؛ نستخدم قيم DeepSeek كما هي
       } catch {}
       // Direct fill
       setReview(reviewObj);
       setAnalysisDone(true);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
       try{
-      // Name: use full DeepSeek-generated name (no truncation); if partial, backfill from clean text
+      // Name: DeepSeek-only؛ استخدم الاسم كما هو دون استكمال محلي
       const dsName = String(reviewObj.name||'').trim();
-      if (dsName) {
-        const clean = cleanTextStrict(paste);
-        const backfilled = dsName.length < 60 ? `${dsName} ${clean.slice(0, 120-dsName.length)}`.trim() : dsName;
-        setName(backfilled.replace(/\s{2,}/g,' ').trim());
-      }
-      // Description: prefer strictDetails table (vertical label/value). If missing, build from strict clean text.
+      if (dsName) setName(dsName);
+      // Description: DeepSeek-only يحدد الوصف؛ إن توافر strictDetails من DeepSeek نعرضه، وإلا نستخدم longDesc كما أعاده DeepSeek.
       try {
-        let html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
-        if (!html || !html.length) {
-          const sDetails = buildStrictDetailsTable(cleanTextStrict(paste), paste);
-          html = detailsToHtmlTable(sDetails);
-        }
-        if (html && html.length) setDescription(html);
-        else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
+        if (html && html.length) setDescription(html); else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
       } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
