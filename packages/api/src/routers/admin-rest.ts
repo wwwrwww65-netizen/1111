@@ -6723,9 +6723,83 @@ adminRest.post('/products/:id/variants', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
-    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity?: number; sku?: string }>= Array.isArray(req.body?.variants)? req.body.variants : [];
+    const rows: Array<{ name?: string; value?: string; price?: number; purchasePrice?: number; stockQuantity?: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string }> }> = Array.isArray(req.body?.variants)? req.body.variants : [];
     const p = await db.product.findUnique({ where: { id }, select: { id: true } });
     if (!p) return res.status(404).json({ error: 'product_not_found' });
+    // Expansion: if user selected multiple colors + two size groups but only one color's matrix was posted,
+    // auto-complete the missing color combinations to prevent partial saves (e.g., 16 instead of 64)
+    try {
+      const letters = new Set<string>();
+      const numbers = new Set<string>();
+      const colors = new Set<string>();
+      const norm = (s: any) => String(s||'').trim();
+      const looksNumeric = (s: string) => /^\d{1,3}$/.test(norm(s).replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660)));
+      const getMeta = (v: any): { size?: string; color?: string } => {
+        const ov = Array.isArray(v?.option_values) ? v.option_values : undefined;
+        let size: string|undefined = v?.size ? norm(v.size) : undefined;
+        let color: string|undefined = v?.color ? norm(v.color) : undefined;
+        if (ov) {
+          for (const o of ov) {
+            const name = norm(o?.name||o?.key);
+            const val = norm(o?.value||o?.val||o?.label);
+            if (/size|مقاس/i.test(name)) {
+              size = size || val;
+            } else if (/color|لون/i.test(name)) {
+              color = color || val;
+            }
+          }
+        }
+        return { size, color };
+      };
+      for (const v of rows) {
+        const { size, color } = getMeta(v);
+        if (color) colors.add(color);
+        if (size) {
+          if (size.includes('|')) {
+            for (const part of size.split('|')) {
+              const [k, val] = part.split(':', 2);
+              const pr = norm(val||k||'');
+              if (/بالأرقام/.test(k||'') || looksNumeric(pr)) numbers.add(pr);
+              else letters.add(pr);
+            }
+          } else {
+            if (looksNumeric(size)) numbers.add(size); else letters.add(size);
+          }
+        }
+      }
+      const target = (letters.size? letters.size:1) * (numbers.size? numbers.size:1) * (colors.size? colors.size:1);
+      if (letters.size && numbers.size && colors.size && rows.length < target) {
+        const exists = new Set<string>();
+        const keyOf = (c: string, L: string, N: string) => `${norm(c)}|${norm(L)}|${norm(N)}`;
+        for (const v of rows) {
+          const { size, color } = getMeta(v);
+          let L=''; let N='';
+          if (size && size.includes('|')) {
+            for (const part of size.split('|')) { const [k,val]=part.split(':',2); const pr=norm(val||''); if (/بالأرقام/.test(k||'') || looksNumeric(pr)) N=pr; else L=pr; }
+          } else if (size) {
+            if (looksNumeric(size)) N = norm(size); else L = norm(size);
+          }
+          if (color && L && N) exists.add(keyOf(color, L, N));
+        }
+        const basePrice = rows.find(r=> r.price!=null)?.price ?? null;
+        const baseStock = rows.find(r=> r.stockQuantity!=null)?.stockQuantity ?? 0;
+        const add: any[] = [];
+        for (const c of Array.from(colors)) for (const L of Array.from(letters)) for (const N of Array.from(numbers)) {
+          const k = keyOf(c, L, N);
+          if (exists.has(k)) continue;
+          add.push({
+            name: `مقاسات بالأحرف: ${L} • مقاسات بالأرقام: ${N} • اللون: ${c}`,
+            value: undefined,
+            price: basePrice,
+            stockQuantity: baseStock,
+            size: `مقاسات بالأحرف:${L}|مقاسات بالأرقام:${N}`,
+            color: c,
+            option_values: [ { name:'size', value:`مقاسات بالأحرف:${L}` }, { name:'size', value:`مقاسات بالأرقام:${N}` }, { name:'color', value:c } ]
+          });
+        }
+        if (add.length) (rows as any).push(...add);
+      }
+    } catch {}
     const out: any[] = [];
     const looksSize = (s:string)=> /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(String(s||'').trim());
     const isColor = (s:string)=> {
