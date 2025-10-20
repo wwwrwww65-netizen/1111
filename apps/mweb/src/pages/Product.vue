@@ -1391,6 +1391,7 @@ async function loadProductData() {
 }
 
 // ==================== VARIANTS (normalized API) ====================
+const attrsLoaded = ref(false)
 async function loadNormalizedVariants(){
   // 1) Fetch normalized variants list
   const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`).catch(()=>null)
@@ -1434,10 +1435,10 @@ async function loadNormalizedVariants(){
       for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
       selectedGroupValues.value = init
     }
-  } catch {}
+  } catch {} finally { attrsLoaded.value = true }
 
-  // 3) Derive fallback if attributes not present
-  if (!colorVariants.value.length || !sizeGroups.value.length){
+  // 3) Derive fallback only if attributes were loaded but missing
+  if (attrsLoaded.value && (!colorVariants.value.length || !sizeGroups.value.length)){
     const colorSet = new Set<string>()
     const sizeSet = new Set<string>()
     const norm = (s:string)=> String(s||'').trim()
