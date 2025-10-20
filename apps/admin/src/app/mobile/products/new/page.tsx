@@ -29,6 +29,8 @@ export default function MobileNewProduct(): JSX.Element {
   const [images, setImages] = React.useState<MediaItem[]>([]);
   const [colors, setColors] = React.useState<string>('');
   const [sizes, setSizes] = React.useState<string>('');
+  const [sizesLetters, setSizesLetters] = React.useState<string>('');
+  const [sizesNumbers, setSizesNumbers] = React.useState<string>('');
   const [variants, setVariants] = React.useState<Variant[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState('');
@@ -52,15 +54,28 @@ export default function MobileNewProduct(): JSX.Element {
   }
 
   function generateVariants(){
-    const c = colors.split(',').map(s=> s.trim()).filter(Boolean);
-    const s = sizes.split(',').map(v=> v.trim()).filter(Boolean);
+    const colorList = colors.split(',').map(s=> s.trim()).filter(Boolean);
+    const lettersList = sizesLetters.split(',').map(v=> v.trim()).filter(Boolean);
+    const numbersList = sizesNumbers.split(',').map(v=> v.trim()).filter(Boolean);
+    const singleSizes = sizes.split(',').map(v=> v.trim()).filter(Boolean);
     const list: Variant[] = [];
-    if (c.length && s.length){
-      for (const color of c){ for (const size of s){ list.push({ id:`${color}:${size}`, color, size, price: Number(price)||0, stock: 0 }); } }
-    } else if (c.length){
-      for (const color of c){ list.push({ id:`${color}`, color, price: Number(price)||0, stock: 0 }); }
-    } else if (s.length){
-      for (const size of s){ list.push({ id:`${size}`, size, price: Number(price)||0, stock: 0 }); }
+    if (colorList.length && lettersList.length && numbersList.length) {
+      // Full matrix: color x letters x numbers
+      for (const color of colorList){
+        for (const L of lettersList){
+          for (const N of numbersList){
+            const composite = `مقاسات بالأحرف:${L}|مقاسات بالأرقام:${N}`;
+            list.push({ id: `${color}:${L}|${N}` , color, size: composite, price: Number(price)||0, stock: 0 });
+          }
+        }
+      }
+    } else if (colorList.length && singleSizes.length){
+      // Fallback: color x single-size list
+      for (const color of colorList){ for (const size of singleSizes){ list.push({ id:`${color}:${size}`, color, size, price: Number(price)||0, stock: 0 }); } }
+    } else if (colorList.length){
+      for (const color of colorList){ list.push({ id:`${color}`, color, price: Number(price)||0, stock: 0 }); }
+    } else if (singleSizes.length){
+      for (const size of singleSizes){ list.push({ id:`${size}`, size, price: Number(price)||0, stock: 0 }); }
     }
     setVariants(list);
   }
@@ -121,7 +136,22 @@ export default function MobileNewProduct(): JSX.Element {
           depth: depth? Number(depth): undefined,
           attributes: attributes && attributes.length? attributes : undefined
         },
-        variants: variants.map(v=> ({ color: v.color, size: v.size, price: v.price, stock: v.stock })),
+        variants: variants.map(v=> {
+          const out:any = { color: v.color, size: v.size, price: v.price, stock: v.stock };
+          // Build option_values for reliable downstream extraction
+          const option_values: Array<{ name: string; value: string }> = [];
+          const sizeStr = String(v.size||'').trim();
+          if (sizeStr) {
+            if (sizeStr.includes('|')) {
+              for (const part of sizeStr.split('|')) { const [k,val] = part.split(':',2); if (k && val) option_values.push({ name:'size', value: `${k}:${val}` }); }
+            } else {
+              option_values.push({ name:'size', value: sizeStr });
+            }
+          }
+          if (v.color) option_values.push({ name:'color', value: String(v.color) });
+          if (option_values.length) out.option_values = option_values;
+          return out;
+        }),
         media: images.map(m=> ({ name: m.name, dataUrl: m.dataUrl }))
       };
       const res = await fetch(`${resolveApiBase()}/api/admin/products/generate`, {
@@ -277,8 +307,16 @@ export default function MobileNewProduct(): JSX.Element {
             <input className="input" value={colors} onChange={e=> setColors(e.target.value)} placeholder="أسود, أبيض, أحمر" />
           </label>
           <label>
-            <div style={{ marginBottom:6 }}>مقاسات (افصل بفواصل ,)</div>
-            <input className="input" value={sizes} onChange={e=> setSizes(e.target.value)} placeholder="S, M, L" />
+            <div style={{ marginBottom:6 }}>مقاسات بالأحرف (افصل بفواصل ,)</div>
+            <input className="input" value={sizesLetters} onChange={e=> setSizesLetters(e.target.value)} placeholder="M, L, XL, 2XL" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>مقاسات بالأرقام (افصل بفواصل ,)</div>
+            <input className="input" value={sizesNumbers} onChange={e=> setSizesNumbers(e.target.value)} placeholder="94, 96, 98, 100" />
+          </label>
+          <label>
+            <div style={{ marginBottom:6 }}>مقاسات (قائمة واحدة - اختياري)</div>
+            <input className="input" value={sizes} onChange={e=> setSizes(e.target.value)} placeholder="S, M, L (يُستخدم فقط إن لم تُدخل مجموعتين)" />
           </label>
         </FormGrid>
         <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
