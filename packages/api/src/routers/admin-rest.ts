@@ -6628,7 +6628,26 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
       const ov = Array.isArray((j as any).option_values) ? (j as any).option_values : undefined;
       if (sz) out.size = sz;
       if (col) out.color = col;
-      if (ov) out.option_values = ov.map((o: any) => ({ name: norm(o?.name || o?.key), value: norm(o?.value || o?.val || o?.label) })).filter((o: any) => o.name && o.value);
+      if (ov) {
+        const mapped = ov.map((o: any) => ({ name: norm(o?.name || o?.key), value: norm(o?.value || o?.val || o?.label) })).filter((o: any) => o.name && o.value);
+        if (mapped.length) out.option_values = mapped;
+        // Derive size/color from option_values when explicit fields are missing
+        try {
+          if (!out.size) {
+            const sizeVals = mapped.filter(o => /size|مقاس/i.test(o.name)).map(o => o.value).filter(Boolean);
+            if (sizeVals.length > 1) {
+              // Preserve composite format (k:v) sequences separated by '|'
+              out.size = sizeVals.join('|');
+            } else if (sizeVals.length === 1) {
+              out.size = sizeVals[0];
+            }
+          }
+          if (!out.color) {
+            const colorVal = mapped.find(o => /color|لون/i.test(o.name))?.value;
+            if (colorVal) out.color = colorVal;
+          }
+        } catch {}
+      }
     } catch {}
   };
   takeFromJson(norm(rec?.value));
@@ -6698,6 +6717,19 @@ adminRest.get('/products/:id', async (req, res) => {
       takeFromOptions(v);
       // Build variant with derived meta for admin editors
       const meta = extractVariantMeta(v);
+      // Ensure sizes/colors sets include extracted meta (especially when labels are generic)
+      if (meta.size) {
+        if (meta.size.includes('|')) {
+          for (const part of meta.size.split('|')) {
+            const p2 = String(part||'').trim();
+            const val = p2.includes(':') ? p2.split(':',2)[1].trim() : p2;
+            if (looksSize(val)) sizes.add(val);
+          }
+        } else if (looksSize(meta.size)) {
+          sizes.add(meta.size);
+        }
+      }
+      if (meta.color && isColor(meta.color)) colors.add(meta.color);
       variantsOut.push(Object.assign({}, v, { size: meta.size, color: meta.color, option_values: meta.option_values || undefined }));
     }
     return res.json({ product: Object.assign({}, p, { variants: variantsOut, sizes: Array.from(sizes), colors: Array.from(colors) }) });
@@ -6806,16 +6838,22 @@ adminRest.post('/products/:id/variants', async (req, res) => {
       const t = String(s||'').trim().toLowerCase();
       return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
     };
-    for (const v of rows) {
+  const batchSeen = new Set<string>();
+  for (const v of rows) {
       const data: any = {
         productId: id,
         name: String(v.name||'').slice(0, 120) || 'Variant',
         value: String(v.value||'').slice(0, 240) || '-',
-        price: typeof v.price === 'number' ? v.price : null,
-        purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : null,
-        stockQuantity: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
-        sku: v.sku || null,
+      price: typeof v.price === 'number' ? v.price : null,
+      purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : null,
+      stockQuantity: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
       };
+    // Ensure per-batch SKU uniqueness: if same SKU appears again in this request (common when colors are Arabic and sanitized away), drop SKU for subsequent duplicates to avoid collapsing variants
+    let nextSku: string | null = (v as any).sku || null;
+    if (nextSku) {
+      if (batchSeen.has(nextSku)) nextSku = null; else batchSeen.add(nextSku);
+    }
+    if (nextSku) data.sku = nextSku;
       // If size/color/option_values provided, encode as JSON in value for reliable client extraction
       try {
         const ov = Array.isArray((v as any).option_values)? (v as any).option_values : (Array.isArray((v as any).optionValues)? (v as any).optionValues : (Array.isArray((v as any).options)? (v as any).options : (Array.isArray((v as any).attributes)? (v as any).attributes : null)));
@@ -6835,18 +6873,19 @@ adminRest.post('/products/:id/variants', async (req, res) => {
         }
         // Normalize option_values
         const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
-        if (normalizedOV || sizeVal || colorVal) {
+    if (normalizedOV || sizeVal || colorVal) {
           data.value = JSON.stringify({ label: String(v.value||'').slice(0,120), size: sizeVal||undefined, color: colorVal||undefined, option_values: normalizedOV||undefined });
         }
       } catch {}
-      if (v.sku) {
-        const existing = await db.productVariant.findFirst({ where: { sku: v.sku } });
-        if (existing) {
-          const up = await db.productVariant.update({ where: { id: existing.id }, data });
-          out.push(up);
-          continue;
-        }
+    if (nextSku) {
+      // Only upsert by SKU within the same product; otherwise, create new
+      const existing = await db.productVariant.findFirst({ where: { sku: nextSku, productId: id } });
+      if (existing) {
+        const up = await db.productVariant.update({ where: { id: existing.id }, data });
+        out.push(up);
+        continue;
       }
+    }
       const created = await db.productVariant.create({ data });
       out.push(created);
     }

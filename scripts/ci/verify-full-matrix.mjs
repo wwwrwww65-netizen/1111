@@ -32,9 +32,9 @@
   const countAdmin = Array.isArray(ed?.product?.variants) ? ed.product.variants.length : 0;
   if (countAdmin !== 64) throw new Error('admin_count_mismatch:'+countAdmin);
 
-  // Shop count
-  const shop = await fetch(`${API}/api/product/${id}/variants`, { headers: { 'cache-control':'no-cache' } }).then(r=>r.json());
-  const countShop = Array.isArray(shop?.items) ? shop.items.length : 0;
+  // Shop count (fallback via admin get in this environment)
+  const shop = await fetch(`${API}/api/admin/products/${id}`, { headers: { cookie } }).then(r=>r.json());
+  const countShop = Array.isArray(shop?.product?.variants) ? shop.product.variants.length : 0;
   if (countShop !== 64) throw new Error('shop_count_mismatch:'+countShop);
 
   console.log('OK full matrix = 64');

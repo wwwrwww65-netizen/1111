@@ -1811,10 +1811,16 @@ export default function AdminProductCreate(): JSX.Element {
       if (variants && variants.length) {
         // Normalize variants to include explicit size/color/option_values for reliable extraction downstream
         const normalized = variants.map(v => {
-          const sizeToken = v.size || (/size|مقاس/i.test(v.name) ? v.value : undefined);
-          const colorToken = v.color || (!sizeToken ? v.value : undefined);
+          const sizeToken = v.size ? String(v.size) : undefined;
+          const colorToken = v.color ? String(v.color) : undefined;
           const ov = Array.isArray(v.option_values) ? v.option_values : [];
-          const withSize = sizeToken ? ov.filter(o=>o.name!=='size').concat([{ name:'size', value:String(sizeToken) }]) : ov;
+          const withSize = sizeToken ? ov.filter(o=>o.name!=='size').concat(
+            sizeToken.includes('|')
+              ? sizeToken.split('|').map(part => {
+                  const [k,val] = part.split(':',2); return { name:'size', value: val? `${k}:${val}` : String(part) };
+                })
+              : [{ name:'size', value:String(sizeToken) }]
+          ) : ov;
           const withBoth = colorToken ? withSize.filter(o=>o.name!=='color').concat([{ name:'color', value:String(colorToken) }]) : withSize;
           return { ...v, size: sizeToken, color: colorToken, option_values: withBoth };
         });
