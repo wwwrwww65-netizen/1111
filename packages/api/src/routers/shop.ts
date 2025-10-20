@@ -45,19 +45,24 @@ function extractOptions(rec: any): { sizes: string[]; colors: string[] } {
   const colors = new Set<string>();
   const visit = (name: string, value: string) => {
     const n = normToken(name);
-    const v = String(value||'').trim();
-    if (!v) return;
-    if (/size|مقاس/i.test(n)) {
-      if (!isColorWord(v)) sizes.add(v);
-      return;
+    const raw = String(value||'').trim();
+    // Split pipes into multiple candidates when present (e.g., "M|مقاسات بالأرقام")
+    const candidates = raw.includes('|') ? raw.split('|').map(s=> s.trim()).filter(Boolean) : [raw];
+    for (const v0 of candidates) {
+      const v = String(v0||'').trim();
+      if (!v) continue;
+      if (/size|مقاس/i.test(n)) {
+        if (!isColorWord(v) && looksSizeToken(v)) sizes.add(v);
+        continue;
+      }
+      if (/color|لون/i.test(n)) {
+        if (isColorWord(v)) colors.add(v);
+        continue;
+      }
+      // Heuristics
+      if (looksSizeToken(v) && !isColorWord(v)) sizes.add(v);
+      else if (isColorWord(v)) colors.add(v);
     }
-    if (/color|لون/i.test(n)) {
-      if (isColorWord(v)) colors.add(v);
-      return;
-    }
-    // Heuristics
-    if (looksSizeToken(v) && !isColorWord(v)) sizes.add(v);
-    else if (isColorWord(v)) colors.add(v);
   };
   const arrays: any[] = [];
   try { if (Array.isArray(rec?.option_values)) arrays.push(rec.option_values); } catch {}
@@ -92,16 +97,32 @@ function extractAttributeGroups(rec: any): { sizeGroups: Map<string, Set<string>
   const sizeGroups = new Map<string, Set<string>>();
   const colors = new Set<string>();
   const norm = (s: string) => String(s||'').trim();
+  const pushSize = (label: string, only: string) => {
+    const key = norm(label);
+    const val = norm(only);
+    if (!val) return;
+    if (!looksSizeToken(val)) return;
+    if (!sizeGroups.has(key)) sizeGroups.set(key, new Set());
+    sizeGroups.get(key)!.add(val);
+  };
   const visit = (name: string, value: string) => {
     const n = norm(name).toLowerCase();
-    const v = norm(value);
-    if (!v) return;
-    if (/color|لون/i.test(n)) { colors.add(v); return; }
+    const vRaw = norm(value);
+    if (!vRaw) return;
+    if (/color|لون/i.test(n)) { colors.add(vRaw); return; }
     if (/size|مقاس/i.test(n)) {
-      const [label, only] = v.includes(':') ? (v.split(':',2) as [string,string]) : ['المقاس', v];
-      const key = norm(label);
-      if (!sizeGroups.has(key)) sizeGroups.set(key, new Set());
-      sizeGroups.get(key)!.add(norm(only));
+      // Support multi-part expressions like "مقاسات بالأحرف:M|مقاسات بالأرقام:96" or "M|مقاسات بالأرقام"
+      const parts = vRaw.includes('|') ? vRaw.split('|').map(s=> s.trim()).filter(Boolean) : [vRaw];
+      for (const part of parts) {
+        if (!part) continue;
+        if (part.includes(':')) {
+          const [label, only] = part.split(':',2) as [string,string];
+          pushSize(label, only);
+        } else {
+          // No explicit label: keep under generic label; will be reclassified later
+          pushSize('المقاس', part);
+        }
+      }
       return;
     }
   };
@@ -139,6 +160,33 @@ function extractAttributeGroups(rec: any): { sizeGroups: Map<string, Set<string>
   const tokens = splitTokens(`${norm(rec?.name)} ${norm(rec?.value)}`);
   for (const t of tokens){ if (looksSizeToken(t) && !isColorWord(t)) { if (!sizeGroups.has('المقاس')) sizeGroups.set('المقاس', new Set()); sizeGroups.get('المقاس')!.add(t); } }
   for (const t of tokens){ if (isColorWord(t)) colors.add(t); }
+  // Normalize groups: split generic 'المقاس' into letters/numbers if specific groups exist or derive them
+  const lettersLabel = 'مقاسات بالأحرف';
+  const numbersLabel = 'مقاسات بالأرقام';
+  const hasLetters = Array.from(sizeGroups.keys()).some(k=> k.includes('بالأحرف'));
+  const hasNumbers = Array.from(sizeGroups.keys()).some(k=> k.includes('بالأرقام'));
+  if (sizeGroups.has('المقاس')){
+    const vals = Array.from(sizeGroups.get('المقاس')||[]);
+    for (const v of vals){
+      if (/^\d{1,3}$/.test(normalizeDigits(v))) {
+        const key = numbersLabel; if (!sizeGroups.has(key)) sizeGroups.set(key, new Set()); sizeGroups.get(key)!.add(v);
+      } else {
+        const key = lettersLabel; if (!sizeGroups.has(key)) sizeGroups.set(key, new Set()); sizeGroups.get(key)!.add(v);
+      }
+    }
+    sizeGroups.delete('المقاس');
+  }
+  // Deduplicate and sanitize any stray "M|..." artifacts (keep the size-looking token only)
+  for (const [k,set] of Array.from(sizeGroups.entries())){
+    const cleaned = new Set<string>();
+    for (const v of set){
+      const cands = v.includes('|') ? v.split('|').map(s=> s.trim()) : [v];
+      let chosen = cands.find(x=> looksSizeToken(x));
+      if (!chosen) chosen = v;
+      cleaned.add(chosen);
+    }
+    sizeGroups.set(k, cleaned);
+  }
   return { sizeGroups, colors };
 }
 // Reverse geocoding proxy (Nominatim) to avoid browser CORS
@@ -1094,9 +1142,36 @@ shop.get('/product/:id', async (req, res) => {
         if (raw && looksSizeToken(raw) && !isColorWord(raw)) sizes.add(raw);
       }
     }
-    // Build attributes array
+    // Build normalized attributes array (letters vs numbers when appropriate)
     const attributes: Array<{ key: string; label: string; values: string[] }> = [];
+    const lettersLabel = 'مقاسات بالأحرف';
+    const numbersLabel = 'مقاسات بالأرقام';
+    const byLabel: Record<string, Set<string>> = {};
     for (const [label, set] of sizeGroupMap.entries()){
+      const target = label.includes('بالأحرف') ? lettersLabel : label.includes('بالأرقام') ? numbersLabel : label;
+      if (!byLabel[target]) byLabel[target] = new Set<string>();
+      for (const v of set){
+        // sanitize stray pipes
+        const cands = String(v||'').split('|').map(s=> s.trim()).filter(Boolean);
+        const pick = cands.find(x=> looksSizeToken(x)) || v;
+        byLabel[target].add(pick);
+      }
+    }
+    // If generic label exists, split into letters/numbers
+    if (byLabel['المقاس']){
+      const generic = Array.from(byLabel['المقاس']);
+      delete byLabel['المقاس'];
+      for (const v of generic){
+        if (/^\d{1,3}$/.test(normalizeDigits(v))) {
+          if (!byLabel[numbersLabel]) byLabel[numbersLabel] = new Set<string>();
+          byLabel[numbersLabel].add(v);
+        } else {
+          if (!byLabel[lettersLabel]) byLabel[lettersLabel] = new Set<string>();
+          byLabel[lettersLabel].add(v);
+        }
+      }
+    }
+    for (const [label,set] of Object.entries(byLabel)){
       attributes.push({ key: 'size', label, values: Array.from(set) });
     }
     if (colors.size) attributes.push({ key: 'color', label: 'اللون', values: Array.from(colors) });
