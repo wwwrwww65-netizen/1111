@@ -1,8 +1,6 @@
-name: Variants full matrix smoke
+name: Variants full matrix smoke (manual)
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch: {}
 
 jobs:
