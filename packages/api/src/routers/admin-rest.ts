@@ -4544,12 +4544,20 @@ adminRest.post('/products/analyze', async (req, res) => {
           return res.json({ ok: true, analyzed: {}, warnings: [...warnings, 'openrouter_unavailable'], errors: [], meta: { openrouterUsed: false, openrouterAttempted: true } })
         }
         const analyzed: any = {}
-        if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
-        if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
-        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (ds.name) analyzed.name = { value: String(ds.name), source: 'ai' }
+        if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
+        if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        else {
+          // Build a vertical table from description text as fallback
+          const table = buildDescriptionTableFromText(String(ds.description||text||''));
+          if (table.length) analyzed.description_table = { value: table, source: 'ai' } as any;
+        }
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
-        if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
+        if (Array.isArray(ds.colors)) {
+          const filtered = (ds.colors as any[]).filter(c=> String(c||'').trim() && !/^غير\s*محدد$/i.test(String(c||'')) && !/(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة))/i.test(String(c||'')));
+          if (filtered.length) analyzed.colors = { value: filtered, source: 'ai' }
+        }
         if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
         if (Array.isArray(ds.keywords)) analyzed.tags = { value: ds.keywords.slice(0, 6), source: 'ai' }
         return res.json({ ok: true, analyzed, warnings, errors, meta: { openrouterUsed: true, openrouterAttempted: true } })
@@ -4573,8 +4581,12 @@ adminRest.post('/products/analyze', async (req, res) => {
         const ds: any = (out as any)
         const analyzed: any = {}
         if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
-        if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
-        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
+        if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        else {
+          const table = buildDescriptionTableFromText(String(ds.description||text||''));
+          if (table.length) analyzed.description_table = { value: table, source: 'ai' } as any;
+        }
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
@@ -4666,7 +4678,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const rt = toLatinDigits(rawText)
         // 1) name
         if (ds.name && String(ds.name).trim()) {
-          analyzed.name = { value: String(ds.name).slice(0,60), source: 'ai' }
+          analyzed.name = { value: String(ds.name), source: 'ai' }
         } else {
           // infer minimal name from text tokens (type + material + one feature)
           const TYPE_RE = /(طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل|جلابية|جلابيه|جلاب|عباية|عبايه)/i
@@ -4680,7 +4692,11 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
         // 2) description and table
         if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
-        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        else {
+          const table = buildDescriptionTableFromText(String(ds.description||text||''));
+          if (table.length) analyzed.description_table = { value: table, source: 'ai' } as any;
+        }
         // 3) price range or price
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
