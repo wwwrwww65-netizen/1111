@@ -1054,15 +1054,23 @@ export default function AdminProductCreate(): JSX.Element {
       setAnalysisDone(true);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
       try{
-        // Name: use full DeepSeek-generated name (no truncation)
-        const fullName = String(reviewObj.name||'').trim();
-        if (fullName) setName(fullName);
-        // Description: prefer strictDetails table when available
-        try {
-          const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
-          if (html && html.length) setDescription(html);
-          else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
-        } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
+      // Name: use full DeepSeek-generated name (no truncation); if partial, backfill from clean text
+      const dsName = String(reviewObj.name||'').trim();
+      if (dsName) {
+        const clean = cleanTextStrict(paste);
+        const backfilled = dsName.length < 60 ? `${dsName} ${clean.slice(0, 120-dsName.length)}`.trim() : dsName;
+        setName(backfilled.replace(/\s{2,}/g,' ').trim());
+      }
+      // Description: prefer strictDetails table (vertical label/value). If missing, build from strict clean text.
+      try {
+        let html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
+        if (!html || !html.length) {
+          const sDetails = buildStrictDetailsTable(cleanTextStrict(paste), paste);
+          html = detailsToHtmlTable(sDetails);
+        }
+        if (html && html.length) setDescription(html);
+        else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+      } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
