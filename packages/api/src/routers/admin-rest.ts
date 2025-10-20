@@ -6490,19 +6490,72 @@ adminRest.post('/products/parse', async (req, res) => {
 adminRest.post('/products/generate', async (req, res) => {
   try {
     const { product, variants, media } = req.body || {};
-    const p = await db.product.create({ data: { name: product.name, description: product.longDesc||product.shortDesc||'', price: product.salePrice||0, images: (media||[]).map((m:any)=>m.url), categoryId: product.categoryId||'cat', stockQuantity: product.stock||0, sku: product.sku||null, brand: product.brand||null, tags: product.tags||[], isActive: true } });
+    const prod = product || {};
+    const images: string[] = Array.isArray(media) ? media.map((m: any) => m.url || m.dataUrl || '').filter(Boolean) : [];
+    const data: any = {
+      name: prod.name || prod.title || 'منتج',
+      description: prod.description || prod.longDesc || prod.shortDesc || '',
+      price: Number(prod.price ?? prod.salePrice ?? 0),
+      images,
+      categoryId: prod.categoryId || prod.category || 'cat',
+      stockQuantity: Number(prod.stock ?? 0),
+      sku: prod.sku || null,
+      brand: prod.brand || null,
+      tags: Array.isArray(prod.tags) ? prod.tags : [],
+      isActive: true,
+    };
+    const p = await db.product.create({ data });
+    // Create variants with explicit meta encoded in value JSON so downstream extractors work reliably
     if (Array.isArray(variants) && variants.length) {
       for (const v of variants) {
-        await db.productVariant.create({ data: { productId: p.id, name: v.size||'Size', value: v.color||'Color', price: v.salePrice||null, purchasePrice: v.purchasePrice||null, sku: v.sku||null, stockQuantity: v.stock||0 } });
+        const price = (v as any).price ?? (v as any).salePrice ?? null;
+        const stock = Number.isFinite((v as any).stock as any) ? Number((v as any).stock) : 0;
+        const sizeRaw = String((v as any).size || '').trim();
+        const colorRaw = String((v as any).color || '').trim();
+        // Build label from composite size if provided
+        const parts: string[] = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (val) parts.push(`${k}: ${val}`); }
+          } else {
+            parts.push(`المقاس: ${sizeRaw}`);
+          }
+        }
+        if (colorRaw) parts.push(`اللون: ${colorRaw}`);
+        const label = parts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+        // Normalize option_values array
+        const option_values: Array<{ name: string; value: string }> = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (k && val) option_values.push({ name: 'size', value: `${k}:${val}` }); }
+          } else {
+            option_values.push({ name: 'size', value: sizeRaw });
+          }
+        }
+        if (colorRaw) option_values.push({ name: 'color', value: colorRaw });
+        await db.productVariant.create({
+          data: {
+            productId: p.id,
+            name: label,
+            value: JSON.stringify({ label, size: sizeRaw || undefined, color: colorRaw || undefined, option_values: option_values.length ? option_values : undefined }),
+            price: price != null ? Number(price) : null,
+            purchasePrice: (v as any).purchasePrice != null ? Number((v as any).purchasePrice) : null,
+            sku: (v as any).sku || null,
+            stockQuantity: stock,
+          },
+        });
       }
     }
+    // Store media assets records (optional)
     if (Array.isArray(media) && media.length) {
       for (const m of media) {
-        await db.mediaAsset.create({ data: { url: m.url, type: 'image', alt: m.alt||null, dominantColors: m.dominantColors||[], meta: m.meta||null } });
+        const url = m.url || m.dataUrl || null;
+        if (!url) continue;
+        await db.mediaAsset.create({ data: { url, type: 'image', alt: m.alt||null, dominantColors: m.dominantColors||[], meta: m.meta||null } });
       }
     }
     return res.json({ productId: p.id });
-  } catch (e:any) {
+  } catch (e: any) {
     return res.status(500).json({ error: 'generate_failed', message: e.message });
   }
 });
