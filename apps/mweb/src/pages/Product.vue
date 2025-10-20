@@ -230,8 +230,8 @@
         </div>
       </div>
 
-      <!-- Size Selector (hidden when multi size-groups exist) -->
-      <div ref="sizeSelectorRef" class="mb-4" v-if="sizeOptions.length && !sizeGroups.length">
+      <!-- Size Selector (single list) - hidden until attributes loaded to avoid flicker, and hidden when multi size-groups exist) -->
+      <div ref="sizeSelectorRef" class="mb-4" v-if="attrsLoaded && sizeOptions.length && !sizeGroups.length">
         <div class="flex items-center justify-between mb-2">
           <span class="font-semibold text-[14px]">مقاس - {{ size || 'الافتراضي' }}</span>
           <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
@@ -252,8 +252,9 @@
       <div class="mt-2">
           <span class="text-[13px] text-gray-600 underline cursor-pointer">ترام كيرفي ◀</span>
       </div>
+      </div>
 
-      <!-- Multi size-type selectors (length/width etc.) if available -->
+      <!-- Multi size-type selectors (letters/numbers etc.) - rendered independently when available -->
       <div v-if="sizeGroups.length" class="mb-4 space-y-3">
         <div v-for="(g,gi) in sizeGroups" :key="'g-'+gi">
           <div class="flex items-center justify-between mb-2">
@@ -273,7 +274,6 @@
             </button>
           </div>
         </div>
-      </div>
       </div>
 
       <!-- Fit Rating -->
