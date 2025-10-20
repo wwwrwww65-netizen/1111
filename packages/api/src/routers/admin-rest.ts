@@ -6559,6 +6559,47 @@ adminRest.get('/products', async (req, res) => {
   ]);
   res.json({ products, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
 });
+// Helper: extract size/color/option_values from a variant record (value/name may contain JSON)
+function extractVariantMeta(rec: any): { size?: string; color?: string; option_values?: Array<{ name: string; value: string }> } {
+  const norm = (s: any) => String(s || '').trim();
+  const out: { size?: string; color?: string; option_values?: Array<{ name: string; value: string }> } = {};
+  const takeFromJson = (raw?: string) => {
+    try {
+      if (typeof raw !== 'string') return;
+      if (!(raw.startsWith('{') || raw.startsWith('['))) return;
+      const j = JSON.parse(raw);
+      if (Array.isArray(j)) return;
+      const label = norm((j as any).label);
+      const sz = norm((j as any).size);
+      const col = norm((j as any).color);
+      const ov = Array.isArray((j as any).option_values) ? (j as any).option_values : undefined;
+      if (sz) out.size = sz;
+      if (col) out.color = col;
+      if (ov) out.option_values = ov.map((o: any) => ({ name: norm(o?.name || o?.key), value: norm(o?.value || o?.val || o?.label) })).filter((o: any) => o.name && o.value);
+    } catch {}
+  };
+  takeFromJson(norm(rec?.value));
+  takeFromJson(norm(rec?.name));
+  if (!out.size || !out.color) {
+    const bags = [rec?.option_values, rec?.optionValues, rec?.options, rec?.attributes];
+    for (const arr of bags) {
+      if (!Array.isArray(arr)) continue;
+      for (const it of arr) {
+        const name = norm(it?.name || it?.key);
+        const value = norm(it?.value || it?.val || it?.label);
+        if (!value) continue;
+        if (/size|مقاس/i.test(name)) {
+          // Preserve composite labels like "مقاسات بالأحرف:M"
+          if (!out.size) out.size = value;
+        } else if (/color|لون/i.test(name)) {
+          if (!out.color) out.color = value;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 adminRest.get('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
@@ -6590,6 +6631,7 @@ adminRest.get('/products/:id', async (req, res) => {
         }
       }
     };
+    const variantsOut: any[] = [];
     for (const v of (p as any).variants||[]) {
       const name = norm((v as any).name);
       const value = norm((v as any).value);
@@ -6601,8 +6643,11 @@ adminRest.get('/products/:id', async (req, res) => {
       try { if (name && (name.startsWith('{')||name.startsWith('['))) takeFromOptions(JSON.parse(name)); } catch {}
       // Try attached bags if any
       takeFromOptions(v);
+      // Build variant with derived meta for admin editors
+      const meta = extractVariantMeta(v);
+      variantsOut.push(Object.assign({}, v, { size: meta.size, color: meta.color, option_values: meta.option_values || undefined }));
     }
-    return res.json({ product: Object.assign({}, p, { sizes: Array.from(sizes), colors: Array.from(colors) }) });
+    return res.json({ product: Object.assign({}, p, { variants: variantsOut, sizes: Array.from(sizes), colors: Array.from(colors) }) });
   } catch {
     return res.json({ product: p });
   }
@@ -6691,6 +6736,42 @@ adminRest.patch('/products/:id', async (req, res) => {
     const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true } });
     const p = await db.product.update({ where: { id }, data });
     await audit(req, 'products', 'update', { id });
+    // Upsert variants if provided
+    try {
+      const rows: any[] = Array.isArray((req.body || {}).variants) ? (req.body as any).variants : [];
+      if (rows.length) {
+        for (const v of rows) {
+          const base: any = {
+            productId: id,
+            price: typeof v.price === 'number' ? v.price : null,
+            stockQuantity: Number.isFinite(v.stock as any) ? Number(v.stock) : 0,
+          };
+          // Encode size/color/options in value JSON to ensure downstream extraction
+          try {
+            const ovRaw = Array.isArray((v as any).option_values) ? (v as any).option_values : undefined;
+            const sizeVal = (v as any).size ? String((v as any).size) : undefined;
+            const colorVal = (v as any).color ? String((v as any).color) : undefined;
+            const labelParts: string[] = [];
+            if (sizeVal && sizeVal.includes('|')) {
+              for (const part of sizeVal.split('|')) { if (part) labelParts.push(part.replace(':', ': ')); }
+            } else if (sizeVal) { labelParts.push(`المقاس: ${sizeVal}`); }
+            if (colorVal) labelParts.push(`اللون: ${colorVal}`);
+            const label = labelParts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+            base.name = label;
+            base.value = JSON.stringify({ label, size: sizeVal, color: colorVal, option_values: ovRaw });
+          } catch {
+            base.name = String((v as any).name || 'Variant').slice(0, 120);
+            base.value = String((v as any).value || '-').slice(0, 240);
+          }
+          if ((v as any).sku) base.sku = String((v as any).sku);
+          if ((v as any).id) {
+            await db.productVariant.update({ where: { id: String((v as any).id) }, data: base });
+          } else {
+            await db.productVariant.create({ data: base });
+          }
+        }
+      }
+    } catch {}
     try {
       await ensureAlertSchema();
       const tx = buildMailer();
