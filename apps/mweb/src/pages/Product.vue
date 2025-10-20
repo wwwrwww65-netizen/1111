@@ -1475,6 +1475,45 @@ async function loadNormalizedVariants(){
     }
   }
 
+  // 3b) Strengthen size-groups using variants' attributes_map when API attributes are ambiguous
+  try {
+    const letters = new Set<string>()
+    const numbers = new Set<string>()
+    const put = (group: 'letters'|'numbers', raw: string) => {
+      const parts = String(raw||'').split('|').map(s=> s.trim()).filter(Boolean)
+      const cands: string[] = []
+      for (const p of parts){ if (p.includes(':')) { const seg=p.split(':',2)[1]?.trim(); if (seg) cands.push(seg) } cands.push(p) }
+      const pick = cands.find(x=> looksSizeToken(x) && !isColorWord(x)) || cands[0] || String(raw||'')
+      if (group==='letters') letters.add(pick); else numbers.add(pick)
+    }
+    for (const it of list){
+      const m = (it as any).attributes_map || {}
+      // Prefer labeled groups when present
+      for (const [k,v] of Object.entries(m)){
+        if (!String(k).startsWith('size_')) continue
+        const label = String(k).slice('size_'.length)
+        if (/بالأحرف/.test(label)) put('letters', String(v))
+        else if (/بالأرقام/.test(label)) put('numbers', String(v))
+        else {
+          // Generic: classify by digits vs letters
+          const val = String(v||'')
+          const parts = val.split('|').map(s=> s.trim()).filter(Boolean)
+          const pick = parts.find(x=> /^\d{1,3}$/.test(x)) || parts.find(x=> looksSizeToken(x)) || parts[0] || val
+          if (/^\d{1,3}$/.test(pick)) numbers.add(pick); else letters.add(pick)
+        }
+      }
+    }
+    const nextGroups: Array<{ label: string; values: string[] }> = []
+    if (letters.size) nextGroups.push({ label: 'مقاسات بالأحرف', values: Array.from(letters) })
+    if (numbers.size) nextGroups.push({ label: 'مقاسات بالأرقام', values: Array.from(numbers) })
+    if (nextGroups.length) {
+      sizeGroups.value = nextGroups
+      const init: Record<string,string> = {}
+      for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
+      selectedGroupValues.value = init
+    }
+  } catch {}
+
   // 4) Build a best-effort variant map for selection to stock/price
   const norm = (s:string)=> String(s||'').trim()
   const colors = colorVariants.value.map(c=>c.name)
