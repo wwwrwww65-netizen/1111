@@ -5338,6 +5338,39 @@ async function saveAnalyzeTeachExample(text: string, analyzed: any): Promise<voi
   } catch {}
 }
 
+// Build a vertical label/value description table from plain text as a fallback when AI doesn't return one
+function buildDescriptionTableFromText(input: string): Array<{ label: string; value: string }>{
+  const rows: Array<{ label: string; value: string }> = [];
+  const add = (label: string, value?: string) => {
+    const v = String(value || '').trim();
+    if (v) rows.push({ label, value: v });
+  };
+  const text = String(input || '')
+    .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
+    .replace(/[\*•\-]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  // Material
+  const mat = text.match(/(?:الخامة|قماش|fabric)\s*[:\-]?\s*([^\n\.،]+)/i)?.[1]
+    || text.match(/(استرش|قطن|صوف|جلد|لينن|دنيم|denim|cotton|wool|leather)/i)?.[0];
+  // Design/features
+  const design = text.match(/(?:التصميم|design)\s*[:\-]?\s*([^\n\.،]+)/i)?.[1];
+  const features: string[] = [];
+  const FEATS = /(مودرن|حديث|أوروبي|اوروب(?:ي|ي)|رقبة\s*X|سوسته\s*سحاب|حشوه\s*بالصدر|كم\s*كامل|كلوش|امبريلا)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = FEATS.exec(text))) { const v = String(m[0]).trim(); if (v && !features.includes(v)) features.push(v); }
+  // Colors (explicit only; ignore generic phrases)
+  const colorTokens = Array.from(new Set((text.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|بني|بيج|رمادي|وردي|بنفسجي|كحلي)\b/gi) || []).map(s=> s.replace(/^ال/,'').trim())));
+  // Sizes
+  const sizeTokens = Array.from(new Set((text.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=> s.toUpperCase())));
+  // Fill rows
+  add('الخامة', mat);
+  add('التصميم', design || features.join('، '));
+  if (colorTokens.length) add('الألوان', colorTokens.join('، '));
+  if (sizeTokens.length) add('المقاسات', sizeTokens.join(', '));
+  return rows;
+}
+
 async function findNearestTeachExample(raw: string): Promise<any|null> {
   try {
     const crypto = require('crypto');
