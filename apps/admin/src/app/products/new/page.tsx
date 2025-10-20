@@ -282,7 +282,8 @@ export default function AdminProductCreate(): JSX.Element {
       if (words.length >= 12) break;
       if (!primary.has(t.toLowerCase())) words.push(t);
     }
-    if (words.length > 12) words.splice(12);
+    // Keep natural full name when available elsewhere; do not hard truncate here
+    if (words.length > 24) words.splice(24);
     // Ensure minimum 8 tokens if possible by backfilling from tokens
     if (words.length < 8) {
       for (const t of tokens) {
@@ -295,13 +296,24 @@ export default function AdminProductCreate(): JSX.Element {
 
   function extractOldNorthPriceStrict(clean: string): number | undefined {
     // Prefer mentions tagged قديم/الشمال؛ ignore سعودي/جنوبي/قعيطي/جديد
+    const toAsciiDigits = (s:string)=> s.replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
+    const parseLocalizedNumber = (raw:string): number|undefined => {
+      const s0 = toAsciiDigits(String(raw||'')).trim();
+      // Remove spaces
+      const s = s0.replace(/\s+/g,'');
+      // If contains only digits and separators [, .] treat last separator as decimal when there are 3+ digits after
+      // For our domain we assume comma/dot used as thousands most of the time; "3,900" => 3900
+      const digits = s.replace(/[,\.]/g,'');
+      const n = Number(digits);
+      return Number.isFinite(n)? n : undefined;
+    };
     const ignoreCtx = /(سعودي|جنوبي|جديد|قعيطي)/i;
     const matches = Array.from(clean.matchAll(/(?:(?:قديم|للشمال|الشمال)[^\d]{0,12})(\d+[\.,]??\d*)/gi));
     for (const m of matches) {
       const before = clean.slice(Math.max(0, (m.index||0)-20), (m.index||0)+m[0].length+10);
       if (!ignoreCtx.test(before)) {
-        const v = Number(String(m[1]).replace(',','.'));
-        if (Number.isFinite(v)) return v;
+        const v = parseLocalizedNumber(String(m[1]));
+        if (v!=null) return v;
       }
     }
     return undefined;
@@ -323,7 +335,15 @@ export default function AdminProductCreate(): JSX.Element {
     const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
     const weight = clean.match(/وزن\s*(\d{2,3})(?:\s*[-–—\s]\s*(\d{2,3}))?\s*ك?جم?/i);
     const sizeFree = /فري\s*سايز/i.test(clean);
-    const sizesList = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=>s.toUpperCase());
+    const toAsciiDigits = (s:string)=> s.replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
+    const normalizeXL = (tok:string): string => {
+      const t = String(tok||'').toUpperCase().trim();
+      // Map repeated X patterns to 2XL/3XL/4XL...
+      const m = t.match(/^(X{2,})L$/); // XX...XL
+      if (m) { const count = m[1].length; return `${count}XL`; }
+      return t;
+    };
+    const sizesList = Array.from(new Set((clean.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=> normalizeXL(toAsciiDigits(s)));
     add('النوع', type);
     add('الفئة', gender);
     add('الخامة', mat);
@@ -1427,40 +1447,16 @@ export default function AdminProductCreate(): JSX.Element {
         }
       } catch {}
 
-      // Choose the size type that best matches targetSizes
+      // Choose ALL matching size types when two groups are present (letters & numbers)
       if (targetSizes.length && Array.isArray(sizeTypeOptions) && sizeTypeOptions.length) {
-        let best: { id: string; name: string; sizes: Array<{id:string;name:string}>; score: number } | null = null;
+        const picks: Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }> = [];
+        const lower = targetSizes.map(s=> String(s).toLowerCase());
         for (const t of sizeTypeOptions) {
           const sizes = await loadSizesForType(t.id);
-          const names = sizes.map(s=> String(s.name||'').toLowerCase());
-          const score = targetSizes.reduce((acc, s)=> acc + (names.includes(String(s).toLowerCase()) ? 1 : 0), 0);
-          if (!best || score > best.score) best = { id: t.id, name: t.name, sizes, score };
+          const matched = sizes.filter(s=> lower.includes(String(s.name||'').toLowerCase())).map(s=> s.name);
+          if (matched.length) picks.push({ id: t.id, name: t.name, sizes, selectedSizes: matched });
         }
-        if (best && best.score > 0) {
-          const chosen = best;
-          const selected = targetSizes.filter(s=> chosen.sizes.some(x=> String(x.name||'').toLowerCase() === String(s).toLowerCase()));
-          setSelectedSizeTypes([ { id: chosen.id, name: chosen.name, sizes: chosen.sizes, selectedSizes: selected } ]);
-        } else {
-          // Create a new size-type and sizes if none matches
-          const typeName = `مخصص: ${targetSizes.slice(0,3).join('/')}`.slice(0,40)
-          try {
-            const rt = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name: typeName }) })
-            const tj = await rt.json().catch(()=>({}))
-            if (rt.ok && tj?.type?.id){
-              const newTypeId = tj.type.id as string
-              // create sizes under it
-              for (const s of targetSizes){
-                try {
-                  await fetch(`${apiBase}/api/admin/attributes/size-types/${newTypeId}/sizes`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name: s }) })
-                } catch {}
-              }
-              const sizes = await loadSizesForType(newTypeId)
-              setSelectedSizeTypes([ { id: newTypeId, name: typeName, sizes, selectedSizes: targetSizes } ])
-              // refresh type options
-              try{ const r=await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setSizeTypeOptions(j.types||[]); } catch {}
-            }
-          } catch {}
-        }
+        if (picks.length) setSelectedSizeTypes(picks);
       }
 
       // Helper: guess hex for common Arabic/English color names
@@ -1486,16 +1482,25 @@ export default function AdminProductCreate(): JSX.Element {
         return map[t] || '#666666';
       };
 
-      // Map colors to known options and add color cards
+        // Map colors to known options and add color cards (split combined like "أسود وأبيض" إلى لونين)
       if (targetColors.length) {
         const mappedCards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
         const toCreate: string[] = []
-        for (const c of targetColors) {
-          const match = colorOptions.find(o=> String(o.name||'').toLowerCase() === String(c).toLowerCase());
+          const splitCombined = (c:string): string[] => {
+            const s = String(c||'');
+            // split on common separators and "و"
+            return s.split(/\s*(?:,|،|\+|\/|\-|\sو\s)\s*/).map(x=>x.trim()).filter(Boolean);
+          };
+          for (const rawC of targetColors) {
+            const parts = splitCombined(rawC);
+            const list = parts.length? parts : [rawC];
+            for (const c of list) {
+              const match = colorOptions.find(o=> String(o.name||'').toLowerCase() === String(c).toLowerCase());
           if (match) {
             mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: match.name, selectedImageIdxs: [] });
           } else {
-            toCreate.push(c)
+                toCreate.push(c)
+              }
           }
         }
         // Create missing colors
