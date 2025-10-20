@@ -3641,10 +3641,36 @@ adminRest.post('/products/:id/variants/bulk', async (req, res) => {
     const list: Array<any> = Array.isArray(req.body?.variants) ? req.body.variants : [];
     for (const it of list){
       const id = it.id ? String(it.id) : null;
-      const data: any = { productId, name: String(it.name||''), value: String(it.value||''), sku: it.sku? String(it.sku): null };
+      const data: any = { productId, name: String(it.name||'').slice(0,120), value: String(it.value||'').slice(0,240), sku: it.sku? String(it.sku): null };
       if (it.price!=null) data.price = Number(it.price);
       if (it.purchasePrice!=null) data.purchasePrice = Number(it.purchasePrice);
       if (it.stockQuantity!=null) data.stockQuantity = Number(it.stockQuantity);
+
+      // If size/color/option_values provided (or derivable), encode them as JSON in value
+      try {
+        const ov = Array.isArray((it as any).option_values)
+          ? (it as any).option_values
+          : (Array.isArray((it as any).optionValues)
+              ? (it as any).optionValues
+              : (Array.isArray((it as any).options)
+                  ? (it as any).options
+                  : (Array.isArray((it as any).attributes) ? (it as any).attributes : null)));
+        let sizeVal: string | undefined = (it as any).size || undefined;
+        let colorVal: string | undefined = (it as any).color || undefined;
+        // Derive missing size/color from name/value tokens
+        const src = `${String(it.name||'')} ${String(it.value||'')}`;
+        const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
+        if (!colorVal && hex) colorVal = hex[0];
+        if (!sizeVal) {
+          const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+          if (m) sizeVal = m[1];
+        }
+        const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
+        if (normalizedOV || sizeVal || colorVal) {
+          data.value = JSON.stringify({ label: String(it.value||'').slice(0,120), size: sizeVal||undefined, color: colorVal||undefined, option_values: normalizedOV||undefined });
+        }
+      } catch {}
+
       if (id) await db.productVariant.update({ where: { id }, data });
       else await db.productVariant.create({ data });
     }
@@ -4576,8 +4602,13 @@ adminRest.post('/products/analyze', async (req, res) => {
         let ds: any = null
         const attempts = 3
         for (let i=1;i<=attempts;i++){
+          // Prefer non-strict preview to allow colors (including general phrases) for admin preview UX
+          try { ds = await callDeepseekPreview({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
+          if (ds) break
+          // Fallback to strict preview for a conservative result
           try { ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
           if (ds) break
+          // Last resort: base model (name/desc/price/sizes)
           try { ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String(text || ''), base: {} }, timeoutMs: 20000 }) as any; } catch {}
           if (ds) break
           await new Promise(r=> setTimeout(r, 700))
@@ -6533,7 +6564,48 @@ adminRest.get('/products/:id', async (req, res) => {
   const { id } = req.params;
   const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } } } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
-  res.json({ product: p });
+  // Derive sizes/colors summary for admin convenience
+  try {
+    const sizes = new Set<string>();
+    const colors = new Set<string>();
+    const norm = (s: any) => String(s||'').trim();
+    const looksSize = (s: string) => /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2}|\d{1,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(s.trim());
+    const isColor = (s: string) => {
+      const t = s.trim().toLowerCase();
+      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
+    };
+    const split = (s: string) => s.split(/[,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
+    const takeFromOptions = (rec: any) => {
+      const bags = [rec?.option_values, rec?.optionValues, rec?.options, rec?.attributes];
+      for (const arr of bags) {
+        if (!Array.isArray(arr)) continue;
+        for (const it of arr) {
+          const name = norm(it?.name||it?.key);
+          const val = norm(it?.value||it?.val||it?.label);
+          if (!val) continue;
+          if (/size|مقاس/i.test(name)) { if (!isColor(val)) sizes.add(val) }
+          else if (/color|لون/i.test(name)) { if (isColor(val)) colors.add(val) }
+          else if (looksSize(val)) sizes.add(val);
+          else if (isColor(val)) colors.add(val);
+        }
+      }
+    };
+    for (const v of (p as any).variants||[]) {
+      const name = norm((v as any).name);
+      const value = norm((v as any).value);
+      for (const t of split(`${name} ${value}`)) { if (looksSize(t)) sizes.add(t); else if (isColor(t)) colors.add(t); }
+      if (/size|مقاس/i.test(name) && looksSize(value)) sizes.add(value);
+      if (/color|لون/i.test(name) && isColor(value)) colors.add(value);
+      // Try JSON in value/name
+      try { if (value && (value.startsWith('{')||value.startsWith('['))) takeFromOptions(JSON.parse(value)); } catch {}
+      try { if (name && (name.startsWith('{')||name.startsWith('['))) takeFromOptions(JSON.parse(name)); } catch {}
+      // Try attached bags if any
+      takeFromOptions(v);
+    }
+    return res.json({ product: Object.assign({}, p, { sizes: Array.from(sizes), colors: Array.from(colors) }) });
+  } catch {
+    return res.json({ product: p });
+  }
 });
 adminRest.post('/products', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.create'))) return res.status(403).json({ error:'forbidden' });
@@ -6557,16 +6629,44 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     const p = await db.product.findUnique({ where: { id }, select: { id: true } });
     if (!p) return res.status(404).json({ error: 'product_not_found' });
     const out: any[] = [];
+    const looksSize = (s:string)=> /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(String(s||'').trim());
+    const isColor = (s:string)=> {
+      const t = String(s||'').trim().toLowerCase();
+      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
+    };
     for (const v of rows) {
       const data: any = {
         productId: id,
         name: String(v.name||'').slice(0, 120) || 'Variant',
-        value: String(v.value||'').slice(0, 120) || '-',
+        value: String(v.value||'').slice(0, 240) || '-',
         price: typeof v.price === 'number' ? v.price : null,
         purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : null,
         stockQuantity: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
         sku: v.sku || null,
       };
+      // If size/color/option_values provided, encode as JSON in value for reliable client extraction
+      try {
+        const ov = Array.isArray((v as any).option_values)? (v as any).option_values : (Array.isArray((v as any).optionValues)? (v as any).optionValues : (Array.isArray((v as any).options)? (v as any).options : (Array.isArray((v as any).attributes)? (v as any).attributes : null)));
+        const sz = (v as any).size;
+        const col = (v as any).color;
+        let sizeVal: string|undefined = sz;
+        let colorVal: string|undefined = col;
+        // Derive if missing from name/value tokens
+        if (!sizeVal || !colorVal) {
+          const src = `${String(v.name||'')} ${String(v.value||'')}`;
+          const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
+          if (!colorVal && hex) colorVal = hex[0];
+          if (!sizeVal) {
+            const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+            if (m) sizeVal = m[1];
+          }
+        }
+        // Normalize option_values
+        const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
+        if (normalizedOV || sizeVal || colorVal) {
+          data.value = JSON.stringify({ label: String(v.value||'').slice(0,120), size: sizeVal||undefined, color: colorVal||undefined, option_values: normalizedOV||undefined });
+        }
+      } catch {}
       if (v.sku) {
         const existing = await db.productVariant.findFirst({ where: { sku: v.sku } });
         if (existing) {

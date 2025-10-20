@@ -2,7 +2,7 @@ name: analyze-strict
 
 on:
   push:
-    branches: [ hash, jam ]
+    branches: [ hash, jam, mishash ]
   pull_request:
     branches: [ main ]
   workflow_dispatch: {}

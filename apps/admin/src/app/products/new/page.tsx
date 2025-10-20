@@ -30,6 +30,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [error, setError] = React.useState<string>('');
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
   const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
+  // Preview tab removed: fill fields directly
   const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
   const [deepseekOn, setDeepseekOn] = React.useState<boolean>(true);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiDeepseekOn'); if (v!==null) setDeepseekOn(v==='1'); } catch {} },[]);
@@ -41,6 +42,8 @@ export default function AdminProductCreate(): JSX.Element {
   const [seoTitle, setSeoTitle] = React.useState("");
   const [seoDescription, setSeoDescription] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
+  // Becomes true after any successful analysis (rules/AI preview or full analyze)
+  const [analysisDone, setAnalysisDone] = React.useState<boolean>(false);
   const longDescRef = React.useRef<HTMLTextAreaElement|null>(null);
   React.useEffect(()=>{ const el=longDescRef.current; if (!el) return; el.style.height='auto'; el.style.height = el.scrollHeight + 'px'; }, [review?.longDesc]);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
@@ -133,6 +136,54 @@ export default function AdminProductCreate(): JSX.Element {
     return `<table><thead><tr><th>البند</th><th>القيمة</th></tr></thead><tbody>${body}</tbody></table>`;
   }
 
+  function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }){
+    const editorRef = React.useRef<HTMLDivElement|null>(null);
+    const lastHtmlRef = React.useRef<string>('');
+    React.useEffect(()=>{
+      const el = editorRef.current; if (!el) return;
+      if (lastHtmlRef.current !== value && el.innerHTML !== value){
+        el.innerHTML = value || '';
+        lastHtmlRef.current = value || '';
+      }
+    }, [value]);
+    function focusEditor(){ try{ editorRef.current?.focus(); } catch {}
+    }
+    function exec(cmd: string, arg?: string){
+      focusEditor();
+      try { document.execCommand(cmd, false, arg); } catch {}
+      try { const el = editorRef.current; if (el) onChange(el.innerHTML); } catch {}
+    }
+    function insertTable(rows = 2, cols = 2){
+      const cells = new Array(cols).fill('<td> </td>').join('');
+      const body = new Array(rows).fill(`<tr>${cells}</tr>`).join('');
+      const html = `<table><tbody>${body}</tbody></table>`;
+      exec('insertHTML', html);
+    }
+    return (
+      <div className="panel" style={{ padding: 8 }}>
+        <div className="toolbar" style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('bold')}>B</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('italic')}>I</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('underline')}>U</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('insertUnorderedList')}>• قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('insertOrderedList')}>1. قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={()=> insertTable(2,2)}>إدراج جدول 2×2</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('removeFormat')}>إزالة التنسيق</button>
+        </div>
+        <div
+          ref={editorRef}
+          role="textbox"
+          aria-multiline="true"
+          contentEditable
+          suppressContentEditableWarning
+          onInput={(e)=> onChange((e.currentTarget as HTMLDivElement).innerHTML)}
+          className="input"
+          style={{ minHeight: 160, padding: 10, overflowY:'auto' }}
+        />
+      </div>
+    );
+  }
+
   React.useEffect(()=>{
     try{
       const k = keyForText(paste);
@@ -145,7 +196,8 @@ export default function AdminProductCreate(): JSX.Element {
     try{
       const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
       if (Array.isArray(rows) && rows.length>0) {
-        setDescription(detailsToHtmlTable(rows));
+        const html = detailsToHtmlTable(rows);
+        if (html && html.length) setDescription(html);
       }
     } catch {}
   }, [review?.strictDetails]);
@@ -540,6 +592,18 @@ export default function AdminProductCreate(): JSX.Element {
     return best;
   }
 
+  function dedupePalettes(list: Array<{ url: string; hex: string; name: string }>): Array<{ url: string; hex: string; name: string }>{
+    const seen = new Set<string>();
+    const out: Array<{ url: string; hex: string; name: string }> = [];
+    for (const p of list) {
+      const key = String(p.url||'').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+    }
+    return out;
+  }
+
   function extractKeywords(t: string, productName: string): string[] {
     const stopWords = new Set(['تول','شفاف','ربطة','أكمام','فقط','عمله','بلصدر']);
     const words = String(t||'').split(/\s+/).filter(w => w.length>2 && !stopWords.has(w));
@@ -713,7 +777,7 @@ export default function AdminProductCreate(): JSX.Element {
           }
           if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
           // Auto-apply safe fields: name and purchase price only
-          const autoName = analyzed?.name?.value ? String(analyzed.name.value).slice(0,60) : '';
+          const autoName = analyzed?.name?.value ? String(analyzed.name.value).trim() : '';
           if (autoName) setName(autoName);
         } else { throw new Error('analyze_failed'); }
       } catch {
@@ -771,7 +835,7 @@ export default function AdminProductCreate(): JSX.Element {
         stock: 0,
         keywords: 0.5,
       };
-      const palettes: Array<{url:string;hex:string;name:string}> = [];
+      let palettes: Array<{url:string;hex:string;name:string}> = [];
       const allUrls = allProductImageUrls();
       // Recompute quick palette client-side for mapping visual review
       // Include newly uploaded files too
@@ -785,6 +849,7 @@ export default function AdminProductCreate(): JSX.Element {
         const p = await getImageDominant(url);
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
+        palettes = dedupePalettes(palettes);
         setReview((prev:any)=> ({ ...(prev||extracted), palettes: [...palettes] }));
       }
       const mapping: Record<string, string|undefined> = {};
@@ -851,10 +916,35 @@ export default function AdminProductCreate(): JSX.Element {
         } catch {}
       }
       setReview(reviewObj);
+      setAnalysisDone(true);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
       }
-      setActiveMobileTab('review');
+      // Direct-fill: write results into original fields instead of preview
+      try {
+        const fullNameAnalyze = String(reviewObj.name||'').trim();
+        if (fullNameAnalyze) setName(fullNameAnalyze);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        // Apply into pickers (size type + colors), but DO NOT auto-generate variant rows
+        await applyAnalyzedSizesColors(sList, cList);
+        // Merge palette images into images field
+        try{
+          const palettes = (reviewObj as any).palettes || [];
+          const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+          const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+          const merged = Array.from(new Set([...cur, ...urls]));
+          if (merged.length) setImages(merged.join(', '));
+        }catch{}
+        // Do not generate variant rows automatically; user will click "توليد التباينات المتعددة" بعد اختيار المقاسات والألوان
+      } catch {}
+      setActiveMobileTab('compose');
+      setAnalysisDone(true);
       showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
       setError('فشل التحليل. حاول مجدداً.');
@@ -868,7 +958,9 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1&strict=1`, {
+      // Relax strictness for colors when using DeepSeek preview so colors get populated
+      // Keep deepseekOnly=1 but remove strict=1 to allow general color phrases and broader extraction
+      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
         method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
         body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
       });
@@ -908,15 +1000,18 @@ export default function AdminProductCreate(): JSX.Element {
         },
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
+
+      // DeepSeek-only: no local rule fallbacks; rely solely on DeepSeek output
       // Local image analysis: palettes + color-name mapping
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) {
           const p = await getImageDominant(u);
           const near = nearestColorName(p.hex);
           palettes.push({ url: p.url, hex: p.hex, name: near.name });
         }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) {
@@ -925,11 +1020,46 @@ export default function AdminProductCreate(): JSX.Element {
           mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
         }
         (reviewObj as any).mapping = mapping;
+        // If DeepSeek returned no colors OR only general color phrases, fallback to palette-derived names
+        const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|عة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
+        const noColors = !Array.isArray(reviewObj.colors) || reviewObj.colors.length === 0
+        const generalOnly = Array.isArray(reviewObj.colors) && reviewObj.colors.length>0 && reviewObj.colors.every((c:string)=> generalColorsRe.test(String(c)))
+        if (noColors || generalOnly) {
+          const fromPalettes = Array.from(new Set(palettes.map(pl => pl.name))).slice(0, 3)
+          if (fromPalettes.length) reviewObj.colors = fromPalettes
+        }
       } catch {}
+      // Direct fill
       setReview(reviewObj);
+      setAnalysisDone(true);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
-      showToast('تم تحليل DeepSeek (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      try{
+        // Name: use full DeepSeek-generated name (no truncation)
+        const fullName = String(reviewObj.name||'').trim();
+        if (fullName) setName(fullName);
+        // Description: prefer strictDetails table when available
+        try {
+          const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
+          if (html && html.length) setDescription(html);
+          else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, cList);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        // Do not auto-generate variant rows
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم تحليل DeepSeek وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل تحليل DeepSeek');
       showToast('فشل تحليل DeepSeek', 'err');
@@ -954,7 +1084,7 @@ export default function AdminProductCreate(): JSX.Element {
         .replace(/[\uFFFD]/g,' ')
         .replace(/\s{2,}/g,' ').trim();
       const reviewObj:any = {
-        name: sanitize(String(analyzed?.name?.value||'').slice(0,60)),
+        name: sanitize(String(analyzed?.name?.value||'')),
         longDesc: sanitize(String((analyzed?.description_table?.value||[]).map((r:any)=> `${r.label}: ${r.value}`).join('\n')||'')),
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -975,16 +1105,35 @@ export default function AdminProductCreate(): JSX.Element {
       };
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم التحليل الصارم (نص فقط)', 'ok');
-      setActiveMobileTab('review');
+      setAnalysisDone(true);
+      try{
+        const fullNameRules = String(reviewObj.name||'').trim();
+        if (fullNameRules) setName(fullNameRules);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, cList);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم التحليل الصارم وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل التحليل الصارم');
       showToast('فشل التحليل الصارم', 'err');
@@ -1016,7 +1165,7 @@ export default function AdminProductCreate(): JSX.Element {
         return;
       }
       const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
+        name: String(analyzed?.name?.value||'').trim(),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -1035,16 +1184,36 @@ export default function AdminProductCreate(): JSX.Element {
       };
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم تحليل OpenRouter (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      setAnalysisDone(true);
+      try{
+        const fullNameOR = String(reviewObj.name||'').trim();
+        if (fullNameOR) setName(fullNameOR);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, cList);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        // do not generate variant rows automatically here
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم تحليل OpenRouter وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل تحليل OpenRouter');
       showToast('فشل تحليل OpenRouter', 'err');
@@ -1068,7 +1237,7 @@ export default function AdminProductCreate(): JSX.Element {
       const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
       if (!hasUseful) { setError('لم يتم استخراج أي حقول من GPT'); showToast('تعذر استخراج الحقول من GPT', 'err'); return; }
       const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
+        name: String(analyzed?.name?.value||'').trim(),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -1095,8 +1264,31 @@ export default function AdminProductCreate(): JSX.Element {
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم تحليل GPT (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      setAnalysisDone(true);
+      try{
+        const fullNameGPT = String(reviewObj.name||'').trim();
+        if (fullNameGPT) setName(fullNameGPT);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        const rows: typeof variantRows = [] as any;
+        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
+        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
+        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
+        if (rows.length) setVariantRows(rows as any);
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم تحليل GPT وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch { setError('فشل تحليل GPT'); showToast('فشل تحليل GPT', 'err'); }
     finally { setBusy(false); }
   }
@@ -1128,7 +1320,50 @@ export default function AdminProductCreate(): JSX.Element {
   const [showImagesInput, setShowImagesInput] = React.useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
-  const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
+  const [variantRows, setVariantRows] = React.useState<Array<{
+    name: string;
+    value: string;
+    price?: number;
+    purchasePrice?: number;
+    stockQuantity: number;
+    sku?: string;
+    size?: string;
+    color?: string;
+    option_values?: Array<{ name: string; value: string; label?: string }>;
+  }>>([]);
+  // Derive size-type labels present in variant rows (e.g., "مقاس بالطول", "مقاس بالعرض")
+  const sizeTypeLabels = React.useMemo((): string[] => {
+    const labels: string[] = [];
+    for (const r of variantRows) {
+      const comp = String(r.size||'');
+      if (!comp) continue;
+      const parts = comp.split('|').map(t=> t.trim()).filter(Boolean);
+      for (const p of parts) {
+        const idx = p.indexOf(':');
+        if (idx>0) {
+          const label = p.slice(0, idx).trim();
+          if (label && !labels.includes(label)) labels.push(label);
+        }
+      }
+    }
+    return labels;
+  }, [variantRows]);
+  const parseCompositeSizes = React.useCallback((s?: string): Record<string,string> => {
+    const out: Record<string,string> = {};
+    const raw = String(s||'');
+    if (!raw) return out;
+    for (const part of raw.split('|')) {
+      const t = String(part||'').trim();
+      if (!t) continue;
+      const idx = t.indexOf(':');
+      if (idx>0) {
+        const label = t.slice(0, idx).trim();
+        const val = t.slice(idx+1).trim();
+        if (label) out[label] = val;
+      }
+    }
+    return out;
+  }, []);
   const formRef = React.useRef<HTMLFormElement>(null);
   const [autoFilled, setAutoFilled] = React.useState(false);
 
@@ -1176,6 +1411,124 @@ export default function AdminProductCreate(): JSX.Element {
   }
   function aggregatedSizeList(): string[] {
     return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
+  }
+
+  // Auto-apply analyzed sizes/colors to pickers without generating variants
+  async function applyAnalyzedSizesColors(sizesIn: string[], colorsIn: string[]): Promise<void> {
+    try {
+      const targetSizes = Array.from(new Set((sizesIn||[]).map(s=>String(s||'').trim()).filter(Boolean)));
+      const targetColors = Array.from(new Set((colorsIn||[]).map(c=>String(c||'').trim()).filter(Boolean)));
+      // Ensure we have latest palettes/colors list before matching
+      try {
+        if (!Array.isArray(colorOptions) || colorOptions.length === 0) {
+          const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } });
+          const j = await r.json().catch(()=>({}));
+          setColorOptions(j.colors||[]);
+        }
+      } catch {}
+
+      // Choose the size type that best matches targetSizes
+      if (targetSizes.length && Array.isArray(sizeTypeOptions) && sizeTypeOptions.length) {
+        let best: { id: string; name: string; sizes: Array<{id:string;name:string}>; score: number } | null = null;
+        for (const t of sizeTypeOptions) {
+          const sizes = await loadSizesForType(t.id);
+          const names = sizes.map(s=> String(s.name||'').toLowerCase());
+          const score = targetSizes.reduce((acc, s)=> acc + (names.includes(String(s).toLowerCase()) ? 1 : 0), 0);
+          if (!best || score > best.score) best = { id: t.id, name: t.name, sizes, score };
+        }
+        if (best && best.score > 0) {
+          const chosen = best;
+          const selected = targetSizes.filter(s=> chosen.sizes.some(x=> String(x.name||'').toLowerCase() === String(s).toLowerCase()));
+          setSelectedSizeTypes([ { id: chosen.id, name: chosen.name, sizes: chosen.sizes, selectedSizes: selected } ]);
+        } else {
+          // Create a new size-type and sizes if none matches
+          const typeName = `مخصص: ${targetSizes.slice(0,3).join('/')}`.slice(0,40)
+          try {
+            const rt = await fetch(`${apiBase}/api/admin/attributes/size-types`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name: typeName }) })
+            const tj = await rt.json().catch(()=>({}))
+            if (rt.ok && tj?.type?.id){
+              const newTypeId = tj.type.id as string
+              // create sizes under it
+              for (const s of targetSizes){
+                try {
+                  await fetch(`${apiBase}/api/admin/attributes/size-types/${newTypeId}/sizes`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name: s }) })
+                } catch {}
+              }
+              const sizes = await loadSizesForType(newTypeId)
+              setSelectedSizeTypes([ { id: newTypeId, name: typeName, sizes, selectedSizes: targetSizes } ])
+              // refresh type options
+              try{ const r=await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setSizeTypeOptions(j.types||[]); } catch {}
+            }
+          } catch {}
+        }
+      }
+
+      // Helper: guess hex for common Arabic/English color names
+      const guessHex = (name: string): string => {
+        const t = String(name||'').toLowerCase();
+        const map: Record<string,string> = {
+          'أسود':'#000000','اسود':'#000000','black':'#000000',
+          'أبيض':'#ffffff','ابيض':'#ffffff','white':'#ffffff',
+          'أحمر':'#ff0000','احمر':'#ff0000','red':'#ff0000',
+          'أزرق':'#0000ff','ازرق':'#0000ff','blue':'#0000ff',
+          'أخضر':'#008000','اخضر':'#008000','green':'#008000',
+          'أصفر':'#ffff00','اصفر':'#ffff00','yellow':'#ffff00',
+          'وردي':'#ffc0cb','زهري':'#ffc0cb','pink':'#ffc0cb',
+          'بنفسجي':'#8a2be2','purple':'#800080','violet':'#8a2be2',
+          'برتقالي':'#ffa500','orange':'#ffa500',
+          'بني':'#8b4513','brown':'#8b4513',
+          'رمادي':'#808080','gray':'#808080','grey':'#808080',
+          'كحلي':'#000080','navy':'#000080',
+          'بيج':'#f5f5dc','beige':'#f5f5dc',
+          'ذهبي':'#ffd700','gold':'#ffd700',
+          'فضي':'#c0c0c0','silver':'#c0c0c0'
+        };
+        return map[t] || '#666666';
+      };
+
+      // Map colors to known options and add color cards
+      if (targetColors.length) {
+        const mappedCards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
+        const toCreate: string[] = []
+        for (const c of targetColors) {
+          const match = colorOptions.find(o=> String(o.name||'').toLowerCase() === String(c).toLowerCase());
+          if (match) {
+            mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: match.name, selectedImageIdxs: [] });
+          } else {
+            toCreate.push(c)
+          }
+        }
+        // Create missing colors
+        for (const raw of toCreate){
+          try{
+            const name = String(raw).slice(0,40)
+            const hex = guessHex(name)
+            const rc = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name, hex }) })
+            const cj = await rc.json().catch(()=>({}))
+            if (rc.ok && cj?.color?.name){
+              mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: cj.color.name, selectedImageIdxs: [] })
+            } else {
+              // Fallback: ensure UI select contains this color temporarily
+              setColorOptions(prev => {
+                const exists = (prev||[]).some(o=> String(o.name||'').toLowerCase()===name.toLowerCase());
+                return exists ? prev : [...(prev||[]), { id: `tmp:${name}`, name, hex } as any];
+              });
+              mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: name, selectedImageIdxs: [] })
+            }
+          } catch {}
+        }
+        // refresh colors
+        try{ const r=await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setColorOptions(j.colors||[]); } catch {}
+        if (mappedCards.length) {
+          setColorCards(mappedCards);
+          // Also ensure selectedColors reflect target colors immediately
+          setSelectedColors(Array.from(new Set(mappedCards.map(c=>c.color).filter(Boolean))) as string[])
+        } else if (targetColors.length) {
+          // Last-resort fallback: reflect target colors in selection
+          setSelectedColors(targetColors)
+        }
+      }
+    } catch {}
   }
 
   async function fileToBase64(file: File): Promise<string> {
@@ -1242,21 +1595,39 @@ export default function AdminProductCreate(): JSX.Element {
     setSelectedColors(unique as string[]);
   }, [colorCards]);
 
-  function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> {
+  function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> {
     const priceValue = Number(salePrice || 0);
     const purchaseValue = purchasePrice === '' ? undefined : Number(purchasePrice || 0);
     const stockValue = Number(stockQuantity || 0);
     const activeSizeTypes = selectedSizeTypes.filter(t => t.selectedSizes?.length);
     const colorList = selectedColors;
-    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> = [];
+    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
+    const makeSku = (parts: string[]): string => {
+      const base = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,8) || 'PRD';
+      const tail = parts.map(p=> String(p||'').toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9]+/g,'').slice(0,6)).filter(Boolean).join('-');
+      return [base, tail].filter(Boolean).join('-');
+    };
 
     if (activeSizeTypes.length >= 2 && colorList.length) {
       const [t1, t2] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
         for (const s2 of t2.selectedSizes) {
           for (const c of colorList) {
-            const isPrimary = primaryColorName && c===primaryColorName;
-            rows.push({ name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+            rows.push({
+              name: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
+              value: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
+              price: priceValue,
+              purchasePrice: purchaseValue,
+              stockQuantity: stockValue,
+              sku: makeSku([s1, s2, c]),
+              size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+              color: c,
+              option_values: [
+                { name: 'size', value: `${t1.name}:${s1}` },
+                { name: 'size', value: `${t2.name}:${s2}` },
+                { name: 'color', value: c },
+              ],
+            });
           }
         }
       }
@@ -1267,7 +1638,19 @@ export default function AdminProductCreate(): JSX.Element {
       const [t1, t2] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
         for (const s2 of t2.selectedSizes) {
-          rows.push({ name: `${t1.name}: ${s1}`, value: `${t2.name}: ${s2}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+          rows.push({
+            name: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
+            value: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
+            price: priceValue,
+            purchasePrice: purchaseValue,
+            stockQuantity: stockValue,
+            sku: makeSku([s1, s2]),
+            size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+            option_values: [
+              { name: 'size', value: `${t1.name}:${s1}` },
+              { name: 'size', value: `${t2.name}:${s2}` },
+            ],
+          });
         }
       }
       return rows;
@@ -1277,8 +1660,20 @@ export default function AdminProductCreate(): JSX.Element {
       const [t1] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
         for (const c of colorList) {
-          const isPrimary = primaryColorName && c===primaryColorName;
-          rows.push({ name: `${t1.name}: ${s1}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+          rows.push({
+            name: `${t1.name}: ${s1} • اللون: ${c}`,
+            value: `${t1.name}: ${s1} • اللون: ${c}`,
+            price: priceValue,
+            purchasePrice: purchaseValue,
+            stockQuantity: stockValue,
+            sku: makeSku([s1, c]),
+            size: `${t1.name}:${s1}`,
+            color: c,
+            option_values: [
+              { name: 'size', value: `${t1.name}:${s1}` },
+              { name: 'color', value: c },
+            ],
+          });
         }
       }
       return rows;
@@ -1287,14 +1682,32 @@ export default function AdminProductCreate(): JSX.Element {
     if (activeSizeTypes.length === 1) {
       const [t1] = activeSizeTypes;
       for (const s1 of t1.selectedSizes) {
-        rows.push({ name: `${t1.name}: ${s1}`, value: `${t1.name}: ${s1}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+        rows.push({
+          name: `${t1.name}: ${s1}`,
+          value: `${t1.name}: ${s1}`,
+          price: priceValue,
+          purchasePrice: purchaseValue,
+          stockQuantity: stockValue,
+          sku: makeSku([s1]),
+          size: `${t1.name}:${s1}`,
+          option_values: [{ name: 'size', value: `${t1.name}:${s1}` }],
+        });
       }
       return rows;
     }
 
     if (colorList.length) {
       for (const c of colorList) {
-        rows.push({ name: c, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+        rows.push({
+          name: `اللون: ${c}`,
+          value: `اللون: ${c}`,
+          price: priceValue,
+          purchasePrice: purchaseValue,
+          stockQuantity: stockValue,
+          sku: makeSku([c]),
+          color: c,
+          option_values: [{ name: 'color', value: c }],
+        });
       }
       return rows;
     }
@@ -1309,6 +1722,14 @@ export default function AdminProductCreate(): JSX.Element {
       showToast('أكمل الحقول المطلوبة', 'err');
       return;
     }
+    // Guard: ensure description table (strictDetails) is embedded if available
+    try {
+      const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
+      const html = detailsToHtmlTable(rows);
+      if (html && html.length && (!description || description.indexOf('<table') === -1)) {
+        setDescription(html);
+      }
+    } catch {}
     setBusy(true);
     const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean).filter(u => !u.startsWith('blob:'));
     let uploadedOrBase64: string[] = [];
@@ -1373,13 +1794,25 @@ export default function AdminProductCreate(): JSX.Element {
     const j = await res.json();
     const productId = j?.product?.id;
     if (type === 'variable' && productId) {
+      // Auto-generate variants if user forgot to click "توليد التباينات المتعددة"
       let variants = variantRows;
-      if (!variants?.length) variants = generateVariantRows();
-      if (variants.length) {
+      if (!variants || variants.length === 0) {
+        try { variants = generateVariantRows(); } catch { variants = [] as any; }
+      }
+      if (variants && variants.length) {
+        // Normalize variants to include explicit size/color/option_values for reliable extraction downstream
+        const normalized = variants.map(v => {
+          const sizeToken = v.size || (/size|مقاس/i.test(v.name) ? v.value : undefined);
+          const colorToken = v.color || (!sizeToken ? v.value : undefined);
+          const ov = Array.isArray(v.option_values) ? v.option_values : [];
+          const withSize = sizeToken ? ov.filter(o=>o.name!=='size').concat([{ name:'size', value:String(sizeToken) }]) : ov;
+          const withBoth = colorToken ? withSize.filter(o=>o.name!=='color').concat([{ name:'color', value:String(colorToken) }]) : withSize;
+          return { ...v, size: sizeToken, color: colorToken, option_values: withBoth };
+        });
         try {
           await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
             method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-            body: JSON.stringify({ variants })
+            body: JSON.stringify({ variants: normalized })
           });
         } catch {}
       }
@@ -1409,71 +1842,18 @@ export default function AdminProductCreate(): JSX.Element {
             <input type="checkbox" checked={deepseekOn} onChange={(e)=> setDeepseekOn(e.target.checked)} />
             <span>DeepSeek</span>
           </label>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-            <input type="checkbox" checked={useOpenRouter} onChange={(e)=> setUseOpenRouter(e.target.checked)} />
-            <span>OpenRouter</span>
-          </label>
-          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
-          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
-          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
-          <button type="button" onClick={()=>handleRulesStrictPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل صارم (نص فقط)">{busy? '...' : 'تحليل صارم (بدون اختراع)'}</button>
-          <button type="button" onClick={()=>handleOpenRouterOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر OpenRouter فقط (معاينة)">{busy? '...' : 'تحليل عبر OpenRouter (معاينة)'}</button>
-          <button type="button" onClick={()=>handleGptOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر GPT فقط (معاينة)">{busy? '...' : 'تحليل عبر GPT (معاينة)'}</button>
-          <button type="button" onClick={()=>{
-              if (!review) return;
-              const limitedName = String(review.name||'').slice(0,60);
-              setName(limitedName);
-              setDescription(String(review.longDesc||''));
-              if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
-              if (review.stock!==undefined) setStockQuantity(review.stock);
-              if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
-              if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
-              const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
-              const cList: string[] = Array.isArray(review.colors)? review.colors : [];
-              // Auto-add images from palettes mapping if provided
-              try{
-                const palettes = (review as any).palettes || [];
-                const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
-                const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
-                const merged = Array.from(new Set([...cur, ...urls]));
-                setImages(merged.join(', '));
-              }catch{}
-              const rows: typeof variantRows = [];
-              const baseSale = undefined;
-              const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-              if (sList.length && cList.length) {
-                for (const sz of sList) {
-                  for (const col of cList) {
-                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}-${col}`;
-                    rows.push({ name: sz, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                  }
-                }
-              } else if (sList.length) {
-                for (const sz of sList) {
-                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}`;
-                  rows.push({ name: sz, value: sz, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                }
-              } else if (cList.length) {
-                for (const col of cList) {
-                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${col}`;
-                  rows.push({ name: col, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                }
-              }
-              setVariantRows(rows);
-            }} disabled={busy || !review} className="btn">توليد</button>
-            <button type="button" onClick={()=>{
-              const rows = (review as any)?.strictDetails as Array<{label:string;value:string}> | undefined;
-              const html = detailsToHtmlTable(rows);
-              setDescription(html || (review?.longDesc || ''));
-              showToast('تم توليد جدول التفاصيل داخل الوصف','ok');
-            }} disabled={busy || !review} className="btn btn-outline">توليد جدول التفاصيل للوصف</button>
+          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn">{busy? 'جارِ التحليل...' : 'حلّل واملأ الحقول'}</button>
+          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'حلّل واملأ الحقول (DeepSeek)'}</button>
+          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek محلياً (بدون رفع)">{busy? '...' : 'تحليل عبر DeepSeek (محلي)'} </button>
+          <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
         </>}
       >
         <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
           <div style={{ display:'grid', gap:12 }}>
             <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            {review && (
+            {/* إخفاء واجهة المعاينة (مُعطل بالكامل) */}
+            {false && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -1654,7 +2034,8 @@ export default function AdminProductCreate(): JSX.Element {
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
           </label>
           <label style={{ gridColumn:'1 / -1' }}>الوصف
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="input" />
+            <RichTextEditor value={description} onChange={setDescription} />
+            <small style={{ color:'var(--sub)' }}>يعرض المحرر التنسيق مباشرة (جداول، قوائم، نص منسّق). سيتم حفظ HTML كما هو.</small>
           </label>
           <label>المورّد
             <select value={vendorId} onChange={async (e) => {
@@ -1798,30 +2179,36 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
               <div className="panel" style={{ paddingTop:12 }}>
                 <div className="toolbar" style={{ gap:8 }}>
-                  <button type="button" onClick={() => {
-                    setVariantRows(generateVariantRows());
-                  }} className="btn btn-outline">توليد التباينات المتعددة</button>
+                  <button type="button" onClick={() => { setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
                 </div>
                 {variantRows.length > 0 ? (
                   <div style={{ overflowX:'auto' }}>
             <table className="table" style={{ width:'100%' }}>
                       <thead>
-                        <tr>
-                          <th>المجموعة</th>
-                          <th>القيمة</th>
-                          <th>سعر الشراء</th>
-                          <th>سعر البيع</th>
-                          <th>المخزون</th>
-                          <th>SKU</th>
-                          <th>صورة</th>
-                          <th></th>
-                        </tr>
+                <tr>
+                  {sizeTypeLabels.map(lbl=> (<th key={lbl}>{lbl}</th>))}
+                  <th>اللون</th>
+                  <th>سعر الشراء</th>
+                  <th>سعر البيع</th>
+                  <th>المخزون</th>
+                  <th>SKU</th>
+                  <th>صورة</th>
+                  <th>المجموعة (قراءة فقط)</th>
+                  <th></th>
+                </tr>
                       </thead>
                       <tbody>
-                        {variantRows.map((row, idx) => (
+                        {variantRows.map((row, idx) => {
+                          const parts = parseCompositeSizes(row.size);
+                          return (
                           <tr key={idx}>
-                            <td>{row.name}</td>
-                            <td>{row.value}</td>
+                            {sizeTypeLabels.map((lbl)=> (<td key={lbl}><input value={parts[lbl]||''} onChange={(e)=>{
+                              const next = { ...parts, [lbl]: e.target.value };
+                              const comp = Object.entries(next).filter(([k,v])=> (k&&v)).map(([k,v])=> `${k}:${v}`).join('|');
+                              setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, size: comp, option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='size'), ...(comp? [{ name:'size', value: comp }]:[]) ] }: r));
+                            }} className="input" />
+                            </td>))}
+                            <td><input value={row.color||''} onChange={(e)=> setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, color: (e.target.value||undefined), option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='color'), ...(e.target.value? [{ name:'color', value: e.target.value }]:[]) ] }: r))} className="input" /></td>
                             <td>
                               <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
@@ -1847,19 +2234,21 @@ export default function AdminProductCreate(): JSX.Element {
                               }} className="input" />
                             </td>
                             <td>
-                              <select value={(()=>{ const mapped = (review?.mapping||{})[row.value]; return mapped || ''; })()} onChange={(e)=>{
+                              <select value={(()=>{ const key = (row.color || row.value || '').toString(); const mapped = (review?.mapping||{})[key]; return mapped || ''; })()} onChange={(e)=>{
                                 const url = e.target.value || undefined;
-                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [row.value]: url }}));
+                                const key = (row.color || row.value || '').toString();
+                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [key]: url }}));
                               }} className="select">
                                 <option value="">(بدون)</option>
                                 {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
                               </select>
                             </td>
+                            <td style={{ minWidth:280, color:'#6b7280' }}>{[...sizeTypeLabels.map(lbl=> parts[lbl]||'—'), (row.color||'—')].join(' • ')}</td>
                             <td>
                               <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
                             </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
@@ -1871,85 +2260,7 @@ export default function AdminProductCreate(): JSX.Element {
           )}
         </div>
 
-        {/* Right column: media only; move preview/SEO to bottom */}
-        <div style={{ gridColumn: 'span 4', display:'grid', gap:12, alignSelf:'start' }}>
-          <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div>صور المنتج</div>
-              <button type="button" className="btn btn-outline" onClick={()=> setShowImagesInput(s=>!s)}>{showImagesInput? 'إخفاء الروابط' : 'إضافة/تحرير الروابط'}</button>
-              </div>
-            {(() => {
-              const list = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
-              if (!list.length) return <div style={{ color:'var(--sub)', marginTop:6 }}>لا توجد صور حالية</div>;
-              return (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginTop:8 }}>
-                  {list.map((u, idx) => (
-                    <div key={idx} className="panel" style={{ padding:0 }}>
-                      <img src={u} alt={String(idx)} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                      <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <a href={u} target="_blank" rel="noreferrer" className="btn btn-outline">فتح</a>
-                        <button type="button" className="icon-btn" onClick={()=>{
-                          const next = list.filter((_,i)=> i!==idx);
-                          setImages(next.join(', '));
-                        }}>إزالة</button>
-                </div>
-              </div>
-                  ))}
-              </div>
-              );
-            })()}
-            {showImagesInput && (
-              <label style={{ display:'block', marginTop:8 }}>الصور (روابط مفصولة بفواصل)
-            <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
-          </label>
-            )}
-          </div>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const dropped = Array.from(e.dataTransfer.files || []);
-              if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
-            }}
-            className="dropzone"
-            style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
-          >
-            اسحب وأفلت الصور هنا أو
-            <br />
-            <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
-              اختر من جهازك
-              <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
-                const selected = Array.from(e.target.files || []);
-                if (selected.length) setFiles((prev) => [...prev, ...selected]);
-              }} />
-            </label>
-            <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
-          </div>
-          {files.length > 0 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-              {files.map((f, idx) => (
-                <div key={idx} className="panel" style={{ padding:0 }}>
-                  <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                  <div style={{ padding:8, textAlign:'right' }}>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {files.length > 0 && (
-            <button type="button" onClick={() => {
-              const fileNames = files.map(f => f.name);
-              const current = (images || '').split(',').map(s=>s.trim()).filter(Boolean);
-              const next = Array.from(new Set([...current, ...fileNames]));
-              setImages(next.join(', '));
-            }} className="btn btn-outline">إضافة الملفات إلى قائمة الصور</button>
-          )}
-
-          {/* removed duplicate side variants panel */}
-        </div>
+        {/* Right column product images panel removed as requested */}
 
         {/* Moved preview + SEO + draft to bottom for unobstructed view */}
         <div className="panel" style={{ gridColumn:'1 / -1', marginTop: 8, padding:12 }}>
@@ -1973,7 +2284,7 @@ export default function AdminProductCreate(): JSX.Element {
           </div>
           <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
           <div style={{ display:'flex', gap:8, marginTop:8, justifyContent:'flex-end' }}>
-          <button type="submit" className="btn">حفظ المنتج</button>
+            <button type="submit" className="btn">حفظ المنتج</button>
             <a href="/products" className="btn btn-outline">رجوع</a>
           </div>
         </div>
