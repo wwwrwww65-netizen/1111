@@ -6931,14 +6931,53 @@ adminRest.patch('/products/:id', async (req, res) => {
             const ovRaw = Array.isArray((v as any).option_values) ? (v as any).option_values : undefined;
             const sizeVal = (v as any).size ? String((v as any).size) : undefined;
             const colorVal = (v as any).color ? String((v as any).color) : undefined;
+            // Preserve existing meta when missing in payload (avoid losing color on edit)
+            let prevSize: string | undefined;
+            let prevColor: string | undefined;
+            let prevOV: Array<{ name: string; value: string }> | undefined;
+            if ((v as any).id) {
+              try {
+                const old = await db.productVariant.findUnique({ where: { id: String((v as any).id) }, select: { name: true, value: true } });
+                const parseMeta = (raw?: string) => {
+                  try {
+                    if (!raw) return;
+                    if (!(raw.startsWith('{') || raw.startsWith('['))) return;
+                    const j = JSON.parse(raw);
+                    if (!Array.isArray(j)) {
+                      prevSize = prevSize || (j as any).size;
+                      prevColor = prevColor || (j as any).color;
+                      if (Array.isArray((j as any).option_values)) prevOV = ((j as any).option_values as any[]).map((o:any)=> ({ name: String(o?.name||o?.key||'').trim(), value: String(o?.value||o?.val||o?.label||'').trim() })).filter(o=> o.name && o.value);
+                    }
+                  } catch {}
+                };
+                parseMeta(old?.value||undefined);
+                parseMeta(old?.name||undefined);
+              } catch {}
+            }
             const labelParts: string[] = [];
-            if (sizeVal && sizeVal.includes('|')) {
-              for (const part of sizeVal.split('|')) { if (part) labelParts.push(part.replace(':', ': ')); }
-            } else if (sizeVal) { labelParts.push(`المقاس: ${sizeVal}`); }
-            if (colorVal) labelParts.push(`اللون: ${colorVal}`);
+            const sizeEff = sizeVal || prevSize;
+            const colorEff = colorVal || prevColor;
+            if (sizeEff && sizeEff.includes('|')) {
+              for (const part of sizeEff.split('|')) { if (part) labelParts.push(part.replace(':', ': ')); }
+            } else if (sizeEff) { labelParts.push(`المقاس: ${sizeEff}`); }
+            if (colorEff) labelParts.push(`اللون: ${colorEff}`);
             const label = labelParts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
             base.name = label;
-            base.value = JSON.stringify({ label, size: sizeVal, color: colorVal, option_values: ovRaw });
+            // Normalize option_values
+            let finalOV = ovRaw && Array.isArray(ovRaw) ? ovRaw : prevOV;
+            if (!finalOV) {
+              const gen: Array<{ name: string; value: string }> = [];
+              if (sizeEff) {
+                if (sizeEff.includes('|')) {
+                  for (const part of sizeEff.split('|')) { const [k, val] = part.split(':', 2); if (k && val) gen.push({ name: 'size', value: `${k}:${val}` }); }
+                } else {
+                  gen.push({ name: 'size', value: sizeEff });
+                }
+              }
+              if (colorEff) gen.push({ name: 'color', value: colorEff });
+              finalOV = gen.length ? gen : undefined;
+            }
+            base.value = JSON.stringify({ label, size: sizeEff, color: colorEff, option_values: finalOV });
           } catch {
             base.name = String((v as any).name || 'Variant').slice(0, 120);
             base.value = String((v as any).value || '-').slice(0, 240);
