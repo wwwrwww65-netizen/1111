@@ -6781,6 +6781,59 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     return res.status(500).json({ error: e?.message || 'variants_upsert_failed' });
   }
 });
+
+// Replace all variants for a product atomically
+adminRest.put('/products/:id/variants/replace', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const rows: Array<any> = Array.isArray(req.body?.variants) ? req.body.variants : [];
+    const p = await db.product.findUnique({ where: { id }, select: { id: true } });
+    if (!p) return res.status(404).json({ error: 'product_not_found' });
+    await db.$transaction(async (tx) => {
+      await tx.productVariant.deleteMany({ where: { productId: id } });
+      for (const v of rows) {
+        const price = (v as any).price ?? (v as any).salePrice ?? null;
+        const stock = Number.isFinite((v as any).stock as any) ? Number((v as any).stock) : 0;
+        const sizeRaw = String((v as any).size || '').trim();
+        const colorRaw = String((v as any).color || '').trim();
+        const parts: string[] = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (val) parts.push(`${k}: ${val}`); }
+          } else {
+            parts.push(`المقاس: ${sizeRaw}`);
+          }
+        }
+        if (colorRaw) parts.push(`اللون: ${colorRaw}`);
+        const label = parts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+        const option_values: Array<{ name: string; value: string }> = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (k && val) option_values.push({ name: 'size', value: `${k}:${val}` }); }
+          } else {
+            option_values.push({ name: 'size', value: sizeRaw });
+          }
+        }
+        if (colorRaw) option_values.push({ name: 'color', value: colorRaw });
+        await tx.productVariant.create({
+          data: {
+            productId: id,
+            name: label,
+            value: JSON.stringify({ label, size: sizeRaw || undefined, color: colorRaw || undefined, option_values: option_values.length ? option_values : undefined }),
+            price: price != null ? Number(price) : null,
+            purchasePrice: (v as any).purchasePrice != null ? Number((v as any).purchasePrice) : null,
+            sku: (v as any).sku || null,
+            stockQuantity: stock,
+          },
+        });
+      }
+    });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'variants_replace_failed' });
+  }
+});
 adminRest.patch('/products/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
