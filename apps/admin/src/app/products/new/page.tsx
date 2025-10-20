@@ -1599,7 +1599,16 @@ export default function AdminProductCreate(): JSX.Element {
     const priceValue = Number(salePrice || 0);
     const purchaseValue = purchasePrice === '' ? undefined : Number(purchasePrice || 0);
     const stockValue = Number(stockQuantity || 0);
-    const activeSizeTypes = selectedSizeTypes.filter(t => t.selectedSizes?.length);
+    // Resolve sizes for each selected size-type: if none explicitly selected, use ALL sizes under that type
+    const resolvedSizeTypes = selectedSizeTypes
+      .map(t => {
+        const explicit = Array.isArray(t.selectedSizes) ? t.selectedSizes.filter(Boolean) : [] as string[];
+        const all = Array.isArray(t.sizes) ? t.sizes.map(s => String((s as any)?.name || '').trim()).filter(Boolean) : [] as string[];
+        const effective = explicit.length ? explicit : all;
+        return { ...t, effectiveSizes: Array.from(new Set(effective)) };
+      })
+      .filter(t => t.effectiveSizes.length);
+    const activeSizeTypes = resolvedSizeTypes;
     const colorList = selectedColors;
     const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
     const makeSku = (parts: string[]): string => {
@@ -1610,8 +1619,8 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (activeSizeTypes.length >= 2 && colorList.length) {
       const [t1, t2] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
-        for (const s2 of t2.selectedSizes) {
+      for (const s1 of t1.effectiveSizes) {
+        for (const s2 of t2.effectiveSizes) {
           for (const c of colorList) {
             rows.push({
               name: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
@@ -1636,8 +1645,8 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (activeSizeTypes.length >= 2) {
       const [t1, t2] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
-        for (const s2 of t2.selectedSizes) {
+      for (const s1 of t1.effectiveSizes) {
+        for (const s2 of t2.effectiveSizes) {
           rows.push({
             name: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
             value: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
@@ -1658,7 +1667,7 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (activeSizeTypes.length === 1 && colorList.length) {
       const [t1] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
+      for (const s1 of t1.effectiveSizes) {
         for (const c of colorList) {
           rows.push({
             name: `${t1.name}: ${s1} • اللون: ${c}`,
@@ -1681,7 +1690,7 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (activeSizeTypes.length === 1) {
       const [t1] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
+      for (const s1 of t1.effectiveSizes) {
         rows.push({
           name: `${t1.name}: ${s1}`,
           value: `${t1.name}: ${s1}`,
@@ -1710,38 +1719,6 @@ export default function AdminProductCreate(): JSX.Element {
         });
       }
       return rows;
-    }
-
-    // New: if user selected colors + exactly one size-type, AND also اختار النوع الثاني من قائمة النوع (selectedSizeTypes يحتوي نوعين لكن أحدهما بلا selectedSizes
-    // نلتقط قيم النوع الآخر من جدول النوع مباشرة لتوليد المصفوفة الكاملة
-    if (colorList.length && activeSizeTypes.length === 1 && selectedSizeTypes.length >= 2) {
-      const [t1] = activeSizeTypes; // النوع الذي لديه selectedSizes
-      const t2 = selectedSizeTypes.find(t => t.id !== t1.id);
-      if (t2 && Array.isArray(t2.sizes) && t2.sizes.length) {
-        const s2All = t2.sizes.map((x:any)=> String(x?.name||'').trim()).filter(Boolean);
-        for (const s1 of t1.selectedSizes) {
-          for (const s2 of s2All) {
-            for (const c of colorList) {
-              rows.push({
-                name: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
-                value: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
-                price: priceValue,
-                purchasePrice: purchaseValue,
-                stockQuantity: stockValue,
-                sku: makeSku([s1, s2, c]),
-                size: `${t1.name}:${s1}|${t2.name}:${s2}`,
-                color: c,
-                option_values: [
-                  { name: 'size', value: `${t1.name}:${s1}` },
-                  { name: 'size', value: `${t2.name}:${s2}` },
-                  { name: 'color', value: c },
-                ],
-              });
-            }
-          }
-        }
-        return rows;
-      }
     }
 
     return rows;
