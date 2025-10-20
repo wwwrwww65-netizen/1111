@@ -101,8 +101,21 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
       if (!sizeGroups.has(label)) sizeGroups.set(label, new Set());
       sizeGroups.get(label)!.add(only);
     }
-    for (const t of tokens){ if (looksSizeToken(t) && !isColorWord(t)) { if (!sizeGroups.has('المقاس')) sizeGroups.set('المقاس', new Set()); sizeGroups.get('المقاس')!.add(t); } }
+    // As a last-resort fallback, only add generic 'المقاس' tokens when we still have no structured size groups
+    if (sizeGroups.size === 0) {
+      for (const t of tokens) {
+        if (looksSizeToken(t) && !isColorWord(t)) {
+          if (!sizeGroups.has('المقاس')) sizeGroups.set('المقاس', new Set());
+          sizeGroups.get('المقاس')!.add(t);
+        }
+      }
+    }
   }
+
+  // Prepare final size groups for rendering: if we have labeled groups, hide the generic 'المقاس' row
+  const sizeEntriesAll = Array.from(sizeGroups.entries());
+  const hasLabeledSizes = sizeEntriesAll.some(([label]) => label !== 'المقاس');
+  const sizeEntries = hasLabeledSizes ? sizeEntriesAll.filter(([label]) => label !== 'المقاس') : sizeEntriesAll;
 
   return (
     <main className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
@@ -169,7 +182,7 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
                 </div>
               )}
               {/* Multiple size-type selectors (skip duplicate of the simple sizeOptions block) */}
-              {Array.from(sizeGroups.entries()).map(([label, set]) => (
+              {sizeEntries.map(([label, set]) => (
                 <div key={label} className="mb-4">
                   <div className="text-sm text-gray-600 mb-2">{label}</div>
                   <div className="flex flex-wrap gap-2">
