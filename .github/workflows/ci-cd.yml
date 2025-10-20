@@ -48,16 +48,11 @@ jobs:
         run: pnpm -w turbo run typecheck || true
       - name: Build
         run: pnpm build
-      - name: MWeb tests (Playwright preview)
-        if: ${{ github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') || github.ref_name == 'main' || startsWith(github.ref, 'refs/heads/main') }}
+      # Disabled mweb Playwright UI tests per request (API not started in this job; causing false negatives)
+      - name: MWeb tests (Playwright preview) — disabled
+        if: false
         working-directory: apps/mweb
-        run: |
-          pnpm i --no-frozen-lockfile
-          npx playwright install --with-deps chromium
-          pnpm build
-          pnpm preview &
-          npx -y wait-on http://localhost:3002
-          npx playwright test
+        run: echo "mweb playwright tests are disabled in CI"
       - name: Unit tests
         run: pnpm test || true
       - name: Admin analyze → direct fill → variants smoke
