@@ -173,15 +173,20 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
                 <div key={label} className="mb-4">
                   <div className="text-sm text-gray-600 mb-2">{label}</div>
                   <div className="flex flex-wrap gap-2">
-                    {Array.from(set).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setSelectedSizes(prev => ({ ...prev, [label]: prev[label]===s ? '' : s }))}
-                        className={`px-3 py-1.5 border rounded ${selectedSizes[label]===s? 'border-black bg-black text-white':'bg-white'}`}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                    {Array.from(set).map((raw) => {
+                      const parts = String(raw||'').split('|').map(x=>x.trim()).filter(Boolean);
+                      const pick = parts.find(x=> looksSizeToken(x) && !isColorWord(x)) || parts[0] || String(raw||'');
+                      const s = pick;
+                      return (
+                        <button
+                          key={String(raw)}
+                          onClick={() => setSelectedSizes(prev => ({ ...prev, [label]: prev[label]===s ? '' : s }))}
+                          className={`px-3 py-1.5 border rounded ${selectedSizes[label]===s? 'border-black bg-black text-white':'bg-white'}`}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

@@ -1413,9 +1413,22 @@ async function loadNormalizedVariants(){
     }
     colorVariants.value = (colVals.length? colVals : ['—']).map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
     if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
-    // Size groups
+    // Size groups (sanitize values: split pipes/labels and keep only real size tokens)
     const groups = attrs.filter(a=> a.key==='size')
-    sizeGroups.value = groups.map(g=> ({ label: g.label || 'المقاس', values: Array.from(new Set(g.values||[])) }))
+    const sanitizeSizeVal = (val: string): string => {
+      const parts = String(val||'').split('|').map(s=> s.trim()).filter(Boolean)
+      const candidates: string[] = []
+      for (const p of parts){
+        if (p.includes(':')) { const seg = p.split(':',2)[1]?.trim(); if (seg) candidates.push(seg) }
+        candidates.push(p)
+      }
+      const pick = candidates.find(x=> looksSizeToken(x) && !isColorWord(x)) || candidates[0] || String(val||'')
+      return pick
+    }
+    sizeGroups.value = groups.map(g=> ({
+      label: g.label || 'المقاس',
+      values: Array.from(new Set((g.values||[]).map(v=> sanitizeSizeVal(String(v))))),
+    }))
     if (sizeGroups.value.length){
       const init: Record<string,string> = {}
       for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
