@@ -6666,7 +6666,7 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
 adminRest.get('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
-  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } } } });
+  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } }, colors: { include: { images: true } } } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
   // Derive sizes/colors summary for admin convenience
   try {
@@ -6723,7 +6723,8 @@ adminRest.get('/products/:id', async (req, res) => {
       if (meta.color && isColor(meta.color)) colors.add(meta.color);
       variantsOut.push(Object.assign({}, v, { size: meta.size, color: meta.color, option_values: meta.option_values || undefined }));
     }
-    return res.json({ product: Object.assign({}, p, { variants: variantsOut, sizes: Array.from(sizes), colors: Array.from(colors) }) });
+    const colorGalleries = (p as any).colors?.map((c:any)=> ({ name:c.name, primaryImageUrl:c.primaryImageUrl||undefined, isPrimary:!!c.isPrimary, order:c.order||0, images:(c.images||[]).map((x:any)=> x.url).filter(Boolean) })) || [];
+    return res.json({ product: Object.assign({}, p, { variants: variantsOut, sizes: Array.from(sizes), colors: Array.from(colors), colorGalleries }) });
   } catch {
     return res.json({ product: p });
   }
