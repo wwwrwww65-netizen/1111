@@ -1721,6 +1721,12 @@ export default function AdminProductCreate(): JSX.Element {
     } catch {}
   }
 
+  // Derived mapping used for UI previews (table thumbnails)
+  const mergedColorMapping = React.useMemo<Record<string, string | undefined>>(() => {
+    try { return { ...(review?.mapping||{}), ...buildColorMappingFromCards() }; } catch { return (review as any)?.mapping || {}; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(colorCards), JSON.stringify((review as any)?.mapping||{})]);
+
   React.useEffect(()=>{
     const unique = Array.from(new Set(colorCards.map(c => (c.color||'')).filter(Boolean)));
     setSelectedColors(unique as string[]);
@@ -2418,7 +2424,7 @@ export default function AdminProductCreate(): JSX.Element {
                                 })()}
                                 {(() => {
                                   const key = (row.color || row.value || '').toString();
-                                  const current = (review?.mapping||{})[key] || (mergedMapping as any)?.[key] || '';
+                                  const current = (mergedColorMapping||{})[key] || '';
                                   const paletteUrls = (review?.palettes||[]).map((p:any)=> p?.url).filter(Boolean);
                                   return (
                                     <ImageDropdown
