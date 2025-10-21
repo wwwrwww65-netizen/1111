@@ -6980,27 +6980,6 @@ adminRest.patch('/products/:id', async (req, res) => {
                       if (Array.isArray((j as any).option_values)) prevOV = ((j as any).option_values as any[]).map((o:any)=> ({ name: String(o?.name||o?.key||'').trim(), value: String(o?.value||o?.val||o?.label||'').trim() })).filter(o=> o.name && o.value);
                     }
                   } catch {}
-  // Upsert product colors (primary + gallery) if provided
-  try {
-    const colorsIn: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = Array.isArray((req.body||{}).colors) ? (req.body as any).colors : [];
-    if (colorsIn.length) {
-      await db.productColor.deleteMany({ where: { productId: id } });
-      for (let i=0;i<colorsIn.length;i++){
-        const c = colorsIn[i] || {} as any;
-        const created = await db.productColor.create({ data: {
-          productId: id,
-          name: String(c.name||'').trim(),
-          primaryImageUrl: c.primaryImageUrl ? String(c.primaryImageUrl) : null,
-          isPrimary: !!c.isPrimary,
-          order: Number.isFinite(c.order as any) ? Number(c.order) : i,
-        }});
-        const imgs: string[] = Array.isArray(c.images) ? c.images.filter((u:string)=> !!u) : [];
-        for (let j=0;j<imgs.length;j++){
-          await db.productColorImage.create({ data: { productColorId: created.id, url: imgs[j], order: j } });
-        }
-      }
-    }
-  } catch {}
                 };
                 parseMeta(old?.value||undefined);
                 parseMeta(old?.name||undefined);
@@ -7039,6 +7018,27 @@ adminRest.patch('/products/:id', async (req, res) => {
             await db.productVariant.update({ where: { id: String((v as any).id) }, data: base });
           } else {
             await db.productVariant.create({ data: base });
+          }
+        }
+      }
+    } catch {}
+    // Upsert product colors (primary + gallery) if provided
+    try {
+      const colorsIn: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = Array.isArray((req.body||{}).colors) ? (req.body as any).colors : [];
+      if (colorsIn.length) {
+        await db.productColor.deleteMany({ where: { productId: id } });
+        for (let i=0;i<colorsIn.length;i++){
+          const c = colorsIn[i] || {} as any;
+          const created = await db.productColor.create({ data: {
+            productId: id,
+            name: String(c.name||'').trim(),
+            primaryImageUrl: c.primaryImageUrl ? String(c.primaryImageUrl) : null,
+            isPrimary: !!c.isPrimary,
+            order: Number.isFinite(c.order as any) ? Number(c.order) : i,
+          }});
+          const imgs: string[] = Array.isArray(c.images) ? c.images.filter((u:string)=> !!u) : [];
+          for (let j=0;j<imgs.length;j++){
+            await db.productColorImage.create({ data: { productColorId: created.id, url: imgs[j], order: j } });
           }
         }
       }
