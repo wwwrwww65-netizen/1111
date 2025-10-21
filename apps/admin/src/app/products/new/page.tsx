@@ -189,6 +189,26 @@ export default function AdminProductCreate(): JSX.Element {
               if (candidate) mapping[String(c)] = candidate;
             }
           } catch {}
+          // Prefer server-provided colorGalleries when available to restore primary + gallery
+          try {
+            const galleries = Array.isArray((p as any).colorGalleries) ? (p as any).colorGalleries : [];
+            for (const g of galleries) {
+              if (g?.name && g?.primaryImageUrl) mapping[String(g.name)] = String(g.primaryImageUrl);
+            }
+            const primary = galleries.find((g:any)=> !!g?.isPrimary);
+            if (primary?.name) setPrimaryColorName(String(primary.name));
+            // Rebuild color cards from galleries when present
+            if (galleries.length) {
+              const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+              const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
+              const cards = galleries.map((g:any)=> {
+                const idx = g?.primaryImageUrl ? urlIndex(String(g.primaryImageUrl)) : -1;
+                const selIdxs = Array.isArray(g?.images) ? g.images.map((u:string)=> urlIndex(u)).filter((i:number)=> i>=0) : [];
+                return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: g?.name, selectedImageIdxs: Array.from(new Set(selIdxs)), primaryImageIdx: idx>=0? idx : undefined };
+              });
+              if (cards.length) setColorCards(cards);
+            }
+          } catch {}
           setReview({
             name: p.name,
             description: p.description,
