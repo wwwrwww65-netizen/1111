@@ -136,6 +136,38 @@ export default function AdminProductCreate(): JSX.Element {
     return `<table><thead><tr><th>البند</th><th>القيمة</th></tr></thead><tbody>${body}</tbody></table>`;
   }
 
+  // Lightweight image dropdown with thumbnails (custom select)
+  function ImageDropdown({ value, options, onChange, placeholder = '(بدون)' }: { value?: string; options: string[]; onChange: (v: string | undefined) => void; placeholder?: string }){
+    const [open, setOpen] = React.useState(false);
+    const ref = React.useRef<HTMLDivElement|null>(null);
+    React.useEffect(()=>{
+      function onDoc(e: MouseEvent){ if (!ref.current) return; if (!ref.current.contains(e.target as Node)) setOpen(false); }
+      document.addEventListener('mousedown', onDoc);
+      return ()=> document.removeEventListener('mousedown', onDoc);
+    },[]);
+    const list = Array.from(new Set(options.filter(Boolean)));
+    return (
+      <div ref={ref} style={{ position:'relative' }}>
+        <button type="button" className="btn btn-outline" onClick={()=> setOpen(v=>!v)} style={{ minHeight:32, padding:'0 8px', display:'inline-flex', alignItems:'center', gap:8 }}>
+          {value ? (<img src={value} alt="" className="thumb" style={{ width:24, height:24 }} />) : (<span style={{ color:'var(--sub)', fontSize:12 }}>{placeholder}</span>)}
+          <span style={{ fontSize:12 }}>اختر صورة</span>
+        </button>
+        {open && (
+          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:20, padding:8, width:260 }}>
+            <div className="item" role="button" onClick={()=> { onChange(undefined); setOpen(false); }} style={{ padding:6, cursor:'pointer', color:'var(--sub)' }}>{placeholder}</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+              {list.map((u, i)=> (
+                <button type="button" key={i} className="btn ghost" onClick={()=> { onChange(u); setOpen(false); }} style={{ padding:0, borderRadius:8 }}>
+                  <img src={u} alt={String(i)} style={{ width:'100%', height:72, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }){
     const editorRef = React.useRef<HTMLDivElement|null>(null);
     const lastHtmlRef = React.useRef<string>('');
@@ -269,11 +301,61 @@ export default function AdminProductCreate(): JSX.Element {
     try { return new Intl.NumberFormat('en-US').format(Number(val)); } catch { return String(val); }
   }
 
+  // Robust localized number parser for UI inputs (supports Arabic digits and separators)
+  function parseLocalizedNumber(raw: string): number | undefined {
+    try {
+      const toLatin = (s: string) => s
+        // Arabic-Indic digits → Latin
+        .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
+        .replace(/[\u06F0-\u06F9]/g, (d) => String((d as any).charCodeAt(0) - 0x06F0));
+      const s0 = toLatin(String(raw || '')).trim();
+      if (!s0) return undefined;
+      // Normalize thousands and decimal separators
+      // U+066C ARABIC THOUSANDS SEPARATOR, U+066B ARABIC DECIMAL SEPARATOR
+      let s = s0.replace(/[٬,\s]/g, ''); // drop thousands + spaces
+      s = s.replace(/[٫]/g, '.');
+      // If multiple dots, keep last as decimal point
+      const parts = s.split('.');
+      if (parts.length > 2) s = parts.slice(0, -1).join('') + '.' + parts[parts.length - 1];
+      const n = Number(s);
+      return Number.isFinite(n) ? n : undefined;
+    } catch { return undefined; }
+  }
+
   const mergeUniqueFiles = React.useCallback((prev: File[], incoming: File[]): File[] => {
     const map = new Map<string, File>();
     const put = (f: File) => { map.set(`${f.name}__${f.size}__${(f as any).lastModified||0}`, f); };
     prev.forEach(put); incoming.forEach(put);
     return Array.from(map.values());
+  }, []);
+
+  // Stable object URLs for local files to prevent duplicates and flicker
+  const fileUrlMapRef = React.useRef<Map<string, string>>(new Map());
+  const [fileUrls, setFileUrls] = React.useState<string[]>([]);
+  const fileKey = (f: File) => `${f.name}__${f.size}__${(f as any).lastModified||0}`;
+
+  React.useEffect(() => {
+    const map = fileUrlMapRef.current;
+    const wantKeys = new Set(files.map(fileKey));
+    // Revoke removed
+    for (const [k, url] of Array.from(map.entries())) {
+      if (!wantKeys.has(k)) { try { URL.revokeObjectURL(url); } catch {} map.delete(k); }
+    }
+    // Create missing and keep order
+    for (const f of files) {
+      const k = fileKey(f);
+      if (!map.has(k)) map.set(k, URL.createObjectURL(f));
+    }
+    setFileUrls(files.map(f => fileUrlMapRef.current.get(fileKey(f))!).filter(Boolean));
+  }, [files]);
+
+  React.useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      const map = fileUrlMapRef.current;
+      for (const url of map.values()) { try { URL.revokeObjectURL(url); } catch {} }
+      map.clear();
+    };
   }, []);
 
   function generateStrictName(clean: string): string {
@@ -1609,9 +1691,34 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   function allProductImageUrls(): string[] {
-    const urlFiles = files.map(f => URL.createObjectURL(f));
+    // Use stable object URLs to avoid duplicates/flicker; merge with explicit URLs field
     const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
-    return Array.from(new Set([...urlStrings, ...urlFiles]));
+    return Array.from(new Set([...
+      urlStrings,
+      ...fileUrls
+    ]));
+  }
+
+  // Build color→image mapping from selected color cards
+  function buildColorMappingFromCards(): Record<string, string | undefined> {
+    const urls = allProductImageUrls();
+    const map: Record<string, string | undefined> = {};
+    for (const card of colorCards) {
+      const cname = String(card.color || '').trim(); if (!cname) continue;
+      const primary = (typeof card.primaryImageIdx === 'number' && card.selectedImageIdxs.includes(card.primaryImageIdx))
+        ? card.primaryImageIdx
+        : (card.selectedImageIdxs[0] ?? undefined);
+      const url = (primary !== undefined) ? urls[primary] : undefined;
+      if (url) map[cname] = url;
+    }
+    return map;
+  }
+
+  function applyColorMappingFromCards() {
+    try {
+      const fromCards = buildColorMappingFromCards();
+      setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), ...fromCards } }));
+    } catch {}
   }
 
   React.useEffect(()=>{
@@ -1635,6 +1742,18 @@ export default function AdminProductCreate(): JSX.Element {
     const activeSizeTypes = resolvedSizeTypes;
     const colorList = selectedColors;
     const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
+    // Build color→image mapping from colorCards selections, falling back to review.mapping
+    const urls = allProductImageUrls();
+    const selectedMapping: Record<string, string | undefined> = {};
+    for (const card of colorCards) {
+      const cname = String(card.color || '').trim(); if (!cname) continue;
+      const pickIdx = (typeof card.primaryImageIdx === 'number' && card.selectedImageIdxs.includes(card.primaryImageIdx))
+        ? card.primaryImageIdx
+        : (card.selectedImageIdxs[0] ?? undefined);
+      const url = (pickIdx !== undefined) ? urls[pickIdx] : undefined;
+      if (url) selectedMapping[cname] = url;
+    }
+    const mergedMapping: Record<string,string|undefined> = { ...(review?.mapping||{}), ...selectedMapping };
     const makeSku = (parts: string[]): string => {
       const base = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,8) || 'PRD';
       const tail = parts.map(p=> String(p||'').toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9]+/g,'').slice(0,6)).filter(Boolean).join('-');
@@ -1887,7 +2006,7 @@ export default function AdminProductCreate(): JSX.Element {
           <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
         </>}
       >
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
           <div style={{ display:'grid', gap:12 }}>
             <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
@@ -2039,7 +2158,7 @@ export default function AdminProductCreate(): JSX.Element {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
                 {files.map((f, idx) => (
                   <div key={idx} className="panel" style={{ padding:0 }}>
-                    <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                    <img src={fileUrls[idx]} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
                     <div style={{ padding:8, textAlign:'right' }}>
                     <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
                     </div>
@@ -2225,13 +2344,13 @@ export default function AdminProductCreate(): JSX.Element {
                   </div>
                 </div>
               </div>
-              <div className="panel" style={{ paddingTop:12 }}>
+              <div className="panel" style={{ paddingTop:12, gridColumn:'1 / -1' }}>
                 <div className="toolbar" style={{ gap:8 }}>
-                  <button type="button" onClick={() => { setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
+                  <button type="button" onClick={() => { applyColorMappingFromCards(); setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
                 </div>
                 {variantRows.length > 0 ? (
-                  <div style={{ overflowX:'auto' }}>
-            <table className="table" style={{ width:'100%' }}>
+                  <div className="table-wrapper">
+            <table className="table">
                       <thead>
                 <tr>
                   {sizeTypeLabels.map(lbl=> (<th key={lbl}>{lbl}</th>))}
@@ -2246,7 +2365,7 @@ export default function AdminProductCreate(): JSX.Element {
                 </tr>
                       </thead>
                       <tbody>
-                        {variantRows.map((row, idx) => {
+                {variantRows.map((row, idx) => {
                           const parts = parseCompositeSizes(row.size);
                           return (
                           <tr key={idx}>
@@ -2282,16 +2401,40 @@ export default function AdminProductCreate(): JSX.Element {
                               }} className="input" />
                             </td>
                             <td>
-                              <select value={(()=>{ const key = (row.color || row.value || '').toString(); const mapped = (review?.mapping||{})[key]; return mapped || ''; })()} onChange={(e)=>{
-                                const url = e.target.value || undefined;
-                                const key = (row.color || row.value || '').toString();
-                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [key]: url }}));
-                              }} className="select">
-                                <option value="">(بدون)</option>
-                                {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
-                              </select>
+                              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                                {(() => {
+                                  const colorName = (row.color || '').toString();
+                                  const urls = allProductImageUrls();
+                                  const card = colorCards.find(c => (c.color||'') === colorName);
+                                  const thumbs = (card?.selectedImageIdxs||[])
+                                    .slice(0,4)
+                                    .map((i)=> urls[i])
+                                    .filter(Boolean);
+                                  return thumbs.length ? (
+                                    <div style={{ display:'flex', gap:4, flexWrap:'nowrap' }}>
+                                      {thumbs.map((u, i)=> (<img key={i} src={u} alt="thumb" className="thumb" style={{ width:28, height:28 }} />))}
+                                    </div>
+                                  ) : null;
+                                })()}
+                                {(() => {
+                                  const key = (row.color || row.value || '').toString();
+                                  const current = (review?.mapping||{})[key] || (mergedMapping as any)?.[key] || '';
+                                  const paletteUrls = (review?.palettes||[]).map((p:any)=> p?.url).filter(Boolean);
+                                  return (
+                                    <ImageDropdown
+                                      value={current || undefined}
+                                      options={paletteUrls}
+                                      onChange={(url)=> {
+                                        const k = (row.color || row.value || '').toString();
+                                        setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [k]: url }}));
+                                      }}
+                                      placeholder="(بدون)"
+                                    />
+                                  );
+                                })()}
+                              </div>
                             </td>
-                            <td style={{ minWidth:280, color:'#6b7280' }}>{[...sizeTypeLabels.map(lbl=> parts[lbl]||'—'), (row.color||'—')].join(' • ')}</td>
+                            <td style={{ minWidth:280, color:'#6b7280', whiteSpace:'normal' }}>{[...sizeTypeLabels.map(lbl=> parts[lbl]||'—'), (row.color||'—')].join(' • ')}</td>
                             <td>
                               <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
                             </td>
@@ -2301,7 +2444,7 @@ export default function AdminProductCreate(): JSX.Element {
                     </table>
                   </div>
                 ) : (
-                  <div style={{ marginTop:8, color:'var(--sub)' }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات".</div>
+                  <div style={{ marginTop:8, color:'var(--sub)' }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات". سيتم ربط صور اللون المختارة تلقائياً.</div>
                 )}
               </div>
             </>
