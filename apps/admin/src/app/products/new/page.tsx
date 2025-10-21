@@ -1989,7 +1989,7 @@ export default function AdminProductCreate(): JSX.Element {
             price: priceValue,
             purchasePrice: purchaseValue,
             stockQuantity: stockValue,
-            sku: makeSku([s1, s2]),
+            sku: makeSku([t1.name, s1, t2.name, s2]),
             size: `${t1.name}:${s1}|${t2.name}:${s2}`,
             option_values: [
               { name: 'size', value: `${t1.name}:${s1}` },
@@ -2033,7 +2033,7 @@ export default function AdminProductCreate(): JSX.Element {
           price: priceValue,
           purchasePrice: purchaseValue,
           stockQuantity: stockValue,
-          sku: makeSku([s1]),
+            sku: makeSku([t1.name, s1]),
           size: `${t1.name}:${s1}`,
           option_values: [{ name: 'size', value: `${t1.name}:${s1}` }],
         });
@@ -2049,7 +2049,7 @@ export default function AdminProductCreate(): JSX.Element {
           price: priceValue,
           purchasePrice: purchaseValue,
           stockQuantity: stockValue,
-          sku: makeSku([c]),
+          sku: makeSku(['COLOR', c]),
           color: c,
           option_values: [{ name: 'color', value: c }],
         });
@@ -2594,19 +2594,19 @@ export default function AdminProductCreate(): JSX.Element {
                       <input value={row.color||''} onChange={(e)=> setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, color: (e.target.value||undefined), option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='color'), ...(e.target.value? [{ name:'color', value: e.target.value }]:[]) ] }: r))} className="input" />
                     </td>
                             <td>
-                              <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
+                              <input type="text" inputMode="decimal" value={row.purchasePrice ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
                                 setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, purchasePrice: val } : r));
                               }} className="input" />
                             </td>
                             <td>
-                              <input type="number" value={row.price ?? ''} onChange={(e)=>{
+                              <input type="text" inputMode="decimal" value={row.price ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
                                 setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, price: val } : r));
                               }} className="input" />
                             </td>
                             <td>
-                              <input type="number" value={row.stockQuantity} onChange={(e)=>{
+                              <input type="text" inputMode="numeric" value={row.stockQuantity} onChange={(e)=>{
                                 const val = e.target.value === '' ? 0 : Number(e.target.value);
                                 setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, stockQuantity: val } : r));
                               }} className="input" />
@@ -2618,7 +2618,7 @@ export default function AdminProductCreate(): JSX.Element {
                               }} className="input" />
                             </td>
                             <td>
-                              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', position:'relative' }}>
                                 {(() => {
                                   const colorName = (row.color || '').toString();
                                   const urls = allProductImageUrls();
@@ -2634,19 +2634,37 @@ export default function AdminProductCreate(): JSX.Element {
                                   ) : null;
                                 })()}
                                 {(() => {
-                                  const key = (row.color || row.value || '').toString();
-                                  const current = (mergedColorMapping||{})[key] || '';
-                                  const paletteUrls = (review?.palettes||[]).map((p:any)=> p?.url).filter(Boolean);
+                                  // Full thumbnail dropdown with multi-select for product images
+                                  const allUrls = allProductImageUrls();
+                                  const colorName = (row.color || '').toString();
+                                  const cardIdx = colorCards.findIndex(c => (c.color||'') === colorName);
+                                  const selected = cardIdx>=0 ? (colorCards[cardIdx].selectedImageIdxs||[]) : [];
+                                  const [open, setOpen] = [undefined, undefined] as any; // placeholder to satisfy TS-less edit
                                   return (
-                                    <ImageDropdown
-                                      value={current || undefined}
-                                      options={paletteUrls}
-                                      onChange={(url)=> {
-                                        const k = (row.color || row.value || '').toString();
-                                        setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [k]: url }}));
-                                      }}
-                                      placeholder="(بدون)"
-                                    />
+                                    <div style={{ position:'relative' }}>
+                                      <button type="button" className="btn btn-outline" onClick={(e:any)=>{
+                                        const el = (e.currentTarget.nextSibling as HTMLElement); if (el) el.style.display = (el.style.display==='block'?'none':'block');
+                                      }}>اختر صورة</button>
+                                      <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:30, padding:8, width:320, display:'none' }}>
+                                        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+                                          {allUrls.map((u, i)=> (
+                                            <label key={i} style={{ position:'relative', cursor:'pointer' }}>
+                                              <input type="checkbox" checked={selected.includes(i)} onChange={()=>{
+                                                setColorCards(prev => prev.map((c, idx2)=>{
+                                                  if (idx2!==cardIdx) return c;
+                                                  const have = (c.selectedImageIdxs||[]).includes(i);
+                                                  const sel = have ? c.selectedImageIdxs.filter(x=>x!==i) : [...(c.selectedImageIdxs||[]), i];
+                                                  let primaryImageIdx = c.primaryImageIdx;
+                                                  if (primaryImageIdx!==undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
+                                                  return { ...c, selectedImageIdxs: sel, primaryImageIdx };
+                                                }));
+                                              }} style={{ position:'absolute', insetInlineStart:6, top:6 }} />
+                                              <img src={u} alt={String(i)} style={{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} />
+                                            </label>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
                                   );
                                 })()}
                               </div>

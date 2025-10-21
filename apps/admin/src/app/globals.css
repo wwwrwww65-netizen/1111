@@ -263,6 +263,9 @@ select.select option, select.input option { background:#0f1420; color:#e2e8f0; }
 
 .table { width:100%; border-collapse: separate; border-spacing: 0; }
 .table th, .table td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: right; font-size: var(--fz-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table input[type=number]::-webkit-outer-spin-button,
+.table input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.table input[type=number] { -moz-appearance: textfield; }
 .table thead th { position: sticky; top: 0; z-index: 2; background: rgba(255,255,255,0.03); }
 /* Auto-expand content columns */
 .table th:nth-child(n+1), .table td:nth-child(n+1) { max-width: none; }
