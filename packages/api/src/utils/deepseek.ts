@@ -448,6 +448,15 @@ export async function callDeepseekPreviewStrict(opts: {
 - الألوان يجب أن تكون أسماء ألوان صريحة فقط؛ لا تُرجِع عبارات عامة مثل "ألوان متعددة".
 - إذا ذُكر "فري سايز" اجعل sizes: ["فري سايز"] فقط، وضع الوزن ضمن صف في description_table عند وجوده.
 
+- إذا وُجد نوعان من المقاسات ("مقاسات بالأحرف" مثل S/M/L/XL و"مقاسات بالأرقام" مثل 38/40/42):
+  • أدرج المجموعتين معًا في حقل sizes (اتحاد القائمتين).
+  • أضف صفّين منفصلين داخل description_table:
+    - { label: "المقاسات بالأحرف", value: "S، M، L، XL" }
+    - { label: "المقاسات بالأرقام", value: "38، 40، 42" }
+
+- طبّق تطبيعًا للمقاسات X-المتكررة:
+  • XXL → 2XL، XXXL → 3XL، XXXX L → 4XL ... إلخ (حتى 6XL).
+
 6) كلمات SEO (keywords):
 - أنشئ قائمة 8 إلى 12 كلمة/عبارة واقعية ومرتبطة بمواصفات المنتج، دون رموز أو علامات تجارية غير مذكورة.
 
@@ -534,7 +543,41 @@ export async function callDeepseekPreviewStrict(opts: {
         }
       }
     } catch {}
-    // Normalize sizes: if mentions Free Size with weight, keep sizes as ["فري سايز"] and weight goes to table (model should have done this)
+    // Normalize sizes: map XXL/XXXL/... → 2XL/3XL/...; and ensure two size-group rows in table when both exist
+    try {
+      const normalizeXSize = (s: string): string => {
+        const t = String(s || '').toUpperCase().replace(/\s+/g, '')
+        // Already in 2XL/3XL form
+        if (/^[2-9]XL$/.test(t) || /^(XS|S|M|L|XL)$/.test(t)) return t
+        // Convert sequences like XXXXL → 4XL
+        const m = t.match(/^(X{2,})L$/)
+        if (m) {
+          const count = m[1].length - 1 // 'XL' is 1X; 'XXL' → 2XL
+          const n = Math.max(2, Math.min(9, count + 1))
+          return `${n}XL`
+        }
+        return t
+      }
+      if (Array.isArray((out as any).sizes)) {
+        const ns = (out as any).sizes
+          .map((v: any) => String(v || '').trim())
+          .filter((v: string) => !!v)
+          .map(normalizeXSize)
+        ;(out as any).sizes = Array.from(new Set(ns))
+      }
+      // If table exists and sizes include both letter and numeric groups, ensure two rows
+      const sizes: string[] = Array.isArray((out as any).sizes) ? (out as any).sizes : []
+      const letters = sizes.filter(s => /^(XS|S|M|L|XL|[2-9]XL)$/.test(s))
+      const numerics = sizes.filter(s => /^\d{2}$/.test(s))
+      if (Array.isArray((out as any).description_table)) {
+        const tbl = (out as any).description_table as Array<{ label: string; value: string }>
+        const hasLettersRow = tbl.some(r => /المقاسات\s*بالأحرف/i.test(String(r.label)))
+        const hasNumbersRow = tbl.some(r => /المقاسات\s*بالأرقام/i.test(String(r.label)))
+        if (letters.length && !hasLettersRow) tbl.push({ label: 'المقاسات بالأحرف', value: letters.join('، ') })
+        if (numerics.length && !hasNumbersRow) tbl.push({ label: 'المقاسات بالأرقام', value: numerics.join('، ') })
+      }
+    } catch {}
+    // Strict return
     return out
   } catch { return null } finally { clearTimeout(t) }
 }
