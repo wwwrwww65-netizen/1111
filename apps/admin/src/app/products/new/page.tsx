@@ -125,13 +125,20 @@ export default function AdminProductCreate(): JSX.Element {
               // Prebuild color cards from existing colors and images for better edit UX
               try {
                 const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
-                const urlIndex = (u?:string)=> Math.max(0, imgs.findIndex(x=> x===u));
+                const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
                 const cards = (colorNames as string[]).map((c:string)=> {
                   const mapped = (mapping||{})[c];
                   const idx = mapped ? urlIndex(mapped) : -1;
                   return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: [], primaryImageIdx: idx>=0? idx : undefined };
                 });
                 if (cards.length) setColorCards(cards);
+              } catch {}
+              // Restore mapping/cards from tags if present
+              try {
+                const tags: string[] = Array.isArray(p.tags) ? p.tags : [];
+                const parsed = parseColorTagsToState(tags, Array.isArray(p.images)? p.images: []);
+                if (Object.keys(parsed.mapping).length) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), ...parsed.mapping } }));
+                if (parsed.cards.length) setColorCards(parsed.cards);
               } catch {}
               // Reconstruct selected size types and picks from variants
               try {
@@ -1814,6 +1821,73 @@ export default function AdminProductCreate(): JSX.Element {
     } catch {}
   }
 
+  // --- Color tags persistence helpers ---
+  function buildColorTagsFromState(finalImages: string[]): string[] {
+    const tags: string[] = [];
+    // primary product color
+    if (primaryColorName) tags.push(`primaryColor:${primaryColorName}`);
+    // Per-color primary image from review.mapping
+    const map = (review as any)?.mapping || {};
+    for (const [color, url] of Object.entries(map)) {
+      if (color && url) tags.push(`colorPrimaryImage:${color}=${url as string}`);
+    }
+    // Per-color gallery from colorCards selections
+    const urlStringsLen = (images || '').split(',').map(s=>s.trim()).filter(Boolean).length;
+    for (const card of colorCards) {
+      const c = String(card.color||'').trim(); if (!c) continue;
+      const selectedUrls: string[] = [];
+      for (const idx of (card.selectedImageIdxs||[])) {
+        if (idx < urlStringsLen) {
+          const u = finalImages[idx]; if (u) selectedUrls.push(u);
+        } else {
+          const fi = idx - urlStringsLen; const u = finalImages[urlStringsLen + fi]; if (u) selectedUrls.push(u);
+        }
+      }
+      // primary per color: override with exact primary if exists
+      if (typeof card.primaryImageIdx === 'number') {
+        const idx = card.primaryImageIdx;
+        const u = idx < finalImages.length ? finalImages[idx] : undefined;
+        if (u) tags.push(`colorPrimaryImage:${c}=${u}`);
+      }
+      if (selectedUrls.length) tags.push(`colorImages:${c}=${selectedUrls.join('|')}`);
+    }
+    return Array.from(new Set(tags));
+  }
+
+  function parseColorTagsToState(productTags: string[], productImages: string[]): { mapping: Record<string,string|undefined>; cards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> } {
+    const mapping: Record<string, string | undefined> = {};
+    const cardsByColor = new Map<string, { key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }>();
+    const urlIndex = (u?: string) => (u ? productImages.findIndex(x => x === u) : -1);
+    for (const t of (productTags||[])) {
+      const s = String(t||'');
+      if (s.startsWith('primaryColor:')) {
+        const name = s.split(':').slice(1).join(':');
+        if (name) { try { setPrimaryColorName(name); } catch {} }
+      } else if (s.startsWith('colorPrimaryImage:')) {
+        const [k, v] = s.replace('colorPrimaryImage:', '').split('=');
+        const color = String(k||'').trim(); const url = String(v||'').trim();
+        if (color && url) {
+          mapping[color] = url;
+          const idx = urlIndex(url);
+          const card = cardsByColor.get(color) || { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color, selectedImageIdxs: [], primaryImageIdx: undefined };
+          if (idx >= 0) card.primaryImageIdx = idx;
+          cardsByColor.set(color, card);
+        }
+      } else if (s.startsWith('colorImages:')) {
+        const [k, v] = s.replace('colorImages:', '').split('=');
+        const color = String(k||'').trim(); const urls = String(v||'').split('|').map(x=>x.trim()).filter(Boolean);
+        if (color && urls.length) {
+          const card = cardsByColor.get(color) || { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color, selectedImageIdxs: [], primaryImageIdx: undefined };
+          const idxs = urls.map(u => urlIndex(u)).filter(i => i >= 0);
+          card.selectedImageIdxs = Array.from(new Set([...(card.selectedImageIdxs||[]), ...idxs]));
+          cardsByColor.set(color, card);
+        }
+      }
+    }
+    const cards = Array.from(cardsByColor.values());
+    return { mapping, cards };
+  }
+
   // Derived mapping used for UI previews (table thumbnails)
   const mergedColorMapping = React.useMemo<Record<string, string | undefined>>(() => {
     try { return { ...(review?.mapping||{}), ...buildColorMappingFromCards() }; } catch { return (review as any)?.mapping || {}; }
@@ -2017,7 +2091,11 @@ export default function AdminProductCreate(): JSX.Element {
       stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
       brand: brand || undefined,
-      tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
+      tags: (()=>{
+        const base = [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean) as string[];
+        const colorTags = buildColorTagsFromState(baseImages);
+        return Array.from(new Set([...base, ...colorTags]));
+      })(),
       isActive: !draft,
       seoTitle: seoTitle||undefined,
       seoDescription: seoDescription||undefined,
