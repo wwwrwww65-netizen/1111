@@ -4583,10 +4583,6 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
         if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
         if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
-        else {
-          const table = buildDescriptionTableFromText(String(ds.description||text||''));
-          if (table.length) analyzed.description_table = { value: table, source: 'ai' } as any;
-        }
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
@@ -4693,10 +4689,6 @@ adminRest.post('/products/analyze', async (req, res) => {
         // 2) description and table
         if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
         if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
-        else {
-          const table = buildDescriptionTableFromText(String(ds.description||text||''));
-          if (table.length) analyzed.description_table = { value: table, source: 'ai' } as any;
-        }
         // 3) price range or price
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
@@ -4711,7 +4703,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
         // 4) colors
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
-        if (!analyzed.colors) {
+        if (!analyzed.colors && !deepseekOnly) {
           const general = rt.match(/(\b\d+\s*ألوان\b|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)/i)
           if (general) analyzed.colors = { value: [general[1]], source: 'ai' }
         }
