@@ -2097,6 +2097,22 @@ export default function AdminProductCreate(): JSX.Element {
         return Array.from(new Set([...base, ...colorTags]));
       })(),
       isActive: !draft,
+      // Persist color galleries formally for API/DB
+      colors: (()=>{
+        const urls = baseImages;
+        const list: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = [];
+        for (let i=0;i<colorCards.length;i++){
+          const card = colorCards[i];
+          const name = String(card.color||'').trim(); if (!name) continue;
+          const imgs: string[] = [];
+          for (const idx of (card.selectedImageIdxs||[])){ if (urls[idx]) imgs.push(urls[idx]); }
+          const primary = (typeof card.primaryImageIdx==='number' && urls[card.primaryImageIdx]) ? urls[card.primaryImageIdx] : (review?.mapping?.[name]);
+          list.push({ name, primaryImageUrl: primary, isPrimary: primaryColorName===name, order:i, images: imgs.length? imgs: undefined });
+        }
+        // Ensure primaryColor present even if no card yet
+        if (primaryColorName && !list.some(c=> c.name===primaryColorName)) list.push({ name: primaryColorName, isPrimary: true });
+        return list;
+      })(),
       seoTitle: seoTitle||undefined,
       seoDescription: seoDescription||undefined,
     };
