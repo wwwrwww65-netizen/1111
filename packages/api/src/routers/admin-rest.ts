@@ -4508,7 +4508,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
 
         const analyzed: any = {}
-        if (nameValue) analyzed.name = { value: nameValue.slice(0,60), source:'rules', confidence: 0.9 }
+        if (nameValue) analyzed.name = { value: nameValue, source:'rules', confidence: 0.9 }
         if (table.length) analyzed.description_table = { value: table, source:'rules', confidence: 0.9 }
         if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.78 }
         if (finalColors.length) analyzed.colors = { value: finalColors, source:'rules', confidence: 0.7 }
@@ -4610,60 +4610,17 @@ adminRest.post('/products/analyze', async (req, res) => {
         let ds: any = null
         const attempts = 3
         for (let i=1;i<=attempts;i++){
-          // Prefer non-strict preview to allow colors (including general phrases) for admin preview UX
-          try { ds = await callDeepseekPreview({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
-          if (ds) break
-          // Fallback to strict preview for a conservative result
+          // Strict preview only to enforce hard rules (no general color phrases)
           try { ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
           if (ds) break
-          // Last resort: base model (name/desc/price/sizes)
+          // Last resort: base model (AI JSON). Still AI-only, no local synthesis
           try { ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String(text || ''), base: {} }, timeoutMs: 20000 }) as any; } catch {}
           if (ds) break
           await new Promise(r=> setTimeout(r, 700))
         }
         if (!ds) {
-          // DeepSeek unavailable: synthesize minimal analyzed from raw text so CI/UX do not break
-          const analyzed: any = {}
-          const rawText = String(text || '')
-          const toLatinDigits = (s:string)=> s
-            .replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660))
-            .replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0)-0x06F0))
-          const rt = toLatinDigits(rawText)
-          // name
-          const TYPE_RE = /(طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل|جلابية|جلابيه|جلاب|عباية|عبايه)/i
-          const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد)/i
-          const FEAT_RE = /(كم\s*شال|كم\s*كامل|كلوش|امبريلا|مطرز|كريستال|كرستال)/i
-          const type = (rt.match(TYPE_RE)||['',''])[1] || ''
-          const mat = (rt.match(MAT_RE)||['',''])[1] || ''
-          const feat = (rt.match(FEAT_RE)||['',''])[1] || ''
-          const parts = [type, mat, feat].filter(Boolean)
-          if (parts.length) analyzed.name = { value: parts.join(' ').trim().slice(0,60), source: 'ai' }
-          // description
-          const matTxt = mat ? (mat.replace(/\s+/g,' ').trim()) : 'خامة مريحة متقنة'
-          const featTxt = feat ? feat : 'تصميم أنيق وعصري'
-          analyzed.description = { value: `• الخامة: ${matTxt}\n• الصناعة: جودة تصنيع عالية\n• التصميم: ${featTxt}\n• الألوان: \n• المقاسات: \n• الميزات: مريح - عملي - أنيق`, source: 'ai', confidence: 0.8 }
-          // price
-          const pickNum = (m:RegExpMatchArray|null)=> m && m[1] ? Number(String(m[1]).replace(/[٬٫,]/g,'.')) : undefined
-          const oldM = rt.match(/(?:قديم|القديم)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const northM = rt.match(/(?:للشمال|الشمال)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const saleM = rt.match(/(?:سعر\s*البيع|السعر\s*البيع|السعر)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const val = pickNum(oldM) ?? pickNum(northM) ?? pickNum(saleM)
-          if (typeof val === 'number' && Number.isFinite(val)) analyzed.price_range = { value: { low: val, high: val }, source: 'ai' }
-          // colors
-          const general = rt.match(/(\b\d+\s*ألوان\b|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)/i)
-          if (general) analyzed.colors = { value: [general[1]], source: 'ai' }
-          // sizes
-          const sizes: string[] = []
-          const letters = Array.from(rt.matchAll(/\b(XXL|XL|L|M|S|XS)\b/gi)).map(m=> m[1].toUpperCase())
-          sizes.push(...letters)
-          const num = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
-          if (num.length) sizes.push(...Array.from(new Set(num.map(v=> String(v)))))
-          if (sizes.length) analyzed.sizes = { value: Array.from(new Set(sizes)).slice(0,12), source: 'ai' }
-          // keywords
-          const words = rt.toLowerCase().replace(/[^\u0600-\u06FFa-z0-9\s]/g,' ').split(/\s+/).filter(w=> w.length>=3)
-          const uniq = Array.from(new Set(words)).slice(0,6)
-          if (uniq.length) analyzed.keywords = { value: uniq, source: 'ai' }
-          return res.json({ ok: true, analyzed, warnings: [...warnings, 'deepseek_unavailable'], errors: [], meta: { deepseekUsed: false, deepseekAttempted: true } })
+          // DeepSeek unavailable in strict mode: return without local synthesis
+          return res.json({ ok: true, analyzed: {}, warnings: [...warnings, 'deepseek_unavailable'], errors, meta: { deepseekUsed: false, deepseekAttempted: true } })
         }
         // Build analyzed wrapper with ONLY AI-sourced fields (with safe fallback inference from text if missing)
         const analyzed: any = {}
@@ -4672,19 +4629,9 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660))
           .replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0)-0x06F0))
         const rt = toLatinDigits(rawText)
-        // 1) name
+        // 1) name — keep AI only; no local inference
         if (ds.name && String(ds.name).trim()) {
           analyzed.name = { value: String(ds.name), source: 'ai' }
-        } else {
-          // infer minimal name from text tokens (type + material + one feature)
-          const TYPE_RE = /(طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل|جلابية|جلابيه|جلاب|عباية|عبايه)/i
-          const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد)/i
-          const FEAT_RE = /(كم\s*شال|كم\s*كامل|كلوش|امبريلا|مطرز|كريستال|كرستال)/i
-          const type = (rt.match(TYPE_RE)||['',''])[1] || ''
-          const mat = (rt.match(MAT_RE)||['',''])[1] || ''
-          const feat = (rt.match(FEAT_RE)||['',''])[1] || ''
-          const parts = [type, mat, feat].filter(Boolean)
-          if (parts.length) analyzed.name = { value: parts.join(' ').trim().slice(0,60), source: 'ai' }
         }
         // 2) description and table
         if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
@@ -4692,15 +4639,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         // 3) price range or price
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
-        if (!analyzed.price_range) {
-          // prefer old/north price
-          const pickNum = (m:RegExpMatchArray|null)=> m && m[1] ? Number(String(m[1]).replace(/[٬٫,]/g,'.')) : undefined
-          const oldM = rt.match(/(?:قديم|القديم)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const northM = rt.match(/(?:للشمال|الشمال)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const saleM = rt.match(/(?:سعر\s*البيع|السعر\s*البيع|السعر)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const val = pickNum(oldM) ?? pickNum(northM) ?? pickNum(saleM)
-          if (typeof val === 'number' && Number.isFinite(val)) analyzed.price_range = { value: { low: val, high: val }, source: 'ai' }
-        }
+        // 3) price: if AI didn't return, leave absent in deepseekOnly mode
         // 4) colors
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
         if (!analyzed.colors && !deepseekOnly) {
@@ -4709,24 +4648,9 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
         // 5) sizes
         if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
-        if (!analyzed.sizes) {
-          const sizes: string[] = []
-          // letter sizes
-          const letters = Array.from(rt.matchAll(/\b(XXL|XL|L|M|S|XS)\b/gi)).map(m=> m[1].toUpperCase())
-          sizes.push(...letters)
-          // numeric sizes range 20-60 (apparel)
-          const num = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
-          if (num.length) sizes.push(...Array.from(new Set(num.map(v=> String(v)))))
-          if (sizes.length) analyzed.sizes = { value: Array.from(new Set(sizes)).slice(0,12), source: 'ai' }
-        }
         // 6) keywords/tags
-        if (Array.isArray(ds.keywords)) analyzed.keywords = { value: ds.keywords.slice(0, 6), source: 'ai' }
-        if (!analyzed.keywords && Array.isArray(ds.tags)) analyzed.keywords = { value: (ds.tags as string[]).slice(0,6), source: 'ai' }
-        if (!analyzed.keywords) {
-          const words = rt.toLowerCase().replace(/[^\u0600-\u06FFa-z0-9\s]/g,' ').split(/\s+/).filter(w=> w.length>=3)
-          const uniq = Array.from(new Set(words)).slice(0,6)
-          if (uniq.length) analyzed.keywords = { value: uniq, source: 'ai' }
-        }
+        if (Array.isArray(ds.keywords)) analyzed.keywords = { value: ds.keywords.slice(0, 12), source: 'ai' }
+        if (!analyzed.keywords && Array.isArray(ds.tags)) analyzed.keywords = { value: (ds.tags as string[]).slice(0,12), source: 'ai' }
         // Save teaching example
         try { await saveAnalyzeTeachExample(String(text||''), analyzed).catch(()=>{}); } catch {}
         return res.json({ ok: true, analyzed, warnings, errors, meta: { deepseekUsed: true, deepseekAttempted: true } })
@@ -5005,7 +4929,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 if (/كرستال|كريستال/i.test(raw) && baseType!=='لانجري') attrs.push('بالكريستال')
                 if (/(مناسب\s*للمناسبات|سهرة)/i.test(raw) && baseType==='فستان') attrs.unshift('سهرة')
                 // removed auto-adding "طقم" to avoid forcing set naming
-                const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim().slice(0,60)
+                const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim()
                 // Compose description (بدون تكرار الاسم/مرادفاته وبدون ألوان/مقاسات/أسعار)
                 const hasChiffon = /شيفون/i.test(raw)
                 const hasLining = /(مبطن|بطانة)/i.test(raw)
@@ -5086,7 +5010,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           if (/شفاف/i.test(raw)) feats.push('شفاف')
           if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
           const synthesized = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
-          if (wordCount(synthesized) >= 4) { out.name = synthesized.slice(0,60); (sources as any).name = { source:'ai', confidence: 0.85 } }
+          if (wordCount(synthesized) >= 4) { out.name = synthesized; (sources as any).name = { source:'ai', confidence: 0.85 } }
         }
       }
     } catch {}
@@ -5281,7 +5205,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (/(نمري|نمر)/i.test(raw)) feats.push('نمري')
         if (/(\b4\s*قطع|أربع\s*قطع|٤\s*قطع)/i.test(raw)) feats.push('٤ قطع')
         const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
-        if (wc(enriched) >= 4) { out.name = enriched.slice(0,60); (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
+        if (wc(enriched) >= 4) { out.name = enriched; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
       }
     } catch {}
     // Attach per-field reasons if missing

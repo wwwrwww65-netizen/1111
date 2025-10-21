@@ -978,8 +978,7 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      // Relax strictness for colors when using DeepSeek preview so colors get populated
-      // Keep deepseekOnly=1 but remove strict=1 to allow general color phrases and broader extraction
+      // Strict DeepSeek-only: rely strictly on AI output (no local general color phrases)
       const controller = new AbortController();
       const timeoutMs = 25000;
       const to = setTimeout(()=> controller.abort(), timeoutMs);
@@ -1061,7 +1060,7 @@ export default function AdminProductCreate(): JSX.Element {
       // Name: DeepSeek-only؛ استخدم الاسم كما هو دون استكمال محلي
       const dsName = String(reviewObj.name||'').trim();
       if (dsName) setName(dsName);
-      // Description: DeepSeek-only يحدد الوصف؛ إن توافر strictDetails من DeepSeek نعرضه، وإلا نستخدم longDesc كما أعاده DeepSeek.
+      // Description: DeepSeek-only — table only if AI returned description_table; otherwise use AI longDesc as-is
       try {
         const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
         if (html && html.length) setDescription(html); else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
