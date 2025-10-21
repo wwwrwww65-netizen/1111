@@ -264,6 +264,18 @@ export default function AdminProductCreate(): JSX.Element {
     return s;
   }
 
+  function formatThousands(val: number | ''): string {
+    if (val === '' || val == null) return '';
+    try { return new Intl.NumberFormat('en-US').format(Number(val)); } catch { return String(val); }
+  }
+
+  const mergeUniqueFiles = React.useCallback((prev: File[], incoming: File[]): File[] => {
+    const map = new Map<string, File>();
+    const put = (f: File) => { map.set(`${f.name}__${f.size}__${(f as any).lastModified||0}`, f); };
+    prev.forEach(put); incoming.forEach(put);
+    return Array.from(map.values());
+  }, []);
+
   function generateStrictName(clean: string): string {
     // Reuse makeSeoName baseline then enforce 8–12 words, avoid marketing
     const base = makeSeoName(clean, '')
@@ -1599,7 +1611,7 @@ export default function AdminProductCreate(): JSX.Element {
   function allProductImageUrls(): string[] {
     const urlFiles = files.map(f => URL.createObjectURL(f));
     const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
-    return [...urlStrings, ...urlFiles];
+    return Array.from(new Set([...urlStrings, ...urlFiles]));
   }
 
   React.useEffect(()=>{
@@ -1610,7 +1622,7 @@ export default function AdminProductCreate(): JSX.Element {
   function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> {
     const priceValue = Number(salePrice || 0);
     const purchaseValue = purchasePrice === '' ? undefined : Number(purchasePrice || 0);
-    const stockValue = Number(stockQuantity || 0);
+    const stockValue = (stockQuantity === '' ? 999999 : Number(stockQuantity || 0));
     // Resolve sizes for each selected size-type: if none explicitly selected, use ALL sizes under that type
     const resolvedSizeTypes = selectedSizeTypes
       .map(t => {
@@ -1784,7 +1796,7 @@ export default function AdminProductCreate(): JSX.Element {
       images: baseImages,
       categoryId,
       vendorId: vendorId || null,
-      stockQuantity: Number(stockQuantity || 0),
+      stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
       brand: brand || undefined,
       tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
@@ -2007,7 +2019,7 @@ export default function AdminProductCreate(): JSX.Element {
                 e.preventDefault();
                 setDragOver(false);
                 const dropped = Array.from(e.dataTransfer.files || []);
-                if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
+                if (dropped.length) setFiles((prev) => mergeUniqueFiles(prev, dropped));
               }}
               className="dropzone"
             style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
@@ -2018,7 +2030,7 @@ export default function AdminProductCreate(): JSX.Element {
                 اختر من جهازك
                 <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
                   const selected = Array.from(e.target.files || []);
-                  if (selected.length) setFiles((prev) => [...prev, ...selected]);
+                  if (selected.length) setFiles((prev) => mergeUniqueFiles(prev, selected));
                 }} />
               </label>
               <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
@@ -2090,13 +2102,22 @@ export default function AdminProductCreate(): JSX.Element {
             </select>
           </label>
           <label>المخزون
-            <input type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value === '' ? '' : Number(e.target.value))} className="input" />
+            <input type="text" inputMode="numeric" value={formatThousands(stockQuantity)} onChange={(e) => {
+              const v = parseLocalizedNumber(e.target.value);
+              setStockQuantity(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (stockQuantity||'')));
+            }} className="input" />
           </label>
           <label>سعر الشراء
-            <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))} className="input" />
+            <input type="text" inputMode="decimal" value={formatThousands(purchasePrice)} onChange={(e) => {
+              const v = parseLocalizedNumber(e.target.value);
+              setPurchasePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (purchasePrice||'')));
+            }} className="input" />
           </label>
           <label>سعر البيع
-            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))} required className="input" />
+            <input type="text" inputMode="decimal" value={formatThousands(salePrice)} onChange={(e) => {
+              const v = parseLocalizedNumber(e.target.value);
+              setSalePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (salePrice||'')));
+            }} required className="input" />
           </label>
           {type === 'variable' && (
             <>
