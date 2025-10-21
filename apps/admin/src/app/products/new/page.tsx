@@ -76,20 +76,62 @@ export default function AdminProductCreate(): JSX.Element {
           if (Array.isArray(p.variants) && p.variants.length) {
             setType('variable');
             try {
-              const rows = (p.variants||[]).map((v:any)=> ({
-                name: (v.color && v.size) ? 'لون/مقاس' : (v.color ? 'لون' : (v.size ? 'مقاس' : 'متغير')),
-                value: [v.color, v.size].filter(Boolean).join(' / '),
-                price: typeof v.price==='number' ? v.price : undefined,
-                purchasePrice: typeof v.purchasePrice==='number' ? v.purchasePrice : undefined,
-                stockQuantity: typeof v.stock==='number' ? v.stock : (typeof v.stockQuantity==='number' ? v.stockQuantity : 0),
-                sku: v.sku || undefined,
-              }));
+              const rows = (p.variants||[]).map((v:any)=> {
+                // Derive size token string: prefer explicit v.size; otherwise build from option_values
+                let sizeToken: string | undefined = undefined;
+                const rawSize = (typeof v.size === 'string' ? v.size : undefined) || undefined;
+                if (rawSize) {
+                  sizeToken = String(rawSize);
+                } else if (Array.isArray(v.option_values)) {
+                  const sizeParts = (v.option_values as any[])
+                    .filter((o:any)=> String(o?.name||'').toLowerCase()==='size')
+                    .map((o:any)=> String(o?.value||'').trim())
+                    .filter(Boolean);
+                  if (sizeParts.length) {
+                    // If parts already contain label:value, keep; else prefix with a generic label
+                    const normalized = sizeParts.map((part:string)=> part.includes(':') ? part : `المقاس: ${part}`);
+                    sizeToken = normalized.join('|');
+                  }
+                }
+                // Derive color value: prefer v.color; else from option_values
+                const colorVal = v.color || (Array.isArray(v.option_values)
+                  ? ((v.option_values as any[]).find((o:any)=> String(o?.name||'').toLowerCase()==='color')?.value)
+                  : undefined);
+                return {
+                  name: (colorVal && sizeToken) ? 'لون/مقاس' : (colorVal ? 'لون' : (sizeToken ? 'مقاس' : 'متغير')),
+                  value: [colorVal, sizeToken].filter(Boolean).join(' / '),
+                  price: typeof v.price==='number' ? v.price : undefined,
+                  purchasePrice: typeof v.purchasePrice==='number' ? v.purchasePrice : undefined,
+                  stockQuantity: typeof v.stock==='number' ? v.stock : (typeof v.stockQuantity==='number' ? v.stockQuantity : 0),
+                  sku: v.sku || undefined,
+                  size: sizeToken,
+                  color: colorVal || undefined,
+                  option_values: Array.isArray(v.option_values) ? v.option_values : undefined,
+                };
+              });
               setVariantRows(rows);
               const colorNames = Array.from(new Set((p.variants||[]).map((x:any)=> x.color).filter(Boolean)));
               if (colorNames.length) setSelectedColors(colorNames as string[]);
+              // Prebuild color cards from existing colors and images for better edit UX
+              try {
+                const imgCount = Array.isArray(p.images) ? p.images.filter(Boolean).length : 0;
+                const defSel = imgCount>0 ? Array.from({length: Math.min(imgCount, imgCount)}, (_,i)=> i) : [];
+                const cards = (colorNames as string[]).map((c:string)=> ({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: defSel, primaryImageIdx: defSel.length? 0 : undefined }));
+                if (cards.length) setColorCards(cards);
+              } catch {}
             } catch {}
           }
-          // Keep review in sync for any dependent UI
+          // Keep review in sync for any dependent UI (with safe mapping)
+          const mapping: Record<string,string|undefined> = {};
+          try {
+            // If product has a primary image per color (e.g., from previous generation), attempt a heuristic mapping
+            const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+            const colorsList: string[] = Array.from(new Set((p.variants||[]).map((x:any)=> x.color).filter(Boolean)));
+            for (const c of colorsList) {
+              const candidate = imgs.find(u => u.toLowerCase().includes(String(c||'').toLowerCase()));
+              if (candidate) mapping[String(c)] = candidate;
+            }
+          } catch {}
           setReview({
             name: p.name,
             description: p.description,
@@ -103,6 +145,7 @@ export default function AdminProductCreate(): JSX.Element {
             tags: Array.isArray(p.tags)? p.tags : [],
             variants: Array.isArray(p.variants)? p.variants : [],
             isActive: !!p.isActive,
+            mapping,
           });
         }
       } finally { setLoadingExisting(false); }
@@ -2381,7 +2424,9 @@ export default function AdminProductCreate(): JSX.Element {
                               setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, size: comp, option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='size'), ...(comp? [{ name:'size', value: comp }]:[]) ] }: r));
                             }} className="input" />
                             </td>))}
-                            <td><input value={row.color||''} onChange={(e)=> setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, color: (e.target.value||undefined), option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='color'), ...(e.target.value? [{ name:'color', value: e.target.value }]:[]) ] }: r))} className="input" /></td>
+                    <td>
+                      <input value={row.color||''} onChange={(e)=> setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, color: (e.target.value||undefined), option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='color'), ...(e.target.value? [{ name:'color', value: e.target.value }]:[]) ] }: r))} className="input" />
+                    </td>
                             <td>
                               <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
