@@ -6731,13 +6731,33 @@ adminRest.get('/products/:id', async (req, res) => {
 });
 adminRest.post('/products', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.create'))) return res.status(403).json({ error:'forbidden' });
-  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId } = req.body || {};
+  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId, colors } = req.body || {};
   // Fallback: if categoryId missing, pick any existing category to satisfy FK
   let nextCategoryId = categoryId;
   if (!nextCategoryId) {
     try { const any = await db.category.findFirst({ select: { id: true } }); nextCategoryId = any?.id || undefined; } catch {}
   }
   const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId: nextCategoryId as any, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
+  // Optionally persist colors (primary + gallery) for the new product
+  try {
+    const colorsIn: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = Array.isArray(colors) ? colors : [];
+    if (colorsIn.length) {
+      for (let i=0;i<colorsIn.length;i++){
+        const c = colorsIn[i] || {} as any;
+        const created = await db.productColor.create({ data: {
+          productId: p.id,
+          name: String(c.name||'').trim(),
+          primaryImageUrl: c.primaryImageUrl ? String(c.primaryImageUrl) : null,
+          isPrimary: !!c.isPrimary,
+          order: Number.isFinite(c.order as any) ? Number(c.order) : i,
+        }});
+        const imgs: string[] = Array.isArray(c.images) ? c.images.filter((u:string)=> !!u) : [];
+        for (let j=0;j<imgs.length;j++){
+          await db.productColorImage.create({ data: { productColorId: created.id, url: imgs[j], order: j } });
+        }
+      }
+    }
+  } catch {}
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
