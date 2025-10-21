@@ -1,4 +1,4 @@
-# 🛒 E-commerce Platform Monorepo 
+# 🛒 E-commerce Platform Monorepo  
 
 Monorepo for a full‑stack e‑commerce platform (Web, Admin, API, Mobile) using Next.js 14, tRPC, Prisma, PostgreSQL, and Turborepo.
 
