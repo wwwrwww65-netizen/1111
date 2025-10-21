@@ -73,6 +73,16 @@ export default function AdminProductCreate(): JSX.Element {
           setSeoTitle(String(p.seoTitle||''));
           setSeoDescription(String(p.seoDescription||''));
           setDraft(!Boolean(p.isActive));
+          // Restore purchase price from tags or variants if available
+          try {
+            const tag = (Array.isArray(p.tags)? p.tags: []).find((t:any)=> String(t||'').startsWith('purchase:'));
+            const val = tag ? Number(String(tag).split(':')[1]||'') : undefined;
+            if (Number.isFinite(val as any) && (val as any) > 0) setPurchasePrice(val as any);
+            else {
+              const v0 = (Array.isArray(p.variants)? p.variants: []).map((v:any)=> Number(v?.purchasePrice)).find((n)=> Number.isFinite(n) && n>0);
+              if (Number.isFinite(v0)) setPurchasePrice(v0 as any);
+            }
+          } catch {}
           if (Array.isArray(p.variants) && p.variants.length) {
             setType('variable');
             try {
@@ -114,10 +124,50 @@ export default function AdminProductCreate(): JSX.Element {
               if (colorNames.length) setSelectedColors(colorNames as string[]);
               // Prebuild color cards from existing colors and images for better edit UX
               try {
-                const imgCount = Array.isArray(p.images) ? p.images.filter(Boolean).length : 0;
-                const defSel = imgCount>0 ? Array.from({length: Math.min(imgCount, imgCount)}, (_,i)=> i) : [];
-                const cards = (colorNames as string[]).map((c:string)=> ({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: defSel, primaryImageIdx: defSel.length? 0 : undefined }));
+                const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+                const urlIndex = (u?:string)=> Math.max(0, imgs.findIndex(x=> x===u));
+                const cards = (colorNames as string[]).map((c:string)=> {
+                  const mapped = (mapping||{})[c];
+                  const idx = mapped ? urlIndex(mapped) : -1;
+                  return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: [], primaryImageIdx: idx>=0? idx : undefined };
+                });
                 if (cards.length) setColorCards(cards);
+              } catch {}
+              // Reconstruct selected size types and picks from variants
+              try {
+                const sizeMap = new Map<string, Set<string>>();
+                for (const v of (p.variants||[])) {
+                  const token: string | undefined = typeof v.size==='string' && v.size ? v.size : (Array.isArray(v.option_values)? (v.option_values as any[]).filter((o:any)=> String(o?.name||'').toLowerCase()==='size').map((o:any)=> String(o?.value||'').trim()).filter(Boolean).join('|') : undefined);
+                  const raw = String(token||''); if (!raw) continue;
+                  for (const part of raw.split('|')) {
+                    const t = String(part||'').trim(); if (!t) continue;
+                    const idx = t.indexOf(':');
+                    if (idx>0) {
+                      const label = t.slice(0,idx).trim(); const val = t.slice(idx+1).trim();
+                      if (!label || !val) continue;
+                      if (!sizeMap.has(label)) sizeMap.set(label, new Set<string>());
+                      sizeMap.get(label)!.add(val);
+                    } else {
+                      // No label, fallback under generic label
+                      const label = 'المقاس';
+                      if (!sizeMap.has(label)) sizeMap.set(label, new Set<string>());
+                      sizeMap.get(label)!.add(t);
+                    }
+                  }
+                }
+                // Load size types and sizes to build UI picks
+                const typesRes = await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers: { ...authHeaders() } });
+                const typesJson = await typesRes.json().catch(()=>({types:[]}));
+                const types: Array<{id:string;name:string}> = typesJson.types||[];
+                const picks: Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }>=[];
+                for (const [label, valsSet] of sizeMap.entries()) {
+                  const type = types.find(t=> String(t.name||'')===label);
+                  if (!type) continue;
+                  const sizes = await loadSizesForType(type.id);
+                  const selectedSizes = sizes.filter(s=> valsSet.has(s.name)).map(s=> s.name);
+                  picks.push({ id: type.id, name: type.name, sizes, selectedSizes });
+                }
+                if (picks.length) setSelectedSizeTypes(picks);
               } catch {}
             } catch {}
           }
