@@ -5340,35 +5340,61 @@ async function saveAnalyzeTeachExample(text: string, analyzed: any): Promise<voi
 
 // Build a vertical label/value description table from plain text as a fallback when AI doesn't return one
 function buildDescriptionTableFromText(input: string): Array<{ label: string; value: string }>{
-  const rows: Array<{ label: string; value: string }> = [];
-  const add = (label: string, value?: string) => {
-    const v = String(value || '').trim();
-    if (v) rows.push({ label, value: v });
+  const out: Array<{ label: string; value: string }> = [];
+  const put = (label: string, val?: string) => {
+    const v = String(val || '').trim(); if (!v) return;
+    const existing = out.find(r => r.label === label);
+    if (!existing) out.push({ label, value: v });
+    else if (!existing.value.split(/\s*[،,]\s*/).includes(v)) existing.value += `، ${v}`;
   };
-  const text = String(input || '')
+  const textRaw = String(input || '');
+  const toAscii = (s: string) => s
     .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
-    .replace(/[\*•\-]+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-  // Material
-  const mat = text.match(/(?:الخامة|قماش|fabric)\s*[:\-]?\s*([^\n\.،]+)/i)?.[1]
-    || text.match(/(استرش|قطن|صوف|جلد|لينن|دنيم|denim|cotton|wool|leather)/i)?.[0];
-  // Design/features
-  const design = text.match(/(?:التصميم|design)\s*[:\-]?\s*([^\n\.،]+)/i)?.[1];
-  const features: string[] = [];
-  const FEATS = /(مودرن|حديث|أوروبي|اوروب(?:ي|ي)|رقبة\s*X|سوسته\s*سحاب|حشوه\s*بالصدر|كم\s*كامل|كلوش|امبريلا)/gi;
-  let m: RegExpExecArray | null;
-  while ((m = FEATS.exec(text))) { const v = String(m[0]).trim(); if (v && !features.includes(v)) features.push(v); }
-  // Colors (explicit only; ignore generic phrases)
-  const colorTokens = Array.from(new Set((text.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|بني|بيج|رمادي|وردي|بنفسجي|كحلي)\b/gi) || []).map(s=> s.replace(/^ال/,'').trim())));
-  // Sizes
-  const sizeTokens = Array.from(new Set((text.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=> s.toUpperCase())));
-  // Fill rows
-  add('الخامة', mat);
-  add('التصميم', design || features.join('، '));
-  if (colorTokens.length) add('الألوان', colorTokens.join('، '));
-  if (sizeTokens.length) add('المقاسات', sizeTokens.join(', '));
-  return rows;
+    .replace(/[\u06F0-\u06F9]/g, (d) => String((d as any).charCodeAt(0) - 0x06F0));
+  const preserve = toAscii(textRaw).replace(/[\*•]+/g, '\n');
+  const lines = preserve.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const labelMap: Record<string, 'الخامة'|'الصناعة'|'التصميم'|'الألوان'|'المقاسات'|'الميزات'> = {
+    'الخامة': 'الخامة', 'قماش': 'الخامة', 'fabric': 'الخامة',
+    'الصناعة': 'الصناعة',
+    'التصميم': 'التصميم', 'design': 'التصميم',
+    'الألوان': 'الألوان', 'الوان': 'الألوان', 'colors': 'الألوان',
+    'المقاسات': 'المقاسات', 'sizes': 'المقاسات',
+    'الميزات': 'الميزات', 'features': 'الميزات'
+  } as any;
+  for (const line of lines) {
+    const m = line.match(/^\s*([^:：\-]+)\s*[:：\-]\s*(.+)$/);
+    if (m) {
+      const key = String(m[1]).trim(); const val = String(m[2]).trim();
+      const canonical = labelMap[key as keyof typeof labelMap];
+      if (canonical === 'الألوان') {
+        const generics = /\b(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة)|غير\s*محدد)\b/i;
+        if (!generics.test(val)) put('الألوان', val.replace(/\[|\]|"/g,'').replace(/^ال/,'').trim());
+      } else if (canonical) {
+        put(canonical, val);
+      }
+    }
+  }
+  // If explicit labels missing, infer selectively
+  const text = preserve;
+  if (!out.find(r=> r.label==='الخامة')) {
+    const mat = text.match(/(استرش|قطن|صوف|جلد|لينن|دنيم|denim|cotton|wool|leather)/i)?.[0];
+    put('الخامة', mat);
+  }
+  if (!out.find(r=> r.label==='التصميم')) {
+    const feats: string[] = [];
+    const FEATS = /(مودرن|حديث|أوروبي|اوروب(?:ي|ي)|رقبة\s*X|سوسته\s*سحاب|حشوه\s*بالصدر|كم\s*كامل|كلوش|امبريلا)/gi;
+    let fm: RegExpExecArray | null; while ((fm = FEATS.exec(text))) { const v = String(fm[0]).trim(); if (v && !feats.includes(v)) feats.push(v); }
+    if (feats.length) put('التصميم', feats.join('، '));
+  }
+  if (!out.find(r=> r.label==='الألوان')) {
+    const colors = Array.from(new Set((text.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|بني|بيج|رمادي|وردي|بنفسجي|كحلي)\b/gi) || []).map(s => s.replace(/^ال/,'').trim())));
+    if (colors.length) put('الألوان', colors.join('، '));
+  }
+  if (!out.find(r=> r.label==='المقاسات')) {
+    const sizes = Array.from(new Set((text.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s => s.toUpperCase())));
+    if (sizes.length) put('المقاسات', sizes.join(', '));
+  }
+  return out;
 }
 
 async function findNearestTeachExample(raw: string): Promise<any|null> {
