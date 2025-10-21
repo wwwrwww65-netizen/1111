@@ -2537,13 +2537,15 @@ export default function AdminProductCreate(): JSX.Element {
                   </div>
                 </div>
               </div>
-              <div className="panel" style={{ paddingTop:12, gridColumn:'1 / -1' }}>
-                <div className="toolbar" style={{ gap:8 }}>
-                  <button type="button" onClick={() => { applyColorMappingFromCards(); setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
-                </div>
-                {variantRows.length > 0 ? (
-                  <div className="table-wrapper">
-            <table className="table">
+              {/* Variants Section in its own full-width container */}
+              <div style={{ gridColumn:'1 / -1' }}>
+                <section className="panel" style={{ paddingTop:12, marginInline:-16, borderRadius:0 }}>
+                  <div className="toolbar" style={{ gap:8, paddingInline:16 }}>
+                    <button type="button" onClick={() => { applyColorMappingFromCards(); setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
+                  </div>
+                  {variantRows.length > 0 ? (
+                    <div className="table-wrapper" style={{ width:'100%', maxWidth:'100%', overflowX:'visible', paddingInline:16 }}>
+                      <table className="table" style={{ width:'100%', tableLayout:'auto' }}>
                       <thead>
                 <tr>
                   {sizeTypeLabels.map(lbl=> (<th key={lbl}>{lbl}</th>))}
@@ -2635,12 +2637,13 @@ export default function AdminProductCreate(): JSX.Element {
                             </td>
                           </tr>
                         )})}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div style={{ marginTop:8, color:'var(--sub)' }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات". سيتم ربط صور اللون المختارة تلقائياً.</div>
-                )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop:8, color:'var(--sub)', paddingInline:16 }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات". سيتم ربط صور اللون المختارة تلقائياً.</div>
+                  )}
+                </section>
               </div>
             </>
           )}
