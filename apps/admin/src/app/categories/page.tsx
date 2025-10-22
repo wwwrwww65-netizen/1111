@@ -75,6 +75,13 @@ export default function CategoriesPage(): JSX.Element {
         try { const parsed = JSON.parse(jsonText||'{}'); if (parsed && typeof parsed==='object') translations = parsed; } catch {}
       }
       const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
+      // Persist the media asset when we have a URL or base64 to ensure it appears in Media Library too
+      try {
+        if (finalImage) {
+          const body:any = finalImage.startsWith('data:') ? { base64: finalImage } : { url: finalImage };
+          await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) }).catch(()=>null);
+        }
+      } catch {}
       const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
       const res = await fetch(`/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
@@ -181,6 +188,13 @@ export default function CategoriesPage(): JSX.Element {
       }
       let translations: any = undefined;
       try { const parsed = JSON.parse(String(edit.translations||'{}')); if (parsed && typeof parsed==='object') translations = parsed; } catch {}
+      // Persist the media asset for edit as well
+      try {
+        if (finalImage) {
+          const body:any = finalImage.startsWith('data:') ? { base64: finalImage } : { url: finalImage };
+          await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) }).catch(()=>null);
+        }
+      } catch {}
       const payload: any = {
         name: edit.name,
         description: edit.description,
