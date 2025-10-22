@@ -2676,12 +2676,12 @@ export default function AdminProductCreate(): JSX.Element {
               </div>
               {/* Variants Section in its own full-width container */}
               <div style={{ gridColumn:'1 / -1' }}>
-                <section className="panel" style={{ paddingTop:12, marginInline:-16, borderRadius:0 }}>
+                <section className="panel" style={{ paddingTop:12 }}>
                   <div className="toolbar" style={{ gap:8, paddingInline:16 }}>
                     <button type="button" onClick={() => { applyColorMappingFromCards(); setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
                   </div>
                   {variantRows.length > 0 ? (
-                    <div className="table-wrapper" style={{ width:'100%', maxWidth:'100%', overflowX:'visible', paddingInline:16 }}>
+                    <div className="table-wrapper" style={{ width:'100%', maxWidth:'100%', overflowX:'auto', paddingInline:16 }}>
                       <table className="table" style={{ width:'100%', tableLayout:'auto' }}>
                       <thead>
                 <tr>
