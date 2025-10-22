@@ -66,8 +66,8 @@ export default function CategoriesPage(): JSX.Element {
       let finalImage = image;
       if (finalImage && finalImage.startsWith('data:')) {
         try {
-          const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
-          if (up.ok) { const j = await up.json(); finalImage = j.url || j.secure_url || j.presign?.url || finalImage; }
+          const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
+          if (up.ok) { const j = await up.json(); finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage; }
         } catch {}
       }
       let translations: any = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
@@ -182,8 +182,8 @@ export default function CategoriesPage(): JSX.Element {
       let finalImage = edit.image || '';
       if (finalImage && finalImage.startsWith('data:')) {
         try {
-          const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
-          if (up.ok) { const j = await up.json(); finalImage = j.url || j.secure_url || j.presign?.url || finalImage; }
+          const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
+          if (up.ok) { const j = await up.json(); finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage; }
         } catch {}
       }
       let translations: any = undefined;
@@ -385,10 +385,10 @@ export default function CategoriesPage(): JSX.Element {
                 reader.onload = async ()=> {
                   const data = String(reader.result||'');
                   try {
-                    const resp = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
+                    const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
                     if (resp.ok) {
                       const out = await resp.json();
-                      const url = out.url || out.secure_url || out.presign?.url;
+                      const url = out.asset?.url || out.url || out.secure_url || out.presign?.url;
                       if (url) { setImage(url); showToast('تم رفع الصورة'); } else { setImage(data); showToast('تم التحميل محلياً'); }
                     } else { setImage(data); showToast('تم التحميل محلياً'); }
                   } catch { setImage(data); showToast('تم التحميل محلياً'); }
@@ -408,8 +408,8 @@ export default function CategoriesPage(): JSX.Element {
                   reader.onload = async ()=> {
                     const data = String(reader.result||'');
                     try {
-                      const resp = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
-                      if (resp.ok) { const out = await resp.json(); const url = out.url || out.secure_url || out.presign?.url; setImage(url || data); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
+                      const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
+                      if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setImage(url || data); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                       else { setImage(data); showToast('تم التحميل محلياً'); }
                     } catch { setImage(data); showToast('تم التحميل محلياً'); }
                   };

@@ -2988,7 +2988,8 @@ adminRest.get('/shipments/:id/track', async (req, res) => {
       }
       await optionalVirusScan(buf);
       const { meta, colors } = await extractMetaAndColors(buf, mime);
-      const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
+      const baseFromReq = (()=>{ try{ const proto = (req as any).protocol||'https'; const host = (req as any).get? (req as any).get('host') : process.env.PUBLIC_HOST||''; if (host) return `${proto}://${host}`; }catch{} return String(process.env.PUBLIC_API_BASE||'').replace(/\/$/, '')||''; })();
+      const apiBase = baseFromReq || 'http://localhost';
       const url = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
       await audit(req, 'media', 'upload_local', { file: `${sub1}/${sub2}/${name}`, bytes: buf.length });
       return res.json({ provider:'local', url, meta, dominantColors: colors });
