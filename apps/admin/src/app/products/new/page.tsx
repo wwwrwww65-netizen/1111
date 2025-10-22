@@ -2136,37 +2136,16 @@ export default function AdminProductCreate(): JSX.Element {
       seoTitle: seoTitle||undefined,
       seoDescription: seoDescription||undefined,
     };
-    let res: Response;
-    try {
-      res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
-    } catch (err) {
-      setBusy(false);
-      showToast('تعذر الاتصال بالخادم', 'err');
-      return;
-    }
-    if (!res.ok) {
-      let msg = 'فشل إنشاء المنتج';
-      try {
-        const j = await res.json();
-        if (j?.error) msg = String(j.error);
-        if ((j?.message||'').toLowerCase().includes('unique') || (j?.error||'').toLowerCase().includes('unique')) msg = 'SKU مكرر أو بيانات غير صالحة';
-        if (res.status === 403) msg = 'لا تملك صلاحية إنشاء المنتجات، يرجى تسجيل الدخول';
-      } catch {}
-      setBusy(false);
-      showToast(msg, 'err');
-      return;
-    }
-    const j = await res.json();
-    const productId = j?.product?.id;
-    if (type === 'variable' && productId) {
-      // Auto-generate variants if user forgot to click "توليد التباينات المتعددة"
+    const editId = search?.get('id');
+    // Build normalized variants once for either create or patch
+    let normalizedVariants: any[] = [];
+    if (type === 'variable') {
       let variants = variantRows;
       if (!variants || variants.length === 0) {
         try { variants = generateVariantRows(); } catch { variants = [] as any; }
       }
       if (variants && variants.length) {
-        // Normalize variants to include explicit size/color/option_values for reliable extraction downstream
-        const normalized = variants.map(v => {
+        normalizedVariants = variants.map(v => {
           const sizeToken = v.size ? String(v.size) : undefined;
           const colorToken = v.color ? String(v.color) : undefined;
           const ov = Array.isArray(v.option_values) ? v.option_values : [];
@@ -2180,21 +2159,52 @@ export default function AdminProductCreate(): JSX.Element {
           const withBoth = colorToken ? withSize.filter(o=>o.name!=='color').concat([{ name:'color', value:String(colorToken) }]) : withSize;
           return { ...v, size: sizeToken, color: colorToken, option_values: withBoth };
         });
-        try {
-          await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
-            method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-            body: JSON.stringify({ variants: normalized })
-          });
-        } catch {}
       }
+    }
+
+    let res: Response;
+    try {
+      if (editId) {
+        // PATCH existing product with variants in one request
+        const body = { ...productPayload, ...(normalizedVariants.length? { variants: normalizedVariants } : {}) };
+        res = await fetch(`${apiBase}/api/admin/products/${editId}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
+      } else {
+        res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
+      }
+    } catch (err) {
+      setBusy(false);
+      showToast('تعذر الاتصال بالخادم', 'err');
+      return;
+    }
+    if (!res.ok) {
+      let msg = editId? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج';
+      try {
+        const j = await res.json();
+        if (j?.error) msg = String(j.error);
+        if ((j?.message||'').toLowerCase().includes('unique') || (j?.error||'').toLowerCase().includes('unique')) msg = 'SKU مكرر أو بيانات غير صالحة';
+        if (res.status === 403) msg = 'لا تملك صلاحية العملية، يرجى تسجيل الدخول';
+      } catch {}
+      setBusy(false);
+      showToast(msg, 'err');
+      return;
+    }
+    const j = await res.json().catch(()=>({}));
+    const productId = editId || j?.product?.id;
+    if (!editId && type === 'variable' && productId && normalizedVariants.length) {
+      try {
+        await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
+          method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+          body: JSON.stringify({ variants: normalizedVariants })
+        });
+      } catch {}
     }
     if (uploadedOrBase64.length) {
       setImages(baseImages.join(', '));
       setFiles([]);
     }
     setBusy(false);
-    showToast('تم إنشاء المنتج بنجاح', 'ok');
-    router.push('/products');
+    showToast(editId? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح', 'ok');
+    router.push(editId? `/products/new?id=${productId}` : '/products');
   }
 
   return (
