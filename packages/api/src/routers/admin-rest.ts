@@ -3350,8 +3350,51 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
   let finalUrl = url as string | undefined;
   if (!finalUrl && base64) {
     if (process.env.CLOUDINARY_URL) {
-      const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
-      finalUrl = buildCloudinaryTransform(uploaded.secure_url, 800);
+      // Attempt Cloudinary with a hard timeout; fall back to local on failure/timeout
+      const toMs = (v: string | undefined, d: number) => {
+        const n = Number(v || '');
+        return Number.isFinite(n) && n > 0 ? n : d;
+      };
+      const timeoutMs = toMs(process.env.MEDIA_UPLOAD_TIMEOUT_MS, 8000);
+      try {
+        const uploaded = await Promise.race([
+          cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('cloudinary_timeout')), timeoutMs)),
+        ]) as any;
+        finalUrl = buildCloudinaryTransform(uploaded.secure_url, 800);
+      } catch {
+        // Fallback to local save when Cloudinary is slow or failing
+        try {
+          const fs = require('fs'); const path = require('path'); const crypto = require('crypto');
+          const outDir = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads');
+          fs.mkdirSync(outDir, { recursive: true });
+          const m = String(base64).match(/^data:(.*?);base64,(.*)$/);
+          if (!m) return res.status(400).json({ error:'invalid_base64' });
+          const mime = (m[1] || 'application/octet-stream').toLowerCase();
+          const allowed = new Set(['image/jpeg','image/png','image/webp','image/avif']);
+          if (!allowed.has(mime)) return res.status(415).json({ error:'unsupported_media_type' });
+          const buf = Buffer.from(m[2], 'base64');
+          const maxBytes = 10 * 1024 * 1024; // 10MB
+          if (buf.length > maxBytes) return res.status(413).json({ error:'file_too_large', maxMB:10 });
+          const hash = crypto.createHash('sha256').update(buf).digest('hex');
+          const ext = (mime.split('/')[1]||'bin').replace(/[^a-z0-9]/gi,'');
+          const sub1 = hash.slice(0,2), sub2 = hash.slice(2,4);
+          const dir = path.join(outDir, sub1, sub2);
+          fs.mkdirSync(dir, { recursive: true });
+          const name = `${hash}.${ext}`;
+          const filePath = path.join(dir, name);
+          if (!fs.existsSync(filePath)) {
+            fs.writeFileSync(filePath, buf);
+          }
+          await optionalVirusScan(buf);
+          const { meta, colors } = await extractMetaAndColors(buf, mime);
+          const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
+          finalUrl = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
+          (req as any)._mediaMeta = meta; (req as any)._mediaColors = colors;
+        } catch (e:any) {
+          return res.status(500).json({ error: e.message || 'local_upload_failed' });
+        }
+      }
     } else {
       // Local fallback (hardened): validate, hash-path, store, return absolute URL
       try {
