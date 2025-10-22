@@ -6897,6 +6897,25 @@ adminRest.post('/products/:id/variants', async (req, res) => {
       return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
     };
   const batchSeen = new Set<string>();
+  const baseCounts = new Map<string, number>();
+  const pickSizeToken = (raw?: string): string => {
+    const s = String(raw||'').trim();
+    if (!s) return '';
+    if (s.includes('|')) {
+      let letters: string | undefined;
+      let numeric: string | undefined;
+      for (const part of s.split('|')){
+        const [k, val] = part.split(':', 2);
+        const v = String((val||part)||'').trim();
+        if (!v) continue;
+        if (/أحرف|letters/i.test(String(k||''))) { letters = letters || v; continue; }
+        if (/^\d{1,4}$/i.test(v)) numeric = numeric || v;
+        if (!letters) letters = v;
+      }
+      return letters || numeric || s;
+    }
+    return s;
+  };
   for (const v of rows) {
       const data: any = {
         productId: id,
@@ -6911,28 +6930,22 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     if (nextSku) {
       if (batchSeen.has(nextSku)) nextSku = null; else batchSeen.add(nextSku);
     } else {
-      // Compose SKU from size/color when missing
+      // Compose SKU as: <product-sku>-<size>-<seq>
       try {
         const meta = extractVariantMeta(v);
-        const parts: string[] = [];
-        const sizeVal = meta.size;
-        const colorVal = meta.color;
-        if (sizeVal) {
-          if (sizeVal.includes('|')) {
-            for (const part of sizeVal.split('|')) { const val = part.split(':',2)[1] || part; parts.push(ensureTail(val,'S')); }
-          } else { parts.push(ensureTail(sizeVal,'S')); }
-        }
-        if (colorVal) parts.push(ensureTail(colorVal,'C'));
-        const candidate = [basePrefix, parts.join('-')].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
-        let suffix = 0; const limit = 50;
-        while (true) {
-          const skuTry = suffix ? `${candidate}-${String(suffix).padStart(2,'0')}`.slice(0, 40) : candidate;
-          if (!batchSeen.has(skuTry)) {
-            const exists = await db.productVariant.findFirst({ where: { sku: skuTry } });
-            if (!exists) { nextSku = skuTry; batchSeen.add(skuTry); break; }
-            batchSeen.add(skuTry);
+        const sizeTok = pickSizeToken(meta.size);
+        const base = [basePrefix, transliterateSkuToken(sizeTok)].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
+        const seq = (baseCounts.get(base) || 0) + 1; baseCounts.set(base, seq);
+        const candidate = `${base}-${seq}`;
+        // ensure uniqueness in DB
+        let suffix = 0; const limit = 20; let final = candidate;
+        while (true){
+          if (!batchSeen.has(final)) {
+            const exists = await db.productVariant.findFirst({ where: { sku: final } });
+            if (!exists) { nextSku = final; batchSeen.add(final); break; }
           }
-          suffix += 1; if (suffix>limit) { const rnd = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(2,6); nextSku = `${candidate}-${rnd}`.slice(0,40); batchSeen.add(nextSku); break; }
+          suffix += 1; if (suffix>limit) { nextSku = `${base}-${seq + suffix}`; batchSeen.add(nextSku); break; }
+          final = `${base}-${seq + suffix}`;
         }
       } catch { nextSku = null; }
     }
