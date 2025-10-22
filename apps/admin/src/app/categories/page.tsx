@@ -67,7 +67,7 @@ export default function CategoriesPage(): JSX.Element {
       if (finalImage && finalImage.startsWith('data:')) {
         try {
           const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
-          if (up.ok) { const j = await up.json(); finalImage = j.url || j.presign?.url || finalImage; }
+          if (up.ok) { const j = await up.json(); finalImage = j.url || j.secure_url || j.presign?.url || finalImage; }
         } catch {}
       }
       let translations: any = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
@@ -176,7 +176,7 @@ export default function CategoriesPage(): JSX.Element {
       if (finalImage && finalImage.startsWith('data:')) {
         try {
           const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
-          if (up.ok) { const j = await up.json(); finalImage = j.url || j.presign?.url || finalImage; }
+          if (up.ok) { const j = await up.json(); finalImage = j.url || j.secure_url || j.presign?.url || finalImage; }
         } catch {}
       }
       let translations: any = undefined;
