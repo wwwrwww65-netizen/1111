@@ -7066,6 +7066,8 @@ adminRest.patch('/products/:id', async (req, res) => {
             stockQuantity: Number.isFinite(v.stock as any) ? Number(v.stock) : 0,
           };
           // Encode size/color/options in value JSON to ensure downstream extraction
+          let sizeEff: string | undefined;
+          let colorEff: string | undefined;
           try {
             const ovRaw = Array.isArray((v as any).option_values) ? (v as any).option_values : undefined;
             const sizeVal = (v as any).size ? String((v as any).size) : undefined;
@@ -7094,8 +7096,8 @@ adminRest.patch('/products/:id', async (req, res) => {
               } catch {}
             }
             const labelParts: string[] = [];
-            const sizeEff = sizeVal || prevSize;
-            const colorEff = colorVal || prevColor;
+            sizeEff = sizeVal || prevSize;
+            colorEff = colorVal || prevColor;
             if (sizeEff && sizeEff.includes('|')) {
               for (const part of sizeEff.split('|')) { if (part) labelParts.push(part.replace(':', ': ')); }
             } else if (sizeEff) { labelParts.push(`المقاس: ${sizeEff}`); }
