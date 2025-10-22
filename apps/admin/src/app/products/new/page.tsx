@@ -288,6 +288,56 @@ export default function AdminProductCreate(): JSX.Element {
     );
   }
 
+  // Popover dropdown to pick multiple thumbnails for a given color in variants table
+  function VariantImagePicker({
+    urls,
+    selected,
+    primaryIdx,
+    onToggle,
+    onSetPrimary,
+    buttonLabel = 'اختر صورة',
+  }: {
+    urls: string[];
+    selected: number[];
+    primaryIdx?: number;
+    onToggle: (i: number) => void;
+    onSetPrimary: (i: number) => void;
+    buttonLabel?: string;
+  }){
+    const [open, setOpen] = React.useState(false);
+    const ref = React.useRef<HTMLDivElement|null>(null);
+    React.useEffect(()=>{
+      function onDoc(e: MouseEvent){ if (!ref.current) return; if (!ref.current.contains(e.target as Node)) setOpen(false); }
+      document.addEventListener('mousedown', onDoc);
+      return ()=> document.removeEventListener('mousedown', onDoc);
+    },[]);
+    const uniq = Array.from(new Set(urls.filter(Boolean)));
+    return (
+      <div ref={ref} style={{ position:'relative' }}>
+        <button type="button" className="btn btn-outline" onClick={()=> setOpen(v=>!v)}>{buttonLabel}</button>
+        {open && (
+          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:30, padding:8, width:320 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+              {uniq.map((u, i)=> (
+                <div key={i} className="panel" style={{ position:'relative', padding:0 }}>
+                  <img src={u} alt={String(i)} style={{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} onClick={()=> onToggle(i)} />
+                  <label style={{ position:'absolute', insetInlineStart:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
+                    <input type="checkbox" checked={selected.includes(i)} onChange={()=> onToggle(i)} />
+                    <span style={{ fontSize:11 }}>تحديد</span>
+                  </label>
+                  <label style={{ position:'absolute', insetInlineEnd:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
+                    <input type="radio" name="primary-variant-image" checked={primaryIdx===i} onChange={()=> onSetPrimary(i)} />
+                    <span style={{ fontSize:11 }}>رئيسية</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }){
     const editorRef = React.useRef<HTMLDivElement|null>(null);
     const lastHtmlRef = React.useRef<string>('');
@@ -1841,6 +1891,16 @@ export default function AdminProductCreate(): JSX.Element {
     } catch {}
   }
 
+  // Keep the primary-color radio in sync when editing existing product
+  React.useEffect(()=>{
+    if (!primaryColorName) return;
+    try {
+      const card = colorCards.find(c => String(c.color||'').trim() === String(primaryColorName||'').trim());
+      if (card && primaryColorCardKey !== card.key) setPrimaryColorCardKey(card.key);
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryColorName, JSON.stringify(colorCards.map(c=> ({ k:c.key, c:c.color })))]);
+
   // --- Color tags persistence helpers ---
   function buildColorTagsFromState(finalImages: string[]): string[] {
     const tags: string[] = [];
@@ -2644,37 +2704,37 @@ export default function AdminProductCreate(): JSX.Element {
                                   ) : null;
                                 })()}
                                 {(() => {
-                                  // Full thumbnail dropdown with multi-select for product images
                                   const allUrls = allProductImageUrls();
                                   const colorName = (row.color || '').toString();
                                   const cardIdx = colorCards.findIndex(c => (c.color||'') === colorName);
                                   const selected = cardIdx>=0 ? (colorCards[cardIdx].selectedImageIdxs||[]) : [];
-                                  const [open, setOpen] = [undefined, undefined] as any; // placeholder to satisfy TS-less edit
+                                  const primaryIdx = cardIdx>=0 ? colorCards[cardIdx].primaryImageIdx : undefined;
                                   return (
-                                    <div style={{ position:'relative' }}>
-                                      <button type="button" className="btn btn-outline" onClick={(e:any)=>{
-                                        const el = (e.currentTarget.nextSibling as HTMLElement); if (el) el.style.display = (el.style.display==='block'?'none':'block');
-                                      }}>اختر صورة</button>
-                                      <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:30, padding:8, width:320, display:'none' }}>
-                                        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-                                          {allUrls.map((u, i)=> (
-                                            <label key={i} style={{ position:'relative', cursor:'pointer' }}>
-                                              <input type="checkbox" checked={selected.includes(i)} onChange={()=>{
-                                                setColorCards(prev => prev.map((c, idx2)=>{
-                                                  if (idx2!==cardIdx) return c;
-                                                  const have = (c.selectedImageIdxs||[]).includes(i);
-                                                  const sel = have ? c.selectedImageIdxs.filter(x=>x!==i) : [...(c.selectedImageIdxs||[]), i];
-                                                  let primaryImageIdx = c.primaryImageIdx;
-                                                  if (primaryImageIdx!==undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
-                                                  return { ...c, selectedImageIdxs: sel, primaryImageIdx };
-                                                }));
-                                              }} style={{ position:'absolute', insetInlineStart:6, top:6 }} />
-                                              <img src={u} alt={String(i)} style={{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} />
-                                            </label>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
+                                    <VariantImagePicker
+                                      urls={allUrls}
+                                      selected={selected}
+                                      primaryIdx={primaryIdx}
+                                      onToggle={(i)=>{
+                                        setColorCards(prev => prev.map((c, idx2)=>{
+                                          if (idx2!==cardIdx) return c;
+                                          const have = (c.selectedImageIdxs||[]).includes(i);
+                                          const sel = have ? c.selectedImageIdxs.filter(x=>x!==i) : [...(c.selectedImageIdxs||[]), i];
+                                          let pIdx = c.primaryImageIdx;
+                                          if (pIdx!==undefined && !sel.includes(pIdx)) pIdx = undefined;
+                                          return { ...c, selectedImageIdxs: sel, primaryImageIdx: pIdx };
+                                        }));
+                                      }}
+                                      onSetPrimary={(i)=>{
+                                        setColorCards(prev => prev.map((c, idx2)=> idx2===cardIdx ? { ...c, primaryImageIdx: i } : c));
+                                        if (cardIdx>=0 && primaryColorCardKey===colorCards[cardIdx].key) {
+                                          const u = allUrls[i];
+                                          if (u) setPrimaryImageUrl(u);
+                                          const cname = colorCards[cardIdx].color;
+                                          if (cname) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [String(cname)]: allUrls[i] } }));
+                                        }
+                                      }}
+                                      buttonLabel="اختر صورة"
+                                    />
                                   );
                                 })()}
                               </div>

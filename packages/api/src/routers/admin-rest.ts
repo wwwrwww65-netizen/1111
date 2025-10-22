@@ -6768,7 +6768,7 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
     const rows: Array<{ name?: string; value?: string; price?: number; purchasePrice?: number; stockQuantity?: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string }> }> = Array.isArray(req.body?.variants)? req.body.variants : [];
-    const p = await db.product.findUnique({ where: { id }, select: { id: true } });
+    const p = await db.product.findUnique({ where: { id }, select: { id: true, name: true, sku: true } });
     if (!p) return res.status(404).json({ error: 'product_not_found' });
     // Expansion: if user selected multiple colors + two size groups but only one color's matrix was posted,
     // auto-complete the missing color combinations to prevent partial saves (e.g., 16 instead of 64)
@@ -6845,6 +6845,18 @@ adminRest.post('/products/:id/variants', async (req, res) => {
       }
     } catch {}
     const out: any[] = [];
+    // SKU helpers
+    const sanitizeToken = (s?: string): string => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8);
+    const ensureTail = (raw: string, fallbackPrefix: string): string => {
+      const t = sanitizeToken(raw);
+      if (t) return t;
+      const src = String(raw||''); let acc = 0; for (let i=0;i<src.length;i++){ acc = (acc * 131 + src.charCodeAt(i)) >>> 0; }
+      return `${fallbackPrefix}${(acc % 10000).toString().padStart(4,'0')}`;
+    };
+    const basePrefix = ((): string => {
+      const pfx = sanitizeToken((p as any)?.sku||'') || sanitizeToken((p as any)?.name||'');
+      return pfx || ('PRD' + sanitizeToken((p as any)?.id||'').slice(-5));
+    })();
     const looksSize = (s:string)=> /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(String(s||'').trim());
     const isColor = (s:string)=> {
       const t = String(s||'').trim().toLowerCase();
@@ -6864,6 +6876,31 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     let nextSku: string | null = (v as any).sku || null;
     if (nextSku) {
       if (batchSeen.has(nextSku)) nextSku = null; else batchSeen.add(nextSku);
+    } else {
+      // Compose SKU from size/color when missing
+      try {
+        const meta = extractVariantMeta(v);
+        const parts: string[] = [];
+        const sizeVal = meta.size;
+        const colorVal = meta.color;
+        if (sizeVal) {
+          if (sizeVal.includes('|')) {
+            for (const part of sizeVal.split('|')) { const val = part.split(':',2)[1] || part; parts.push(ensureTail(val,'S')); }
+          } else { parts.push(ensureTail(sizeVal,'S')); }
+        }
+        if (colorVal) parts.push(ensureTail(colorVal,'C'));
+        const candidate = [basePrefix, parts.join('-')].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
+        let suffix = 0; const limit = 50;
+        while (true) {
+          const skuTry = suffix ? `${candidate}-${String(suffix).padStart(2,'0')}`.slice(0, 40) : candidate;
+          if (!batchSeen.has(skuTry)) {
+            const exists = await db.productVariant.findFirst({ where: { sku: skuTry } });
+            if (!exists) { nextSku = skuTry; batchSeen.add(skuTry); break; }
+            batchSeen.add(skuTry);
+          }
+          suffix += 1; if (suffix>limit) { const rnd = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(2,6); nextSku = `${candidate}-${rnd}`.slice(0,40); batchSeen.add(nextSku); break; }
+        }
+      } catch { nextSku = null; }
     }
     if (nextSku) data.sku = nextSku;
       // If size/color/option_values provided, encode as JSON in value for reliable client extraction
@@ -6913,10 +6950,23 @@ adminRest.put('/products/:id/variants/replace', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
     const rows: Array<any> = Array.isArray(req.body?.variants) ? req.body.variants : [];
-    const p = await db.product.findUnique({ where: { id }, select: { id: true } });
+    const p = await db.product.findUnique({ where: { id }, select: { id: true, sku: true, name: true } });
     if (!p) return res.status(404).json({ error: 'product_not_found' });
     await db.$transaction(async (tx) => {
       await tx.productVariant.deleteMany({ where: { productId: id } });
+      // SKU helpers
+      const sanitizeToken = (s?: string): string => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8);
+      const ensureTail = (raw: string, fallbackPrefix: string): string => {
+        const t = sanitizeToken(raw);
+        if (t) return t;
+        const src = String(raw||''); let acc = 0; for (let i=0;i<src.length;i++){ acc = (acc * 131 + src.charCodeAt(i)) >>> 0; }
+        return `${fallbackPrefix}${(acc % 10000).toString().padStart(4,'0')}`;
+      };
+      const basePrefix = ((): string => {
+        const pfx = sanitizeToken((p as any)?.sku||'') || sanitizeToken((p as any)?.name||'');
+        return pfx || ('PRD' + sanitizeToken((p as any)?.id||'').slice(-5));
+      })();
+      const batchSeen = new Set<string>();
       for (const v of rows) {
         const price = (v as any).price ?? (v as any).salePrice ?? null;
         const stock = Number.isFinite((v as any).stock as any) ? Number((v as any).stock) : 0;
@@ -6941,6 +6991,27 @@ adminRest.put('/products/:id/variants/replace', async (req, res) => {
           }
         }
         if (colorRaw) option_values.push({ name: 'color', value: colorRaw });
+        // Compose SKU when not provided
+        let skuVal: string = String((v as any).sku || '').trim();
+        if (!skuVal) {
+          const partsSku: string[] = [];
+          if (sizeRaw) {
+            if (sizeRaw.includes('|')) { for (const part of sizeRaw.split('|')) { const [k,val]=part.split(':',2); if (val) partsSku.push(ensureTail(val,'S')); } }
+            else { partsSku.push(ensureTail(sizeRaw,'S')); }
+          }
+          if (colorRaw) partsSku.push(ensureTail(colorRaw,'C'));
+          let candidate = [basePrefix, partsSku.join('-')].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
+          let suffix = 0; const limit = 50;
+          while (true) {
+            const trySku = suffix ? `${candidate}-${String(suffix).padStart(2,'0')}`.slice(0, 40) : candidate;
+            if (!batchSeen.has(trySku)) {
+              const exists = await tx.productVariant.findFirst({ where: { sku: trySku } });
+              if (!exists) { skuVal = trySku; batchSeen.add(trySku); break; }
+              batchSeen.add(trySku);
+            }
+            suffix += 1; if (suffix>limit) { const rnd = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(2,6); skuVal = `${candidate}-${rnd}`.slice(0,40); batchSeen.add(skuVal); break; }
+          }
+        }
         await tx.productVariant.create({
           data: {
             productId: id,
@@ -6948,7 +7019,7 @@ adminRest.put('/products/:id/variants/replace', async (req, res) => {
             value: JSON.stringify({ label, size: sizeRaw || undefined, color: colorRaw || undefined, option_values: option_values.length ? option_values : undefined }),
             price: price != null ? Number(price) : null,
             purchasePrice: (v as any).purchasePrice != null ? Number((v as any).purchasePrice) : null,
-            sku: (v as any).sku || null,
+            sku: skuVal || null,
             stockQuantity: stock,
           },
         });
@@ -6964,13 +7035,30 @@ adminRest.patch('/products/:id', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
     const data = req.body || {};
-    const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true } });
-    const p = await db.product.update({ where: { id }, data });
+    // Allow only known Product fields to avoid Prisma unknown arg errors (e.g., passing colors/variants to update())
+    const allowed: any = {};
+    const copy = (k: string) => { if (data[k] !== undefined) allowed[k] = data[k]; };
+    ['name','description','price','images','categoryId','vendorId','stockQuantity','sku','brand','tags','isActive'].forEach(copy);
+    const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true, sku: true } });
+    const p = await db.product.update({ where: { id }, data: allowed });
     await audit(req, 'products', 'update', { id });
     // Upsert variants if provided
     try {
       const rows: any[] = Array.isArray((req.body || {}).variants) ? (req.body as any).variants : [];
       if (rows.length) {
+        // SKU helpers scoped to this patch request
+        const sanitizeToken = (s?: string): string => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8);
+        const ensureTail = (raw: string, fallbackPrefix: string): string => {
+          const t = sanitizeToken(raw);
+          if (t) return t;
+          const src = String(raw||''); let acc = 0; for (let i=0;i<src.length;i++){ acc = (acc * 131 + src.charCodeAt(i)) >>> 0; }
+          return `${fallbackPrefix}${(acc % 10000).toString().padStart(4,'0')}`;
+        };
+        const basePrefix = ((): string => {
+          const pfx = sanitizeToken(old?.sku||'') || sanitizeToken(old?.name||'');
+          return pfx || ('PRD' + sanitizeToken(id).slice(-5));
+        })();
+        const batchSeen = new Set<string>();
         for (const v of rows) {
           const base: any = {
             productId: id,
@@ -7033,7 +7121,27 @@ adminRest.patch('/products/:id', async (req, res) => {
             base.name = String((v as any).name || 'Variant').slice(0, 120);
             base.value = String((v as any).value || '-').slice(0, 240);
           }
-          if ((v as any).sku) base.sku = String((v as any).sku);
+          if ((v as any).sku) {
+            base.sku = String((v as any).sku);
+          } else {
+            const parts: string[] = [];
+            if (sizeEff) {
+              if (sizeEff.includes('|')) { for (const part of sizeEff.split('|')) { const [k,val]=part.split(':',2); if (val) parts.push(ensureTail(val,'S')); } }
+              else { parts.push(ensureTail(sizeEff,'S')); }
+            }
+            if (colorEff) parts.push(ensureTail(colorEff,'C'));
+            let candidate = [basePrefix, parts.join('-')].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
+            let suffix = 0; const limit = 50;
+            while (true) {
+              const skuTry = suffix ? `${candidate}-${String(suffix).padStart(2,'0')}`.slice(0, 40) : candidate;
+              if (!batchSeen.has(skuTry)) {
+                const exists = await db.productVariant.findFirst({ where: { sku: skuTry } });
+                if (!exists) { base.sku = skuTry; batchSeen.add(skuTry); break; }
+                batchSeen.add(skuTry);
+              }
+              suffix += 1; if (suffix>limit) { const rnd = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(2,6); base.sku = `${candidate}-${rnd}`.slice(0,40); batchSeen.add(base.sku); break; }
+            }
+          }
           if ((v as any).id) {
             await db.productVariant.update({ where: { id: String((v as any).id) }, data: base });
           } else {
