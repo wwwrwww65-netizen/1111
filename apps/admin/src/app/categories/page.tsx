@@ -139,7 +139,7 @@ export default function CategoriesPage(): JSX.Element {
       return;
     }
     setConfirmingDeleteId(null);
-    const r = await fetch(`${apiBase}/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids: [id] }) });
+    const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids: [id] }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
     const stillExists = await existsOnServer(id);
@@ -190,7 +190,7 @@ export default function CategoriesPage(): JSX.Element {
       let finalImage = edit.image || '';
       if (finalImage && finalImage.startsWith('data:')) {
         try {
-          const up = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
+          const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
           if (up.ok) {
             const j = await up.json();
             edit.image = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage;
@@ -242,7 +242,7 @@ export default function CategoriesPage(): JSX.Element {
       return;
     }
     setConfirmingBulk(false);
-    const r = await fetch(`${apiBase}/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids }) });
+    const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
     // Verify each id no longer exists on server
@@ -559,7 +559,6 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
 }
 
 function MediaPicker({ open, onClose, onSelect }:{ open:boolean; onClose:()=>void; onSelect:(url:string)=>void }): JSX.Element|null {
-  const apiBase = resolveApiBase();
   const [rows, setRows] = React.useState<any[]>([]);
   const [search, setSearch] = React.useState('');
   const [page, setPage] = React.useState(1);
@@ -567,10 +566,10 @@ function MediaPicker({ open, onClose, onSelect }:{ open:boolean; onClose:()=>voi
   const limit = 24;
   React.useEffect(()=>{ if(!open) return; (async()=>{
     try{
-      const r = await fetch(`${apiBase}/api/admin/media/list?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, { credentials:'include' });
+      const r = await fetch(`/api/admin/media/list?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, { credentials:'include' });
       const j = await r.json(); setRows(j.assets||[]); setTotal(j.total||0);
     }catch{}
-  })(); },[open, page, search, apiBase]);
+  })(); },[open, page, search]);
   if (!open) return null;
   const pages = Math.max(1, Math.ceil(total/limit));
   return (
