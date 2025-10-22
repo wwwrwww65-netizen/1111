@@ -2754,30 +2754,46 @@ export default function AdminProductCreate(): JSX.Element {
                                   const allUrls = allProductImageUrls();
                                   const colorName = (row.color || '').toString();
                                   const cardIdx = colorCards.findIndex(c => (c.color||'') === colorName);
-                                  const selected = cardIdx>=0 ? (colorCards[cardIdx].selectedImageIdxs||[]) : [];
-                                  const primaryIdx = cardIdx>=0 ? colorCards[cardIdx].primaryImageIdx : undefined;
+                                  const selected = cardIdx>=0 ? (colorCards[cardIdx].selectedImageIdxs||[]) : (Array.isArray((row as any).imageIdxs)? (row as any).imageIdxs : []);
+                                  const primaryIdx = cardIdx>=0 ? colorCards[cardIdx].primaryImageIdx : ((row as any).primaryImageIdx as number|undefined);
                                   return (
                                     <VariantImagePicker
                                       urls={allUrls}
                                       selected={selected}
                                       primaryIdx={primaryIdx}
                                       onToggle={(i)=>{
-                                        setColorCards(prev => prev.map((c, idx2)=>{
-                                          if (idx2!==cardIdx) return c;
-                                          const have = (c.selectedImageIdxs||[]).includes(i);
-                                          const sel = have ? c.selectedImageIdxs.filter(x=>x!==i) : [...(c.selectedImageIdxs||[]), i];
-                                          let pIdx = c.primaryImageIdx;
-                                          if (pIdx!==undefined && !sel.includes(pIdx)) pIdx = undefined;
-                                          return { ...c, selectedImageIdxs: sel, primaryImageIdx: pIdx };
-                                        }));
+                                        if (cardIdx>=0) {
+                                          setColorCards(prev => prev.map((c, idx2)=>{
+                                            if (idx2!==cardIdx) return c;
+                                            const have = (c.selectedImageIdxs||[]).includes(i);
+                                            const sel = have ? c.selectedImageIdxs.filter(x=>x!==i) : [...(c.selectedImageIdxs||[]), i];
+                                            let pIdx = c.primaryImageIdx;
+                                            if (pIdx!==undefined && !sel.includes(pIdx)) pIdx = undefined;
+                                            return { ...c, selectedImageIdxs: sel, primaryImageIdx: pIdx };
+                                          }));
+                                        } else {
+                                          setVariantRows(prev => prev.map((r,i2)=>{
+                                            if (i2!==idx) return r;
+                                            const have = Array.isArray((r as any).imageIdxs) && (r as any).imageIdxs.includes(i);
+                                            const current: number[] = Array.isArray((r as any).imageIdxs)? ([...(r as any).imageIdxs] as number[]) : [];
+                                            const sel = have ? current.filter(x=>x!==i) : [...current, i];
+                                            let pIdx = (r as any).primaryImageIdx as number|undefined;
+                                            if (pIdx!==undefined && !sel.includes(pIdx)) pIdx = undefined;
+                                            return { ...r, imageIdxs: sel, primaryImageIdx: pIdx } as any;
+                                          }));
+                                        }
                                       }}
                                       onSetPrimary={(i)=>{
-                                        setColorCards(prev => prev.map((c, idx2)=> idx2===cardIdx ? { ...c, primaryImageIdx: i } : c));
-                                        if (cardIdx>=0 && primaryColorCardKey===colorCards[cardIdx].key) {
-                                          const u = allUrls[i];
-                                          if (u) setPrimaryImageUrl(u);
-                                          const cname = colorCards[cardIdx].color;
-                                          if (cname) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [String(cname)]: allUrls[i] } }));
+                                        if (cardIdx>=0) {
+                                          setColorCards(prev => prev.map((c, idx2)=> idx2===cardIdx ? { ...c, primaryImageIdx: i } : c));
+                                          if (primaryColorCardKey && cardIdx>=0 && primaryColorCardKey===colorCards[cardIdx].key) {
+                                            const u = allUrls[i];
+                                            if (u) setPrimaryImageUrl(u);
+                                            const cname = colorCards[cardIdx].color;
+                                            if (cname) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [String(cname)]: allUrls[i] } }));
+                                          }
+                                        } else {
+                                          setVariantRows(prev => prev.map((r,i2)=> i2===idx ? ({ ...r, primaryImageIdx: i } as any) : r));
                                         }
                                       }}
                                       buttonLabel="اختر صورة"
