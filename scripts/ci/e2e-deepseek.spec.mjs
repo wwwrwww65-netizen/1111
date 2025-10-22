@@ -38,7 +38,7 @@ async function main(){
     await page.goto(`${ADMIN_BASE}/products/new`, { waitUntil: 'domcontentloaded', timeout: 60000 })
 
     // Paste SAMPLE_TEXT into description/analysis textarea
-    const textAreaSel = 'textarea[name="text"], textarea[data-testid="analyze-textarea"], textarea'
+    const textAreaSel = 'textarea'
     await page.fill(textAreaSel, SAMPLE_TEXT)
 
     // Intercept analyze API to verify DeepSeek usage
@@ -53,7 +53,7 @@ async function main(){
     ).catch(()=>null)
 
     // Click Analyze/Preview button (fire the request)
-    const analyzeBtn = await page.$('button:has-text("تحليل / معاينة"), button:has-text("تحليل"), button:has-text("Analyze")')
+    const analyzeBtn = await page.$('button:has-text("حلّل واملأ الحقول"), button:has-text("تحليل"), button:has-text("Analyze")')
     if (!analyzeBtn) throw new Error('analyze_button_not_found')
     await analyzeBtn.click()
 

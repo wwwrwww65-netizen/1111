@@ -30,6 +30,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [error, setError] = React.useState<string>('');
   const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
   const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
+  // Preview tab removed: fill fields directly
   const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
   const [deepseekOn, setDeepseekOn] = React.useState<boolean>(true);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiDeepseekOn'); if (v!==null) setDeepseekOn(v==='1'); } catch {} },[]);
@@ -41,6 +42,8 @@ export default function AdminProductCreate(): JSX.Element {
   const [seoTitle, setSeoTitle] = React.useState("");
   const [seoDescription, setSeoDescription] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
+  // Becomes true after any successful analysis (rules/AI preview or full analyze)
+  const [analysisDone, setAnalysisDone] = React.useState<boolean>(false);
   const longDescRef = React.useRef<HTMLTextAreaElement|null>(null);
   React.useEffect(()=>{ const el=longDescRef.current; if (!el) return; el.style.height='auto'; el.style.height = el.scrollHeight + 'px'; }, [review?.longDesc]);
   React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
@@ -70,23 +73,142 @@ export default function AdminProductCreate(): JSX.Element {
           setSeoTitle(String(p.seoTitle||''));
           setSeoDescription(String(p.seoDescription||''));
           setDraft(!Boolean(p.isActive));
+          // Restore purchase price from tags or variants if available
+          try {
+            const tag = (Array.isArray(p.tags)? p.tags: []).find((t:any)=> String(t||'').startsWith('purchase:'));
+            const val = tag ? Number(String(tag).split(':')[1]||'') : undefined;
+            if (Number.isFinite(val as any) && (val as any) > 0) setPurchasePrice(val as any);
+            else {
+              const v0 = (Array.isArray(p.variants)? p.variants: []).map((v:any)=> Number(v?.purchasePrice)).find((n)=> Number.isFinite(n) && n>0);
+              if (Number.isFinite(v0)) setPurchasePrice(v0 as any);
+            }
+          } catch {}
           if (Array.isArray(p.variants) && p.variants.length) {
             setType('variable');
             try {
-              const rows = (p.variants||[]).map((v:any)=> ({
-                name: (v.color && v.size) ? 'لون/مقاس' : (v.color ? 'لون' : (v.size ? 'مقاس' : 'متغير')),
-                value: [v.color, v.size].filter(Boolean).join(' / '),
-                price: typeof v.price==='number' ? v.price : undefined,
-                purchasePrice: typeof v.purchasePrice==='number' ? v.purchasePrice : undefined,
-                stockQuantity: typeof v.stock==='number' ? v.stock : (typeof v.stockQuantity==='number' ? v.stockQuantity : 0),
-                sku: v.sku || undefined,
-              }));
+              const rows = (p.variants||[]).map((v:any)=> {
+                // Derive size token string: prefer explicit v.size; otherwise build from option_values
+                let sizeToken: string | undefined = undefined;
+                const rawSize = (typeof v.size === 'string' ? v.size : undefined) || undefined;
+                if (rawSize) {
+                  sizeToken = String(rawSize);
+                } else if (Array.isArray(v.option_values)) {
+                  const sizeParts = (v.option_values as any[])
+                    .filter((o:any)=> String(o?.name||'').toLowerCase()==='size')
+                    .map((o:any)=> String(o?.value||'').trim())
+                    .filter(Boolean);
+                  if (sizeParts.length) {
+                    // If parts already contain label:value, keep; else prefix with a generic label
+                    const normalized = sizeParts.map((part:string)=> part.includes(':') ? part : `المقاس: ${part}`);
+                    sizeToken = normalized.join('|');
+                  }
+                }
+                // Derive color value: prefer v.color; else from option_values
+                const colorVal = v.color || (Array.isArray(v.option_values)
+                  ? ((v.option_values as any[]).find((o:any)=> String(o?.name||'').toLowerCase()==='color')?.value)
+                  : undefined);
+                return {
+                  name: (colorVal && sizeToken) ? 'لون/مقاس' : (colorVal ? 'لون' : (sizeToken ? 'مقاس' : 'متغير')),
+                  value: [colorVal, sizeToken].filter(Boolean).join(' / '),
+                  price: typeof v.price==='number' ? v.price : undefined,
+                  purchasePrice: typeof v.purchasePrice==='number' ? v.purchasePrice : undefined,
+                  stockQuantity: typeof v.stock==='number' ? v.stock : (typeof v.stockQuantity==='number' ? v.stockQuantity : 0),
+                  sku: v.sku || undefined,
+                  size: sizeToken,
+                  color: colorVal || undefined,
+                  option_values: Array.isArray(v.option_values) ? v.option_values : undefined,
+                };
+              });
               setVariantRows(rows);
               const colorNames = Array.from(new Set((p.variants||[]).map((x:any)=> x.color).filter(Boolean)));
               if (colorNames.length) setSelectedColors(colorNames as string[]);
+              // Prebuild color cards from existing colors and images for better edit UX
+              try {
+                const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+                const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
+                const cards = (colorNames as string[]).map((c:string)=> {
+                  const mapped = (mapping||{})[c];
+                  const idx = mapped ? urlIndex(mapped) : -1;
+                  return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: [], primaryImageIdx: idx>=0? idx : undefined };
+                });
+                if (cards.length) setColorCards(cards);
+              } catch {}
+              // Restore mapping/cards from tags if present
+              try {
+                const tags: string[] = Array.isArray(p.tags) ? p.tags : [];
+                const parsed = parseColorTagsToState(tags, Array.isArray(p.images)? p.images: []);
+                if (Object.keys(parsed.mapping).length) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), ...parsed.mapping } }));
+                if (parsed.cards.length) setColorCards(parsed.cards);
+              } catch {}
+              // Reconstruct selected size types and picks from variants
+              try {
+                const sizeMap = new Map<string, Set<string>>();
+                for (const v of (p.variants||[])) {
+                  const token: string | undefined = typeof v.size==='string' && v.size ? v.size : (Array.isArray(v.option_values)? (v.option_values as any[]).filter((o:any)=> String(o?.name||'').toLowerCase()==='size').map((o:any)=> String(o?.value||'').trim()).filter(Boolean).join('|') : undefined);
+                  const raw = String(token||''); if (!raw) continue;
+                  for (const part of raw.split('|')) {
+                    const t = String(part||'').trim(); if (!t) continue;
+                    const idx = t.indexOf(':');
+                    if (idx>0) {
+                      const label = t.slice(0,idx).trim(); const val = t.slice(idx+1).trim();
+                      if (!label || !val) continue;
+                      if (!sizeMap.has(label)) sizeMap.set(label, new Set<string>());
+                      sizeMap.get(label)!.add(val);
+                    } else {
+                      // No label, fallback under generic label
+                      const label = 'المقاس';
+                      if (!sizeMap.has(label)) sizeMap.set(label, new Set<string>());
+                      sizeMap.get(label)!.add(t);
+                    }
+                  }
+                }
+                // Load size types and sizes to build UI picks
+                const typesRes = await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers: { ...authHeaders() } });
+                const typesJson = await typesRes.json().catch(()=>({types:[]}));
+                const types: Array<{id:string;name:string}> = typesJson.types||[];
+                const picks: Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }>=[];
+                for (const [label, valsSet] of sizeMap.entries()) {
+                  const type = types.find(t=> String(t.name||'')===label);
+                  if (!type) continue;
+                  const sizes = await loadSizesForType(type.id);
+                  const selectedSizes = sizes.filter(s=> valsSet.has(s.name)).map(s=> s.name);
+                  picks.push({ id: type.id, name: type.name, sizes, selectedSizes });
+                }
+                if (picks.length) setSelectedSizeTypes(picks);
+              } catch {}
             } catch {}
           }
-          // Keep review in sync for any dependent UI
+          // Keep review in sync for any dependent UI (with safe mapping)
+          const mapping: Record<string,string|undefined> = {};
+          try {
+            // If product has a primary image per color (e.g., from previous generation), attempt a heuristic mapping
+            const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+            const colorsList: string[] = Array.from(new Set((p.variants||[]).map((x:any)=> x.color).filter(Boolean)));
+            for (const c of colorsList) {
+              const candidate = imgs.find(u => u.toLowerCase().includes(String(c||'').toLowerCase()));
+              if (candidate) mapping[String(c)] = candidate;
+            }
+          } catch {}
+          // Prefer server-provided colorGalleries when available to restore primary + gallery
+          try {
+            const galleries = Array.isArray((p as any).colorGalleries) ? (p as any).colorGalleries : [];
+            for (const g of galleries) {
+              if (g?.name && g?.primaryImageUrl) mapping[String(g.name)] = String(g.primaryImageUrl);
+            }
+            const primary = galleries.find((g:any)=> !!g?.isPrimary);
+            if (primary?.name) setPrimaryColorName(String(primary.name));
+            // Rebuild color cards from galleries when present
+            if (galleries.length) {
+              const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+              const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
+              const cards = galleries.map((g:any)=> {
+                const idx = g?.primaryImageUrl ? urlIndex(String(g.primaryImageUrl)) : -1;
+                const selIdxs = Array.isArray(g?.images) ? g.images.map((u:string)=> urlIndex(u)).filter((i:number)=> i>=0) : [];
+                return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: g?.name, selectedImageIdxs: Array.from(new Set(selIdxs)), primaryImageIdx: idx>=0? idx : undefined };
+              });
+              if (cards.length) setColorCards(cards);
+            }
+          } catch {}
           setReview({
             name: p.name,
             description: p.description,
@@ -100,6 +222,7 @@ export default function AdminProductCreate(): JSX.Element {
             tags: Array.isArray(p.tags)? p.tags : [],
             variants: Array.isArray(p.variants)? p.variants : [],
             isActive: !!p.isActive,
+            mapping,
           });
         }
       } finally { setLoadingExisting(false); }
@@ -133,6 +256,136 @@ export default function AdminProductCreate(): JSX.Element {
     return `<table><thead><tr><th>البند</th><th>القيمة</th></tr></thead><tbody>${body}</tbody></table>`;
   }
 
+  // Lightweight image dropdown with thumbnails (custom select)
+  function ImageDropdown({ value, options, onChange, placeholder = '(بدون)' }: { value?: string; options: string[]; onChange: (v: string | undefined) => void; placeholder?: string }){
+    const [open, setOpen] = React.useState(false);
+    const ref = React.useRef<HTMLDivElement|null>(null);
+    React.useEffect(()=>{
+      function onDoc(e: MouseEvent){ if (!ref.current) return; if (!ref.current.contains(e.target as Node)) setOpen(false); }
+      document.addEventListener('mousedown', onDoc);
+      return ()=> document.removeEventListener('mousedown', onDoc);
+    },[]);
+    const list = Array.from(new Set(options.filter(Boolean)));
+    return (
+      <div ref={ref} style={{ position:'relative' }}>
+        <button type="button" className="btn btn-outline" onClick={()=> setOpen(v=>!v)} style={{ minHeight:32, padding:'0 8px', display:'inline-flex', alignItems:'center', gap:8 }}>
+          {value ? (<img src={value} alt="" className="thumb" style={{ width:24, height:24 }} />) : (<span style={{ color:'var(--sub)', fontSize:12 }}>{placeholder}</span>)}
+          <span style={{ fontSize:12 }}>اختر صورة</span>
+        </button>
+        {open && (
+          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:20, padding:8, width:260 }}>
+            <div className="item" role="button" onClick={()=> { onChange(undefined); setOpen(false); }} style={{ padding:6, cursor:'pointer', color:'var(--sub)' }}>{placeholder}</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+              {list.map((u, i)=> (
+                <button type="button" key={i} className="btn ghost" onClick={()=> { onChange(u); setOpen(false); }} style={{ padding:0, borderRadius:8 }}>
+                  <img src={u} alt={String(i)} style={{ width:'100%', height:72, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Popover dropdown to pick multiple thumbnails for a given color in variants table
+  function VariantImagePicker({
+    urls,
+    selected,
+    primaryIdx,
+    onToggle,
+    onSetPrimary,
+    buttonLabel = 'اختر صورة',
+  }: {
+    urls: string[];
+    selected: number[];
+    primaryIdx?: number;
+    onToggle: (i: number) => void;
+    onSetPrimary: (i: number) => void;
+    buttonLabel?: string;
+  }){
+    const [open, setOpen] = React.useState(false);
+    const ref = React.useRef<HTMLDivElement|null>(null);
+    React.useEffect(()=>{
+      function onDoc(e: MouseEvent){ if (!ref.current) return; if (!ref.current.contains(e.target as Node)) setOpen(false); }
+      document.addEventListener('mousedown', onDoc);
+      return ()=> document.removeEventListener('mousedown', onDoc);
+    },[]);
+    const uniq = Array.from(new Set(urls.filter(Boolean)));
+    return (
+      <div ref={ref} style={{ position:'relative' }}>
+        <button type="button" className="btn btn-outline" onClick={()=> setOpen(v=>!v)}>{buttonLabel}</button>
+        {open && (
+          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:30, padding:8, width:320 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+              {uniq.map((u, i)=> (
+                <div key={i} className="panel" style={{ position:'relative', padding:0 }}>
+                  <img src={u} alt={String(i)} style={{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} onClick={()=> onToggle(i)} />
+                  <label style={{ position:'absolute', insetInlineStart:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
+                    <input type="checkbox" checked={selected.includes(i)} onChange={()=> onToggle(i)} />
+                    <span style={{ fontSize:11 }}>تحديد</span>
+                  </label>
+                  <label style={{ position:'absolute', insetInlineEnd:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
+                    <input type="radio" name="primary-variant-image" checked={primaryIdx===i} onChange={()=> onSetPrimary(i)} />
+                    <span style={{ fontSize:11 }}>رئيسية</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }){
+    const editorRef = React.useRef<HTMLDivElement|null>(null);
+    const lastHtmlRef = React.useRef<string>('');
+    React.useEffect(()=>{
+      const el = editorRef.current; if (!el) return;
+      if (lastHtmlRef.current !== value && el.innerHTML !== value){
+        el.innerHTML = value || '';
+        lastHtmlRef.current = value || '';
+      }
+    }, [value]);
+    function focusEditor(){ try{ editorRef.current?.focus(); } catch {}
+    }
+    function exec(cmd: string, arg?: string){
+      focusEditor();
+      try { document.execCommand(cmd, false, arg); } catch {}
+      try { const el = editorRef.current; if (el) onChange(el.innerHTML); } catch {}
+    }
+    function insertTable(rows = 2, cols = 2){
+      const cells = new Array(cols).fill('<td> </td>').join('');
+      const body = new Array(rows).fill(`<tr>${cells}</tr>`).join('');
+      const html = `<table><tbody>${body}</tbody></table>`;
+      exec('insertHTML', html);
+    }
+    return (
+      <div className="panel" style={{ padding: 8 }}>
+        <div className="toolbar" style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('bold')}>B</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('italic')}>I</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('underline')}>U</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('insertUnorderedList')}>• قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('insertOrderedList')}>1. قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={()=> insertTable(2,2)}>إدراج جدول 2×2</button>
+          <button type="button" className="btn btn-outline" onClick={()=> exec('removeFormat')}>إزالة التنسيق</button>
+        </div>
+        <div
+          ref={editorRef}
+          role="textbox"
+          aria-multiline="true"
+          contentEditable
+          suppressContentEditableWarning
+          onInput={(e)=> onChange((e.currentTarget as HTMLDivElement).innerHTML)}
+          className="input"
+          style={{ minHeight: 160, padding: 10, overflowY:'auto' }}
+        />
+      </div>
+    );
+  }
+
   React.useEffect(()=>{
     try{
       const k = keyForText(paste);
@@ -145,7 +398,8 @@ export default function AdminProductCreate(): JSX.Element {
     try{
       const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
       if (Array.isArray(rows) && rows.length>0) {
-        setDescription(detailsToHtmlTable(rows));
+        const html = detailsToHtmlTable(rows);
+        if (html && html.length) setDescription(html);
       }
     } catch {}
   }, [review?.strictDetails]);
@@ -212,6 +466,68 @@ export default function AdminProductCreate(): JSX.Element {
     return s;
   }
 
+  function formatThousands(val: number | ''): string {
+    if (val === '' || val == null) return '';
+    try { return new Intl.NumberFormat('en-US').format(Number(val)); } catch { return String(val); }
+  }
+
+  // Robust localized number parser for UI inputs (supports Arabic digits and separators)
+  function parseLocalizedNumber(raw: string): number | undefined {
+    try {
+      const toLatin = (s: string) => s
+        // Arabic-Indic digits → Latin
+        .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
+        .replace(/[\u06F0-\u06F9]/g, (d) => String((d as any).charCodeAt(0) - 0x06F0));
+      const s0 = toLatin(String(raw || '')).trim();
+      if (!s0) return undefined;
+      // Normalize thousands and decimal separators
+      // U+066C ARABIC THOUSANDS SEPARATOR, U+066B ARABIC DECIMAL SEPARATOR
+      let s = s0.replace(/[٬,\s]/g, ''); // drop thousands + spaces
+      s = s.replace(/[٫]/g, '.');
+      // If multiple dots, keep last as decimal point
+      const parts = s.split('.');
+      if (parts.length > 2) s = parts.slice(0, -1).join('') + '.' + parts[parts.length - 1];
+      const n = Number(s);
+      return Number.isFinite(n) ? n : undefined;
+    } catch { return undefined; }
+  }
+
+  const mergeUniqueFiles = React.useCallback((prev: File[], incoming: File[]): File[] => {
+    const map = new Map<string, File>();
+    const put = (f: File) => { map.set(`${f.name}__${f.size}__${(f as any).lastModified||0}`, f); };
+    prev.forEach(put); incoming.forEach(put);
+    return Array.from(map.values());
+  }, []);
+
+  // Stable object URLs for local files to prevent duplicates and flicker
+  const fileUrlMapRef = React.useRef<Map<string, string>>(new Map());
+  const [fileUrls, setFileUrls] = React.useState<string[]>([]);
+  const fileKey = (f: File) => `${f.name}__${f.size}__${(f as any).lastModified||0}`;
+
+  React.useEffect(() => {
+    const map = fileUrlMapRef.current;
+    const wantKeys = new Set(files.map(fileKey));
+    // Revoke removed
+    for (const [k, url] of Array.from(map.entries())) {
+      if (!wantKeys.has(k)) { try { URL.revokeObjectURL(url); } catch {} map.delete(k); }
+    }
+    // Create missing and keep order
+    for (const f of files) {
+      const k = fileKey(f);
+      if (!map.has(k)) map.set(k, URL.createObjectURL(f));
+    }
+    setFileUrls(files.map(f => fileUrlMapRef.current.get(fileKey(f))!).filter(Boolean));
+  }, [files]);
+
+  React.useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      const map = fileUrlMapRef.current;
+      for (const url of map.values()) { try { URL.revokeObjectURL(url); } catch {} }
+      map.clear();
+    };
+  }, []);
+
   function generateStrictName(clean: string): string {
     // Reuse makeSeoName baseline then enforce 8–12 words, avoid marketing
     const base = makeSeoName(clean, '')
@@ -230,7 +546,8 @@ export default function AdminProductCreate(): JSX.Element {
       if (words.length >= 12) break;
       if (!primary.has(t.toLowerCase())) words.push(t);
     }
-    if (words.length > 12) words.splice(12);
+    // Keep natural full name when available elsewhere; do not hard truncate here
+    if (words.length > 24) words.splice(24);
     // Ensure minimum 8 tokens if possible by backfilling from tokens
     if (words.length < 8) {
       for (const t of tokens) {
@@ -243,13 +560,24 @@ export default function AdminProductCreate(): JSX.Element {
 
   function extractOldNorthPriceStrict(clean: string): number | undefined {
     // Prefer mentions tagged قديم/الشمال؛ ignore سعودي/جنوبي/قعيطي/جديد
+    const toAsciiDigits = (s:string)=> s.replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
+    const parseLocalizedNumber = (raw:string): number|undefined => {
+      const s0 = toAsciiDigits(String(raw||'')).trim();
+      // Remove spaces
+      const s = s0.replace(/\s+/g,'');
+      // If contains only digits and separators [, .] treat last separator as decimal when there are 3+ digits after
+      // For our domain we assume comma/dot used as thousands most of the time; "3,900" => 3900
+      const digits = s.replace(/[,\.]/g,'');
+      const n = Number(digits);
+      return Number.isFinite(n)? n : undefined;
+    };
     const ignoreCtx = /(سعودي|جنوبي|جديد|قعيطي)/i;
     const matches = Array.from(clean.matchAll(/(?:(?:قديم|للشمال|الشمال)[^\d]{0,12})(\d+[\.,]??\d*)/gi));
     for (const m of matches) {
       const before = clean.slice(Math.max(0, (m.index||0)-20), (m.index||0)+m[0].length+10);
       if (!ignoreCtx.test(before)) {
-        const v = Number(String(m[1]).replace(',','.'));
-        if (Number.isFinite(v)) return v;
+        const v = parseLocalizedNumber(String(m[1]));
+        if (v!=null) return v;
       }
     }
     return undefined;
@@ -271,7 +599,15 @@ export default function AdminProductCreate(): JSX.Element {
     const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
     const weight = clean.match(/وزن\s*(\d{2,3})(?:\s*[-–—\s]\s*(\d{2,3}))?\s*ك?جم?/i);
     const sizeFree = /فري\s*سايز/i.test(clean);
-    const sizesList = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=>s.toUpperCase());
+    const toAsciiDigits = (s:string)=> s.replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
+    const normalizeXL = (tok:string): string => {
+      const t = String(tok||'').toUpperCase().trim();
+      // Map repeated X patterns to 2XL/3XL/4XL...
+      const m = t.match(/^(X{2,})L$/); // XX...XL
+      if (m) { const count = m[1].length; return `${count}XL`; }
+      return t;
+    };
+    const sizesList = Array.from(new Set((clean.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=> normalizeXL(toAsciiDigits(s)));
     add('النوع', type);
     add('الفئة', gender);
     add('الخامة', mat);
@@ -540,6 +876,18 @@ export default function AdminProductCreate(): JSX.Element {
     return best;
   }
 
+  function dedupePalettes(list: Array<{ url: string; hex: string; name: string }>): Array<{ url: string; hex: string; name: string }>{
+    const seen = new Set<string>();
+    const out: Array<{ url: string; hex: string; name: string }> = [];
+    for (const p of list) {
+      const key = String(p.url||'').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+    }
+    return out;
+  }
+
   function extractKeywords(t: string, productName: string): string[] {
     const stopWords = new Set(['تول','شفاف','ربطة','أكمام','فقط','عمله','بلصدر']);
     const words = String(t||'').split(/\s+/).filter(w => w.length>2 && !stopWords.has(w));
@@ -713,7 +1061,7 @@ export default function AdminProductCreate(): JSX.Element {
           }
           if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
           // Auto-apply safe fields: name and purchase price only
-          const autoName = analyzed?.name?.value ? String(analyzed.name.value).slice(0,60) : '';
+          const autoName = analyzed?.name?.value ? String(analyzed.name.value).trim() : '';
           if (autoName) setName(autoName);
         } else { throw new Error('analyze_failed'); }
       } catch {
@@ -771,7 +1119,7 @@ export default function AdminProductCreate(): JSX.Element {
         stock: 0,
         keywords: 0.5,
       };
-      const palettes: Array<{url:string;hex:string;name:string}> = [];
+      let palettes: Array<{url:string;hex:string;name:string}> = [];
       const allUrls = allProductImageUrls();
       // Recompute quick palette client-side for mapping visual review
       // Include newly uploaded files too
@@ -785,6 +1133,7 @@ export default function AdminProductCreate(): JSX.Element {
         const p = await getImageDominant(url);
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
+        palettes = dedupePalettes(palettes);
         setReview((prev:any)=> ({ ...(prev||extracted), palettes: [...palettes] }));
       }
       const mapping: Record<string, string|undefined> = {};
@@ -851,10 +1200,35 @@ export default function AdminProductCreate(): JSX.Element {
         } catch {}
       }
       setReview(reviewObj);
+      setAnalysisDone(true);
       if (reviewObj && typeof reviewObj.purchasePrice === 'number' && reviewObj.purchasePrice >= 0) {
         setPurchasePrice(reviewObj.purchasePrice);
       }
-      setActiveMobileTab('review');
+      // Direct-fill: write results into original fields instead of preview
+      try {
+        const fullNameAnalyze = String(reviewObj.name||'').trim();
+        if (fullNameAnalyze) setName(fullNameAnalyze);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        // Apply into pickers (size type + colors), but DO NOT auto-generate variant rows
+        await applyAnalyzedSizesColors(sList, cList);
+        // Merge palette images into images field
+        try{
+          const palettes = (reviewObj as any).palettes || [];
+          const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
+          const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+          const merged = Array.from(new Set([...cur, ...urls]));
+          if (merged.length) setImages(merged.join(', '));
+        }catch{}
+        // Do not generate variant rows automatically; user will click "توليد التباينات المتعددة" بعد اختيار المقاسات والألوان
+      } catch {}
+      setActiveMobileTab('compose');
+      setAnalysisDone(true);
       showToast('تم التحليل بنجاح', 'ok');
     } catch (e:any) {
       setError('فشل التحليل. حاول مجدداً.');
@@ -868,10 +1242,22 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       const b64Images: string[] = [];
       for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
-      const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1&strict=1`, {
+      // Strict DeepSeek-only: rely strictly on AI output (no local general color phrases)
+      const controller = new AbortController();
+      const timeoutMs = 25000;
+      const to = setTimeout(()=> controller.abort(), timeoutMs);
+      let resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
         method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
-      });
+        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }),
+        signal: controller.signal
+      }).catch(()=> null as any);
+      clearTimeout(to);
+      if (!resp || !resp.ok) {
+        resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
+          method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+          body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+        });
+      }
       const aj = await resp.json().catch(()=>({}));
       if (!resp.ok) { setError('فشل تحليل DeepSeek'); showToast('فشل تحليل DeepSeek', 'err'); return; }
       // Guard: if DeepSeek غير متاح أو لم يرجع أي حقول مفيدة، لا نعدّل المعاينة الحالية
@@ -908,15 +1294,18 @@ export default function AdminProductCreate(): JSX.Element {
         },
         sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
       };
+
+      // DeepSeek-only: no local rule fallbacks; rely solely on DeepSeek output
       // Local image analysis: palettes + color-name mapping
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) {
           const p = await getImageDominant(u);
           const near = nearestColorName(p.hex);
           palettes.push({ url: p.url, hex: p.hex, name: near.name });
         }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) {
@@ -925,11 +1314,43 @@ export default function AdminProductCreate(): JSX.Element {
           mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
         }
         (reviewObj as any).mapping = mapping;
+        // DeepSeek-only: لا نستبدل قيم الألوان بناتج محلي؛ نستخدم قيم DeepSeek كما هي
       } catch {}
+      // Direct fill
       setReview(reviewObj);
+      setAnalysisDone(true);
       try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
-      showToast('تم تحليل DeepSeek (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      try{
+      // Name: DeepSeek-only؛ استخدم الاسم كما هو دون استكمال محلي
+      const dsName = String(reviewObj.name||'').trim();
+      if (dsName) setName(dsName);
+      // Description: DeepSeek-only — table only if AI returned description_table; otherwise use AI longDesc as-is
+      try {
+        const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
+        if (html && html.length) setDescription(html); else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+      } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
+        // Colors: ignore generic phrases and normalize definite article to match list
+        const generics = /\b(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة))\b/i;
+        const colorList = (Array.isArray(reviewObj.colors)? reviewObj.colors: [])
+          .filter((c:string)=> !generics.test(String(c||'')))
+          .map((c:string)=> String(c||'').replace(/^ال/,'').trim());
+        if (colorList.length) setSelectedColors(colorList);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, colorList);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        // Do not auto-generate variant rows
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم تحليل DeepSeek وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل تحليل DeepSeek');
       showToast('فشل تحليل DeepSeek', 'err');
@@ -954,7 +1375,7 @@ export default function AdminProductCreate(): JSX.Element {
         .replace(/[\uFFFD]/g,' ')
         .replace(/\s{2,}/g,' ').trim();
       const reviewObj:any = {
-        name: sanitize(String(analyzed?.name?.value||'').slice(0,60)),
+        name: sanitize(String(analyzed?.name?.value||'')),
         longDesc: sanitize(String((analyzed?.description_table?.value||[]).map((r:any)=> `${r.label}: ${r.value}`).join('\n')||'')),
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -975,16 +1396,35 @@ export default function AdminProductCreate(): JSX.Element {
       };
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم التحليل الصارم (نص فقط)', 'ok');
-      setActiveMobileTab('review');
+      setAnalysisDone(true);
+      try{
+        const fullNameRules = String(reviewObj.name||'').trim();
+        if (fullNameRules) setName(fullNameRules);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, cList);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم التحليل الصارم وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل التحليل الصارم');
       showToast('فشل التحليل الصارم', 'err');
@@ -1016,7 +1456,7 @@ export default function AdminProductCreate(): JSX.Element {
         return;
       }
       const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
+        name: String(analyzed?.name?.value||'').trim(),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -1035,16 +1475,36 @@ export default function AdminProductCreate(): JSX.Element {
       };
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
+        let palettes: Array<{url:string;hex:string;name:string}> = [];
         for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
         const mapping: Record<string,string|undefined> = {};
         for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم تحليل OpenRouter (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      setAnalysisDone(true);
+      try{
+        const fullNameOR = String(reviewObj.name||'').trim();
+        if (fullNameOR) setName(fullNameOR);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        await applyAnalyzedSizesColors(sList, cList);
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        // do not generate variant rows automatically here
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم تحليل OpenRouter وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch {
       setError('فشل تحليل OpenRouter');
       showToast('فشل تحليل OpenRouter', 'err');
@@ -1068,7 +1528,7 @@ export default function AdminProductCreate(): JSX.Element {
       const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
       if (!hasUseful) { setError('لم يتم استخراج أي حقول من GPT'); showToast('تعذر استخراج الحقول من GPT', 'err'); return; }
       const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').slice(0,60),
+        name: String(analyzed?.name?.value||'').trim(),
         longDesc: String(analyzed?.description?.value||''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
@@ -1095,8 +1555,31 @@ export default function AdminProductCreate(): JSX.Element {
         (reviewObj as any).mapping = mapping;
       } catch {}
       setReview(reviewObj);
-      showToast('تم تحليل GPT (معاينة)', 'ok');
-      setActiveMobileTab('review');
+      setAnalysisDone(true);
+      try{
+        const fullNameGPT = String(reviewObj.name||'').trim();
+        if (fullNameGPT) setName(fullNameGPT);
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
+        if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
+        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        if ((cList.length || sList.length)) setType('variable');
+        const palettes = dedupePalettes(((reviewObj as any).palettes || []));
+        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
+        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const merged = Array.from(new Set([...cur, ...urls]));
+        if (merged.length) setImages(merged.join(', '));
+        const rows: typeof variantRows = [] as any;
+        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
+        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
+        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
+        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
+        if (rows.length) setVariantRows(rows as any);
+      } catch {}
+      setAnalysisDone(true);
+      showToast('تم تحليل GPT وتعبئة الحقول', 'ok');
+      setActiveMobileTab('compose');
     } catch { setError('فشل تحليل GPT'); showToast('فشل تحليل GPT', 'err'); }
     finally { setBusy(false); }
   }
@@ -1128,7 +1611,50 @@ export default function AdminProductCreate(): JSX.Element {
   const [showImagesInput, setShowImagesInput] = React.useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
-  const [variantRows, setVariantRows] = React.useState<Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }>>([]);
+  const [variantRows, setVariantRows] = React.useState<Array<{
+    name: string;
+    value: string;
+    price?: number;
+    purchasePrice?: number;
+    stockQuantity: number;
+    sku?: string;
+    size?: string;
+    color?: string;
+    option_values?: Array<{ name: string; value: string; label?: string }>;
+  }>>([]);
+  // Derive size-type labels present in variant rows (e.g., "مقاس بالطول", "مقاس بالعرض")
+  const sizeTypeLabels = React.useMemo((): string[] => {
+    const labels: string[] = [];
+    for (const r of variantRows) {
+      const comp = String(r.size||'');
+      if (!comp) continue;
+      const parts = comp.split('|').map(t=> t.trim()).filter(Boolean);
+      for (const p of parts) {
+        const idx = p.indexOf(':');
+        if (idx>0) {
+          const label = p.slice(0, idx).trim();
+          if (label && !labels.includes(label)) labels.push(label);
+        }
+      }
+    }
+    return labels;
+  }, [variantRows]);
+  const parseCompositeSizes = React.useCallback((s?: string): Record<string,string> => {
+    const out: Record<string,string> = {};
+    const raw = String(s||'');
+    if (!raw) return out;
+    for (const part of raw.split('|')) {
+      const t = String(part||'').trim();
+      if (!t) continue;
+      const idx = t.indexOf(':');
+      if (idx>0) {
+        const label = t.slice(0, idx).trim();
+        const val = t.slice(idx+1).trim();
+        if (label) out[label] = val;
+      }
+    }
+    return out;
+  }, []);
   const formRef = React.useRef<HTMLFormElement>(null);
   const [autoFilled, setAutoFilled] = React.useState(false);
 
@@ -1176,6 +1702,109 @@ export default function AdminProductCreate(): JSX.Element {
   }
   function aggregatedSizeList(): string[] {
     return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
+  }
+
+  // Auto-apply analyzed sizes/colors to pickers without generating variants
+  async function applyAnalyzedSizesColors(sizesIn: string[], colorsIn: string[]): Promise<void> {
+    try {
+      const targetSizes = Array.from(new Set((sizesIn||[]).map(s=>String(s||'').trim()).filter(Boolean)));
+      const targetColors = Array.from(new Set((colorsIn||[]).map(c=>String(c||'').trim()).filter(Boolean)));
+      // Ensure we have latest palettes/colors list before matching
+      try {
+        if (!Array.isArray(colorOptions) || colorOptions.length === 0) {
+          const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } });
+          const j = await r.json().catch(()=>({}));
+          setColorOptions(j.colors||[]);
+        }
+      } catch {}
+
+      // Choose ALL matching size types when two groups are present (letters & numbers)
+      if (targetSizes.length && Array.isArray(sizeTypeOptions) && sizeTypeOptions.length) {
+        const picks: Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }> = [];
+        const lower = targetSizes.map(s=> String(s).toLowerCase());
+        for (const t of sizeTypeOptions) {
+          const sizes = await loadSizesForType(t.id);
+          const matched = sizes.filter(s=> lower.includes(String(s.name||'').toLowerCase())).map(s=> s.name);
+          if (matched.length) picks.push({ id: t.id, name: t.name, sizes, selectedSizes: matched });
+        }
+        if (picks.length) setSelectedSizeTypes(picks);
+      }
+
+      // Helper: guess hex for common Arabic/English color names
+      const guessHex = (name: string): string => {
+        const t = String(name||'').toLowerCase();
+        const map: Record<string,string> = {
+          'أسود':'#000000','اسود':'#000000','black':'#000000',
+          'أبيض':'#ffffff','ابيض':'#ffffff','white':'#ffffff',
+          'أحمر':'#ff0000','احمر':'#ff0000','red':'#ff0000',
+          'أزرق':'#0000ff','ازرق':'#0000ff','blue':'#0000ff',
+          'أخضر':'#008000','اخضر':'#008000','green':'#008000',
+          'أصفر':'#ffff00','اصفر':'#ffff00','yellow':'#ffff00',
+          'وردي':'#ffc0cb','زهري':'#ffc0cb','pink':'#ffc0cb',
+          'بنفسجي':'#8a2be2','purple':'#800080','violet':'#8a2be2',
+          'برتقالي':'#ffa500','orange':'#ffa500',
+          'بني':'#8b4513','brown':'#8b4513',
+          'رمادي':'#808080','gray':'#808080','grey':'#808080',
+          'كحلي':'#000080','navy':'#000080',
+          'بيج':'#f5f5dc','beige':'#f5f5dc',
+          'ذهبي':'#ffd700','gold':'#ffd700',
+          'فضي':'#c0c0c0','silver':'#c0c0c0'
+        };
+        return map[t] || '#666666';
+      };
+
+        // Map colors to known options and add color cards (split combined like "أسود وأبيض" إلى لونين)
+      if (targetColors.length) {
+        const mappedCards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
+        const toCreate: string[] = []
+          const splitCombined = (c:string): string[] => {
+            const s = String(c||'');
+            // split on common separators and "و"
+            return s.split(/\s*(?:,|،|\+|\/|\-|\sو\s)\s*/).map(x=>x.trim()).filter(Boolean);
+          };
+          for (const rawC of targetColors) {
+            const parts = splitCombined(rawC);
+            const list = parts.length? parts : [rawC];
+            for (const c of list) {
+              const match = colorOptions.find(o=> String(o.name||'').toLowerCase() === String(c).toLowerCase());
+          if (match) {
+            mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: match.name, selectedImageIdxs: [] });
+          } else {
+                toCreate.push(c)
+              }
+          }
+        }
+        // Create missing colors
+        for (const raw of toCreate){
+          try{
+            const name = String(raw).slice(0,40)
+            const hex = guessHex(name)
+            const rc = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name, hex }) })
+            const cj = await rc.json().catch(()=>({}))
+            if (rc.ok && cj?.color?.name){
+              mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: cj.color.name, selectedImageIdxs: [] })
+            } else {
+              // Fallback: ensure UI select contains this color temporarily
+              setColorOptions(prev => {
+                const exists = (prev||[]).some(o=> String(o.name||'').toLowerCase()===name.toLowerCase());
+                return exists ? prev : [...(prev||[]), { id: `tmp:${name}`, name, hex } as any];
+              });
+              mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: name, selectedImageIdxs: [] })
+            }
+          } catch {}
+        }
+        // refresh colors
+        try{ const r=await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setColorOptions(j.colors||[]); } catch {}
+        if (mappedCards.length) {
+          setColorCards(mappedCards);
+          // Also ensure selectedColors reflect target colors immediately
+          setSelectedColors(Array.from(new Set(mappedCards.map(c=>c.color).filter(Boolean))) as string[])
+        } else if (targetColors.length) {
+          // Last-resort fallback: reflect target colors in selection
+          setSelectedColors(targetColors)
+        }
+      }
+    } catch {}
   }
 
   async function fileToBase64(file: File): Promise<string> {
@@ -1232,31 +1861,178 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   function allProductImageUrls(): string[] {
-    const urlFiles = files.map(f => URL.createObjectURL(f));
+    // Use stable object URLs to avoid duplicates/flicker; merge with explicit URLs field
     const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
-    return [...urlStrings, ...urlFiles];
+    return Array.from(new Set([...
+      urlStrings,
+      ...fileUrls
+    ]));
   }
+
+  // Build color→image mapping from selected color cards
+  function buildColorMappingFromCards(): Record<string, string | undefined> {
+    const urls = allProductImageUrls();
+    const map: Record<string, string | undefined> = {};
+    for (const card of colorCards) {
+      const cname = String(card.color || '').trim(); if (!cname) continue;
+      const primary = (typeof card.primaryImageIdx === 'number' && card.selectedImageIdxs.includes(card.primaryImageIdx))
+        ? card.primaryImageIdx
+        : (card.selectedImageIdxs[0] ?? undefined);
+      const url = (primary !== undefined) ? urls[primary] : undefined;
+      if (url) map[cname] = url;
+    }
+    return map;
+  }
+
+  function applyColorMappingFromCards() {
+    try {
+      const fromCards = buildColorMappingFromCards();
+      setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), ...fromCards } }));
+    } catch {}
+  }
+
+  // Keep the primary-color radio in sync when editing existing product
+  React.useEffect(()=>{
+    if (!primaryColorName) return;
+    try {
+      const card = colorCards.find(c => String(c.color||'').trim() === String(primaryColorName||'').trim());
+      if (card && primaryColorCardKey !== card.key) setPrimaryColorCardKey(card.key);
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryColorName, JSON.stringify(colorCards.map(c=> ({ k:c.key, c:c.color })))]);
+
+  // --- Color tags persistence helpers ---
+  function buildColorTagsFromState(finalImages: string[]): string[] {
+    const tags: string[] = [];
+    // primary product color
+    if (primaryColorName) tags.push(`primaryColor:${primaryColorName}`);
+    // Per-color primary image from review.mapping
+    const map = (review as any)?.mapping || {};
+    for (const [color, url] of Object.entries(map)) {
+      if (color && url) tags.push(`colorPrimaryImage:${color}=${url as string}`);
+    }
+    // Per-color gallery from colorCards selections
+    const urlStringsLen = (images || '').split(',').map(s=>s.trim()).filter(Boolean).length;
+    for (const card of colorCards) {
+      const c = String(card.color||'').trim(); if (!c) continue;
+      const selectedUrls: string[] = [];
+      for (const idx of (card.selectedImageIdxs||[])) {
+        if (idx < urlStringsLen) {
+          const u = finalImages[idx]; if (u) selectedUrls.push(u);
+        } else {
+          const fi = idx - urlStringsLen; const u = finalImages[urlStringsLen + fi]; if (u) selectedUrls.push(u);
+        }
+      }
+      // primary per color: override with exact primary if exists
+      if (typeof card.primaryImageIdx === 'number') {
+        const idx = card.primaryImageIdx;
+        const u = idx < finalImages.length ? finalImages[idx] : undefined;
+        if (u) tags.push(`colorPrimaryImage:${c}=${u}`);
+      }
+      if (selectedUrls.length) tags.push(`colorImages:${c}=${selectedUrls.join('|')}`);
+    }
+    return Array.from(new Set(tags));
+  }
+
+  function parseColorTagsToState(productTags: string[], productImages: string[]): { mapping: Record<string,string|undefined>; cards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> } {
+    const mapping: Record<string, string | undefined> = {};
+    const cardsByColor = new Map<string, { key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }>();
+    const urlIndex = (u?: string) => (u ? productImages.findIndex(x => x === u) : -1);
+    for (const t of (productTags||[])) {
+      const s = String(t||'');
+      if (s.startsWith('primaryColor:')) {
+        const name = s.split(':').slice(1).join(':');
+        if (name) { try { setPrimaryColorName(name); } catch {} }
+      } else if (s.startsWith('colorPrimaryImage:')) {
+        const [k, v] = s.replace('colorPrimaryImage:', '').split('=');
+        const color = String(k||'').trim(); const url = String(v||'').trim();
+        if (color && url) {
+          mapping[color] = url;
+          const idx = urlIndex(url);
+          const card = cardsByColor.get(color) || { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color, selectedImageIdxs: [], primaryImageIdx: undefined };
+          if (idx >= 0) card.primaryImageIdx = idx;
+          cardsByColor.set(color, card);
+        }
+      } else if (s.startsWith('colorImages:')) {
+        const [k, v] = s.replace('colorImages:', '').split('=');
+        const color = String(k||'').trim(); const urls = String(v||'').split('|').map(x=>x.trim()).filter(Boolean);
+        if (color && urls.length) {
+          const card = cardsByColor.get(color) || { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color, selectedImageIdxs: [], primaryImageIdx: undefined };
+          const idxs = urls.map(u => urlIndex(u)).filter(i => i >= 0);
+          card.selectedImageIdxs = Array.from(new Set([...(card.selectedImageIdxs||[]), ...idxs]));
+          cardsByColor.set(color, card);
+        }
+      }
+    }
+    const cards = Array.from(cardsByColor.values());
+    return { mapping, cards };
+  }
+
+  // Derived mapping used for UI previews (table thumbnails)
+  const mergedColorMapping = React.useMemo<Record<string, string | undefined>>(() => {
+    try { return { ...(review?.mapping||{}), ...buildColorMappingFromCards() }; } catch { return (review as any)?.mapping || {}; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(colorCards), JSON.stringify((review as any)?.mapping||{})]);
 
   React.useEffect(()=>{
     const unique = Array.from(new Set(colorCards.map(c => (c.color||'')).filter(Boolean)));
     setSelectedColors(unique as string[]);
   }, [colorCards]);
 
-  function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> {
+  function generateVariantRows(): Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> {
     const priceValue = Number(salePrice || 0);
     const purchaseValue = purchasePrice === '' ? undefined : Number(purchasePrice || 0);
-    const stockValue = Number(stockQuantity || 0);
-    const activeSizeTypes = selectedSizeTypes.filter(t => t.selectedSizes?.length);
+    const stockValue = (stockQuantity === '' ? 999999 : Number(stockQuantity || 0));
+    // Resolve sizes for each selected size-type: if none explicitly selected, use ALL sizes under that type
+    const resolvedSizeTypes = selectedSizeTypes
+      .map(t => {
+        const explicit = Array.isArray(t.selectedSizes) ? t.selectedSizes.filter(Boolean) : [] as string[];
+        const all = Array.isArray(t.sizes) ? t.sizes.map(s => String((s as any)?.name || '').trim()).filter(Boolean) : [] as string[];
+        const effective = explicit.length ? explicit : all;
+        return { ...t, effectiveSizes: Array.from(new Set(effective)) };
+      })
+      .filter(t => t.effectiveSizes.length);
+    const activeSizeTypes = resolvedSizeTypes;
     const colorList = selectedColors;
-    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string }> = [];
+    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
+    // Build color→image mapping from colorCards selections, falling back to review.mapping
+    const urls = allProductImageUrls();
+    const selectedMapping: Record<string, string | undefined> = {};
+    for (const card of colorCards) {
+      const cname = String(card.color || '').trim(); if (!cname) continue;
+      const pickIdx = (typeof card.primaryImageIdx === 'number' && card.selectedImageIdxs.includes(card.primaryImageIdx))
+        ? card.primaryImageIdx
+        : (card.selectedImageIdxs[0] ?? undefined);
+      const url = (pickIdx !== undefined) ? urls[pickIdx] : undefined;
+      if (url) selectedMapping[cname] = url;
+    }
+    const mergedMapping: Record<string,string|undefined> = { ...(review?.mapping||{}), ...selectedMapping };
+    const makeSku = (parts: string[]): string => {
+      const base = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,8) || 'PRD';
+      const tail = parts.map(p=> String(p||'').toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9]+/g,'').slice(0,6)).filter(Boolean).join('-');
+      return [base, tail].filter(Boolean).join('-');
+    };
 
     if (activeSizeTypes.length >= 2 && colorList.length) {
       const [t1, t2] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
-        for (const s2 of t2.selectedSizes) {
+      for (const s1 of t1.effectiveSizes) {
+        for (const s2 of t2.effectiveSizes) {
           for (const c of colorList) {
-            const isPrimary = primaryColorName && c===primaryColorName;
-            rows.push({ name: `${t1.name}: ${s1} - ${t2.name}: ${s2}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+            rows.push({
+              name: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
+              value: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
+              price: priceValue,
+              purchasePrice: purchaseValue,
+              stockQuantity: stockValue,
+              sku: makeSku([s1, s2, c]),
+              size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+              color: c,
+              option_values: [
+                { name: 'size', value: `${t1.name}:${s1}` },
+                { name: 'size', value: `${t2.name}:${s2}` },
+                { name: 'color', value: c },
+              ],
+            });
           }
         }
       }
@@ -1265,9 +2041,21 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (activeSizeTypes.length >= 2) {
       const [t1, t2] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
-        for (const s2 of t2.selectedSizes) {
-          rows.push({ name: `${t1.name}: ${s1}`, value: `${t2.name}: ${s2}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+      for (const s1 of t1.effectiveSizes) {
+        for (const s2 of t2.effectiveSizes) {
+          rows.push({
+            name: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
+            value: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
+            price: priceValue,
+            purchasePrice: purchaseValue,
+            stockQuantity: stockValue,
+            sku: makeSku([t1.name, s1, t2.name, s2]),
+            size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+            option_values: [
+              { name: 'size', value: `${t1.name}:${s1}` },
+              { name: 'size', value: `${t2.name}:${s2}` },
+            ],
+          });
         }
       }
       return rows;
@@ -1275,10 +2063,22 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (activeSizeTypes.length === 1 && colorList.length) {
       const [t1] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
+      for (const s1 of t1.effectiveSizes) {
         for (const c of colorList) {
-          const isPrimary = primaryColorName && c===primaryColorName;
-          rows.push({ name: `${t1.name}: ${s1}`, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+          rows.push({
+            name: `${t1.name}: ${s1} • اللون: ${c}`,
+            value: `${t1.name}: ${s1} • اللون: ${c}`,
+            price: priceValue,
+            purchasePrice: purchaseValue,
+            stockQuantity: stockValue,
+            sku: makeSku([s1, c]),
+            size: `${t1.name}:${s1}`,
+            color: c,
+            option_values: [
+              { name: 'size', value: `${t1.name}:${s1}` },
+              { name: 'color', value: c },
+            ],
+          });
         }
       }
       return rows;
@@ -1286,15 +2086,33 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (activeSizeTypes.length === 1) {
       const [t1] = activeSizeTypes;
-      for (const s1 of t1.selectedSizes) {
-        rows.push({ name: `${t1.name}: ${s1}`, value: `${t1.name}: ${s1}`, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue });
+      for (const s1 of t1.effectiveSizes) {
+        rows.push({
+          name: `${t1.name}: ${s1}`,
+          value: `${t1.name}: ${s1}`,
+          price: priceValue,
+          purchasePrice: purchaseValue,
+          stockQuantity: stockValue,
+            sku: makeSku([t1.name, s1]),
+          size: `${t1.name}:${s1}`,
+          option_values: [{ name: 'size', value: `${t1.name}:${s1}` }],
+        });
       }
       return rows;
     }
 
     if (colorList.length) {
       for (const c of colorList) {
-        rows.push({ name: c, value: c, price: priceValue, purchasePrice: purchaseValue, stockQuantity: stockValue, sku: undefined });
+        rows.push({
+          name: `اللون: ${c}`,
+          value: `اللون: ${c}`,
+          price: priceValue,
+          purchasePrice: purchaseValue,
+          stockQuantity: stockValue,
+          sku: makeSku(['COLOR', c]),
+          color: c,
+          option_values: [{ name: 'color', value: c }],
+        });
       }
       return rows;
     }
@@ -1309,6 +2127,14 @@ export default function AdminProductCreate(): JSX.Element {
       showToast('أكمل الحقول المطلوبة', 'err');
       return;
     }
+    // Guard: ensure description table (strictDetails) is embedded if available
+    try {
+      const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
+      const html = detailsToHtmlTable(rows);
+      if (html && html.length && (!description || description.indexOf('<table') === -1)) {
+        setDescription(html);
+      }
+    } catch {}
     setBusy(true);
     const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean).filter(u => !u.startsWith('blob:'));
     let uploadedOrBase64: string[] = [];
@@ -1342,55 +2168,103 @@ export default function AdminProductCreate(): JSX.Element {
       images: baseImages,
       categoryId,
       vendorId: vendorId || null,
-      stockQuantity: Number(stockQuantity || 0),
+      stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
       brand: brand || undefined,
-      tags: [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean),
+      tags: (()=>{
+        const base = [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean) as string[];
+        const colorTags = buildColorTagsFromState(baseImages);
+        return Array.from(new Set([...base, ...colorTags]));
+      })(),
       isActive: !draft,
+      // Persist color galleries formally for API/DB
+      colors: (()=>{
+        const urls = baseImages;
+        const list: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = [];
+        for (let i=0;i<colorCards.length;i++){
+          const card = colorCards[i];
+          const name = String(card.color||'').trim(); if (!name) continue;
+          const imgs: string[] = [];
+          for (const idx of (card.selectedImageIdxs||[])){ if (urls[idx]) imgs.push(urls[idx]); }
+          const primary = (typeof card.primaryImageIdx==='number' && urls[card.primaryImageIdx]) ? urls[card.primaryImageIdx] : (review?.mapping?.[name]);
+          list.push({ name, primaryImageUrl: primary, isPrimary: primaryColorName===name, order:i, images: imgs.length? imgs: undefined });
+        }
+        // Ensure primaryColor present even if no card yet
+        if (primaryColorName && !list.some(c=> c.name===primaryColorName)) list.push({ name: primaryColorName, isPrimary: true });
+        return list;
+      })(),
       seoTitle: seoTitle||undefined,
       seoDescription: seoDescription||undefined,
     };
+    const editId = search?.get('id');
+    // Build normalized variants once for either create or patch
+    let normalizedVariants: any[] = [];
+    if (type === 'variable') {
+      let variants = variantRows;
+      if (!variants || variants.length === 0) {
+        try { variants = generateVariantRows(); } catch { variants = [] as any; }
+      }
+      if (variants && variants.length) {
+        normalizedVariants = variants.map(v => {
+          const sizeToken = v.size ? String(v.size) : undefined;
+          const colorToken = v.color ? String(v.color) : undefined;
+          const ov = Array.isArray(v.option_values) ? v.option_values : [];
+          const withSize = sizeToken ? ov.filter(o=>o.name!=='size').concat(
+            sizeToken.includes('|')
+              ? sizeToken.split('|').map(part => {
+                  const [k,val] = part.split(':',2); return { name:'size', value: val? `${k}:${val}` : String(part) };
+                })
+              : [{ name:'size', value:String(sizeToken) }]
+          ) : ov;
+          const withBoth = colorToken ? withSize.filter(o=>o.name!=='color').concat([{ name:'color', value:String(colorToken) }]) : withSize;
+          return { ...v, size: sizeToken, color: colorToken, option_values: withBoth };
+        });
+      }
+    }
+
     let res: Response;
     try {
-      res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
+      if (editId) {
+        // PATCH existing product with variants in one request
+        const body = { ...productPayload, ...(normalizedVariants.length? { variants: normalizedVariants } : {}) };
+        res = await fetch(`${apiBase}/api/admin/products/${editId}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
+      } else {
+        res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
+      }
     } catch (err) {
       setBusy(false);
       showToast('تعذر الاتصال بالخادم', 'err');
       return;
     }
     if (!res.ok) {
-      let msg = 'فشل إنشاء المنتج';
+      let msg = editId? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج';
       try {
         const j = await res.json();
         if (j?.error) msg = String(j.error);
         if ((j?.message||'').toLowerCase().includes('unique') || (j?.error||'').toLowerCase().includes('unique')) msg = 'SKU مكرر أو بيانات غير صالحة';
-        if (res.status === 403) msg = 'لا تملك صلاحية إنشاء المنتجات، يرجى تسجيل الدخول';
+        if (res.status === 403) msg = 'لا تملك صلاحية العملية، يرجى تسجيل الدخول';
       } catch {}
       setBusy(false);
       showToast(msg, 'err');
       return;
     }
-    const j = await res.json();
-    const productId = j?.product?.id;
-    if (type === 'variable' && productId) {
-      let variants = variantRows;
-      if (!variants?.length) variants = generateVariantRows();
-      if (variants.length) {
-        try {
-          await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
-            method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-            body: JSON.stringify({ variants })
-          });
-        } catch {}
-      }
+    const j = await res.json().catch(()=>({}));
+    const productId = editId || j?.product?.id;
+    if (!editId && type === 'variable' && productId && normalizedVariants.length) {
+      try {
+        await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
+          method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+          body: JSON.stringify({ variants: normalizedVariants })
+        });
+      } catch {}
     }
     if (uploadedOrBase64.length) {
       setImages(baseImages.join(', '));
       setFiles([]);
     }
     setBusy(false);
-    showToast('تم إنشاء المنتج بنجاح', 'ok');
-    router.push('/products');
+    showToast(editId? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح', 'ok');
+    router.push(editId? `/products/new?id=${productId}` : '/products');
   }
 
   return (
@@ -1409,71 +2283,18 @@ export default function AdminProductCreate(): JSX.Element {
             <input type="checkbox" checked={deepseekOn} onChange={(e)=> setDeepseekOn(e.target.checked)} />
             <span>DeepSeek</span>
           </label>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-            <input type="checkbox" checked={useOpenRouter} onChange={(e)=> setUseOpenRouter(e.target.checked)} />
-            <span>OpenRouter</span>
-          </label>
-          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn btn-outline">{busy? 'جارِ التحليل...' : 'تحليل / معاينة'}</button>
-          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'DeepSeek'}</button>
-          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek فقط (معاينة)">{busy? '...' : 'تحليل عبر DeepSeek (معاينة)'}</button>
-          <button type="button" onClick={()=>handleRulesStrictPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل صارم (نص فقط)">{busy? '...' : 'تحليل صارم (بدون اختراع)'}</button>
-          <button type="button" onClick={()=>handleOpenRouterOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر OpenRouter فقط (معاينة)">{busy? '...' : 'تحليل عبر OpenRouter (معاينة)'}</button>
-          <button type="button" onClick={()=>handleGptOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر GPT فقط (معاينة)">{busy? '...' : 'تحليل عبر GPT (معاينة)'}</button>
-          <button type="button" onClick={()=>{
-              if (!review) return;
-              const limitedName = String(review.name||'').slice(0,60);
-              setName(limitedName);
-              setDescription(String(review.longDesc||''));
-              if (review.purchasePrice!==undefined) setPurchasePrice(review.purchasePrice); if (review.salePrice!==undefined) setSalePrice(review.salePrice);
-              if (review.stock!==undefined) setStockQuantity(review.stock);
-              if (Array.isArray(review.colors) && review.colors.length) setSelectedColors(review.colors);
-              if ((review.colors?.length || 0) > 0 || (review.sizes?.length || 0) > 0) setType('variable');
-              const sList: string[] = Array.isArray(review.sizes)? review.sizes : [];
-              const cList: string[] = Array.isArray(review.colors)? review.colors : [];
-              // Auto-add images from palettes mapping if provided
-              try{
-                const palettes = (review as any).palettes || [];
-                const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
-                const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
-                const merged = Array.from(new Set([...cur, ...urls]));
-                setImages(merged.join(', '));
-              }catch{}
-              const rows: typeof variantRows = [];
-              const baseSale = undefined;
-              const baseCost = review.purchasePrice!==undefined ? Number(review.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-              if (sList.length && cList.length) {
-                for (const sz of sList) {
-                  for (const col of cList) {
-                    const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}-${col}`;
-                    rows.push({ name: sz, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                  }
-                }
-              } else if (sList.length) {
-                for (const sz of sList) {
-                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${sz}`;
-                  rows.push({ name: sz, value: sz, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                }
-              } else if (cList.length) {
-                for (const col of cList) {
-                  const phSku = `${limitedName.replace(/\s+/g,'-').toUpperCase().slice(0,12)}-${col}`;
-                  rows.push({ name: col, value: col, price: baseSale as any, purchasePrice: baseCost, stockQuantity: Number(review.stock||stockQuantity||0), sku: undefined });
-                }
-              }
-              setVariantRows(rows);
-            }} disabled={busy || !review} className="btn">توليد</button>
-            <button type="button" onClick={()=>{
-              const rows = (review as any)?.strictDetails as Array<{label:string;value:string}> | undefined;
-              const html = detailsToHtmlTable(rows);
-              setDescription(html || (review?.longDesc || ''));
-              showToast('تم توليد جدول التفاصيل داخل الوصف','ok');
-            }} disabled={busy || !review} className="btn btn-outline">توليد جدول التفاصيل للوصف</button>
+          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn">{busy? 'جارِ التحليل...' : 'حلّل واملأ الحقول'}</button>
+          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'حلّل واملأ الحقول (DeepSeek)'}</button>
+          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek محلياً (بدون رفع)">{busy? '...' : 'تحليل عبر DeepSeek (محلي)'} </button>
+          <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
         </>}
       >
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
           <div style={{ display:'grid', gap:12 }}>
             <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
             {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            {review && (
+            {/* إخفاء واجهة المعاينة (مُعطل بالكامل) */}
+            {false && (
               <div className="panel" style={{ padding:12 }}>
                 <h3 style={{ marginTop:0 }}>Review</h3>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -1481,8 +2302,8 @@ export default function AdminProductCreate(): JSX.Element {
                     <input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" />
                     {!review.name && review?.reasons?.name && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.name}</div>}
                   </label>
-                  <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%) <SourceBadge src={review.sources?.price_range} /><input type="number" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
-                  <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="number" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
+                  <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%) <SourceBadge src={review.sources?.price_range} /><input type="text" inputMode="decimal" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
+                  <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="text" inputMode="numeric" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
                   
                   <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea ref={longDescRef} value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
                   {Array.isArray(review.strictDetails) && review.strictDetails.length>0 && (
@@ -1600,7 +2421,7 @@ export default function AdminProductCreate(): JSX.Element {
                 e.preventDefault();
                 setDragOver(false);
                 const dropped = Array.from(e.dataTransfer.files || []);
-                if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
+                if (dropped.length) setFiles((prev) => mergeUniqueFiles(prev, dropped));
               }}
               className="dropzone"
             style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
@@ -1611,7 +2432,7 @@ export default function AdminProductCreate(): JSX.Element {
                 اختر من جهازك
                 <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
                   const selected = Array.from(e.target.files || []);
-                  if (selected.length) setFiles((prev) => [...prev, ...selected]);
+                  if (selected.length) setFiles((prev) => mergeUniqueFiles(prev, selected));
                 }} />
               </label>
               <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
@@ -1620,7 +2441,7 @@ export default function AdminProductCreate(): JSX.Element {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
                 {files.map((f, idx) => (
                   <div key={idx} className="panel" style={{ padding:0 }}>
-                    <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                    <img src={fileUrls[idx]} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
                     <div style={{ padding:8, textAlign:'right' }}>
                     <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
                     </div>
@@ -1654,7 +2475,8 @@ export default function AdminProductCreate(): JSX.Element {
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
           </label>
           <label style={{ gridColumn:'1 / -1' }}>الوصف
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="input" />
+            <RichTextEditor value={description} onChange={setDescription} />
+            <small style={{ color:'var(--sub)' }}>يعرض المحرر التنسيق مباشرة (جداول، قوائم، نص منسّق). سيتم حفظ HTML كما هو.</small>
           </label>
           <label>المورّد
             <select value={vendorId} onChange={async (e) => {
@@ -1682,13 +2504,22 @@ export default function AdminProductCreate(): JSX.Element {
             </select>
           </label>
           <label>المخزون
-            <input type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value === '' ? '' : Number(e.target.value))} className="input" />
+            <input type="text" inputMode="numeric" value={formatThousands(stockQuantity)} onChange={(e) => {
+              const v = parseLocalizedNumber(e.target.value);
+              setStockQuantity(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (stockQuantity||'')));
+            }} className="input" />
           </label>
           <label>سعر الشراء
-            <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value === '' ? '' : Number(e.target.value))} className="input" />
+            <input type="text" inputMode="decimal" value={formatThousands(purchasePrice)} onChange={(e) => {
+              const v = parseLocalizedNumber(e.target.value);
+              setPurchasePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (purchasePrice||'')));
+            }} className="input" />
           </label>
           <label>سعر البيع
-            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))} required className="input" />
+            <input type="text" inputMode="decimal" value={formatThousands(salePrice)} onChange={(e) => {
+              const v = parseLocalizedNumber(e.target.value);
+              setSalePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (salePrice||'')));
+            }} required className="input" />
           </label>
           {type === 'variable' && (
             <>
@@ -1796,46 +2627,56 @@ export default function AdminProductCreate(): JSX.Element {
                   </div>
                 </div>
               </div>
-              <div className="panel" style={{ paddingTop:12 }}>
-                <div className="toolbar" style={{ gap:8 }}>
-                  <button type="button" onClick={() => {
-                    setVariantRows(generateVariantRows());
-                  }} className="btn btn-outline">توليد التباينات المتعددة</button>
-                </div>
-                {variantRows.length > 0 ? (
-                  <div style={{ overflowX:'auto' }}>
-            <table className="table" style={{ width:'100%' }}>
+              {/* Variants Section in its own full-width container */}
+              <div style={{ gridColumn:'1 / -1' }}>
+                <section className="panel" style={{ paddingTop:12, marginInline:-16, borderRadius:0 }}>
+                  <div className="toolbar" style={{ gap:8, paddingInline:16 }}>
+                    <button type="button" onClick={() => { applyColorMappingFromCards(); setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
+                  </div>
+                  {variantRows.length > 0 ? (
+                    <div className="table-wrapper" style={{ width:'100%', maxWidth:'100%', overflowX:'visible', paddingInline:16 }}>
+                      <table className="table" style={{ width:'100%', tableLayout:'auto' }}>
                       <thead>
-                        <tr>
-                          <th>المجموعة</th>
-                          <th>القيمة</th>
-                          <th>سعر الشراء</th>
-                          <th>سعر البيع</th>
-                          <th>المخزون</th>
-                          <th>SKU</th>
-                          <th>صورة</th>
-                          <th></th>
-                        </tr>
+                <tr>
+                  {sizeTypeLabels.map(lbl=> (<th key={lbl}>{lbl}</th>))}
+                  <th>اللون</th>
+                  <th>سعر الشراء</th>
+                  <th>سعر البيع</th>
+                  <th>المخزون</th>
+                  <th>SKU</th>
+                  <th>صورة</th>
+                  <th>المجموعة (قراءة فقط)</th>
+                  <th></th>
+                </tr>
                       </thead>
                       <tbody>
-                        {variantRows.map((row, idx) => (
+                {variantRows.map((row, idx) => {
+                          const parts = parseCompositeSizes(row.size);
+                          return (
                           <tr key={idx}>
-                            <td>{row.name}</td>
-                            <td>{row.value}</td>
+                            {sizeTypeLabels.map((lbl)=> (<td key={lbl}><input value={parts[lbl]||''} onChange={(e)=>{
+                              const next = { ...parts, [lbl]: e.target.value };
+                              const comp = Object.entries(next).filter(([k,v])=> (k&&v)).map(([k,v])=> `${k}:${v}`).join('|');
+                              setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, size: comp, option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='size'), ...(comp? [{ name:'size', value: comp }]:[]) ] }: r));
+                            }} className="input" />
+                            </td>))}
+                    <td>
+                      <input value={row.color||''} onChange={(e)=> setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, color: (e.target.value||undefined), option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='color'), ...(e.target.value? [{ name:'color', value: e.target.value }]:[]) ] }: r))} className="input" />
+                    </td>
                             <td>
-                              <input type="number" value={row.purchasePrice ?? ''} onChange={(e)=>{
+                              <input type="text" inputMode="decimal" value={row.purchasePrice ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
                                 setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, purchasePrice: val } : r));
                               }} className="input" />
                             </td>
                             <td>
-                              <input type="number" value={row.price ?? ''} onChange={(e)=>{
+                              <input type="text" inputMode="decimal" value={row.price ?? ''} onChange={(e)=>{
                                 const val = e.target.value === '' ? undefined : Number(e.target.value);
                                 setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, price: val } : r));
                               }} className="input" />
                             </td>
                             <td>
-                              <input type="number" value={row.stockQuantity} onChange={(e)=>{
+                              <input type="text" inputMode="numeric" value={row.stockQuantity} onChange={(e)=>{
                                 const val = e.target.value === '' ? 0 : Number(e.target.value);
                                 setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, stockQuantity: val } : r));
                               }} className="input" />
@@ -1847,109 +2688,76 @@ export default function AdminProductCreate(): JSX.Element {
                               }} className="input" />
                             </td>
                             <td>
-                              <select value={(()=>{ const mapped = (review?.mapping||{})[row.value]; return mapped || ''; })()} onChange={(e)=>{
-                                const url = e.target.value || undefined;
-                                setReview((r:any)=> ({...r, mapping: { ...(r?.mapping||{}), [row.value]: url }}));
-                              }} className="select">
-                                <option value="">(بدون)</option>
-                                {(review?.palettes||[]).map((p:any, i:number)=> (<option key={i} value={p.url}>صورة {i+1}</option>))}
-                              </select>
+                              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', position:'relative' }}>
+                                {(() => {
+                                  const colorName = (row.color || '').toString();
+                                  const urls = allProductImageUrls();
+                                  const card = colorCards.find(c => (c.color||'') === colorName);
+                                  const thumbs = (card?.selectedImageIdxs||[])
+                                    .slice(0,4)
+                                    .map((i)=> urls[i])
+                                    .filter(Boolean);
+                                  return thumbs.length ? (
+                                    <div style={{ display:'flex', gap:4, flexWrap:'nowrap' }}>
+                                      {thumbs.map((u, i)=> (<img key={i} src={u} alt="thumb" className="thumb" style={{ width:28, height:28 }} />))}
+                                    </div>
+                                  ) : null;
+                                })()}
+                                {(() => {
+                                  const allUrls = allProductImageUrls();
+                                  const colorName = (row.color || '').toString();
+                                  const cardIdx = colorCards.findIndex(c => (c.color||'') === colorName);
+                                  const selected = cardIdx>=0 ? (colorCards[cardIdx].selectedImageIdxs||[]) : [];
+                                  const primaryIdx = cardIdx>=0 ? colorCards[cardIdx].primaryImageIdx : undefined;
+                                  return (
+                                    <VariantImagePicker
+                                      urls={allUrls}
+                                      selected={selected}
+                                      primaryIdx={primaryIdx}
+                                      onToggle={(i)=>{
+                                        setColorCards(prev => prev.map((c, idx2)=>{
+                                          if (idx2!==cardIdx) return c;
+                                          const have = (c.selectedImageIdxs||[]).includes(i);
+                                          const sel = have ? c.selectedImageIdxs.filter(x=>x!==i) : [...(c.selectedImageIdxs||[]), i];
+                                          let pIdx = c.primaryImageIdx;
+                                          if (pIdx!==undefined && !sel.includes(pIdx)) pIdx = undefined;
+                                          return { ...c, selectedImageIdxs: sel, primaryImageIdx: pIdx };
+                                        }));
+                                      }}
+                                      onSetPrimary={(i)=>{
+                                        setColorCards(prev => prev.map((c, idx2)=> idx2===cardIdx ? { ...c, primaryImageIdx: i } : c));
+                                        if (cardIdx>=0 && primaryColorCardKey===colorCards[cardIdx].key) {
+                                          const u = allUrls[i];
+                                          if (u) setPrimaryImageUrl(u);
+                                          const cname = colorCards[cardIdx].color;
+                                          if (cname) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [String(cname)]: allUrls[i] } }));
+                                        }
+                                      }}
+                                      buttonLabel="اختر صورة"
+                                    />
+                                  );
+                                })()}
+                              </div>
                             </td>
+                            <td style={{ minWidth:280, color:'#6b7280', whiteSpace:'normal' }}>{[...sizeTypeLabels.map(lbl=> parts[lbl]||'—'), (row.color||'—')].join(' • ')}</td>
                             <td>
                               <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div style={{ marginTop:8, color:'var(--sub)' }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات".</div>
-                )}
+                        )})}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop:8, color:'var(--sub)', paddingInline:16 }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات". سيتم ربط صور اللون المختارة تلقائياً.</div>
+                  )}
+                </section>
               </div>
             </>
           )}
         </div>
 
-        {/* Right column: media only; move preview/SEO to bottom */}
-        <div style={{ gridColumn: 'span 4', display:'grid', gap:12, alignSelf:'start' }}>
-          <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div>صور المنتج</div>
-              <button type="button" className="btn btn-outline" onClick={()=> setShowImagesInput(s=>!s)}>{showImagesInput? 'إخفاء الروابط' : 'إضافة/تحرير الروابط'}</button>
-              </div>
-            {(() => {
-              const list = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
-              if (!list.length) return <div style={{ color:'var(--sub)', marginTop:6 }}>لا توجد صور حالية</div>;
-              return (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginTop:8 }}>
-                  {list.map((u, idx) => (
-                    <div key={idx} className="panel" style={{ padding:0 }}>
-                      <img src={u} alt={String(idx)} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                      <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <a href={u} target="_blank" rel="noreferrer" className="btn btn-outline">فتح</a>
-                        <button type="button" className="icon-btn" onClick={()=>{
-                          const next = list.filter((_,i)=> i!==idx);
-                          setImages(next.join(', '));
-                        }}>إزالة</button>
-                </div>
-              </div>
-                  ))}
-              </div>
-              );
-            })()}
-            {showImagesInput && (
-              <label style={{ display:'block', marginTop:8 }}>الصور (روابط مفصولة بفواصل)
-            <input value={images} onChange={(e) => setImages(e.target.value)} placeholder="https://...jpg, https://...png" className="input" />
-          </label>
-            )}
-          </div>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const dropped = Array.from(e.dataTransfer.files || []);
-              if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
-            }}
-            className="dropzone"
-            style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
-          >
-            اسحب وأفلت الصور هنا أو
-            <br />
-            <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
-              اختر من جهازك
-              <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
-                const selected = Array.from(e.target.files || []);
-                if (selected.length) setFiles((prev) => [...prev, ...selected]);
-              }} />
-            </label>
-            <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
-          </div>
-          {files.length > 0 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-              {files.map((f, idx) => (
-                <div key={idx} className="panel" style={{ padding:0 }}>
-                  <img src={URL.createObjectURL(f)} alt={f.name} style={{ width:'100%', height:220, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                  <div style={{ padding:8, textAlign:'right' }}>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {files.length > 0 && (
-            <button type="button" onClick={() => {
-              const fileNames = files.map(f => f.name);
-              const current = (images || '').split(',').map(s=>s.trim()).filter(Boolean);
-              const next = Array.from(new Set([...current, ...fileNames]));
-              setImages(next.join(', '));
-            }} className="btn btn-outline">إضافة الملفات إلى قائمة الصور</button>
-          )}
-
-          {/* removed duplicate side variants panel */}
-        </div>
+        {/* Right column product images panel removed as requested */}
 
         {/* Moved preview + SEO + draft to bottom for unobstructed view */}
         <div className="panel" style={{ gridColumn:'1 / -1', marginTop: 8, padding:12 }}>
@@ -1973,7 +2781,7 @@ export default function AdminProductCreate(): JSX.Element {
           </div>
           <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
           <div style={{ display:'flex', gap:8, marginTop:8, justifyContent:'flex-end' }}>
-          <button type="submit" className="btn">حفظ المنتج</button>
+            <button type="submit" className="btn">حفظ المنتج</button>
             <a href="/products" className="btn btn-outline">رجوع</a>
           </div>
         </div>

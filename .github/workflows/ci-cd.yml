@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, hash, jam ]
+    branches: [ main, hash, jam, mishash ]
   pull_request:
     branches: [ main ]
 
@@ -48,15 +48,33 @@ jobs:
         run: pnpm -w turbo run typecheck || true
       - name: Build
         run: pnpm build
+      # Disabled mweb Playwright UI tests per request (API not started in this job; causing false negatives)
+      - name: MWeb tests (Playwright preview) — disabled
+        if: false
+        working-directory: apps/mweb
+        run: echo "mweb playwright tests are disabled in CI"
       - name: Unit tests
         run: pnpm test || true
+      - name: Admin analyze → direct fill → variants smoke
+        if: ${{ github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') || github.ref_name == 'main' || startsWith(github.ref, 'refs/heads/main') }}
+        env:
+          API_BASE: http://127.0.0.1:4000
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}
+        run: |
+          set -e
+          # Start local API and wait for health
+          pnpm --filter @repo/api start &
+          npx -y wait-on http://127.0.0.1:4000/health
+          node scripts/ci/create-test-product.mjs
+      # Admin E2E - analyze populates colors (disabled per request)
       - name: Smoke - Admin flows
         run: node scripts/ci/smoke-admin-extras.mjs || true
       - name: Smoke - Create Order
         run: node scripts/ci/smoke.mjs || true
 
-      - name: Admin layout check (hash - local preview)
-        if: ${{ github.ref_name == 'hash' || startsWith(github.ref, 'refs/heads/hash') || contains(github.ref, '/hash') || github.head_ref == 'hash' || github.base_ref == 'hash' }}
+      - name: Admin layout check (hash/mishash - local preview)
+        if: ${{ github.ref_name == 'hash' || startsWith(github.ref, 'refs/heads/hash') || contains(github.ref, '/hash') || github.head_ref == 'hash' || github.base_ref == 'hash' || github.ref_name == 'mishash' || startsWith(github.ref, 'refs/heads/mishash') || contains(github.ref, '/mishash') || github.head_ref == 'mishash' || github.base_ref == 'mishash' }}
         env:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'admin123' }}

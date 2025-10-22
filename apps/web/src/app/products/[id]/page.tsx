@@ -14,7 +14,8 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   const [activeIdx, setActiveIdx] = React.useState(0);
   const [qty, setQty] = React.useState(1);
   const [tab, setTab] = React.useState<'desc' | 'specs' | 'reviews'>("desc");
-  const [selectedSize, setSelectedSize] = React.useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
+  const [selectedSizes, setSelectedSizes] = React.useState<Record<string,string>>({});
   const [showShip, setShowShip] = React.useState(false);
   const [showReturn, setShowReturn] = React.useState(false);
   const [rating, setRating] = React.useState(5);
@@ -29,6 +30,92 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
 
   const product = data;
   const images = product.images && product.images.length ? product.images : ["/images/placeholder-product.jpg"];
+  const variants = Array.isArray((product as any).variants) ? (product as any).variants : [];
+  // Build dimension sets from server-provided attributes (preferred) or derive from variants
+  const colorSet = new Set<string>();
+  const sizeGroups = new Map<string, Set<string>>();
+  const normToken = (s: string) => String(s||'').trim().toLowerCase();
+  const isColorWord = (s: string): boolean => {
+    const t = normToken(s);
+    if (!t) return false;
+    const COLOR_WORDS = new Set<string>([
+      'احمر','أحمر','red','ازرق','أزرق','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver',
+      // Arabic commercial color names
+      'دم الغزال','لحمي','خمري','عنابي','طوبي'
+    ]);
+    if (COLOR_WORDS.has(t)) return true;
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return true;
+    if (/^[\p{L}\s]{2,}$/u.test(s) && /ي$/.test(s)) return true;
+    return false;
+  };
+  const normalizeDigits = (input: string): string => String(input||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
+  const looksSizeToken = (s: string): boolean => {
+    const t = normToken(normalizeDigits(s));
+    if (!t) return false;
+    if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|xxxxxxl)$/i.test(t)) return true;
+    if (/^\d{1,2}xl$/i.test(t)) return true; // 2XL, 3XL etc.
+    if(/^(\d{2}|\d{1,3})$/.test(t)) return true;
+    if(/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true;
+    return false;
+  };
+  const splitTokens = (s: string): string[] => String(s||'').split(/[\s,،\/\-\|·•:]+/).map(x=>x.trim()).filter(Boolean);
+  const tryParseMeta = (raw: string): any => { try{ return JSON.parse(raw); } catch { return null; } };
+  // Prefer attributes returned by API (products.getById enriched via server)
+  const apiAttributes: Array<{ key: string; label: string; values: string[] }> = Array.isArray((product as any).attributes) ? (product as any).attributes : [];
+  if (apiAttributes.length) {
+    for (const a of apiAttributes) {
+      if (a.key === 'color') {
+        for (const v of a.values) colorSet.add(String(v));
+      } else if (a.key === 'size') {
+        const label = String(a.label || 'المقاس');
+        if (!sizeGroups.has(label)) sizeGroups.set(label, new Set());
+        for (const v of a.values) sizeGroups.get(label)!.add(String(v));
+      }
+    }
+  }
+  // Derive as fallback when attributes are not present (backward compatible)
+  if (colorSet.size === 0 && sizeGroups.size === 0) for (const v of variants as any[]) {
+    // Prefer explicit option_values JSON when present
+    let parsed = tryParseMeta(String(v.value||''));
+    if (!parsed || (Array.isArray(parsed) && parsed.length===0)) parsed = tryParseMeta(String(v.name||''));
+    const opts: Array<{name:string;value:string}> = Array.isArray(parsed?.option_values)? parsed.option_values : (Array.isArray(parsed)? parsed : []);
+    for (const o of opts) {
+      const n = String(o?.name||'').toLowerCase();
+      const val = String(o?.value||'').trim();
+      if (!val) continue;
+      if (n === 'color' || /لون/i.test(n)) colorSet.add(val);
+      else if (n === 'size' || /size|مقاس/i.test(n)) {
+        const [label, only] = val.includes(':') ? val.split(':',2) as [string,string] : ['المقاس', val];
+        if (!sizeGroups.has(label)) sizeGroups.set(label, new Set());
+        sizeGroups.get(label)!.add(only);
+      }
+    }
+    // Fallbacks: derive from fields and tokens when JSON not available
+    const nameStr = String((v as any).name||'');
+    const valueStr = String((v as any).value||'');
+    const tokens = splitTokens(`${nameStr} ${valueStr}`);
+    for (const t of tokens){ if (isColorWord(t)) colorSet.add(t); }
+    const explicitColor = (v as any).color; if (explicitColor) colorSet.add(String(explicitColor));
+    const explicitSize = (v as any).size; if (explicitSize) {
+      const [label, only] = String(explicitSize).includes(':') ? String(explicitSize).split(':',2) as [string,string] : ['المقاس', String(explicitSize)];
+      if (!sizeGroups.has(label)) sizeGroups.set(label, new Set());
+      sizeGroups.get(label)!.add(only);
+    }
+    // As a last-resort fallback, only add generic 'المقاس' tokens when we still have no structured size groups
+    if (sizeGroups.size === 0) {
+      for (const t of tokens) {
+        if (looksSizeToken(t) && !isColorWord(t)) {
+          if (!sizeGroups.has('المقاس')) sizeGroups.set('المقاس', new Set());
+          sizeGroups.get('المقاس')!.add(t);
+        }
+      }
+    }
+  }
+
+  // Prepare final size groups for rendering: if we have labeled groups, hide the generic 'المقاس' row
+  const sizeEntriesAll = Array.from(sizeGroups.entries());
+  const hasLabeledSizes = sizeEntriesAll.some(([label]) => label !== 'المقاس');
+  const sizeEntries = hasLabeledSizes ? sizeEntriesAll.filter(([label]) => label !== 'المقاس') : sizeEntriesAll;
 
   return (
     <main className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
@@ -77,23 +164,45 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
           )}
           {tab === 'specs' && (
             <div className="mt-4">
-              {/* Size swatches */}
-              {product.variants && product.variants.length > 0 && (
+              {/* Color selector */}
+              {colorSet.size>0 && (
                 <div className="mb-4">
-                  <div className="text-sm text-gray-600 mb-2">{t('size')}</div>
+                  <div className="text-sm text-gray-600 mb-2">اللون</div>
                   <div className="flex flex-wrap gap-2">
-                    {product.variants.map((v: any) => (
+                    {Array.from(colorSet).map((c) => (
                       <button
-                        key={v.id}
-                        onClick={() => setSelectedSize(v.name)}
-                        className={`px-3 py-1.5 border rounded ${selectedSize===v.name? 'border-black bg-black text-white':'bg-white'}`}
+                        key={c}
+                        onClick={() => setSelectedColor(prev => prev===c ? null : c)}
+                        className={`px-3 py-1.5 border rounded ${selectedColor===c? 'border-black bg-black text-white':'bg-white'}`}
                       >
-                        {v.name}
+                        {c}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
+              {/* Multiple size-type selectors (skip duplicate of the simple sizeOptions block) */}
+              {sizeEntries.map(([label, set]) => (
+                <div key={label} className="mb-4">
+                  <div className="text-sm text-gray-600 mb-2">{label}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from(set).map((raw) => {
+                      const parts = String(raw||'').split('|').map(x=>x.trim()).filter(Boolean);
+                      const pick = parts.find(x=> looksSizeToken(x) && !isColorWord(x)) || parts[0] || String(raw||'');
+                      const s = pick;
+                      return (
+                        <button
+                          key={String(raw)}
+                          onClick={() => setSelectedSizes(prev => ({ ...prev, [label]: prev[label]===s ? '' : s }))}
+                          className={`px-3 py-1.5 border rounded ${selectedSizes[label]===s? 'border-black bg-black text-white':'bg-white'}`}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
               <ul className="space-y-1 text-sm text-gray-600 list-disc pr-5">
                 {(product.specs || []).map((s: any, idx: number) => (
                   <li key={idx}>{typeof s === 'string' ? s : `${s.name}: ${s.value}`}</li>

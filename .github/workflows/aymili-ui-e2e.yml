@@ -1,0 +1,98 @@
+name: Aymili UI E2E (disabled)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  ui-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecom
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install deps
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build API
+        run: pnpm -w -r -F @repo/api build
+
+      - name: Prepare database schema (Prisma db push)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecom
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ecom
+        run: |
+          pnpm -w -r -F @repo/db db:push
+          ADMIN_EMAIL='${{ secrets.ADMIN_EMAIL }}' ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}' pnpm -w -r -F @repo/db db:seed:admin-only || true
+
+      - name: Start API
+        run: |
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecom
+          export DIRECT_URL=${DATABASE_URL}
+          export JWT_SECRET=ci_test_secret
+          export ADMIN_EMAIL='${{ secrets.ADMIN_EMAIL }}'
+          export ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}'
+          node packages/api/dist/index.js & echo $! > api.pid
+          for i in {1..30}; do curl -fsS http://127.0.0.1:4000/health && break || sleep 1; done
+
+      - name: Create Aymili product
+        env:
+          API_BASE: http://127.0.0.1:4000
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          node scripts/ci/create-aymili-product.mjs | tee /tmp/aymili_ui_create.log
+          export AYMILI_PRODUCT_ID=$(grep -oE 'AYMILI_PRODUCT_ID\s+\S+' /tmp/aymili_ui_create.log | awk '{print $2}')
+          echo "AYMILI_PRODUCT_ID=$AYMILI_PRODUCT_ID" >> $GITHUB_ENV
+
+      - name: Build mweb
+        run: pnpm -C apps/mweb build
+
+      - name: Start mweb preview
+        run: pnpm -C apps/mweb preview & echo $! > mweb.pid
+
+      - name: Wait for mweb
+        run: |
+          for i in {1..30}; do curl -fsS http://127.0.0.1:3002/ && break || sleep 1; done
+
+      - name: Install Playwright Browsers
+        run: pnpm -C apps/mweb exec playwright install --with-deps chromium
+
+      - name: UI E2E - PDP variants (disabled)
+        if: false
+        env:
+          API_BASE: http://127.0.0.1:4000
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          MWEB_ORIGIN: http://127.0.0.1:3002
+          AYMILI_PRODUCT_ID: ${{ env.AYMILI_PRODUCT_ID }}
+        run: echo "disabled"
+
+      - name: Stop services
+        if: always()
+        run: |
+          if [ -f mweb.pid ]; then kill $(cat mweb.pid) || true; fi
+          if [ -f api.pid ]; then kill $(cat api.pid) || true; fi

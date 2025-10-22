@@ -5,6 +5,190 @@ import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express'
 
 const shop = Router();
+
+// ===================== Variant normalization helpers =====================
+function normToken(s: string): string { return String(s||'').trim().toLowerCase() }
+function normalizeDigits(input: string): string {
+  // Convert Arabic-Indic digits to ASCII to improve numeric matching
+  return String(input||'').replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660));
+}
+const COLOR_WORDS = new Set<string>([
+  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver',
+  // Common Arabic commercial color phrases/synonyms
+  'دم الغزال','لحمي','خمري','عنابي','طوبي'
+]);
+function isColorWord(s: string): boolean {
+  const t = normToken(s);
+  if (!t) return false;
+  if (COLOR_WORDS.has(t)) return true;
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return true;
+  if (/^[\p{L}\s]{2,}$/u.test(s) && /ي$/.test(s)) return true; // Arabic adjective ending heuristic
+  return false;
+}
+function looksSizeToken(s: string): boolean {
+  const t = normToken(normalizeDigits(s));
+  if (!t) return false;
+  if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|xxxxxxl)$/i.test(t)) return true;
+  // Numeric multiplier sizes like 2XL, 3XL, 4XL ...
+  if (/^\d{1,2}xl$/i.test(t)) return true;
+  if (/^(\d{2}|\d{1,3})$/.test(t)) return true;
+  if (/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true;
+  return false;
+}
+function splitTokens(s: string): string[] {
+  // Split on commas (EN/AR), whitespace, slashes, dashes, pipes, bullets, and colons
+  return String(s||'').split(/[\s,،\/\-\|·•:]+/).map(x=>x.trim()).filter(Boolean);
+}
+
+function extractOptions(rec: any): { sizes: string[]; colors: string[] } {
+  const sizes = new Set<string>();
+  const colors = new Set<string>();
+  const visit = (name: string, value: string) => {
+    const n = normToken(name);
+    const raw = String(value||'').trim();
+    // Split pipes into multiple candidates when present (e.g., "M|مقاسات بالأرقام")
+    const candidates = raw.includes('|') ? raw.split('|').map(s=> s.trim()).filter(Boolean) : [raw];
+    for (const v0 of candidates) {
+      const v = String(v0||'').trim();
+      if (!v) continue;
+      if (/size|مقاس/i.test(n)) {
+        if (!isColorWord(v) && looksSizeToken(v)) sizes.add(v);
+        continue;
+      }
+      if (/color|لون/i.test(n)) {
+        if (isColorWord(v)) colors.add(v);
+        continue;
+      }
+      // Heuristics
+      if (looksSizeToken(v) && !isColorWord(v)) sizes.add(v);
+      else if (isColorWord(v)) colors.add(v);
+    }
+  };
+  const arrays: any[] = [];
+  try { if (Array.isArray(rec?.option_values)) arrays.push(rec.option_values); } catch {}
+  try { if (Array.isArray(rec?.optionValues)) arrays.push(rec.optionValues); } catch {}
+  try { if (Array.isArray(rec?.options)) arrays.push(rec.options); } catch {}
+  try { if (Array.isArray(rec?.attributes)) arrays.push(rec.attributes); } catch {}
+  for (const arr of arrays) {
+    for (const it of (arr||[])) {
+      if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+    }
+  }
+  const tryParseJSON = (raw: string) => {
+    try {
+      const j = JSON.parse(raw);
+      if (Array.isArray(j)) {
+        for (const it of j) {
+          if (typeof it === 'string') visit('auto', it);
+          else if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+        }
+      } else if (j && typeof j === 'object') {
+        for (const [k, v] of Object.entries(j)) visit(String(k), String(v as any));
+      }
+    } catch {}
+  };
+  if (typeof rec?.value === 'string' && (rec.value.startsWith('{') || rec.value.startsWith('['))) tryParseJSON(rec.value);
+  if (typeof rec?.name === 'string' && (rec.name.startsWith('{') || rec.name.startsWith('['))) tryParseJSON(rec.name);
+  return { sizes: Array.from(sizes), colors: Array.from(colors) };
+}
+
+// Derive structured attributes from a variant record
+function extractAttributeGroups(rec: any): { sizeGroups: Map<string, Set<string>>; colors: Set<string> } {
+  const sizeGroups = new Map<string, Set<string>>();
+  const colors = new Set<string>();
+  const norm = (s: string) => String(s||'').trim();
+  const pushSize = (label: string, only: string) => {
+    const key = norm(label);
+    const val = norm(only);
+    if (!val) return;
+    if (!looksSizeToken(val)) return;
+    if (!sizeGroups.has(key)) sizeGroups.set(key, new Set());
+    sizeGroups.get(key)!.add(val);
+  };
+  const visit = (name: string, value: string) => {
+    const n = norm(name).toLowerCase();
+    const vRaw = norm(value);
+    if (!vRaw) return;
+    if (/color|لون/i.test(n)) { colors.add(vRaw); return; }
+    if (/size|مقاس/i.test(n)) {
+      // Support multi-part expressions like "مقاسات بالأحرف:M|مقاسات بالأرقام:96" or "M|مقاسات بالأرقام"
+      const parts = vRaw.includes('|') ? vRaw.split('|').map(s=> s.trim()).filter(Boolean) : [vRaw];
+      for (const part of parts) {
+        if (!part) continue;
+        if (part.includes(':')) {
+          const [label, only] = part.split(':',2) as [string,string];
+          pushSize(label, only);
+        } else {
+          // No explicit label: keep under generic label; will be reclassified later
+          pushSize('المقاس', part);
+        }
+      }
+      return;
+    }
+  };
+  const arrays: any[] = [];
+  try { if (Array.isArray(rec?.option_values)) arrays.push(rec.option_values); } catch {}
+  try { if (Array.isArray(rec?.optionValues)) arrays.push(rec.optionValues); } catch {}
+  try { if (Array.isArray(rec?.options)) arrays.push(rec.options); } catch {}
+  try { if (Array.isArray(rec?.attributes)) arrays.push(rec.attributes); } catch {}
+  for (const arr of arrays) {
+    for (const it of (arr||[])) {
+      if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+    }
+  }
+  const tryParseJSON = (raw: string) => {
+    try {
+      const j = JSON.parse(raw);
+      if (Array.isArray(j)) {
+        for (const it of j as any[]) {
+          if (typeof it === 'string') visit('size', it);
+          else if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||''));
+        }
+      } else if (j && typeof j === 'object') {
+        const ov = (j as any).option_values;
+        if (Array.isArray(ov)) {
+          for (const it of ov) { if (it && (it.name!=null || it.key!=null)) visit(String(it.name||it.key||''), String(it.value||it.val||it.label||'')); }
+        } else {
+          for (const [k,v] of Object.entries(j)) visit(String(k), String(v as any));
+        }
+      }
+    } catch {}
+  };
+  if (typeof rec?.value === 'string') tryParseJSON(rec.value);
+  if (typeof rec?.name === 'string') tryParseJSON(rec.name);
+  // Heuristic fallback from tokens
+  const tokens = splitTokens(`${norm(rec?.name)} ${norm(rec?.value)}`);
+  for (const t of tokens){ if (looksSizeToken(t) && !isColorWord(t)) { if (!sizeGroups.has('المقاس')) sizeGroups.set('المقاس', new Set()); sizeGroups.get('المقاس')!.add(t); } }
+  for (const t of tokens){ if (isColorWord(t)) colors.add(t); }
+  // Normalize groups: split generic 'المقاس' into letters/numbers if specific groups exist or derive them
+  const lettersLabel = 'مقاسات بالأحرف';
+  const numbersLabel = 'مقاسات بالأرقام';
+  const hasLetters = Array.from(sizeGroups.keys()).some(k=> k.includes('بالأحرف'));
+  const hasNumbers = Array.from(sizeGroups.keys()).some(k=> k.includes('بالأرقام'));
+  if (sizeGroups.has('المقاس')){
+    const vals = Array.from(sizeGroups.get('المقاس')||[]);
+    for (const v of vals){
+      if (/^\d{1,3}$/.test(normalizeDigits(v))) {
+        const key = numbersLabel; if (!sizeGroups.has(key)) sizeGroups.set(key, new Set()); sizeGroups.get(key)!.add(v);
+      } else {
+        const key = lettersLabel; if (!sizeGroups.has(key)) sizeGroups.set(key, new Set()); sizeGroups.get(key)!.add(v);
+      }
+    }
+    sizeGroups.delete('المقاس');
+  }
+  // Deduplicate and sanitize any stray "M|..." artifacts (keep the size-looking token only)
+  for (const [k,set] of Array.from(sizeGroups.entries())){
+    const cleaned = new Set<string>();
+    for (const v of set){
+      const cands = v.includes('|') ? v.split('|').map(s=> s.trim()) : [v];
+      let chosen = cands.find(x=> looksSizeToken(x));
+      if (!chosen) chosen = v;
+      cleaned.add(chosen);
+    }
+    sizeGroups.set(k, cleaned);
+  }
+  return { sizeGroups, colors };
+}
 // Reverse geocoding proxy (Nominatim) to avoid browser CORS
 shop.get('/reverse-geocode', async (req: any, res) => {
   try {
@@ -924,7 +1108,79 @@ shop.get('/product/:id', async (req, res) => {
       },
     });
     if (!p) return res.status(404).json({ error: 'not_found' });
-    res.json(p);
+    // Derive colors/sizes arrays from variants
+    const colors = new Set<string>();
+    const sizes = new Set<string>();
+    const sizeGroupMap = new Map<string, Set<string>>();
+    for (const v of (p.variants as any[] || [])){
+      const name = String((v as any).name||'');
+      const value = String((v as any).value||'');
+      const tokens = splitTokens(`${name} ${value}`);
+      for (const t of tokens){
+        if (looksSizeToken(t)) sizes.add(t);
+        else if (isColorWord(t)) colors.add(t);
+      }
+      // Keyword hints
+      if (/size|مقاس/i.test(name) && looksSizeToken(value)) sizes.add(value);
+      if (/color|لون/i.test(name) && isColorWord(value)) colors.add(value);
+      // option_values extraction if present
+      const opt = extractOptions(v);
+      opt.sizes.forEach(s=> sizes.add(s));
+      opt.colors.forEach(c=> colors.add(c));
+      // Structured attributes
+      const grp = extractAttributeGroups(v);
+      for (const [label, set] of grp.sizeGroups.entries()){
+        if (!sizeGroupMap.has(label)) sizeGroupMap.set(label, new Set());
+        const dst = sizeGroupMap.get(label)!; for (const val of set) dst.add(val);
+      }
+      for (const c of grp.colors) colors.add(c);
+    }
+    // Fallback: if sizes are still empty, derive from variant value/name when they look like sizes
+    if (sizes.size === 0 && Array.isArray(p.variants) && (p.variants as any[]).length){
+      for (const v of (p.variants as any[])){
+        const raw = String((v as any).value || (v as any).name || '').trim();
+        if (raw && looksSizeToken(raw) && !isColorWord(raw)) sizes.add(raw);
+      }
+    }
+    // Build normalized attributes array (letters vs numbers when appropriate)
+    const attributes: Array<{ key: string; label: string; values: string[] }> = [];
+    const lettersLabel = 'مقاسات بالأحرف';
+    const numbersLabel = 'مقاسات بالأرقام';
+    const byLabel: Record<string, Set<string>> = {};
+    for (const [label, set] of sizeGroupMap.entries()){
+      const target = label.includes('بالأحرف') ? lettersLabel : label.includes('بالأرقام') ? numbersLabel : label;
+      if (!byLabel[target]) byLabel[target] = new Set<string>();
+      for (const v of set){
+        // sanitize stray pipes
+        const cands = String(v||'').split('|').map(s=> s.trim()).filter(Boolean);
+        const pick = cands.find(x=> looksSizeToken(x)) || v;
+        byLabel[target].add(pick);
+      }
+    }
+    // If generic label exists, split into letters/numbers
+    if (byLabel['المقاس']){
+      const generic = Array.from(byLabel['المقاس']);
+      delete byLabel['المقاس'];
+      for (const v of generic){
+        if (/^\d{1,3}$/.test(normalizeDigits(v))) {
+          if (!byLabel[numbersLabel]) byLabel[numbersLabel] = new Set<string>();
+          byLabel[numbersLabel].add(v);
+        } else {
+          if (!byLabel[lettersLabel]) byLabel[lettersLabel] = new Set<string>();
+          byLabel[lettersLabel].add(v);
+        }
+      }
+    }
+    for (const [label,set] of Object.entries(byLabel)){
+      attributes.push({ key: 'size', label, values: Array.from(set) });
+    }
+    if (colors.size) attributes.push({ key: 'color', label: 'اللون', values: Array.from(colors) });
+    const out: any = Object.assign({}, p, {
+      colors: Array.from(colors),
+      sizes: Array.from(sizes),
+      attributes,
+    });
+    res.json(out);
   } catch {
     res.status(500).json({ error: 'failed' });
   }
@@ -934,15 +1190,84 @@ shop.get('/product/:id', async (req, res) => {
 shop.get('/product/:id/variants', async (req, res) => {
   try {
     const id = String(req.params.id)
-    const p = await db.product.findUnique({ where: { id }, select: { id: true } })
+    const p = await db.product.findUnique({ where: { id }, select: { id: true, images: true } })
     if (!p) return res.status(404).json({ error: 'not_found' })
-    const variants = await db.productVariant.findMany({
+    const rows = await db.productVariant.findMany({
       where: { productId: id },
       select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
       orderBy: { createdAt: 'asc' }
     } as any)
-    return res.json({ items: variants })
-  } catch {
+    // Fallback: if no variants found, try to derive from historical schema by splitting Product.tags like size/color pairs (best-effort)
+    let itemsBase = rows||[]
+    if (!itemsBase.length) {
+      try {
+        const pFull = await db.product.findUnique({ where: { id }, select: { tags: true, price: true } })
+        const tags = (pFull?.tags||[]).map((t:any)=> String(t||''))
+        const sizes = Array.from(new Set(tags.filter(t=> /^(?:size:|مقاس:)/i.test(t)).map(t=> t.split(':').slice(1).join(':').trim()).filter(Boolean)))
+        const colors = Array.from(new Set(tags.filter(t=> /^(?:color:|لون:)/i.test(t)).map(t=> t.split(':').slice(1).join(':').trim()).filter(Boolean)))
+        const gen:any[] = []
+        for (const s of (sizes.length? sizes: [''])) for (const c of (colors.length? colors: [''])) {
+          const name = [s? `المقاس: ${s}`:'', c? `اللون: ${c}`:''].filter(Boolean).join(' • ')
+          gen.push({ id: `${id}:${s}:${c}`, name, value: name, price: pFull?.price||0, stockQuantity: 0, sku: null })
+        }
+        itemsBase = gen
+      } catch {}
+    }
+    const items = (itemsBase||[]).map((v:any)=>{
+      // Build attributes_map using structured groups first
+      const attrs = extractAttributeGroups(v)
+      const attributes_map: Record<string,string> = {}
+      for (const [label, set] of attrs.sizeGroups.entries()){
+        const slug = 'size_' + String(label||'').trim().toLowerCase().replace(/\s+/g,'_')
+        const first = Array.from(set)[0]
+        if (first) attributes_map[slug] = first
+      }
+      if (attrs.colors.size){ attributes_map['color'] = Array.from(attrs.colors)[0] }
+      // Fallbacks from extractOptions/tokens to ensure minimal map
+      if (!attributes_map['color'] || Object.keys(attributes_map).length===0){
+        const opt = extractOptions(v)
+        if (opt.colors[0] && !attributes_map['color']) attributes_map['color'] = opt.colors[0]
+        if (opt.sizes[0] && !Object.keys(attributes_map).some(k=> k.startsWith('size_'))) attributes_map['size'] = opt.sizes[0]
+        if (!Object.keys(attributes_map).some(k=> k.startsWith('size_'))){
+          const name = String(v.name||''); const value = String(v.value||'');
+          const tokens = splitTokens(`${name} ${value}`)
+          const tokenSize = tokens.find(t=> looksSizeToken(t) && !isColorWord(t))
+          if (tokenSize) attributes_map['size'] = tokenSize
+          const tokenColor = tokens.find(t=> isColorWord(t))
+          if (tokenColor && !attributes_map['color']) attributes_map['color'] = tokenColor
+        }
+      }
+      // Image fallback: pick first product image whose filename contains color token if any; else undefined
+      let image: string|undefined
+      try{
+        const col = String(attributes_map['color']||'').toLowerCase()
+        if (col && Array.isArray(p.images)){
+          image = (p.images as string[]).find(u=> (u.split('/').pop()||'').toLowerCase().includes(col))
+        }
+      } catch {}
+      // Back-compat aliases for clients expecting color/size fields
+      const color = attributes_map['color'] || undefined
+      let size: string|undefined
+      if (attributes_map['size']) size = attributes_map['size']
+      else {
+        const sk = Object.keys(attributes_map).find(k=> k.startsWith('size_'))
+        if (sk) size = attributes_map[sk]
+      }
+      return {
+        id: v.id,
+        product_id: id,
+        sku: v.sku || undefined,
+        price: typeof v.price === 'number' ? v.price : undefined,
+        stock: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
+        image,
+        attributes_map,
+        // aliases
+        color,
+        size
+      }
+    })
+    return res.json({ items })
+  } catch (e) {
     return res.status(500).json({ error: 'variants_failed' })
   }
 });
@@ -1015,7 +1340,15 @@ shop.get('/cms/page/:slug', async (req, res) => {
     // Prefer published page when field exists; fallback to any matching slug
     let page = await (db as any).cMSPage.findFirst({ where: { slug, published: true } });
     if (!page) page = await (db as any).cMSPage.findFirst({ where: { slug } });
-    if (!page) return res.status(404).json({ error: 'not_found' });
+    if (!page) {
+      // Fallback: return a generic default for size-guide:* slugs to avoid noisy 404s on mweb
+      if (slug.startsWith('size-guide:')) {
+        const brandOrCat = slug.split(':')[1] || 'default'
+        const content = `<h3>مرجع المقاس (${brandOrCat})</h3><p>XS (EU 34) • S (EU 36) • M (EU 38) • L (EU 40) • XL (EU 42)</p>`
+        return res.json({ page: { slug, title: 'مرجع المقاس', content, published: true } })
+      }
+      return res.status(404).json({ error: 'not_found' });
+    }
     return res.json({ page: { slug: page.slug, title: page.title, content: page.content, published: !!page.published } });
   } catch {
     return res.status(500).json({ error: 'cms_page_failed' });

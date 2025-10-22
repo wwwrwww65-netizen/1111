@@ -212,15 +212,15 @@
       </div>
 
       <!-- Color Selector -->
-      <div class="mb-4">
+      <div class="mb-4" v-if="colorVariants.length">
         <div class="flex items-center gap-1 mb-2">
           <span class="font-semibold text-[14px]">لون: {{ currentColorName || '—' }}</span>
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
         <div class="flex gap-1 overflow-x-auto no-scrollbar pb-2">
-          <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative">
-            <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i">
-              <img :src="c.image" class="w-full h-full object-cover" />
+          <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
+            <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
+              <img :src="c.image" class="w-full h-full object-cover" :alt="c.name" />
             </div>
             <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">
               HOT
@@ -230,8 +230,8 @@
         </div>
       </div>
 
-      <!-- Size Selector -->
-      <div ref="sizeSelectorRef" class="mb-4">
+      <!-- Size Selector (single list) - hidden until attributes loaded to avoid flicker, and hidden when multi size-groups exist) -->
+      <div ref="sizeSelectorRef" class="mb-4" v-if="attrsLoaded && sizeOptions.length && !sizeGroups.length">
         <div class="flex items-center justify-between mb-2">
           <span class="font-semibold text-[14px]">مقاس - {{ size || 'الافتراضي' }}</span>
           <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
@@ -243,6 +243,7 @@
             class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
             :class="size===s ? 'text-white' : 'bg-white text-black border-gray-300'"
             :style="size===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
+            data-testid="size-btn" :data-size="s"
             @click="size=s"
           >
             {{ s }}
@@ -251,6 +252,28 @@
       <div class="mt-2">
           <span class="text-[13px] text-gray-600 underline cursor-pointer">ترام كيرفي ◀</span>
       </div>
+      </div>
+
+      <!-- Multi size-type selectors (letters/numbers etc.) - rendered independently when available -->
+      <div v-if="sizeGroups.length" class="mb-4 space-y-3">
+        <div v-for="(g,gi) in sizeGroups" :key="'g-'+gi">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-[14px]">{{ g.label }}</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button 
+              v-for="s in g.values" 
+              :key="g.label+'-'+s" 
+              class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
+              :class="selectedGroupValues[g.label]===s ? 'text-white' : 'bg-white text-black border-gray-300'"
+              :style="selectedGroupValues[g.label]===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
+              @click="onPickGroupValue(g.label, s)"
+              data-testid="size-btn"
+            >
+              {{ displayGroupValue(s) }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Fit Rating -->
@@ -365,9 +388,7 @@
             <span class="font-semibold text-[15px]">وصف</span>
             <ChevronLeft :size="16" class="text-gray-600" />
           </div>
-          <div class="text-[13px] text-gray-700">
-            {{ product?.description || '...' }}
-          </div>
+          <div class="prose prose-sm max-w-none text-gray-800" v-html="safeDescription"></div>
         </div>
 
         <!-- Model Reference -->
@@ -715,6 +736,12 @@ const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
+const safeDescription = computed(()=>{
+  try{
+    const html = String(product.value?.description||'')
+    return html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'')
+  }catch{ return '' }
+})
 
 // ==================== PRODUCT VARIANTS ====================
 // Color Variants
@@ -724,6 +751,10 @@ const colorIdx = ref(0)
 // Size Options
 const sizeOptions = ref<string[]>([])
 const size = ref<string>('')
+// Multi-group sizes support
+const sizeGroups = ref<Array<{ label: string; values: string[] }>>([])
+const selectedGroupValues = ref<Record<string,string>>({})
+function onPickGroupValue(label: string, val: string){ selectedGroupValues.value = { ...selectedGroupValues.value, [label]: val } }
 const variantByKey = ref<Record<string, { id:string; price?:number; stock?:number }>>({})
 const selectedVariantId = computed<string|undefined>(()=>{
   const colorName = colorVariants.value[colorIdx.value]?.name || ''
@@ -743,7 +774,9 @@ const selectedVariantStock = computed<number|undefined>(()=>{
 function normToken(s: string): string { return String(s||'').trim().toLowerCase() }
 // Common Arabic/English color words and patterns
 const COLOR_WORDS = new Set([
-  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+  'احمر','أحمر','احمَر','أحمَر','red','ازرق','أزرق','azraq','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver',
+  // Arabic commercial color synonyms
+  'دم الغزال','لحمي','خمري','عنابي','طوبي'
 ])
 function isColorWord(s: string): boolean {
   const t = normToken(s)
@@ -756,9 +789,11 @@ function isColorWord(s: string): boolean {
 }
 // Size detection supports EN codes, numbers, and common Arabic words
 function looksSizeToken(s: string): boolean {
-  const t = normToken(s)
+  const normalized = String(s||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660))
+  const t = normToken(normalized)
   if (!t) return false
   if (/^(xxs|xs|s|m|l|xl|xxl|xxxl)$/i.test(t)) return true
+  if (/^\d{1,2}xl$/i.test(t)) return true // 2XL, 3XL ...
   if (/^(\d{2}|\d{1,3})$/.test(t)) return true
   // Arabic size words
   if (/^(صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر|طفل|للرضع|للنساء|للرجال|واسع|ضيّق)$/.test(t)) return true
@@ -767,9 +802,14 @@ function looksSizeToken(s: string): boolean {
 // Split composite like "أحمر - M" or "Red / XL"
 function splitTokens(s: string): string[] {
   return String(s||'')
-    .split(/[,\/\-\|]+/)
+    .split(/[\s,،\/\-\|:]+/)
     .map(x=>x.trim())
     .filter(Boolean)
+}
+
+// Normalize display for Arabic-Indic digits to ensure consistent buttons text in CI and UI
+function displayGroupValue(val: string): string {
+  try { return String(val||'').replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660)) } catch { return String(val||'') }
 }
 
 // ==================== HEADER & NAVIGATION ====================
@@ -1312,6 +1352,32 @@ async function loadProductData() {
       try { injectHeadMeta() } catch {}
     }
   }catch{}
+  // Fallback (local preview/dev): synthesize minimal product and variants so UI renders swatches/sizes without API
+  try{
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    if (!product.value && (host === 'localhost' || host === '127.0.0.1')){
+      product.value = { id, name: title.value, price: price.value, images: [] }
+      if (images.value.length === 0){
+        images.value = [
+          '/images/placeholder-product.jpg',
+          'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=800',
+          'https://images.unsplash.com/photo-1520975940462-38ad61a0c87b?w=800'
+        ]
+        try { await nextTick(); await computeGalleryHeight() } catch {}
+      }
+      if (colorVariants.value.length === 0){
+        colorVariants.value = [
+          { name: 'أسود', image: images.value[0], isHot: false },
+          { name: 'أبيض', image: images.value[1] || images.value[0], isHot: false },
+          { name: 'أزرق', image: images.value[2] || images.value[0], isHot: false },
+        ]
+      }
+      if (sizeOptions.value.length === 0){
+        sizeOptions.value = ['S','M','L','XL']
+        size.value = 'M'
+      }
+    }
+  }catch{}
   
   // Load reviews
   try{
@@ -1325,122 +1391,186 @@ async function loadProductData() {
 }
 
 // ==================== VARIANTS (normalized API) ====================
+const attrsLoaded = ref(false)
 async function loadNormalizedVariants(){
+  // 1) Fetch normalized variants list
   const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`).catch(()=>null)
   let list: any[] = Array.isArray(j?.items) ? j!.items : []
-  if (!list.length && Array.isArray(product.value?.variants)) {
-    list = product.value.variants as any[]
-  }
-  // Derive colors and sizes separately to avoid swapping
-  const colorSet = new Set<string>()
-  const sizeSet = new Set<string>()
-  const norm = (s:string)=> String(s||'').trim()
-  for (const it of list){
-    const name = norm((it as any).name)
-    const val = norm((it as any).value)
-    const colorField = norm((it as any).color)
-    const sizeField = norm((it as any).size)
-    if (colorField && !looksSizeToken(colorField)) colorSet.add(colorField)
-    if (sizeField && looksSizeToken(sizeField)) sizeSet.add(sizeField)
-    if (/color|لون/i.test(name)) { if (val && !looksSizeToken(val)) colorSet.add(val) }
-    else if (/size|مقاس/i.test(name)) { if (val && looksSizeToken(val)) sizeSet.add(val) }
-    else {
-      const tokens = splitTokens(`${name} ${val}`)
-      for (const t of tokens){
-        if (looksSizeToken(t)) sizeSet.add(t)
-        else if (isColorWord(t)) colorSet.add(t)
+  if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
+
+  // 2) Prefer grouped attributes from product endpoint to render buttons per group
+  try {
+    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`).catch(()=>null)
+    const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
+    // Colors group
+    const col = attrs.find(a=> a.key==='color')
+    const colVals: string[] = Array.isArray(col?.values) ? col!.values : []
+    // Map colors to images
+    const imgs = images.value.slice()
+    const pickImageFor = (c:string, idx:number): string => {
+      const t = normToken(c)
+      for (const u of imgs){ const file = u.split('/').pop() || ''; if (normToken(file).includes(t)) return u }
+      return images.value[idx] || images.value[0] || ''
+    }
+    colorVariants.value = (colVals.length? colVals : ['—']).map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
+    if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
+    // Size groups (sanitize values: split pipes/labels and keep only real size tokens)
+    const groups = attrs.filter(a=> a.key==='size')
+    const sanitizeSizeVal = (val: string): string => {
+      const parts = String(val||'').split('|').map(s=> s.trim()).filter(Boolean)
+      const candidates: string[] = []
+      for (const p of parts){
+        if (p.includes(':')) { const seg = p.split(':',2)[1]?.trim(); if (seg) candidates.push(seg) }
+        candidates.push(p)
+      }
+      const pick = candidates.find(x=> looksSizeToken(x) && !isColorWord(x)) || candidates[0] || String(val||'')
+      return pick
+    }
+    // Map and order values consistently, ensure letters group appears before numbers
+    const normDigits = (s:string)=> String(s||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660))
+    const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+    const orderValues = (label:string, values:string[]): string[] => {
+      if (/بالأرقام/.test(label)) return Array.from(values).sort((a,b)=> (parseInt(normDigits(a),10)||0)-(parseInt(normDigits(b),10)||0))
+      if (/بالأحرف/.test(label)) return Array.from(values).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
+      return Array.from(values)
+    }
+    const mapped = groups.map(g=> ({ label: g.label || 'المقاس', values: Array.from(new Set((g.values||[]).map(v=> sanitizeSizeVal(String(v))))) }))
+    // letters first, then numbers
+    const orderedGroups = mapped.sort((a,b)=> (a.label.includes('بالأحرف')? -1 : a.label.includes('بالأرقام')? 1 : 0) - (b.label.includes('بالأحرف')? -1 : b.label.includes('بالأرقام')? 1 : 0))
+    sizeGroups.value = orderedGroups.map(g=> ({ label: g.label, values: orderValues(g.label, g.values) }))
+    if (sizeGroups.value.length){
+      const init: Record<string,string> = {}
+      for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
+      selectedGroupValues.value = init
+    }
+  } catch {} finally { attrsLoaded.value = true }
+
+  // 3) Derive fallback only if attributes were loaded but missing
+  if (attrsLoaded.value && (!colorVariants.value.length || !sizeGroups.value.length)){
+    const colorSet = new Set<string>()
+    const sizeSet = new Set<string>()
+    const norm = (s:string)=> String(s||'').trim()
+    for (const it of list){
+      const name = norm((it as any).name)
+      const val = norm((it as any).value)
+      const colorField = norm((it as any).color)
+      const sizeField = norm((it as any).size)
+      if (colorField && !looksSizeToken(colorField)) colorSet.add(colorField)
+      if (sizeField && !isColorWord(sizeField)) sizeSet.add(sizeField)
+      if (/color|لون/i.test(name)) { if (val && !looksSizeToken(val)) colorSet.add(val) }
+      else if (/size|مقاس/i.test(name)) { if (val && looksSizeToken(val)) sizeSet.add(val) }
+      else {
+        const tokens = splitTokens(`${name} ${val}`)
+        for (const t of tokens){ if (looksSizeToken(t)) sizeSet.add(t); else if (isColorWord(t)) colorSet.add(t) }
       }
     }
-  }
-  // Build colorVariants: images represent colors
-  const colors = Array.from(colorSet)
-  if (colors.length === 0) colors.push('—')
-  // Map colors to images: pick the first product image that visually matches token if possible; else fallback by index
-  const imgs = images.value.slice()
-  const pickImageFor = (c:string, idx:number): string => {
-    const t = normToken(c)
-    // Try filename contains color token
-    for (const u of imgs){
-      const file = u.split('/').pop() || ''
-      if (normToken(file).includes(t)) return u
+    const colors = Array.from(colorSet)
+    if (!colorVariants.value.length){
+      const imgs = images.value.slice()
+      const pickImageFor = (c:string, idx:number): string => {
+        const t = normToken(c)
+        for (const u of imgs){ const file = u.split('/').pop() || ''; if (normToken(file).includes(t)) return u }
+        return images.value[idx] || images.value[0] || ''
+      }
+      colorVariants.value = (colors.length? colors : ['—']).map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
+      if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
     }
-    return images.value[idx] || images.value[0] || ''
+    if (!sizeOptions.value.length){
+      const sizesFromProduct = Array.isArray(product.value?.sizes) ? (product.value!.sizes as string[]) : []
+      const sizesFromVariants = Array.from(sizeSet)
+      const sizes = sizesFromProduct.length ? sizesFromProduct : sizesFromVariants
+      sizeOptions.value = sizes.length ? sizes : []
+      if (!size.value) size.value = sizeOptions.value[0] || ''
+    }
   }
-  colorVariants.value = colors.map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
-  if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) {
-    colorIdx.value = 0
-  }
-  // Build size options as text chips (global baseline)
-  const sizes = Array.from(sizeSet)
-  sizeOptions.value = sizes.length ? sizes : []
-  if (!size.value) size.value = sizeOptions.value[0] || ''
-  // Best-effort variant map (color::size) when records encode both tokens in name/value
+
+  // 3b) Strengthen size-groups using variants' attributes_map when API attributes are ambiguous
+  try {
+    const letters = new Set<string>()
+    const numbers = new Set<string>()
+    const put = (group: 'letters'|'numbers', raw: string) => {
+      const parts = String(raw||'').split('|').map(s=> s.trim()).filter(Boolean)
+      const cands: string[] = []
+      for (const p of parts){ if (p.includes(':')) { const seg=p.split(':',2)[1]?.trim(); if (seg) cands.push(seg) } cands.push(p) }
+      const pick = cands.find(x=> looksSizeToken(x) && !isColorWord(x)) || cands[0] || String(raw||'')
+      if (group==='letters') letters.add(pick); else numbers.add(pick)
+    }
+    for (const it of list){
+      const m = (it as any).attributes_map || {}
+      // Prefer labeled groups when present
+      for (const [k,v] of Object.entries(m)){
+        if (!String(k).startsWith('size_')) continue
+        const label = String(k).slice('size_'.length)
+        if (/بالأحرف/.test(label)) put('letters', String(v))
+        else if (/بالأرقام/.test(label)) put('numbers', String(v))
+        else {
+          // Generic: classify by digits vs letters
+          const val = String(v||'')
+          const parts = val.split('|').map(s=> s.trim()).filter(Boolean)
+          const pick = parts.find(x=> /^\d{1,3}$/.test(x)) || parts.find(x=> looksSizeToken(x)) || parts[0] || val
+          if (/^\d{1,3}$/.test(pick)) numbers.add(pick); else letters.add(pick)
+        }
+      }
+    }
+    const nextGroups: Array<{ label: string; values: string[] }> = []
+    if (letters.size) nextGroups.push({ label: 'مقاسات بالأحرف', values: Array.from(letters) })
+    if (numbers.size) nextGroups.push({ label: 'مقاسات بالأرقام', values: Array.from(numbers) })
+    if (nextGroups.length) {
+      const normDigits = (s:string)=> String(s||'').replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660))
+      const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+      const orderValues = (label:string, values:string[]): string[] => {
+        if (/بالأرقام/.test(label)) return Array.from(values).sort((a,b)=> (parseInt(normDigits(a),10)||0)-(parseInt(normDigits(b),10)||0))
+        if (/بالأحرف/.test(label)) return Array.from(values).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
+        return Array.from(values)
+      }
+      sizeGroups.value = nextGroups.map(g=> ({ label: g.label, values: orderValues(g.label, g.values) }))
+      const init: Record<string,string> = {}
+      for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
+      selectedGroupValues.value = init
+    }
+  } catch {}
+
+  // 4) Build a best-effort variant map for selection to stock/price
+  const norm = (s:string)=> String(s||'').trim()
+  const colors = colorVariants.value.map(c=>c.name)
   const map: Record<string, { id:string; price?:number; stock?:number }> = {}
   for (const it of list){
-    const tokens = `${norm(it.name)} ${norm(it.value)}`.toLowerCase()
+    const tokens = `${norm((it as any).name)} ${norm((it as any).value)}`.toLowerCase()
     for (const c of colors){
-      for (const s of (sizeOptions.value.length? sizeOptions.value : [''])){
+      const baseSizes = (sizeOptions.value.length? sizeOptions.value : [''])
+      const composite = sizeGroups.value.length ? [ Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') ] : baseSizes
+      for (const s of composite){
         const key = `${c}::${s}`.trim()
         const hasC = c && (tokens.includes(String(c).toLowerCase()) || String((it as any).color||'').toLowerCase()===String(c).toLowerCase())
         const hasS = s ? (tokens.includes(String(s).toLowerCase()) || String((it as any).size||'').toLowerCase()===String(s).toLowerCase()) : true
-        if (hasC && hasS && !map[key]){
-          map[key] = { id:String(it.id), price: (it.price!=null? Number(it.price): undefined), stock: (it.stockQuantity!=null? Number(it.stockQuantity): undefined) }
-        }
+        if (hasC && hasS && !map[key]) map[key] = { id:String(it.id), price: (it.price!=null? Number(it.price): undefined), stock: (it.stockQuantity!=null? Number(it.stockQuantity): undefined) }
       }
     }
   }
   variantByKey.value = map
-  // Update price if exact variant selected is known
   const colorName = colorVariants.value[colorIdx.value]?.name || ''
   const k = `${colorName}::${size.value}`.trim()
   if (map[k] && typeof map[k].price === 'number') price.value = Number(map[k].price)
-
-  // If variants explicitly provide size per color, adjust size options when color changes
-  const listHasColorSize = list.some((it:any)=> it && (it.color || it.size))
-  if (listHasColorSize){
-    const recomputeSizesForColor = ()=>{
-      const curColor = colorVariants.value[colorIdx.value]?.name || ''
-      if (!curColor) return
-      // Prefer explicit fields when available
-      let sizesForColor = Array.from(new Set(
-        list.filter((v:any)=> String(v.color||'').toLowerCase()===curColor.toLowerCase())
-            .map((v:any)=> norm(v.size))
-            .filter(x=> x && looksSizeToken(x) && !isColorWord(x))
-      ))
-      // Fallback to token matching when fields are not present in schema
-      if (!sizesForColor.length){
-        const col = curColor.toLowerCase()
-        const candidates = sizeOptions.value.slice()
-        const hitSizes = new Set<string>()
-        for (const s of candidates){
-          const st = String(s||'').toLowerCase()
-          const hit = list.some((it:any)=>{
-            const t = `${norm(it.name)} ${norm(it.value)}`.toLowerCase()
-            return t.includes(col) && (st? t.includes(st) : true)
-          })
-          if (hit) hitSizes.add(s)
-        }
-        sizesForColor = Array.from(hitSizes)
-      }
-      if (sizesForColor.length){
-        sizeOptions.value = sizesForColor
-        if (!sizesForColor.includes(size.value)) size.value = sizesForColor[0]
-      }
-    }
-    // initial
-    recomputeSizesForColor()
-    // on color change
-    watch(colorIdx, recomputeSizesForColor)
-  }
 }
 
 // React on variant change
-watch([colorIdx, size], ()=>{
+watch([colorIdx, size, selectedGroupValues], ()=>{
   try{
     const colorName = colorVariants.value[colorIdx.value]?.name || ''
-    const k = `${colorName}::${size.value}`.trim()
+    const composite = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
+    const k = `${colorName}::${composite}`.trim()
     const v = variantByKey.value[k]
     if (v && typeof v.price === 'number') price.value = Number(v.price)
+  }catch{}
+})
+
+// Ensure hero image follows selected color (when available)
+watch(colorIdx, ()=>{
+  try{
+    const c = colorVariants.value[colorIdx.value]
+    if (!c || !c.image) return
+    const idx = images.value.findIndex(src => src === c.image)
+    if (idx >= 0) activeIdx.value = idx
   }catch{}
 })
 

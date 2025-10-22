@@ -1,0 +1,21 @@
+name: Variants full matrix smoke (manual)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verify-full-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run full-matrix verification
+        env:
+          API_BASE: https://api.jeeey.com
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          node scripts/ci/verify-full-matrix.mjs

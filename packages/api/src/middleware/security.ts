@@ -71,12 +71,29 @@ export const corsOptions = {
 // Rate limiting configuration (enabled for production only)
 export const rateLimitConfig = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 100, // base limit (effective only for non-skipped requests)
   message: {
     error: 'Too many requests from this IP, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Do not rate-limit public, cacheable GET shop endpoints used by mweb/web
+  skip: (req) => {
+    try {
+      const p = String((req as any).path || (req as any).originalUrl || '');
+      const m = String((req as any).method || 'GET').toUpperCase();
+      if (m === 'GET' && /^\/api\/(currency|categories|products|product|recommendations|reviews|cms|geo|shipping|payments)/.test(p)) {
+        return true;
+      }
+    } catch {}
+    return false;
+  },
+  // Differentiate clients by x-shop-client to avoid unfair sharing when behind proxies
+  keyGenerator: (req /*, _res */) => {
+    const ip = (req.ip || (req.socket && (req.socket as any).remoteAddress) || '') as string;
+    const client = String((req.headers['x-shop-client'] as string) || '').toLowerCase();
+    return `${ip}|${client}`;
+  },
 });
 
 // Stricter rate limit for auth endpoints

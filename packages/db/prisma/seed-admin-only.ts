@@ -5,12 +5,14 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Seeding admin-only fixtures...');
-  const adminPassword = await bcrypt.hash('admin123', 12);
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase();
+  const rawPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = await bcrypt.hash(rawPassword, 12);
   await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
-    update: { role: 'ADMIN', isVerified: true, twoFactorEnabled: false },
+    where: { email: adminEmail },
+    update: { role: 'ADMIN', isVerified: true, twoFactorEnabled: false, password: adminPassword },
     create: {
-      email: 'admin@example.com',
+      email: adminEmail,
       name: 'Admin User',
       password: adminPassword,
       role: 'ADMIN',
@@ -32,7 +34,7 @@ async function main() {
   for (const p of allPerms) {
     await prisma.rolePermission.upsert({ where: { roleId_permissionId: { roleId: adminRole.id, permissionId: p.id } }, update: {}, create: { roleId: adminRole.id, permissionId: p.id } });
   }
-  const adminUser = await prisma.user.findFirst({ where: { email: 'admin@example.com' } });
+  const adminUser = await prisma.user.findFirst({ where: { email: adminEmail } });
   if (adminUser) {
     await prisma.userRoleLink.upsert({ where: { userId_roleId: { userId: adminUser.id, roleId: adminRole.id } }, update: {}, create: { userId: adminUser.id, roleId: adminRole.id } });
   }

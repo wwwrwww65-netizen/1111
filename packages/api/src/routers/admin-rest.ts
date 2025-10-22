@@ -3641,10 +3641,36 @@ adminRest.post('/products/:id/variants/bulk', async (req, res) => {
     const list: Array<any> = Array.isArray(req.body?.variants) ? req.body.variants : [];
     for (const it of list){
       const id = it.id ? String(it.id) : null;
-      const data: any = { productId, name: String(it.name||''), value: String(it.value||''), sku: it.sku? String(it.sku): null };
+      const data: any = { productId, name: String(it.name||'').slice(0,120), value: String(it.value||'').slice(0,240), sku: it.sku? String(it.sku): null };
       if (it.price!=null) data.price = Number(it.price);
       if (it.purchasePrice!=null) data.purchasePrice = Number(it.purchasePrice);
       if (it.stockQuantity!=null) data.stockQuantity = Number(it.stockQuantity);
+
+      // If size/color/option_values provided (or derivable), encode them as JSON in value
+      try {
+        const ov = Array.isArray((it as any).option_values)
+          ? (it as any).option_values
+          : (Array.isArray((it as any).optionValues)
+              ? (it as any).optionValues
+              : (Array.isArray((it as any).options)
+                  ? (it as any).options
+                  : (Array.isArray((it as any).attributes) ? (it as any).attributes : null)));
+        let sizeVal: string | undefined = (it as any).size || undefined;
+        let colorVal: string | undefined = (it as any).color || undefined;
+        // Derive missing size/color from name/value tokens
+        const src = `${String(it.name||'')} ${String(it.value||'')}`;
+        const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
+        if (!colorVal && hex) colorVal = hex[0];
+        if (!sizeVal) {
+          const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+          if (m) sizeVal = m[1];
+        }
+        const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
+        if (normalizedOV || sizeVal || colorVal) {
+          data.value = JSON.stringify({ label: String(it.value||'').slice(0,120), size: sizeVal||undefined, color: colorVal||undefined, option_values: normalizedOV||undefined });
+        }
+      } catch {}
+
       if (id) await db.productVariant.update({ where: { id }, data });
       else await db.productVariant.create({ data });
     }
@@ -4482,7 +4508,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
 
         const analyzed: any = {}
-        if (nameValue) analyzed.name = { value: nameValue.slice(0,60), source:'rules', confidence: 0.9 }
+        if (nameValue) analyzed.name = { value: nameValue, source:'rules', confidence: 0.9 }
         if (table.length) analyzed.description_table = { value: table, source:'rules', confidence: 0.9 }
         if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0) analyzed.price_range = { value: { low: cost, high: cost }, source:'rules', confidence: 0.78 }
         if (finalColors.length) analyzed.colors = { value: finalColors, source:'rules', confidence: 0.7 }
@@ -4518,12 +4544,20 @@ adminRest.post('/products/analyze', async (req, res) => {
           return res.json({ ok: true, analyzed: {}, warnings: [...warnings, 'openrouter_unavailable'], errors: [], meta: { openrouterUsed: false, openrouterAttempted: true } })
         }
         const analyzed: any = {}
-        if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
-        if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
-        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (ds.name) analyzed.name = { value: String(ds.name), source: 'ai' }
+        if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
+        if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        else {
+          // Build a vertical table from description text as fallback
+          const table = buildDescriptionTableFromText(String(ds.description||text||''));
+          if (table.length) analyzed.description_table = { value: table, source: 'ai' } as any;
+        }
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
-        if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
+        if (Array.isArray(ds.colors)) {
+          const filtered = (ds.colors as any[]).filter(c=> String(c||'').trim() && !/^غير\s*محدد$/i.test(String(c||'')) && !/(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة))/i.test(String(c||'')));
+          if (filtered.length) analyzed.colors = { value: filtered, source: 'ai' }
+        }
         if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
         if (Array.isArray(ds.keywords)) analyzed.tags = { value: ds.keywords.slice(0, 6), source: 'ai' }
         return res.json({ ok: true, analyzed, warnings, errors, meta: { openrouterUsed: true, openrouterAttempted: true } })
@@ -4547,8 +4581,8 @@ adminRest.post('/products/analyze', async (req, res) => {
         const ds: any = (out as any)
         const analyzed: any = {}
         if (ds.name) analyzed.name = { value: ds.name, source: 'ai' }
-        if (ds.description) analyzed.description = { value: ds.description, source: 'ai' }
-        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
+        if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
@@ -4576,55 +4610,17 @@ adminRest.post('/products/analyze', async (req, res) => {
         let ds: any = null
         const attempts = 3
         for (let i=1;i<=attempts;i++){
+          // Strict preview only to enforce hard rules (no general color phrases)
           try { ds = await callDeepseekPreviewStrict({ apiKey: dsKey, model: dsModel, input: { text: String(text || '') }, timeoutMs: 20000 }); } catch {}
           if (ds) break
+          // Last resort: base model (AI JSON). Still AI-only, no local synthesis
           try { ds = await callDeepseek({ apiKey: dsKey, model: dsModel, input: { text: String(text || ''), base: {} }, timeoutMs: 20000 }) as any; } catch {}
           if (ds) break
           await new Promise(r=> setTimeout(r, 700))
         }
         if (!ds) {
-          // DeepSeek unavailable: synthesize minimal analyzed from raw text so CI/UX do not break
-          const analyzed: any = {}
-          const rawText = String(text || '')
-          const toLatinDigits = (s:string)=> s
-            .replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660))
-            .replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0)-0x06F0))
-          const rt = toLatinDigits(rawText)
-          // name
-          const TYPE_RE = /(طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل|جلابية|جلابيه|جلاب|عباية|عبايه)/i
-          const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد)/i
-          const FEAT_RE = /(كم\s*شال|كم\s*كامل|كلوش|امبريلا|مطرز|كريستال|كرستال)/i
-          const type = (rt.match(TYPE_RE)||['',''])[1] || ''
-          const mat = (rt.match(MAT_RE)||['',''])[1] || ''
-          const feat = (rt.match(FEAT_RE)||['',''])[1] || ''
-          const parts = [type, mat, feat].filter(Boolean)
-          if (parts.length) analyzed.name = { value: parts.join(' ').trim().slice(0,60), source: 'ai' }
-          // description
-          const matTxt = mat ? (mat.replace(/\s+/g,' ').trim()) : 'خامة مريحة متقنة'
-          const featTxt = feat ? feat : 'تصميم أنيق وعصري'
-          analyzed.description = { value: `• الخامة: ${matTxt}\n• الصناعة: جودة تصنيع عالية\n• التصميم: ${featTxt}\n• الألوان: \n• المقاسات: \n• الميزات: مريح - عملي - أنيق`, source: 'ai', confidence: 0.8 }
-          // price
-          const pickNum = (m:RegExpMatchArray|null)=> m && m[1] ? Number(String(m[1]).replace(/[٬٫,]/g,'.')) : undefined
-          const oldM = rt.match(/(?:قديم|القديم)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const northM = rt.match(/(?:للشمال|الشمال)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const saleM = rt.match(/(?:سعر\s*البيع|السعر\s*البيع|السعر)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const val = pickNum(oldM) ?? pickNum(northM) ?? pickNum(saleM)
-          if (typeof val === 'number' && Number.isFinite(val)) analyzed.price_range = { value: { low: val, high: val }, source: 'ai' }
-          // colors
-          const general = rt.match(/(\b\d+\s*ألوان\b|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)/i)
-          if (general) analyzed.colors = { value: [general[1]], source: 'ai' }
-          // sizes
-          const sizes: string[] = []
-          const letters = Array.from(rt.matchAll(/\b(XXL|XL|L|M|S|XS)\b/gi)).map(m=> m[1].toUpperCase())
-          sizes.push(...letters)
-          const num = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
-          if (num.length) sizes.push(...Array.from(new Set(num.map(v=> String(v)))))
-          if (sizes.length) analyzed.sizes = { value: Array.from(new Set(sizes)).slice(0,12), source: 'ai' }
-          // keywords
-          const words = rt.toLowerCase().replace(/[^\u0600-\u06FFa-z0-9\s]/g,' ').split(/\s+/).filter(w=> w.length>=3)
-          const uniq = Array.from(new Set(words)).slice(0,6)
-          if (uniq.length) analyzed.keywords = { value: uniq, source: 'ai' }
-          return res.json({ ok: true, analyzed, warnings: [...warnings, 'deepseek_unavailable'], errors: [], meta: { deepseekUsed: false, deepseekAttempted: true } })
+          // DeepSeek unavailable in strict mode: return without local synthesis
+          return res.json({ ok: true, analyzed: {}, warnings: [...warnings, 'deepseek_unavailable'], errors, meta: { deepseekUsed: false, deepseekAttempted: true } })
         }
         // Build analyzed wrapper with ONLY AI-sourced fields (with safe fallback inference from text if missing)
         const analyzed: any = {}
@@ -4633,61 +4629,28 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660))
           .replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0)-0x06F0))
         const rt = toLatinDigits(rawText)
-        // 1) name
+        // 1) name — keep AI only; no local inference
         if (ds.name && String(ds.name).trim()) {
-          analyzed.name = { value: String(ds.name).slice(0,60), source: 'ai' }
-        } else {
-          // infer minimal name from text tokens (type + material + one feature)
-          const TYPE_RE = /(طقم|فستان|جاكيت|جاكت|فنيلة|فنيله|فنائل|جلابية|جلابيه|جلاب|عباية|عبايه)/i
-          const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد)/i
-          const FEAT_RE = /(كم\s*شال|كم\s*كامل|كلوش|امبريلا|مطرز|كريستال|كرستال)/i
-          const type = (rt.match(TYPE_RE)||['',''])[1] || ''
-          const mat = (rt.match(MAT_RE)||['',''])[1] || ''
-          const feat = (rt.match(FEAT_RE)||['',''])[1] || ''
-          const parts = [type, mat, feat].filter(Boolean)
-          if (parts.length) analyzed.name = { value: parts.join(' ').trim().slice(0,60), source: 'ai' }
+          analyzed.name = { value: String(ds.name), source: 'ai' }
         }
         // 2) description and table
         if (ds.description) analyzed.description = { value: String(ds.description), source: 'ai' }
-        if (Array.isArray((ds as any).description_table)) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
+        if (Array.isArray((ds as any).description_table) && (ds as any).description_table.length) analyzed.description_table = { value: (ds as any).description_table, source: 'ai' }
         // 3) price range or price
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
-        if (!analyzed.price_range) {
-          // prefer old/north price
-          const pickNum = (m:RegExpMatchArray|null)=> m && m[1] ? Number(String(m[1]).replace(/[٬٫,]/g,'.')) : undefined
-          const oldM = rt.match(/(?:قديم|القديم)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const northM = rt.match(/(?:للشمال|الشمال)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const saleM = rt.match(/(?:سعر\s*البيع|السعر\s*البيع|السعر)[^\d]{0,12}(\d+(?:[\.,]\d+)?)/i)
-          const val = pickNum(oldM) ?? pickNum(northM) ?? pickNum(saleM)
-          if (typeof val === 'number' && Number.isFinite(val)) analyzed.price_range = { value: { low: val, high: val }, source: 'ai' }
-        }
+        // 3) price: if AI didn't return, leave absent in deepseekOnly mode
         // 4) colors
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
-        if (!analyzed.colors) {
+        if (!analyzed.colors && !deepseekOnly) {
           const general = rt.match(/(\b\d+\s*ألوان\b|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)/i)
           if (general) analyzed.colors = { value: [general[1]], source: 'ai' }
         }
         // 5) sizes
         if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
-        if (!analyzed.sizes) {
-          const sizes: string[] = []
-          // letter sizes
-          const letters = Array.from(rt.matchAll(/\b(XXL|XL|L|M|S|XS)\b/gi)).map(m=> m[1].toUpperCase())
-          sizes.push(...letters)
-          // numeric sizes range 20-60 (apparel)
-          const num = Array.from(rt.matchAll(/\b(\d{2})\b/g)).map(m=> Number(m[1])).filter(v=> v>=20 && v<=60)
-          if (num.length) sizes.push(...Array.from(new Set(num.map(v=> String(v)))))
-          if (sizes.length) analyzed.sizes = { value: Array.from(new Set(sizes)).slice(0,12), source: 'ai' }
-        }
         // 6) keywords/tags
-        if (Array.isArray(ds.keywords)) analyzed.keywords = { value: ds.keywords.slice(0, 6), source: 'ai' }
-        if (!analyzed.keywords && Array.isArray(ds.tags)) analyzed.keywords = { value: (ds.tags as string[]).slice(0,6), source: 'ai' }
-        if (!analyzed.keywords) {
-          const words = rt.toLowerCase().replace(/[^\u0600-\u06FFa-z0-9\s]/g,' ').split(/\s+/).filter(w=> w.length>=3)
-          const uniq = Array.from(new Set(words)).slice(0,6)
-          if (uniq.length) analyzed.keywords = { value: uniq, source: 'ai' }
-        }
+        if (Array.isArray(ds.keywords)) analyzed.keywords = { value: ds.keywords.slice(0, 12), source: 'ai' }
+        if (!analyzed.keywords && Array.isArray(ds.tags)) analyzed.keywords = { value: (ds.tags as string[]).slice(0,12), source: 'ai' }
         // Save teaching example
         try { await saveAnalyzeTeachExample(String(text||''), analyzed).catch(()=>{}); } catch {}
         return res.json({ ok: true, analyzed, warnings, errors, meta: { deepseekUsed: true, deepseekAttempted: true } })
@@ -4966,7 +4929,7 @@ adminRest.post('/products/analyze', async (req, res) => {
                 if (/كرستال|كريستال/i.test(raw) && baseType!=='لانجري') attrs.push('بالكريستال')
                 if (/(مناسب\s*للمناسبات|سهرة)/i.test(raw) && baseType==='فستان') attrs.unshift('سهرة')
                 // removed auto-adding "طقم" to avoid forcing set naming
-                const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim().slice(0,60)
+                const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim()
                 // Compose description (بدون تكرار الاسم/مرادفاته وبدون ألوان/مقاسات/أسعار)
                 const hasChiffon = /شيفون/i.test(raw)
                 const hasLining = /(مبطن|بطانة)/i.test(raw)
@@ -5047,7 +5010,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           if (/شفاف/i.test(raw)) feats.push('شفاف')
           if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
           const synthesized = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
-          if (wordCount(synthesized) >= 4) { out.name = synthesized.slice(0,60); (sources as any).name = { source:'ai', confidence: 0.85 } }
+          if (wordCount(synthesized) >= 4) { out.name = synthesized; (sources as any).name = { source:'ai', confidence: 0.85 } }
         }
       }
     } catch {}
@@ -5242,7 +5205,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (/(نمري|نمر)/i.test(raw)) feats.push('نمري')
         if (/(\b4\s*قطع|أربع\s*قطع|٤\s*قطع)/i.test(raw)) feats.push('٤ قطع')
         const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
-        if (wc(enriched) >= 4) { out.name = enriched.slice(0,60); (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
+        if (wc(enriched) >= 4) { out.name = enriched; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
       }
     } catch {}
     // Attach per-field reasons if missing
@@ -5289,6 +5252,65 @@ async function saveAnalyzeTeachExample(text: string, analyzed: any): Promise<voi
       hash, hash, analyzed?.name?.value || null, analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? null, JSON.stringify(sizes||null), JSON.stringify(colors||null), JSON.stringify(keywords||null), JSON.stringify(descTable||null)
     );
   } catch {}
+}
+
+// Build a vertical label/value description table from plain text as a fallback when AI doesn't return one
+function buildDescriptionTableFromText(input: string): Array<{ label: string; value: string }>{
+  const out: Array<{ label: string; value: string }> = [];
+  const put = (label: string, val?: string) => {
+    const v = String(val || '').trim(); if (!v) return;
+    const existing = out.find(r => r.label === label);
+    if (!existing) out.push({ label, value: v });
+    else if (!existing.value.split(/\s*[،,]\s*/).includes(v)) existing.value += `، ${v}`;
+  };
+  const textRaw = String(input || '');
+  const toAscii = (s: string) => s
+    .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String((d as any).charCodeAt(0) - 0x06F0));
+  const preserve = toAscii(textRaw).replace(/[\*•]+/g, '\n');
+  const lines = preserve.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const labelMap: Record<string, 'الخامة'|'الصناعة'|'التصميم'|'الألوان'|'المقاسات'|'الميزات'> = {
+    'الخامة': 'الخامة', 'قماش': 'الخامة', 'fabric': 'الخامة',
+    'الصناعة': 'الصناعة',
+    'التصميم': 'التصميم', 'design': 'التصميم',
+    'الألوان': 'الألوان', 'الوان': 'الألوان', 'colors': 'الألوان',
+    'المقاسات': 'المقاسات', 'sizes': 'المقاسات',
+    'الميزات': 'الميزات', 'features': 'الميزات'
+  } as any;
+  for (const line of lines) {
+    const m = line.match(/^\s*([^:：\-]+)\s*[:：\-]\s*(.+)$/);
+    if (m) {
+      const key = String(m[1]).trim(); const val = String(m[2]).trim();
+      const canonical = labelMap[key as keyof typeof labelMap];
+      if (canonical === 'الألوان') {
+        const generics = /\b(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة)|غير\s*محدد)\b/i;
+        if (!generics.test(val)) put('الألوان', val.replace(/\[|\]|"/g,'').replace(/^ال/,'').trim());
+      } else if (canonical) {
+        put(canonical, val);
+      }
+    }
+  }
+  // If explicit labels missing, infer selectively
+  const text = preserve;
+  if (!out.find(r=> r.label==='الخامة')) {
+    const mat = text.match(/(استرش|قطن|صوف|جلد|لينن|دنيم|denim|cotton|wool|leather)/i)?.[0];
+    put('الخامة', mat);
+  }
+  if (!out.find(r=> r.label==='التصميم')) {
+    const feats: string[] = [];
+    const FEATS = /(مودرن|حديث|أوروبي|اوروب(?:ي|ي)|رقبة\s*X|سوسته\s*سحاب|حشوه\s*بالصدر|كم\s*كامل|كلوش|امبريلا)/gi;
+    let fm: RegExpExecArray | null; while ((fm = FEATS.exec(text))) { const v = String(fm[0]).trim(); if (v && !feats.includes(v)) feats.push(v); }
+    if (feats.length) put('التصميم', feats.join('، '));
+  }
+  if (!out.find(r=> r.label==='الألوان')) {
+    const colors = Array.from(new Set((text.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|بني|بيج|رمادي|وردي|بنفسجي|كحلي)\b/gi) || []).map(s => s.replace(/^ال/,'').trim())));
+    if (colors.length) put('الألوان', colors.join('، '));
+  }
+  if (!out.find(r=> r.label==='المقاسات')) {
+    const sizes = Array.from(new Set((text.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s => s.toUpperCase())));
+    if (sizes.length) put('المقاسات', sizes.join(', '));
+  }
+  return out;
 }
 
 async function findNearestTeachExample(raw: string): Promise<any|null> {
@@ -6459,19 +6481,72 @@ adminRest.post('/products/parse', async (req, res) => {
 adminRest.post('/products/generate', async (req, res) => {
   try {
     const { product, variants, media } = req.body || {};
-    const p = await db.product.create({ data: { name: product.name, description: product.longDesc||product.shortDesc||'', price: product.salePrice||0, images: (media||[]).map((m:any)=>m.url), categoryId: product.categoryId||'cat', stockQuantity: product.stock||0, sku: product.sku||null, brand: product.brand||null, tags: product.tags||[], isActive: true } });
+    const prod = product || {};
+    const images: string[] = Array.isArray(media) ? media.map((m: any) => m.url || m.dataUrl || '').filter(Boolean) : [];
+    const data: any = {
+      name: prod.name || prod.title || 'منتج',
+      description: prod.description || prod.longDesc || prod.shortDesc || '',
+      price: Number(prod.price ?? prod.salePrice ?? 0),
+      images,
+      categoryId: prod.categoryId || prod.category || 'cat',
+      stockQuantity: Number(prod.stock ?? 0),
+      sku: prod.sku || null,
+      brand: prod.brand || null,
+      tags: Array.isArray(prod.tags) ? prod.tags : [],
+      isActive: true,
+    };
+    const p = await db.product.create({ data });
+    // Create variants with explicit meta encoded in value JSON so downstream extractors work reliably
     if (Array.isArray(variants) && variants.length) {
       for (const v of variants) {
-        await db.productVariant.create({ data: { productId: p.id, name: v.size||'Size', value: v.color||'Color', price: v.salePrice||null, purchasePrice: v.purchasePrice||null, sku: v.sku||null, stockQuantity: v.stock||0 } });
+        const price = (v as any).price ?? (v as any).salePrice ?? null;
+        const stock = Number.isFinite((v as any).stock as any) ? Number((v as any).stock) : 0;
+        const sizeRaw = String((v as any).size || '').trim();
+        const colorRaw = String((v as any).color || '').trim();
+        // Build label from composite size if provided
+        const parts: string[] = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (val) parts.push(`${k}: ${val}`); }
+          } else {
+            parts.push(`المقاس: ${sizeRaw}`);
+          }
+        }
+        if (colorRaw) parts.push(`اللون: ${colorRaw}`);
+        const label = parts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+        // Normalize option_values array
+        const option_values: Array<{ name: string; value: string }> = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (k && val) option_values.push({ name: 'size', value: `${k}:${val}` }); }
+          } else {
+            option_values.push({ name: 'size', value: sizeRaw });
+          }
+        }
+        if (colorRaw) option_values.push({ name: 'color', value: colorRaw });
+        await db.productVariant.create({
+          data: {
+            productId: p.id,
+            name: label,
+            value: JSON.stringify({ label, size: sizeRaw || undefined, color: colorRaw || undefined, option_values: option_values.length ? option_values : undefined }),
+            price: price != null ? Number(price) : null,
+            purchasePrice: (v as any).purchasePrice != null ? Number((v as any).purchasePrice) : null,
+            sku: (v as any).sku || null,
+            stockQuantity: stock,
+          },
+        });
       }
     }
+    // Store media assets records (optional)
     if (Array.isArray(media) && media.length) {
       for (const m of media) {
-        await db.mediaAsset.create({ data: { url: m.url, type: 'image', alt: m.alt||null, dominantColors: m.dominantColors||[], meta: m.meta||null } });
+        const url = m.url || m.dataUrl || null;
+        if (!url) continue;
+        await db.mediaAsset.create({ data: { url, type: 'image', alt: m.alt||null, dominantColors: m.dominantColors||[], meta: m.meta||null } });
       }
     }
     return res.json({ productId: p.id });
-  } catch (e:any) {
+  } catch (e: any) {
     return res.status(500).json({ error: 'generate_failed', message: e.message });
   }
 });
@@ -6528,22 +6603,161 @@ adminRest.get('/products', async (req, res) => {
   ]);
   res.json({ products, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
 });
+// Helper: extract size/color/option_values from a variant record (value/name may contain JSON)
+function extractVariantMeta(rec: any): { size?: string; color?: string; option_values?: Array<{ name: string; value: string }> } {
+  const norm = (s: any) => String(s || '').trim();
+  const out: { size?: string; color?: string; option_values?: Array<{ name: string; value: string }> } = {};
+  const takeFromJson = (raw?: string) => {
+    try {
+      if (typeof raw !== 'string') return;
+      if (!(raw.startsWith('{') || raw.startsWith('['))) return;
+      const j = JSON.parse(raw);
+      if (Array.isArray(j)) return;
+      const label = norm((j as any).label);
+      const sz = norm((j as any).size);
+      const col = norm((j as any).color);
+      const ov = Array.isArray((j as any).option_values) ? (j as any).option_values : undefined;
+      if (sz) out.size = sz;
+      if (col) out.color = col;
+      if (ov) {
+        const mapped = ov.map((o: any) => ({ name: norm(o?.name || o?.key), value: norm(o?.value || o?.val || o?.label) })).filter((o: any) => o.name && o.value);
+        if (mapped.length) out.option_values = mapped;
+        // Derive size/color from option_values when explicit fields are missing
+        try {
+          if (!out.size) {
+            const sizeVals = mapped.filter(o => /size|مقاس/i.test(o.name)).map(o => o.value).filter(Boolean);
+            if (sizeVals.length > 1) {
+              // Preserve composite format (k:v) sequences separated by '|'
+              out.size = sizeVals.join('|');
+            } else if (sizeVals.length === 1) {
+              out.size = sizeVals[0];
+            }
+          }
+          if (!out.color) {
+            const colorVal = mapped.find(o => /color|لون/i.test(o.name))?.value;
+            if (colorVal) out.color = colorVal;
+          }
+        } catch {}
+      }
+    } catch {}
+  };
+  takeFromJson(norm(rec?.value));
+  takeFromJson(norm(rec?.name));
+  if (!out.size || !out.color) {
+    const bags = [rec?.option_values, rec?.optionValues, rec?.options, rec?.attributes];
+    for (const arr of bags) {
+      if (!Array.isArray(arr)) continue;
+      for (const it of arr) {
+        const name = norm(it?.name || it?.key);
+        const value = norm(it?.value || it?.val || it?.label);
+        if (!value) continue;
+        if (/size|مقاس/i.test(name)) {
+          // Preserve composite labels like "مقاسات بالأحرف:M"
+          if (!out.size) out.size = value;
+        } else if (/color|لون/i.test(name)) {
+          if (!out.color) out.color = value;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 adminRest.get('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
-  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } } } });
+  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } }, colors: { include: { images: true } } } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
-  res.json({ product: p });
+  // Derive sizes/colors summary for admin convenience
+  try {
+    const sizes = new Set<string>();
+    const colors = new Set<string>();
+    const norm = (s: any) => String(s||'').trim();
+    const looksSize = (s: string) => /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2}|\d{1,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(s.trim());
+    const isColor = (s: string) => {
+      const t = s.trim().toLowerCase();
+      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
+    };
+    const split = (s: string) => s.split(/[,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
+    const takeFromOptions = (rec: any) => {
+      const bags = [rec?.option_values, rec?.optionValues, rec?.options, rec?.attributes];
+      for (const arr of bags) {
+        if (!Array.isArray(arr)) continue;
+        for (const it of arr) {
+          const name = norm(it?.name||it?.key);
+          const val = norm(it?.value||it?.val||it?.label);
+          if (!val) continue;
+          if (/size|مقاس/i.test(name)) { if (!isColor(val)) sizes.add(val) }
+          else if (/color|لون/i.test(name)) { if (isColor(val)) colors.add(val) }
+          else if (looksSize(val)) sizes.add(val);
+          else if (isColor(val)) colors.add(val);
+        }
+      }
+    };
+    const variantsOut: any[] = [];
+    for (const v of (p as any).variants||[]) {
+      const name = norm((v as any).name);
+      const value = norm((v as any).value);
+      for (const t of split(`${name} ${value}`)) { if (looksSize(t)) sizes.add(t); else if (isColor(t)) colors.add(t); }
+      if (/size|مقاس/i.test(name) && looksSize(value)) sizes.add(value);
+      if (/color|لون/i.test(name) && isColor(value)) colors.add(value);
+      // Try JSON in value/name
+      try { if (value && (value.startsWith('{')||value.startsWith('['))) takeFromOptions(JSON.parse(value)); } catch {}
+      try { if (name && (name.startsWith('{')||name.startsWith('['))) takeFromOptions(JSON.parse(name)); } catch {}
+      // Try attached bags if any
+      takeFromOptions(v);
+      // Build variant with derived meta for admin editors
+      const meta = extractVariantMeta(v);
+      // Ensure sizes/colors sets include extracted meta (especially when labels are generic)
+      if (meta.size) {
+        if (meta.size.includes('|')) {
+          for (const part of meta.size.split('|')) {
+            const p2 = String(part||'').trim();
+            const val = p2.includes(':') ? p2.split(':',2)[1].trim() : p2;
+            if (looksSize(val)) sizes.add(val);
+          }
+        } else if (looksSize(meta.size)) {
+          sizes.add(meta.size);
+        }
+      }
+      if (meta.color && isColor(meta.color)) colors.add(meta.color);
+      variantsOut.push(Object.assign({}, v, { size: meta.size, color: meta.color, option_values: meta.option_values || undefined }));
+    }
+    const colorGalleries = (p as any).colors?.map((c:any)=> ({ name:c.name, primaryImageUrl:c.primaryImageUrl||undefined, isPrimary:!!c.isPrimary, order:c.order||0, images:(c.images||[]).map((x:any)=> x.url).filter(Boolean) })) || [];
+    return res.json({ product: Object.assign({}, p, { variants: variantsOut, sizes: Array.from(sizes), colors: Array.from(colors), colorGalleries }) });
+  } catch {
+    return res.json({ product: p });
+  }
 });
 adminRest.post('/products', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.create'))) return res.status(403).json({ error:'forbidden' });
-  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId } = req.body || {};
+  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId, colors } = req.body || {};
   // Fallback: if categoryId missing, pick any existing category to satisfy FK
   let nextCategoryId = categoryId;
   if (!nextCategoryId) {
     try { const any = await db.category.findFirst({ select: { id: true } }); nextCategoryId = any?.id || undefined; } catch {}
   }
   const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId: nextCategoryId as any, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
+  // Optionally persist colors (primary + gallery) for the new product
+  try {
+    const colorsIn: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = Array.isArray(colors) ? colors : [];
+    if (colorsIn.length) {
+      for (let i=0;i<colorsIn.length;i++){
+        const c = colorsIn[i] || {} as any;
+        const created = await db.productColor.create({ data: {
+          productId: p.id,
+          name: String(c.name||'').trim(),
+          primaryImageUrl: c.primaryImageUrl ? String(c.primaryImageUrl) : null,
+          isPrimary: !!c.isPrimary,
+          order: Number.isFinite(c.order as any) ? Number(c.order) : i,
+        }});
+        const imgs: string[] = Array.isArray(c.images) ? c.images.filter((u:string)=> !!u) : [];
+        for (let j=0;j<imgs.length;j++){
+          await db.productColorImage.create({ data: { productColorId: created.id, url: imgs[j], order: j } });
+        }
+      }
+    }
+  } catch {}
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
@@ -6553,28 +6767,174 @@ adminRest.post('/products/:id/variants', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
-    const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity?: number; sku?: string }>= Array.isArray(req.body?.variants)? req.body.variants : [];
-    const p = await db.product.findUnique({ where: { id }, select: { id: true } });
+    const rows: Array<{ name?: string; value?: string; price?: number; purchasePrice?: number; stockQuantity?: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string }> }> = Array.isArray(req.body?.variants)? req.body.variants : [];
+    const p = await db.product.findUnique({ where: { id }, select: { id: true, name: true, sku: true } });
     if (!p) return res.status(404).json({ error: 'product_not_found' });
+    // Expansion: if user selected multiple colors + two size groups but only one color's matrix was posted,
+    // auto-complete the missing color combinations to prevent partial saves (e.g., 16 instead of 64)
+    try {
+      const letters = new Set<string>();
+      const numbers = new Set<string>();
+      const colors = new Set<string>();
+      const norm = (s: any) => String(s||'').trim();
+      const looksNumeric = (s: string) => /^\d{1,3}$/.test(norm(s).replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660)));
+      const getMeta = (v: any): { size?: string; color?: string } => {
+        const ov = Array.isArray(v?.option_values) ? v.option_values : undefined;
+        let size: string|undefined = v?.size ? norm(v.size) : undefined;
+        let color: string|undefined = v?.color ? norm(v.color) : undefined;
+        if (ov) {
+          for (const o of ov) {
+            const name = norm(o?.name||o?.key);
+            const val = norm(o?.value||o?.val||o?.label);
+            if (/size|مقاس/i.test(name)) {
+              size = size || val;
+            } else if (/color|لون/i.test(name)) {
+              color = color || val;
+            }
+          }
+        }
+        return { size, color };
+      };
+      for (const v of rows) {
+        const { size, color } = getMeta(v);
+        if (color) colors.add(color);
+        if (size) {
+          if (size.includes('|')) {
+            for (const part of size.split('|')) {
+              const [k, val] = part.split(':', 2);
+              const pr = norm(val||k||'');
+              if (/بالأرقام/.test(k||'') || looksNumeric(pr)) numbers.add(pr);
+              else letters.add(pr);
+            }
+          } else {
+            if (looksNumeric(size)) numbers.add(size); else letters.add(size);
+          }
+        }
+      }
+      const target = (letters.size? letters.size:1) * (numbers.size? numbers.size:1) * (colors.size? colors.size:1);
+      if (letters.size && numbers.size && colors.size && rows.length < target) {
+        const exists = new Set<string>();
+        const keyOf = (c: string, L: string, N: string) => `${norm(c)}|${norm(L)}|${norm(N)}`;
+        for (const v of rows) {
+          const { size, color } = getMeta(v);
+          let L=''; let N='';
+          if (size && size.includes('|')) {
+            for (const part of size.split('|')) { const [k,val]=part.split(':',2); const pr=norm(val||''); if (/بالأرقام/.test(k||'') || looksNumeric(pr)) N=pr; else L=pr; }
+          } else if (size) {
+            if (looksNumeric(size)) N = norm(size); else L = norm(size);
+          }
+          if (color && L && N) exists.add(keyOf(color, L, N));
+        }
+        const basePrice = rows.find(r=> r.price!=null)?.price ?? null;
+        const baseStock = rows.find(r=> r.stockQuantity!=null)?.stockQuantity ?? 0;
+        const add: any[] = [];
+        for (const c of Array.from(colors)) for (const L of Array.from(letters)) for (const N of Array.from(numbers)) {
+          const k = keyOf(c, L, N);
+          if (exists.has(k)) continue;
+          add.push({
+            name: `مقاسات بالأحرف: ${L} • مقاسات بالأرقام: ${N} • اللون: ${c}`,
+            value: undefined,
+            price: basePrice,
+            stockQuantity: baseStock,
+            size: `مقاسات بالأحرف:${L}|مقاسات بالأرقام:${N}`,
+            color: c,
+            option_values: [ { name:'size', value:`مقاسات بالأحرف:${L}` }, { name:'size', value:`مقاسات بالأرقام:${N}` }, { name:'color', value:c } ]
+          });
+        }
+        if (add.length) (rows as any).push(...add);
+      }
+    } catch {}
     const out: any[] = [];
-    for (const v of rows) {
+    // SKU helpers
+    const sanitizeToken = (s?: string): string => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8);
+    const ensureTail = (raw: string, fallbackPrefix: string): string => {
+      const t = sanitizeToken(raw);
+      if (t) return t;
+      const src = String(raw||''); let acc = 0; for (let i=0;i<src.length;i++){ acc = (acc * 131 + src.charCodeAt(i)) >>> 0; }
+      return `${fallbackPrefix}${(acc % 10000).toString().padStart(4,'0')}`;
+    };
+    const basePrefix = ((): string => {
+      const pfx = sanitizeToken((p as any)?.sku||'') || sanitizeToken((p as any)?.name||'');
+      return pfx || ('PRD' + sanitizeToken((p as any)?.id||'').slice(-5));
+    })();
+    const looksSize = (s:string)=> /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(String(s||'').trim());
+    const isColor = (s:string)=> {
+      const t = String(s||'').trim().toLowerCase();
+      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
+    };
+  const batchSeen = new Set<string>();
+  for (const v of rows) {
       const data: any = {
         productId: id,
         name: String(v.name||'').slice(0, 120) || 'Variant',
-        value: String(v.value||'').slice(0, 120) || '-',
-        price: typeof v.price === 'number' ? v.price : null,
-        purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : null,
-        stockQuantity: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
-        sku: v.sku || null,
+        value: String(v.value||'').slice(0, 240) || '-',
+      price: typeof v.price === 'number' ? v.price : null,
+      purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : null,
+      stockQuantity: Number.isFinite(v.stockQuantity as any) ? Number(v.stockQuantity) : 0,
       };
-      if (v.sku) {
-        const existing = await db.productVariant.findFirst({ where: { sku: v.sku } });
-        if (existing) {
-          const up = await db.productVariant.update({ where: { id: existing.id }, data });
-          out.push(up);
-          continue;
+    // Ensure per-batch SKU uniqueness: if same SKU appears again in this request (common when colors are Arabic and sanitized away), drop SKU for subsequent duplicates to avoid collapsing variants
+    let nextSku: string | null = (v as any).sku || null;
+    if (nextSku) {
+      if (batchSeen.has(nextSku)) nextSku = null; else batchSeen.add(nextSku);
+    } else {
+      // Compose SKU from size/color when missing
+      try {
+        const meta = extractVariantMeta(v);
+        const parts: string[] = [];
+        const sizeVal = meta.size;
+        const colorVal = meta.color;
+        if (sizeVal) {
+          if (sizeVal.includes('|')) {
+            for (const part of sizeVal.split('|')) { const val = part.split(':',2)[1] || part; parts.push(ensureTail(val,'S')); }
+          } else { parts.push(ensureTail(sizeVal,'S')); }
         }
+        if (colorVal) parts.push(ensureTail(colorVal,'C'));
+        const candidate = [basePrefix, parts.join('-')].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
+        let suffix = 0; const limit = 50;
+        while (true) {
+          const skuTry = suffix ? `${candidate}-${String(suffix).padStart(2,'0')}`.slice(0, 40) : candidate;
+          if (!batchSeen.has(skuTry)) {
+            const exists = await db.productVariant.findFirst({ where: { sku: skuTry } });
+            if (!exists) { nextSku = skuTry; batchSeen.add(skuTry); break; }
+            batchSeen.add(skuTry);
+          }
+          suffix += 1; if (suffix>limit) { const rnd = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(2,6); nextSku = `${candidate}-${rnd}`.slice(0,40); batchSeen.add(nextSku); break; }
+        }
+      } catch { nextSku = null; }
+    }
+    if (nextSku) data.sku = nextSku;
+      // If size/color/option_values provided, encode as JSON in value for reliable client extraction
+      try {
+        const ov = Array.isArray((v as any).option_values)? (v as any).option_values : (Array.isArray((v as any).optionValues)? (v as any).optionValues : (Array.isArray((v as any).options)? (v as any).options : (Array.isArray((v as any).attributes)? (v as any).attributes : null)));
+        const sz = (v as any).size;
+        const col = (v as any).color;
+        let sizeVal: string|undefined = sz;
+        let colorVal: string|undefined = col;
+        // Derive if missing from name/value tokens
+        if (!sizeVal || !colorVal) {
+          const src = `${String(v.name||'')} ${String(v.value||'')}`;
+          const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
+          if (!colorVal && hex) colorVal = hex[0];
+          if (!sizeVal) {
+            const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+            if (m) sizeVal = m[1];
+          }
+        }
+        // Normalize option_values
+        const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
+    if (normalizedOV || sizeVal || colorVal) {
+          data.value = JSON.stringify({ label: String(v.value||'').slice(0,120), size: sizeVal||undefined, color: colorVal||undefined, option_values: normalizedOV||undefined });
+        }
+      } catch {}
+    if (nextSku) {
+      // Only upsert by SKU within the same product; otherwise, create new
+      const existing = await db.productVariant.findFirst({ where: { sku: nextSku, productId: id } });
+      if (existing) {
+        const up = await db.productVariant.update({ where: { id: existing.id }, data });
+        out.push(up);
+        continue;
       }
+    }
       const created = await db.productVariant.create({ data });
       out.push(created);
     }
@@ -6583,14 +6943,236 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     return res.status(500).json({ error: e?.message || 'variants_upsert_failed' });
   }
 });
+
+// Replace all variants for a product atomically
+adminRest.put('/products/:id/variants/replace', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const rows: Array<any> = Array.isArray(req.body?.variants) ? req.body.variants : [];
+    const p = await db.product.findUnique({ where: { id }, select: { id: true, sku: true, name: true } });
+    if (!p) return res.status(404).json({ error: 'product_not_found' });
+    await db.$transaction(async (tx) => {
+      await tx.productVariant.deleteMany({ where: { productId: id } });
+      // SKU helpers
+      const sanitizeToken = (s?: string): string => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8);
+      const ensureTail = (raw: string, fallbackPrefix: string): string => {
+        const t = sanitizeToken(raw);
+        if (t) return t;
+        const src = String(raw||''); let acc = 0; for (let i=0;i<src.length;i++){ acc = (acc * 131 + src.charCodeAt(i)) >>> 0; }
+        return `${fallbackPrefix}${(acc % 10000).toString().padStart(4,'0')}`;
+      };
+      const basePrefix = ((): string => {
+        const pfx = sanitizeToken((p as any)?.sku||'') || sanitizeToken((p as any)?.name||'');
+        return pfx || ('PRD' + sanitizeToken((p as any)?.id||'').slice(-5));
+      })();
+      const batchSeen = new Set<string>();
+      for (const v of rows) {
+        const price = (v as any).price ?? (v as any).salePrice ?? null;
+        const stock = Number.isFinite((v as any).stock as any) ? Number((v as any).stock) : 0;
+        const sizeRaw = String((v as any).size || '').trim();
+        const colorRaw = String((v as any).color || '').trim();
+        const parts: string[] = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (val) parts.push(`${k}: ${val}`); }
+          } else {
+            parts.push(`المقاس: ${sizeRaw}`);
+          }
+        }
+        if (colorRaw) parts.push(`اللون: ${colorRaw}`);
+        const label = parts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+        const option_values: Array<{ name: string; value: string }> = [];
+        if (sizeRaw) {
+          if (sizeRaw.includes('|')) {
+            for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (k && val) option_values.push({ name: 'size', value: `${k}:${val}` }); }
+          } else {
+            option_values.push({ name: 'size', value: sizeRaw });
+          }
+        }
+        if (colorRaw) option_values.push({ name: 'color', value: colorRaw });
+        // Compose SKU when not provided
+        let skuVal: string = String((v as any).sku || '').trim();
+        if (!skuVal) {
+          const partsSku: string[] = [];
+          if (sizeRaw) {
+            if (sizeRaw.includes('|')) { for (const part of sizeRaw.split('|')) { const [k,val]=part.split(':',2); if (val) partsSku.push(ensureTail(val,'S')); } }
+            else { partsSku.push(ensureTail(sizeRaw,'S')); }
+          }
+          if (colorRaw) partsSku.push(ensureTail(colorRaw,'C'));
+          let candidate = [basePrefix, partsSku.join('-')].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
+          let suffix = 0; const limit = 50;
+          while (true) {
+            const trySku = suffix ? `${candidate}-${String(suffix).padStart(2,'0')}`.slice(0, 40) : candidate;
+            if (!batchSeen.has(trySku)) {
+              const exists = await tx.productVariant.findFirst({ where: { sku: trySku } });
+              if (!exists) { skuVal = trySku; batchSeen.add(trySku); break; }
+              batchSeen.add(trySku);
+            }
+            suffix += 1; if (suffix>limit) { const rnd = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(2,6); skuVal = `${candidate}-${rnd}`.slice(0,40); batchSeen.add(skuVal); break; }
+          }
+        }
+        await tx.productVariant.create({
+          data: {
+            productId: id,
+            name: label,
+            value: JSON.stringify({ label, size: sizeRaw || undefined, color: colorRaw || undefined, option_values: option_values.length ? option_values : undefined }),
+            price: price != null ? Number(price) : null,
+            purchasePrice: (v as any).purchasePrice != null ? Number((v as any).purchasePrice) : null,
+            sku: skuVal || null,
+            stockQuantity: stock,
+          },
+        });
+      }
+    });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'variants_replace_failed' });
+  }
+});
 adminRest.patch('/products/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
     const { id } = req.params;
     const data = req.body || {};
-    const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true } });
-    const p = await db.product.update({ where: { id }, data });
+    // Allow only known Product fields to avoid Prisma unknown arg errors (e.g., passing colors/variants to update())
+    const allowed: any = {};
+    const copy = (k: string) => { if (data[k] !== undefined) allowed[k] = data[k]; };
+    ['name','description','price','images','categoryId','vendorId','stockQuantity','sku','brand','tags','isActive'].forEach(copy);
+    const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true, sku: true } });
+    const p = await db.product.update({ where: { id }, data: allowed });
     await audit(req, 'products', 'update', { id });
+    // Upsert variants if provided
+    try {
+      const rows: any[] = Array.isArray((req.body || {}).variants) ? (req.body as any).variants : [];
+      if (rows.length) {
+        // SKU helpers scoped to this patch request
+        const sanitizeToken = (s?: string): string => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8);
+        const ensureTail = (raw: string, fallbackPrefix: string): string => {
+          const t = sanitizeToken(raw);
+          if (t) return t;
+          const src = String(raw||''); let acc = 0; for (let i=0;i<src.length;i++){ acc = (acc * 131 + src.charCodeAt(i)) >>> 0; }
+          return `${fallbackPrefix}${(acc % 10000).toString().padStart(4,'0')}`;
+        };
+        const basePrefix = ((): string => {
+          const pfx = sanitizeToken(old?.sku||'') || sanitizeToken(old?.name||'');
+          return pfx || ('PRD' + sanitizeToken(id).slice(-5));
+        })();
+        const batchSeen = new Set<string>();
+        for (const v of rows) {
+          const base: any = {
+            productId: id,
+            price: typeof v.price === 'number' ? v.price : null,
+            stockQuantity: Number.isFinite(v.stock as any) ? Number(v.stock) : 0,
+          };
+          // Encode size/color/options in value JSON to ensure downstream extraction
+          let sizeEff: string | undefined;
+          let colorEff: string | undefined;
+          try {
+            const ovRaw = Array.isArray((v as any).option_values) ? (v as any).option_values : undefined;
+            const sizeVal = (v as any).size ? String((v as any).size) : undefined;
+            const colorVal = (v as any).color ? String((v as any).color) : undefined;
+            // Preserve existing meta when missing in payload (avoid losing color on edit)
+            let prevSize: string | undefined;
+            let prevColor: string | undefined;
+            let prevOV: Array<{ name: string; value: string }> | undefined;
+            if ((v as any).id) {
+              try {
+                const old = await db.productVariant.findUnique({ where: { id: String((v as any).id) }, select: { name: true, value: true } });
+                const parseMeta = (raw?: string) => {
+                  try {
+                    if (!raw) return;
+                    if (!(raw.startsWith('{') || raw.startsWith('['))) return;
+                    const j = JSON.parse(raw);
+                    if (!Array.isArray(j)) {
+                      prevSize = prevSize || (j as any).size;
+                      prevColor = prevColor || (j as any).color;
+                      if (Array.isArray((j as any).option_values)) prevOV = ((j as any).option_values as any[]).map((o:any)=> ({ name: String(o?.name||o?.key||'').trim(), value: String(o?.value||o?.val||o?.label||'').trim() })).filter(o=> o.name && o.value);
+                    }
+                  } catch {}
+                };
+                parseMeta(old?.value||undefined);
+                parseMeta(old?.name||undefined);
+              } catch {}
+            }
+            const labelParts: string[] = [];
+            sizeEff = sizeVal || prevSize;
+            colorEff = colorVal || prevColor;
+            if (sizeEff && sizeEff.includes('|')) {
+              for (const part of sizeEff.split('|')) { if (part) labelParts.push(part.replace(':', ': ')); }
+            } else if (sizeEff) { labelParts.push(`المقاس: ${sizeEff}`); }
+            if (colorEff) labelParts.push(`اللون: ${colorEff}`);
+            const label = labelParts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+            base.name = label;
+            // Normalize option_values
+            let finalOV = ovRaw && Array.isArray(ovRaw) ? ovRaw : prevOV;
+            if (!finalOV) {
+              const gen: Array<{ name: string; value: string }> = [];
+              if (sizeEff) {
+                if (sizeEff.includes('|')) {
+                  for (const part of sizeEff.split('|')) { const [k, val] = part.split(':', 2); if (k && val) gen.push({ name: 'size', value: `${k}:${val}` }); }
+                } else {
+                  gen.push({ name: 'size', value: sizeEff });
+                }
+              }
+              if (colorEff) gen.push({ name: 'color', value: colorEff });
+              finalOV = gen.length ? gen : undefined;
+            }
+            base.value = JSON.stringify({ label, size: sizeEff, color: colorEff, option_values: finalOV });
+          } catch {
+            base.name = String((v as any).name || 'Variant').slice(0, 120);
+            base.value = String((v as any).value || '-').slice(0, 240);
+          }
+          if ((v as any).sku) {
+            base.sku = String((v as any).sku);
+          } else {
+            const parts: string[] = [];
+            if (sizeEff) {
+              if (sizeEff.includes('|')) { for (const part of sizeEff.split('|')) { const [k,val]=part.split(':',2); if (val) parts.push(ensureTail(val,'S')); } }
+              else { parts.push(ensureTail(sizeEff,'S')); }
+            }
+            if (colorEff) parts.push(ensureTail(colorEff,'C'));
+            let candidate = [basePrefix, parts.join('-')].filter(Boolean).join('-').replace(/-+/g,'-').slice(0, 32);
+            let suffix = 0; const limit = 50;
+            while (true) {
+              const skuTry = suffix ? `${candidate}-${String(suffix).padStart(2,'0')}`.slice(0, 40) : candidate;
+              if (!batchSeen.has(skuTry)) {
+                const exists = await db.productVariant.findFirst({ where: { sku: skuTry } });
+                if (!exists) { base.sku = skuTry; batchSeen.add(skuTry); break; }
+                batchSeen.add(skuTry);
+              }
+              suffix += 1; if (suffix>limit) { const rnd = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(2,6); base.sku = `${candidate}-${rnd}`.slice(0,40); batchSeen.add(base.sku); break; }
+            }
+          }
+          if ((v as any).id) {
+            await db.productVariant.update({ where: { id: String((v as any).id) }, data: base });
+          } else {
+            await db.productVariant.create({ data: base });
+          }
+        }
+      }
+    } catch {}
+    // Upsert product colors (primary + gallery) if provided
+    try {
+      const colorsIn: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = Array.isArray((req.body||{}).colors) ? (req.body as any).colors : [];
+      if (colorsIn.length) {
+        await db.productColor.deleteMany({ where: { productId: id } });
+        for (let i=0;i<colorsIn.length;i++){
+          const c = colorsIn[i] || {} as any;
+          const created = await db.productColor.create({ data: {
+            productId: id,
+            name: String(c.name||'').trim(),
+            primaryImageUrl: c.primaryImageUrl ? String(c.primaryImageUrl) : null,
+            isPrimary: !!c.isPrimary,
+            order: Number.isFinite(c.order as any) ? Number(c.order) : i,
+          }});
+          const imgs: string[] = Array.isArray(c.images) ? c.images.filter((u:string)=> !!u) : [];
+          for (let j=0;j<imgs.length;j++){
+            await db.productColorImage.create({ data: { productColorId: created.id, url: imgs[j], order: j } });
+          }
+        }
+      }
+    } catch {}
     try {
       await ensureAlertSchema();
       const tx = buildMailer();
