@@ -37,12 +37,17 @@ async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
 	const search = (()=>{ try { return new URL(req.url).searchParams.toString() } catch { return '' } })()
 	const targetUrl = `${apiBase}/api/admin/${path}${search ? `?${search}` : ''}`
 
-	const headers = new Headers()
-	// Forward essential headers
-	for (const [k, v] of req.headers.entries()) {
-		if (k.toLowerCase() === 'host') continue
-		headers.set(k, v)
-	}
+    const headers = new Headers()
+    // Forward essential headers, but drop hop-by-hop and size/encoding headers
+    for (const [k, v] of req.headers.entries()) {
+        const key = k.toLowerCase()
+        if (key === 'host') continue
+        if (key === 'content-length') continue
+        if (key === 'content-encoding') continue
+        if (key === 'transfer-encoding') continue
+        if (key === 'connection') continue
+        headers.set(k, v)
+    }
 	// Ensure credentials/cookies are forwarded
 	const cookie = req.headers.get('cookie')
 	if (cookie) headers.set('cookie', cookie)
@@ -55,7 +60,7 @@ async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
 		}
 	} catch {}
 
-	const init: RequestInit = {
+    const init: RequestInit = {
 		method: req.method,
 		headers,
 		redirect: 'manual',
@@ -63,21 +68,48 @@ async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
 	if (!['GET', 'HEAD'].includes(req.method)) {
 		init.body = await req.arrayBuffer()
 	}
-	let upstream: Response
+    let upstream: Response
 	try {
-		upstream = await fetch(targetUrl, init)
-		if (upstream.status === 502 || upstream.status === 503) {
-			// Fallback once to public API base if internal unreachable
-			const publicBase = process.env.NEXT_PUBLIC_API_BASE_URL || apiBase
-			const alt = `${publicBase.replace(/\/$/, '')}/api/admin/${path}${search ? `?${search}` : ''}`
-			upstream = await fetch(alt, init)
-		}
+        upstream = await fetch(targetUrl, init)
+        if (upstream.status === 502 || upstream.status === 503) {
+            // Try multiple fallbacks in order
+            const normalized = (s: string) => (s || '').replace(/\/$/, '')
+            const candidates: string[] = []
+            const currentBase = normalized(apiBase)
+            const envBase = normalized(process.env.NEXT_PUBLIC_API_BASE_URL || '')
+            if (envBase && envBase !== currentBase) candidates.push(envBase)
+            if (currentBase !== 'https://api.jeeey.com') candidates.push('https://api.jeeey.com')
+            // Local fallbacks (useful on the same host)
+            candidates.push('http://127.0.0.1:4000', 'http://localhost:4000')
+            for (const base of candidates) {
+                try {
+                    const alt = `${base}/api/admin/${path}${search ? `?${search}` : ''}`
+                    const trial = await fetch(alt, init)
+                    if (trial.status !== 502 && trial.status !== 503) { upstream = trial; break }
+                } catch { /* try next */ }
+            }
+        }
     } catch (e) {
         // Network-level failure to internal upstream; attempt public base as a fallback
         try {
-            const publicBase = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '') || 'https://api.jeeey.com'
-            const alt = `${publicBase}/api/admin/${path}${search ? `?${search}` : ''}`
-            upstream = await fetch(alt, init)
+            const normalized = (s: string) => (s || '').replace(/\/$/, '')
+            const candidates = [
+                normalized(process.env.NEXT_PUBLIC_API_BASE_URL || ''),
+                'https://api.jeeey.com',
+                'http://127.0.0.1:4000',
+                'http://localhost:4000',
+            ].filter(Boolean)
+            let ok: Response | null = null
+            for (const base of candidates) {
+                try {
+                    const alt = `${base}/api/admin/${path}${search ? `?${search}` : ''}`
+                    const trial = await fetch(alt, init)
+                    ok = trial
+                    if (trial.status !== 502 && trial.status !== 503) break
+                } catch { /* keep trying */ }
+            }
+            if (!ok) throw e
+            upstream = ok
         } catch (e2) {
             return NextResponse.json({ error: 'upstream_unreachable', detail: (e2 as Error)?.message || (e as Error)?.message || '' }, { status: 502 })
         }
