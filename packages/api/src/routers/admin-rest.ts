@@ -2937,7 +2937,7 @@ adminRest.get('/shipments/:id/track', async (req, res) => {
 });
 
 // Media upload presign or direct Cloudinary upload (fallback)
-adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
+  adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
     const { filename, type, contentType, base64 } = req.body || {};
@@ -2952,10 +2952,16 @@ adminRest.post('/media/upload', mediaUploadLimiter, async (req, res) => {
     }
     if (!base64) return res.status(400).json({ error:'base64_required' });
     if (process.env.CLOUDINARY_URL) {
-      const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
-      const colors = Array.isArray((uploaded as any)?.colors) ? ((uploaded as any).colors as any[]).map((c:any)=> c?.hex || c)?.filter(Boolean) : [];
-      await audit(req, 'media', 'upload', { public_id: uploaded.public_id, bytes: uploaded.bytes });
-      return res.json({ provider:'cloudinary', url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format, dominantColors: colors });
+      try {
+        const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
+        const colors = Array.isArray((uploaded as any)?.colors) ? ((uploaded as any).colors as any[]).map((c:any)=> c?.hex || c)?.filter(Boolean) : [];
+        await audit(req, 'media', 'upload', { public_id: uploaded.public_id, bytes: uploaded.bytes });
+        return res.json({ provider:'cloudinary', url: uploaded.secure_url, secure_url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format, dominantColors: colors });
+      } catch (e:any) {
+        // Fallback to /media (which also uploads) to reduce 502 under heavy load
+        try { const out = await (await fetch(req.protocol+ '://' + req.get('host') + '/api/admin/media', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64 }) })).json(); return res.json(out); } catch {}
+        throw e;
+      }
     }
     // Local fallback (hardened)
     try {
@@ -7420,6 +7426,16 @@ async function ensureCategorySeo(){
   try { await db.$executeRawUnsafe('UPDATE "Category" SET "sortOrder" = 0 WHERE "sortOrder" IS NULL'); } catch {}
   try { await db.$executeRawUnsafe('ALTER TABLE "Category" ALTER COLUMN "updatedAt" SET DEFAULT NOW()'); } catch {}
 }
+
+// Avoid running DDL on every request; ensure at most once per process (with hourly refresh guard)
+let __catSeoEnsured = false;
+let __catSeoEnsuredAt = 0;
+async function ensureCategorySeoOnce(){
+  const now = Date.now();
+  if (!__catSeoEnsured || (now - __catSeoEnsuredAt) > 60*60*1000) {
+    try { await ensureCategorySeo(); __catSeoEnsured = true; __catSeoEnsuredAt = now; } catch {}
+  }
+}
 async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
   try {
     const rows: Array<{ name: string }> = await db.$queryRawUnsafe(
@@ -7494,7 +7510,7 @@ adminRest.get('/categories', async (req, res) => {
 });
 adminRest.get('/categories/health', async (req, res) => {
   try {
-    await ensureCategorySeo();
+    await ensureCategorySeoOnce();
     const n = await db.category.count();
     // If not authenticated, still return ok:true but mark auth:false (used only for ops diagnostics)
     const authed = Boolean((req as any).user);
@@ -7507,7 +7523,7 @@ adminRest.post('/maintenance/ensure-category-seo', async (req, res) => {
   try {
     const secret = (req.headers['x-maintenance-secret'] as string | undefined) || (req.query.secret as string | undefined);
     if (!secret || secret !== (process.env.MAINTENANCE_SECRET || '')) return res.status(403).json({ error:'forbidden' });
-    await ensureCategorySeo();
+    await ensureCategorySeoOnce();
     return res.json({ ok: true });
   } catch (e:any) {
     return res.status(500).json({ ok: false, error: e?.message || 'failed' });
@@ -7604,7 +7620,7 @@ adminRest.post('/categories', async (req, res) => {
       } catch {}
     }
     // Ensure legacy/prod-mirrored schemas are relaxed/compatible before insert
-    await ensureCategorySeo();
+    await ensureCategorySeoOnce();
     // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
     const id = (typeof (global as any).crypto?.randomUUID === 'function')
       ? (global as any).crypto.randomUUID()
@@ -7701,7 +7717,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
     const msg = String(e?.message||'');
     if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
       try {
-        await ensureCategorySeo();
+        await ensureCategorySeoOnce();
         const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
         const cols = await getCategoryColumnFlags();
         const data: any = {};
