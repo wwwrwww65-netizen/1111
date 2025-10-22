@@ -22,6 +22,7 @@ try {
   }
 } catch {}
 import express from 'express';
+import path from 'path';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { appRouter } from './router';
 import { createContext } from './context';
@@ -57,6 +58,8 @@ try {
 } catch {}
 
 const app = express();
+// Serve uploaded media as static files with long-term cache
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '365d', immutable: true }));
 if (sentryEnabled && SentryRef) {
   try {
     app.use(SentryRef.Handlers.requestHandler());
