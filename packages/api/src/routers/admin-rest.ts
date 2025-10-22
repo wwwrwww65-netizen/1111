@@ -7594,7 +7594,7 @@ adminRest.post('/categories/reorder', async (req, res) => {
 adminRest.post('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req,'categories','forbidden_create',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
-    const { name, slug } = req.body || {};
+    const { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name_required' });
     // Guard slug uniqueness when provided
     if (slug && typeof slug === 'string') {
@@ -7613,6 +7613,22 @@ adminRest.post('/categories', async (req, res) => {
       'INSERT INTO "Category" ("id","name") VALUES ($1,$2) RETURNING id, name',
       id, name
     );
+    // Apply optional fields provided in the payload
+    try {
+      const sets: string[] = []; const vals: any[] = []; let idx = 1;
+      const push = (col: string, val: any) => { sets.push(`"${col}"=$${++idx}`); vals.push(val); };
+      if (typeof slug === 'string' && slug.trim()) push('slug', String(slug).trim());
+      if (typeof description === 'string') push('description', description);
+      if (typeof image === 'string') push('image', image);
+      if (typeof parentId === 'string' || parentId === null) push('parentId', parentId||null);
+      if (typeof seoTitle === 'string') push('seoTitle', seoTitle);
+      if (typeof seoDescription === 'string') push('seoDescription', seoDescription);
+      if (Array.isArray(seoKeywords)) push('seoKeywords', seoKeywords);
+      if (translations && typeof translations === 'object') push('translations', translations);
+      if (sets.length) {
+        await db.$executeRawUnsafe(`UPDATE "Category" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$1`, id, ...vals);
+      }
+    } catch {}
     const c = rows[0];
     await audit(req, 'categories', 'create', { id: c.id });
     return res.json({ category: c });
@@ -7620,7 +7636,7 @@ adminRest.post('/categories', async (req, res) => {
     const msg = String(e?.message||'');
     if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code||'')) {
       try {
-        const { name } = req.body || {};
+        const { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
         const id = (typeof (global as any).crypto?.randomUUID === 'function')
           ? (global as any).crypto.randomUUID()
           : require('crypto').randomUUID();
@@ -7628,6 +7644,22 @@ adminRest.post('/categories', async (req, res) => {
           'INSERT INTO "Category" ("id","name") VALUES ($1,$2) RETURNING id, name',
           id, name
         );
+        // Best-effort update for optional fields even in fallback path
+        try {
+          const sets: string[] = []; const vals: any[] = []; let idx = 1;
+          const push = (col: string, val: any) => { sets.push(`"${col}"=$${++idx}`); vals.push(val); };
+          if (typeof slug === 'string' && slug.trim()) push('slug', String(slug).trim());
+          if (typeof description === 'string') push('description', description);
+          if (typeof image === 'string') push('image', image);
+          if (typeof parentId === 'string' || parentId === null) push('parentId', parentId||null);
+          if (typeof seoTitle === 'string') push('seoTitle', seoTitle);
+          if (typeof seoDescription === 'string') push('seoDescription', seoDescription);
+          if (Array.isArray(seoKeywords)) push('seoKeywords', seoKeywords);
+          if (translations && typeof translations === 'object') push('translations', translations);
+          if (sets.length) {
+            await db.$executeRawUnsafe(`UPDATE "Category" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$1`, id, ...vals);
+          }
+        } catch {}
         const c = rows[0];
         await audit(req, 'categories', 'create', { id: c.id });
         return res.json({ category: c });
