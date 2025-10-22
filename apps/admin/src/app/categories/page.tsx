@@ -67,7 +67,11 @@ export default function CategoriesPage(): JSX.Element {
       if (finalImage && finalImage.startsWith('data:')) {
         try {
           const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
-          if (up.ok) { const j = await up.json(); finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage; }
+          if (up.ok) {
+            const j = await up.json();
+            // Prefer absolute URL from asset
+            finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage;
+          }
         } catch {}
       }
       let translations: any = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
@@ -183,7 +187,11 @@ export default function CategoriesPage(): JSX.Element {
       if (finalImage && finalImage.startsWith('data:')) {
         try {
           const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
-          if (up.ok) { const j = await up.json(); finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage; }
+          if (up.ok) {
+            const j = await up.json();
+            edit.image = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage;
+            finalImage = edit.image;
+          }
         } catch {}
       }
       let translations: any = undefined;
@@ -501,8 +509,8 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                 reader.onload = async ()=> {
                   const data = String(reader.result||'');
                   try {
-                    const resp = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
-                    if (resp.ok) { const out = await resp.json(); const url = out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
+                    const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
+                    if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                     else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                   } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                 };
@@ -521,8 +529,8 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                   reader.onload = async ()=> {
                     const data = String(reader.result||'');
                     try {
-                      const resp = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: f.name, contentType: f.type, base64: data }) });
-                      if (resp.ok) { const out = await resp.json(); const url = out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
+                      const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
+                      if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                       else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                     } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                   };
