@@ -316,7 +316,7 @@ export default function AdminProductCreate(): JSX.Element {
       <div ref={ref} style={{ position:'relative' }}>
         <button type="button" className="btn btn-outline" onClick={()=> setOpen(v=>!v)}>{buttonLabel}</button>
         {open && (
-          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:30, padding:8, width:320 }}>
+          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:9999, padding:8, width:320, boxShadow:'0 10px 30px rgba(0,0,0,.35)' }}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
               {uniq.map((u, i)=> (
                 <div key={i} className="panel" style={{ position:'relative', padding:0 }}>
@@ -2264,7 +2264,8 @@ export default function AdminProductCreate(): JSX.Element {
     }
     setBusy(false);
     showToast(editId? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح', 'ok');
-    router.push(editId? `/products/new?id=${productId}` : '/products');
+    // بعد الحفظ، الانتقال مباشرة لقائمة المنتجات
+    router.replace('/products');
   }
 
   return (

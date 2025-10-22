@@ -6663,6 +6663,40 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
   return out;
 }
 
+// SKU token normalization: transliterate common Arabic color names to Latin codes for readability
+function transliterateSkuToken(raw?: string): string {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const lower = s.toLowerCase();
+  const map: Record<string, string> = {
+    'أحمر': 'RED', 'احمر': 'RED', 'red': 'RED',
+    'أزرق': 'BLUE', 'ازرق': 'BLUE', 'blue': 'BLUE',
+    'أخضر': 'GRN', 'اخضر': 'GRN', 'green': 'GRN',
+    'أسود': 'BLK', 'اسود': 'BLK', 'black': 'BLK',
+    'أبيض': 'WHT', 'ابيض': 'WHT', 'white': 'WHT',
+    'أصفر': 'YLW', 'اصفر': 'YLW', 'yellow': 'YLW',
+    'بنفسجي': 'PUR', 'purple': 'PUR',
+    'وردي': 'PNK', 'زهري': 'PNK', 'pink': 'PNK',
+    'رمادي': 'GRY', 'gray': 'GRY', 'grey': 'GRY',
+    'كحلي': 'NAVY', 'navy': 'NAVY',
+    'بيج': 'BEIGE', 'beige': 'BEIGE',
+    'بني': 'BRN', 'brown': 'BRN',
+    'برتقالي': 'ORG', 'orange': 'ORG',
+    'ذهبي': 'GLD', 'gold': 'GLD',
+    'فضي': 'SLV', 'silver': 'SLV',
+    'سماوي': 'CYN', 'cyan': 'CYN',
+    'تركواز': 'TRQ', 'تركوازي': 'TRQ', 'turquoise': 'TRQ'
+  };
+  if (map[lower]) return map[lower];
+  // If purely alphanumeric/latin/numeric, keep sanitized upper
+  const latin = s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  const clean = latin.replace(/[^A-Za-z0-9]+/g, '').toUpperCase();
+  if (clean) return clean.slice(0, 6);
+  // Fallback: short hash
+  let acc = 0; for (let i = 0; i < s.length; i++) acc = (acc * 131 + s.charCodeAt(i)) >>> 0;
+  return (acc % 10000).toString().padStart(4, '0');
+}
+
 adminRest.get('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error:'forbidden' });
   const { id } = req.params;
