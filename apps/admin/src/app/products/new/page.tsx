@@ -1,6 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
+import { createPortal } from "react-dom";
 import { resolveApiBase } from "../../lib/apiBase";
 
 function useApiBase(){
@@ -305,35 +306,52 @@ export default function AdminProductCreate(): JSX.Element {
     buttonLabel?: string;
   }){
     const [open, setOpen] = React.useState(false);
-    const ref = React.useRef<HTMLDivElement|null>(null);
+    const [pos, setPos] = React.useState<{ left:number; top:number; width:number }>({ left:0, top:0, width:320 });
+    const btnRef = React.useRef<HTMLButtonElement|null>(null);
+    const wrapRef = React.useRef<HTMLDivElement|null>(null);
     React.useEffect(()=>{
-      function onDoc(e: MouseEvent){ if (!ref.current) return; if (!ref.current.contains(e.target as Node)) setOpen(false); }
+      function onDoc(e: MouseEvent){
+        if (!wrapRef.current) return;
+        if (wrapRef.current.contains(e.target as Node)) return;
+        setOpen(false);
+      }
       document.addEventListener('mousedown', onDoc);
       return ()=> document.removeEventListener('mousedown', onDoc);
     },[]);
     const uniq = Array.from(new Set(urls.filter(Boolean)));
-    return (
-      <div ref={ref} style={{ position:'relative' }}>
-        <button type="button" className="btn btn-outline" onClick={()=> setOpen(v=>!v)}>{buttonLabel}</button>
-        {open && (
-          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:9999, padding:8, width:320, boxShadow:'0 10px 30px rgba(0,0,0,.35)' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-              {uniq.map((u, i)=> (
-                <div key={i} className="panel" style={{ position:'relative', padding:0 }}>
-                  <img src={u} alt={String(i)} style={{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} onClick={()=> onToggle(i)} />
-                  <label style={{ position:'absolute', insetInlineStart:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
-                    <input type="checkbox" checked={selected.includes(i)} onChange={()=> onToggle(i)} />
-                    <span style={{ fontSize:11 }}>تحديد</span>
-                  </label>
-                  <label style={{ position:'absolute', insetInlineEnd:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
-                    <input type="radio" name="primary-variant-image" checked={primaryIdx===i} onChange={()=> onSetPrimary(i)} />
-                    <span style={{ fontSize:11 }}>رئيسية</span>
-                  </label>
-                </div>
-              ))}
+    function openMenu(){
+      try {
+        const r = btnRef.current?.getBoundingClientRect();
+        if (r) {
+          const width = Math.min(360, Math.max(260, r.width));
+          setPos({ left: Math.max(8, Math.min(window.innerWidth - width - 8, r.left)), top: Math.min(window.innerHeight - 12, r.bottom + 6), width });
+        }
+      } catch {}
+      setOpen(true);
+    }
+    const menu = open ? (
+      <div ref={wrapRef} className="menu" style={{ position:'fixed', left: pos.left, top: pos.top, zIndex: 200000, padding:8, width: pos.width, maxHeight: '60vh', overflowY:'auto', borderRadius:8, background:'var(--panel, #0b0f17)', boxShadow:'0 10px 30px rgba(0,0,0,.45)', border:'1px solid rgba(255,255,255,.08)' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+          {uniq.map((u, i)=> (
+            <div key={i} className="panel" style={{ position:'relative', padding:0 }}>
+              <img src={u} alt={String(i)} style={{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} onClick={()=> onToggle(i)} />
+              <label style={{ position:'absolute', insetInlineStart:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
+                <input type="checkbox" checked={selected.includes(i)} onChange={()=> onToggle(i)} />
+                <span style={{ fontSize:11 }}>تحديد</span>
+              </label>
+              <label style={{ position:'absolute', insetInlineEnd:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
+                <input type="radio" name="primary-variant-image" checked={primaryIdx===i} onChange={()=> onSetPrimary(i)} />
+                <span style={{ fontSize:11 }}>رئيسية</span>
+              </label>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
+      </div>
+    ) : null;
+    return (
+      <div style={{ position:'relative' }}>
+        <button ref={btnRef} type="button" className="btn btn-outline" onClick={openMenu}>{buttonLabel}</button>
+        {typeof document!=='undefined' && menu ? createPortal(menu, document.body) : null}
       </div>
     );
   }

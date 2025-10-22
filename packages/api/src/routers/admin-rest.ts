@@ -6882,7 +6882,7 @@ adminRest.post('/products/:id/variants', async (req, res) => {
     // SKU helpers
     const sanitizeToken = (s?: string): string => String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8);
     const ensureTail = (raw: string, fallbackPrefix: string): string => {
-      const t = sanitizeToken(raw);
+      const t = transliterateSkuToken(raw);
       if (t) return t;
       const src = String(raw||''); let acc = 0; for (let i=0;i<src.length;i++){ acc = (acc * 131 + src.charCodeAt(i)) >>> 0; }
       return `${fallbackPrefix}${(acc % 10000).toString().padStart(4,'0')}`;
