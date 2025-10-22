@@ -66,7 +66,7 @@ export default function CategoriesPage(): JSX.Element {
       let finalImage = image;
       if (finalImage && finalImage.startsWith('data:')) {
         try {
-          const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
+          const up = await fetch(`/api/admin/media/upload`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ filename: `cat-${Date.now()}.png`, contentType: 'image/png', base64: finalImage }) });
           if (up.ok) { const j = await up.json(); finalImage = j.url || j.secure_url || j.presign?.url || finalImage; }
         } catch {}
       }
@@ -76,7 +76,7 @@ export default function CategoriesPage(): JSX.Element {
       }
       const keywords = seoKeywords.split(',').map(s=>s.trim()).filter(Boolean);
       const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
-      const res = await fetch(`/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
+      const res = await fetch(`/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(()=> '');
         showToast(`فشل الإضافة${t? ': '+t: ''}`);
@@ -92,7 +92,7 @@ export default function CategoriesPage(): JSX.Element {
     }
   }
   async function update(cat:any){
-  const res = await fetch(`/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
+  const res = await fetch(`/api/admin/categories/${cat.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ name: cat.name, description: cat.description, image: cat.image, parentId: cat.parentId||null, slug: cat.slug, seoTitle: cat.seoTitle, seoDescription: cat.seoDescription, seoKeywords: cat.seoKeywords, translations: cat.translations }) });
     if (!res.ok) { showToast('فشل الحفظ'); return; }
     await Promise.all([loadList(), loadTree()]);
     showToast('تم الحفظ');
