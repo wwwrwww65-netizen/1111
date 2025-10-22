@@ -66,7 +66,7 @@ export default function CategoriesPage(): JSX.Element {
       let finalImage = image;
       if (finalImage && finalImage.startsWith('data:')) {
         try {
-          const up = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
+          const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
           if (up.ok) {
             const j = await up.json();
             // Prefer absolute URL from asset
@@ -87,11 +87,11 @@ export default function CategoriesPage(): JSX.Element {
       try {
         if (finalImage) {
           const body:any = finalImage.startsWith('data:') ? { base64: finalImage } : { url: finalImage };
-          await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) }).catch(()=>null);
+          await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) }).catch(()=>null);
         }
       } catch {}
       const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
-      const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
+      const res = await fetch(`/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(()=> '');
         showToast(`فشل الإضافة${t? ': '+t: ''}`);
@@ -400,7 +400,7 @@ export default function CategoriesPage(): JSX.Element {
                 reader.onload = async ()=> {
                   const data = String(reader.result||'');
                   try {
-                    const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
+                    const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
                     if (resp.ok) {
                       const out = await resp.json();
                       const url = out.asset?.url || out.url || out.secure_url || out.presign?.url;
@@ -423,7 +423,7 @@ export default function CategoriesPage(): JSX.Element {
                   reader.onload = async ()=> {
                     const data = String(reader.result||'');
                     try {
-                      const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
+                      const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
                       if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setImage(url || data); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                       else { setImage(data); showToast('تم التحميل محلياً'); }
                     } catch { setImage(data); showToast('تم التحميل محلياً'); }
@@ -516,7 +516,7 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                 reader.onload = async ()=> {
                   const data = String(reader.result||'');
                   try {
-                    const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
+                    const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
                     if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                     else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                   } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
@@ -536,7 +536,7 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                   reader.onload = async ()=> {
                     const data = String(reader.result||'');
                     try {
-                      const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
+                      const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
                       if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                       else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                     } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
