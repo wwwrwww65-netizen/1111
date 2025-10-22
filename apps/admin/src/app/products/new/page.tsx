@@ -2012,6 +2012,23 @@ export default function AdminProductCreate(): JSX.Element {
       .filter(t => t.effectiveSizes.length);
     const activeSizeTypes = resolvedSizeTypes;
     const colorList = selectedColors;
+    // Build SKU base from product SKU or name
+    const skuBase = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'');
+    const sizeValueOf = (sizeToken?: string): string => {
+      const raw = String(sizeToken||'').trim(); if (!raw) return '';
+      if (raw.includes('|')) {
+        const vals = raw.split('|').map(part=> {
+          const idx = part.indexOf(':'); return idx>0 ? part.slice(idx+1).trim() : part.trim();
+        }).filter(Boolean);
+        return vals.join('-').toUpperCase().replace(/[^A-Z0-9-]+/g,'').slice(0, 12);
+      }
+      const idx = raw.indexOf(':');
+      const v = (idx>0 ? raw.slice(idx+1) : raw).trim();
+      return v.toUpperCase().replace(/[^A-Z0-9-]+/g,'').slice(0, 12);
+    };
+    const seqBySize = new Map<string, number>();
+    const nextSeq = (sizeKey: string): number => { const n=(seqBySize.get(sizeKey)||0)+1; seqBySize.set(sizeKey,n); return n; };
+    const hasColors = Array.isArray(colorList) && colorList.length>0;
     const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
     // Build color→image mapping from colorCards selections, falling back to review.mapping
     const urls = allProductImageUrls();
@@ -2036,14 +2053,17 @@ export default function AdminProductCreate(): JSX.Element {
       for (const s1 of t1.effectiveSizes) {
         for (const s2 of t2.effectiveSizes) {
           for (const c of colorList) {
+            const sizeToken = `${t1.name}:${s1}|${t2.name}:${s2}`;
+            const sizeShort = sizeValueOf(sizeToken);
+            const seq = nextSeq(sizeShort||'ALL');
             rows.push({
               name: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
               value: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
               price: priceValue,
               purchasePrice: purchaseValue,
               stockQuantity: stockValue,
-              sku: makeSku([s1, s2, c]),
-              size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+              sku: [skuBase, sizeShort, String(seq)].filter(Boolean).join('-'),
+              size: sizeToken,
               color: c,
               option_values: [
                 { name: 'size', value: `${t1.name}:${s1}` },
@@ -2061,14 +2081,16 @@ export default function AdminProductCreate(): JSX.Element {
       const [t1, t2] = activeSizeTypes;
       for (const s1 of t1.effectiveSizes) {
         for (const s2 of t2.effectiveSizes) {
+          const sizeToken = `${t1.name}:${s1}|${t2.name}:${s2}`;
+          const sizeShort = sizeValueOf(sizeToken);
           rows.push({
             name: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
             value: `${t1.name}: ${s1} • ${t2.name}: ${s2}`,
             price: priceValue,
             purchasePrice: purchaseValue,
             stockQuantity: stockValue,
-            sku: makeSku([t1.name, s1, t2.name, s2]),
-            size: `${t1.name}:${s1}|${t2.name}:${s2}`,
+            sku: [skuBase, sizeShort].filter(Boolean).join('-'),
+            size: sizeToken,
             option_values: [
               { name: 'size', value: `${t1.name}:${s1}` },
               { name: 'size', value: `${t2.name}:${s2}` },
@@ -2083,14 +2105,17 @@ export default function AdminProductCreate(): JSX.Element {
       const [t1] = activeSizeTypes;
       for (const s1 of t1.effectiveSizes) {
         for (const c of colorList) {
+          const sizeToken = `${t1.name}:${s1}`;
+          const sizeShort = sizeValueOf(sizeToken);
+          const seq = nextSeq(sizeShort||'ALL');
           rows.push({
             name: `${t1.name}: ${s1} • اللون: ${c}`,
             value: `${t1.name}: ${s1} • اللون: ${c}`,
             price: priceValue,
             purchasePrice: purchaseValue,
             stockQuantity: stockValue,
-            sku: makeSku([s1, c]),
-            size: `${t1.name}:${s1}`,
+            sku: [skuBase, sizeShort, String(seq)].filter(Boolean).join('-'),
+            size: sizeToken,
             color: c,
             option_values: [
               { name: 'size', value: `${t1.name}:${s1}` },
@@ -2105,14 +2130,16 @@ export default function AdminProductCreate(): JSX.Element {
     if (activeSizeTypes.length === 1) {
       const [t1] = activeSizeTypes;
       for (const s1 of t1.effectiveSizes) {
+        const sizeToken = `${t1.name}:${s1}`;
+        const sizeShort = sizeValueOf(sizeToken);
         rows.push({
           name: `${t1.name}: ${s1}`,
           value: `${t1.name}: ${s1}`,
           price: priceValue,
           purchasePrice: purchaseValue,
           stockQuantity: stockValue,
-            sku: makeSku([t1.name, s1]),
-          size: `${t1.name}:${s1}`,
+          sku: [skuBase, sizeShort].filter(Boolean).join('-'),
+          size: sizeToken,
           option_values: [{ name: 'size', value: `${t1.name}:${s1}` }],
         });
       }
@@ -2121,13 +2148,14 @@ export default function AdminProductCreate(): JSX.Element {
 
     if (colorList.length) {
       for (const c of colorList) {
+        const seq = nextSeq('ALL');
         rows.push({
           name: `اللون: ${c}`,
           value: `اللون: ${c}`,
           price: priceValue,
           purchasePrice: purchaseValue,
           stockQuantity: stockValue,
-          sku: makeSku(['COLOR', c]),
+          sku: [skuBase, String(seq)].filter(Boolean).join('-'),
           color: c,
           option_values: [{ name: 'color', value: c }],
         });
