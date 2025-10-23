@@ -51,7 +51,7 @@ server {
   add_header 'Access-Control-Allow-Credentials' 'true' always;
   add_header 'Access-Control-Allow-Methods' 'GET,POST,PUT,PATCH,DELETE,OPTIONS' always;
   add_header 'Access-Control-Allow-Headers' 'Authorization,Content-Type' always;
-  if ($request_method = 'OPTIONS') { add_header 'Access-Control-Max-Age' 86400 always; return 204; }
+  add_header 'Access-Control-Max-Age' 86400 always;
 
   # Serve uploaded media directly from disk with long cache
   location ^~ /uploads/ {
@@ -63,6 +63,8 @@ server {
   }
 
   location / {
+    # Fast-path preflight
+    if ($request_method = 'OPTIONS') { return 204; }
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
