@@ -1,4 +1,3 @@
-map $http_upgrade $connection_upgrade { default upgrade; '' close; }
 proxy_next_upstream error timeout http_502 http_503 http_504;
 proxy_next_upstream_tries 2;
 map $http_user_agent $is_mobile {
@@ -92,7 +91,7 @@ server {
     proxy_set_header X-Forwarded-Proto https;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Connection "upgrade";
     proxy_read_timeout 120s;
     proxy_connect_timeout 30s;
     proxy_send_timeout 120s;
@@ -118,7 +117,7 @@ server {
     proxy_set_header X-Forwarded-Proto https;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Connection "upgrade";
     proxy_read_timeout 120s;
     proxy_connect_timeout 30s;
     proxy_send_timeout 120s;
