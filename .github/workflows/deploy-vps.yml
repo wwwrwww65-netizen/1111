@@ -768,21 +768,13 @@ jobs:
               fi
               head -n 1 /tmp/ens.body || true
             fi
-            echo '--- Select image from media (fallback to upload 1x1 PNG) ---'
+            echo '--- Select existing image from media ---'
             IMG=$(curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
             if [ -z "$IMG" ]; then
-              echo 'No media found; uploading tiny placeholder...'
-              B64='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAuMBg6+U5xIAAAAASUVORK5CYII='
-              curl -sS -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST http://127.0.0.1:4000/api/admin/media --data "{\"base64\":\"$B64\"}" -o /tmp/media.up || true
-              if ! grep -q '{' /tmp/media.up 2>/dev/null; then
-                echo 'Local media upload failed, trying public API...'
-                curl -k -sS -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST https://api.jeeey.com/api/admin/media --data "{\"base64\":\"$B64\"}" -o /tmp/media.up || true
-              fi
-              IMG=$(grep -o '"asset"[^{]*{[^}]*}' /tmp/media.up | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
-              if [ -z "$IMG" ]; then IMG=$(grep -o '"secure_url":"[^"]\+"' /tmp/media.up | head -n1 | sed 's/.*"secure_url":"\([^"]\+\)".*/\1/'); fi
-              if [ -z "$IMG" ]; then IMG=$(grep -o '"url":"[^"]\+"' /tmp/media.up | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/'); fi
+              echo 'No local media found; trying public API media list...'
+              IMG=$(curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
             fi
-            if [ -z "$IMG" ]; then echo 'Failed to obtain image URL from media list/upload'; cat /tmp/media.up 2>/dev/null || true; exit 1; fi
+            if [ -z "$IMG" ]; then echo 'No media assets found in library; please add at least one image to Media.'; exit 1; fi
             echo '--- Create category ---'
             TS=$(date +%s)
             BODY=$(printf '{"name":"SmokeCat %s","slug":"smoke-%s","image":"%s"}' "$TS" "$TS" "$IMG")
