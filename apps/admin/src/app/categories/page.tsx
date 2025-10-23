@@ -66,7 +66,7 @@ export default function CategoriesPage(): JSX.Element {
       let finalImage = image;
       if (finalImage && finalImage.startsWith('data:')) {
         try {
-          const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
+          const up = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
           if (up.ok) {
             const j = await up.json();
             // Prefer absolute URL from asset
@@ -87,11 +87,11 @@ export default function CategoriesPage(): JSX.Element {
       try {
         if (finalImage) {
           const body:any = finalImage.startsWith('data:') ? { base64: finalImage } : { url: finalImage };
-          await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) }).catch(()=>null);
+          await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) }).catch(()=>null);
         }
       } catch {}
       const payload = { name, description, image: finalImage, parentId: parentId||null, slug, seoTitle, seoDescription, seoKeywords: keywords, translations };
-      const res = await fetch(`/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
+      const res = await fetch(`${apiBase}/api/admin/categories`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', cache:'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(()=> '');
         showToast(`فشل الإضافة${t? ': '+t: ''}`);
@@ -164,7 +164,7 @@ export default function CategoriesPage(): JSX.Element {
         translations: cat.translations ? JSON.stringify(cat.translations, null, 2) : '{\n  "ar": { "name": "", "description": "" },\n  "en": { "name": "", "description": "" }\n}'
       });
       setEditLoading(true);
-      const r = await fetch(`/api/admin/categories/${cat.id}`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      const r = await fetch(`${apiBase}/api/admin/categories/${cat.id}`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
       if (!r.ok) { showToast('تعذر جلب البيانات'); return; }
       const j = await r.json();
       const c = j?.category || {};
@@ -221,7 +221,7 @@ export default function CategoriesPage(): JSX.Element {
         seoKeywords: String(edit.seoKeywords||'').split(',').map((s:string)=>s.trim()).filter(Boolean),
         translations
       };
-      const r = await fetch(`/api/admin/categories/${edit.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
+      const r = await fetch(`${apiBase}/api/admin/categories/${edit.id}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
       if (!r.ok) {
         if (r.status === 409) { showToast('Slug مستخدم بالفعل'); return; }
         try { const j = await r.json(); showToast(j?.error||'فشل الحفظ'); } catch { showToast('فشل الحفظ'); }
@@ -242,7 +242,7 @@ export default function CategoriesPage(): JSX.Element {
       return;
     }
     setConfirmingBulk(false);
-    const r = await fetch(`/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids }) });
+      const r = await fetch(`${apiBase}/api/admin/categories/bulk-delete`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ ids }) });
     if (!r.ok) { try{ const j=await r.json(); showToast(`فشل الحذف${j?.code? ' ('+j.code+')':''}`); } catch { showToast('فشل الحذف'); } return; }
     let deletedCount = 0; try { const j = await r.json(); deletedCount = Number(j?.deleted||0); } catch {}
     // Verify each id no longer exists on server
@@ -263,7 +263,7 @@ export default function CategoriesPage(): JSX.Element {
             try {
               const siblings = (n.children||[]).map((c:any, idx:number)=> ({ id:c.id, parentId: n.id, sortOrder: idx }));
               const payload = { items: [ { id: draggedId, parentId: n.id, sortOrder: siblings.length }, ...siblings ] };
-              await fetch(`/api/admin/categories/reorder`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify(payload) });
+              await fetch(`${apiBase}/api/admin/categories/reorder`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(payload) });
               await Promise.all([loadList(), loadTree()]);
               showToast('تم إعادة الترتيب');
             } catch { showToast('فشل إعادة الترتيب'); }
@@ -516,7 +516,7 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                 reader.onload = async ()=> {
                   const data = String(reader.result||'');
                   try {
-                    const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
+                    const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
                     if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                     else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                   } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
@@ -536,7 +536,7 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                   reader.onload = async ()=> {
                     const data = String(reader.result||'');
                     try {
-                      const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64: data }) });
+                      const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
                       if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
                       else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
                     } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
