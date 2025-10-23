@@ -446,21 +446,29 @@ adminRest.use(async (_req, _res, next) => {
 });
 
 const can = async (userId: string, permKey: string): Promise<boolean> => {
+  // Full access in tests
   if (process.env.NODE_ENV === 'test') return true;
-  // Fallback: allow ADMIN role
+
+  // Same-site admin cookie fallback used by admin.jeeey.com reverse-proxy:
+  // When a valid auth cookie is present but no bearer token, we set
+  // req.user = { userId: 'cookie-session', role: 'ADMIN' } upstream.
+  // That pseudo-user does not exist in DB, so explicitly allow it here.
+  if (userId === 'cookie-session' || userId === 'admin-cookie-session') return true;
+
+  // Fallback: allow ADMIN role from persisted users
   try {
     const u = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (u?.role === 'ADMIN') return true;
   } catch {}
+
+  // Otherwise, check RBAC role->permissions mapping
   try {
     const roleLinks = await db.userRoleLink.findMany({
       where: { userId },
       include: {
         role: {
           include: {
-            permissions: {
-              include: { permission: true }
-            }
+            permissions: { include: { permission: true } }
           }
         }
       }
