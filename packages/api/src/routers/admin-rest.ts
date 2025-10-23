@@ -3353,9 +3353,10 @@ adminRest.delete('/media/:id', async (req, res) => {
   } catch { res.status(404).json({ error: 'not_found' }); }
 });
 adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
-  const { url, type, alt, base64 } = req.body || {};
-  let finalUrl = url as string | undefined;
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
+    const { url, type, alt, base64 } = req.body || {};
+    let finalUrl = url as string | undefined;
   if (!finalUrl && base64) {
     if (process.env.CLOUDINARY_URL) {
       // Attempt Cloudinary with a hard timeout; fall back to local on failure/timeout
@@ -3466,6 +3467,10 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
   }
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
+  } catch (e:any) {
+    console.error('Media upload error:', e);
+    return res.status(500).json({ error: e?.message||'media_upload_failed' });
+  }
 });
 
 // Dedupe media by checksum, keep most recent per checksum
@@ -7663,7 +7668,7 @@ adminRest.post('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req,'categories','forbidden_create',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
     const { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
-    if (!name) return res.status(400).json({ error: 'name_required' });
+    if (!name || !name.trim()) return res.status(400).json({ error: 'name_required' });
     // Guard slug uniqueness when provided
     if (slug && typeof slug === 'string') {
       try {
@@ -7735,6 +7740,14 @@ adminRest.post('/categories', async (req, res) => {
         return res.status(500).json({ error: e2?.message||'category_create_failed' });
       }
     }
+    console.error('Category creation error:', e);
+    const msg = String(e?.message||'');
+    
+    // Check for database connection issues
+    if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND') || msg.includes('timeout')) {
+      return res.status(502).json({ error: 'Database connection failed. Please try again later.' });
+    }
+    
     return res.status(500).json({ error: e?.message||'category_create_failed' });
   }
 });

@@ -1356,16 +1356,38 @@ shop.get('/cms/page/:slug', async (req, res) => {
 });
 
 // Categories list
-shop.get('/categories', async (_req, res) => {
+shop.get('/categories', async (req, res) => {
   try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 200);
+    const search = req.query.search as string;
+    
+    const where = search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ]
+    } : {};
+    
     const categories = await db.category.findMany({
-      select: { id: true, name: true, image: true, slug: true },
+      where,
+      select: { 
+        id: true, 
+        name: true, 
+        image: true, 
+        slug: true,
+        description: true,
+        parentId: true,
+        seoTitle: true,
+        seoDescription: true
+      },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      take: 100,
+      take: limit,
     });
+    
     res.json({ categories });
-  } catch {
-    res.status(500).json({ error: 'failed' });
+  } catch (error: any) {
+    console.error('Categories API error:', error);
+    res.status(500).json({ error: 'Unable to transform response from server' });
   }
 });
 

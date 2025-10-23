@@ -89,6 +89,36 @@ BEGIN
 END
 $$;
 SQL
+  echo "[deploy] Ensuring Category SEO columns exist..."
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -d ecom_db <<'SQL'
+-- Ensure Category SEO columns exist (idempotent)
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT;
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT;
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT;
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[];
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB;
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0;
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "image" TEXT;
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "parentId" TEXT;
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;
+
+-- Create indexes
+CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE "slug" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS "Category_parentId_sortOrder_idx" ON "Category" ("parentId", "sortOrder");
+
+-- Ensure foreign key for parentId
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'CategoryHierarchy_parentId_fkey'
+  ) THEN
+    ALTER TABLE "Category" 
+    ADD CONSTRAINT "CategoryHierarchy_parentId_fkey" 
+    FOREIGN KEY ("parentId") REFERENCES "Category"("id") ON DELETE SET NULL;
+  END IF;
+END $$;
+SQL
+
   echo "[deploy] Dropping legacy unique constraints/indexes that conflict with new schema..."
   sudo -u postgres psql -v ON_ERROR_STOP=1 -d ecom_db <<'SQL'
 -- Legacy unique on AttributeSize(name) conflicts with new composite unique (name,typeId)
@@ -130,6 +160,10 @@ if [[ -d apps/admin/.next/standalone ]]; then
   cp -r apps/admin/public apps/admin/.next/standalone/ 2>/dev/null || true
 fi
 
+echo "[deploy] Ensuring uploads directory exists..."
+mkdir -p "$PROJECT_DIR/uploads" || true
+chmod 755 "$PROJECT_DIR/uploads" || true
+
 echo "[deploy] Reloading processes..."
 
 use_systemd=false
@@ -162,6 +196,31 @@ fi
 echo "[deploy] Verifying ports (3000 web, 3001 admin, 4000 api)..."
 sleep 1
 
+# Additional verification for categories functionality
+echo "[deploy] Verifying categories API endpoints..."
+sleep 2
+
+# Test shop categories API
+if curl -fsS "http://127.0.0.1:4000/api/categories?limit=5" >/dev/null 2>&1; then
+  echo "[deploy] ✅ Shop categories API responding"
+else
+  echo "[deploy] ❌ Shop categories API not responding"
+fi
+
+# Test admin categories API (without auth for basic connectivity)
+if curl -fsS "http://127.0.0.1:4000/api/admin/categories" >/dev/null 2>&1; then
+  echo "[deploy] ✅ Admin categories API responding"
+else
+  echo "[deploy] ❌ Admin categories API not responding"
+fi
+
+# Test media upload endpoint
+if curl -fsS "http://127.0.0.1:4000/api/admin/media/list" >/dev/null 2>&1; then
+  echo "[deploy] ✅ Media API responding"
+else
+  echo "[deploy] ❌ Media API not responding"
+fi
+
 check_port() {
   local port="$1" name="$2"
   if ! curl -fsS "http://127.0.0.1:${port}" >/dev/null 2>&1; then
@@ -193,6 +252,23 @@ if [[ -n "${GIT_SHA:-}" ]]; then
   # Expose to runtime env for inspection
   pm2 set ecom:git_sha "$GIT_SHA" >/dev/null 2>&1 || true
   pm2 set ecom:run_url "${GIT_RUN_URL:-}" >/dev/null 2>&1 || true
+fi
+
+echo "[deploy] Running post-deployment tests..."
+# Run quick test first
+if [ -f "$PROJECT_DIR/infra/ops/quick-test.sh" ]; then
+  chmod +x "$PROJECT_DIR/infra/ops/quick-test.sh"
+  echo "[deploy] Running quick test..."
+  "$PROJECT_DIR/infra/ops/quick-test.sh" || echo "[deploy] WARNING: Quick test failed"
+fi
+
+# Run detailed category functionality tests
+if [ -f "$PROJECT_DIR/infra/ops/test-categories.sh" ]; then
+  chmod +x "$PROJECT_DIR/infra/ops/test-categories.sh"
+  echo "[deploy] Running detailed category tests..."
+  "$PROJECT_DIR/infra/ops/test-categories.sh" || echo "[deploy] WARNING: Some tests failed - check /var/log/category-tests.log"
+else
+  echo "[deploy] Category tests not found - skipping"
 fi
 
 echo "[deploy] Done."
