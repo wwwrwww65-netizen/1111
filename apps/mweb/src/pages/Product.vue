@@ -218,9 +218,9 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
         <div class="flex gap-1 overflow-x-auto no-scrollbar pb-2">
-          <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative">
-            <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i">
-              <img :src="c.image" class="w-full h-full object-cover" />
+          <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
+            <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
+              <img :src="c.image" class="w-full h-full object-cover" :alt="c.name" />
             </div>
             <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">
               HOT
@@ -243,6 +243,7 @@
             class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
             :class="size===s ? 'text-white' : 'bg-white text-black border-gray-300'"
             :style="size===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
+            data-testid="size-btn" :data-size="s"
             @click="size=s"
           >
             {{ s }}
@@ -1312,6 +1313,32 @@ async function loadProductData() {
       try { injectHeadMeta() } catch {}
     }
   }catch{}
+  // Fallback (local preview/dev): synthesize minimal product and variants so UI renders swatches/sizes without API
+  try{
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    if (!product.value && (host === 'localhost' || host === '127.0.0.1')){
+      product.value = { id, name: title.value, price: price.value, images: [] }
+      if (images.value.length === 0){
+        images.value = [
+          '/images/placeholder-product.jpg',
+          'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=800',
+          'https://images.unsplash.com/photo-1520975940462-38ad61a0c87b?w=800'
+        ]
+        try { await nextTick(); await computeGalleryHeight() } catch {}
+      }
+      if (colorVariants.value.length === 0){
+        colorVariants.value = [
+          { name: 'أسود', image: images.value[0], isHot: false },
+          { name: 'أبيض', image: images.value[1] || images.value[0], isHot: false },
+          { name: 'أزرق', image: images.value[2] || images.value[0], isHot: false },
+        ]
+      }
+      if (sizeOptions.value.length === 0){
+        sizeOptions.value = ['S','M','L','XL']
+        size.value = 'M'
+      }
+    }
+  }catch{}
   
   // Load reviews
   try{
@@ -1441,6 +1468,16 @@ watch([colorIdx, size], ()=>{
     const k = `${colorName}::${size.value}`.trim()
     const v = variantByKey.value[k]
     if (v && typeof v.price === 'number') price.value = Number(v.price)
+  }catch{}
+})
+
+// Ensure hero image follows selected color (when available)
+watch(colorIdx, ()=>{
+  try{
+    const c = colorVariants.value[colorIdx.value]
+    if (!c || !c.image) return
+    const idx = images.value.findIndex(src => src === c.image)
+    if (idx >= 0) activeIdx.value = idx
   }catch{}
 })
 

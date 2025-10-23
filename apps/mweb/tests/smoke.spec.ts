@@ -7,5 +7,7 @@ test('home/categories/product basic render', async ({ page }) => {
   await expect(page.getByText('مختارات من أجلك')).toBeVisible()
   await page.goto('/p?id=test')
   await expect(page.getByRole('heading', { name: /منتج/i })).toBeTruthy()
+  // Variants basic: swatches and sizes should exist
+  await expect(page.locator('[data-testid="color-swatch"]').first()).toBeVisible()
+  await expect(page.locator('[data-testid="size-btn"]').first()).toBeVisible()
 })
-
