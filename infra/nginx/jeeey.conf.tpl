@@ -110,6 +110,26 @@ server {
   ssl_certificate /etc/letsencrypt/live/admin.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/admin.jeeey.com/privkey.pem;
 
+  # Directly proxy admin REST to API to avoid app-layer proxy issues
+  location ^~ /api/admin/ {
+    client_max_body_size 20m;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 300s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    proxy_pass http://127.0.0.1:4000;
+  }
+
   location / {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
