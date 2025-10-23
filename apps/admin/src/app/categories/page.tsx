@@ -395,39 +395,25 @@ export default function CategoriesPage(): JSX.Element {
               e.preventDefault();
               const f = e.dataTransfer?.files?.[0]; if (!f) return;
               try {
-                // Prefer server upload
                 const reader = new FileReader();
-                reader.onload = async ()=> {
+                reader.onload = ()=> {
                   const data = String(reader.result||'');
-                  try {
-                    const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
-                    if (resp.ok) {
-                      const out = await resp.json();
-                      const url = out.asset?.url || out.url || out.secure_url || out.presign?.url;
-                      if (url) { setImage(url); showToast('تم رفع الصورة'); } else { setImage(data); showToast('تم التحميل محلياً'); }
-                    } else { setImage(data); showToast('تم التحميل محلياً'); }
-                  } catch { setImage(data); showToast('تم التحميل محلياً'); }
+                  setImage(data);
+                  showToast('تم التحميل محلياً');
                 };
                 reader.readAsDataURL(f);
               } catch { /* noop */ }
             }} style={{ border:'1px dashed #334155', borderRadius:10, padding:14, textAlign:'center', color:'#94a3b8' }}>
-              اسحب وأسقط صورة هنا لرفعها (S3/Cloudinary)
+              اسحب وأفلت الصور هنا أو
               {image && (<div style={{ marginTop:10 }}><img src={image} alt="preview" style={{ maxWidth:'100%', borderRadius:8, border:'1px solid #1c2333' }} /></div>)}
             </div>
             <div style={{ marginTop:8 }}>
               <label style={{ display:'inline-block', padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, cursor:'pointer' }}>
-                اختر ملفاً من الجهاز
+                اختر من جهازك
                 <input type="file" accept="image/*" onChange={async (e)=>{
                   const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
                   const reader = new FileReader();
-                  reader.onload = async ()=> {
-                    const data = String(reader.result||'');
-                    try {
-                      const resp = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
-                      if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setImage(url || data); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
-                      else { setImage(data); showToast('تم التحميل محلياً'); }
-                    } catch { setImage(data); showToast('تم التحميل محلياً'); }
-                  };
+                  reader.onload = ()=> { const data = String(reader.result||''); setImage(data); showToast('تم التحميل محلياً'); };
                   reader.readAsDataURL(f);
                 }} style={{ display:'none' }} />
               </label>
@@ -513,34 +499,24 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
               const f = e.dataTransfer?.files?.[0]; if (!f) return;
               try {
                 const reader = new FileReader();
-                reader.onload = async ()=> {
+                reader.onload = ()=> {
                   const data = String(reader.result||'');
-                  try {
-                    const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
-                    if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
-                    else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
-                  } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
+                  setEdit((c:any)=> ({...c, image: data }));
+                  showToast('تم التحميل محلياً');
                 };
                 reader.readAsDataURL(f);
               } catch {}
             }} style={{ border:'1px dashed #334155', borderRadius:10, padding:14, textAlign:'center', color:'#94a3b8' }}>
-              اسحب وأسقط صورة هنا لرفعها
+              اسحب وأفلت الصور هنا أو
               {edit?.image && (<div style={{ marginTop:10 }}><img src={edit.image} alt="preview" style={{ maxWidth:'100%', borderRadius:8, border:'1px solid #1c2333' }} /></div>)}
             </div>
             <div style={{ marginTop:8 }}>
               <label style={{ display:'inline-block', padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8, cursor:'pointer' }}>
-                اختر ملفاً من الجهاز
+                اختر من جهازك
                 <input type="file" accept="image/*" onChange={async (e)=>{
                   const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
                   const reader = new FileReader();
-                  reader.onload = async ()=> {
-                    const data = String(reader.result||'');
-                    try {
-                      const resp = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: data }) });
-                      if (resp.ok) { const out = await resp.json(); const url = out.asset?.url || out.url || out.secure_url || out.presign?.url; setEdit((c:any)=> ({...c, image: url || data })); showToast(url? 'تم رفع الصورة' : 'تم التحميل محلياً'); }
-                      else { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
-                    } catch { setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); }
-                  };
+                  reader.onload = ()=> { const data = String(reader.result||''); setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); };
                   reader.readAsDataURL(f);
                 }} style={{ display:'none' }} />
               </label>
