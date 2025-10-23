@@ -43,7 +43,6 @@ server {
   server_name api.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/api.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/api.jeeey.com/privkey.pem;
-  http2 on;
 
   # CORS (allow admin/web/mweb)
   set $cors_origin "";
@@ -83,7 +82,6 @@ server {
   server_name admin.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/admin.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/admin.jeeey.com/privkey.pem;
-  http2 on;
 
   location / {
     proxy_set_header Host $host;
@@ -108,7 +106,6 @@ server {
   server_name jeeey.com www.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
-  http2 on;
 
   if ($is_mobile) { return 302 https://m.jeeey.com$request_uri; }
 
@@ -135,7 +132,6 @@ server {
   server_name m.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/m.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/m.jeeey.com/privkey.pem;
-  http2 on;
 
   root /var/www/ecom/apps/mweb/dist;
   index index.html;
