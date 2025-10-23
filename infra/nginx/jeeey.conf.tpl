@@ -43,8 +43,15 @@ server {
   ssl_certificate /etc/letsencrypt/live/api.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/api.jeeey.com/privkey.pem;
 
-  # Note: We do NOT set global CORS headers here to avoid duplicates with API CORS.
-  # Preflight is handled inside location / with add_header + 204.
+  # Increase body size for base64 uploads
+  client_max_body_size 20m;
+
+  # Unified CORS: hide upstream CORS headers and set our own (applies on errors too)
+  add_header Access-Control-Allow-Origin $http_origin always;
+  add_header Access-Control-Allow-Credentials "true" always;
+  add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
+  add_header Access-Control-Allow-Headers "Authorization,Content-Type" always;
+  add_header Access-Control-Max-Age 86400 always;
 
   # Serve uploaded media directly from disk with long cache
   location ^~ /uploads/ {
@@ -58,13 +65,13 @@ server {
   location / {
     # Fast-path preflight with CORS headers (only on OPTIONS)
     if ($request_method = 'OPTIONS') {
-      add_header Access-Control-Allow-Origin $http_origin always;
-      add_header Access-Control-Allow-Credentials "true" always;
-      add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
-      add_header Access-Control-Allow-Headers "Authorization,Content-Type" always;
-      add_header Access-Control-Max-Age 86400 always;
       return 204;
     }
+    # Avoid duplicate CORS from upstream
+    proxy_hide_header Access-Control-Allow-Origin;
+    proxy_hide_header Access-Control-Allow-Credentials;
+    proxy_hide_header Access-Control-Allow-Methods;
+    proxy_hide_header Access-Control-Allow-Headers;
     # Preserve Authorization header for upstream token reads
     proxy_set_header Authorization $http_authorization;
     proxy_set_header Host $host;
@@ -74,6 +81,7 @@ server {
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
     proxy_read_timeout 120s;
     proxy_connect_timeout 30s;
     proxy_send_timeout 120s;
