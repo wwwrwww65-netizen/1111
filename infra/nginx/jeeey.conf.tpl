@@ -43,14 +43,8 @@ server {
   ssl_certificate /etc/letsencrypt/live/api.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/api.jeeey.com/privkey.pem;
 
-  # CORS (allow admin/web/mweb)
-  set $cors_origin "";
-  if ($http_origin ~* ^https://(jeeey\.com|www\.jeeey\.com|admin\.jeeey\.com|m\.jeeey\.com)$) { set $cors_origin $http_origin; }
-  add_header 'Access-Control-Allow-Origin' $cors_origin always;
-  add_header 'Access-Control-Allow-Credentials' 'true' always;
-  add_header 'Access-Control-Allow-Methods' 'GET,POST,PUT,PATCH,DELETE,OPTIONS' always;
-  add_header 'Access-Control-Allow-Headers' 'Authorization,Content-Type' always;
-  add_header 'Access-Control-Max-Age' 86400 always;
+  # Note: We do NOT set global CORS headers here to avoid duplicates with API CORS.
+  # Preflight is handled inside location / with add_header + 204.
 
   # Serve uploaded media directly from disk with long cache
   location ^~ /uploads/ {
@@ -62,19 +56,41 @@ server {
   }
 
   location / {
-    # Fast-path preflight
-    if ($request_method = 'OPTIONS') { return 204; }
+    # Fast-path preflight with CORS headers (only on OPTIONS)
+    if ($request_method = 'OPTIONS') {
+      add_header Access-Control-Allow-Origin $http_origin always;
+      add_header Access-Control-Allow-Credentials "true" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
+      add_header Access-Control-Allow-Headers "Authorization,Content-Type" always;
+      add_header Access-Control-Max-Age 86400 always;
+      return 204;
+    }
     # Preserve Authorization header for upstream token reads
     proxy_set_header Authorization $http_authorization;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
     proxy_read_timeout 120s;
     proxy_connect_timeout 30s;
     proxy_send_timeout 120s;
     proxy_buffers 8 16k;
     proxy_busy_buffers_size 64k;
+    proxy_pass http://127.0.0.1:4000;
+  }
+
+  # WebSocket (socket.io)
+  location /socket.io/ {
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
     proxy_pass http://127.0.0.1:4000;
   }
 }
