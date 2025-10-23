@@ -26,6 +26,7 @@ export default function CategoriesPage(): JSX.Element {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [image, setImage] = React.useState("");
+  const [imageFile, setImageFile] = React.useState<File|null>(null);
   const [parentId, setParentId] = React.useState<string>("");
   const [slug, setSlug] = React.useState("");
   const [seoTitle, setSeoTitle] = React.useState("");
@@ -42,6 +43,15 @@ export default function CategoriesPage(): JSX.Element {
 }`);
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m:string) => { setToast(m); setTimeout(()=>setToast(""), 1800); };
+
+  async function fileToBase64(file: File): Promise<string> {
+    return await new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result||''));
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(file);
+    });
+  }
 
   async function loadList(){
   const url = new URL(`/api/admin/categories`, window.location.origin);
@@ -64,18 +74,20 @@ export default function CategoriesPage(): JSX.Element {
       if (!name.trim()) { showToast('الاسم مطلوب'); return; }
       setSaving(true);
       let finalImage = image;
-      if (finalImage && finalImage.startsWith('data:')) {
+      // Prefer uploading a selected file (blob preview) at save time
+      if (imageFile) {
         try {
-          const up = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
+          const base64 = await fileToBase64(imageFile);
+          const up = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64 }) });
           if (up.ok) {
             const j = await up.json();
-            // Prefer absolute URL from asset
-            finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage;
+            finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || '';
+          } else {
+            finalImage = '';
           }
-        } catch {}
-      }
-      // If still base64, drop it to avoid huge POST bodies and 502
-      if (typeof finalImage === 'string' && finalImage.startsWith('data:')) {
+        } catch { finalImage = ''; }
+      } else if (typeof finalImage === 'string' && (finalImage.startsWith('data:') || finalImage.startsWith('blob:'))) {
+        // Avoid sending base64/blob in payload if not uploaded
         finalImage = '';
       }
       let translations: any = { ar: { name: trNameAr||name, description: trDescAr||description }, en: { name: trNameEn||'', description: trDescEn||'' } };
@@ -97,7 +109,7 @@ export default function CategoriesPage(): JSX.Element {
         showToast(`فشل الإضافة${t? ': '+t: ''}`);
         return;
       }
-      setName(""); setDescription(""); setImage(""); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn("");
+      setName(""); setDescription(""); setImage(""); setImageFile(null); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn("");
       await Promise.all([loadList(), loadTree()]);
       showToast('تمت الإضافة');
     } catch (e:any) {
@@ -120,6 +132,7 @@ export default function CategoriesPage(): JSX.Element {
   const [editLoading, setEditLoading] = React.useState(false);
   const [editSaving, setEditSaving] = React.useState(false);
   const [edit, setEdit] = React.useState<any | null>(null);
+  const [editFile, setEditFile] = React.useState<File|null>(null);
   const [mediaOpen, setMediaOpen] = React.useState(false);
   const [mediaFor, setMediaFor] = React.useState<'add'|'edit'|null>(null);
   async function existsOnServer(id:string): Promise<boolean> {
@@ -150,6 +163,7 @@ export default function CategoriesPage(): JSX.Element {
   async function openEdit(cat: any){
     try{
       setEditOpen(true);
+      setEditFile(null);
       // Prefill from current row immediately (fallback if fetch fails)
       setEdit({
         id: cat.id,
@@ -188,17 +202,16 @@ export default function CategoriesPage(): JSX.Element {
     setEditSaving(true);
     try {
       let finalImage = edit.image || '';
-      if (finalImage && finalImage.startsWith('data:')) {
+      if (editFile) {
         try {
-          const up = await fetch(`/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64: finalImage }) });
+          const base64 = await fileToBase64(editFile);
+          const up = await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ base64 }) });
           if (up.ok) {
             const j = await up.json();
-            edit.image = j.asset?.url || j.url || j.secure_url || j.presign?.url || finalImage;
-            finalImage = edit.image;
-          }
-        } catch {}
-      }
-      if (typeof finalImage === 'string' && finalImage.startsWith('data:')) {
+            finalImage = j.asset?.url || j.url || j.secure_url || j.presign?.url || '';
+          } else { finalImage = ''; }
+        } catch { finalImage = ''; }
+      } else if (typeof finalImage === 'string' && (finalImage.startsWith('data:') || finalImage.startsWith('blob:'))) {
         finalImage = '';
       }
       let translations: any = undefined;
@@ -228,7 +241,7 @@ export default function CategoriesPage(): JSX.Element {
         return;
       }
       await Promise.all([loadList(), loadTree()]);
-      showToast('تم الحفظ'); setEditOpen(false); setEdit(null);
+      showToast('تم الحفظ'); setEditOpen(false); setEdit(null); setEditFile(null);
     } finally { setEditSaving(false); }
   }
   const [confirmingBulk, setConfirmingBulk] = React.useState(false);
@@ -397,8 +410,10 @@ export default function CategoriesPage(): JSX.Element {
               try {
                 const reader = new FileReader();
                 reader.onload = ()=> {
-                  const data = String(reader.result||'');
-                  setImage(data);
+                  try { URL.revokeObjectURL(image); } catch {}
+                  const blobUrl = URL.createObjectURL(f);
+                  setImage(blobUrl);
+                  setImageFile(f);
                   showToast('تم التحميل محلياً');
                 };
                 reader.readAsDataURL(f);
@@ -412,9 +427,11 @@ export default function CategoriesPage(): JSX.Element {
                 اختر من جهازك
                 <input type="file" accept="image/*" onChange={async (e)=>{
                   const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
-                  const reader = new FileReader();
-                  reader.onload = ()=> { const data = String(reader.result||''); setImage(data); showToast('تم التحميل محلياً'); };
-                  reader.readAsDataURL(f);
+                  try { URL.revokeObjectURL(image); } catch {}
+                  const blobUrl = URL.createObjectURL(f);
+                  setImage(blobUrl);
+                  setImageFile(f);
+                  showToast('تم التحميل محلياً');
                 }} style={{ display:'none' }} />
               </label>
               {image && (<span style={{ marginInlineStart:8, color:'#94a3b8', fontSize:12 }}>تم اختيار صورة</span>)}
@@ -438,8 +455,8 @@ export default function CategoriesPage(): JSX.Element {
       </section>
       <EditModal open={editOpen} loading={editLoading} saving={editSaving} edit={edit} setEdit={setEdit} onClose={()=>{ setEditOpen(false); }} onSave={saveEdit} rows={rows} />
       <MediaPicker open={mediaOpen} onClose={()=>{ setMediaOpen(false); setMediaFor(null); }} onSelect={(url)=>{
-        if (mediaFor==='edit') setEdit((c:any)=> ({...c, image: url }));
-        if (mediaFor==='add') setImage(url);
+        if (mediaFor==='edit') { setEditFile(null); setEdit((c:any)=> ({...c, image: url })); }
+        if (mediaFor==='add') { setImageFile(null); setImage(url); }
       }} />
     </main>
   );
@@ -500,8 +517,10 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
               try {
                 const reader = new FileReader();
                 reader.onload = ()=> {
-                  const data = String(reader.result||'');
-                  setEdit((c:any)=> ({...c, image: data }));
+                  try { URL.revokeObjectURL(edit?.image||''); } catch {}
+                  const blobUrl = URL.createObjectURL(f);
+                  setEdit((c:any)=> ({...c, image: blobUrl }));
+                  setEditFile(f);
                   showToast('تم التحميل محلياً');
                 };
                 reader.readAsDataURL(f);
@@ -515,9 +534,11 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                 اختر من جهازك
                 <input type="file" accept="image/*" onChange={async (e)=>{
                   const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
-                  const reader = new FileReader();
-                  reader.onload = ()=> { const data = String(reader.result||''); setEdit((c:any)=> ({...c, image: data })); showToast('تم التحميل محلياً'); };
-                  reader.readAsDataURL(f);
+                  try { URL.revokeObjectURL(edit?.image||''); } catch {}
+                  const blobUrl = URL.createObjectURL(f);
+                  setEdit((c:any)=> ({...c, image: blobUrl }));
+                  setEditFile(f);
+                  showToast('تم التحميل محلياً');
                 }} style={{ display:'none' }} />
               </label>
               {edit?.image && (<span style={{ marginInlineStart:8, color:'#94a3b8', fontSize:12 }}>تم اختيار صورة</span>)}
