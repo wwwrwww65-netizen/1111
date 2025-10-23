@@ -46,6 +46,9 @@ async function proxy(req: Request, ctx: { params: { path?: string[] } }) {
         if (key === 'content-encoding') continue
         if (key === 'transfer-encoding') continue
         if (key === 'connection') continue
+        if (key === 'expect') continue
+        if (key === 'te') continue
+        if (key === 'upgrade') continue
         headers.set(k, v)
     }
 	// Ensure credentials/cookies are forwarded
