@@ -2769,7 +2769,7 @@ adminRest.post('/drivers/:id/documents', async (req, res) => {
     if (!finalUrl && base64) {
       if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error: 'cloudinary_not_configured' });
       const uploaded = await cloudinary.uploader.upload(base64, { folder: 'driver-docs' });
-      finalUrl = uploaded.secure_url;
+      finalUrl = buildCloudinaryTransform(uploaded.secure_url, 800);
     }
     if (!finalUrl) return res.status(400).json({ error:'url_or_base64_required' });
     const doc = await db.driverDocument.create({ data: { driverId: id, docType: String(docType||'DOC'), url: finalUrl, expiresAt: expiresAt? new Date(String(expiresAt)) : null } });
@@ -2976,7 +2976,8 @@ adminRest.get('/shipments/:id/track', async (req, res) => {
         const uploaded = await cloudinary.uploader.upload(base64, { folder: 'admin-media', resource_type: 'auto' });
         const colors = Array.isArray((uploaded as any)?.colors) ? ((uploaded as any).colors as any[]).map((c:any)=> c?.hex || c)?.filter(Boolean) : [];
         await audit(req, 'media', 'upload', { public_id: uploaded.public_id, bytes: uploaded.bytes });
-        return res.json({ provider:'cloudinary', url: uploaded.secure_url, secure_url: uploaded.secure_url, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: uploaded.format, dominantColors: colors });
+        const transformed = buildCloudinaryTransform(uploaded.secure_url, 800);
+        return res.json({ provider:'cloudinary', url: transformed, secure_url: transformed, publicId: uploaded.public_id, width: uploaded.width, height: uploaded.height, format: 'webp', dominantColors: colors });
       } catch (e:any) {
         // Fallback to /media (which also uploads) to reduce 502 under heavy load
         try { const out = await (await fetch(req.protocol+ '://' + req.get('host') + '/api/admin/media', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64 }) })).json(); return res.json(out); } catch {}
@@ -3869,7 +3870,7 @@ adminRest.post('/vendors/:id/documents', async (req, res) => {
     if (!finalUrl && base64) {
       if (!process.env.CLOUDINARY_URL) return res.status(500).json({ error: 'cloudinary_not_configured' });
       const uploaded = await cloudinary.uploader.upload(base64, { folder: 'vendor-docs' });
-      finalUrl = uploaded.secure_url;
+      finalUrl = buildCloudinaryTransform(uploaded.secure_url, 800);
     }
     if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
     const cuidRows: Array<{ id: string }> = await db.$queryRawUnsafe('SELECT substr(md5(random()::text),1,24) as id');

@@ -70,29 +70,31 @@ export const corsOptions = {
 
 // Rate limiting configuration (enabled for production only)
 export const rateLimitConfig = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // base limit (effective only for non-skipped requests)
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 600, // allow 600 req/min baseline to avoid admin throttling
   message: {
     error: 'Too many requests from this IP, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Do not rate-limit public, cacheable GET shop endpoints used by mweb/web
   skip: (req) => {
     try {
       const p = String((req as any).path || (req as any).originalUrl || '');
       const m = String((req as any).method || 'GET').toUpperCase();
-      if (m === 'GET' && /^\/api\/(currency|categories|products|product|recommendations|reviews|cms|geo|shipping|payments)/.test(p)) {
-        return true;
-      }
+      // Always skip rate limit for admin API routes (protected) and media ops
+      if (p.startsWith('/api/admin')) return true;
+      if (p.startsWith('/uploads/')) return true;
+      // Skip public cacheable shop endpoints
+      if (m === 'GET' && /^\/api\/(currency|categories|products|product|recommendations|reviews|cms|geo|shipping|payments)/.test(p)) return true;
     } catch {}
     return false;
   },
-  // Differentiate clients by x-shop-client to avoid unfair sharing when behind proxies
   keyGenerator: (req /*, _res */) => {
     const ip = (req.ip || (req.socket && (req.socket as any).remoteAddress) || '') as string;
     const client = String((req.headers['x-shop-client'] as string) || '').toLowerCase();
-    return `${ip}|${client}`;
+    // Whitelist admin actors via auth header presence
+    const hasAuth = Boolean((req.headers['authorization'] as string) || '');
+    return hasAuth ? `admin|${ip}|${client}` : `${ip}|${client}`;
   },
 });
 
