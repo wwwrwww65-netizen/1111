@@ -1360,35 +1360,50 @@ shop.get('/cms/page/:slug', async (req, res) => {
 shop.get('/categories', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 200);
-    const search = req.query.search as string;
-    
-    const where: Prisma.CategoryWhereInput = search ? {
-      OR: [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
-      ]
-    } : {};
-    
-    const categories = await db.category.findMany({
-      where,
-      select: { 
-        id: true, 
-        name: true, 
-        image: true, 
-        slug: true,
-        description: true,
-        parentId: true,
-        seoTitle: true,
-        seoDescription: true
-      },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      take: limit,
-    });
-    
-    res.json({ categories });
+    const search = String(req.query.search || '').trim();
+
+    // Use robust raw SQL that tolerates missing columns in legacy DBs
+    const params: any[] = [];
+    let where = '';
+    if (search) { params.push(`%${search}%`); where = `WHERE name ILIKE $${params.length}`; }
+    params.push(limit);
+    const rows: any[] = await db.$queryRawUnsafe(
+      `SELECT id,
+              name,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='slug'
+              ) THEN slug ELSE NULL END AS slug,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='parentid'
+              ) THEN "parentId" ELSE NULL END AS "parentId",
+              CASE WHEN EXISTS (
+                SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='image'
+              ) THEN image ELSE NULL END AS image,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='description'
+              ) THEN description ELSE NULL END AS description,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='seotitle'
+              ) THEN "seoTitle" ELSE NULL END AS "seoTitle",
+              CASE WHEN EXISTS (
+                SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='seodescription'
+              ) THEN "seoDescription" ELSE NULL END AS "seoDescription"
+       FROM "Category"
+       ${where}
+       ORDER BY "createdAt" DESC
+       LIMIT $${params.length}`,
+      ...params
+    );
+    return res.json({ categories: rows });
   } catch (error: any) {
     console.error('Categories API error:', error);
-    res.status(500).json({ error: 'Unable to transform response from server' });
+    return res.status(500).json({ error: 'Unable to transform response from server' });
   }
 });
 

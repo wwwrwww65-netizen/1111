@@ -50,8 +50,13 @@ server {
   add_header Access-Control-Allow-Origin $http_origin always;
   add_header Access-Control-Allow-Credentials "true" always;
   add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
-  add_header Access-Control-Allow-Headers "Authorization,Content-Type" always;
+  add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Shop-Client,X-Requested-With,Accept,Origin" always;
   add_header Access-Control-Max-Age 86400 always;
+
+  # Handle CORS preflight
+  if ($request_method = 'OPTIONS') {
+    return 204;
+  }
 
   # Serve uploaded media directly from disk with long cache
   location ^~ /uploads/ {

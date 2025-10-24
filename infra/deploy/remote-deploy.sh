@@ -50,6 +50,10 @@ export TURBO_FORCE=1
 ) || true
 pnpm --filter admin build | cat
 pnpm --filter web build | cat
+# Build mweb (Vite) for static hosting
+if [ -d "apps/mweb" ]; then
+  pnpm --filter mweb build | cat || true
+fi
 # Build API via local tsc
 ( cd packages/api && ./node_modules/.bin/rimraf dist || rm -rf dist )
 ( cd packages/api && ./node_modules/.bin/tsc -p tsconfig.json ) | cat
@@ -160,6 +164,16 @@ if [[ -d apps/admin/.next/standalone ]]; then
   cp -r apps/admin/public apps/admin/.next/standalone/ 2>/dev/null || true
 fi
 
+echo "[deploy] Publishing mweb static build (if present)..."
+if [[ -d apps/mweb/dist ]]; then
+  mkdir -p "$PROJECT_DIR/apps/mweb/dist"
+  rsync -a --delete apps/mweb/dist/ "$PROJECT_DIR/apps/mweb/dist/"
+  # Try to reload nginx to serve latest static files
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo nginx -t && sudo systemctl reload nginx || true
+  fi
+fi
+
 echo "[deploy] Ensuring uploads directory exists..."
 mkdir -p "$PROJECT_DIR/uploads" || true
 chmod 755 "$PROJECT_DIR/uploads" || true
@@ -180,6 +194,7 @@ if [[ "$use_systemd" == true ]]; then
   sudo systemctl restart ecom-web || true
   sudo systemctl restart ecom-admin || true
   sudo systemctl restart ecom-api || true
+  # No systemd for mweb (served statically by nginx)
 else
   echo "[deploy] Using PM2 (no systemd units detected)"
   # Ensure PM2 ecosystem config is up-to-date
@@ -245,6 +260,15 @@ check_port() {
 check_port 3000 ecom-web
 check_port 3001 ecom-admin
 check_port 4000 ecom-api
+
+# Verify mweb via nginx host (if configured)
+if [[ -n "${DOMAIN_MWEB:-}" ]]; then
+  if curl -fsS -H "Host: ${DOMAIN_MWEB}" http://127.0.0.1/ >/dev/null 2>&1; then
+    echo "[deploy] ✅ MWeb (nginx) responding for host ${DOMAIN_MWEB}"
+  else
+    echo "[deploy] ❌ MWeb host ${DOMAIN_MWEB} not responding via nginx"
+  fi
+fi
 
 if [[ -n "${GIT_SHA:-}" ]]; then
   echo "[deploy] Deployment metadata: GIT_SHA=$GIT_SHA"

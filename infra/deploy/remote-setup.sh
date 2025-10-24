@@ -8,6 +8,7 @@ CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
 DOMAIN_WEB="${DOMAIN_WEB:-jeeey.com}"
 DOMAIN_ADMIN="${DOMAIN_ADMIN:-admin.jeeey.com}"
 DOMAIN_API="${DOMAIN_API:-api.jeeey.com}"
+DOMAIN_MWEB="${DOMAIN_MWEB:-m.jeeey.com}"
 
 echo "[setup] Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
@@ -103,6 +104,20 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN_MWEB};
+    root ${PROJECT_DIR}/apps/mweb/dist;
+    index index.html;
+    location / {
+        try_files $uri /index.html;
+    }
+    location ~* \.(?:css|js|png|jpg|jpeg|gif|ico|svg|webp)$ {
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000, immutable";
     }
 }
 NGINX
