@@ -731,6 +731,7 @@ const title = ref('منتج تجريبي')
 const price = ref<number>(129)
 const original = ref('')
 const images = ref<string[]>([])
+const allImages = ref<string[]>([])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
@@ -746,6 +747,19 @@ const safeDescription = computed(()=>{
 // ==================== PRODUCT VARIANTS ====================
 // Color Variants
 const colorVariants = ref<any[]>([])
+const colorGalleries = ref<Array<{ name:string; primaryImageUrl?:string|null; isPrimary:boolean; order:number; images:string[] }>>([])
+
+function normColorName(s:string): string { return String(s||'').trim().toLowerCase() }
+function findGalleryForColor(name:string){
+  const n = normColorName(name)
+  // exact
+  let g = colorGalleries.value.find(x=> normColorName(x.name) === n)
+  if (g) return g
+  // contains either way (to tolerate "أزرق فاتح" مقابل "أزرق")
+  g = colorGalleries.value.find(x=> normColorName(x.name).includes(n) || n.includes(normColorName(x.name)))
+  if (g) return g
+  return undefined
+}
 const colorIdx = ref(0)
 
 // Size Options
@@ -1318,7 +1332,10 @@ async function loadProductData() {
       title.value = d.name || title.value
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
+      allImages.value = imgs
       if (imgs.length) { images.value = imgs; try { await nextTick(); await computeGalleryHeight() } catch {} }
+      // Load color galleries if present
+      if (Array.isArray(d.colorGalleries)) colorGalleries.value = d.colorGalleries
       // defer color/size mapping to normalized loader
       original.value = ''
       categorySlug.value = String(d?.category?.slug||'')
@@ -1343,6 +1360,7 @@ async function loadProductData() {
         if (!currentColorName.value && colorVariants.value[0]?.name) colorIdx.value = 0
         if (!size.value && sizeOptions.value.length) size.value = sizeOptions.value[0]
       } catch {}
+      try { await nextTick(); await updateImagesForColor() } catch {}
       
       // After primary data is ready, fire dependent loads (non-blocking)
       try { fetchRecommendations() } catch {}
@@ -1402,9 +1420,15 @@ async function loadNormalizedVariants(){
   try {
     const pd = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`).catch(()=>null)
     const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
+    // Ingest server color galleries
+    if (Array.isArray(pd?.colorGalleries)) colorGalleries.value = pd!.colorGalleries
     // Colors group
     const col = attrs.find(a=> a.key==='color')
-    const colVals: string[] = Array.isArray(col?.values) ? col!.values : []
+    let colVals: string[] = Array.isArray(col?.values) ? col!.values : []
+    // Fallback: use colorGalleries names if attributes didn't include colors
+    if ((!colVals || !colVals.length) && Array.isArray(colorGalleries.value) && colorGalleries.value.length){
+      colVals = colorGalleries.value.map(g=> String(g.name||'')).filter(Boolean)
+    }
     // Map colors to images
     const imgs = images.value.slice()
     const pickImageFor = (c:string, idx:number): string => {
@@ -1412,8 +1436,24 @@ async function loadNormalizedVariants(){
       for (const u of imgs){ const file = u.split('/').pop() || ''; if (normToken(file).includes(t)) return u }
       return images.value[idx] || images.value[0] || ''
     }
-    colorVariants.value = (colVals.length? colVals : ['—']).map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
+    colorVariants.value = (colVals.length? colVals : ['—']).map((c, idx)=> {
+      const gal = findGalleryForColor(String(c))
+      const img = gal?.primaryImageUrl || gal?.images?.[0] || pickImageFor(c, idx)
+      return { name: c, image: img, isHot: false }
+    })
     if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
+    // Prefer primary color from galleries when available
+    try{
+      const primary = colorGalleries.value.find(g=> !!g.isPrimary)
+      if (primary){
+        const p = normColorName(primary.name||'')
+        const idx = colorVariants.value.findIndex(v=>{
+          const n = normColorName(v.name)
+          return n===p || n.includes(p) || p.includes(n)
+        })
+        if (idx>=0) colorIdx.value = idx
+      }
+    }catch{}
     // Size groups (sanitize values: split pipes/labels and keep only real size tokens)
     const groups = attrs.filter(a=> a.key==='size')
     const sanitizeSizeVal = (val: string): string => {
@@ -1551,6 +1591,7 @@ async function loadNormalizedVariants(){
   const colorName = colorVariants.value[colorIdx.value]?.name || ''
   const k = `${colorName}::${size.value}`.trim()
   if (map[k] && typeof map[k].price === 'number') price.value = Number(map[k].price)
+  try { await nextTick(); await updateImagesForColor() } catch {}
 }
 
 // React on variant change
@@ -1567,10 +1608,7 @@ watch([colorIdx, size, selectedGroupValues], ()=>{
 // Ensure hero image follows selected color (when available)
 watch(colorIdx, ()=>{
   try{
-    const c = colorVariants.value[colorIdx.value]
-    if (!c || !c.image) return
-    const idx = images.value.findIndex(src => src === c.image)
-    if (idx >= 0) activeIdx.value = idx
+    updateImagesForColor()
   }catch{}
 })
 
@@ -1708,6 +1746,66 @@ function injectHeadMeta(){
     setMeta('og:url', url.href)
     setMeta('product:price:amount', String(Number(price.value||0)))
     setMeta('product:price:currency', 'SAR')
+  }catch{}
+}
+
+// Helper: update gallery based on selected color
+function dedup(arr: string[]): string[]{
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const u of arr){ if (u && !seen.has(u)){ seen.add(u); out.push(u) } }
+  return out
+}
+function findImageIndex(arr: string[], target?: string): number{
+  if (!target) return -1
+  const strip = (u:string)=> String(u||'').split('?')[0].split('#')[0]
+  const tf = strip(target).split('/').pop()||''
+  // exact first
+  let idx = arr.findIndex(x=> x === target)
+  if (idx>=0) return idx
+  // strip query/hash
+  idx = arr.findIndex(x=> strip(x) === strip(target))
+  if (idx>=0) return idx
+  // match by filename suffix
+  idx = arr.findIndex(x=> (x.split('?')[0].split('#')[0].endsWith(tf)))
+  return idx
+}
+function scrollToIndex(el: HTMLElement, idx: number, behavior: ScrollBehavior = 'auto'){
+  const w = el.clientWidth || 1
+  try { el.scrollTo({ left: idx*w, behavior }) } catch {}
+  // RTL/WebKit fallback
+  if (Math.round(Math.abs((el as any).scrollLeft)/w) !== idx){
+    try { (el as any).scrollLeft = idx*w } catch {}
+  }
+  if (Math.round(Math.abs((el as any).scrollLeft)/w) !== idx){
+    try { (el as any).scrollLeft = -idx*w } catch {}
+  }
+}
+async function updateImagesForColor(){
+  try{
+    const c = colorVariants.value[colorIdx.value]
+    if (!c) return
+    const gal = findGalleryForColor(String(c.name))
+    const hero = c.image || gal?.primaryImageUrl || (Array.isArray(gal?.images)? gal!.images[0] : undefined)
+    if (gal && Array.isArray(gal.images) && gal.images.length > 1){
+      const arr = gal.images.slice()
+      if (hero){ const i = arr.findIndex(x=> x===hero); if (i>0){ arr.splice(i,1); arr.unshift(hero) } else if (i<0 && hero){ arr.unshift(hero) } }
+      images.value = dedup(arr)
+    } else {
+      // If the selected color has only one image, keep the full gallery
+      // and just focus the hero (color) image
+      const arr = allImages.value.slice()
+      images.value = dedup(arr)
+    }
+    await nextTick()
+    try{ await computeGalleryHeight() }catch{}
+    try{
+      const el = galleryRef.value
+      if (el){
+        const idx = findImageIndex(images.value, (c.image || hero))
+        if (idx>=0){ activeIdx.value = idx; scrollToIndex(el, idx, 'smooth') }
+      }
+    }catch{}
   }catch{}
 }
 </script>

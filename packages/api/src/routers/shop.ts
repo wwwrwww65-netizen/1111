@@ -1109,6 +1109,21 @@ shop.get('/product/:id', async (req, res) => {
       },
     });
     if (!p) return res.status(404).json({ error: 'not_found' });
+    // Load color galleries (ProductColor + ProductColorImage)
+    let colorGalleries: Array<{ name: string; primaryImageUrl?: string|null; isPrimary: boolean; order: number; images: string[] }> = [];
+    try {
+      const colors: Array<{ id: string; name: string; primaryImageUrl: string|null; isPrimary: boolean; order: number }> = await db.productColor.findMany({
+        where: { productId: p.id },
+        orderBy: [{ order: 'asc' }]
+      } as any);
+      const galleries: Array<{ name: string; primaryImageUrl?: string|null; isPrimary: boolean; order: number; images: string[] }> = [];
+      for (const c of (colors||[])){
+        let imgs: Array<{ url: string; order: number }>=[];
+        try{ imgs = await db.productColorImage.findMany({ where: { productColorId: c.id }, orderBy: { order: 'asc' } } as any) }catch{}
+        galleries.push({ name: c.name, primaryImageUrl: c.primaryImageUrl, isPrimary: !!c.isPrimary, order: Number(c.order||0), images: (imgs||[]).map(x=> x.url).filter(Boolean) });
+      }
+      colorGalleries = galleries;
+    } catch {}
     // Derive colors/sizes arrays from variants
     const colors = new Set<string>();
     const sizes = new Set<string>();
@@ -1180,6 +1195,7 @@ shop.get('/product/:id', async (req, res) => {
       colors: Array.from(colors),
       sizes: Array.from(sizes),
       attributes,
+      colorGalleries,
     });
     res.json(out);
   } catch {
