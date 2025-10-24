@@ -95,16 +95,16 @@
       <!-- السلة الممتلئة -->
       <div v-else class="space-y-1 pt-1">
         <!-- المنتجات في السلة -->
-        <section v-for="item in items" :key="item.id" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-2 flex items-start gap-2">
+        <section v-for="item in items" :key="item.uid" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-2 flex items-start gap-2">
           <!-- Select item -->
           <button
-            @click="toggleItem(item.id)"
+            @click="toggleItem(item.uid)"
             :class="`w-5 h-5 rounded-full border flex items-center justify-center mt-1 ${
-              selectedItems.includes(item.id) ? 'bg-[#8a1538] border-[#8a1538]' : 'bg-white border-gray-400'
+              selectedItems.includes(item.uid) ? 'bg-[#8a1538] border-[#8a1538]' : 'bg-white border-gray-400'
             }`"
             aria-label="تحديد المنتج"
           >
-            <Check v-if="selectedItems.includes(item.id)" class="w-4 h-4 text-white" />
+            <Check v-if="selectedItems.includes(item.uid)" class="w-4 h-4 text-white" />
           </button>
 
           <!-- Image -->
@@ -117,12 +117,12 @@
             <div class="text-[13px] font-semibold text-gray-800 leading-5 cursor-pointer" @click="openProduct(item.id)">{{ item.title }}</div>
 
             <!-- Variant chip oval gray with chevron-down -->
-            <button v-if="hasOptions(item.id)"
-              @click="openOptions(item.id)"
+            <button
+              @click="openOptions(item.uid)"
               class="inline-flex items-center gap-1 px-3 h-7 rounded-full bg-gray-100 text-[11px] text-gray-700 border border-gray-200"
               aria-label="تعديل اللون والمقاس"
             >
-              <span>{{ item.variantColor || 'أبيض' }} / {{ item.variantSize || 'M' }}</span>
+              <span>{{ item.variantColor || '—' }} / {{ formatSizeForChip(item.variantSize) }}</span>
               <ChevronDown class="w-3.5 h-3.5 text-gray-500" />
             </button>
 
@@ -133,14 +133,14 @@
               </div>
               <div class="flex items-center gap-1.5">
                 <button v-if="item.qty > 1"
-                  @click="changeQty(item.id, -1)"
+                  @click="changeQty(item.uid, -1)"
                   class="w-6 h-6 rounded-full border border-gray-300 flex items-center justify-center"
                   aria-label="إنقاص الكمية"
                 >
                   <Minus class="w-4 h-4 text-gray-600" />
                 </button>
                 <button v-else
-                  @click="cart.remove(item.id)"
+                  @click="cart.remove(item.uid)"
                   class="w-6 h-6 rounded-full border border-rose-300 flex items-center justify-center bg-rose-50"
                   aria-label="حذف المنتج"
                 >
@@ -148,7 +148,7 @@
                 </button>
                 <span class="text-[12px] text-gray-800 min-w-[1.5rem] text-center">{{ item.qty }}</span>
                 <button
-                  @click="changeQty(item.id, 1)"
+                  @click="changeQty(item.uid, 1)"
                   class="w-6 h-6 rounded-full border border-gray-300 flex items-center justify-center"
                   aria-label="زيادة الكمية"
                 >
@@ -268,6 +268,7 @@
       :product="optionsProduct"
       :selectedColor="optionsModal.color"
       :selectedSize="optionsModal.size"
+      :groupValues="optionsModal.groupValues"
     />
   </div>
 </template>
@@ -319,16 +320,14 @@ const optionsModal = reactive({
   productId: '',
   color: '',
   size: '',
-  galleryIndex: 0
+  galleryIndex: 0,
+  groupValues: {} as Record<string,string>
 })
 
-const optionsProductDetails = ref<any|null>(null)
+const optionsCache = reactive<Record<string, any>>({})
 const optionsProduct = computed(()=>{
-  if (optionsProductDetails.value) return optionsProductDetails.value
-  const it = items.value.find(i=> i.id === optionsModal.productId)
-  if (!it) return null
-  const images = it.img ? [it.img] : []
-  return { id: it.id, title: it.title, price: it.price, images, colors: [{ label: it.variantColor||'أبيض', img: it.img||'/images/placeholder-product.jpg' }], sizes: ['XS','S','M','L','XL'] }
+  const pid = optionsModal.productId
+  return pid ? optionsCache[pid] || null : null
 })
 
 // إضافة خصائص المنتجات المفقودة
@@ -342,8 +341,8 @@ const enhancedItems = computed(() => {
 
 // حساب الإجمالي للمنتجات المحددة
 const selectedTotal = computed(() => {
-  return selectedItems.value.reduce((sum, id) => {
-    const item = items.value.find(i => i.id === id)
+  return selectedItems.value.reduce((sum, uid) => {
+    const item = items.value.find(i => i.uid === uid)
     if (!item) return sum
     return sum + item.price * item.qty
   }, 0)
@@ -383,13 +382,44 @@ function showToast(msg: string){
   setTimeout(()=>{ toast.value = false }, 1200)
 }
 
+function stripGroupLabels(title: string): string{
+  try{
+    // Replace occurrences like (مقاسات بالأحرف:M|مقاسات بالأرقام:42) → (M | 42)
+    return String(title||'').replace(/\(([^)]*)\)/g, (_m, inner)=>{
+      const parts = String(inner||'').split('|').map((p:string)=> String(p||'').trim()).filter(Boolean)
+      const values = parts.map((p:string)=> p.includes(':')? p.split(':',2)[1]?.trim()||'' : p).filter(Boolean)
+      return values.length? `(${values.join(' | ')})` : ''
+    })
+  }catch{ return title }
+}
+
+function formatSizeForChip(s?: string){
+  const raw = String(s||'').trim()
+  if (!raw) return '—'
+  const parts = raw.split('|').map(p=> p.trim()).filter(Boolean)
+  const values = parts.map(p=> p.includes(':')? p.split(':',2)[1]?.trim()||'' : p)
+  const cleaned = values.filter(Boolean)
+  return cleaned.length ? cleaned.join(' | ') : '—'
+}
+
+function parseSizeComposite(s?: string): Record<string,string> {
+  const out: Record<string,string> = {}
+  const raw = String(s||'').trim()
+  if (!raw) return out
+  for (const p of raw.split('|')){
+    const seg = p.trim(); if (!seg) continue
+    if (seg.includes(':')){ const [label,val] = seg.split(':',2); if (label && val) out[label.trim()] = val.trim() }
+  }
+  return out
+}
+
 // وظائف إدارة السلة
-function toggleItem(id: string) {
-  const index = selectedItems.value.indexOf(id)
+function toggleItem(uid: string) {
+  const index = selectedItems.value.indexOf(uid)
   if (index > -1) {
     selectedItems.value.splice(index, 1)
   } else {
-    selectedItems.value.push(id)
+    selectedItems.value.push(uid)
   }
   updateSelectAll()
 }
@@ -397,7 +427,7 @@ function toggleItem(id: string) {
 function toggleSelectAll() {
   selectAll.value = !selectAll.value
   if (selectAll.value) {
-    selectedItems.value = items.value.map(item => item.id)
+    selectedItems.value = items.value.map(item => item.uid)
   } else {
     selectedItems.value = []
   }
@@ -407,24 +437,26 @@ function updateSelectAll() {
   selectAll.value = selectedItems.value.length === items.value.length
 }
 
-function changeQty(id: string, delta: number) {
-  const item = items.value.find(i => i.id === id)
+function changeQty(uid: string, delta: number) {
+  const item = items.value.find(i => i.uid === uid)
   if (item) {
     const newQty = Math.max(1, item.qty + delta)
-    cart.update(id, newQty)
+    cart.update(uid, newQty)
   }
 }
 
-function openOptions(id: string) {
-  const item = items.value.find(i => i.id === id)
+async function openOptions(uid: string) {
+  const item = items.value.find(i => i.uid === uid)
   if (item) {
-    optionsModal.open = true
-    optionsModal.productId = id
+    optionsModal.productId = item.id
+    ;(optionsModal as any).uid = uid
     optionsModal.color = item.variantColor || 'أبيض'
-    optionsModal.size = item.variantSize || 'M'
+    optionsModal.size = item.variantSize || ''
+    optionsModal.groupValues = parseSizeComposite(item.variantSize)
     optionsModal.galleryIndex = 0
-    // Fetch full product details (images, colors, sizes)
-    fetchProductDetails(id)
+    // Open immediately; modal will show skeleton while fetching
+    optionsModal.open = true
+    fetchProductDetails(item.id)
   }
 }
 
@@ -433,16 +465,29 @@ function closeOptionsModal() {
 }
 
 function onOptionsSave(payload: { color: string; size: string }){
-  const it = items.value.find(i=> i.id === optionsModal.productId)
+  const uid = (optionsModal as any).uid as string
+  const it = items.value.find(i=> i.uid === uid)
   if (!it) return
-  // حفظ اللون والمقاس داخل عنصر السلة
-  it.variantColor = payload.color
-  it.variantSize = payload.size
-  cart.saveLocal()
+  // حفظ اللون والمقاس داخل عنصر السلة (ابقاء القيم كما هي إن لم تتغير)
+  if (payload.color) it.variantColor = payload.color
+  if (payload.size) it.variantSize = payload.size
+  // حاول ضبط صورة البطاقة حسب اللون المختار من الكاش
+  try{
+    const pid = optionsModal.productId
+    const opt = optionsCache[pid]
+    if (opt && Array.isArray(opt.colors)){
+      const c = opt.colors.find((x:any)=> String(x.label||'').trim() === String(payload.color||'').trim())
+      if (c && c.img){ it.img = c.img }
+    }
+  }catch{}
+  // حدث عنصر السلة واحفظ
+  cart.upsertVariantMeta(uid, { color: payload.color, size: payload.size, img: it.img })
+  optionsModal.open = false
 }
 
 async function fetchProductDetails(id: string){
   try{
+    if (optionsCache[id]) return optionsCache[id]
     const base = (await import('@/lib/api')).API_BASE
     const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { headers:{ 'Accept':'application/json' } })
     if (!res.ok) return
@@ -450,26 +495,97 @@ async function fetchProductDetails(id: string){
     const imgs = Array.isArray(d.images)? d.images : []
     const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
     const variants = Array.isArray(d.variants)? d.variants : []
-    const sizes = Array.isArray(d.sizes)? d.sizes.filter((s:any)=> typeof s==='string' && s.trim()) : []
-    const colorLabels = Array.from(new Set(variants.map((v:any)=> String(v.color||v.name||v.value||'').trim()).filter(Boolean)))
-    const colors = colorLabels.map((label:string)=> ({ label, img: filteredImgs[0] || '/images/placeholder-product.jpg' }))
-    optionsProductDetails.value = {
+    let sizes = Array.isArray(d.sizes)? d.sizes.filter((s:any)=> typeof s==='string' && s.trim()) : []
+    // Normalize and sort sizes in logical ascending order: S, M, L, XL, then others
+    const order = ['xs','s','m','l','xl','xxl','xxxl']
+    const lower = sizes.map((s:string)=> s.trim())
+    sizes = lower.sort((a:string,b:string)=>{
+      const ai = order.indexOf(a.toLowerCase())
+      const bi = order.indexOf(b.toLowerCase())
+      if (ai!==-1 || bi!==-1) return (ai===-1? 999:ai) - (bi===-1? 999:bi)
+      const an = parseFloat(a); const bn = parseFloat(b)
+      if (!isNaN(an) && !isNaN(bn)) return an - bn
+      return a.localeCompare(b, 'ar')
+    })
+    // Prefer distinct colors from colorGalleries → then product.colors → then variants
+    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
+    let colors: Array<{ label: string; img: string }> = []
+    const normalizeImage = (u: any): string => {
+      const s = String(u || '').trim()
+      if (!s) return filteredImgs[0] || '/images/placeholder-product.jpg'
+      if (/^https?:\/\//i.test(s)) return s
+      if (s.startsWith('/uploads')) return `${base}${s}`
+      if (s.startsWith('uploads/')) return `${base}/${s}`
+      return s
+    }
+    const normToken = (s:string)=> String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9\u0600-\u06FF]/g,'')
+    const pickFallbackByLabel = (label:string): string => {
+      const t = normToken(label)
+      for (const u of filteredImgs){
+        const file = String(u).split('/').pop() || ''
+        if (normToken(file).includes(t)) return normalizeImage(u)
+      }
+      return filteredImgs[0] || '/images/placeholder-product.jpg'
+    }
+    if (galleries.length){
+      colors = galleries.map((g:any)=> {
+        const label = String(g.name||'').trim()
+        const chosen = g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || pickFallbackByLabel(label)
+        return { label, img: normalizeImage(chosen) }
+      }).filter(c=> !!c.label)
+    } else if (Array.isArray((d as any).colors) && (d as any).colors.length){
+      const raw = (d as any).colors as Array<any>
+      const seen = new Set<string>()
+      for (const c of raw){
+        const label = typeof c === 'string' ? String(c).trim() : String((c?.name)||'').trim()
+        if (!label || seen.has(label)) continue
+        seen.add(label)
+        const first = Array.isArray(c?.images)
+          ? (typeof c.images[0] === 'string' ? c.images[0] : (c.images[0]?.url || ''))
+          : ''
+        const img = typeof c === 'object' && c ? (c.primaryImageUrl || first || pickFallbackByLabel(label)) : pickFallbackByLabel(label)
+        colors.push({ label, img: normalizeImage(img) })
+      }
+    } else {
+      const labelSet = new Set<string>()
+      for (const v of variants){
+        const lbl = String((v as any).color || (v as any).name || (v as any).value || '').trim()
+        if (lbl) labelSet.add(lbl)
+      }
+      colors = Array.from(labelSet).map((label:string)=> ({ label, img: '/images/placeholder-product.jpg' }))
+    }
+    // Build simple two-row size groups: letters and numbers
+    const isNumber = (x:string)=> /^\d{1,3}$/.test(String(x).trim())
+    const letters = new Set<string>()
+    const numbers = new Set<string>()
+    for (const s of sizes){ if (isNumber(s)) numbers.add(s); else letters.add(s) }
+    const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+    const orderLetters = (vals:string[])=> Array.from(vals).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
+    const orderNumbers = (vals:string[])=> Array.from(vals).sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0))
+    const sizeGroups = [] as Array<{ label:string; values:string[] }>
+    if (letters.size) sizeGroups.push({ label: 'مقاسات بالأحرف', values: orderLetters(Array.from(letters)) })
+    if (numbers.size) sizeGroups.push({ label: 'مقاسات بالأرقام', values: orderNumbers(Array.from(numbers)) })
+
+    optionsCache[id] = {
       id: d.id || id,
       title: d.name || (items.value.find(i=>i.id===id)?.title) || '',
       price: Number(d.price || (items.value.find(i=>i.id===id)?.price) || 0),
       images: filteredImgs.length ? filteredImgs : [items.value.find(i=>i.id===id)?.img || '/images/placeholder-product.jpg'],
       colors,
-      sizes: sizes.length ? sizes : Array.from(new Set(variants.map((v:any)=> String(v.size||v.value||v.name||'').trim()).filter(Boolean)))
+      sizes: sizes.length ? sizes : Array.from(new Set(variants.map((v:any)=> String(v.size||v.value||v.name||'').trim()).filter(Boolean))),
+      sizeGroups
     }
+    return optionsCache[id]
   }catch{}
 }
 
 function hasOptions(id: string){
   const it = items.value.find(i=> i.id===id)
   if (!it) return false
-  if (optionsProductDetails.value && optionsModal.productId===id){
-    const hasColors = Array.isArray(optionsProductDetails.value.colors) && optionsProductDetails.value.colors.length>0
-    const hasSizes = Array.isArray(optionsProductDetails.value.sizes) && optionsProductDetails.value.sizes.length>0
+  const cached = optionsCache[id]
+  if (cached){
+    const hasColors = Array.isArray(cached.colors) && cached.colors.length>0
+    const hasSizes = Array.isArray(cached.sizes) && cached.sizes.length>0
     return hasColors || hasSizes
   }
   // fallback: show button only if product carries options meta
@@ -478,6 +594,15 @@ function hasOptions(id: string){
   const hasSizesMeta = Array.isArray(meta.sizes) && meta.sizes.length>0
   return hasColorsMeta || hasSizesMeta || !!(it.variantColor || it.variantSize)
 }
+
+// Preload options for all cart items on page load
+onMounted(async () => {
+  try{
+    const ids = Array.from(new Set(items.value.map(i=> i.id)))
+    await Promise.all(ids.map(id => fetchProductDetails(id)))
+  }catch{}
+})
+
 
 // إضافة منتجات تجريبية للاختبار
 function addTestItems() {

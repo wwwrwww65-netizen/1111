@@ -233,7 +233,7 @@
       <!-- Size Selector (single list) - hidden until attributes loaded to avoid flicker, and hidden when multi size-groups exist) -->
       <div ref="sizeSelectorRef" class="mb-4" v-if="attrsLoaded && sizeOptions.length && !sizeGroups.length">
         <div class="flex items-center justify-between mb-2">
-          <span class="font-semibold text-[14px]">مقاس - {{ size || 'الافتراضي' }}</span>
+          <span class="font-semibold text-[14px]">مقاس - {{ size || 'اختر المقاس' }}</span>
           <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -768,6 +768,20 @@ const size = ref<string>('')
 // Multi-group sizes support
 const sizeGroups = ref<Array<{ label: string; values: string[] }>>([])
 const selectedGroupValues = ref<Record<string,string>>({})
+const optionsModalOpen = ref(false)
+function isOptionsComplete(): boolean {
+  // If there are size groups, all groups must be chosen
+  if (sizeGroups.value.length) {
+    for (const g of sizeGroups.value){ if (!selectedGroupValues.value[g.label]) return false }
+    return true
+  }
+  // If there is a single size list, require size when options exist
+  if (sizeOptions.value.length) return !!size.value
+  return true
+}
+function openOptionsModal(){ optionsModalOpen.value = true }
+function closeOptionsModal(){ optionsModalOpen.value = false }
+async function onConfirmOptions(){ if (!isOptionsComplete()) return; optionsModalOpen.value = false; await addToCartInternal() }
 function onPickGroupValue(label: string, val: string){ selectedGroupValues.value = { ...selectedGroupValues.value, [label]: val } }
 const variantByKey = ref<Record<string, { id:string; price?:number; stock?:number }>>({})
 const selectedVariantId = computed<string|undefined>(()=>{
@@ -1083,8 +1097,12 @@ const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
 
 async function addToCart(){
-  const variantNote = size.value ? `(${size.value})` : ''
-  cart.add({ id, title: title.value + variantNote, price: Number(price.value)||0, img: activeImg.value }, 1)
+  if (!isOptionsComplete()) { openOptionsModal(); return }
+  await addToCartInternal()
+}
+async function addToCartInternal(){
+  const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
+  cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
   try { await apiPost('/api/cart/add', { productId: id, variantId: selectedVariantId.value, quantity: 1 }) } catch {}
   try { trackAddToCart() } catch {}
   toast.value = true
@@ -1345,7 +1363,6 @@ async function loadProductData() {
   const s = Array.isArray(d.sizes) ? (d.sizes as any[]).filter((x:any)=> typeof x==='string' && looksSizeToken(String(x).trim()) && !isColorWord(String(x).trim())) : []
       if (s.length) {
         sizeOptions.value = s as string[]
-        size.value = sizeOptions.value[0]
       } else {
         // If provided sizes are invalid (e.g., color names), ignore and reset
         if (!Array.isArray(d.variants) || !d.variants.length) {
@@ -1358,7 +1375,6 @@ async function loadProductData() {
       try {
         if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
         if (!currentColorName.value && colorVariants.value[0]?.name) colorIdx.value = 0
-        if (!size.value && sizeOptions.value.length) size.value = sizeOptions.value[0]
       } catch {}
       try { await nextTick(); await updateImagesForColor() } catch {}
       
@@ -1479,9 +1495,8 @@ async function loadNormalizedVariants(){
     const orderedGroups = mapped.sort((a,b)=> (a.label.includes('بالأحرف')? -1 : a.label.includes('بالأرقام')? 1 : 0) - (b.label.includes('بالأحرف')? -1 : b.label.includes('بالأرقام')? 1 : 0))
     sizeGroups.value = orderedGroups.map(g=> ({ label: g.label, values: orderValues(g.label, g.values) }))
     if (sizeGroups.value.length){
-      const init: Record<string,string> = {}
-      for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
-      selectedGroupValues.value = init
+      // Do not preselect size groups; require user choice
+      selectedGroupValues.value = {}
     }
   } catch {} finally { attrsLoaded.value = true }
 
@@ -1564,9 +1579,8 @@ async function loadNormalizedVariants(){
         return Array.from(values)
       }
       sizeGroups.value = nextGroups.map(g=> ({ label: g.label, values: orderValues(g.label, g.values) }))
-      const init: Record<string,string> = {}
-      for (const g of sizeGroups.value){ init[g.label] = g.values[0] }
-      selectedGroupValues.value = init
+      // Do not preselect group values
+      selectedGroupValues.value = {}
     }
   } catch {}
 
