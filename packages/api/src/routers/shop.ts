@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '@repo/db';
+import type { Prisma } from '@prisma/client';
 import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express'
 
@@ -1361,7 +1362,7 @@ shop.get('/categories', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 200);
     const search = req.query.search as string;
     
-    const where = search ? {
+    const where: Prisma.CategoryWhereInput = search ? {
       OR: [
         { name: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } }

@@ -174,7 +174,8 @@ async function ensureSchema(): Promise<void> {
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Package_status_idx" ON "Package"("status")');
-    // Speed up product name/sku search used by admin suggest
+    // Speed up product name/sku search used by admin suggest (ensure extension exists)
+    try { await db.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pg_trgm'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_name_trgm_idx" ON "Product" USING gin (name gin_trgm_ops)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_sku_idx" ON "Product"(sku)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_created_idx" ON "Product"("createdAt")'); } catch {}
@@ -307,14 +308,21 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     try { await db.$executeRawUnsafe('ALTER TABLE "NotificationLog" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP DEFAULT NOW()'); } catch {}
     try {
       await db.$executeRawUnsafe(
-        'DO $$ BEGIN\n'+
-        'IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name=\'NotificationLog\' AND table_schema=\'public\' AND column_name=\'createdat\') THEN\n'+
-        '  EXECUTE \"UPDATE \\\"NotificationLog\\\" SET \\\"createdAt\\\" = createdat WHERE \\\"createdAt\\\" IS NULL\";\n'+
-        'END IF;\n'+
-        'IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name=\'NotificationLog\' AND table_schema=\'public\' AND column_name=\'updatedat\') THEN\n'+
-        '  EXECUTE \"UPDATE \\\"NotificationLog\\\" SET \\\"updatedAt\\\" = updatedat WHERE \\\"updatedAt\\\" IS NULL\";\n'+
-        'END IF;\n'+
-        'END $$;'
+        `DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'NotificationLog' AND table_schema = 'public' AND column_name = 'createdat'
+          ) THEN
+            EXECUTE 'UPDATE "NotificationLog" SET "createdAt" = createdat WHERE "createdAt" IS NULL';
+          END IF;
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'NotificationLog' AND table_schema = 'public' AND column_name = 'updatedat'
+          ) THEN
+            EXECUTE 'UPDATE "NotificationLog" SET "updatedAt" = updatedat WHERE "updatedAt" IS NULL';
+          END IF;
+        END$$;`
       );
     } catch {}
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
@@ -333,8 +341,26 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "AddressBook" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "fullName" TEXT, "phone" TEXT, "altPhone" TEXT, "country" TEXT, "state" TEXT, "city" TEXT, "street" TEXT, "details" TEXT, "postalCode" TEXT, "lat" DOUBLE PRECISION NULL, "lng" DOUBLE PRECISION NULL, "isDefault" BOOLEAN NOT NULL DEFAULT FALSE, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AddressBook_user_idx" ON "AddressBook"("userId")');
     // Harden columns for legacy deployments
-    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \"AddressBook\" AND column_name = \"lat\") THEN ALTER TABLE "AddressBook" ADD COLUMN "lat" DOUBLE PRECISION; END IF; END $$;');
-    await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \"AddressBook\" AND column_name = \"lng\") THEN ALTER TABLE "AddressBook" ADD COLUMN "lng" DOUBLE PRECISION; END IF; END $$;');
+    await db.$executeRawUnsafe(
+      `DO $$
+       BEGIN
+         IF NOT EXISTS (
+           SELECT 1 FROM information_schema.columns WHERE table_name = 'AddressBook' AND column_name = 'lat'
+         ) THEN
+           ALTER TABLE "AddressBook" ADD COLUMN "lat" DOUBLE PRECISION;
+         END IF;
+       END$$;`
+    );
+    await db.$executeRawUnsafe(
+      `DO $$
+       BEGIN
+         IF NOT EXISTS (
+           SELECT 1 FROM information_schema.columns WHERE table_name = 'AddressBook' AND column_name = 'lng'
+         ) THEN
+           ALTER TABLE "AddressBook" ADD COLUMN "lng" DOUBLE PRECISION;
+         END IF;
+       END$$;`
+    );
     // Ensure OrderItem has attributes JSONB for variant meta (color/size)
     await db.$executeRawUnsafe('DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \'OrderItem\' AND column_name = \'attributes\') THEN ALTER TABLE "OrderItem" ADD COLUMN "attributes" JSONB; END IF; END $$;');
     // Ensure Shipping/Payments/Carts tables exist (Prisma-compatible)
@@ -346,6 +372,44 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "PaymentGateway_name_key" ON "PaymentGateway"("name")');
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "GuestCart" ("id" TEXT PRIMARY KEY, "sessionId" TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "GuestCartItem" ("id" TEXT PRIMARY KEY, "guestCartId" TEXT NOT NULL, "productId" TEXT NOT NULL, "quantity" INTEGER NOT NULL DEFAULT 1, "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())');
+    // Backward-compatibility: fix legacy lowercase columns if present
+    try {
+      await db.$executeRawUnsafe(
+        `DO $$
+         BEGIN
+           IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'GuestCartItem' AND column_name = 'guestcartid'
+           ) AND NOT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'GuestCartItem' AND column_name = 'guestCartId'
+           ) THEN
+             ALTER TABLE "GuestCartItem" RENAME COLUMN guestcartid TO "guestCartId";
+           END IF;
+           IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'GuestCartItem' AND column_name = 'productid'
+           ) AND NOT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'GuestCartItem' AND column_name = 'productId'
+           ) THEN
+             ALTER TABLE "GuestCartItem" RENAME COLUMN productid TO "productId";
+           END IF;
+           IF NOT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'GuestCartItem' AND column_name = 'guestCartId'
+           ) THEN
+             ALTER TABLE "GuestCartItem" ADD COLUMN "guestCartId" TEXT;
+           END IF;
+           IF NOT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'GuestCartItem' AND column_name = 'productId'
+           ) THEN
+             ALTER TABLE "GuestCartItem" ADD COLUMN "productId" TEXT;
+           END IF;
+         END$$;`
+      );
+    } catch {}
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "GuestCartItem_guestCartId_productId_key" ON "GuestCartItem"("guestCartId","productId")');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "GuestCartItem_productId_idx" ON "GuestCartItem"("productId")');
     // Seed default accounts

@@ -48,7 +48,7 @@ async function extractMetaAndColors(buf: Buffer, mime: string): Promise<{ meta: 
 function buildCloudinaryTransform(src: string, w: number): string {
   try {
     if (!/res\.cloudinary\.com\//.test(src)) return src;
-    return src.replace(/\/upload\//, `/upload/f_auto,q_auto,w_${Math.max(80, Math.min(2000, Math.floor(w||800)))}/`);
+    return src.replace(/\/upload\//, `/upload/f_webp,q_auto,w_${Math.max(80, Math.min(2000, Math.floor(w||800)))}/`);
   } catch { return src; }
 }
 const uploadHourlyCounters = new Map<string, { count: number; resetAt: number }>();
@@ -77,6 +77,18 @@ async function optionalVirusScan(buf: Buffer): Promise<void> {
   } catch (e) {
     try { fs.unlinkSync(tmp); } catch {}
     throw e;
+  }
+}
+
+async function convertToWebp(buf: Buffer): Promise<{ buffer: Buffer; ok: boolean }> {
+  try {
+    // Lazy-require to avoid optional dependency issues
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sharp = require('sharp');
+    const out = await sharp(buf).webp({ quality: 82 }).toBuffer();
+    return { buffer: out, ok: true };
+  } catch {
+    return { buffer: buf, ok: false };
   }
 }
 
@@ -2996,8 +3008,8 @@ adminRest.get('/shipments/:id/track', async (req, res) => {
       }
       await optionalVirusScan(buf);
       const { meta, colors } = await extractMetaAndColors(buf, mime);
-      const baseFromReq = (()=>{ try{ const proto = (req as any).protocol||'https'; const host = (req as any).get? (req as any).get('host') : process.env.PUBLIC_HOST||''; if (host) return `${proto}://${host}`; }catch{} return String(process.env.PUBLIC_API_BASE||'').replace(/\/$/, '')||''; })();
-      const apiBase = baseFromReq || 'http://localhost';
+      const baseFromReq = (()=>{ try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host') : process.env.PUBLIC_HOST||''; if (host) return `${proto}://${host}`; }catch{} return String(process.env.PUBLIC_API_BASE||'').replace(/\/$/, '')||''; })();
+      const apiBase = baseFromReq || 'http://127.0.0.1:4000';
       const url = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
       await audit(req, 'media', 'upload_local', { file: `${sub1}/${sub2}/${name}`, bytes: buf.length });
       return res.json({ provider:'local', url, meta, dominantColors: colors });
@@ -3356,6 +3368,7 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'media.upload'))) return res.status(403).json({ error:'forbidden' });
     const { url, type, alt, base64 } = req.body || {};
+    const mediaType = (typeof type === 'string' && type.trim()) ? String(type).trim() : 'image';
     let finalUrl = url as string | undefined;
   if (!finalUrl && base64) {
     if (process.env.CLOUDINARY_URL) {
@@ -3382,11 +3395,13 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
           const mime = (m[1] || 'application/octet-stream').toLowerCase();
           const allowed = new Set(['image/jpeg','image/png','image/webp','image/avif']);
           if (!allowed.has(mime)) return res.status(415).json({ error:'unsupported_media_type' });
-          const buf = Buffer.from(m[2], 'base64');
+          let buf: Buffer = Buffer.from(m[2] as string, 'base64');
+          const conv = await convertToWebp(buf);
+          buf = conv.buffer;
           const maxBytes = 10 * 1024 * 1024; // 10MB
           if (buf.length > maxBytes) return res.status(413).json({ error:'file_too_large', maxMB:10 });
           const hash = crypto.createHash('sha256').update(buf).digest('hex');
-          const ext = (mime.split('/')[1]||'bin').replace(/[^a-z0-9]/gi,'');
+          const ext = conv.ok ? 'webp' : (mime.split('/')[1]||'bin').replace(/[^a-z0-9]/gi,'');
           const sub1 = hash.slice(0,2), sub2 = hash.slice(2,4);
           const dir = path.join(outDir, sub1, sub2);
           fs.mkdirSync(dir, { recursive: true });
@@ -3397,7 +3412,7 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
           }
           await optionalVirusScan(buf);
           const { meta, colors } = await extractMetaAndColors(buf, mime);
-          const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
+          const apiBase = (()=>{ try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host'): '' ; if (host) return `${proto}://${host}`; }catch{} return (process.env.PUBLIC_API_BASE || 'http://127.0.0.1:4000').replace(/\/$/, ''); })();
           finalUrl = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
           (req as any)._mediaMeta = meta; (req as any)._mediaColors = colors;
         } catch (e:any) {
@@ -3415,11 +3430,13 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
         const mime = (m[1] || 'application/octet-stream').toLowerCase();
         const allowed = new Set(['image/jpeg','image/png','image/webp','image/avif']);
         if (!allowed.has(mime)) return res.status(415).json({ error:'unsupported_media_type' });
-        const buf = Buffer.from(m[2], 'base64');
+          let buf: Buffer = Buffer.from(m[2] as string, 'base64');
+          const conv = await convertToWebp(buf);
+          buf = conv.buffer;
         const maxBytes = 10 * 1024 * 1024; // 10MB
         if (buf.length > maxBytes) return res.status(413).json({ error:'file_too_large', maxMB:10 });
         const hash = crypto.createHash('sha256').update(buf).digest('hex');
-        const ext = (mime.split('/')[1]||'bin').replace(/[^a-z0-9]/gi,'');
+        const ext = conv.ok ? 'webp' : (mime.split('/')[1]||'bin').replace(/[^a-z0-9]/gi,'');
         const sub1 = hash.slice(0,2), sub2 = hash.slice(2,4);
         const dir = path.join(outDir, sub1, sub2);
         fs.mkdirSync(dir, { recursive: true });
@@ -3430,7 +3447,7 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
         }
         await optionalVirusScan(buf);
         const { meta, colors } = await extractMetaAndColors(buf, mime);
-        const apiBase = (process.env.PUBLIC_API_BASE || 'https://api.jeeey.com').replace(/\/$/, '');
+        const apiBase = (()=>{ try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host'): '' ; if (host) return `${proto}://${host}`; }catch{} return (process.env.PUBLIC_API_BASE || 'http://127.0.0.1:4000').replace(/\/$/, ''); })();
         finalUrl = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
         // Attach meta/colors for client convenience
         (req as any)._mediaMeta = meta; (req as any)._mediaColors = colors;
@@ -3440,6 +3457,14 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
     }
   }
   if (!finalUrl) return res.status(400).json({ error: 'url_or_base64_required' });
+  // Fast-path dedupe by URL to avoid duplicates when client posts url after base64 upload
+  try {
+    const existingByUrl = await db.mediaAsset.findFirst({ where: { url: finalUrl } });
+    if (existingByUrl) {
+      await audit(req, 'media', 'create_dedupe_url', { url: finalUrl, id: existingByUrl.id });
+      return res.json({ asset: existingByUrl });
+    }
+  } catch {}
   // Attempt to dedupe by checksum whenever base64 present
   let checksum: string|undefined;
   try {
@@ -3458,12 +3483,12 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
     } else {
       const meta = (req as any)._mediaMeta || undefined;
       const dominantColors = (req as any)._mediaColors || [];
-      asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt, checksum, meta: meta? JSON.stringify(meta): undefined, dominantColors } });
+      asset = await db.mediaAsset.create({ data: { url: finalUrl, type: mediaType, alt, checksum, meta: meta? JSON.stringify(meta): undefined, dominantColors } });
     }
   } else {
     const meta = (req as any)._mediaMeta || undefined;
     const dominantColors = (req as any)._mediaColors || [];
-    asset = await db.mediaAsset.create({ data: { url: finalUrl, type, alt, meta: meta? JSON.stringify(meta): undefined, dominantColors } });
+    asset = await db.mediaAsset.create({ data: { url: finalUrl, type: mediaType, alt, meta: meta? JSON.stringify(meta): undefined, dominantColors } });
   }
   await audit(req, 'media', 'create', { url });
   res.json({ asset });
@@ -7741,7 +7766,6 @@ adminRest.post('/categories', async (req, res) => {
       }
     }
     console.error('Category creation error:', e);
-    const msg = String(e?.message||'');
     
     // Check for database connection issues
     if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND') || msg.includes('timeout')) {
