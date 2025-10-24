@@ -3008,8 +3008,12 @@ adminRest.get('/shipments/:id/track', async (req, res) => {
       }
       await optionalVirusScan(buf);
       const { meta, colors } = await extractMetaAndColors(buf, mime);
-      const baseFromReq = (()=>{ try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host') : process.env.PUBLIC_HOST||''; if (host) return `${proto}://${host}`; }catch{} return String(process.env.PUBLIC_API_BASE||'').replace(/\/$/, '')||''; })();
-      const apiBase = baseFromReq || 'http://127.0.0.1:4000';
+      const apiBase = (()=>{
+        const envBase = String(process.env.PUBLIC_API_BASE||'').replace(/\/$/, '');
+        if (envBase) return envBase;
+        try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host') : ''; if (host) return `${proto}://${host}`; }catch{}
+        return 'http://127.0.0.1:4000';
+      })();
       const url = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
       await audit(req, 'media', 'upload_local', { file: `${sub1}/${sub2}/${name}`, bytes: buf.length });
       return res.json({ provider:'local', url, meta, dominantColors: colors });
@@ -3412,7 +3416,7 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
           }
           await optionalVirusScan(buf);
           const { meta, colors } = await extractMetaAndColors(buf, mime);
-          const apiBase = (()=>{ try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host'): '' ; if (host) return `${proto}://${host}`; }catch{} return (process.env.PUBLIC_API_BASE || 'http://127.0.0.1:4000').replace(/\/$/, ''); })();
+          const apiBase = (()=>{ const envBase = String(process.env.PUBLIC_API_BASE||'').replace(/\/$/, ''); if (envBase) return envBase; try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host'): '' ; if (host) return `${proto}://${host}`; }catch{} return 'http://127.0.0.1:4000'; })();
           finalUrl = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
           (req as any)._mediaMeta = meta; (req as any)._mediaColors = colors;
         } catch (e:any) {
@@ -3447,7 +3451,7 @@ adminRest.post('/media', mediaUploadLimiter, async (req, res) => {
         }
         await optionalVirusScan(buf);
         const { meta, colors } = await extractMetaAndColors(buf, mime);
-        const apiBase = (()=>{ try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host'): '' ; if (host) return `${proto}://${host}`; }catch{} return (process.env.PUBLIC_API_BASE || 'http://127.0.0.1:4000').replace(/\/$/, ''); })();
+        const apiBase = (()=>{ const envBase = String(process.env.PUBLIC_API_BASE||'').replace(/\/$/, ''); if (envBase) return envBase; try{ const proto = (req as any).protocol||'http'; const host = (req as any).get? (req as any).get('host'): '' ; if (host) return `${proto}://${host}`; }catch{} return 'http://127.0.0.1:4000'; })();
         finalUrl = `${apiBase}/uploads/${sub1}/${sub2}/${name}`;
         // Attach meta/colors for client convenience
         (req as any)._mediaMeta = meta; (req as any)._mediaColors = colors;

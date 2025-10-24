@@ -453,7 +453,7 @@ export default function CategoriesPage(): JSX.Element {
           </div>
         </div>
       </section>
-      <EditModal open={editOpen} loading={editLoading} saving={editSaving} edit={edit} setEdit={setEdit} onClose={()=>{ setEditOpen(false); }} onSave={saveEdit} rows={rows} />
+      <EditModal open={editOpen} loading={editLoading} saving={editSaving} edit={edit} setEdit={setEdit} onClose={()=>{ setEditOpen(false); }} onSave={saveEdit} rows={rows} setMediaOpen={setMediaOpen} setMediaFor={setMediaFor} setEditFile={setEditFile} />
       <MediaPicker open={mediaOpen} onClose={()=>{ setMediaOpen(false); setMediaFor(null); }} onSelect={(url)=>{
         if (mediaFor==='edit') { setEditFile(null); setEdit((c:any)=> ({...c, image: url })); }
         if (mediaFor==='add') { setImageFile(null); setImage(url); }
@@ -463,7 +463,7 @@ export default function CategoriesPage(): JSX.Element {
 }
 
 // Modal styles are inline to match existing style usage on this page
-function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows }:{ open:boolean; loading:boolean; saving:boolean; edit:any; setEdit:(u:any)=>void; onClose:()=>void; onSave:()=>void; rows:any[] }): JSX.Element|null {
+function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows, setMediaOpen, setMediaFor, setEditFile }:{ open:boolean; loading:boolean; saving:boolean; edit:any; setEdit:(u:any)=>void; onClose:()=>void; onSave:()=>void; rows:any[]; setMediaOpen:(v:boolean)=>void; setMediaFor:(v:'add'|'edit'|null)=>void; setEditFile:(f:File|null)=>void }): JSX.Element|null {
   if (!open) return null;
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}>
@@ -570,7 +570,7 @@ function MediaPicker({ open, onClose, onSelect }:{ open:boolean; onClose:()=>voi
   if (!open) return null;
   const pages = Math.max(1, Math.ceil(total/limit));
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:60 }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }}>
       <div style={{ width:'min(1000px, 94vw)', maxHeight:'85vh', overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
           <h3 style={{ margin:0 }}>الوسائط</h3>
