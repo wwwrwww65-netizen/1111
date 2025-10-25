@@ -220,6 +220,41 @@ app.use('/api', shop);
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);
 
+// Mobile Remote Config endpoints (tokens/home) for RN apps
+app.get('/mobile/config/tokens.json', async (_req, res) => {
+  // Basic default tokens; override later from DB/settings if needed
+  const out = {
+    colors: {
+      primary: '#000000',
+      background: '#ffffff',
+      text: '#0f172a',
+      muted: '#6b7280'
+    },
+    spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 },
+    radius: { sm: 6, md: 10, lg: 16 },
+    typography: { body: { fontFamily: 'System', fontSize: 16 } }
+  };
+  res.json(out);
+});
+
+app.get('/mobile/config/home.json', async (_req, res) => {
+  // Minimal manifest; mweb changes can be reflected here to sync RN UI
+  const out = {
+    version: '1',
+    sections: [
+      { type: 'banner', id: 'hero', imageUrl: 'https://jeeey.com/hero.jpg', link: '/products' },
+      {
+        type: 'carousel', id: 'for-you', title: 'من أجلك',
+        items: [
+          { imageUrl: 'https://jeeey.com/img/1.jpg', link: '/p?id=1' },
+          { imageUrl: 'https://jeeey.com/img/2.jpg', link: '/p?id=2' }
+        ]
+      }
+    ]
+  };
+  res.json(out);
+});
+
 try {
   const swaggerDoc = YAML.load(__dirname + '/../openapi.yaml');
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
