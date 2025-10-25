@@ -16,6 +16,9 @@ import CheckoutScreen from './src/screens/CheckoutScreen';
 import PageRenderer from './src/screens/PageRenderer';
 import AuthFlow from './src/screens/AuthFlow';
 import OrdersScreen from './src/screens/OrdersScreen';
+import AccountScreenFull from './src/screens/AccountScreen';
+import SearchScreenFull from './src/screens/SearchScreen';
+import AddressScreen from './src/screens/AddressScreen';
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({ links: createTrpcLinks() });
@@ -53,6 +56,7 @@ export default function App() {
               <Stack.Screen name="Page" component={PageRenderer} options={{ title: 'صفحة' }} />
               <Stack.Screen name="Auth" component={AuthFlow} options={{ title: 'تسجيل الدخول' }} />
               <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'طلباتي' }} />
+              <Stack.Screen name="Address" component={AddressScreen} options={{ title: 'العنوان' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </RemoteConfigProvider>
@@ -72,9 +76,9 @@ function RootTabs() {
           t.link === '/' ? HomeScreen :
           t.link.startsWith('/categories') ? CategoriesScreen :
           t.link.startsWith('/wishlist') ? WishlistScreen :
-          t.link.startsWith('/account') ? AccountScreen :
+          t.link.startsWith('/account') ? AccountScreenFull :
           t.link.startsWith('/cart') ? CartScreen :
-          t.link.startsWith('/search') ? SearchScreen : ProductsScreen;
+          t.link.startsWith('/search') ? SearchScreenFull : ProductsScreen;
         return <Tabs.Screen key={name} name={name} component={component} options={{ title }} />
       })}
     </Tabs.Navigator>
