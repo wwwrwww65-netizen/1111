@@ -32,7 +32,10 @@
     "expo-constants": "^16.0.2",
     "expo-updates": "^0.25.27",
     "@shopify/flash-list": "^1.6.4",
-    "expo-image": "^1.11.0"
+    "expo-image": "^1.11.0",
+    "expo-location": "^16.5.5",
+    "lucide-react-native": "^0.468.0",
+    "react-native-svg": "^15.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

@@ -18,7 +18,10 @@ import AuthFlow from './src/screens/AuthFlow';
 import OrdersScreen from './src/screens/OrdersScreen';
 import AccountScreenFull from './src/screens/AccountScreen';
 import SearchScreenFull from './src/screens/SearchScreen';
+import WishlistScreenFull from './src/screens/WishlistScreen';
+import PaymentConfirmScreen from './src/screens/PaymentConfirmScreen';
 import AddressScreen from './src/screens/AddressScreen';
+import OrderDetailScreen from './src/screens/OrderDetailScreen';
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({ links: createTrpcLinks() });
@@ -57,6 +60,8 @@ export default function App() {
               <Stack.Screen name="Auth" component={AuthFlow} options={{ title: 'تسجيل الدخول' }} />
               <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'طلباتي' }} />
               <Stack.Screen name="Address" component={AddressScreen} options={{ title: 'العنوان' }} />
+              <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'تفاصيل الطلب' }} />
+              <Stack.Screen name="PaymentConfirm" component={PaymentConfirmScreen} options={{ title: 'تأكيد الدفع' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </RemoteConfigProvider>
@@ -75,7 +80,7 @@ function RootTabs() {
         const component =
           t.link === '/' ? HomeScreen :
           t.link.startsWith('/categories') ? CategoriesScreen :
-          t.link.startsWith('/wishlist') ? WishlistScreen :
+          t.link.startsWith('/wishlist') ? WishlistScreenFull :
           t.link.startsWith('/account') ? AccountScreenFull :
           t.link.startsWith('/cart') ? CartScreen :
           t.link.startsWith('/search') ? SearchScreenFull : ProductsScreen;
