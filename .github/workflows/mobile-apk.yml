@@ -135,8 +135,47 @@ jobs:
           node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.android=j.expo.android||{};j.expo.android.package=j.expo.android.package||'com.example.ecom';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('android.package ->',j.expo.android.package);"
           # Ensure expo-modules-autolinking path exists at node_modules/expo-modules-autolinking (pnpm fix)
           node -e "const fs=require('fs'),path=require('path');try{const pkg=require.resolve('expo-modules-autolinking/package.json');const src=path.dirname(pkg);const target=path.join(process.cwd(),'node_modules','expo-modules-autolinking');fs.mkdirSync(path.dirname(target),{recursive:true});try{fs.rmSync(target,{recursive:true,force:true});}catch{};fs.symlinkSync(src,target,'dir');console.log('Linked',target,'->',src);}catch(e){console.log('expo-modules-autolinking resolve failed',e.message)}"
+          # Ensure @react-native/gradle-plugin path exists at node_modules/@react-native/gradle-plugin (pnpm fix)
+          node -e "const fs=require('fs'),path=require('path');try{const pkg=require.resolve('@react-native/gradle-plugin/package.json');const src=path.dirname(pkg);const target=path.join(process.cwd(),'node_modules','@react-native','gradle-plugin');fs.mkdirSync(path.dirname(target),{recursive:true});try{fs.rmSync(target,{recursive:true,force:true});}catch{};fs.symlinkSync(src,target,'dir');console.log('Linked',target,'->',src);}catch(e){console.log('@react-native/gradle-plugin resolve failed',e.message)}"
           # Prebuild
           pnpm dlx expo prebuild --platform android --clean
+          # Patch android/settings.gradle includeBuild paths to absolute directories
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const root = process.cwd();
+          const candidates = ['android/settings.gradle', 'android/settings.gradle.kts'];
+          const settingsPath = candidates.find(p => fs.existsSync(p));
+          if (!settingsPath) {
+            console.error('settings.gradle not found');
+            process.exit(1);
+          }
+          let s = fs.readFileSync(settingsPath, 'utf8');
+          const expoPath = path.join(root, 'node_modules', 'expo-modules-autolinking', 'android', 'expo-gradle-plugin').replace(/\\/g, '/');
+          const rnPath = path.join(root, 'node_modules', '@react-native', 'gradle-plugin').replace(/\\/g, '/');
+          if (!fs.existsSync(expoPath)) console.error('Missing expo-gradle-plugin at', expoPath);
+          if (!fs.existsSync(rnPath)) console.error('Missing @react-native/gradle-plugin at', rnPath);
+          const before = s;
+          s = s.replace(/includeBuild\(['"][^'"]*expo-modules-autolinking[^'"]*expo-gradle-plugin['"]\)/g, `includeBuild('${expoPath}')`);
+          s = s.replace(/includeBuild\(['"][^'"]*@react-native[^'"]*gradle-plugin['"]\)/g, `includeBuild('${rnPath}')`);
+          if (!/gradlePluginPortal\(\)/.test(s)) {
+            s = s.replace(/pluginManagement\s*\{([\s\S]*?)\}/, (block) =>
+              block.replace(/repositories\s*\{([\s\S]*?)\}/, (repos) => repos.replace(/\}/, '\n        gradlePluginPortal()\n      }'))
+            );
+          }
+          if (s !== before) {
+            fs.writeFileSync(settingsPath, s);
+            console.log('Patched', settingsPath);
+          } else {
+            console.log('No includeBuild patterns matched; appending explicit includes');
+            let append = '';
+            if (fs.existsSync(expoPath)) append += `\nincludeBuild('${expoPath}')\n`;
+            if (fs.existsSync(rnPath)) append += `\nincludeBuild('${rnPath}')\n`;
+            fs.appendFileSync(settingsPath, append);
+          }
+          console.log('\n--- settings.gradle head ---');
+          console.log(s.split('\n').slice(0, 200).join('\n'));
+          NODE
           # Build debug APK
           cd android
           chmod +x ./gradlew
