@@ -12,20 +12,36 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jeeey.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.example.ecom"
+      "package": "com.jeeey.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "scheme": "jeeey",
+    "experiments": {
+      "tsconfigPaths": true
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/${EAS_PROJECT_ID}"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "extra": {
-      "EXPO_PUBLIC_TRPC_URL": "https://api.jeeey.com/trpc"
+      "EXPO_PUBLIC_TRPC_URL": "https://api.jeeey.com/trpc",
+      "EXPO_PUBLIC_CONFIG_BASE": "https://api.jeeey.com",
+      "eas": {
+        "projectId": "${EAS_PROJECT_ID}"
+      }
     },
     "adaptiveIcon": {}
   }
