@@ -51,6 +51,12 @@ jobs:
       - name: Ensure EAS login
         run: eas whoami || eas account:login --token ${{ env.EXPO_TOKEN }}
 
+      - name: Inject EAS projectId into app.json
+        if: env.EAS_PROJECT_ID != ''
+        working-directory: apps/mobile
+        run: |
+          node -e "const fs=require('fs');const p='app.json';const cfg=JSON.parse(fs.readFileSync(p,'utf8')); cfg.expo=cfg.expo||{}; cfg.expo.extra=cfg.expo.extra||{}; cfg.expo.extra.eas=cfg.expo.extra.eas||{}; cfg.expo.extra.eas.projectId='${{ env.EAS_PROJECT_ID }}'; fs.writeFileSync(p, JSON.stringify(cfg,null,2)); console.log('Injected projectId into app.json');"
+
       - name: Type check (mobile)
         working-directory: apps/mobile
         run: pnpm exec tsc -p tsconfig.json --noEmit
@@ -60,7 +66,7 @@ jobs:
           if [ -z "${{ env.EXPO_TOKEN }}" ]; then echo "EXPO_TOKEN is missing in Secrets" && exit 1; fi
           if [ -z "${{ env.EXPO_PUBLIC_TRPC_URL }}" ]; then echo "Warning: EXPO_PUBLIC_TRPC_URL is not set; using app.json default"; fi
 
-      - name: Build APK with EAS (remote if project linked)
+      - name: Build APK with EAS (remote)
         working-directory: apps/mobile
         env:
           EXPO_PUBLIC_TRPC_URL: ${{ env.EXPO_PUBLIC_TRPC_URL }}
@@ -68,32 +74,16 @@ jobs:
         run: |
           PROFILE=${{ github.event.inputs.profile || 'preview' }}
           echo "Using EAS profile: $PROFILE"
-          if [ -n "$EAS_PROJECT_ID" ]; then
-            echo "EAS_PROJECT_ID detected -> remote build"
-            eas build --platform android --profile "$PROFILE" --non-interactive
-          else
-            echo "No EAS_PROJECT_ID -> using local build"
-            eas build --local --platform android --profile "$PROFILE" --non-interactive
-          fi
+          eas build --platform android --profile "$PROFILE" --non-interactive
 
-      - name: Download APK artifact (remote) / Collect local artifact
+      - name: Download APK artifact
         working-directory: apps/mobile
         run: |
-          if [ -n "${{ env.EAS_PROJECT_ID }}" ]; then
-            eas build:download --latest --platform android --output app.apk || true
-            if [ ! -s app.apk ]; then
-              echo "APK not downloaded; listing recent builds to help debugging..."
-              eas build:list --json --limit 5 --platform android || true
-            fi
-          else
-            echo "Searching for local APK..."
-            APK=$(ls -1 ./*.apk android/app/build/outputs/**/*.apk .eas/build/**/**/*.apk 2>/dev/null | head -n1 || true)
-            if [ -n "$APK" ]; then
-              cp "$APK" app.apk
-              echo "Found local APK: $APK"
-            else
-              echo "Local APK not found"; exit 1
-            fi
+          eas build:download --latest --platform android --output app.apk || true
+          if [ ! -s app.apk ]; then
+            echo "APK not downloaded; listing recent builds to help debugging..."
+            eas build:list --json --limit 5 --platform android || true
+            exit 1
           fi
 
       - name: Upload APK artifact
