@@ -56,6 +56,8 @@ jobs:
         working-directory: apps/mobile
         run: |
           node -e "const fs=require('fs');const p='app.json';const cfg=JSON.parse(fs.readFileSync(p,'utf8')); cfg.expo=cfg.expo||{}; cfg.expo.extra=cfg.expo.extra||{}; cfg.expo.extra.eas=cfg.expo.extra.eas||{}; cfg.expo.extra.eas.projectId='${{ env.EAS_PROJECT_ID }}'; fs.writeFileSync(p, JSON.stringify(cfg,null,2)); console.log('Injected projectId into app.json');"
+          echo "Validating EAS project id..."
+          eas project:info --json
 
       - name: Type check (mobile)
         working-directory: apps/mobile
