@@ -13,6 +13,7 @@ import ProductScreen from './src/screens/ProductScreen';
 import CategoriesScreen from './src/screens/CategoriesScreen';
 import CartScreen from './src/screens/CartScreen';
 import CheckoutScreen from './src/screens/CheckoutScreen';
+import PageRenderer from './src/screens/PageRenderer';
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({ links: createTrpcLinks() });
@@ -47,6 +48,7 @@ export default function App() {
               <Stack.Screen name="Root" component={RootTabs} options={{ headerShown: false }} />
               <Stack.Screen name="Product" component={ProductScreen} options={{ title: 'المنتج' }} />
               <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'الدفع' }} />
+              <Stack.Screen name="Page" component={PageRenderer} options={{ title: 'صفحة' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </RemoteConfigProvider>

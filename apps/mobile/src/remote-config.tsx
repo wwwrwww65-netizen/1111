@@ -27,6 +27,8 @@ type CategoriesManifest = { layout: { columns: number; gap: number }; showImages
 type CartManifest = { showThumb: boolean; showVendor: boolean; totals: string[] };
 type CheckoutManifest = { steps: string[]; paymentProviders: string[]; successLink: string; failureLink: string };
 type OffersManifest = { placements: Record<string, any[]> };
+type PageBlock = { type: string; text?: string; imageUrl?: string; link?: string; props?: Record<string, any> };
+type PageDef = { path: string; title?: string; blocks: PageBlock[] };
 
 type RemoteConfig = {
   tokens: DesignTokens;
@@ -37,6 +39,7 @@ type RemoteConfig = {
   cart: CartManifest;
   checkout: CheckoutManifest;
   offers: OffersManifest;
+  pages: Record<string, PageDef>;
   loadedAt: number;
 };
 
@@ -53,6 +56,7 @@ const DEFAULT_CONFIG: RemoteConfig = {
   cart: { showThumb: true, showVendor: false, totals: ['subtotal','shipping','discounts','total'] },
   checkout: { steps: ['address','shipping','payment','review'], paymentProviders: ['stripe'], successLink: '/pay/success', failureLink: '/pay/failure' },
   offers: { placements: {} },
+  pages: {},
   loadedAt: Date.now(),
 };
 
@@ -95,8 +99,9 @@ export const RemoteConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const cartUrl = `${base}/mobile/config/cart.json`;
       const checkoutUrl = `${base}/mobile/config/checkout.json`;
       const offersUrl = `${base}/mobile/config/offers.json`;
+      const pagesUrl = `${base}/mobile/config/pages.json`;
 
-      const [tokens, home, nav, pdp, categories, cart, checkout, offers] = await Promise.all([
+      const [tokens, home, nav, pdp, categories, cart, checkout, offers, pages] = await Promise.all([
         fetchJson<DesignTokens>(tokensUrl),
         fetchJson<HomeManifest>(homeUrl),
         fetchJson<NavManifest>(navUrl),
@@ -105,6 +110,7 @@ export const RemoteConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
         fetchJson<CartManifest>(cartUrl),
         fetchJson<CheckoutManifest>(checkoutUrl),
         fetchJson<OffersManifest>(offersUrl),
+        fetchJson<Record<string, PageDef>>(pagesUrl),
       ]);
 
       const next: RemoteConfig = {
@@ -116,6 +122,7 @@ export const RemoteConfigProvider: React.FC<{ children: React.ReactNode }> = ({ 
         cart: cart || cfg.cart,
         checkout: checkout || cfg.checkout,
         offers: offers || cfg.offers,
+        pages: pages || cfg.pages,
         loadedAt: Date.now(),
       };
       setCfg(next);

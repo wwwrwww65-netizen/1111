@@ -331,6 +331,17 @@ app.get('/mobile/config/offers.json', (_req, res) => {
   res.json(out);
 });
 
+// Pages manifest (arbitrary screens by path)
+app.get('/mobile/config/pages.json', (_req, res) => {
+  const out = {
+    '/account': { path: '/account', title: 'حسابي', blocks: [ { type: 'heading', text: 'الحساب' }, { type: 'button', text: 'تسجيل الدخول / OTP', props: { action: 'openLogin' } } ] },
+    '/settings': { path: '/settings', title: 'الإعدادات', blocks: [ { type: 'heading', text: 'الإعدادات' } ] },
+    '/address': { path: '/address', title: 'العناوين', blocks: [ { type: 'heading', text: 'العنوان' }, { type: 'addressForm' } ] },
+    '/search': { path: '/search', title: 'بحث', blocks: [ { type: 'searchBar' }, { type: 'searchResults' } ] },
+  };
+  res.json(out);
+});
+
 try {
   const swaggerDoc = YAML.load(__dirname + '/../openapi.yaml');
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
