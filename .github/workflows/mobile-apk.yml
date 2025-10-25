@@ -133,6 +133,8 @@ jobs:
           pnpm install --no-frozen-lockfile --ignore-scripts
           # Ensure android package present
           node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.android=j.expo.android||{};j.expo.android.package=j.expo.android.package||'com.example.ecom';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('android.package ->',j.expo.android.package);"
+          # Ensure expo-modules-autolinking path exists at node_modules/expo-modules-autolinking (pnpm fix)
+          node -e "const fs=require('fs'),path=require('path');try{const pkg=require.resolve('expo-modules-autolinking/package.json');const src=path.dirname(pkg);const target=path.join(process.cwd(),'node_modules','expo-modules-autolinking');fs.mkdirSync(path.dirname(target),{recursive:true});try{fs.rmSync(target,{recursive:true,force:true});}catch{};fs.symlinkSync(src,target,'dir');console.log('Linked',target,'->',src);}catch(e){console.log('expo-modules-autolinking resolve failed',e.message)}"
           # Prebuild
           pnpm dlx expo prebuild --platform android --clean
           # Build debug APK
