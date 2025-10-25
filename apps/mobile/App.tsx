@@ -83,7 +83,7 @@ function RootTabs() {
           t.link.startsWith('/wishlist') ? WishlistScreenFull :
           t.link.startsWith('/account') ? AccountScreenFull :
           t.link.startsWith('/cart') ? CartScreen :
-          t.link.startsWith('/search') ? SearchScreenFull : ProductsScreen;
+          t.link.startsWith('/search') ? SearchScreenFull : HomeScreen;
         return <Tabs.Screen key={name} name={name} component={component} options={{ title }} />
       })}
     </Tabs.Navigator>
@@ -112,7 +112,7 @@ function ProductsScreen({ navigation }: any) {
   );
 }
 
-function ProductScreen({ route, navigation }: any) {
+function LegacyProductScreen({ route, navigation }: any) {
   const { id } = route.params;
   const { data, isLoading, error } = trpc.products.getById.useQuery({ id });
   const addItem = trpc.cart.addItem.useMutation();
@@ -140,7 +140,7 @@ function ProductScreen({ route, navigation }: any) {
   );
 }
 
-function CartScreen() {
+function LegacyCartScreen() {
   const { data, isLoading, error } = trpc.cart.getCart.useQuery();
   return (
     <View style={styles.container}>
@@ -163,7 +163,7 @@ function CartScreen() {
   );
 }
 
-function SearchScreen({ navigation }: any) {
+function LegacySearchScreen({ navigation }: any) {
   const [q, setQ] = React.useState('');
   const { data, isLoading, error } = trpc.search.searchProducts.useQuery(
     { page: 1, limit: 10, q },
@@ -194,7 +194,7 @@ function SearchScreen({ navigation }: any) {
   );
 }
 
-function CategoriesScreen({ navigation }: any) {
+function LegacyCategoriesScreen({ navigation }: any) {
   const categories = [
     { id: 'dresses', name: 'فساتين' },
     { id: 'shoes', name: 'أحذية' },
@@ -218,7 +218,7 @@ function CategoriesScreen({ navigation }: any) {
   );
 }
 
-function WishlistScreen() {
+function LegacyWishlistScreen() {
   const { data, isLoading, error } = trpc.wishlist.get.useQuery();
   return (
     <View style={styles.container}>
@@ -239,7 +239,7 @@ function WishlistScreen() {
   );
 }
 
-function AccountScreen() {
+function LegacyAccountScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>حسابي</Text>
@@ -248,7 +248,7 @@ function AccountScreen() {
   );
 }
 
-function CheckoutScreen() {
+function LegacyCheckoutScreen() {
   const checkout = trpc.checkout.start.useMutation();
   return (
     <View style={styles.container}>
