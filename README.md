@@ -364,6 +364,12 @@ For support and questions:
   - Android: `pnpm --filter mobile dlx eas-cli build -p android --profile preview`
   - iOS: `pnpm --filter mobile dlx eas-cli build -p ios --profile preview`
 
+### قدرات التطبيق (ملخص)
+- تبويب رئيسي: Home, Search, Categories, Wishlist, Account, Cart.
+- صفحات: Product, Checkout.
+- تكامل tRPC عبر `EXPO_PUBLIC_TRPC_URL` مع `@tanstack/react-query`.
+- عمليات أساسية: استعراض المنتجات، البحث، إضافة للسلة، عرض السلة، بدء الدفع.
+
 ## 📱 m.jeeey.com (Figma 1:1 Sync)
 
 ### Home (Mobile Web) — UI guarantees (Oct 2025)
@@ -1064,3 +1070,89 @@ Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `mai
 - استكشاف 401/405 بعد التحقق:
   - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
   - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
+
+## 🧭 لوحة التحكم — الصفحات والعمليات (ملخص عربي)
+
+- المنتجات (Products):
+  - الصفحات: `products/`, `products/new`, `catalog/pdp-meta`, `catalog/pdp-settings`, `catalog/variants-matrix`, `catalog/bundles/[id]`
+  - العمليات: قائمة/بحث/تصفية، إنشاء/تعديل/أرشفة/حذف، تحليل النص/الصور، توليد المنتج/التباينات/الوسائط، رفع الوسائط، ضبط مصفوفة التباينات، إعدادات PDP
+  - REST: `/api/admin/products*`, `/api/admin/products/parse`, `/api/admin/products/generate`, `/api/admin/media*`
+
+- التصنيفات (Categories):
+  - الصفحة: `categories/`
+  - العمليات: CRUD مع SEO وترجمات
+  - الصيانة: `POST /api/admin/maintenance/ensure-category-seo`
+
+- المخزون (Inventory):
+  - الصفحة: `inventory/`
+  - العمليات: عرض مجمّع، ضبط الكميات، تصدير CSV
+  - REST: `/api/admin/inventory/list`, `/api/admin/inventory/adjust`, `/api/admin/inventory/export/csv`
+
+- الطلبات/المدفوعات/الشحنات:
+  - الصفحات: `orders/`, `orders/[id]`, `shipments/`, `returns/`, `rma/management`
+  - العمليات: عرض/تفاصيل/تصفية، شحن الطلب، استرجاع/إلغاء، فواتير PDF وملصقات الشحن 4×6
+  - REST: `/api/admin/orders/list`, `/api/admin/orders/ship`, `/api/admin/payments/list|refund`, `/api/admin/orders/:id/invoice.pdf`, `/api/admin/shipments/:id/label.pdf`
+
+- اللوجستيات (Logistics):
+  - الصفحات: `logistics/pickup`, `logistics/warehouse`, `logistics/delivery`
+  - العمليات: حالات الأرجل (Pickup/Inbound/Delivery)، التعيين/التتبع/الإثبات، تصدير CSV/XLS/PDF
+  - الصيانة: `POST /api/admin/maintenance/ensure-logistics`
+
+- المستخدمون/الصلاحيات/2FA/السجلات:
+  - الصفحات: `users/`, `settings/rbac`, `2fa/`, `audit-logs/`
+  - العمليات: إدارة الأدوار والصلاحيات، تفعيل/تعطيل 2FA، مراجعة السجلات
+  - REST: `/api/admin/users/list|assign-role`, `/api/admin/2fa/enable|verify|disable`
+
+- الموردون/المستودعات/الناقلون/العملات:
+  - الصفحات: `vendors/`, `vendors/[id]`, `warehouses/`, `carriers/`, `currencies/`
+  - العمليات: إدارة بيانات الموردين والمستودعات وشركات الشحن والعملة، رفع كتالوج الموردين
+
+- الإشعارات/المراجعات/CMS/الوسائط:
+  - الصفحات: `notifications/*`, `reviews/`, `cms/*`, `media/`
+  - العمليات: إرسال/جدولة/استهداف، إقرار المراجعات، تحرير صفحات محتوى، إدارة مكتبة الوسائط
+
+- المالية (Finance):
+  - الصفحات: `finance/expenses` وتقارير PnL/Cashflow/Revenues/Invoices، الحسابات والدليل، القيود اليومية
+  - العمليات: CRUD للمصروفات، تصدير CSV، تقارير ولوائح مالية
+
+- التسويق (Marketing):
+  - الصفحات: `coupons/`, `promotions/[...slug]`
+  - العمليات: إدارة القسائم والحملات وتقارير الأداء
+
+- الاندماجات (Integrations):
+  - الصفحات: `integrations/*` (ai/meta/tracking/whatsapp-send)
+  - العمليات: DeepSeek/OpenRouter/Facebook/WhatsApp/Tracking
+  - الصحة: `/api/admin/integrations/openrouter/health`
+
+- النسخ الاحتياطي (Backups):
+  - الصفحة: `backups/`
+  - العمليات: تشغيل/قائمة/استعادة/جدولة (retention 30 يومًا)
+  - REST: `/api/admin/backups/run|list|{id}/restore|schedule`
+
+- النظام/الإعدادات (System/Settings):
+  - الصفحات: `settings/*`, `system/*` (monitoring/carts/analytics/shipping-zones/shipping-rates/geo/*)
+  - العمليات: إعدادات عامة، الشحن والمناطق والأسعار، مراقبة وتشخيص
+
+- أخرى:
+  - POS: `pos/`، Wallet: `wallet/management`، Loyalty/Badges/Points: `loyalty/*`، Affiliates/Subscriptions: `affiliates/*`, `subscriptions/`
+  - Tickets: `tickets/`، Trends/Recommendations: `trends/*`, `recommendations/rules`
+
+الحالة: الصفحات أعلاه مفعلة في الشفرة وجاهزة حسب صلاحيات RBAC.
+
+### مسارات mweb الأساسية
+- الصفحات: `/`, `/categories`, `/products`, `/p`, `/cart`, `/checkout`, `/account`, `/wishlist`, `/orders`, `/order/:id`, `/address`, `/confirm`, `/returns`, `/help`, `/contact`
+- المصادقة: `/register`, `/login`, `/forgot`, `/verify`, `/complete-profile`, `/auth/google/callback`
+- المدفوعات: `/pay/processing`, `/pay/success`, `/pay/failure`
+- قانوني: `/legal/terms`, `/legal/privacy`, `/legal/shipping`, `/legal/returns`
+- أخرى: `/order/track`, `/points`, `/prefs`
+- المصدر: `apps/mweb/src/main.ts`, `apps/mweb/src/routes.generated.ts`
+
+## 🛒 تدفق الشراء والطلبات (Web/mweb + API)
+- السلة: tRPC `cart.*` (إضافة/تحديث/حذف) في Web/mweb.
+- إنشاء الطلب: tRPC `orders.createOrder` ينقل عناصر السلة إلى `Order` ويعيد الطلب.
+- جلسة الدفع: `POST /api/payments/session` يعيد رابط مزود الدفع (Stripe جاهز عند ضبط المفاتيح).
+- التحويل والويبهوك: الواجهة تعيد توجيه المستخدم؛ الويبهوك `POST /webhooks/stripe` يثبّت الدفع ويحدّث حالة الطلب.
+- الولاء/النقاط: عند الدفع تُسجَّل نقاط الولاء في `PointLedger` تلقائياً.
+- الشحن: تسعير عبر `GET /api/shipping/quote`؛ لوحات الأدمن لإدارة الشحن والتسليم.
+- المستندات: `GET /api/admin/orders/:id/invoice.pdf` للفواتير و`GET /api/admin/shipments/:id/label.pdf` لملصقات الشحن.
+- الإرجاع: إدارة المرتجعات عبر صفحات `returns` و`rma` في الأدمن مع REST المقابل.
