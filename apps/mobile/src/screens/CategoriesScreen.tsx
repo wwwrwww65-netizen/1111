@@ -24,8 +24,8 @@ export default function CategoriesScreen({ navigation }: any) {
         estimatedItemSize={cardW}
         numColumns={cols}
         contentContainerStyle={{ paddingHorizontal: gap, paddingBottom: 24 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => navigation.navigate('search', { categoryId: item.id })} style={{ width: cardW, margin: gap/2 }}>
+        renderItem={({ item }: any) => (
+          <TouchableOpacity onPress={() => navigation.navigate('Search', { categoryId: item.id })} style={{ width: cardW, margin: gap/2 }}>
             <View style={{ height: cardW, backgroundColor: '#f4f4f5', borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontWeight: '600' }}>{item.name}</Text>
             </View>

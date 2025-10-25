@@ -41,9 +41,9 @@ export default function HomeScreen({ navigation }: any) {
               {it.title ? <Text style={{ fontSize: 18, fontWeight: '700', paddingHorizontal: 12 }}>{it.title}</Text> : null}
               <FlashList
                 horizontal
-                data={it.items}
+                data={it.items as any[]}
                 estimatedItemSize={140}
-                renderItem={({ item: ci }) => (
+                renderItem={({ item: ci }: any) => (
                   <TouchableOpacity onPress={() => onPressLink(ci.link)} style={{ marginHorizontal: 8 }}>
                     <Image source={{ uri: ci.imageUrl }} style={{ width: 140, height: 180, borderRadius: 10, backgroundColor: '#f2f2f2' }} contentFit="cover" />
                   </TouchableOpacity>

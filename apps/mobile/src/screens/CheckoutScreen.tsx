@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { useRemoteConfig } from '../remote-config';
 import { trpc } from '../trpc';
-import * as WebBrowser from 'expo-web-browser';
+// import * as WebBrowser from 'expo-web-browser';
 
 export default function CheckoutScreen({ navigation }: any) {
   const { checkout } = useRemoteConfig();
