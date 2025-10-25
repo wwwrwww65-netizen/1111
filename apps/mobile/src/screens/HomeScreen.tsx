@@ -18,6 +18,7 @@ export default function HomeScreen({ navigation }: any) {
   }
 
   return (
+    <>
     <FlashList
       data={home.sections}
       estimatedItemSize={200}
@@ -86,5 +87,6 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </View>
     </Modal>
+    </>
   );
 }

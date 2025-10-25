@@ -4,7 +4,6 @@ import * as SecureStore from 'expo-secure-store';
 import { trpc } from '../trpc';
 
 export default function AccountScreen({ navigation }: any) {
-  const utils = trpc.useUtils?.?.();
   const me = trpc.auth.me.useQuery(undefined, { retry: 0 });
   const logout = trpc.auth.logout.useMutation({
     onSuccess: async () => {
