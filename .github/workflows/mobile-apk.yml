@@ -134,6 +134,13 @@ jobs:
           node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.android=j.expo.android||{};j.expo.android.package=j.expo.android.package||'com.example.ecom';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('android.package ->',j.expo.android.package);"
           # Prebuild
           pnpm dlx expo prebuild --platform android --clean
+          # Patch settings.gradle to avoid missing expo-gradle-plugin includeBuild (pnpm layout)
+          SETTINGS=android/settings.gradle
+          if [ -f "$SETTINGS" ]; then
+            cp "$SETTINGS" "$SETTINGS.bak" || true
+            sed -i '/expo-modules-autolinking\/android\/expo-gradle-plugin/d' "$SETTINGS"
+            echo "Patched $SETTINGS to remove expo-gradle-plugin includeBuild"
+          fi
           # Build debug APK
           cd android
           chmod +x ./gradlew
