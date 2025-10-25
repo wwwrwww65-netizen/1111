@@ -15,18 +15,8 @@ export default function CheckoutScreen({ navigation }: any) {
       const ord = await createOrder.mutateAsync({});
       const amount = (cartData?.cart?.total ?? 0) as number;
       const pi = await createPI.mutateAsync({ amount, currency: 'usd', orderId: ord.order.id });
-      if (pi.clientSecret || pi.paymentIntentId) {
-        // For mock or 3DS redirect, open web flow if needed
-        if (!pi.clientSecret) {
-          Alert.alert('الدفع', 'تم إنشاء عملية الدفع (وضع اختبار)');
-          navigation.navigate('Root');
-        } else {
-          const result = await WebBrowser.openBrowserAsync(checkout.successLink);
-          if (result.type === 'opened') {
-            navigation.navigate('Root');
-          }
-        }
-      }
+      // Mock/Success path (no 3DS flow in CI): رجوع فوري
+      navigation.navigate('PaymentConfirm', { status: 'success' });
     } catch (e: any) {
       Alert.alert('خطأ', e?.message || 'فشل بدء الدفع');
     }
