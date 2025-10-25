@@ -15,6 +15,7 @@ import CartScreen from './src/screens/CartScreen';
 import CheckoutScreen from './src/screens/CheckoutScreen';
 import PageRenderer from './src/screens/PageRenderer';
 import AuthFlow from './src/screens/AuthFlow';
+import OrdersScreen from './src/screens/OrdersScreen';
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({ links: createTrpcLinks() });
@@ -51,6 +52,7 @@ export default function App() {
               <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'الدفع' }} />
               <Stack.Screen name="Page" component={PageRenderer} options={{ title: 'صفحة' }} />
               <Stack.Screen name="Auth" component={AuthFlow} options={{ title: 'تسجيل الدخول' }} />
+              <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'طلباتي' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </RemoteConfigProvider>

@@ -21,7 +21,7 @@ export default function CartScreen({ navigation }: any) {
               <Text>{item.product.name}</Text>
               <Text>x{item.quantity}</Text>
             </View>
-            <TouchableOpacity onPress={() => removeItem.mutate({ itemId: item.id })}>
+            <TouchableOpacity onPress={() => removeItem.mutate({ productId: item.product.id })}>
               <Text style={{ color: '#ef4444' }}>حذف</Text>
             </TouchableOpacity>
           </View>
