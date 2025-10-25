@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { trpc, createTrpcLinks } from './src/trpc';
-import { RemoteConfigProvider } from './src/remote-config';
+import { RemoteConfigProvider, useRemoteConfig } from './src/remote-config';
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({ links: createTrpcLinks() });
@@ -51,14 +51,21 @@ export default function App() {
 }
 
 function RootTabs() {
+  const { nav } = useRemoteConfig();
   return (
     <Tabs.Navigator screenOptions={{ headerShown: true }}>
-      <Tabs.Screen name="Home" component={ProductsScreen} options={{ title: 'الرئيسية' }} />
-      <Tabs.Screen name="Search" component={SearchScreen} options={{ title: 'البحث' }} />
-      <Tabs.Screen name="Categories" component={CategoriesScreen} options={{ title: 'التصنيفات' }} />
-      <Tabs.Screen name="Wishlist" component={WishlistScreen} options={{ title: 'المفضلة' }} />
-      <Tabs.Screen name="Account" component={AccountScreen} options={{ title: 'حسابي' }} />
-      <Tabs.Screen name="Cart" component={CartScreen} options={{ title: 'السلة' }} />
+      {nav.tabs?.map((t) => {
+        const title = t.title;
+        const name = t.key;
+        const component =
+          t.link === '/' ? ProductsScreen :
+          t.link.startsWith('/categories') ? CategoriesScreen :
+          t.link.startsWith('/wishlist') ? WishlistScreen :
+          t.link.startsWith('/account') ? AccountScreen :
+          t.link.startsWith('/cart') ? CartScreen :
+          t.link.startsWith('/search') ? SearchScreen : ProductsScreen;
+        return <Tabs.Screen key={name} name={name} component={component} options={{ title }} />
+      })}
     </Tabs.Navigator>
   );
 }

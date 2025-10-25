@@ -255,6 +255,82 @@ app.get('/mobile/config/home.json', async (_req, res) => {
   res.json(out);
 });
 
+// Navigation (header/tabs) manifest
+app.get('/mobile/config/nav.json', (_req, res) => {
+  const out = {
+    header: {
+      title: 'Jeeey',
+      actions: [ { icon: 'search', link: '/search' }, { icon: 'cart', link: '/cart' } ]
+    },
+    tabs: [
+      { key: 'home', title: 'الرئيسية', icon: 'home', link: '/' },
+      { key: 'categories', title: 'التصنيفات', icon: 'grid', link: '/categories' },
+      { key: 'wishlist', title: 'المفضلة', icon: 'heart', link: '/wishlist' },
+      { key: 'account', title: 'حسابي', icon: 'user', link: '/account' },
+      { key: 'cart', title: 'السلة', icon: 'shopping-bag', link: '/cart' }
+    ]
+  };
+  res.json(out);
+});
+
+// PDP blocks manifest
+app.get('/mobile/config/pdp.json', (_req, res) => {
+  const out = {
+    blocks: [
+      { type: 'images' },
+      { type: 'title-price' },
+      { type: 'variants', options: { color: true, sizeLetters: true, sizeNumbers: true } },
+      { type: 'inventory' },
+      { type: 'description' },
+      { type: 'actions', options: { addToCart: true, buyNow: true } }
+    ]
+  };
+  res.json(out);
+});
+
+// Categories manifest (layout/filters)
+app.get('/mobile/config/categories.json', (_req, res) => {
+  const out = {
+    layout: { columns: 3, gap: 8 },
+    showImages: true,
+    filters: [ 'price', 'brand', 'size', 'color' ]
+  };
+  res.json(out);
+});
+
+// Cart manifest
+app.get('/mobile/config/cart.json', (_req, res) => {
+  const out = {
+    showThumb: true,
+    showVendor: false,
+    totals: [ 'subtotal', 'shipping', 'discounts', 'total' ]
+  };
+  res.json(out);
+});
+
+// Checkout manifest
+app.get('/mobile/config/checkout.json', (_req, res) => {
+  const out = {
+    steps: [ 'address', 'shipping', 'payment', 'review' ],
+    paymentProviders: [ 'stripe' ],
+    successLink: '/pay/success',
+    failureLink: '/pay/failure'
+  };
+  res.json(out);
+});
+
+// Offers/placements manifest
+app.get('/mobile/config/offers.json', (_req, res) => {
+  const out = {
+    placements: {
+      homeTop: [{ bannerId: 'hero' }],
+      homeMid: [{ campaign: 'weekly-deals' }],
+      pdpBottom: [{ campaign: 'related' }]
+    }
+  };
+  res.json(out);
+});
+
 try {
   const swaggerDoc = YAML.load(__dirname + '/../openapi.yaml');
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
