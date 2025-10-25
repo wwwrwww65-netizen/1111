@@ -81,35 +81,44 @@ jobs:
 
       - name: Download APK artifact
         working-directory: apps/mobile
-        continue-on-error: true
         run: |
           eas build:download --latest --platform android --output app.apk || true
           if [ ! -s app.apk ]; then
             echo "APK not downloaded; listing recent builds to help debugging..."
             eas build:list --json --limit 5 --platform android || true
+            echo "HAVE_APK=0" >> $GITHUB_ENV
+          else
+            echo "HAVE_APK=1" >> $GITHUB_ENV
           fi
 
+      - name: Setup Java 17 (fallback)
+        if: env.HAVE_APK != '1'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK (fallback)
+        if: env.HAVE_APK != '1'
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses (fallback)
+        if: env.HAVE_APK != '1'
+        run: yes | sdkmanager --licenses
+
+      - name: Install required Android SDK packages (fallback)
+        if: env.HAVE_APK != '1'
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
       - name: Fallback - Local Debug APK build (no EAS credentials)
-        if: always()
+        if: env.HAVE_APK != '1'
         working-directory: apps/mobile
         run: |
-          if [ -s app.apk ]; then echo "EAS APK present, skipping local build"; exit 0; fi
           echo "Running local debug build fallback..."
-          cd $GITHUB_WORKSPACE
-          echo "Ensure workspace deps"
           pnpm install --no-frozen-lockfile --ignore-scripts
-          cd apps/mobile
-          # Setup Java & Android SDK
-          echo "Setting up Java and Android SDK"
-          sudo apt-get update
-          sudo apt-get install -y imagemagick pngcheck
-          echo "::group::Setup Java"
-          echo "Done"
-          echo "::endgroup::"
-          echo "::group::Android SDK"
-          sudo mkdir -p /usr/local/lib/android/sdk
-          echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
-          echo "::endgroup::"
+          # Ensure android package present
+          node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.android=j.expo.android||{};j.expo.android.package=j.expo.android.package||'com.example.ecom';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('android.package ->',j.expo.android.package);"
           # Prebuild
           pnpm dlx expo prebuild --platform android --clean
           # Build debug APK
