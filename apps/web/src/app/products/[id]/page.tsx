@@ -5,6 +5,24 @@ import React from "react";
 import { ProductCard } from "@repo/ui";
 import { useI18n } from "../../../lib/i18n";
 import { useAuthStore } from "@repo/ui/src/store/auth";
+function themeClass(theme?: string): string {
+  switch (theme) {
+    case 'rose': return 'bg-rose-50 hover:bg-rose-100 text-rose-700';
+    case 'amber': return 'bg-amber-50 hover:bg-amber-100 text-amber-700';
+    case 'emerald': return 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700';
+    case 'violet': return 'bg-violet-50 hover:bg-violet-100 text-violet-700';
+    default: return 'bg-orange-50 hover:bg-orange-100 text-orange-700';
+  }
+}
+function themeBg(theme?: string): string {
+  switch (theme) {
+    case 'rose': return '#f43f5e';
+    case 'amber': return '#f59e0b';
+    case 'emerald': return '#10b981';
+    case 'violet': return '#7c3aed';
+    default: return '#f97316';
+  }
+}
 
 export default function ProductDetail({ params }: { params: { id: string } }): JSX.Element {
   const { t } = useI18n();
@@ -29,6 +47,10 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
   if (!data) return <main className="p-8">Not found</main>;
 
   const product = data;
+  const [clubMeta, setClubMeta] = React.useState<any>(null);
+  React.useEffect(()=>{ (async()=>{
+    try{ const r = await fetch(`/api/product/${encodeURIComponent(product.id)}/meta`, { headers:{'accept':'application/json'} }); const j = await r.json(); setClubMeta(j?.meta?.clubBanner||null); }catch{ setClubMeta(null); }
+  })(); }, [product.id]);
   const images = product.images && product.images.length ? product.images : ["/images/placeholder-product.jpg"];
   const variants = Array.isArray((product as any).variants) ? (product as any).variants : [];
   // Build dimension sets from server-provided attributes (preferred) or derive from variants
@@ -146,6 +168,15 @@ export default function ProductDetail({ params }: { params: { id: string } }): J
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">{product.name}</h1>
           <div className="text-[#800020] text-xl md:text-2xl font-semibold mt-3">${product.price}</div>
+          {clubMeta?.enabled && clubMeta?.placement?.pdp?.enabled && (
+            <a href={clubMeta?.joinUrl||'/register?club=1'} className={`mt-2 flex items-center justify-between px-3 py-2.5 rounded ${themeClass(clubMeta?.style?.theme)} transition-colors`}>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: themeBg(clubMeta?.style?.theme) }}>S</div>
+                <span className="text-sm">{clubMeta?.text}</span>
+              </div>
+              <span className="text-xs opacity-70">انضم الآن</span>
+            </a>
+          )}
           <div className="mt-2">
             {product.stockQuantity > 0 ? (
               <span className="inline-flex items-center text-xs px-2 py-1 rounded-full border border-green-600 text-green-700">متوفر • {product.stockQuantity}</span>

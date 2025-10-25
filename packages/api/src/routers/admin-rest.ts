@@ -3674,6 +3674,50 @@ adminRest.put('/pdp/settings', async (req, res) => {
   } catch (e:any) { return res.status(500).json({ error: e.message||'pdp_settings_save_failed' }); }
 });
 
+  // ---------- Jeeey Club Banner Settings ----------
+  adminRest.get('/club/banner/settings', async (req, res) => {
+    try {
+      const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+      const key = 'club:banner:settings';
+      const row = await db.setting.findUnique({ where: { key } } as any).catch(()=>null) as any;
+      const defaults = {
+        enabled: false,
+        sites: ['mweb','web'],
+        discountType: 'percent',
+        discountValue: 5,
+        textTemplate: 'وفر بخصم {{amount}} ر.س بعد الانضمام',
+        joinUrl: '/register?club=1',
+        style: { theme: 'orange', rounded: true },
+        placement: { pdp: { enabled: true, position: 'price_below' } },
+        targeting: { products: { include: [], exclude: [] }, categories: { include: [], exclude: [] }, vendors: { include: [], exclude: [] }, brands: { include: [], exclude: [] } }
+      } as const;
+      const settings = row?.value ? Object.assign({}, defaults, row.value||{}) : defaults;
+      return res.json({ ok:true, settings });
+    } catch (e:any) { return res.status(500).json({ error: e.message||'club_banner_settings_get_failed' }); }
+  });
+
+  adminRest.put('/club/banner/settings', async (req, res) => {
+    try {
+      const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+      const key = 'club:banner:settings';
+      const payload = (req.body && typeof req.body==='object') ? req.body : {};
+      const normalized = {
+        enabled: !!payload.enabled,
+        sites: Array.isArray(payload.sites) ? payload.sites.filter((s:string)=> s==='web'||s==='mweb') : ['mweb','web'],
+        discountType: (payload.discountType==='fixed'?'fixed':'percent'),
+        discountValue: Number(payload.discountValue||0),
+        textTemplate: String(payload.textTemplate||'وفر بخصم {{amount}} ر.س بعد الانضمام'),
+        joinUrl: String(payload.joinUrl||'/register?club=1'),
+        style: (payload.style && typeof payload.style==='object') ? payload.style : { theme: 'orange', rounded: true },
+        placement: (payload.placement && typeof payload.placement==='object') ? payload.placement : { pdp: { enabled: true, position: 'price_below' } },
+        targeting: (payload.targeting && typeof payload.targeting==='object') ? payload.targeting : { products: { include: [], exclude: [] }, categories: { include: [], exclude: [] }, vendors: { include: [], exclude: [] }, brands: { include: [], exclude: [] } }
+      };
+      const row = await db.setting.upsert({ where: { key }, update: { value: normalized }, create: { key, value: normalized } } as any);
+      await audit(req, 'club.banner', 'settings_save', { });
+      return res.json({ ok:true, settings: row.value });
+    } catch (e:any) { return res.status(500).json({ error: e.message||'club_banner_settings_put_failed' }); }
+  });
+
 // ---------- SEO Defaults for Product (key 'seo:product:defaults') ----------
 adminRest.get('/seo/product/defaults', async (req, res) => {
   try {

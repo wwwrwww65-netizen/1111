@@ -169,16 +169,20 @@
       <div class="text-[22px] font-extrabold text-black">{{ displayPrice }}</div>
     </div>
 
-    <!-- SHEIN Club Bar -->
-    <div class="mx-4 mb-4 flex items-center justify-between px-3 py-2.5 bg-orange-50 rounded-md cursor-pointer hover:bg-orange-100 transition-colors">
+    <!-- Jeeey Club Bar (dynamic) -->
+    <div v-if="pdpMeta.clubBanner && pdpMeta.clubBanner.enabled && pdpMeta.clubBanner.placement?.pdp?.enabled"
+      class="mx-4 mb-4 flex items-center justify-between px-3 py-2.5 rounded-md cursor-pointer transition-colors"
+      :class="clubThemeClass"
+      role="button"
+      @click="goTo(pdpMeta.clubBanner.joinUrl||'/register?club=1')">
         <div class="flex items-center gap-2">
-        <div class="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-          <span class="text-white text-[11px] font-bold">S</span>
+          <div class="w-6 h-6 rounded-full flex items-center justify-center" :style="clubAvatarStyle">
+            <span class="text-white text-[11px] font-bold">S</span>
+          </div>
+          <span class="text-[13px]" :class="clubTextClass">{{ pdpMeta.clubBanner.text }}</span>
         </div>
-        <span class="text-[13px] text-gray-700">وفر بخصم 1.60 ر.س على هذا المنتج بعد الانضمام</span>
-        </div>
-      <ChevronLeft :size="16" class="text-gray-600" />
-        </div>
+        <ChevronLeft :size="16" class="text-gray-600" />
+    </div>
 
     <!-- Product Info -->
     <div class="px-4">
@@ -1842,6 +1846,34 @@ function injectHeadMeta(){
     setMeta('product:price:currency', 'SAR')
   }catch{}
 }
+// ==================== CLUB THEME HELPERS ====================
+const clubThemeClass = computed(()=>{
+  const theme = (pdpMeta.value as any)?.clubBanner?.style?.theme || 'orange'
+  switch (theme){
+    case 'rose': return 'bg-rose-50 hover:bg-rose-100'
+    case 'amber': return 'bg-amber-50 hover:bg-amber-100'
+    case 'emerald': return 'bg-emerald-50 hover:bg-emerald-100'
+    case 'violet': return 'bg-violet-50 hover:bg-violet-100'
+    default: return 'bg-orange-50 hover:bg-orange-100'
+  }
+})
+const clubTextClass = computed(()=>{
+  const theme = (pdpMeta.value as any)?.clubBanner?.style?.theme || 'orange'
+  switch (theme){
+    case 'rose': return 'text-rose-700'
+    case 'amber': return 'text-amber-700'
+    case 'emerald': return 'text-emerald-700'
+    case 'violet': return 'text-violet-700'
+    default: return 'text-orange-700'
+  }
+})
+const clubAvatarStyle = computed(()=>{
+  const theme = (pdpMeta.value as any)?.clubBanner?.style?.theme || 'orange'
+  const rounded = !!((pdpMeta.value as any)?.clubBanner?.style?.rounded ?? true)
+  const bg = theme==='rose'? '#f43f5e' : theme==='amber'? '#f59e0b' : theme==='emerald'? '#10b981' : theme==='violet'? '#7c3aed' : '#f97316'
+  return `background:${bg}; ${rounded? 'border-radius:12px' : 'border-radius:4px'}`
+})
+function goTo(url:string){ try{ window.location.href = url }catch{} }
 
 // Helper: update gallery based on selected color
 function dedup(arr: string[]): string[]{

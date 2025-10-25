@@ -255,7 +255,53 @@ shop.get('/product/:id/meta', async (req: any, res) => {
       const row: any = await db.setting.findUnique({ where: { key } } as any);
       meta = row ? row.value : null;
     } catch {}
-    const out = Object.assign({ badges: [], bestRank: null, fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null }, meta || {});
+    // Compute Jeeey Club banner based on global settings and product targeting
+    let clubBanner: any = null;
+    try {
+      const clubKey = 'club:banner:settings';
+      const srow: any = await db.setting.findUnique({ where: { key: clubKey } } as any).catch(()=>null);
+      const settings = srow?.value || null;
+      if (settings && settings.enabled) {
+        // Fetch minimal product fields for targeting and price computation
+        const p: any = await db.product.findUnique({ where: { id }, select: { id: true, price: true, categoryId: true, vendorId: true, brand: true } } as any).catch(()=>null);
+        if (p) {
+          const target = settings.targeting || {};
+          const inList = (arr: any, val: any): boolean => Array.isArray(arr) && arr.map(String).includes(String(val));
+          const includeOk = (
+            (!target.products?.include?.length || inList(target.products.include, p.id)) &&
+            (!target.categories?.include?.length || inList(target.categories.include, p.categoryId)) &&
+            (!target.vendors?.include?.length || (p.vendorId ? inList(target.vendors.include, p.vendorId) : false)) &&
+            (!target.brands?.include?.length || (p.brand ? inList(target.brands.include, p.brand) : false))
+          );
+          const excludeHit = (
+            (target.products?.exclude?.length && inList(target.products.exclude, p.id)) ||
+            (target.categories?.exclude?.length && inList(target.categories.exclude, p.categoryId)) ||
+            (target.vendors?.exclude?.length && (p.vendorId ? inList(target.vendors.exclude, p.vendorId) : false)) ||
+            (target.brands?.exclude?.length && (p.brand ? inList(target.brands.exclude, p.brand) : false))
+          );
+          if (includeOk && !excludeHit) {
+            const discountType = settings.discountType==='fixed' ? 'fixed' : 'percent';
+            const discountValue = Number(settings.discountValue||0);
+            const price = Number(p.price||0);
+            const amount = Math.max(0, discountType==='percent' ? Number((price * discountValue) / 100) : Math.min(discountValue, price));
+            const rounded = Math.round(amount * 100) / 100;
+            const textTemplate = String(settings.textTemplate||'وفر بخصم {{amount}} ر.س بعد الانضمام');
+            const text = textTemplate.replace(/\{\{\s*amount\s*\}\}/g, String(rounded));
+            clubBanner = {
+              enabled: true,
+              amount: rounded,
+              discountType,
+              discountValue,
+              text,
+              joinUrl: settings.joinUrl || '/register?club=1',
+              style: settings.style || { theme: 'orange', rounded: true },
+              placement: settings.placement || { pdp: { enabled: true, position: 'price_below' } },
+            };
+          }
+        }
+      }
+    } catch {}
+    const out = Object.assign({ badges: [], bestRank: null, fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null }, meta || {}, { clubBanner });
     return res.json({ productId: id, meta: out });
   } catch (e:any) {
     return res.status(500).json({ error: e?.message || 'pdp_meta_failed' });

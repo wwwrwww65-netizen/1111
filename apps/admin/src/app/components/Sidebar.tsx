@@ -115,6 +115,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     title: 'الولاء و JEEEY Club',
     items: [
       { href: '/loyalty', label: 'JEEEY Club' },
+      { href: '/loyalty/club-banner', label: 'شريط خصم JEEEY Club' },
       { href: '/loyalty/points', label: 'النقاط' },
       { href: '/loyalty/points-log', label: 'سجل النقاط' },
       { href: '/badges', label: 'الشارات' },
