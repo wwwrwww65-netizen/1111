@@ -9,6 +9,10 @@ import * as Linking from 'expo-linking';
 import { trpc, createTrpcLinks } from './src/trpc';
 import { RemoteConfigProvider, useRemoteConfig } from './src/remote-config';
 import HomeScreen from './src/screens/HomeScreen';
+import ProductScreen from './src/screens/ProductScreen';
+import CategoriesScreen from './src/screens/CategoriesScreen';
+import CartScreen from './src/screens/CartScreen';
+import CheckoutScreen from './src/screens/CheckoutScreen';
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({ links: createTrpcLinks() });
