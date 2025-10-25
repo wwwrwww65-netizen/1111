@@ -186,32 +186,36 @@
 
     <!-- Product Info -->
     <div class="px-4">
-      <div class="flex items-center gap-2 mb-2">
-        <div class="flex items-center gap-1">
+      <div class="flex items-center justify-between mb-2">
+        <div v-if="reviews.length" class="flex items-center gap-1">
           <StarIcon :size="14" class="text-yellow-400 fill-yellow-400" />
           <span class="font-bold text-[14px]">{{ avgRating.toFixed(1) }}</span>
-          <span class="text-gray-600 text-[13px]">(+{{ reviews.length || 1000 }})</span>
+          <span class="text-gray-600 text-[13px]">(+{{ reviews.length }})</span>
         </div>
+        <h1 class="text-[13px] leading-relaxed text-gray-800 text-right">
+          {{ title }}
+        </h1>
+      </div>
+
+      <div class="mb-1">
         <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-top-'+i" class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" :style="b.bgColor ? ('background-color:'+b.bgColor) : 'background-color:#8a1538'">{{ b.title }}</span>
       </div>
 
-      <h1 class="text-[13px] leading-relaxed text-gray-800 mb-3">
-        {{ title }}
-      </h1>
-
-      <!-- Customer Images Badge -->
-      <div class="flex items-center justify-between mb-4">
+      <!-- Best-seller Strip (club style) -->
+      <div v-if="pdpMeta.bestRank" class="mb-4 flex items-center justify-between px-3 py-2.5 rounded-md" :class="clubThemeClass">
+        <!-- Left side: thumbnails + arrow (far left) -->
         <div class="flex items-center gap-2">
+          <ChevronLeft :size="16" class="text-gray-600" />
           <div class="flex -space-x-2">
-            <div v-for="i in 3" :key="i" class="w-8 h-8 rounded-full border-2 border-white overflow-hidden">
-              <img :src="images[i % images.length]" class="w-full h-full object-cover" loading="lazy" decoding="async" sizes="64px" />
-      </div>
-      </div>
-          <span class="text-[12px] text-gray-600">في أصفر الزراء أنت قُم & كابتن</span>
-      </div>
-        <div class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full">
-          <span class="text-[11px] font-bold" v-if="pdpMeta.bestRank">#{{ pdpMeta.bestRank }} الأفضل مبيعاً</span>
-          <Camera :size="14" />
+            <div v-for="i in 3" :key="'thumb-'+i" class="w-8 h-8 rounded-full border-2 border-white overflow-hidden">
+              <img :src="imageAt(i)" class="w-full h-full object-cover" loading="lazy" decoding="async" sizes="64px" />
+            </div>
+          </div>
+        </div>
+        <!-- Right side: best seller badge + category -->
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center h-[20px] px-1.5 text-[11px] font-semibold rounded" style="background:rgb(255,232,174); color:#c77210">#{{ pdpMeta.bestRank }} الأفضل مبيعاً</span>
+          <span class="text-[12px]" :class="clubTextClass">في {{ categoryName || 'هذه الفئة' }}</span>
         </div>
       </div>
 
@@ -464,12 +468,37 @@
             <span class="text-[13px] text-gray-600 cursor-pointer">عرض الكل ◀</span>
       </div>
 
-          <!-- Overall Rating -->
-          <div class="text-center mb-4">
-            <div class="flex justify-center mb-2">
-              <StarIcon v-for="i in 5" :key="i" :size="20" class="text-yellow-400 fill-yellow-400" />
+          <!-- Overall Rating + 3 progress bars (Small / True / Large) -->
+          <div v-if="reviews.length" class="mb-4">
+            <div class="text-center mb-4">
+              <div class="flex justify-center mb-2">
+                <StarIcon v-for="i in 5" :key="i" :size="20" class="text-yellow-400 fill-yellow-400" />
+              </div>
+              <div class="text-[32px] font-bold">{{ avgRating.toFixed(2) }}</div>
             </div>
-            <div class="text-[32px] font-bold">{{ avgRating.toFixed(2) }}</div>
+            <div class="grid grid-cols-3 gap-2 items-end">
+              <div class="flex flex-col gap-1 items-start">
+                <span class="text-[12px] text-gray-600">صغير</span>
+                <div class="w-full h-2 bg-gray-200 rounded overflow-hidden" style="min-width:80px">
+                  <div class="h-full" :style="barStyle(fitSmallPct)"></div>
+                </div>
+                <span class="text-[11px] text-gray-600">{{ fitSmallPct }}%</span>
+              </div>
+              <div class="flex flex-col gap-1 items-center">
+                <span class="text-[12px] text-gray-600">مناسب</span>
+                <div class="w-full h-2 bg-gray-200 rounded overflow-hidden" style="min-width:80px">
+                  <div class="h-full" :style="barStyle(fitTruePct)"></div>
+                </div>
+                <span class="text-[11px] text-gray-600">{{ fitTruePct }}%</span>
+              </div>
+              <div class="flex flex-col gap-1 items-end">
+                <span class="text-[12px] text-gray-600">كبير</span>
+                <div class="w-full h-2 bg-gray-200 rounded overflow-hidden" style="min-width:80px">
+                  <div class="h-full" :style="barStyle(fitLargePct)"></div>
+                </div>
+                <span class="text-[11px] text-gray-600">{{ fitLargePct }}%</span>
+              </div>
+            </div>
           </div>
 
           <!-- Fit Survey -->
@@ -766,6 +795,7 @@ const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
+const categoryName = ref<string>('')
 const safeDescription = computed(()=>{
   try{
     const html = String(product.value?.description||'')
@@ -925,12 +955,7 @@ const priceRef = ref<HTMLDivElement | null>(null)
 const sizeSelectorRef = ref<HTMLDivElement | null>(null)
 const firstContainerEnd = ref<HTMLDivElement | null>(null)
 
-// Tabs
-const tabs = ref([
-  { key: 'products', label: 'سلع' },
-  { key: 'reviews', label: 'تعليقات' },
-  { key: 'recommendations', label: 'التوصية' }
-])
+// Tabs (reviews tab appears only when there are reviews; defined after reviews ref)
 const activeTab = ref('products')
 const tabsRef = ref<HTMLDivElement | null>(null)
 const tabsSticky = ref(false)
@@ -1009,6 +1034,12 @@ const customerReviews = ref<CustomerReview[]>([
     size: 'M',
     helpful: 8
   }
+])
+
+// Tabs depend on reviews availability (initialized later once reviews defined)
+const tabs = ref<Array<{ key:string; label:string }>>([
+  { key: 'products', label: 'سلع' },
+  { key: 'recommendations', label: 'التوصية' }
 ])
 
 // ==================== RECOMMENDED PRODUCTS ====================
@@ -1166,6 +1197,14 @@ watch(reviews, ()=>{
   }catch{}
 }, { immediate: true })
 
+// Fit distribution (placeholder logic; in production derive from reviews meta)
+const fitSmallPct = computed(()=> 2)
+const fitTruePct = computed(()=> Math.max(0, Math.min(100, Math.round((pdpMeta.value.fitPercent ?? 96)))))
+const fitLargePct = computed(()=> Math.max(0, 100 - fitTruePct.value - fitSmallPct.value))
+function barStyle(pct: number): string {
+  return `width:${Math.max(0, Math.min(100, pct))}%; background-color:#8a1538;`
+}
+
 // Cart & Wishlist
 const cart = useCart()
 const toast = ref(false)
@@ -1190,7 +1229,7 @@ async function addToCartInternal(){
 }
 const hasWish = ref(false)
 // PDP Meta (badges, bestRank, fit, model, shipping destination override)
-const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null }>({ badges: [] })
+const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null; clubBanner?: { enabled:boolean; amount:number; discountType:'percent'|'fixed'; discountValue:number; text:string; joinUrl?:string; style?: { theme?: string; rounded?: boolean }; placement?: { pdp?: { enabled:boolean; position?: string } } }|null }>({ badges: [] })
 async function loadPdpMeta(){
   try{
     const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/meta`)
@@ -1409,6 +1448,13 @@ onMounted(()=>{
   loadSeller()
   trackViewItem()
   injectHeadMeta()
+  try{
+    const hasAny = (!!reviews.value?.length) || (!!customerReviews.value?.length)
+    const base = [ { key:'products', label:'سلع' } ] as Array<{key:string;label:string}>
+    if (hasAny) base.push({ key:'reviews', label:'تعليقات' })
+    base.push({ key:'recommendations', label:'التوصية' })
+    tabs.value = base
+  }catch{}
 })
 
 onBeforeUnmount(()=> {
@@ -1437,6 +1483,7 @@ async function loadProductData() {
       // defer color/size mapping to normalized loader
       original.value = ''
       categorySlug.value = String(d?.category?.slug||'')
+      categoryName.value = String(d?.category?.name||'')
       brand.value = String(d?.brand||'')
       
       // Sizes from API if available (accept only real size tokens)
@@ -1874,6 +1921,14 @@ const clubAvatarStyle = computed(()=>{
   return `background:${bg}; ${rounded? 'border-radius:12px' : 'border-radius:4px'}`
 })
 function goTo(url:string){ try{ window.location.href = url }catch{} }
+function imageAt(i:number): string {
+  try{
+    const arr = images.value||[]
+    if (!Array.isArray(arr) || arr.length===0) return '/images/placeholder-product.jpg'
+    const idx = Math.max(0, (i % arr.length))
+    return arr[idx]
+  }catch{ return '/images/placeholder-product.jpg' }
+}
 
 // Helper: update gallery based on selected color
 function dedup(arr: string[]): string[]{

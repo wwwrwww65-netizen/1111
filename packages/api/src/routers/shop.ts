@@ -257,6 +257,7 @@ shop.get('/product/:id/meta', async (req: any, res) => {
     } catch {}
     // Compute Jeeey Club banner based on global settings and product targeting
     let clubBanner: any = null;
+    let bestRank: number | null = null;
     try {
       const clubKey = 'club:banner:settings';
       const srow: any = await db.setting.findUnique({ where: { key: clubKey } } as any).catch(()=>null);
@@ -265,6 +266,24 @@ shop.get('/product/:id/meta', async (req: any, res) => {
         // Fetch minimal product fields for targeting and price computation
         const p: any = await db.product.findUnique({ where: { id }, select: { id: true, price: true, categoryId: true, vendorId: true, brand: true } } as any).catch(()=>null);
         if (p) {
+          // Best-seller rank within category (last 90 days, delivered/paid/shipped)
+          try {
+            if (p.categoryId) {
+              const top: Array<{ productId: string; qty: number }> = await (db as any).$queryRawUnsafe(
+                `select oi."productId" as "productId", sum(oi.quantity)::int as qty
+                 from "OrderItem" oi
+                 join "Order" o on o.id = oi."orderId"
+                 join "Product" pr on pr.id = oi."productId"
+                 where pr."categoryId" = $1
+                   and oi."createdAt" > now() - interval '90 days'
+                   and o.status in ('PAID','SHIPPED','DELIVERED')
+                 group by oi."productId"
+                 order by qty desc
+                 limit 50`, p.categoryId);
+              const idx = Array.isArray(top) ? top.findIndex((r:any)=> String(r.productId)===String(p.id)) : -1;
+              bestRank = (idx>=0) ? (idx+1) : null;
+            }
+          } catch {}
           const target = settings.targeting || {};
           const inList = (arr: any, val: any): boolean => Array.isArray(arr) && arr.map(String).includes(String(val));
           const includeOk = (
@@ -301,7 +320,7 @@ shop.get('/product/:id/meta', async (req: any, res) => {
         }
       }
     } catch {}
-    const out = Object.assign({ badges: [], bestRank: null, fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null }, meta || {}, { clubBanner });
+    const out = Object.assign({ badges: [], bestRank: bestRank, fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null }, meta || {}, { clubBanner, bestRank });
     return res.json({ productId: id, meta: out });
   } catch (e:any) {
     return res.status(500).json({ error: e?.message || 'pdp_meta_failed' });
