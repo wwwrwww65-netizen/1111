@@ -60,7 +60,7 @@ jobs:
           if [ -z "${{ env.EXPO_TOKEN }}" ]; then echo "EXPO_TOKEN is missing in Secrets" && exit 1; fi
           if [ -z "${{ env.EXPO_PUBLIC_TRPC_URL }}" ]; then echo "Warning: EXPO_PUBLIC_TRPC_URL is not set; using app.json default"; fi
 
-      - name: Build APK with EAS
+      - name: Build APK with EAS (remote if project linked)
         working-directory: apps/mobile
         env:
           EXPO_PUBLIC_TRPC_URL: ${{ env.EXPO_PUBLIC_TRPC_URL }}
@@ -68,15 +68,32 @@ jobs:
         run: |
           PROFILE=${{ github.event.inputs.profile || 'preview' }}
           echo "Using EAS profile: $PROFILE"
-          eas build --platform android --profile "$PROFILE" --non-interactive
+          if [ -n "$EAS_PROJECT_ID" ]; then
+            echo "EAS_PROJECT_ID detected -> remote build"
+            eas build --platform android --profile "$PROFILE" --non-interactive
+          else
+            echo "No EAS_PROJECT_ID -> using local build"
+            eas build --local --platform android --profile "$PROFILE" --non-interactive
+          fi
 
-      - name: Download APK artifact
+      - name: Download APK artifact (remote) / Collect local artifact
         working-directory: apps/mobile
         run: |
-          eas build:download --latest --platform android --output app.apk || true
-          if [ ! -s app.apk ]; then
-            echo "APK not downloaded; listing recent builds to help debugging..."
-            eas build:list --json --limit 5 --platform android || true
+          if [ -n "${{ env.EAS_PROJECT_ID }}" ]; then
+            eas build:download --latest --platform android --output app.apk || true
+            if [ ! -s app.apk ]; then
+              echo "APK not downloaded; listing recent builds to help debugging..."
+              eas build:list --json --limit 5 --platform android || true
+            fi
+          else
+            echo "Searching for local APK..."
+            APK=$(ls -1 ./*.apk android/app/build/outputs/**/*.apk .eas/build/**/**/*.apk 2>/dev/null | head -n1 || true)
+            if [ -n "$APK" ]; then
+              cp "$APK" app.apk
+              echo "Found local APK: $APK"
+            else
+              echo "Local APK not found"; exit 1
+            fi
           fi
 
       - name: Upload APK artifact
