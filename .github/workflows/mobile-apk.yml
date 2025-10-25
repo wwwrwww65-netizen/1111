@@ -48,6 +48,22 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
+      - name: Ensure EAS project linking
+        working-directory: apps/mobile
+        env:
+          EAS_PROJECT_ID: ${{ env.EAS_PROJECT_ID }}
+        run: |
+          set -e
+          node -e "const fs=require('fs');const p='app.json';const cfg=JSON.parse(fs.readFileSync(p,'utf8'));const id=cfg?.expo?.extra?.eas?.projectId; if(id){console.log('EAS projectId present:', id); process.exit(0);} process.exit(1)" && HAS_ID=1 || HAS_ID=0
+          if [ "$HAS_ID" -eq 0 ]; then
+            if [ -n "$EAS_PROJECT_ID" ]; then
+              node -e "const fs=require('fs');const p='app.json';const cfg=JSON.parse(fs.readFileSync(p,'utf8')); cfg.expo=cfg.expo||{}; cfg.expo.extra=cfg.expo.extra||{}; cfg.expo.extra.eas=cfg.expo.extra.eas||{}; cfg.expo.extra.eas.projectId='${EAS_PROJECT_ID}'; fs.writeFileSync(p, JSON.stringify(cfg,null,2)); console.log('Injected EAS projectId');"
+            else
+              echo "Linking project to EAS (no projectId found)"
+              eas project:init --non-interactive --name "E-commerce Mobile App" || eas init --non-interactive || true
+            fi
+          fi
+
       - name: Type check (mobile)
         working-directory: apps/mobile
         run: pnpm exec tsc -p tsconfig.json --noEmit
