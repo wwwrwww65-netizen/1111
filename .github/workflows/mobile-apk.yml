@@ -1,17 +1,15 @@
 name: Mobile - Build Android APK
 
 on:
+  push:
+    branches:
+      - '**'
   workflow_dispatch:
     inputs:
       profile:
         description: EAS profile to use (preview/internal/production)
         required: false
         default: preview
-  push:
-    paths:
-      - 'apps/mobile/**'
-      - 'packages/**'
-      - 'pnpm-lock.yaml'
 
 permissions:
   contents: read
@@ -38,8 +36,10 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
+      - name: Install dependencies (no frozen lockfile)
+        run: |
+          pnpm config set frozen-lockfile false
+          pnpm install --no-frozen-lockfile
 
       - name: Setup Expo & EAS
         uses: expo/expo-github-action@v8
