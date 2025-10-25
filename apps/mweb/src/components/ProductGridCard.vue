@@ -65,6 +65,7 @@ type P = {
 }
 
 const props = defineProps<{ product: P }>()
+const emit = defineEmits<{ (e:'add', id: string): void }>()
 const router = useRouter()
 const cart = useCart()
 
@@ -95,7 +96,7 @@ const gallery = computed(()=> {
 })
 
 function open(){ if (id.value) router.push(`/p?id=${encodeURIComponent(id.value)}`) }
-function add(){ cart.add({ id: id.value, title: title.value, price: Number((basePrice.value||'0').toString().replace(/[^\d.]/g,''))||0, img: gallery.value[0]||'' }, 1) }
+function add(){ if (id.value){ emit('add', id.value); return } cart.add({ id: id.value, title: title.value, price: Number((basePrice.value||'0').toString().replace(/[^\d.]/g,''))||0, img: gallery.value[0]||'' }, 1) }
 </script>
 
 <style scoped>

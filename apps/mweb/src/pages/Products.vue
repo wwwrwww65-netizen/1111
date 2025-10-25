@@ -174,7 +174,10 @@
     <section class="px-2 py-2">
       <div class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'product-'+i" class="mb-1 break-inside-avoid">
-          <ProductGridCard :product="{ id: p.id, title: p.title, images: (p.images && p.images.length ? p.images : [p.image]), overlayBannerSrc: (p as any).overlayBannerSrc, overlayBannerAlt: (p as any).overlayBannerAlt, brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.basePrice, soldPlus: p.soldPlus, couponPrice: p.couponPrice }" />
+          <ProductGridCard 
+            :product="{ id: p.id, title: p.title, images: (p.images && p.images.length ? p.images : [p.image]), overlayBannerSrc: (p as any).overlayBannerSrc, overlayBannerAlt: (p as any).overlayBannerAlt, brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.basePrice, soldPlus: p.soldPlus, couponPrice: p.couponPrice }"
+            @add="onCardAdd(p)"
+          />
         </div>
       </div>
       <div style="height:80px" />
@@ -187,6 +190,20 @@
         <span class="text-[12px] text-gray-500">جاري التحميل...</span>
       </div>
     </div>
+
+    <!-- Modal for options from cards -->
+    <ProductOptionsModal
+      v-if="modalOpen"
+      :onClose="()=>{ modalOpen=false }"
+      :onSave="onModalSave"
+      :product="modalProduct"
+      :selectedColor="modalColor"
+      :selectedSize="modalSize"
+      :groupValues="undefined"
+      :hideTitle="true"
+      primaryLabel="إضافة إلى السلة"
+      :showWishlist="false"
+    />
   </div>
 </template>
 
@@ -207,6 +224,8 @@ import {
   Store,
 } from 'lucide-vue-next';
 import ProductGridCard from '@/components/ProductGridCard.vue'
+import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
+import { apiGet } from '@/lib/api'
 
 const router = useRouter();
 const cart = useCart();
@@ -418,6 +437,65 @@ function addToCart(product: any) {
     variantColor: product.colors?.[0] || 'أبيض',
     variantSize: 'M'
   });
+}
+
+// Modal state for card add-to-cart
+const modalOpen = ref(false)
+const modalProduct = ref<any|null>(null)
+const modalColor = ref('')
+const modalSize = ref('')
+const modalGroups = ref<Array<{ label:string; values:string[] }>>([])
+async function openOptions(pid: string){
+  try{
+    modalOpen.value = true
+    modalProduct.value = null
+    // fetch product details (reuse PDP endpoint)
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(pid)}`)
+    const imgs = Array.isArray(d.images)? d.images : []
+    const colors = Array.isArray(d.colorGalleries) ? d.colorGalleries.map((g:any)=> ({ label: g.name, img: g.primaryImageUrl || g.images?.[0] || imgs[0] || '/images/placeholder-product.jpg' })) : []
+    // size groups: derive as in PDP (simple two groups heuristic)
+    const sizes: string[] = Array.isArray(d.sizes)? d.sizes : []
+    const letters = sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
+    const numbers = sizes.filter((s:string)=> /^\d{1,3}$/.test(String(s)))
+    const groups: Array<{label:string; values:string[]}> = []
+    if (letters.length) groups.push({ label:'مقاسات بالأحرف', values: letters })
+    if (numbers.length) groups.push({ label:'مقاسات بالأرقام', values: numbers })
+    modalGroups.value = groups
+    modalProduct.value = { id: d.id||pid, title: d.name||'', price: Number(d.price||0), images: imgs, colors, sizes, sizeGroups: groups }
+    modalColor.value = colors?.[0]?.label || ''
+    modalSize.value = ''
+  }catch{ modalProduct.value = { id: pid, title:'', price:0, images: [], colors: [], sizes: [], sizeGroups: [] } }
+}
+function onModalSave(payload: { color: string; size: string }){
+  try{
+    const color = payload?.color || ''
+    const size = payload?.size || ''
+    if (!modalProduct.value) return
+    cart.add({ id: modalProduct.value.id, title: modalProduct.value.title, price: Number(modalProduct.value.price||0), img: (modalProduct.value.images?.[0]||''), variantColor: color||undefined, variantSize: size||undefined }, 1)
+  }finally{ modalOpen.value = false }
+}
+
+// Card add handler: if product has no options, add directly with toast; else open modal
+async function onCardAdd(p: any){
+  try{
+    const id = p.id
+    // quick probe: fetch minimal product details
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
+    const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+    const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+    const hasColors = colorsCount > 1 // لونان فأكثر فقط تتطلب اختيار
+    const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+    const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+    const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+    if (!hasColors && !hasSizes){
+      cart.add({ id, title: p.title, price: parseFloat(p.basePrice), img: (p.images&&p.images[0])||p.image }, 1)
+      return
+    }
+    await openOptions(id)
+  }catch{
+    // fallback: add directly
+    cart.add({ id: p.id, title: p.title, price: parseFloat(p.basePrice), img: (p.images&&p.images[0])||p.image }, 1)
+  }
 }
 
 // تحميل المزيد من المنتجات

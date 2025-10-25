@@ -118,6 +118,7 @@
 
             <!-- Variant chip oval gray with chevron-down -->
             <button
+              v-if="hasOptions(item.id)"
               @click="openOptions(item.uid)"
               class="inline-flex items-center gap-1 px-3 h-7 rounded-full bg-gray-100 text-[11px] text-gray-700 border border-gray-200"
               aria-label="تعديل اللون والمقاس"
@@ -231,7 +232,10 @@
         <div v-else class="px-2 py-2">
           <div class="columns-2 gap-1 [column-fill:_balance]">
             <div v-for="(p,i) in suggested" :key="'sug-'+i" class="mb-1 break-inside-avoid">
-              <ProductGridCard :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice }" />
+              <ProductGridCard 
+                :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice }"
+                @add="openSuggestOptions"
+              />
             </div>
           </div>
         </div>
@@ -250,12 +254,23 @@
       </button>
     </footer>
 
-    <!-- Toast notification -->
-    <div v-if="toast" class="fixed inset-0 flex items-center justify-center z-[60]">
-      <div class="bg-black/80 text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg">
-        {{ toastText }}
-      </div>
+    <!-- Toast notification (مطابق لصفحة المنتج) -->
+    <div 
+      v-if="toast" 
+      class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2"
+    >
+      <CheckCircle class="w-4 h-4 text-green-400" />
+      <span>{{ toastText }}</span>
     </div>
+
+    <!-- إشعار: يرجى تحديد الخيارات (نفس صفحة المنتج) -->
+    <Transition name="fade">
+      <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+        <div class="bg-black/80 text-white text-[13px] px-4 py-2.5 rounded-md shadow-lg">
+          يرجى تحديد الخيارات
+        </div>
+      </div>
+    </Transition>
 
     <!-- مساحة إضافية للشريط السفلي عندما تكون السلة ممتلئة -->
     <div v-if="items.length" class="h-16"></div>
@@ -269,6 +284,9 @@
       :selectedColor="optionsModal.color"
       :selectedSize="optionsModal.size"
       :groupValues="optionsModal.groupValues"
+      :hideTitle="optionsModal.source==='edit' ? false : true"
+      :primaryLabel="optionsModal.source==='edit' ? 'تحديث' : 'أضف إلى عربة التسوق بنجاح'"
+      :showWishlist="false"
     />
   </div>
 </template>
@@ -321,7 +339,8 @@ const optionsModal = reactive({
   color: '',
   size: '',
   galleryIndex: 0,
-  groupValues: {} as Record<string,string>
+  groupValues: {} as Record<string,string>,
+  source: 'edit' as 'edit'|'suggest'
 })
 
 const optionsCache = reactive<Record<string, any>>({})
@@ -381,6 +400,9 @@ function showToast(msg: string){
   toast.value = true
   setTimeout(()=>{ toast.value = false }, 1200)
 }
+
+// إشعار نقص الخيارات (مطابق لصفحة المنتج)
+const requireOptionsNotice = ref(false)
 
 function stripGroupLabels(title: string): string{
   try{
@@ -448,6 +470,7 @@ function changeQty(uid: string, delta: number) {
 async function openOptions(uid: string) {
   const item = items.value.find(i => i.uid === uid)
   if (item) {
+    optionsModal.source = 'edit'
     optionsModal.productId = item.id
     ;(optionsModal as any).uid = uid
     optionsModal.color = item.variantColor || 'أبيض'
@@ -465,13 +488,49 @@ function closeOptionsModal() {
 }
 
 function onOptionsSave(payload: { color: string; size: string }){
+  const isSuggest = (optionsModal as any).source === 'suggest'
+  const prod = optionsProduct.value
+  // تحقق من اكتمال الخيارات (المقاسات مطلوبة فقط عند وجودها)
+  try{
+    const groups = Array.isArray(prod?.sizeGroups) ? prod!.sizeGroups : []
+    if (groups.length){
+      const composite = String(payload.size||'')
+      const missing = groups.some(g=> !new RegExp(`(?:^|\|)${g.label}:[^|]+`).test(composite))
+      if (missing){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value = false, 2000); return }
+    } else {
+      const hasSizes = Array.isArray(prod?.sizes) && prod!.sizes.length>0
+      if (hasSizes && !String(payload.size||'').trim()){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value = false, 2000); return }
+    }
+  }catch{}
+
+  // مسار بطاقات التوصيات: أضف عنصراً جديداً إلى السلة
+  if (isSuggest || !(optionsModal as any).uid){
+    try{
+      const opt = optionsCache[optionsModal.productId]
+      let img: string | undefined = undefined
+      if (opt && Array.isArray(opt.colors)){
+        const c = opt.colors.find((x:any)=> String(x.label||'').trim() === String(payload.color||'').trim())
+        if (c && c.img) img = c.img
+      }
+      if (!img){
+        const imgs = Array.isArray(prod?.images) ? prod!.images : []
+        img = imgs && imgs[0] ? imgs[0] : '/images/placeholder-product.jpg'
+      }
+      const chosenColor = String(payload.color||'') || (Array.isArray(prod?.colors) && prod!.colors[0]?.label) || ''
+      const chosenSize = String(payload.size||'') || undefined
+      cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: chosenColor || undefined, variantSize: chosenSize || undefined }, 1)
+      showToast('تمت الإضافة إلى السلة')
+    }catch{}
+    optionsModal.open = false
+    return
+  }
+
+  // مسار تعديل عنصر موجود في السلة
   const uid = (optionsModal as any).uid as string
   const it = items.value.find(i=> i.uid === uid)
-  if (!it) return
-  // حفظ اللون والمقاس داخل عنصر السلة (ابقاء القيم كما هي إن لم تتغير)
+  if (!it) { optionsModal.open = false; return }
   if (payload.color) it.variantColor = payload.color
   if (payload.size) it.variantSize = payload.size
-  // حاول ضبط صورة البطاقة حسب اللون المختار من الكاش
   try{
     const pid = optionsModal.productId
     const opt = optionsCache[pid]
@@ -480,7 +539,6 @@ function onOptionsSave(payload: { color: string; size: string }){
       if (c && c.img){ it.img = c.img }
     }
   }catch{}
-  // حدث عنصر السلة واحفظ
   cart.upsertVariantMeta(uid, { color: payload.color, size: payload.size, img: it.img })
   optionsModal.open = false
 }
@@ -573,7 +631,8 @@ async function fetchProductDetails(id: string){
       images: filteredImgs.length ? filteredImgs : [items.value.find(i=>i.id===id)?.img || '/images/placeholder-product.jpg'],
       colors,
       sizes: sizes.length ? sizes : Array.from(new Set(variants.map((v:any)=> String(v.size||v.value||v.name||'').trim()).filter(Boolean))),
-      sizeGroups
+      sizeGroups,
+      colorGalleries: galleries
     }
     return optionsCache[id]
   }catch{}
@@ -676,6 +735,41 @@ function goLogin(){ router.push('/login?next=/cart') }
 function openProduct(p:any){ const id = typeof p==='string'? p : (p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(String(id))}`) }
 function addSugToCart(p:any){
   cart.add({ id: String(p.id), title: String(p.title), price: Number(p.price||0), img: String(p.image||'') }, 1)
+}
+
+// Open options modal from suggested grid cards
+async function openSuggestOptions(id: string){
+  try{
+    // Probe product to decide if options are needed
+    const base = (await import('@/lib/api')).API_BASE
+    const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { headers:{ 'Accept':'application/json' } })
+    if (res.ok){
+      const d = await res.json()
+      const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+      const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+      const hasColors = colorsCount > 1
+      const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+      const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+      const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+      if (!hasColors && !hasSizes){
+        const p = suggested.value.find(x=> String(x.id)===String(id))
+        if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(p.price||0), img: String(p.image||'') }, 1); showToast('تمت الإضافة إلى السلة') }
+        return
+      }
+    }
+  }catch{}
+  // Has options → open modal
+  try{
+    optionsModal.source = 'suggest'
+    optionsModal.productId = id
+    optionsModal.color = ''
+    optionsModal.size = ''
+    optionsModal.groupValues = {}
+    optionsModal.open = true
+    await fetchProductDetails(id)
+    // محاكاة إضافة إلى السلة عند الحفظ لعرض نفس توست صفحة المنتج
+    ;(optionsModal as any)._afterSaveAdd = true
+  }catch{}
 }
 
 function goShippingAddresses(){

@@ -704,6 +704,30 @@
       </div>
     </div>
   </div>
+  <!-- إشعار: يرجى تحديد الخيارات (يظهر فوق النافذة) -->
+  <Transition name="fade">
+    <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+      <div class="bg-black/80 text-white text-[13px] px-4 py-2.5 rounded-md shadow-lg">
+        يرجى تحديد الخيارات
+      </div>
+    </div>
+  </Transition>
+  <!-- Modal: pick options if missing -->
+<ProductOptionsModal
+    v-if="optionsModalOpen"
+    :onClose="()=>{ optionsModalOpen=false }"
+    :onSave="onOptionsModalSave"
+    :product="{ id, title: title, price: Number(price)||0, images: images, colors: colorVariants.map(c=>({ label:c.name, img:c.image })), sizes: sizeOptions, sizeGroups: (sizeGroups||[]) }"
+    :selectedColor="currentColorName"
+    :selectedSize="(sizeGroups && sizeGroups.length) ? Object.entries(selectedGroupValues).map(([k,v])=> `${k}:${v}`).join('|') : size"
+    :groupValues="(sizeGroups && sizeGroups.length) ? selectedGroupValues : undefined"
+    :hideTitle="true"
+    primaryLabel="إضافة إلى السلة"
+    :showWishlist="true"
+    wishlistLabel="إضافة إلى المفضلة"
+    :onWishlist="toggleWish"
+    :wishlistActive="hasWish"
+  />
   </div>
 </template>
 
@@ -712,6 +736,7 @@
 import { useRoute, useRouter } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useCart } from '@/store/cart'
+import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { 
   ShoppingCart, Share, Menu, 
@@ -769,7 +794,26 @@ const size = ref<string>('')
 const sizeGroups = ref<Array<{ label: string; values: string[] }>>([])
 const selectedGroupValues = ref<Record<string,string>>({})
 const optionsModalOpen = ref(false)
+watch(optionsModalOpen, (open)=>{
+  try {
+    if (open){
+      document.body.classList.add('overflow-hidden')
+      document.documentElement.classList.add('overflow-hidden')
+    } else {
+      document.body.classList.remove('overflow-hidden')
+      document.documentElement.classList.remove('overflow-hidden')
+    }
+  } catch {}
+})
 function isOptionsComplete(): boolean {
+  // If attributes not fully loaded yet and no selection made, force modal
+  try{
+    if (!attrsLoaded.value){
+      const hasSelection = !!size.value || Object.keys(selectedGroupValues.value||{}).length>0
+      const expectsOptions = sizeGroups.value.length>0 || sizeOptions.value.length>0 || (Array.isArray(product.value?.variants) && product.value!.variants.length>0) || (Array.isArray(product.value?.sizes) && product.value!.sizes.length>0)
+      if (expectsOptions && !hasSelection) return false
+    }
+  }catch{}
   // If there are size groups, all groups must be chosen
   if (sizeGroups.value.length) {
     for (const g of sizeGroups.value){ if (!selectedGroupValues.value[g.label]) return false }
@@ -781,7 +825,34 @@ function isOptionsComplete(): boolean {
 }
 function openOptionsModal(){ optionsModalOpen.value = true }
 function closeOptionsModal(){ optionsModalOpen.value = false }
-async function onConfirmOptions(){ if (!isOptionsComplete()) return; optionsModalOpen.value = false; await addToCartInternal() }
+async function onConfirmOptions(){
+  if (!isOptionsComplete()) {
+    try { requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value = false, 2000) } catch {}
+    return
+  }
+  optionsModalOpen.value = false
+  await addToCartInternal()
+}
+function onOptionsModalSave(payload: { color: string; size: string }){
+  try{
+    const { color, size: picked } = payload || { color:'', size:'' }
+    if (color){
+      const idx = colorVariants.value.findIndex(c=> String(c?.name||'').trim() === String(color).trim())
+      if (idx>=0) colorIdx.value = idx
+    }
+    if (picked){
+      if (sizeGroups.value.length){
+        const pairs = String(picked).split('|').map(seg=> seg.split(':',2)).filter(p=> p && p[0] && p[1]) as Array<[string,string]>
+        const next: Record<string,string> = {}
+        for (const [k,v] of pairs){ next[String(k)] = String(v) }
+        selectedGroupValues.value = next
+      } else {
+        size.value = String(picked)
+      }
+    }
+  }catch{}
+  onConfirmOptions()
+}
 function onPickGroupValue(label: string, val: string){ selectedGroupValues.value = { ...selectedGroupValues.value, [label]: val } }
 const variantByKey = ref<Record<string, { id:string; price?:number; stock?:number }>>({})
 const selectedVariantId = computed<string|undefined>(()=>{
@@ -1095,9 +1166,14 @@ watch(reviews, ()=>{
 const cart = useCart()
 const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
+const requireOptionsNotice = ref(false)
 
 async function addToCart(){
-  if (!isOptionsComplete()) { openOptionsModal(); return }
+  if (!isOptionsComplete()) {
+    try{ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value = false, 2000) }catch{}
+    openOptionsModal();
+    return
+  }
   await addToCartInternal()
 }
 async function addToCartInternal(){
@@ -1452,11 +1528,13 @@ async function loadNormalizedVariants(){
       for (const u of imgs){ const file = u.split('/').pop() || ''; if (normToken(file).includes(t)) return u }
       return images.value[idx] || images.value[0] || ''
     }
-    colorVariants.value = (colVals.length? colVals : ['—']).map((c, idx)=> {
-      const gal = findGalleryForColor(String(c))
-      const img = gal?.primaryImageUrl || gal?.images?.[0] || pickImageFor(c, idx)
-      return { name: c, image: img, isHot: false }
-    })
+    if (colVals.length){
+      colorVariants.value = colVals.map((c, idx)=> {
+        const gal = findGalleryForColor(String(c))
+        const img = gal?.primaryImageUrl || gal?.images?.[0] || pickImageFor(c, idx)
+        return { name: c, image: img, isHot: false }
+      })
+    }
     if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
     // Prefer primary color from galleries when available
     try{
@@ -1527,8 +1605,10 @@ async function loadNormalizedVariants(){
         for (const u of imgs){ const file = u.split('/').pop() || ''; if (normToken(file).includes(t)) return u }
         return images.value[idx] || images.value[0] || ''
       }
-      colorVariants.value = (colors.length? colors : ['—']).map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
-      if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
+      if (colors.length){
+        colorVariants.value = colors.map((c, idx)=> ({ name: c, image: pickImageFor(c, idx), isHot: false }))
+        if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
+      }
     }
     if (!sizeOptions.value.length){
       const sizesFromProduct = Array.isArray(product.value?.sizes) ? (product.value!.sizes as string[]) : []
