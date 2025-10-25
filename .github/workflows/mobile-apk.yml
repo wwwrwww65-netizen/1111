@@ -52,6 +52,11 @@ jobs:
         working-directory: apps/mobile
         run: pnpm exec tsc -p tsconfig.json --noEmit
 
+      - name: Verify required secrets
+        run: |
+          if [ -z "${{ env.EXPO_TOKEN }}" ]; then echo "EXPO_TOKEN is missing in Secrets" && exit 1; fi
+          if [ -z "${{ env.EXPO_PUBLIC_TRPC_URL }}" ]; then echo "Warning: EXPO_PUBLIC_TRPC_URL is not set; using app.json default"; fi
+
       - name: Build APK with EAS
         working-directory: apps/mobile
         env:
@@ -65,16 +70,17 @@ jobs:
       - name: Download APK artifact
         working-directory: apps/mobile
         run: |
-          PROFILE=${{ github.event.inputs.profile || 'preview' }}
-          eas build:download --platform android --profile "$PROFILE" --path app-${PROFILE}.apk || true
-          if [ ! -s app-${PROFILE}.apk ]; then
-            echo "APK not downloaded via profile; listing builds..." 
-            eas build:list --json --limit 5 --platform android
+          eas build:download --latest --platform android --output app.apk || true
+          if [ ! -s app.apk ]; then
+            echo "APK not downloaded; listing recent builds to help debugging..."
+            eas build:list --json --limit 5 --platform android || true
           fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: mobile-apk-${{ github.sha }}
-          path: apps/mobile/app-*.apk
+          path: |
+            apps/mobile/app.apk
+            apps/mobile/app-*.apk
           if-no-files-found: warn
