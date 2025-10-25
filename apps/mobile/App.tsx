@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { trpc, createTrpcLinks } from './src/trpc';
 import { RemoteConfigProvider, useRemoteConfig } from './src/remote-config';
+import HomeScreen from './src/screens/HomeScreen';
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({ links: createTrpcLinks() });
@@ -58,7 +59,7 @@ function RootTabs() {
         const title = t.title;
         const name = t.key;
         const component =
-          t.link === '/' ? ProductsScreen :
+          t.link === '/' ? HomeScreen :
           t.link.startsWith('/categories') ? CategoriesScreen :
           t.link.startsWith('/wishlist') ? WishlistScreen :
           t.link.startsWith('/account') ? AccountScreen :
