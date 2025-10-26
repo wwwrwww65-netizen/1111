@@ -74,6 +74,12 @@ jobs:
       - name: Expo prebuild (android)
         run: pnpm dlx expo prebuild --platform android --clean
 
+      - name: Setup Gradle with cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          gradle-version: wrapper
+
       - name: Patch settings.gradle for RN gradle-plugin path
         run: |
           SETTINGS=android/settings.gradle
@@ -87,15 +93,26 @@ jobs:
       - name: Ensure gradle.properties has RN paths
         run: |
           GP=android/gradle.properties
-          echo "REACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin" >> "$GP"
-          echo "reactNativeDir=../node_modules/react-native" >> "$GP"
-          echo "Wrote $GP:" && tail -n 5 "$GP" | cat
+          {
+            echo "REACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin"
+            echo "reactNativeDir=../node_modules/react-native"
+            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+            echo "org.gradle.daemon=true"
+            echo "org.gradle.parallel=true"
+          } >> "$GP"
+          echo "Wrote $GP:" && tail -n 20 "$GP" | cat
 
       - name: Assemble release (Gradle)
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew -PREACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin -PreactNativeDir=../node_modules/react-native :app:clean :app:assembleRelease --no-daemon --stacktrace
+          # Retry Gradle in case of transient network/download issues
+          for attempt in 1 2 3; do \
+            ./gradlew -PREACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin -PreactNativeDir=../node_modules/react-native :app:clean :app:assembleRelease --no-daemon --stacktrace && break || { \
+              echo "Gradle attempt $attempt failed"; \
+              if [ "$attempt" -lt 3 ]; then sleep $((attempt*15)); else exit 1; fi; \
+            }; \
+          done
 
       - name: Generate temporary release keystore
         run: |
