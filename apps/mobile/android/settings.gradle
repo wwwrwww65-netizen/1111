@@ -36,4 +36,6 @@ rootProject.name = 'E-commerce Mobile App'
 expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
-includeBuild(expoAutolinking.reactNativeGradlePlugin)
+if (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }
+
+includeBuild("../node_modules/@react-native/gradle-plugin")

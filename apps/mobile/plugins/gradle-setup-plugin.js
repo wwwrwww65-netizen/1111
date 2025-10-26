@@ -1,4 +1,4 @@
-const { withProjectBuildGradle, withAppBuildGradle, withGradleProperties, withDangerousMod } = require('expo/config-plugins');
+const { withSettingsGradle, withAppBuildGradle, withGradleProperties, withDangerousMod } = require('expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,8 +22,8 @@ module.exports = function gradleSetupPlugin(config) {
     return config;
   });
 
-  // Add/fix includeBuild entries in settings.gradle
-  config = withProjectBuildGradle(config, (config) => {
+  // Add/fix includeBuild entries specifically in android/settings.gradle
+  config = withSettingsGradle(config, (config) => {
     if (typeof config.modResults.contents !== 'string') return config;
     const rnNeedle = 'includeBuild("../node_modules/@react-native/gradle-plugin")';
     let contents = config.modResults.contents;
