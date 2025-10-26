@@ -168,6 +168,9 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
         run: |
+          # Ensure android folder is freshly generated with version catalogs
+          pnpm dlx expo prebuild --platform android --clean --no-install || true
+          test -f android/gradle/wrapper/gradle-wrapper.properties || { echo "gradle wrapper missing"; exit 1; }
           chmod +x android/gradlew || true
           ./android/gradlew -p android :app:clean :app:assembleRelease --no-daemon --stacktrace --info || true
           # Detect APKs
