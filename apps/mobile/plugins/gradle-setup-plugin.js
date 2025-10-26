@@ -22,23 +22,29 @@ module.exports = function gradleSetupPlugin(config) {
     return config;
   });
 
-  // Add/fix includeBuild entries specifically in android/settings.gradle
+  // Add/fix pluginManagement in android/settings.gradle (monorepo-safe, no RN includeBuild)
   config = withSettingsGradle(config, (config) => {
     if (typeof config.modResults.contents !== 'string') return config;
     let contents = config.modResults.contents;
 
-    // Replace pluginManagement block with robust, monorepo-safe logic that checks multiple candidate paths
+    // Replace pluginManagement block: resolve RN plugin from portal, include only Expo autolinking as included build
     const robustPluginManagement = [
       'pluginManagement {',
-      '  // Try multiple possible node_modules locations (package-local and workspace root)',
-      '  def includeIfExists = { File dir -> if (dir.exists()) { includeBuild(dir.absolutePath) } }',
-      '  def rnCandidates = [',
-      '    new File(rootDir, "../node_modules/@react-native/gradle-plugin"),',
-      '    new File(rootDir, "../../node_modules/@react-native/gradle-plugin"),',
-      '    new File(rootDir, "../../../node_modules/@react-native/gradle-plugin"),',
-      '  ]',
-      '  for (c in rnCandidates) { includeIfExists(c) }',
+      '  repositories {',
+      '    gradlePluginPortal()',
+      '    google()',
+      '    mavenCentral()',
+      '  }',
       '',
+      '  resolutionStrategy {',
+      '    eachPlugin { requested ->',
+      '      if (requested.id.id == "com.facebook.react.settings" || requested.id.id == "com.facebook.react") {',
+      '        useModule("com.facebook.react:react-native-gradle-plugin:0.74.4")',
+      '      }',
+      '    }',
+      '  }',
+      '',
+      '  def includeIfExists = { File dir -> if (dir.exists()) { includeBuild(dir.absolutePath) } }',
       '  def expoCandidates = [',
       '    new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),',
       '    new File(rootDir, "../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),',
@@ -54,13 +60,7 @@ module.exports = function gradleSetupPlugin(config) {
       contents = robustPluginManagement + '\n' + contents;
     }
 
-    // Ensure we respect expoAutolinking.reactNativeGradlePlugin when present
-    if (!/includeBuild\(expoAutolinking\.reactNativeGradlePlugin\)/.test(contents)) {
-      contents = contents.replace(
-        /plugins\s*\{[\s\S]*?\n\}/,
-        (block) => block + '\nif (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }\n'
-      );
-    }
+    // Do not auto-include RN gradle plugin via includeBuild to avoid compiling its sources
 
     config.modResults.contents = contents;
     return config;
