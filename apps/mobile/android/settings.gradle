@@ -1,25 +1,21 @@
 pluginManagement {
-  def includeIfExists = { File dir -> if (dir != null && dir.exists()) { includeBuild(dir.absolutePath) } }
+  repositories {
+    gradlePluginPortal()
+    google()
+    mavenCentral()
+  }
 
-  // Try typical node_modules locations
-  def rnCandidates = [
-    new File(rootDir, "../node_modules/@react-native/gradle-plugin"),
-    new File(rootDir, "../../node_modules/@react-native/gradle-plugin"),
-    new File(rootDir, "../../../node_modules/@react-native/gradle-plugin"),
-  ]
-  rnCandidates.each { includeIfExists(it) }
-
-  // Try pnpm virtual store layout for RN Gradle plugin
-  def pnpmStore = new File(rootDir, "../node_modules/.pnpm")
-  if (pnpmStore.exists() && pnpmStore.isDirectory()) {
-    pnpmStore.listFiles(new FilenameFilter() {
-      boolean accept(File dir, String name) { name.startsWith("@react-native+gradle-plugin@") }
-    })?.each { pkgDir ->
-      includeIfExists(new File(pkgDir, "node_modules/@react-native/gradle-plugin"))
+  // Resolve RN settings plugin from published module to avoid composite build issues
+  resolutionStrategy {
+    eachPlugin { requested ->
+      if (requested.id.id == "com.facebook.react.settings" || requested.id.id == "com.facebook.react") {
+        useModule("com.facebook.react:react-native-gradle-plugin:0.74.4")
+      }
     }
   }
 
-  // Expo autolinking plugin candidates
+  // Keep Expo autolinking plugin via included build for monorepo/node_modules
+  def includeIfExists = { File dir -> if (dir != null && dir.exists()) { includeBuild(dir.absolutePath) } }
   def expoCandidates = [
     new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
     new File(rootDir, "../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
@@ -29,7 +25,7 @@ pluginManagement {
 }
 
 plugins {
-  id("com.facebook.react.settings") version "0.74.0"
+  id("com.facebook.react.settings") version "0.74.4"
   id("expo-autolinking-settings")
 }
 
