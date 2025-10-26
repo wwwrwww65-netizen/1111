@@ -1,6 +1,12 @@
 name: Build Android APK (EAS)
 
 on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/eas-android-apk.yml'
   workflow_dispatch:
     inputs:
       TRPC_URL:
@@ -14,6 +20,7 @@ jobs:
     env:
       TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://api.jeeey.com/trpc' }}
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID || vars.EAS_PROJECT_ID }}
     defaults:
       run:
         working-directory: apps/mobile
@@ -36,15 +43,46 @@ jobs:
         run: pnpm install --no-frozen-lockfile --ignore-scripts
         working-directory: .
 
-      - name: Inject EXPO_PUBLIC_TRPC_URL
+      - name: Inject config (TRPC + EAS projectId)
         run: |
-          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL;fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL; if (process.env.EAS_PROJECT_ID) { j.expo.extra.eas=j.expo.extra.eas||{}; j.expo.extra.eas.projectId=process.env.EAS_PROJECT_ID; } fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated TRPC + projectId in app.json');"
 
-      - name: Install EAS CLI
-        run: pnpm dlx eas-cli@latest --version | cat
+      - name: Ensure android/ not uploaded to EAS (CNG)
+        run: |
+          rm -rf android ios
+          echo -e "android/\nios/" > .easignore
+          echo "Prepared .easignore and removed native folders to force prebuild on EAS"
 
-      - name: Build APK locally (no cloud)
-        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --local --output ./build/app-preview.apk
+      - name: Setup Expo & EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ env.EXPO_TOKEN }}
+
+      - name: Force Gradle downloads host in app plugin (optional)
+        run: |
+          if [ -f plugins/gradle-setup-plugin.js ]; then
+            sed -i 's#downloads.gradle-dn.com/distributions/#downloads.gradle.org/distributions/#g' plugins/gradle-setup-plugin.js
+          fi
+
+      - name: Ensure EAS login and link project
+        run: |
+          eas whoami || eas account:login --token ${{ env.EXPO_TOKEN }}
+          if [ -n "${{ env.EAS_PROJECT_ID }}" ]; then
+            eas init --id "${{ env.EAS_PROJECT_ID }}" --non-interactive || true
+          fi
+
+      - name: Build APK on EAS (remote)
+        run: |
+          # Clean native folders to force correct autolinking settings
+          rm -rf android ios
+          # Run a local config sync to ensure plugins modify settings before EAS packs the project
+          npx --yes expo-doctor --fix-dependencies || true
+          eas build --platform android --profile preview --non-interactive
+
+      - name: Download latest APK artifact
+        run: eas build:download --platform android --latest --path ./build/app-preview.apk --non-interactive || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

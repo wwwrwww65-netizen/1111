@@ -1,3 +1,5 @@
+# Expo/React Native prebuild outputs (use CNG/Prebuild sync instead)
+apps/mobile/android/
 # Build outputs and caches
 .next/
 node_modules/
