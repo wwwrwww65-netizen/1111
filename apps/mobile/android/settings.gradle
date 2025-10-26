@@ -29,7 +29,7 @@ pluginManagement {
 }
 
 plugins {
-  id("com.facebook.react.settings")
+  id("com.facebook.react.settings") version "0.74.0"
   id("expo-autolinking-settings")
 }
 
