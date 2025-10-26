@@ -94,7 +94,14 @@ jobs:
           # Disable VCS file list so untracked android/ is included in archive
           EAS_NO_VCS: '1'
         run: |
+          set +e
           eas build --platform android --profile preview --non-interactive
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "EAS build failed with exit code $EXIT_CODE (quota or other). Falling back to local Gradle build."
+            echo "EAS_BUILD_FAILED=1" >> $GITHUB_ENV
+          fi
+          exit 0
 
       - name: Download latest APK artifact
         run: eas build:download --platform android --latest --path ./build/app-preview.apk --non-interactive || true
@@ -104,3 +111,69 @@ jobs:
         with:
           name: app-preview-apk
           path: apps/mobile/build/app-preview.apk
+
+      # -------- FALLBACK: Local Gradle build if EAS quota exhausted --------
+      - name: Setup Java 17 (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        run: yes | sdkmanager --licenses
+
+      - name: Install required Android SDK packages (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Assemble APK locally with Gradle (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        working-directory: apps/mobile
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
+        run: |
+          ./android/gradlew -p android :app:clean :app:assembleRelease --stacktrace || true
+          # Detect APKs
+          RELEASE_DIR=android/app/build/outputs/apk/release
+          DEBUG_DIR=android/app/build/outputs/apk/debug
+          UNSIGNED=$(ls -1 "$RELEASE_DIR"/app-*-unsigned.apk 2>/dev/null | head -n1 || true)
+          NORMAL=$(ls -1 "$RELEASE_DIR"/app-*.apk 2>/dev/null | head -n1 || true)
+          if [ -z "$UNSIGNED" ] && [ -z "$NORMAL" ]; then
+            echo "Release APK not found, building debug APK"
+            ./android/gradlew -p android :app:assembleDebug --stacktrace
+            echo "DEBUG_APK=$DEBUG_DIR/app-debug.apk" >> $GITHUB_ENV
+          else
+            if [ -n "$UNSIGNED" ]; then echo "UNSIGNED_APK=$UNSIGNED" >> $GITHUB_ENV; fi
+            if [ -n "$NORMAL" ]; then echo "RELEASE_APK=$NORMAL" >> $GITHUB_ENV; fi
+          fi
+
+      - name: Sign unsigned APK (fallback)
+        if: env.EAS_BUILD_FAILED == '1' && env.UNSIGNED_APK != null
+        working-directory: apps/mobile/android/app/build/outputs/apk/release
+        run: |
+          # Generate temporary keystore
+          keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=example, OU=dev, O=company, L=city, S=state, C=US"
+          APK_UNSIGNED=$(basename "$UNSIGNED_APK")
+          BUILD_TOOLS=$(ls -v "$ANDROID_SDK_ROOT"/build-tools | tail -1)
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK_UNSIGNED" app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner verify app-release-signed.apk
+          echo "SIGNED_APK=apps/mobile/android/app/build/outputs/apk/release/app-release-signed.apk" >> $GITHUB_ENV
+
+      - name: Upload fallback APK artifact
+        if: env.EAS_BUILD_FAILED == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-fallback-apk
+          path: |
+            ${{ env.SIGNED_APK }}
+            ${{ env.RELEASE_APK }}
+            ${{ env.DEBUG_APK }}
+          if-no-files-found: warn
