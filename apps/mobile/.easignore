@@ -1,3 +1,5 @@
-# Ensure EAS uses CNG/Prebuild (no native folders uploaded)
+# Force EAS to run prebuild remotely (managed workflow)
 android/
 ios/
+
+# ci: trigger EAS build

@@ -1,10 +1,32 @@
 pluginManagement {
-  includeBuild("../node_modules/@react-native/gradle-plugin")
-  includeBuild(new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin").absolutePath)
+  repositories {
+    gradlePluginPortal()
+    google()
+    mavenCentral()
+  }
+
+  // Resolve RN settings plugin from published module to avoid composite build issues
+  resolutionStrategy {
+    eachPlugin { details ->
+      def req = details.requested
+      if (req.id.id == "com.facebook.react.settings" || req.id.id == "com.facebook.react") {
+        details.useModule("com.facebook.react:react-native-gradle-plugin:0.74.4")
+      }
+    }
+  }
+
+  // Keep Expo autolinking plugin via included build for monorepo/node_modules
+  def includeIfExists = { File dir -> if (dir != null && dir.exists()) { includeBuild(dir.absolutePath) } }
+  def expoCandidates = [
+    new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
+    new File(rootDir, "../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
+    new File(rootDir, "../../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
+  ]
+  expoCandidates.each { includeIfExists(it) }
 }
 
 plugins {
-  id("com.facebook.react.settings")
+  id("com.facebook.react.settings") version "0.74.4"
   id("expo-autolinking-settings")
 }
 
@@ -22,4 +44,3 @@ rootProject.name = 'E-commerce Mobile App'
 expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
-if (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }
