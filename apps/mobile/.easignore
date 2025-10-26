@@ -1,0 +1,3 @@
+# Ensure EAS uses CNG/Prebuild (no native folders uploaded)
+android/
+ios/
