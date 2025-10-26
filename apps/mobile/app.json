@@ -25,6 +25,9 @@
     "extra": {
       "EXPO_PUBLIC_TRPC_URL": "https://api.jeeey.com/trpc",
       "EXPO_PUBLIC_CONFIG_BASE": "https://api.jeeey.com"
-    }
+    },
+    "plugins": [
+      "./plugins/gradle-setup-plugin"
+    ]
   }
 }

@@ -104,6 +104,8 @@ jobs:
           echo "Wrote $GP:" && tail -n 20 "$GP" | cat
 
       - name: Gradle assembleDebug
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
         run: |
           cd android
           chmod +x ./gradlew
