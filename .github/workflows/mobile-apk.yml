@@ -142,16 +142,39 @@ jobs:
             }; \
           done
 
+      - name: Detect built APKs
+        working-directory: apps/mobile/android/app/build/outputs/apk
+        run: |
+          echo "Listing APK outputs:" && find . -type f -name "*.apk" -maxdepth 3 -print | sed 's/^/ - /'
+          RELEASE_DIR=release
+          if [ -d "$RELEASE_DIR" ]; then
+            UNSIGNED=$(ls -1 "$RELEASE_DIR"/app-*-unsigned.apk 2>/dev/null | head -n1 || true)
+            NORMAL=$(ls -1 "$RELEASE_DIR"/app-*.apk 2>/dev/null | head -n1 || true)
+            if [ -n "$UNSIGNED" ]; then echo "UNSIGNED_APK=$UNSIGNED" >> $GITHUB_ENV; fi
+            if [ -n "$NORMAL" ]; then echo "RELEASE_APK=$NORMAL" >> $GITHUB_ENV; fi
+          fi
+          if [ -z "$UNSIGNED" ] && [ -z "$NORMAL" ]; then echo "NO_RELEASE_APK=1" >> $GITHUB_ENV; fi
+
+      - name: Fallback build Debug APK (if release missing)
+        if: env.NO_RELEASE_APK == '1'
+        working-directory: apps/mobile
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
+        run: |
+          "${{ steps.unzip_gradle.outputs.gradle_bin }}" -p android -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true assembleDebug --no-daemon --stacktrace
+          echo "DEBUG_APK=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk" >> $GITHUB_ENV
+
       - name: Generate temporary release keystore
         working-directory: apps/mobile/android/app
         run: |
           keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=example, OU=dev, O=company, L=city, S=state, C=US"
 
-      - name: Zipalign and sign APK
-        working-directory: apps/mobile/android/app/build/outputs/apk/release
+      - name: Zipalign and sign APK (if unsigned present)
+        if: env.UNSIGNED_APK
+        working-directory: apps/mobile/android/app/build/outputs/apk
         run: |
-          APK_UNSIGNED=app-release-unsigned.apk
-          if [ ! -f "$APK_UNSIGNED" ]; then echo "Unsigned APK not found"; ls -la; exit 1; fi
+          cd release
+          APK_UNSIGNED=$(basename "$UNSIGNED_APK")
           BUILD_TOOLS=$(ls -v "$ANDROID_SDK_ROOT"/build-tools | tail -1)
           "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK_UNSIGNED" app-release-aligned.apk
           "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
