@@ -47,79 +47,31 @@ jobs:
           rm -rf android ios
           echo "Ensured no prebuilt native folders before EAS build"
 
-      - name: Setup Expo & EAS
-        uses: expo/expo-github-action@v8
-        with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ env.EXPO_TOKEN }}
-
-      - name: Ensure EAS login
-        run: eas whoami || eas account:login --token ${{ env.EXPO_TOKEN }}
-
-      - name: Inject EAS projectId into app.json
-        if: env.EAS_PROJECT_ID != ''
-        working-directory: apps/mobile
-        run: |
-          node -e "const fs=require('fs');const p='app.json';const cfg=JSON.parse(fs.readFileSync(p,'utf8')); cfg.expo=cfg.expo||{}; cfg.expo.extra=cfg.expo.extra||{}; cfg.expo.extra.eas=cfg.expo.extra.eas||{}; cfg.expo.extra.eas.projectId='${{ env.EAS_PROJECT_ID }}'; fs.writeFileSync(p, JSON.stringify(cfg,null,2)); console.log('Injected projectId into app.json');"
-          echo "Validating EAS project id..."
-          eas project:info --json
-
       - name: Type check (mobile)
         working-directory: apps/mobile
         run: pnpm exec tsc -p tsconfig.json --noEmit
 
-      - name: Verify required secrets
-        run: |
-          if [ -z "${{ env.EXPO_TOKEN }}" ]; then echo "EXPO_TOKEN is missing in Secrets" && exit 1; fi
-          if [ -z "${{ env.EXPO_PUBLIC_TRPC_URL }}" ]; then echo "Warning: EXPO_PUBLIC_TRPC_URL is not set; using app.json default"; fi
-
-      - name: Build APK with EAS (remote)
-        working-directory: apps/mobile
-        env:
-          EXPO_PUBLIC_TRPC_URL: ${{ env.EXPO_PUBLIC_TRPC_URL }}
-          EAS_PROJECT_ID: ${{ env.EAS_PROJECT_ID }}
-        continue-on-error: true
-        run: |
-          PROFILE=${{ github.event.inputs.profile || 'preview' }}
-          echo "Using EAS profile: $PROFILE"
-          eas build --platform android --profile "$PROFILE" --non-interactive
-
-      - name: Download APK artifact (latest)
-        working-directory: apps/mobile
-        run: |
-          node -e "const {execSync}=require('child_process'); try { const out=execSync('eas build:list --json --limit 1 -p android --non-interactive',{stdio:'pipe'}).toString(); const arr=JSON.parse(out); if (Array.isArray(arr) && arr.length && arr[0].artifacts && arr[0].artifacts.buildUrl) { const url=arr[0].artifacts.buildUrl; console.log('Downloading:', url); execSync(`curl -fL --retry 5 --retry-all-errors -o app.apk \"${url}\"`, {stdio:'inherit'}); } else { process.exit(1); } } catch(e){ process.exit(1); }"
-          if [ ! -s app.apk ]; then
-            echo "APK not downloaded; listing recent builds to help debugging..."
-            eas build:list --json --limit 5 -p android --non-interactive || true
-            echo "HAVE_APK=0" >> $GITHUB_ENV
-          else
-            echo "HAVE_APK=1" >> $GITHUB_ENV
-          fi
-
-      # Local fallback build: assembleRelease if EAS artifact is missing
-      - name: Setup Java 17 (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android SDK tools (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Install Android SDK tools
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android SDK licenses (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
-      - name: Install required Android SDK packages (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Install required Android SDK packages
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Read Gradle version from wrapper (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Expo prebuild (android)
+        working-directory: apps/mobile
+        run: pnpm dlx expo prebuild --platform android --clean
+
+      - name: Read Gradle version from wrapper
         id: read_gradle_version
         working-directory: apps/mobile
         run: |
@@ -127,20 +79,13 @@ jobs:
           echo "Detected Gradle version: $VER"
           echo "gradle_version=$VER" >> $GITHUB_OUTPUT
 
-      - name: Setup Gradle with cache (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Setup Gradle with cache
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
           gradle-version: ${{ steps.read_gradle_version.outputs.gradle_version }}
 
-      - name: Expo prebuild (android) (fallback)
-        if: env.HAVE_APK == '0'
-        working-directory: apps/mobile
-        run: pnpm dlx expo prebuild --platform android --clean
-
-      - name: Prefetch Gradle distribution and force local file URL (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Prefetch Gradle distribution and force local file URL
         working-directory: apps/mobile
         run: |
           PROPS=android/gradle/wrapper/gradle-wrapper.properties
@@ -158,8 +103,7 @@ jobs:
           if ! grep -q '^validateDistributionUrl=' "$PROPS"; then echo 'validateDistributionUrl=true' >> "$PROPS"; fi
           echo "Updated $PROPS:" && cat "$PROPS"
 
-      - name: Unzip Gradle distribution for local CLI (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Unzip Gradle distribution for local CLI
         working-directory: apps/mobile
         id: unzip_gradle
         run: |
@@ -173,8 +117,7 @@ jobs:
           echo "Using GRADLE_BIN=$GRADLE_BIN"
           echo "gradle_bin=$GRADLE_BIN" >> $GITHUB_OUTPUT
 
-      - name: Ensure gradle.properties has RN paths (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Ensure gradle.properties has RN paths
         working-directory: apps/mobile
         run: |
           GP=android/gradle.properties
@@ -187,8 +130,7 @@ jobs:
           } >> "$GP"
           echo "Wrote $GP:" && tail -n 20 "$GP" | cat
 
-      - name: Assemble release (Gradle CLI) (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Assemble release (Gradle CLI)
         working-directory: apps/mobile
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
@@ -200,14 +142,12 @@ jobs:
             }; \
           done
 
-      - name: Generate temporary release keystore (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Generate temporary release keystore
         working-directory: apps/mobile/android/app
         run: |
           keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=example, OU=dev, O=company, L=city, S=state, C=US"
 
-      - name: Zipalign and sign APK (fallback)
-        if: env.HAVE_APK == '0'
+      - name: Zipalign and sign APK
         working-directory: apps/mobile/android/app/build/outputs/apk/release
         run: |
           APK_UNSIGNED=app-release-unsigned.apk
@@ -216,7 +156,6 @@ jobs:
           "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK_UNSIGNED" app-release-aligned.apk
           "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
           "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner verify app-release-signed.apk
-          echo "HAVE_APK=1" >> $GITHUB_ENV
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
