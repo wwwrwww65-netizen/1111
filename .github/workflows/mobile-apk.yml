@@ -41,6 +41,12 @@ jobs:
           pnpm config set frozen-lockfile false
           pnpm install --no-frozen-lockfile
 
+      - name: Remove native folders to force EAS Prebuild
+        working-directory: apps/mobile
+        run: |
+          rm -rf android ios
+          echo "Ensured no prebuilt native folders before EAS build"
+
       - name: Setup Expo & EAS
         uses: expo/expo-github-action@v8
         with:
