@@ -7,10 +7,12 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jeeey.shopin"
+      "bundleIdentifier": "com.jeeey.shopin",
+      "buildNumber": "3036"
     },
     "android": {
-      "package": "com.jeeey.shopin"
+      "package": "com.jeeey.shopin",
+      "versionCode": 3036
     },
     "scheme": "jeeey",
     "experiments": {
