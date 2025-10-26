@@ -1,6 +1,12 @@
 name: Build Android APK (EAS)
 
 on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/eas-android-apk.yml'
   workflow_dispatch:
     inputs:
       TRPC_URL:
