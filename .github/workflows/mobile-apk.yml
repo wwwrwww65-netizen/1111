@@ -85,13 +85,13 @@ jobs:
           echo "Using EAS profile: $PROFILE"
           eas build --platform android --profile "$PROFILE" --non-interactive
 
-      - name: Download APK artifact
+      - name: Download APK artifact (latest)
         working-directory: apps/mobile
         run: |
-          eas build:download --latest --platform android --output app.apk || true
+          node -e "const {execSync}=require('child_process'); try { const out=execSync('eas build:list --json --limit 1 -p android --non-interactive',{stdio:'pipe'}).toString(); const arr=JSON.parse(out); if (Array.isArray(arr) && arr.length && arr[0].artifacts && arr[0].artifacts.buildUrl) { const url=arr[0].artifacts.buildUrl; console.log('Downloading:', url); execSync(`curl -fL --retry 5 --retry-all-errors -o app.apk \"${url}\"`, {stdio:'inherit'}); } else { process.exit(1); } } catch(e){ process.exit(1); }"
           if [ ! -s app.apk ]; then
             echo "APK not downloaded; listing recent builds to help debugging..."
-            eas build:list --json --limit 5 --platform android || true
+            eas build:list --json --limit 5 -p android --non-interactive || true
             echo "HAVE_APK=0" >> $GITHUB_ENV
           else
             echo "HAVE_APK=1" >> $GITHUB_ENV
@@ -145,6 +145,8 @@ jobs:
         run: |
           PROPS=android/gradle/wrapper/gradle-wrapper.properties
           URL=$(grep '^distributionUrl=' "$PROPS" | cut -d'=' -f2- | tr -d '\r')
+          # Unescape gradle URL (https\:// -> https://)
+          URL=$(echo "$URL" | sed 's#\\://#://#g')
           FILE=$(basename "$URL")
           DEST=$(pwd)/android/gradle/wrapper/$FILE
           echo "Gradle URL: $URL"
