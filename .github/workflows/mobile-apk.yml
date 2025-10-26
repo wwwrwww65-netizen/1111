@@ -92,6 +92,8 @@ jobs:
           URL=$(grep '^distributionUrl=' "$PROPS" | cut -d'=' -f2- | tr -d '\r')
           # Unescape gradle URL (https\:// -> https://)
           URL=$(echo "$URL" | sed 's#\\://#://#g')
+          # Switch to Gradle CDN mirror for higher reliability
+          URL=$(echo "$URL" | sed 's#https://services.gradle.org/distributions/#https://downloads.gradle-dn.com/distributions/#g')
           FILE=$(basename "$URL")
           DEST=$(pwd)/android/gradle/wrapper/$FILE
           echo "Gradle URL: $URL"
