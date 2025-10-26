@@ -133,13 +133,38 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Create local.properties with SDK path (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        working-directory: apps/mobile/android
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "Wrote local.properties with sdk.dir=$ANDROID_SDK_ROOT"
+
+      - name: Prefetch Gradle distribution (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        working-directory: apps/mobile
+        run: |
+          PROPS=android/gradle/wrapper/gradle-wrapper.properties
+          URL=$(sed -n "s#^distributionUrl=\(.*\)$#\1#p" "$PROPS" | tr -d '\r')
+          URL=$(echo "$URL" | sed 's#\\://#://#g')
+          FILE=$(basename "$URL")
+          DEST=$(pwd)/android/gradle/wrapper/$FILE
+          echo "Gradle URL: $URL"
+          echo "Downloading to: $DEST"
+          curl -fL --retry 5 --retry-all-errors --connect-timeout 30 --max-time 600 -o "$DEST" "$URL"
+          NEW_URL="file://$DEST"
+          sed -i "s#^distributionUrl=.*#distributionUrl=${NEW_URL}#" "$PROPS"
+          if grep -q '^networkTimeout=' "$PROPS"; then sed -i 's/^networkTimeout=.*/networkTimeout=600000/' "$PROPS"; else echo 'networkTimeout=600000' >> "$PROPS"; fi
+          if ! grep -q '^validateDistributionUrl=' "$PROPS"; then echo 'validateDistributionUrl=true' >> "$PROPS"; fi
+
       - name: Assemble APK locally with Gradle (fallback)
         if: env.EAS_BUILD_FAILED == '1'
         working-directory: apps/mobile
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
         run: |
-          ./android/gradlew -p android :app:clean :app:assembleRelease --stacktrace || true
+          chmod +x android/gradlew || true
+          ./android/gradlew -p android :app:clean :app:assembleRelease --no-daemon --stacktrace --info || true
           # Detect APKs
           RELEASE_DIR=android/app/build/outputs/apk/release
           DEBUG_DIR=android/app/build/outputs/apk/debug
