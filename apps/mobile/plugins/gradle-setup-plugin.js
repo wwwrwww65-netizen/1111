@@ -27,6 +27,11 @@ module.exports = function gradleSetupPlugin(config) {
     if (typeof config.modResults.contents !== 'string') return config;
     const rnNeedle = 'includeBuild("../node_modules/@react-native/gradle-plugin")';
     let contents = config.modResults.contents;
+    // Guard include of reactNativeGradlePlugin in pluginManagement to avoid null path
+    contents = contents.replace(
+      /includeBuild\(\s*reactNativeGradlePlugin\s*\)/g,
+      'if (reactNativeGradlePlugin != null) { includeBuild(reactNativeGradlePlugin) } else { includeBuild("../node_modules/@react-native/gradle-plugin") }'
+    );
     // Guard include of expoAutolinking.reactNativeGradlePlugin to avoid 'null' path
     contents = contents.replace(
       /includeBuild\(expoAutolinking\.reactNativeGradlePlugin\)/g,

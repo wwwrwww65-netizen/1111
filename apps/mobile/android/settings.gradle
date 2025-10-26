@@ -5,7 +5,7 @@ pluginManagement {
       commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
     }.standardOutput.asText.get().trim()
   ).getParentFile().absolutePath
-  includeBuild(reactNativeGradlePlugin)
+  if (reactNativeGradlePlugin != null) { includeBuild(reactNativeGradlePlugin) } else { includeBuild("../node_modules/@react-native/gradle-plugin") }
   
   def expoPluginsPath = new File(
     providers.exec {
@@ -37,5 +37,3 @@ expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
 if (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }
-
-includeBuild("../node_modules/@react-native/gradle-plugin")
