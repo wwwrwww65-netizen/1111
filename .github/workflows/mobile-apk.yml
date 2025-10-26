@@ -97,7 +97,84 @@ jobs:
             echo "HAVE_APK=1" >> $GITHUB_ENV
           fi
 
-      # Local fallback build disabled per request
+      # Local fallback build: assembleRelease if EAS artifact is missing
+      - name: Setup Java 17 (fallback)
+        if: env.HAVE_APK == '0'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK tools (fallback)
+        if: env.HAVE_APK == '0'
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses (fallback)
+        if: env.HAVE_APK == '0'
+        run: yes | sdkmanager --licenses
+
+      - name: Install required Android SDK packages (fallback)
+        if: env.HAVE_APK == '0'
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Setup Gradle with cache (fallback)
+        if: env.HAVE_APK == '0'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          gradle-version: wrapper
+
+      - name: Expo prebuild (android) (fallback)
+        if: env.HAVE_APK == '0'
+        working-directory: apps/mobile
+        run: pnpm dlx expo prebuild --platform android --clean
+
+      - name: Ensure gradle.properties has RN paths (fallback)
+        if: env.HAVE_APK == '0'
+        working-directory: apps/mobile
+        run: |
+          GP=android/gradle.properties
+          {
+            echo "REACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin"
+            echo "reactNativeDir=../node_modules/react-native"
+            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+            echo "org.gradle.daemon=true"
+            echo "org.gradle.parallel=true"
+          } >> "$GP"
+          echo "Wrote $GP:" && tail -n 20 "$GP" | cat
+
+      - name: Assemble release (Gradle) (fallback)
+        if: env.HAVE_APK == '0'
+        working-directory: apps/mobile/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
+        run: |
+          chmod +x ./gradlew
+          for attempt in 1 2 3; do \
+            ./gradlew -PREACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin -PreactNativeDir=../node_modules/react-native :app:clean :app:assembleRelease --no-daemon --stacktrace && break || { \
+              echo "Gradle attempt $attempt failed"; \
+              if [ "$attempt" -lt 3 ]; then sleep $((attempt*15)); else exit 1; fi; \
+            }; \
+          done
+
+      - name: Generate temporary release keystore (fallback)
+        if: env.HAVE_APK == '0'
+        working-directory: apps/mobile/android/app
+        run: |
+          keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=example, OU=dev, O=company, L=city, S=state, C=US"
+
+      - name: Zipalign and sign APK (fallback)
+        if: env.HAVE_APK == '0'
+        working-directory: apps/mobile/android/app/build/outputs/apk/release
+        run: |
+          APK_UNSIGNED=app-release-unsigned.apk
+          if [ ! -f "$APK_UNSIGNED" ]; then echo "Unsigned APK not found"; ls -la; exit 1; fi
+          BUILD_TOOLS=$(ls -v "$ANDROID_SDK_ROOT"/build-tools | tail -1)
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK_UNSIGNED" app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner verify app-release-signed.apk
+          echo "HAVE_APK=1" >> $GITHUB_ENV
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -106,4 +183,5 @@ jobs:
           path: |
             apps/mobile/app.apk
             apps/mobile/app-*.apk
+            apps/mobile/android/app/build/outputs/apk/release/app-release-signed.apk
           if-no-files-found: warn
