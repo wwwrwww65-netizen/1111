@@ -1,3 +1,1 @@
-# Ensure EAS uses CNG/Prebuild (no native folders uploaded)
-android/
-ios/
+# Keep native folders so EAS can use Gradle wrapper and prebuilt settings
