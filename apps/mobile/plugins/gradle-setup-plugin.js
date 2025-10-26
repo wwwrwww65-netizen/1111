@@ -47,10 +47,12 @@ module.exports = function gradleSetupPlugin(config) {
           let contents = fs.readFileSync(wrapperPath, 'utf8');
           // Prefer bin over all to reduce download size
           contents = contents.replace(/gradle-(\d+\.\d+(?:\.\d+)?)-all\.zip/g, 'gradle-$1-bin.zip');
-          // Use Gradle CDN mirror to reduce failures on services.gradle.org
-          contents = contents.replace(/https\\?:\/\/services\.gradle\.org\/distributions\//g, 'https://downloads.gradle-dn.com/distributions/');
-          contents = contents.replace(/https:\/\/services\.gradle\.org\/distributions\//g, 'https://downloads.gradle-dn.com/distributions/');
-          contents = contents.replace(/https:\\:\/\/services\.gradle\.org\\\/distributions\\\//g, 'https://downloads.gradle-dn.com/distributions/');
+          // Prefer primary Gradle downloads host for broad compatibility
+          contents = contents.replace(/https\\?:\/\/services\.gradle\.org\/distributions\//g, 'https://downloads.gradle.org/distributions/');
+          contents = contents.replace(/https:\/\/services\.gradle\.org\/distributions\//g, 'https://downloads.gradle.org/distributions/');
+          contents = contents.replace(/https:\\:\/\/services\.gradle\.org\\\/distributions\\\//g, 'https://downloads.gradle.org/distributions/');
+          // Also normalize any CDN host back to primary
+          contents = contents.replace(/https:\/\/downloads\.gradle-dn\.com\/distributions\//g, 'https://downloads.gradle.org/distributions/');
           // Ensure network timeout is generous
           if (/^networkTimeout=\d+/m.test(contents)) {
             contents = contents.replace(/^networkTimeout=\d+/m, 'networkTimeout=600000');

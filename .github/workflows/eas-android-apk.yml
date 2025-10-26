@@ -60,6 +60,12 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
+      - name: Force Gradle downloads host in app plugin (optional)
+        run: |
+          if [ -f plugins/gradle-setup-plugin.js ]; then
+            sed -i 's#downloads.gradle-dn.com/distributions/#downloads.gradle.org/distributions/#g' plugins/gradle-setup-plugin.js
+          fi
+
       - name: Ensure EAS login and link project
         run: |
           eas whoami || eas account:login --token ${{ env.EXPO_TOKEN }}
