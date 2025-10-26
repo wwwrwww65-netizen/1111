@@ -27,6 +27,13 @@ module.exports = function gradleSetupPlugin(config) {
     if (typeof config.modResults.contents !== 'string') return config;
     const rnNeedle = 'includeBuild("../node_modules/@react-native/gradle-plugin")';
     let contents = config.modResults.contents;
+    // Hard-replace pluginManagement block to avoid dynamic Node-based resolution that can produce null paths on EAS
+    contents = contents.replace(/pluginManagement\s*\{[\s\S]*?\n\}/, (
+      'pluginManagement {\n' +
+      '  includeBuild("../node_modules/@react-native/gradle-plugin")\n' +
+      '  includeBuild(new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin").absolutePath)\n' +
+      '}'
+    ));
     // Guard include of reactNativeGradlePlugin in pluginManagement to avoid null path
     contents = contents.replace(
       /includeBuild\(\s*reactNativeGradlePlugin\s*\)/g,
