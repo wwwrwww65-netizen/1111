@@ -22,15 +22,21 @@ module.exports = function gradleSetupPlugin(config) {
     return config;
   });
 
-  // Add includeBuild to settings.gradle
+  // Add/fix includeBuild entries in settings.gradle
   config = withProjectBuildGradle(config, (config) => {
     if (typeof config.modResults.contents !== 'string') return config;
-    const needle = 'includeBuild("../node_modules/@react-native/gradle-plugin")';
+    const rnNeedle = 'includeBuild("../node_modules/@react-native/gradle-plugin")';
     let contents = config.modResults.contents;
-    if (!contents.includes('includeBuild')) {
-      contents += `\n${needle}\n`;
-      config.modResults.contents = contents;
+    // Guard include of expoAutolinking.reactNativeGradlePlugin to avoid 'null' path
+    contents = contents.replace(
+      /includeBuild\(expoAutolinking\.reactNativeGradlePlugin\)/g,
+      'if (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }'
+    );
+    // Ensure fallback RN gradle plugin include exists
+    if (!contents.includes(rnNeedle)) {
+      contents += `\n${rnNeedle}\n`;
     }
+    config.modResults.contents = contents;
     return config;
   });
 

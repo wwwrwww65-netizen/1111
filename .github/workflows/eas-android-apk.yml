@@ -74,7 +74,12 @@ jobs:
           fi
 
       - name: Build APK on EAS (remote)
-        run: eas build --platform android --profile preview --non-interactive
+        run: |
+          # Clean native folders to force correct autolinking settings
+          rm -rf android ios
+          # Run a local config sync to ensure plugins modify settings before EAS packs the project
+          npx --yes expo-doctor --fix-dependencies || true
+          eas build --platform android --profile preview --non-interactive
 
       - name: Download latest APK artifact
         run: eas build:download --platform android --latest --path ./build/app-preview.apk --non-interactive || true
