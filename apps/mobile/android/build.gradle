@@ -6,9 +6,9 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    // Use Expo's version catalog to resolve compatible plugin versions
-    classpath(expoLibs.android.gradlePlugin)
-    classpath(expoLibs.kotlin.gradlePlugin)
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
   }
 }
 
