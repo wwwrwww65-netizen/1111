@@ -12,9 +12,6 @@
     "android": {
       "package": "com.jeeey.shopin"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "scheme": "jeeey",
     "experiments": {
       "tsconfigPaths": true
