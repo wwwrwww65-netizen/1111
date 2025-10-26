@@ -43,5 +43,3 @@ rootProject.name = 'E-commerce Mobile App'
 expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
-// Also include RN gradle plugin discovered by expoAutolinking, if available
-if (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }
