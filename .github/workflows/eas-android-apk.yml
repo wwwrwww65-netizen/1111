@@ -21,9 +21,7 @@ jobs:
       TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://api.jeeey.com/trpc' }}
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID || vars.EAS_PROJECT_ID }}
-    defaults:
-      run:
-        working-directory: apps/mobile
+  # Run steps in explicit directories to ensure EAS archives include apps/mobile path
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,6 +42,7 @@ jobs:
         working-directory: .
 
       - name: Inject config (TRPC + EAS projectId)
+        working-directory: apps/mobile
         run: |
           node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL; if (process.env.EAS_PROJECT_ID) { j.expo.extra.eas=j.expo.extra.eas||{}; j.expo.extra.eas.projectId=process.env.EAS_PROJECT_ID; } fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated TRPC + projectId in app.json');"
 
@@ -57,22 +56,44 @@ jobs:
           token: ${{ env.EXPO_TOKEN }}
 
       - name: Force Gradle downloads host in app plugin (optional)
+        working-directory: apps/mobile
         run: |
           if [ -f plugins/gradle-setup-plugin.js ]; then
             sed -i 's#downloads.gradle-dn.com/distributions/#downloads.gradle.org/distributions/#g' plugins/gradle-setup-plugin.js
           fi
 
       - name: Ensure EAS login and link project
+        working-directory: apps/mobile
         run: |
           eas whoami || eas account:login --token ${{ env.EXPO_TOKEN }}
           if [ -n "${{ env.EAS_PROJECT_ID }}" ]; then
             eas init --id "${{ env.EAS_PROJECT_ID }}" --non-interactive || true
           fi
 
-      - name: Build APK on EAS (remote)
+      - name: Prepare packaging to include android/ (override .easignore)
+        working-directory: apps/mobile
         run: |
-          # Run a local prebuild to bake plugin changes and ensure node_modules paths
+          if [ -f .easignore ]; then
+            echo "Before .easignore:" && cat .easignore || true
+            # Remove lines that exclude android/ or ios/
+            sed -i '/^android\//d' .easignore || true
+            sed -i '/^ios\//d' .easignore || true
+            echo "After .easignore:" && cat .easignore || true
+          fi
+
+      - name: Prebuild android locally (generate gradlew)
+        working-directory: apps/mobile
+        run: |
           pnpm dlx expo prebuild --platform android --clean --no-install || true
+          test -f android/gradlew || { echo "gradlew missing after prebuild"; exit 1; }
+          chmod +x android/gradlew || true
+
+      - name: Build APK on EAS (remote)
+        working-directory: apps/mobile
+        env:
+          # Disable VCS file list so untracked android/ is included in archive
+          EAS_NO_VCS: '1'
+        run: |
           eas build --platform android --profile preview --non-interactive
 
       - name: Download latest APK artifact

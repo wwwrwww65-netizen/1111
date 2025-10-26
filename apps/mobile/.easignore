@@ -1,1 +1,3 @@
-# Keep native folders so EAS can use Gradle wrapper and prebuilt settings
+# Force EAS to run prebuild remotely (managed workflow)
+android/
+ios/
