@@ -25,29 +25,43 @@ module.exports = function gradleSetupPlugin(config) {
   // Add/fix includeBuild entries specifically in android/settings.gradle
   config = withSettingsGradle(config, (config) => {
     if (typeof config.modResults.contents !== 'string') return config;
-    const rnNeedle = 'includeBuild("../node_modules/@react-native/gradle-plugin")';
     let contents = config.modResults.contents;
-    // Hard-replace pluginManagement block to avoid dynamic Node-based resolution that can produce null paths on EAS
-    contents = contents.replace(/pluginManagement\s*\{[\s\S]*?\n\}/, (
-      'pluginManagement {\n' +
-      '  includeBuild("../node_modules/@react-native/gradle-plugin")\n' +
-      '  includeBuild(new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin").absolutePath)\n' +
-      '}'
-    ));
-    // Guard include of reactNativeGradlePlugin in pluginManagement to avoid null path
-    contents = contents.replace(
-      /includeBuild\(\s*reactNativeGradlePlugin\s*\)/g,
-      'if (reactNativeGradlePlugin != null) { includeBuild(reactNativeGradlePlugin) } else { includeBuild("../node_modules/@react-native/gradle-plugin") }'
-    );
-    // Guard include of expoAutolinking.reactNativeGradlePlugin to avoid 'null' path
-    contents = contents.replace(
-      /includeBuild\(expoAutolinking\.reactNativeGradlePlugin\)/g,
-      'if (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }'
-    );
-    // Ensure fallback RN gradle plugin include exists
-    if (!contents.includes(rnNeedle)) {
-      contents += `\n${rnNeedle}\n`;
+
+    // Replace pluginManagement block with robust, monorepo-safe logic that checks multiple candidate paths
+    const robustPluginManagement = [
+      'pluginManagement {',
+      '  // Try multiple possible node_modules locations (package-local and workspace root)',
+      '  def includeIfExists = { File dir -> if (dir.exists()) { includeBuild(dir.absolutePath) } }',
+      '  def rnCandidates = [',
+      '    new File(rootDir, "../node_modules/@react-native/gradle-plugin"),',
+      '    new File(rootDir, "../../node_modules/@react-native/gradle-plugin"),',
+      '    new File(rootDir, "../../../node_modules/@react-native/gradle-plugin"),',
+      '  ]',
+      '  for (c in rnCandidates) { includeIfExists(c) }',
+      '',
+      '  def expoCandidates = [',
+      '    new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),',
+      '    new File(rootDir, "../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),',
+      '    new File(rootDir, "../../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),',
+      '  ]',
+      '  for (c in expoCandidates) { includeIfExists(c) }',
+      '}',
+    ].join('\n');
+
+    if (/pluginManagement\s*\{[\s\S]*?\n\}/.test(contents)) {
+      contents = contents.replace(/pluginManagement\s*\{[\s\S]*?\n\}/, robustPluginManagement);
+    } else {
+      contents = robustPluginManagement + '\n' + contents;
     }
+
+    // Ensure we respect expoAutolinking.reactNativeGradlePlugin when present
+    if (!/includeBuild\(expoAutolinking\.reactNativeGradlePlugin\)/.test(contents)) {
+      contents = contents.replace(
+        /plugins\s*\{[\s\S]*?\n\}/,
+        (block) => block + '\nif (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }\n'
+      );
+    }
+
     config.modResults.contents = contents;
     return config;
   });

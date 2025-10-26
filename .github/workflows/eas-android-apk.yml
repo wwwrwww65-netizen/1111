@@ -77,8 +77,8 @@ jobs:
         run: |
           # Clean native folders to force correct autolinking settings
           rm -rf android ios
-          # Run a local config sync to ensure plugins modify settings before EAS packs the project
-          npx --yes expo-doctor --fix-dependencies || true
+          # Run a local prebuild to bake plugin changes and ensure node_modules paths
+          pnpm dlx expo prebuild --platform android --clean --no-install || true
           eas build --platform android --profile preview --non-interactive
 
       - name: Download latest APK artifact
