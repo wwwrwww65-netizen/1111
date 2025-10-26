@@ -44,5 +44,10 @@
     "@repo/typescript-config": "workspace:*",
     "typescript": "^5",
     "@types/react": "~18.2.45"
+  },
+  "pnpm": {
+    "overrides": {
+      "@expo/metro-config": "~0.18.11"
+    }
   }
 }
