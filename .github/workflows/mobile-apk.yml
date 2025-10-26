@@ -118,17 +118,58 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Read Gradle version from wrapper (fallback)
+        if: env.HAVE_APK == '0'
+        id: read_gradle_version
+        working-directory: apps/mobile
+        run: |
+          VER=$(sed -n "s#.*gradle-\([0-9.]*\)-bin.zip#\1#p" android/gradle/wrapper/gradle-wrapper.properties | head -n1)
+          echo "Detected Gradle version: $VER"
+          echo "gradle_version=$VER" >> $GITHUB_OUTPUT
+
       - name: Setup Gradle with cache (fallback)
         if: env.HAVE_APK == '0'
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          gradle-version: wrapper
+          gradle-version: ${{ steps.read_gradle_version.outputs.gradle_version }}
 
       - name: Expo prebuild (android) (fallback)
         if: env.HAVE_APK == '0'
         working-directory: apps/mobile
         run: pnpm dlx expo prebuild --platform android --clean
+
+      - name: Prefetch Gradle distribution and force local file URL (fallback)
+        if: env.HAVE_APK == '0'
+        working-directory: apps/mobile
+        run: |
+          PROPS=android/gradle/wrapper/gradle-wrapper.properties
+          URL=$(grep '^distributionUrl=' "$PROPS" | cut -d'=' -f2- | tr -d '\r')
+          FILE=$(basename "$URL")
+          DEST=$(pwd)/android/gradle/wrapper/$FILE
+          echo "Gradle URL: $URL"
+          echo "Downloading to: $DEST"
+          curl -fL --retry 5 --retry-all-errors --connect-timeout 30 --max-time 600 -o "$DEST" "$URL"
+          NEW_URL="file://$DEST"
+          sed -i "s#^distributionUrl=.*#distributionUrl=${NEW_URL}#" "$PROPS"
+          if grep -q '^networkTimeout=' "$PROPS"; then sed -i 's/^networkTimeout=.*/networkTimeout=600000/' "$PROPS"; else echo 'networkTimeout=600000' >> "$PROPS"; fi
+          if ! grep -q '^validateDistributionUrl=' "$PROPS"; then echo 'validateDistributionUrl=true' >> "$PROPS"; fi
+          echo "Updated $PROPS:" && cat "$PROPS"
+
+      - name: Unzip Gradle distribution for local CLI (fallback)
+        if: env.HAVE_APK == '0'
+        working-directory: apps/mobile
+        id: unzip_gradle
+        run: |
+          WRAPPER_DIR=android/gradle/wrapper
+          FILE=$(basename $(grep '^distributionUrl=' "$WRAPPER_DIR/gradle-wrapper.properties" | cut -d'=' -f2- | tr -d '\r'))
+          ZIP_PATH="$WRAPPER_DIR/$FILE"
+          EXTRACT_DIR="$WRAPPER_DIR/gradle-dist"
+          mkdir -p "$EXTRACT_DIR"
+          unzip -q -o "$ZIP_PATH" -d "$EXTRACT_DIR"
+          GRADLE_BIN=$(echo "$EXTRACT_DIR"/gradle-*/bin/gradle | head -n1)
+          echo "Using GRADLE_BIN=$GRADLE_BIN"
+          echo "gradle_bin=$GRADLE_BIN" >> $GITHUB_OUTPUT
 
       - name: Ensure gradle.properties has RN paths (fallback)
         if: env.HAVE_APK == '0'
@@ -144,15 +185,14 @@ jobs:
           } >> "$GP"
           echo "Wrote $GP:" && tail -n 20 "$GP" | cat
 
-      - name: Assemble release (Gradle) (fallback)
+      - name: Assemble release (Gradle CLI) (fallback)
         if: env.HAVE_APK == '0'
-        working-directory: apps/mobile/android
+        working-directory: apps/mobile
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
         run: |
-          chmod +x ./gradlew
           for attempt in 1 2 3; do \
-            ./gradlew -PREACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin -PreactNativeDir=../node_modules/react-native :app:clean :app:assembleRelease --no-daemon --stacktrace && break || { \
+            "${{ steps.unzip_gradle.outputs.gradle_bin }}" -p android -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -PreactNativeDir=../node_modules/react-native -PREACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin :app:clean :app:assembleRelease --no-daemon --stacktrace && break || { \
               echo "Gradle attempt $attempt failed"; \
               if [ "$attempt" -lt 3 ]; then sleep $((attempt*15)); else exit 1; fi; \
             }; \
