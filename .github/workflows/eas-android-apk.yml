@@ -144,12 +144,17 @@ jobs:
         if: env.EAS_BUILD_FAILED == '1'
         working-directory: apps/mobile
         run: |
+          set -e
           PROPS=android/gradle/wrapper/gradle-wrapper.properties
-          URL=$(sed -n "s#^distributionUrl=\(.*\)$#\1#p" "$PROPS" | tr -d '\r')
-          URL=$(echo "$URL" | sed 's#\\://#://#g')
+          if [ ! -f "$PROPS" ]; then echo "Missing $PROPS"; exit 1; fi
+          mkdir -p android/gradle/wrapper
+          URL=$(awk -F= '/^distributionUrl=/{print $2}' "$PROPS" | tr -d '\r')
+          # Unescape if needed (https\:// -> https://)
+          URL=${URL/\\:\/\//:\/\/}
+          echo "Gradle URL: $URL"
+          if [ -z "$URL" ]; then echo "Empty distributionUrl, skipping prefetch"; exit 0; fi
           FILE=$(basename "$URL")
           DEST=$(pwd)/android/gradle/wrapper/$FILE
-          echo "Gradle URL: $URL"
           echo "Downloading to: $DEST"
           curl -fL --retry 5 --retry-all-errors --connect-timeout 30 --max-time 600 -o "$DEST" "$URL"
           NEW_URL="file://$DEST"
