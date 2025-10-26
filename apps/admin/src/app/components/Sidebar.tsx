@@ -92,6 +92,8 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/trends/management', label: 'الاتجاهات' },
       { href: '/marketing/facebook', label: 'تسويق فيسبوك' },
       { href: '/recommendations/rules', label: 'قواعد التوصيات' },
+      { href: '/marketing/occasion-strip', label: 'مناسبة المطلة' },
+      { href: '/marketing/pdp-policies', label: 'سياسات صفحة المنتج' },
     ],
   },
   {

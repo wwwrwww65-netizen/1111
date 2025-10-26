@@ -320,7 +320,100 @@ shop.get('/product/:id/meta', async (req: any, res) => {
         }
       }
     } catch {}
-    const out = Object.assign({ badges: [], bestRank: bestRank, fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null }, meta || {}, { clubBanner, bestRank });
+    // Occasion Strip: read settings and decide eligibility
+    let occasionStrip: any = null;
+    // PDP Policies (cod/returns/secure)
+    let pdpPolicies: any = null;
+    try {
+      const row = await db.setting.findUnique({ where: { key: 'occasion:strip:settings' } } as any);
+      const s: any = (row?.value as any) || {};
+      if (s?.enabled && s?.placement?.pdp?.enabled !== false) {
+        // schedule window
+        const now = Date.now();
+        const fromOk = !s?.schedule?.from || (new Date(s.schedule.from).getTime() <= now);
+        const toOk = !s?.schedule?.to || (new Date(s.schedule.to).getTime() >= now);
+        // basic targeting by ids/names (best-effort)
+        function inList(v: any, list: any[]): boolean { return Array.isArray(list) && list.some(x=> String(x)==String(v)) }
+        const pid = id;
+        const t = s?.targeting||{};
+        let cid: any = undefined, vid: any = undefined, brand: any = undefined;
+        try {
+          const pmini: any = await db.product.findUnique({ where: { id }, select: { categoryId: true, vendorId: true, brand: true } } as any);
+          cid = pmini?.categoryId; vid = pmini?.vendorId; brand = pmini?.brand;
+        } catch {}
+        const includeOk = (
+          (!t.products?.include?.length || inList(pid, t.products.include)) &&
+          (!t.categories?.include?.length || inList(cid, t.categories.include)) &&
+          (!t.vendors?.include?.length || inList(vid, t.vendors.include)) &&
+          (!t.brands?.include?.length || inList(brand, t.brands.include))
+        );
+        const excludeOk = (
+          (!t.products?.exclude?.length || !inList(pid, t.products.exclude)) &&
+          (!t.categories?.exclude?.length || !inList(cid, t.categories.exclude)) &&
+          (!t.vendors?.exclude?.length || !inList(vid, t.vendors.exclude)) &&
+          (!t.brands?.exclude?.length || !inList(brand, t.brands.exclude))
+        );
+        const targetOk = includeOk && excludeOk;
+        if (fromOk && toOk && targetOk) {
+          occasionStrip = {
+            enabled: true,
+            title: s.title||'مناسبة المطلة',
+            subtitle: s.subtitle||'',
+            kpiText: s.kpiText||'',
+            cta: s.cta||{label:'',url:''},
+            theme: s.theme||{ gradientFrom:'#fdf2f8', gradientTo:'#fffbeb', borderColor:'#fbcfe8' },
+            placement: s.placement||{ pdp: { enabled: true, position: 'products_top' } }
+          };
+        }
+      }
+    } catch { /* ignore */ }
+    // Load PDP policies settings once and pass through if targeted/applyAll and any policy is enabled
+    try{
+      const prow = await db.setting.findUnique({ where: { key: 'policies:pdp:settings' } } as any);
+      const s: any = (prow?.value as any) || null;
+      if (s){
+        const anyPolicyEnabled = !!(s?.cod?.enabled || s?.returns?.enabled || s?.secure?.enabled);
+        if (anyPolicyEnabled){
+          const now = Date.now();
+          const fromOk = !s?.schedule?.from || (new Date(s.schedule.from).getTime() <= now);
+          const toOk = !s?.schedule?.to || (new Date(s.schedule.to).getTime() >= now);
+          const t = s?.targeting||{};
+          function inList(v:any, list:any[]): boolean { return Array.isArray(list) && list.some(x=> String(x)==String(v)) }
+          let cid:any, vid:any, brand:any; try{ const pmini:any = await db.product.findUnique({ where: { id }, select: { categoryId:true, vendorId:true, brand:true } } as any); cid=pmini?.categoryId; vid=pmini?.vendorId; brand=pmini?.brand; }catch{}
+          const includeOk = (
+            (!t.products?.include?.length || inList(id, t.products.include)) &&
+            (!t.categories?.include?.length || inList(cid, t.categories.include)) &&
+            (!t.vendors?.include?.length || inList(vid, t.vendors.include)) &&
+            (!t.brands?.include?.length || inList(brand, t.brands.include))
+          );
+          const excludeOk = (
+            (!t.products?.exclude?.length || !inList(id, t.products.exclude)) &&
+            (!t.categories?.exclude?.length || !inList(cid, t.categories.exclude)) &&
+            (!t.vendors?.exclude?.length || !inList(vid, t.vendors.exclude)) &&
+            (!t.brands?.exclude?.length || !inList(brand, t.brands.exclude))
+          );
+          const eligible = !!(s?.applyAll) || (includeOk && excludeOk);
+          if (fromOk && toOk && eligible){
+            pdpPolicies = {
+              cod: s.cod || { enabled:false },
+              returns: s.returns || { enabled:false },
+              secure: s.secure || { enabled:false },
+            }
+          }
+        }
+      }
+    }catch{}
+    // Merge meta first, then overlay computed fields so they are not overridden by undefined in stored meta
+    const out = Object.assign(
+      { badges: [], fitPercent: null, fitText: null, model: null, shippingDestinationOverride: null, sellerBlurb: null },
+      meta || {},
+      {
+        bestRank: bestRank,
+        occasionStrip: occasionStrip,
+        policies: (pdpPolicies!=null ? pdpPolicies : ((meta as any)?.policies ?? null)),
+        clubBanner
+      }
+    );
     return res.json({ productId: id, meta: out });
   } catch (e:any) {
     return res.status(500).json({ error: e?.message || 'pdp_meta_failed' });
@@ -334,8 +427,39 @@ shop.get('/product/:id/seller', async (req: any, res) => {
     const p = await db.product.findUnique({ where: { id }, select: { vendor: { select: { id: true, name: true, storeName: true, storeNumber: true, updatedAt: true } } } } as any);
     const v = (p as any)?.vendor || null;
     if (!v) return res.json({ vendor: null });
-    return res.json({ vendor: v });
+    // Merge public-facing vendor meta if present
+    try {
+      const key = `vendor:meta:${v.id}`;
+      const row = await db.setting.findUnique({ where: { key } } as any);
+      const meta = row?.value || {};
+      return res.json({ vendor: { ...v, meta } });
+    } catch { return res.json({ vendor: v }); }
   }catch(e:any){ return res.status(500).json({ error: e?.message || 'seller_failed' }) }
+});
+
+// User fit profile (height/weight/width) for size recommendations (auth required)
+shop.get('/me/fit-profile', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserFitProfile" ("userId" TEXT PRIMARY KEY, "heightCm" DOUBLE PRECISION NULL, "weightKg" DOUBLE PRECISION NULL, "widthCm" DOUBLE PRECISION NULL, "updatedAt" TIMESTAMP DEFAULT NOW())');
+    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "UserFitProfile" WHERE "userId"=$1', userId)) as any[])[0] || null;
+    return res.json({ profile: row ? { heightCm: row.heightCm ?? null, weightKg: row.weightKg ?? null, widthCm: row.widthCm ?? null, updatedAt: row.updatedAt } : { heightCm: null, weightKg: null, widthCm: null } });
+  } catch (e:any) { return res.status(500).json({ error: e?.message || 'fit_profile_failed' }); }
+});
+
+shop.post('/me/fit-profile', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.userId;
+    const { heightCm, weightKg, widthCm } = req.body || {};
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserFitProfile" ("userId" TEXT PRIMARY KEY, "heightCm" DOUBLE PRECISION NULL, "weightKg" DOUBLE PRECISION NULL, "widthCm" DOUBLE PRECISION NULL, "updatedAt" TIMESTAMP DEFAULT NOW())');
+    const exists: any = ((await db.$queryRawUnsafe('SELECT 1 FROM "UserFitProfile" WHERE "userId"=$1', userId)) as any[])[0];
+    const h = (heightCm!=null && !Number.isNaN(Number(heightCm))) ? Number(heightCm) : null;
+    const w = (weightKg!=null && !Number.isNaN(Number(weightKg))) ? Number(weightKg) : null;
+    const wd = (widthCm!=null && !Number.isNaN(Number(widthCm))) ? Number(widthCm) : null;
+    if (exists) await db.$executeRawUnsafe('UPDATE "UserFitProfile" SET "heightCm"=$1, "weightKg"=$2, "widthCm"=$3, "updatedAt"=NOW() WHERE "userId"=$4', h, w, wd, userId);
+    else await db.$executeRawUnsafe('INSERT INTO "UserFitProfile" ("userId","heightCm","weightKg","widthCm") VALUES ($1,$2,$3,$4)', userId, h, w, wd);
+    return res.json({ ok:true });
+  } catch (e:any) { return res.status(500).json({ error: e?.message || 'fit_profile_save_failed' }); }
 });
 
 // List cities by governorate or whole country
@@ -2089,14 +2213,17 @@ shop.get('/shipping/quote', async (req, res) => {
 shop.get('/shipping/methods', async (req, res) => {
   try{
     const city = String(req.query.city||'').trim()
-    let items: Array<{ id: string; name: string; desc: string; price: number }> = []
+    let items: Array<{ id: string; name: string; desc: string; price: number; offerTitle?: string; etaMinHours?: number; etaMaxHours?: number }> = []
     try{
       const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true } } as any)
       items = (rates||[]).map((r:any)=>({
         id: r.id,
         name: r.carrier || 'شحن',
         desc: r.offerTitle || (r.etaMinHours||r.etaMaxHours ? `توصيل خلال ${r.etaMinHours||r.etaMaxHours} - ${r.etaMaxHours||r.etaMinHours} ساعة` : ''),
-        price: Number(r.baseFee||0)
+        price: Number(r.baseFee||0),
+        offerTitle: r.offerTitle || null,
+        etaMinHours: r.etaMinHours ?? null,
+        etaMaxHours: r.etaMaxHours ?? null,
       }))
     }catch{}
     if (!items.length) {

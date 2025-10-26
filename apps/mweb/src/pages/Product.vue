@@ -284,17 +284,15 @@
         </div>
       </div>
 
-      <!-- Fit Rating -->
-      <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-        <div class="flex items-center gap-2 mb-2">
+      <!-- Fit Rating (show only if product has sizes) -->
+      <div v-if="(sizeOptions.length || sizeGroups.length)" class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 transition-colors">
+        <div v-if="reviews.length && (pdpMeta.fitPercent!=null || pdpMeta.fitText)" class="flex items-center gap-2 mb-2">
           <ThumbsUp :size="16" class="text-green-600" />
-          <span class="font-bold text-[16px]">{{ pdpMeta.fitPercent ?? 96 }}%</span>
-          <span class="text-[12px] text-gray-600">{{ pdpMeta.fitText || 'يعتقد من العملاء أن المقاس حقيقي ومناسب' }}</span>
+          <span class="font-bold text-[16px]">{{ pdpMeta.fitPercent ?? 0 }}%</span>
+          <span class="text-[13px] text-gray-700">{{ pdpMeta.fitText || 'يعتقد من العملاء أن المقاس حقيقي ومناسب' }}</span>
           <ChevronLeft :size="16" class="text-gray-600 mr-auto" />
-      </div>
-        <div class="text-[12px] text-gray-600">
-          ليس مقاسك؟ اختبرنا ما هو مقاسك ◀
         </div>
+        <button class="w-full text-start text-[14px] text-gray-800 underline font-medium" @click="openFitModal">ليس مقاسك؟ أخبرنا ما هو مقاسك ◀</button>
       </div>
     </div>
     <div ref="firstContainerEnd"></div>
@@ -304,10 +302,10 @@
     <div class="bg-white px-4 mt-0.5">
       <!-- Shipping to destination -->
       <div class="mb-4">
-        <div class="text-[16px] font-bold mb-3">الشحن الى {{ pdpMeta.shippingDestinationOverride || (product?.shippingCountry || 'السعودية') }}</div>
+        <div class="text-[16px] font-bold mb-3">الشحن إلى {{ destinationText }}</div>
         
         <div class="flex items-center justify-between py-3 border-b border-gray-200">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2" @click="openShippingDetails" role="button">
             <Truck :size="20" class="text-green-600" />
             <div>
               <div class="text-[14px] font-bold">{{ shippingTitleText }}</div>
@@ -329,7 +327,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+        <div class="flex items-center justify-between py-3 border-b border-gray-200" @click="openPolicy('cod')" role="button">
           <div class="flex items-center gap-2">
             <DollarSign :size="20" class="text-green-600" />
             <span class="text-[14px]">خدمة الدفع عند الاستلام</span>
@@ -337,7 +335,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+        <div class="flex items-center justify-between py-3 border-b border-gray-200" @click="openPolicy('returns')" role="button">
           <div class="flex items-center gap-2">
             <RotateCcw :size="20" class="text-gray-600" />
             <span class="text-[14px]">سياسة الإرجاع</span>
@@ -353,7 +351,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="mt-3 p-3 bg-gray-50 rounded-lg">
+        <div class="mt-3 p-3 bg-gray-50 rounded-lg" @click="openPolicy('secure')" role="button">
           <div class="grid grid-cols-2 gap-2 text-[12px] text-gray-700">
             <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>طرق دفع آمنة</div>
             <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>شحن آمن</div>
@@ -362,13 +360,7 @@
           </div>
       </div>
 
-        <div class="flex items-center justify-between py-3">
-        <div class="flex items-center gap-2">
-            <Truck :size="20" class="text-green-600" />
-            <span class="text-[13px]">الباع والشحن من: شي ان</span>
-          </div>
-          <ChevronLeft :size="16" class="text-gray-600" />
-        </div>
+        <!-- Removed seller/shipping source row as requested -->
         </div>
       </div>
 
@@ -377,88 +369,87 @@
       <!-- Section 1: Products (Always Visible) -->
       <div ref="productsContentRef">
         <!-- Coupon Banner -->
-        <div class="mb-4 p-3 bg-gradient-to-r from-pink-50 to-yellow-50 rounded-lg border border-pink-200">
+        <div v-if="(pdpMeta as any)?.occasionStrip?.enabled" class="mb-4 p-3 rounded-lg border" :style="`background-image: linear-gradient(to right, ${(pdpMeta as any)?.occasionStrip?.theme?.gradientFrom||'#fdf2f8'}, ${(pdpMeta as any)?.occasionStrip?.theme?.gradientTo||'#fffbeb'}); border-color: ${(pdpMeta as any)?.occasionStrip?.theme?.borderColor||'#fbcfe8'}`">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="text-[13px]">مناسبة المطلة</span>
-              <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-fit-'+i" class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">{{ b.title }}</span>
-              <span class="text-[11px] text-green-600 font-bold">⬇️ارتفاع14%</span>
+              <span class="text-[13px] font-semibold">{{ (pdpMeta as any).occasionStrip.title }}</span>
+              <span v-if="(pdpMeta as any).occasionStrip.kpiText" class="text-[11px] text-green-700 font-bold">{{ (pdpMeta as any).occasionStrip.kpiText }}</span>
+            </div>
+            <a v-if="(pdpMeta as any).occasionStrip.cta?.label && (pdpMeta as any).occasionStrip.cta?.url" :href="(pdpMeta as any).occasionStrip.cta.url" class="text-[12px] underline">{{ (pdpMeta as any).occasionStrip.cta.label }}</a>
           </div>
+          <div v-if="(pdpMeta as any).occasionStrip.subtitle" class="text-[12px] text-gray-700 mt-1">
+            {{ (pdpMeta as any).occasionStrip.subtitle }}
           </div>
-          <div class="text-[12px] text-gray-600 mt-1">
-            إطلالات عطلة ساحرة لك ولعائلتك لمغامرات منسمة!
         </div>
-      </div>
 
-        <!-- Description -->
-        <div class="mb-4 pb-4 border-b border-gray-200">
-          <div class="flex items-center justify-between mb-2">
+        <!-- Description trigger (opens modal) -->
+        <div class="mb-4 pb-2 border-b border-gray-200">
+          <button class="w-full flex items-center justify-between py-1" @click="descOpen=true">
             <span class="font-semibold text-[15px]">وصف</span>
             <ChevronLeft :size="16" class="text-gray-600" />
-          </div>
-          <div class="prose prose-sm max-w-none text-gray-800" v-html="safeDescription"></div>
+          </button>
         </div>
 
-        <!-- Model Reference -->
-        <div class="mb-4 pb-4 border-b border-gray-200">
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-semibold text-[15px]">مرجع المقاس</span>
-            <ChevronLeft :size="16" class="text-gray-600" />
-          </div>
-        </div>
-
-        <!-- Model Measurements -->
-        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+      <!-- Model Measurements (dynamic from PDP meta: modelEnabled + fields[]) -->
+      <div v-if="(pdpMeta as any)?.modelEnabled" class="mb-4 p-3 bg-gray-50 rounded-lg">
         <div class="flex items-center justify-between">
-            <div>
-              <div class="text-[14px] font-bold mb-2">عارضة الأزياء ترتدي: {{ pdpMeta.model?.size || 'S' }}</div>
-              <div class="text-[12px] text-gray-600">
-                <span>طول: {{ pdpMeta.model?.height || 163 }}</span> | 
-                <span>صدر: {{ pdpMeta.model?.bust || 88 }}</span> | 
-                <span>خصر: {{ pdpMeta.model?.waist || 64 }}</span><br>
-                <span>الوركين: {{ pdpMeta.model?.hips || 92 }}</span>
-        </div>
+          <div>
+            <div class="text-[14px] font-bold mb-2">عارضة الأزياء</div>
+            <div class="text-[12px] text-gray-600">
+              <template v-if="Array.isArray((pdpMeta as any)?.model?.fields) && (pdpMeta as any)?.model?.fields.length">
+                <template v-for="(f,idx) in (pdpMeta as any).model.fields" :key="'mf-'+idx">
+                  <span>{{ f.label }}: {{ f.value }}</span>
+                  <span v-if="idx < ((pdpMeta as any).model.fields.length-1)"> | </span>
+                </template>
+              </template>
+              <template v-else>
+                <span>—</span>
+              </template>
             </div>
-            <div class="w-12 h-12 rounded-full overflow-hidden">
-              <img :src="images[0]" class="w-full h-full object-cover" />
-            </div>
+          </div>
+          <div class="w-12 h-12 rounded-full overflow-hidden" v-if="(pdpMeta as any)?.model?.imageUrl">
+            <img :src="(pdpMeta as any).model.imageUrl" class="w-full h-full object-cover" />
+          </div>
         </div>
       </div>
 
-        <!-- Seller Info -->
-        <div class="mb-4 p-4 border border-gray-200 rounded-lg">
+        <!-- Vendor Store Info (hidden by default; enable via pdpMeta.vendorBoxEnabled) -->
+        <div v-if="(pdpMeta as any)?.vendorBoxEnabled && seller" class="mb-4 p-4 border border-gray-200 rounded-lg">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
-              <span class="font-bold text-[15px]">{{ brand || 'Elenzga' }}</span>
+              <span class="font-bold text-[15px]">{{ seller.storeName || seller.name || brand || '—' }}</span>
               <ChevronLeft :size="16" class="text-gray-600" />
             </div>
-            <div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center">
-              <span class="text-2xl">E</span>
+            <div class="w-14 h-14 rounded-full bg-purple-100 overflow-hidden flex items-center justify-center">
+              <img v-if="seller.meta?.logoUrl" :src="seller.meta.logoUrl" alt="logo" class="w-full h-full object-cover" />
+              <span v-else class="text-2xl">{{ (seller.storeName||seller.name||'J').charAt(0) }}</span>
             </div>
           </div>
-          <div class="text-[11px] text-gray-600 mb-2">
-            {{ sellerFollowText }}
+          <div v-if="seller.meta?.bannerUrl" class="mb-2 rounded overflow-hidden">
+            <img :src="seller.meta.bannerUrl" alt="banner" class="w-full h-16 object-cover rounded" />
           </div>
-          <div class="flex gap-2 mb-3">
+          <div class="text-[12px] text-gray-700 mb-2">
+            {{ seller.meta?.blurb || '' }}
+          </div>
+          <div class="text-[11px] text-gray-600 mb-3">{{ sellerFollowText }}</div>
+          <div class="flex gap-2 mb-3" v-if="pdpMeta.badges && pdpMeta.badges.length">
             <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-seller-'+i" class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" :style="b.bgColor ? ('background-color:'+b.bgColor) : 'background-color:#8a1538'">{{ b.title }}</span>
           </div>
-          <div class="text-[12px] text-gray-700 mb-3">
-            {{ pdpMeta.sellerBlurb || '' }}
+          <div class="flex items-center gap-3 mb-3" v-if="seller.meta?.links">
+            <a v-if="seller.meta.links.website" class="text-[12px] underline text-blue-600" :href="seller.meta.links.website" target="_blank" rel="noopener">الموقع</a>
+            <a v-if="seller.meta.links.instagram" class="text-[12px] underline text-pink-600" :href="seller.meta.links.instagram" target="_blank" rel="noopener">انستغرام</a>
+            <a v-if="seller.meta.links.whatsapp" class="text-[12px] underline text-green-600" :href="('https://wa.me/'+seller.meta.links.whatsapp.replace(/[^\d]/g,''))" target="_blank" rel="noopener">واتساب</a>
           </div>
           <div class="flex gap-2">
-            <button class="flex-1 py-2 border border-gray-300 rounded-full text-[13px]">
-              كل المنتجات
-            </button>
-            <button class="flex-1 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full text-[13px] font-bold">
-              + متابع
-            </button>
+            <button class="flex-1 py-2 border border-gray-300 rounded-full text-[13px]" @click="goTo('/store/'+(seller.id||''))">كل المنتجات</button>
+            <button class="flex-1 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full text-[13px] font-bold">+ متابع</button>
           </div>
         </div>
       </div>
       </div>
 
     <!-- White Container: Reviews Section -->
-    <div class="bg-white px-4 mt-0.5">
+    <div class="bg-white px-4 mt-0.5" v-if="reviews.length">
       <!-- Section 2: Reviews (Always Visible) -->
       <div ref="reviewsContentRef" class="mt-8">
         <!-- Reviews Header -->
@@ -745,6 +736,80 @@
       </div>
     </div>
   </Transition>
+  <!-- Policy bottom sheet -->
+  <div v-if="policyOpenKey" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" @click="closePolicy"></div>
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 min-h-[50vh] max-h-[70vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-[16px]">{{ policyTitle }}</h3>
+        <button class="text-[20px]" @click="closePolicy">×</button>
+      </div>
+      <div class="text-[13px] text-gray-700 leading-relaxed" v-html="policyContent"></div>
+    </div>
+  </div>
+  <!-- Description full-screen sheet -->
+  <div v-if="descOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" @click="descOpen=false"></div>
+    <Transition enter-active-class="transition-transform duration-300" enter-from-class="translate-y-full" enter-to-class="translate-y-0" leave-active-class="transition-transform duration-300" leave-from-class="translate-y-0" leave-to-class="translate-y-full">
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-0 max-h-[70vh] overflow-y-auto shadow-xl">
+      <div class="relative flex items-center justify-center p-3 border-b">
+        <button class="absolute left-3 top-1/2 -translate-y-1/2" @click="descOpen=false" aria-label="إغلاق">
+          <X :size="22" />
+        </button>
+        <div class="text-[16px] font-bold">وصف</div>
+      </div>
+      <div class="p-4">
+         <div v-if="descPairs.length" class="grid grid-cols-[140px_1fr] md:grid-cols-[180px_1fr] gap-y-0 gap-x-6 text-[13px]">
+          <template v-for="(it,idx) in descPairs" :key="'dp-'+idx">
+            <div class="text-gray-600 text-right pr-1">{{ it.k }}</div>
+            <div class="text-gray-800 text-right pl-6" dir="rtl">{{ it.v }}</div>
+          </template>
+          <template v-if="product?.sku">
+            <div class="text-gray-600 text-right pr-1">SKU</div>
+            <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+              <span class="font-mono break-all">{{ product.sku }}</span>
+              <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.sku))" aria-label="نسخ SKU">
+                <Copy :size="16" class="text-blue-600" />
+              </button>
+            </div>
+          </template>
+          <template v-if="product && product.id">
+            <div class="text-gray-600 text-right pr-1">ID</div>
+            <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+              <span class="font-mono break-all">{{ product.id }}</span>
+              <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.id))" aria-label="نسخ ID">
+                <Copy :size="16" class="text-blue-600" />
+              </button>
+            </div>
+          </template>
+        </div>
+        <div v-else>
+          <div class="prose prose-sm max-w-none text-gray-800" v-html="safeDescription"></div>
+           <div class="mt-4 grid grid-cols-[140px_1fr] md:grid-cols-[180px_1fr] gap-y-0 gap-x-6 text-[13px]">
+            <template v-if="product?.sku">
+              <div class="text-gray-600 text-right pr-1">SKU</div>
+              <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+                <span class="font-mono break-all">{{ product.sku }}</span>
+                <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.sku))" aria-label="نسخ SKU">
+                  <Copy :size="16" class="text-blue-600" />
+                </button>
+              </div>
+            </template>
+            <template v-if="product && product.id">
+              <div class="text-gray-600 text-right pr-1">ID</div>
+              <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+                <span class="font-mono break-all">{{ product.id }}</span>
+                <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.id))" aria-label="نسخ ID">
+                  <Copy :size="16" class="text-blue-600" />
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+    </Transition>
+  </div>
   <!-- Modal: pick options if missing -->
 <ProductOptionsModal
     v-if="optionsModalOpen"
@@ -761,6 +826,69 @@
     :onWishlist="toggleWish"
     :wishlistActive="hasWish"
   />
+  <!-- Shipping details full-screen sheet -->
+  <Transition enter-active-class="transition-transform duration-300" enter-from-class="-translate-x-full" enter-to-class="translate-x-0" leave-active-class="transition-transform duration-300" leave-from-class="translate-x-0" leave-to-class="-translate-x-full">
+  <div v-if="shippingDetailsOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" @click="closeShippingDetails"></div>
+    <div class="absolute inset-0 bg-[#fafafa] flex flex-col transform">
+      <div class="relative flex items-center justify-center p-3 border-b">
+        <button class="absolute right-3 top-1/2 -translate-y-1/2" @click="closeShippingDetails">
+          <ChevronRight :size="22" />
+        </button>
+        <div class="text-[16px] font-bold">معلومات الشحن والتوصيل</div>
+      </div>
+      <div class="p-3 space-y-3">
+        <div class="p-3 rounded-lg border bg-white flex items-center justify-between" role="button" @click="router.push(`/address?return=${encodeURIComponent('/p?id='+id)}`)">
+          <div>
+            <div class="text-[14px] font-semibold mb-0.5">الشحن إلى :</div>
+            <div class="text-[13px] text-gray-700">{{ selectedAddress ? (selectedAddress.state||'') + ' - ' + (selectedAddress.city||'') : 'لا يوجد عنوان محفوظ' }}</div>
+          </div>
+          <ChevronLeft :size="18" class="text-gray-500" />
+        </div>
+        <div class="p-3 rounded-lg border bg-white">
+          <div class="mb-2 text-[14px] font-semibold">تسليم</div>
+          <div class="w-full border rounded-lg overflow-hidden">
+          <div class="grid grid-cols-3 text-[13px] bg-gray-50 border-b">
+            <div class="p-2">التكاليف</div>
+            <div class="p-2">زمن الشحن</div>
+            <div class="p-2">وسيلة الشحن</div>
+          </div>
+          <div v-for="(m,i) in shippingMethods" :key="m.id||i" class="grid grid-cols-3 text-[13px] border-b last:border-b-0">
+            <div class="p-2">{{ Number(m.price||0) }} {{ shippingCurrency }}</div>
+            <div class="p-2">{{ formatEtaRange(m?.etaMinHours, m?.etaMaxHours) || (m.desc||'') }}</div>
+            <div class="p-2">{{ m.offerTitle || m.name }}</div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </Transition>
+  <!-- Fit Profile Modal -->
+  <div v-if="fitModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" @click="closeFitModal"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-[92%] max-w-lg p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-extrabold text-[18px]">بيانات المقاس الشخصية</h3>
+        <button class="text-[20px]" @click="closeFitModal">×</button>
+      </div>
+      <div class="grid gap-4">
+        <label class="text-[13px] text-gray-800 font-medium">الطول (سم)
+          <input type="number" inputmode="numeric" class="input w-full h-11 text-[14px] border border-gray-300 rounded-md placeholder-gray-400" v-model="fitHeight" placeholder="مثال: 170" />
+        </label>
+        <label class="text-[13px] text-gray-800 font-medium">الوزن (كجم)
+          <input type="number" inputmode="numeric" class="input w-full h-11 text-[14px] border border-gray-300 rounded-md placeholder-gray-400" v-model="fitWeight" placeholder="مثال: 65" />
+        </label>
+        <label class="text-[13px] text-gray-800 font-medium">العرض أو قياس الصدر/الوسط (سم)
+          <input type="number" inputmode="numeric" class="input w-full h-11 text-[14px] border border-gray-300 rounded-md placeholder-gray-400" v-model="fitWidth" placeholder="مثال: 90" />
+        </label>
+      </div>
+      <div class="flex gap-2 justify-end mt-5">
+        <button class="btn btn-outline h-10 px-4 text-[14px]" @click="closeFitModal">إلغاء</button>
+        <button class="btn h-10 px-5 text-[14px]" style="background-color:#8a1538;color:white" @click="saveFitProfile">حفظ</button>
+      </div>
+    </div>
+  </div>
   </div>
 </template>
 
@@ -775,13 +903,14 @@ import {
   ShoppingCart, Share, Menu, 
   Star as StarIcon, Heart as HeartIcon,
   ChevronLeft, ChevronRight, Camera, ThumbsUp, Truck, DollarSign, 
-  RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store
+  RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store, Copy, X
 } from 'lucide-vue-next'
 
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
 const router = useRouter()
 const id = route.query.id as string || 'p1'
+const descOpen = ref(false)
 
 // ==================== PRODUCT DATA ====================
 const product = ref<any>(null)
@@ -801,6 +930,53 @@ const safeDescription = computed(()=>{
     const html = String(product.value?.description||'')
     return html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'')
   }catch{ return '' }
+})
+const descPairs = computed(()=>{
+  try{
+    const div = document.createElement('div')
+    div.innerHTML = safeDescription.value
+    const pairs: Array<{k:string;v:string}> = []
+    // Prefer two-column tables or paragraphs with colon
+    div.querySelectorAll('tr').forEach(tr=>{
+      const tds = tr.querySelectorAll('td,th'); if (tds.length>=2){
+        const k = (tds[0].textContent||'').trim().replace(/^(البند|العنصر|Item)\s*:?\s*/i,'')
+        const v = (tds[1].textContent||'').trim().replace(/^(القيمة|Value)\s*:?\s*/i,'')
+        if (k || v) pairs.push({ k, v })
+      }
+    })
+    if (!pairs.length){
+      const texts: string[] = []
+      div.querySelectorAll('p,li,div').forEach(p=>{ const t=(p.textContent||'').trim(); if(t) texts.push(t) })
+      for (const t of texts){
+        const m = t.split(/[:：]/); if (m.length===2){
+          const k = m[0].trim().replace(/^(البند|العنصر|Item)\s*$/i,'')
+          const v = m[1].trim().replace(/^(القيمة|Value)\s*$/i,'')
+          if (k || v) pairs.push({ k, v })
+        }
+      }
+    }
+    return pairs
+  }catch{ return [] as Array<{k:string;v:string}> }
+})
+const descRef = ref<HTMLElement|null>(null)
+// Remove any built-in labels like "البند"/"القيمة" if present in CMS HTML and add spacing between key/value
+watch(descRef, ()=>{
+  try{
+    const el = descRef.value; if(!el) return;
+    // Normalize simple key:value lines into two-column flex on small HTML structures
+    el.querySelectorAll('p').forEach(p=>{
+      const t = (p.textContent||'').trim();
+      if (!t) return;
+      // Strip explicit labels
+      const stripped = t.replace(/^\s*(البند|العنصر|Item)\s*[:：]\s*/i,'').replace(/\s*(\||\-|\–|—)\s*(القيمة|Value)\s*[:：]\s*/i,' ')
+      // Try split on colon
+      const parts = stripped.split(/[:：]/);
+      if (parts.length===2){
+        const k = parts[0].trim(); const v = parts[1].trim();
+        if (k && v){ p.innerHTML = `<span class="desc-k">${k}</span><span class="desc-v">${v}</span>`; p.classList.add('kv-row') }
+      }
+    })
+  }catch{}
 })
 
 // ==================== PRODUCT VARIANTS ====================
@@ -1176,6 +1352,36 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+// Fit modal state
+const fitModalOpen = ref(false)
+const fitHeight = ref<string>('')
+const fitWeight = ref<string>('')
+const fitWidth = ref<string>('')
+function openFitModal(){
+  fitModalOpen.value = true
+  loadFitProfile()
+}
+function closeFitModal(){ fitModalOpen.value = false }
+async function loadFitProfile(){
+  try{
+    const j = await apiGet<any>('/api/me/fit-profile')
+    const p = j?.profile||{}
+    fitHeight.value = p.heightCm!=null? String(p.heightCm): ''
+    fitWeight.value = p.weightKg!=null? String(p.weightKg): ''
+    fitWidth.value = p.widthCm!=null? String(p.widthCm): ''
+  }catch{}
+}
+async function saveFitProfile(){
+  try{
+    await apiPost('/api/me/fit-profile', {
+      heightCm: fitHeight.value? Number(fitHeight.value): null,
+      weightKg: fitWeight.value? Number(fitWeight.value): null,
+      widthCm: fitWidth.value? Number(fitWidth.value): null,
+    })
+    closeFitModal()
+  }catch{}
+}
+
 // Reviews & Rating (from API)
 const avgRating = ref(4.9)
 const reviews = ref<any[]>([])
@@ -1209,6 +1415,21 @@ function barStyle(pct: number): string {
 const cart = useCart()
 const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
+async function copyText(text: string){
+  try{
+    await navigator.clipboard.writeText(text)
+    toastText.value = 'تم النسخ'
+    toast.value = true
+    setTimeout(()=>{ toast.value=false; toastText.value='تمت الإضافة إلى السلة' }, 1200)
+  }catch{
+    try{
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+      toastText.value = 'تم النسخ'
+      toast.value = true
+      setTimeout(()=>{ toast.value=false; toastText.value='تمت الإضافة إلى السلة' }, 1200)
+    }catch{}
+  }
+}
 const requireOptionsNotice = ref(false)
 
 async function addToCart(){
@@ -1254,7 +1475,7 @@ async function toggleWish(){
 }
 
 // Seller info
-const seller = ref<{ id?: string; name?: string; storeName?: string; storeNumber?: string; updatedAt?: string }|null>(null)
+const seller = ref<{ id?: string; name?: string; storeName?: string; storeNumber?: string; updatedAt?: string; meta?: { blurb?: string; logoUrl?: string; bannerUrl?: string; links?: { website?: string; instagram?: string; whatsapp?: string } } }|null>(null)
 const sellerFollowText = computed(()=>{
   if (!seller.value?.updatedAt) return ''
   try{
@@ -1276,6 +1497,38 @@ async function loadSeller(){
 const sizeGuideOpen = ref(false)
 function openSizeGuide(){ sizeGuideOpen.value = true }
 function closeSizeGuide(){ sizeGuideOpen.value = false }
+// Shipping details modal (full-screen sheet)
+const shippingDetailsOpen = ref(false)
+function openShippingDetails(){ shippingDetailsOpen.value = true }
+function closeShippingDetails(){ shippingDetailsOpen.value = false }
+// Policies sheet
+const policyOpenKey = ref<null|'cod'|'returns'|'secure'>(null)
+const policyTitle = computed(()=>{
+  const pol:any = (pdpMeta.value as any)?.policies||{}
+  if (policyOpenKey.value==='cod') return pol?.cod?.title || 'خدمة الدفع عند الاستلام'
+  if (policyOpenKey.value==='returns') return pol?.returns?.title || 'سياسة الإرجاع'
+  if (policyOpenKey.value==='secure') return pol?.secure?.title || 'آمن للتسوق'
+  return ''
+})
+const policyContent = computed(()=>{
+  const pol:any = (pdpMeta.value as any)?.policies||{}
+  if (policyOpenKey.value==='cod') return pol?.cod?.content || ''
+  if (policyOpenKey.value==='returns') return pol?.returns?.content || ''
+  if (policyOpenKey.value==='secure') return pol?.secure?.content || ''
+  return ''
+})
+const policyLink = computed(()=>{
+  const pol:any = (pdpMeta.value as any)?.policies||{}
+  if (policyOpenKey.value==='cod') return pol?.cod?.link || ''
+  if (policyOpenKey.value==='returns') return pol?.returns?.link || ''
+  if (policyOpenKey.value==='secure') return pol?.secure?.link || ''
+  return ''
+})
+function openPolicy(key:'cod'|'returns'|'secure'){
+  // افتح النافذة دائماً؛ المحتوى سيتعامل مع غياب السياسات بفواصل افتراضية
+  policyOpenKey.value = key
+}
+function closePolicy(){ policyOpenKey.value = null }
 
 // ==================== IMAGE GALLERY & LIGHTBOX ====================
 const galleryRef = ref<HTMLDivElement|null>(null)
@@ -1444,6 +1697,7 @@ onMounted(()=>{
   window.addEventListener('resize', computeGalleryHeight, { passive:true })
   loadProductData()
   loadShipping()
+  loadAddresses()
   loadPdpMeta()
   loadSeller()
   trackViewItem()
@@ -1547,6 +1801,14 @@ async function loadProductData() {
       reviews.value = list.items
       const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
       avgRating.value = list.items.length? (sum/list.items.length) : avgRating.value
+      // Update tabs visibility based on real reviews
+      try {
+        const hasAny = !!reviews.value?.length
+        const base = [ { key:'products', label:'سلع' } ] as Array<{key:string;label:string}>
+        if (hasAny) base.push({ key:'reviews', label:'تعليقات' })
+        base.push({ key:'recommendations', label:'التوصية' })
+        tabs.value = base
+      } catch {}
     }
   }catch{}
 }
@@ -1803,20 +2065,51 @@ async function fetchSizeGuide(){
 }
 
 // ==================== SHIPPING/RETURNS DYNAMIC ====================
-const shippingMethods = ref<Array<{ id:string; name:string; desc:string; price:number }>>([])
+const shippingMethods = ref<Array<{ id:string; name:string; desc:string; price:number; offerTitle?:string; etaMinHours?:number; etaMaxHours?:number }>>([])
 const shippingQuote = ref<number|undefined>(undefined)
+// Address and destination
+const addresses = ref<any[]>([])
+const selectedAddress = ref<any|null>(null)
+const destinationText = computed(()=>{
+  if (selectedAddress.value) {
+    const st = String(selectedAddress.value.state||'').trim()
+    const ct = String(selectedAddress.value.city||'').trim()
+    const parts = [st, ct].filter(Boolean)
+    if (parts.length) return parts.join(' - ')
+  }
+  return 'اليمن'
+})
+const shippingCurrency = computed(()=>{
+  const c = String(selectedAddress.value?.country||'').toLowerCase()
+  if (c.includes('yemen') || c.includes('اليمن')) return 'ر.ي'
+  return 'ر.س'
+})
+function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null): string {
+  const min = Number(minH||0); const max = Number(maxH||0)
+  if (max<=0 && min<=0) return ''
+  const a = Math.max(0, min||max)
+  const b = Math.max(a, max)
+  // حوّل إلى أيام عند تجاوز 24 ساعة
+  if (b >= 24) {
+    const da = Math.ceil(a/24)
+    const db = Math.ceil(b/24)
+    if (da === db) return `${db} أيام`
+    return `${da}-${db} أيام`
+  }
+  return `${a}-${b} ساعات`
+}
 const shippingTitleText = computed(()=>{
-  const m = shippingMethods.value?.[0]
-  if (!m) return 'شحن سريع'
+  const m:any = shippingMethods.value?.[0]
+  if (!m) return ''
   const priceNum = Number(m.price||0)
-  const priceText = priceNum>0 ? `${priceNum} ر.س` : 'مجاني'
-  return `${m.name} (${priceText})`
+  const priceText = priceNum>0 ? `${priceNum} ${shippingCurrency.value}` : 'مجاني'
+  const offer = (m.offerTitle || m.name || '')
+  return `${offer ? offer + ' ' : ''}(${priceText})`.trim()
 })
 const shippingEtaText = computed(()=>{
-  // Using quote or method desc
-  if (shippingQuote.value!=null) return `التكلفة التقديرية: ${shippingQuote.value} ر.س`
-  const m = shippingMethods.value?.[0]
-  return m?.desc || 'شحن سريع التوصيل'
+  const m:any = shippingMethods.value?.[0]
+  const s = formatEtaRange(m?.etaMinHours, m?.etaMaxHours)
+  return s || m?.desc || ''
 })
 async function loadShipping(){
   try{
@@ -1827,6 +2120,16 @@ async function loadShipping(){
     const q = await apiGet<any>('/api/shipping/quote?method=std')
     if (q && typeof q.price === 'number') shippingQuote.value = Number(q.price)
   }catch{}
+}
+
+// Load saved addresses and pick default
+async function loadAddresses(){
+  try{
+    const j = await apiGet<any>('/api/addresses')
+    const list = Array.isArray(j?.items) ? j.items : Array.isArray(j) ? j : []
+    addresses.value = list
+    selectedAddress.value = list.find((a:any)=> a.isDefault) || list[0] || null
+  }catch{ addresses.value = []; selectedAddress.value = null }
 }
 
 // ==================== ANALYTICS EVENTS ====================
@@ -2139,4 +2442,10 @@ async function updateImagesForColor(){
   font-size: 12px;
   font-weight: 700;
 }
+
+/* Existing styles */
+.kv-row { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
+.kv-row .desc-k { color:#4b5563; font-weight:500; }
+.kv-row .desc-v { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; word-break: break-all; }
 </style>
+

@@ -4011,6 +4011,40 @@ adminRest.get('/vendors/:id/overview', async (req, res) => {
   `, id);
   res.json({ vendor: v, products, orders, invoices, stock: stock._sum.stockQuantity || 0, notifications: [] });
 });
+
+// Vendor public page/meta configuration (stored in Setting as JSON)
+adminRest.get('/vendors/:id/meta', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'vendors.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const key = `vendor:meta:${id}`;
+    const row = await db.setting.findUnique({ where: { key } } as any);
+    const meta = row?.value || {};
+    return res.json({ meta });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'vendor_meta_failed' }); }
+});
+
+adminRest.put('/vendors/:id/meta', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'vendors.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const key = `vendor:meta:${id}`;
+    const payload = req.body || {};
+    const normalized = {
+      blurb: typeof payload.blurb === 'string' ? payload.blurb : undefined,
+      logoUrl: typeof payload.logoUrl === 'string' ? payload.logoUrl : undefined,
+      bannerUrl: typeof payload.bannerUrl === 'string' ? payload.bannerUrl : undefined,
+      links: (payload.links && typeof payload.links === 'object') ? {
+        website: payload.links.website || undefined,
+        instagram: payload.links.instagram || undefined,
+        whatsapp: payload.links.whatsapp || undefined,
+      } : undefined,
+    } as any;
+    const row = await db.setting.upsert({ where: { key }, update: { value: normalized }, create: { key, value: normalized } } as any);
+    await audit(req, 'vendors', 'meta_update', { id, keys: Object.keys(normalized).filter(k=> normalized[k]!==undefined) });
+    return res.json({ ok:true, meta: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'vendor_meta_update_failed' }); }
+});
 // Vendor invoices export (CSV/XLS) and PDF stub
 adminRest.get('/vendors/:id/export/xls', async (req, res) => {
   const { id } = req.params; const type = String(req.query.type||'invoices');
@@ -4061,6 +4095,103 @@ adminRest.get('/vendors/:id/orders', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message || 'vendor_orders_failed' }); }
 });
 
+// Admin: read any user's fit profile (for support/analysis)
+adminRest.get('/users/:id/fit-profile', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'users.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "UserFitProfile" ("userId" TEXT PRIMARY KEY, "heightCm" DOUBLE PRECISION NULL, "weightKg" DOUBLE PRECISION NULL, "widthCm" DOUBLE PRECISION NULL, "updatedAt" TIMESTAMP DEFAULT NOW())');
+    const row: any = ((await db.$queryRawUnsafe('SELECT * FROM "UserFitProfile" WHERE "userId"=$1', id)) as any[])[0] || null;
+    return res.json({ profile: row ? { heightCm: row.heightCm ?? null, weightKg: row.weightKg ?? null, widthCm: row.widthCm ?? null, updatedAt: row.updatedAt } : { heightCm: null, weightKg: null, widthCm: null } });
+  } catch (e:any) { return res.status(500).json({ error: e?.message || 'admin_fit_profile_failed' }); }
+});
+
+// ===== Occasion Strip Settings =====
+adminRest.get('/occasion/strip/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.read'))) return res.status(403).json({ error:'forbidden' });
+    const key = 'occasion:strip:settings';
+    const row = await db.setting.findUnique({ where: { key } } as any);
+    const defaults = {
+      enabled: false,
+      title: 'مناسبة المطلة',
+      subtitle: '',
+      kpiText: '',
+      cta: { label: '', url: '' },
+      theme: { gradientFrom: '#fdf2f8', gradientTo: '#fffbeb', borderColor: '#fbcfe8' },
+      placement: { pdp: { enabled: true, position: 'products_top' } },
+      targeting: { products: { include: [], exclude: [] }, categories: { include: [], exclude: [] }, vendors: { include: [], exclude: [] }, brands: { include: [], exclude: [] }, tags: { include: [], exclude: [] } },
+      schedule: { from: null, to: null }
+    } as const;
+    const settings = row?.value ? Object.assign({}, defaults, row.value||{}) : defaults;
+    return res.json({ settings });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'occasion_settings_failed' }); }
+});
+
+adminRest.put('/occasion/strip/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const key = 'occasion:strip:settings';
+    const p = req.body||{};
+    const normalized = {
+      enabled: !!p.enabled,
+      title: (p.title||'').toString().slice(0,100),
+      subtitle: (p.subtitle||'').toString().slice(0,200),
+      kpiText: (p.kpiText||'').toString().slice(0,50),
+      cta: { label: (p.cta?.label||'').toString().slice(0,40), url: (p.cta?.url||'').toString().slice(0,300) },
+      theme: {
+        gradientFrom: p.theme?.gradientFrom || '#fdf2f8',
+        gradientTo: p.theme?.gradientTo || '#fffbeb',
+        borderColor: p.theme?.borderColor || '#fbcfe8'
+      },
+      placement: { pdp: { enabled: p.placement?.pdp?.enabled!==false, position: p.placement?.pdp?.position||'products_top' } },
+      targeting: (p.targeting && typeof p.targeting==='object') ? p.targeting : { products:{include:[],exclude:[]}, categories:{include:[],exclude:[]}, vendors:{include:[],exclude:[]}, brands:{include:[],exclude:[]}, tags:{include:[],exclude:[]} },
+      schedule: { from: p.schedule?.from||null, to: p.schedule?.to||null },
+    };
+    const row = await db.setting.upsert({ where: { key }, update: { value: normalized }, create: { key, value: normalized } } as any);
+    await audit(req, 'marketing.occasion', 'update', { keys: Object.keys(normalized) });
+    return res.json({ ok:true, settings: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'occasion_settings_update_failed' }); }
+});
+
+// ===== Product Policies (COD / Returns / Secure) =====
+adminRest.get('/policies/pdp/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.read'))) return res.status(403).json({ error:'forbidden' });
+    const key = 'policies:pdp:settings';
+    const row = await db.setting.findUnique({ where: { key } } as any);
+    const defaults = {
+      enabled: true,
+      cod: { enabled: true, title: 'خدمة الدفع عند الاستلام', content: '' },
+      returns: { enabled: true, title: 'سياسة الإرجاع', content: '' },
+      secure: { enabled: true, title: 'آمن للتسوق', content: '' },
+      targeting: { products:{include:[],exclude:[]}, categories:{include:[],exclude:[]}, vendors:{include:[],exclude:[]}, brands:{include:[],exclude:[]}, tags:{include:[],exclude:[]} },
+      schedule: { from: null, to: null },
+    };
+    const settings = row?.value ? Object.assign({}, defaults, row.value||{}) : defaults;
+    return res.json({ settings });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'policies_settings_failed' }); }
+});
+
+adminRest.put('/policies/pdp/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const key = 'policies:pdp:settings';
+    const p = req.body||{};
+    const normPolicy = (x:any)=> ({ enabled: !!x?.enabled, title: String(x?.title||'').slice(0,60), content: String(x?.content||'') })
+    const normalized = {
+      enabled: !!p.enabled,
+      cod: normPolicy(p.cod),
+      returns: normPolicy(p.returns),
+      secure: normPolicy(p.secure),
+      targeting: (p.targeting && typeof p.targeting==='object') ? p.targeting : { products:{include:[],exclude:[]}, categories:{include:[],exclude:[]}, vendors:{include:[],exclude:[]}, brands:{include:[],exclude:[]}, tags:{include:[],exclude:[]} },
+      schedule: { from: p.schedule?.from||null, to: p.schedule?.to||null },
+    };
+    const row = await db.setting.upsert({ where: { key }, update: { value: normalized }, create: { key, value: normalized } } as any);
+    await audit(req, 'marketing.policies', 'update', { sections: ['cod','returns','secure'] });
+    return res.json({ ok:true, settings: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'policies_settings_update_failed' }); }
+});
 adminRest.get('/vendors/:id/orders/detail', async (req, res) => {
   try {
     const { id } = req.params; const { orderId } = req.query as { orderId?: string };
@@ -7542,11 +7673,10 @@ adminRest.delete('/attributes/brands/:id', async (req, res) => {
 });
 // Categories
 async function ensureCategorySeo(){
-  try {
-    await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT');
-  } catch {}
+  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
   try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE "slug" IS NOT NULL'); } catch {}
-  for (const col of ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0','image TEXT','parentId TEXT']){
+  const cols = ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0','image TEXT','parentId TEXT'];
+  for (const col of cols){
     try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
   }
   // Relax NOT NULL constraints on legacy columns and ensure sane defaults
@@ -7885,14 +8015,8 @@ adminRest.delete('/categories/:id', async (req, res) => {
   try {
     await db.$transaction(async (tx) => {
       // Ensure optional columns exist in legacy DBs
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[]'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "image" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "parentId" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+      const colsTx = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
+      for (const col of colsTx){ try { await tx.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       const cat = await tx.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
       if (!cat) return; // Already gone
 
@@ -7914,16 +8038,8 @@ adminRest.delete('/categories/:id', async (req, res) => {
   } catch(e:any){
     // Second-chance forced cleanup using raw SQL
     try {
-      for (const col of [
-        'slug TEXT',
-        'seoTitle TEXT',
-        'seoDescription TEXT',
-        'seoKeywords TEXT[]',
-        'translations JSONB',
-        'image TEXT',
-        'parentId TEXT',
-        'sortOrder INTEGER DEFAULT 0'
-      ]) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
+      const colsDb = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
+      for (const col of colsDb) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       const cat: { parentId: string|null }[] = await db.$queryRaw`SELECT "parentId" FROM "Category" WHERE id=${id} LIMIT 1`;
       const parentId = cat?.[0]?.parentId ?? null;
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
@@ -7947,14 +8063,8 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   try {
     await db.$transaction(async (tx) => {
       // Ensure optional columns exist in legacy DBs
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoTitle" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoDescription" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "seoKeywords" TEXT[]'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "translations" JSONB'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "image" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "parentId" TEXT'); } catch {}
-      try { await tx.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+      const colsTx2 = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
+      for (const col of colsTx2){ try { await tx.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       // Ensure replacement category once per batch
       let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
       if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
@@ -7972,16 +8082,8 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   } catch (e:any) {
     // Fallback raw pass
     try {
-      for (const col of [
-        'slug TEXT',
-        'seoTitle TEXT',
-        'seoDescription TEXT',
-        'seoKeywords TEXT[]',
-        'translations JSONB',
-        'image TEXT',
-        'parentId TEXT',
-        'sortOrder INTEGER DEFAULT 0'
-      ]) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
+      const colsDb2 = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
+      for (const col of colsDb2) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
       if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
       const uncId = unc.id;

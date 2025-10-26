@@ -225,6 +225,19 @@ export default function AdminProductCreate(): JSX.Element {
             isActive: !!p.isActive,
             mapping,
           });
+          // Load PDP meta for model section
+          try {
+            const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(id)}`, { credentials:'include', headers:{ ...authHeaders() } });
+            const gj = await gr.json().catch(()=>({}));
+            const meta = (gj?.meta && typeof gj.meta==='object') ? gj.meta : {};
+            if (typeof meta.modelEnabled === 'boolean') setModelEnabled(!!meta.modelEnabled);
+            const mm = (meta as any).model || {};
+            if (mm && typeof mm === 'object') {
+              setModelImageUrl(String(mm.imageUrl||''));
+              const fields = Array.isArray(mm.fields) ? mm.fields : [];
+              setModelFields(fields.map((f:any)=> ({ label: String(f?.label||''), value: String(f?.value||'') })).filter((f:any)=> f.label || f.value));
+            }
+          } catch {}
         }
       } finally { setLoadingExisting(false); }
     })();
@@ -1629,6 +1642,10 @@ export default function AdminProductCreate(): JSX.Element {
   const [showImagesInput, setShowImagesInput] = React.useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
+  // Model section (runway measurements)
+  const [modelEnabled, setModelEnabled] = React.useState<boolean>(false);
+  const [modelImageUrl, setModelImageUrl] = React.useState<string>("");
+  const [modelFields, setModelFields] = React.useState<Array<{ label:string; value:string }>>([]);
   const [variantRows, setVariantRows] = React.useState<Array<{
     name: string;
     value: string;
@@ -2304,6 +2321,15 @@ export default function AdminProductCreate(): JSX.Element {
         });
       } catch {}
     }
+    // Persist PDP meta (merge first)
+    try{
+      if (productId){
+        let baseMeta:any = {};
+        try{ const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { credentials:'include', headers:{ ...authHeaders() } }); const gj = await gr.json(); baseMeta = (gj?.meta && typeof gj.meta==='object')? gj.meta : {}; }catch{}
+        const nextMeta = Object.assign({}, baseMeta, { modelEnabled: modelEnabled, model: { imageUrl: modelImageUrl || undefined, fields: modelFields.filter(f=> f.label && f.value) } });
+        await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(nextMeta) });
+      }
+    }catch{}
     if (uploadedOrBase64.length) {
       setImages(baseImages.join(', '));
       setFiles([]);
@@ -2500,6 +2526,8 @@ export default function AdminProductCreate(): JSX.Element {
         </div>
       </Section>
 
+      
+
       <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 20, alignItems:'start' }}>
         {/* Left main column span 8 */}
         <div style={{ gridColumn: 'span 8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -2642,7 +2670,7 @@ export default function AdminProductCreate(): JSX.Element {
                                       setColorCards(prev => prev.map((c,i)=>{
                                         if (i!==idx) return c;
                                         const have = c.selectedImageIdxs.includes(imgIdx);
-                                        const sel = have ? c.selectedImageIdxs.filter(x=>x!==imgIdx) : [...c.selectedImageIdxs, imgIdx];
+                                        const sel = have ? c.selectedImageIdxs.filter(x=>x!==imgIdx) : [...(c.selectedImageIdxs||[]), imgIdx];
                                         let primaryImageIdx = c.primaryImageIdx;
                                         if (primaryImageIdx!==undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
                                         return { ...c, selectedImageIdxs: sel, primaryImageIdx };
@@ -2835,6 +2863,43 @@ export default function AdminProductCreate(): JSX.Element {
             <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
               <input className="input" placeholder="SEO Title" value={seoTitle} onChange={(e)=> setSeoTitle(e.target.value)} />
               <input className="input" placeholder="SEO Description" value={seoDescription} onChange={(e)=> setSeoDescription(e.target.value)} />
+            </div>
+          </div>
+          {/* Model section moved here and compacted */}
+          <div className="panel" style={{ padding:10, marginTop:8 }}>
+            <div style={{ marginBottom:6, color:'#9ca3af' }}>عارضة الأزياء</div>
+            <div style={{ display:'grid', gap:12 }}>
+              <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                <input type="checkbox" checked={modelEnabled} onChange={(e)=> setModelEnabled(e.target.checked)} />
+                <span>تفعيل ظهور هذا القسم</span>
+              </label>
+              <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 160px', gap:12, alignItems:'start' }}>
+                <div>
+                  <div style={{ marginBottom:6, color:'#9ca3af' }}>حقول القياسات</div>
+                  <div style={{ display:'grid', gap:8 }}>
+                    {modelFields.map((f, idx)=> (
+                      <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8 }}>
+                        <input className="input" placeholder="العنوان" value={f.label} onChange={(e)=> setModelFields((arr)=> arr.map((x,i)=> i===idx? ({ ...x, label: e.target.value }): x))} />
+                        <input className="input" placeholder="القيمة" value={f.value} onChange={(e)=> setModelFields((arr)=> arr.map((x,i)=> i===idx? ({ ...x, value: e.target.value }): x))} />
+                        <button type="button" className="btn btn-outline" onClick={()=> setModelFields((arr)=> arr.filter((_,i)=> i!==idx))}>حذف</button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn" onClick={()=> setModelFields((arr)=> [...arr, { label:'', value:'' }])}>+ إضافة حقل</button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ marginBottom:6, color:'#9ca3af' }}>صورة العارضة</div>
+                  <ImageDropdown
+                    value={modelImageUrl}
+                    options={(images||'').split(',').map(s=> s.trim()).filter(Boolean)}
+                    onChange={(v)=> setModelImageUrl(v||'')}
+                    placeholder="(من الصور الرئيسية)"
+                  />
+                  <div style={{ marginTop:8, width:120, height:120, borderRadius:12, overflow:'hidden', border:'1px solid #1c2333', display:'grid', placeItems:'center' }}>
+                    {modelImageUrl? (<img src={modelImageUrl} alt="model" className="thumb" style={{ width:'100%', height:'100%', objectFit:'cover' }} />) : (<span className="muted">(معاينة)</span>)}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div style={{ display:'flex', gap:12, marginTop:6 }}>
