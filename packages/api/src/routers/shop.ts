@@ -1816,17 +1816,21 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds } = req.body || {};
+    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, itemsMeta } = req.body || {};
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
     const selectedProductIds = Array.isArray(selectedIds) ? new Set(selectedIds.map(String)) : null;
     const selectedCartUids = Array.isArray(selectedUids) ? new Set(selectedUids.map(String)) : null;
+    // Fallback-friendly selection: if server cart lacks variant meta, match by productId or uid prefix `${pid}|`
     const cartItems = (selectedProductIds || selectedCartUids)
       ? cart.items.filter(ci => {
           const pid = String(ci.productId);
-          const uid = `${pid}|${String((ci as any).color||'').trim().toLowerCase()}|${String((ci as any).size||'').trim().toLowerCase()}`;
-          if (selectedCartUids && selectedCartUids.has(uid)) return true;
           if (selectedProductIds && selectedProductIds.has(pid)) return true;
+          if (selectedCartUids && selectedCartUids.size) {
+            // If any selected uid corresponds to this product id (ignoring color/size), include it
+            const hasForPid = Array.from(selectedCartUids).some(u => String(u || '').startsWith(pid + '|'));
+            if (hasForPid) return true;
+          }
           return false;
         })
       : cart.items;
@@ -1835,6 +1839,30 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
     const ship = Number(shippingPrice || 0);
     const disc = Number(discount || 0);
     const total = Math.max(0, subtotal + ship - disc);
+    // Build attributes map from itemsMeta or selectedUids tokens
+    const attrsByPid: Record<string, any> = {};
+    try {
+      if (Array.isArray(itemsMeta)) {
+        for (const it of itemsMeta) {
+          const pid = String(it?.productId || '');
+          if (!pid) continue;
+          const a = it?.attributes && typeof it.attributes === 'object' ? it.attributes : {};
+          attrsByPid[pid] = a;
+        }
+      } else if (selectedCartUids && selectedCartUids.size) {
+        for (const u of Array.from(selectedCartUids)) {
+          const parts = String(u || '').split('|');
+          const pid = parts[0] || '';
+          if (!pid) continue;
+          const color = (parts[1] || '').trim();
+          const size = (parts[2] || '').trim();
+          const attrs: Record<string,string> = {};
+          if (color) attrs.color = color;
+          if (size) attrs.size = size;
+          if (Object.keys(attrs).length) attrsByPid[pid] = attrs;
+        }
+      }
+    } catch {}
     const order = await db.order.create({
       data: {
         userId,
@@ -1842,10 +1870,13 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
         total,
         shippingAddressId: shippingAddressId || null,
         discountAmount: disc,
-        items: { create: cartItems.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0) })) },
+        items: { create: cartItems.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0), attributes: attrsByPid[String(ci.productId)] || undefined })) },
       },
       include: { items: true },
     });
+    // Seed shipment legs for downstream fulfillment tracking
+    try { await db.shipmentLeg.create({ data: { orderId: order.id, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }); } catch {}
+    try { await db.shipmentLeg.create({ data: { orderId: order.id, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }); } catch {}
     // Affiliate ledger (create table if needed)
     if (ref) {
       try {
@@ -1930,6 +1961,17 @@ shop.get('/addresses', requireAuth, async (req: any, res) => {
         if (a) rows = [{ id: a.id, fullName: null, phone: null, altPhone: null, country: a.country, state: a.state, city: a.city, street: a.street, details: '', postalCode: a.postalCode, isDefault: true, createdAt: a.createdAt, updatedAt: a.updatedAt }]
       }catch{}
     }
+    // Coalesce missing name/phone from User profile for display consistency
+    try {
+      const user = await db.user.findUnique({ where: { id: userId }, select: { name: true, phone: true } });
+      if (user) {
+        rows = (rows || []).map(r => ({
+          ...r,
+          fullName: r.fullName ?? (user.name || null),
+          phone: r.phone ?? (user.phone || null),
+        }));
+      }
+    } catch {}
     return res.json(rows)
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -2005,12 +2047,29 @@ shop.post('/addresses', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const { fullName, phone, altPhone, country, province, city, street, details, postalCode, lat, lng, isDefault } = req.body || {};
+    // Ensure name/phone are not lost; fallback to user's profile if missing
+    let nameFinal = (typeof fullName === 'string' && fullName.trim()) ? String(fullName).trim() : null;
+    let phoneFinal = (typeof phone === 'string' && phone.trim()) ? String(phone).trim() : null;
+    if (!nameFinal || !phoneFinal) {
+      try {
+        const user = await db.user.findUnique({ where: { id: userId }, select: { name: true, phone: true } });
+        if (!nameFinal && user?.name) nameFinal = user.name;
+        if (!phoneFinal && user?.phone) phoneFinal = user.phone;
+      } catch {}
+    }
     const id = Math.random().toString(36).slice(2)
-    if (isDefault === true) {
+    // If this is the first address, make it default automatically
+    let makeDefault = isDefault === true;
+    try {
+      const cnt: any[] = await db.$queryRawUnsafe('SELECT COUNT(1) AS c FROM "AddressBook" WHERE "userId"=$1', userId) as any[];
+      const c = Number(cnt?.[0]?.c || 0);
+      if (c === 0) makeDefault = true;
+    } catch {}
+    if (makeDefault) {
       try { await db.$executeRawUnsafe('UPDATE "AddressBook" SET "isDefault"=FALSE WHERE "userId"=$1', userId) } catch {}
     }
     await db.$executeRawUnsafe('INSERT INTO "AddressBook" (id, "userId", "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
-      id, userId, fullName||null, phone||null, altPhone||null, String(country||'YE'), String(province||''), String(city||''), String(street||''), details? String(details): null, String(postalCode||''), (lat==null? null:Number(lat)), (lng==null? null:Number(lng)), isDefault===true)
+      id, userId, nameFinal||null, phoneFinal||null, altPhone||null, String(country||'YE'), String(province||''), String(city||''), String(street||''), details? String(details): null, String(postalCode||''), (lat==null? null:Number(lat)), (lng==null? null:Number(lng)), makeDefault===true)
     const row = await db.$queryRawUnsafe('SELECT id, "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault" FROM "AddressBook" WHERE id=$1', id) as any[]
     return res.json({ address: row?.[0]||null })
   } catch {

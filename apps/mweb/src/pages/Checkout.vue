@@ -365,8 +365,9 @@ async function loadPayments(){ const r = await apiGet<{ items:any[] }>(`/api/pay
 
 function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
 async function placeOrder(){
-  // إنشاء الطلب من السلة مع الشحن والخصومات
-  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids }
+  // إنشاء الطلب من السلة مع الشحن والخصومات وتمرير بيانات المتغيرات (اللون/المقاس)
+  const itemsMeta = items.value.map((it:any)=> ({ productId: it.id, attributes: { color: it.variantColor || undefined, size: it.variantSize || undefined } }))
+  const payload = { shippingAddressId: addr.value?.id, shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids, itemsMeta }
   const ord = await apiPost('/api/orders', payload)
   if (ord && (ord as any).order?.id){
     // الدفع عند الاستلام: لا توجد بوابة دفع، انتقل مباشرةً لتأكيد الطلب/تفاصيله
