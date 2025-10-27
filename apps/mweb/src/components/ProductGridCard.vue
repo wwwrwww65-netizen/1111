@@ -44,7 +44,7 @@ import { computed } from 'vue'
 import { fmtPrice, initCurrency } from '@/lib/currency'
 import { useRouter } from 'vue-router'
 import { useCart } from '@/store/cart'
-import { setPrefetchImage } from '@/lib/nav'
+import { setPrefetchPayload } from '@/lib/nav'
 import { ShoppingCart, Store } from 'lucide-vue-next'
 
 type P = {
@@ -99,7 +99,11 @@ const gallery = computed(()=> {
 function open(ev?: MouseEvent){
   if (!id.value) return
   const go = ()=> {
-    try{ setPrefetchImage(id.value, (gallery.value?.[0]||'')) }catch{}
+    try{
+      const imgEl = (ev?.currentTarget as HTMLElement)?.querySelector('img') as HTMLElement | null
+      const rect = imgEl ? imgEl.getBoundingClientRect() : undefined
+      setPrefetchPayload(id.value, { imgUrl: (gallery.value?.[0]||''), rect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined })
+    }catch{}
     router.push(`/p?id=${encodeURIComponent(id.value)}`)
   }
   try{

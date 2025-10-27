@@ -57,14 +57,7 @@
       <!-- Dynamic Header Content: Price / Tabs / Recommendation Strip -->
       <div class="relative">
         <!-- State 1: Price Only (before tabs sticky) -->
-        <Transition name="slide-down">
-          <div 
-            v-if="showHeaderPrice && !tabsSticky && !showRecommendationStrip" 
-            class="px-4 py-2 bg-white border-b border-gray-200 shadow-sm"
-          >
-            <div class="text-[18px] font-extrabold text-black">{{ displayPrice }}</div>
-          </div>
-        </Transition>
+        <!-- Removed small header price as requested -->
 
         <!-- State 2: Tabs (sticky, with optional price) -->
         <Transition name="slide-down">
@@ -85,11 +78,7 @@
                 {{ tab.label }}
               </button>
             </div>
-            <Transition name="fade">
-              <div v-if="showHeaderPrice" class="px-4 py-2 border-b border-gray-200">
-                <div class="text-[18px] font-extrabold text-black">{{ displayPrice }}</div>
-              </div>
-            </Transition>
+            <!-- Removed repeated header price -->
           </div>
         </Transition>
 
@@ -131,12 +120,7 @@
       </div>
       
       <!-- Title & Price skeleton -->
-      <div class="px-4 py-3">
-        <div v-if="!product" class="space-y-2">
-          <div class="h-5 w-3/4 bg-gray-200 animate-pulse rounded" />
-          <div class="h-4 w-1/2 bg-gray-200 animate-pulse rounded" />
-        </div>
-      </div>
+      
 
         <!-- Pages indicator -->
         <div class="carousels-pagination__pages">
@@ -165,18 +149,21 @@
     </div>
 
     <!-- Trending Badge (dynamic) -->
-    <div class="flex items-center justify-between px-4 py-2 bg-purple-50" v-if="pdpMeta.badges && pdpMeta.badges.length">
+    <div class="flex items-center justify-between px-4 py-2 bg-purple-50" v-if="product && pdpMeta.badges && pdpMeta.badges.length">
       <span class="text-[14px] font-bold text-purple-700">{{ pdpMeta.badges[0]?.title || '' }}</span>
       <span class="text-[13px] text-gray-600">{{ pdpMeta.badges[0]?.subtitle || '' }}</span>
       </div>
 
     <!-- Price Section -->
-    <div ref="priceRef" class="px-4 py-4">
-      <div class="text-[22px] font-extrabold text-black">{{ displayPrice }}</div>
+    <div ref="priceRef" class="px-4">
+      <div class="font-extrabold text-black" :class="isLoadingPdp || price==null ? '' : 'text-[20px]'">
+        <template v-if="!isLoadingPdp && price!=null">{{ displayPrice }}</template>
+        <div v-else class="h-6 w-28 bg-gray-200 animate-pulse rounded" />
+      </div>
     </div>
 
     <!-- Jeeey Club Bar (dynamic) -->
-    <div v-if="pdpMeta.clubBanner && pdpMeta.clubBanner.enabled && pdpMeta.clubBanner.placement?.pdp?.enabled"
+    <div v-if="product && pdpMeta.clubBanner && pdpMeta.clubBanner.enabled && pdpMeta.clubBanner.placement?.pdp?.enabled"
       class="mx-4 mb-4 flex items-center justify-between px-3 py-2.5 rounded-md cursor-pointer transition-colors"
       :class="clubThemeClass"
       role="button"
@@ -193,22 +180,24 @@
     <!-- Product Info -->
     <div class="px-4">
       <div class="flex items-center justify-between mb-2">
-        <div v-if="reviews.length" class="flex items-center gap-1">
+        <div class="flex items-center gap-1" v-if="!isLoadingPdp && reviews.length">
           <StarIcon :size="14" class="text-yellow-400 fill-yellow-400" />
           <span class="font-bold text-[14px]">{{ avgRating.toFixed(1) }}</span>
           <span class="text-gray-600 text-[13px]">(+{{ reviews.length }})</span>
         </div>
-        <h1 class="text-[13px] leading-relaxed text-gray-800 text-right">
-          {{ title }}
-        </h1>
+        <!-- remove small price duplicate -->
       </div>
+      <h1 class="text-[13px] leading-relaxed text-gray-800 text-right">
+        <template v-if="!isLoadingPdp && title">{{ title }}</template>
+        <div v-else class="h-4 w-3/4 bg-gray-200 animate-pulse rounded" />
+      </h1>
 
       <div class="mb-1">
         <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-top-'+i" class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" :style="b.bgColor ? ('background-color:'+b.bgColor) : 'background-color:#8a1538'">{{ b.title }}</span>
       </div>
 
       <!-- Best-seller Strip (club style) -->
-      <div v-if="pdpMeta.bestRank" class="mb-4 flex items-center justify-between px-3 py-2.5 rounded-md" :class="clubThemeClass">
+      <div v-if="product && pdpMeta.bestRank" class="mb-4 flex items-center justify-between px-3 py-2.5 rounded-md" :class="clubThemeClass">
         <!-- Left side: thumbnails + arrow (far left) -->
         <div class="flex items-center gap-2">
           <ChevronLeft :size="16" class="text-gray-600" />
@@ -226,42 +215,57 @@
       </div>
 
       <!-- Color Selector -->
-      <div class="mb-4" v-if="colorVariants.length">
+      <div class="mb-4" v-if="(!isLoadingPdp && colorVariants.length) || (isLoadingPdp)">
         <div class="flex items-center gap-1 mb-2">
-          <span class="font-semibold text-[14px]">لون: {{ currentColorName || '—' }}</span>
+          <span class="font-semibold text-[14px]">
+            <template v-if="!isLoadingPdp">لون: {{ currentColorName || '—' }}</template>
+            <span v-else class="inline-block h-4 w-20 bg-gray-200 animate-pulse rounded" />
+          </span>
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
         <div class="flex gap-1 overflow-x-auto no-scrollbar pb-2">
-          <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
-            <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
-              <img :src="c.image" class="w-full h-full object-cover" :alt="c.name" />
+          <template v-if="!isLoadingPdp">
+            <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
+              <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
+                <img :src="c.image" class="w-full h-full object-cover" :alt="c.name" />
+              </div>
+              <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">HOT</div>
+              <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
             </div>
-            <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">
-              HOT
-            </div>
-            <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
-          </div>
+          </template>
+          <template v-else>
+            <div v-for="i in 4" :key="'skc-'+i" class="w-[50px] h-[70px] rounded-lg border overflow-hidden bg-gray-200 animate-pulse" />
+          </template>
         </div>
       </div>
 
       <!-- Size Selector (single list) - hidden until attributes loaded to avoid flicker, and hidden when multi size-groups exist) -->
-      <div ref="sizeSelectorRef" class="mb-4" v-if="attrsLoaded && sizeOptions.length && !sizeGroups.length">
+      <div ref="sizeSelectorRef" class="mb-4" v-if="(attrsLoaded && sizeOptions.length && !sizeGroups.length) || isLoadingPdp">
         <div class="flex items-center justify-between mb-2">
-          <span class="font-semibold text-[14px]">مقاس - {{ size || 'اختر المقاس' }}</span>
-          <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
+          <span class="font-semibold text-[14px]">
+            <template v-if="!isLoadingPdp">مقاس - {{ size || 'اختر المقاس' }}</template>
+            <span v-else class="inline-block h-4 w-28 bg-gray-200 animate-pulse rounded" />
+          </span>
+          <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide" v-if="!isLoadingPdp">مرجع المقاس ◀</span>
+          <span v-else class="inline-block h-4 w-20 bg-gray-100 rounded" />
         </div>
         <div class="flex flex-wrap gap-2">
-          <button 
-            v-for="s in sizeOptions" 
-            :key="s" 
-            class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
-            :class="size===s ? 'text-white' : 'bg-white text-black border-gray-300'"
-            :style="size===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
-            data-testid="size-btn" :data-size="s"
-            @click="size=s"
-          >
-            {{ s }}
-          </button>
+          <template v-if="!isLoadingPdp">
+            <button 
+              v-for="s in sizeOptions" 
+              :key="s" 
+              class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
+              :class="size===s ? 'text-white' : 'bg-white text-black border-gray-300'"
+              :style="size===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
+              data-testid="size-btn" :data-size="s"
+              @click="size=s"
+            >
+              {{ s }}
+            </button>
+          </template>
+          <template v-else>
+            <div v-for="i in 6" :key="'sks-'+i" class="w-12 h-8 bg-gray-200 animate-pulse rounded-full" />
+          </template>
         </div>
       <div class="mt-2">
           <span class="text-[13px] text-gray-600 underline cursor-pointer">ترام كيرفي ◀</span>
@@ -420,7 +424,7 @@
       </div>
 
         <!-- Vendor Store Info (hidden by default; enable via pdpMeta.vendorBoxEnabled) -->
-        <div v-if="(pdpMeta as any)?.vendorBoxEnabled && seller" class="mb-4 p-4 border border-gray-200 rounded-lg">
+        <div v-if="product && (pdpMeta as any)?.vendorBoxEnabled && seller" class="mb-4 p-4 border border-gray-200 rounded-lg">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <span class="font-bold text-[15px]">{{ seller.storeName || seller.name || brand || '—' }}</span>
@@ -881,7 +885,7 @@ import {
   ChevronLeft, ChevronRight, Camera, ThumbsUp, Truck, DollarSign, 
   RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store, Copy, X
 } from 'lucide-vue-next'
-import { consumePrefetchImage } from '@/lib/nav'
+import { consumePrefetchPayload } from '@/lib/nav'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 
 // ==================== ROUTE & ROUTER ====================
@@ -892,14 +896,15 @@ const descOpen = ref(false)
 
 // ==================== PRODUCT DATA ====================
 const product = ref<any>(null)
-const title = ref('منتج تجريبي')
-const price = ref<number>(129)
+const isLoadingPdp = ref(true)
+const title = ref('')
+const price = ref<number|null>(null)
 const original = ref('')
 const images = ref<string[]>([])
 const allImages = ref<string[]>([])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
-const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
+const displayPrice = computed(()=> price.value==null ? '' : (Number(price.value)||0) + ' ر.س')
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
 const categoryName = ref<string>('')
@@ -1659,13 +1664,14 @@ onMounted(()=>{
 watch(() => route.query.id, async (nv, ov)=>{
   try{
     if (String(nv||'') !== String(ov||'')) {
+      isLoadingPdp.value = true
       // in-place reload: reset UI state and re-fetch instead of hard reload
       activeIdx.value = 0
       images.value = []
       allImages.value = []
       product.value = null
       title.value = 'منتج'
-      price.value = 0
+      price.value = null
       colorVariants.value = []
       sizeOptions.value = []
       size.value = ''
@@ -1697,6 +1703,7 @@ onBeforeUnmount(()=> {
 async function loadProductData() {
   // Load product details
   try{
+    isLoadingPdp.value = true
     const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { 
       credentials:'omit', 
       headers:{ 'Accept':'application/json' } 
@@ -1708,20 +1715,32 @@ async function loadProductData() {
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
       try{
-        // If we have a prefetched hero, ensure it is the first to avoid flash
-        const pref = consumePrefetchImage(String(d.id||id))
-        if (pref){
-          const list = [pref, ...imgs.filter((u:string)=> u!==pref)]
+        // If we have a prefetched hero, place it first and animate from its rect
+        const pref = consumePrefetchPayload(String(d.id||id))
+        if (pref?.imgUrl){
+          const list = [pref.imgUrl, ...imgs.filter((u:string)=> u!==pref.imgUrl)]
           allImages.value = list
           images.value = list
+          // optional: animate ghost from previous rect if viewTransition unsupported
+          try{
+            if (!(document as any).startViewTransition && pref.rect){
+              const ghost = document.createElement('img')
+              ghost.src = pref.imgUrl
+              Object.assign(ghost.style, { position:'fixed', left: pref.rect.left+'px', top: pref.rect.top+'px', width: pref.rect.width+'px', height: pref.rect.height+'px', zIndex:'9999', borderRadius:'8px', transition:'all .3s ease' })
+              document.body.appendChild(ghost)
+              requestAnimationFrame(()=>{
+                const frame = galleryRef.value
+                const r = frame?.getBoundingClientRect()
+                if (r){ ghost.style.left = (r.left)+'px'; ghost.style.top = (r.top)+'px'; ghost.style.width = (r.width)+'px'; ghost.style.height = (r.height)+'px'; ghost.style.opacity = '0' }
+                setTimeout(()=> ghost.remove(), 320)
+              })
+            }
+          }catch{}
         } else {
           allImages.value = imgs
           images.value = imgs
         }
-      }catch{
-        allImages.value = imgs
-        images.value = imgs
-      }
+      }catch{ allImages.value = imgs; images.value = imgs }
       if (images.value.length) { try { await nextTick(); await computeGalleryHeight() } catch {} }
       // Load color galleries if present
       if (Array.isArray(d.colorGalleries)) colorGalleries.value = d.colorGalleries
@@ -1758,6 +1777,7 @@ async function loadProductData() {
       try { loadWishlist() } catch {}
       try { injectProductJsonLd() } catch {}
       try { injectHeadMeta() } catch {}
+      isLoadingPdp.value = false
     }
   }catch{}
   // Fallback (local preview/dev): synthesize minimal product and variants so UI renders swatches/sizes without API
