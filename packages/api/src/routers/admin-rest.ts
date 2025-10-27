@@ -1718,6 +1718,29 @@ adminRest.get('/orders/:id', async (req, res) => {
     catch { metas = await db.$queryRawUnsafe('SELECT id, NULL as "orderItemId", "productId", color, size, uid, NULL as attributes FROM "OrderItemMeta" WHERE "orderId"=$1', id) as any[]; }
     const metaByItem = new Map<string,{id?:string;color?:string; size?:string; uid?:string; attributes?:any}>();
     for (const m of (metas||[])) { metaByItem.set(String(m.orderItemId||m.productId), { id: m.id, color: m.color||undefined, size: m.size||undefined, uid: m.uid||undefined, attributes: m.attributes||undefined }); }
+    // Enrich image from ProductColor galleries when color selected but image missing
+    try {
+      const pids = Array.from(new Set((o.items||[]).map((it:any)=> String(it.productId))));
+      if (pids.length) {
+        const colors = await db.productColor.findMany({ where: { productId: { in: pids } }, select: { productId: true, name: true, primaryImageUrl: true } });
+        const key = (pid:string, name:string)=> `${pid}|${String(name||'').trim().toLowerCase()}`;
+        const colorImgByKey = new Map<string,string>();
+        for (const c of colors) { if (c.name && (c.primaryImageUrl||'')) colorImgByKey.set(key(String(c.productId), String(c.name)), String(c.primaryImageUrl)); }
+        for (const it of (o.items||[])) {
+          const meta = metaByItem.get(String(it.id)) || metaByItem.get(String(it.productId));
+          if (!meta) continue;
+          const hasImg = meta.attributes && typeof meta.attributes.image === 'string' && meta.attributes.image;
+          if (!hasImg && meta.color) {
+            const k = key(String(it.productId), String(meta.color));
+            const img = colorImgByKey.get(k);
+            if (img) {
+              meta.attributes = meta.attributes || {};
+              meta.attributes.image = img;
+            }
+          }
+        }
+      }
+    } catch {}
     for (const it of (o.items||[])) { const meta = metaByItem.get(String(it.id)) || metaByItem.get(String(it.productId)); if (meta) (it as any).meta = meta; }
   } catch {}
   // Attach payment/shipping method columns if present in DB and include shipping amount
@@ -7939,7 +7962,7 @@ adminRest.post('/categories', async (req, res) => {
       ? (global as any).crypto.randomUUID()
       : require('crypto').randomUUID();
     const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
-      'INSERT INTO "Category" ("id","name") VALUES ($1,$2) RETURNING id, name',
+      'INSERT INTO "Category" ("id","name","updatedAt") VALUES ($1,$2,NOW()) RETURNING id, name',
       id, name
     );
     // Apply optional fields provided in the payload
@@ -7970,7 +7993,7 @@ adminRest.post('/categories', async (req, res) => {
           ? (global as any).crypto.randomUUID()
           : require('crypto').randomUUID();
         const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
-          'INSERT INTO "Category" ("id","name") VALUES ($1,$2) RETURNING id, name',
+          'INSERT INTO "Category" ("id","name","updatedAt") VALUES ($1,$2,NOW()) RETURNING id, name',
           id, name
         );
         // Best-effort update for optional fields even in fallback path

@@ -137,7 +137,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
               {order.items?.map((it:any, idx:number)=> (
                 <tr key={it.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
                   <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>
-                    {(()=>{ const m = (it as any).meta; const sel = m?.attributes?.image || it.product?.images?.[0]; return sel ? (
+                    {(()=>{ const m = (it as any).meta; const raw = m?.attributes?.image || it.product?.images?.[0]; const normalize = (u?: string)=>{ const s = String(u||'').trim(); if (!s) return ''; if (/^https?:\/\//i.test(s)) return s; if (s.startsWith('/uploads')) return `${apiBase}${s}`; if (s.startsWith('uploads/')) return `${apiBase}/${s}`; return s; }; const sel = normalize(raw); return sel ? (
                       <img src={sel} alt={it.product?.name||''} style={{ width:64, height:64, objectFit:'cover', borderRadius:8 }} />
                     ) : (<div style={{ width:64, height:64, background:'#111', borderRadius:8 }} />) })()}
                   </td>
@@ -150,7 +150,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
                       if ((m as any).color) parts.push(`اللون: ${(m as any).color}`)
                       if (attrs.size_letters) parts.push(`مقاسات بالأحرف: ${attrs.size_letters}`)
                       if (attrs.size_numbers) parts.push(`مقاسات بالأرقام: ${attrs.size_numbers}`)
-                      if (!parts.length && (m as any).size) parts.push((m as any).size)
+                      if (!attrs.size_letters && !attrs.size_numbers && (m as any).size) parts.push(String((m as any).size))
                       return parts.length? parts.join(' | ') : '-'
                     })()}
                   </td>

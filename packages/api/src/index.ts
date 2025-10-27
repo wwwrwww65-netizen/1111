@@ -388,21 +388,7 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
   if (allowEnsure) {
     await ensureSchemaSafe();
     await ensureSchema();
-    // Re-ensure Category columns at runtime before serving requests (synchronous)
-    try {
-      const cols = [
-        'seoTitle TEXT',
-        'seoDescription TEXT',
-        'seoKeywords TEXT[]',
-        'translations JSONB',
-        'sortOrder INTEGER DEFAULT 0',
-        'image TEXT',
-        'parentId TEXT'
-      ];
-      for (const col of cols) {
-        try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
-      }
-    } catch {}
+    // Skip Category runtime DDL entirely to avoid 54011 (too many columns) on mirrored/legacy DBs
   }
   // Skip bootstrap seeding during tests unless explicitly forced
   const allowBootstrap = (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') || process.env.API_ALLOW_BOOTSTRAP === '1';
