@@ -652,6 +652,7 @@ async function loadLeaflet(): Promise<void>{
       const s = document.createElement('script')
       s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
       s.async = true
+      s.crossOrigin = 'anonymous'
       s.onload = ()=> resolve()
       s.onerror = ()=> reject(new Error('leaflet load failed'))
       document.head.appendChild(s)

@@ -235,7 +235,7 @@
       v-if="toast" 
       class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2"
     >
-      <CheckCircle class="w-4 h-4 text-green-400" />
+      <Check class="w-4 h-4 text-green-400" />
       <span>{{ toastText }}</span>
     </div>
 
