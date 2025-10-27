@@ -53,7 +53,16 @@ const routes = [...manualRoutes, ...genRoutes];
 
 const app = createApp(App);
 app.use(createPinia());
-const router = createRouter({ history: createWebHistory(), routes });
+const router = createRouter({ 
+  history: createWebHistory(), 
+  routes,
+  scrollBehavior(to, from, savedPosition){
+    if (savedPosition) return savedPosition
+    // Always scroll to top on route changes, and to anchor if provided
+    if (to.hash) return { el: to.hash, behavior: 'smooth' }
+    return { left: 0, top: 0 }
+  }
+});
 app.use(router);
 app.mount('#app');
 injectTracking();

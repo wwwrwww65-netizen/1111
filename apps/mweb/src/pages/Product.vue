@@ -100,17 +100,15 @@
             class="bg-white border-b border-gray-200 relative z-40"
           >
             <div class="flex gap-4 px-4 py-3 overflow-x-auto no-scrollbar">
-              <button class="pb-1 text-[14px] border-b-2 font-bold whitespace-nowrap text-black" style="border-bottom-color: #8a1538">
-                التوصية
-              </button>
-              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-                مجوهرات & ساعات
-              </button>
-              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-                ملابس واكسسوارات
-              </button>
-              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-                ملابس داخلية & ملابس نوم
+              <button
+                v-for="t in recTabs"
+                :key="'strip-'+t.key"
+                class="pb-1 text-[14px] border-b-2 whitespace-nowrap"
+                :class="activeRecTab===t.key ? 'font-bold text-black' : 'text-gray-600 border-transparent'"
+                :style="activeRecTab===t.key ? 'border-bottom-color: #8a1538' : ''"
+                @click="switchRecTab(t.key)"
+              >
+                {{ t.label }}
               </button>
             </div>
           </div>
@@ -127,9 +125,17 @@
            @scroll.passive="onGalleryScroll">
           <div class="flex h-full">
             <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
-              <img :src="img" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" />
+              <img :src="img" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" :style="{ viewTransitionName: 'p-img-'+String(product?.id||id) }" />
+            </div>
         </div>
       </div>
+      
+      <!-- Title & Price skeleton -->
+      <div class="px-4 py-3">
+        <div v-if="!product" class="space-y-2">
+          <div class="h-5 w-3/4 bg-gray-200 animate-pulse rounded" />
+          <div class="h-4 w-1/2 bg-gray-200 animate-pulse rounded" />
+        </div>
       </div>
 
         <!-- Pages indicator -->
@@ -592,75 +598,32 @@
       <div ref="recommendationsContentRef" class="mt-8">
         <div class="text-[16px] font-bold mb-3">ربما يعجبك هذا أيضاً</div>
         
-        <!-- Sub Tabs -->
+        <!-- Sub Tabs: Recommendation + subcategories of parent category -->
         <div ref="recommendationTabsRef" class="flex gap-4 mb-4 overflow-x-auto no-scrollbar border-b border-gray-200">
-          <button class="pb-2 text-[14px] border-b-2 font-bold whitespace-nowrap" style="border-bottom-color: #8a1538">
-            التوصية
-          </button>
-          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-            مجوهرات & ساعات
-          </button>
-          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-            ملابس واكسسوارات
-          </button>
-          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-            ملابس داخلية & ملابس نوم
+          <button
+            v-for="t in recTabs"
+            :key="t.key"
+            class="pb-2 text-[14px] border-b-2 whitespace-nowrap"
+            :class="activeRecTab===t.key ? 'font-bold text-black' : 'text-gray-600 border-transparent'"
+            :style="activeRecTab===t.key ? 'border-bottom-color: #8a1538' : ''"
+            @click="switchRecTab(t.key)"
+          >
+            {{ t.label }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Product Cards - NO container, just cards -->
+    <!-- Product Cards using ProductCard.vue -->
     <div class="px-2 pb-2">
-      <!-- Product Cards - same layout as Products.vue -->
-        <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
-          <div v-for="(p,i) in recommendedProducts" :key="'rec-'+i" class="mb-1 break-inside-avoid">
-            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openRecommended(p)" @keydown.enter="openRecommended(p)" @keydown.space.prevent="openRecommended(p)">
-              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
-                <div class="flex">
-                  <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="(max-width:640px) 50vw, 33vw" />
-                </div>
-                <div v-if="p.colors && p.colors.length" class="absolute bottom-2 right-2 flex items-center">
-                  <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
-                    <span v-for="(c,idx) in p.colors.slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
-                    <span v-if="p.colorCount" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="relative p-2">
-                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden">
-                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span>
-                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700">
-                    <Store :size="14" color="#6D28D9" :stroke-width="2" />
-                    <span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span>
-                    <span class="text-violet-700 ms-0.5">&gt;</span>
-                  </span>
-                </div>
-                <div class="flex items-center gap-1 mt-1.5">
-                  <div v-if="p.discountPercent" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div>
-                  <div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div>
-                </div>
-                <div v-if="p.bestRank" class="mt-1 inline-flex items-stretch rounded overflow-hidden">
-                  <div class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div>
-                </div>
-                <div class="mt-1 flex items-center gap-1">
-                  <span class="text-red-600 font-bold text-[13px]">{{ p.price }} ريال</span>
-                  <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
-                </div>
-                <button class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCart">
-                  <ShoppingCart :size="16" class="text-black" />
-                  <span class="text-[11px] font-bold text-black">1+</span>
-                </button>
-                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
-                  <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span>
-                  <span class="text-[11px] text-orange-500">/بعد الكوبون</span>
-                </div>
-              </div>
-            </div>
-          </div>
+      <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
+        <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="mb-1 break-inside-avoid">
+          <ProductGridCard 
+            :product="{ id: p.id, title: p.title, images: p.img? [p.img] : [], brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, basePrice: p.priceText, soldPlus: (p.soldCount? ('باع '+p.soldCount+'+') : ''), couponPrice: p.afterCoupon }"
+            @add="onRecoAdd"
+          />
         </div>
-        
-      <!-- Loading -->
+      </div>
       <div v-if="isLoadingRecommended" class="flex items-center justify-center py-8">
         <div class="flex flex-col items-center gap-2">
           <div class="w-8 h-8 border-4 border-gray-300 rounded-full animate-spin" style="border-top-color: #8a1538"></div>
@@ -826,6 +789,19 @@
     :onWishlist="toggleWish"
     :wishlistActive="hasWish"
   />
+  <!-- Modal: pick options for recommended product -->
+<ProductOptionsModal
+    v-if="recOptionsOpen"
+    :onClose="()=>{ recOptionsOpen=false }"
+    :onSave="onRecModalSave"
+    :product="recModalProduct"
+    :selectedColor="recModalColor"
+    :selectedSize="recModalSize"
+    :groupValues="undefined"
+    :hideTitle="true"
+    primaryLabel="إضافة إلى السلة"
+    :showWishlist="false"
+  />
   <!-- Shipping details full-screen sheet -->
   <Transition enter-active-class="transition-transform duration-300" enter-from-class="-translate-x-full" enter-to-class="translate-x-0" leave-active-class="transition-transform duration-300" leave-from-class="translate-x-0" leave-to-class="-translate-x-full">
   <div v-if="shippingDetailsOpen" class="fixed inset-0 z-50">
@@ -905,6 +881,8 @@ import {
   ChevronLeft, ChevronRight, Camera, ThumbsUp, Truck, DollarSign, 
   RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store, Copy, X
 } from 'lucide-vue-next'
+import { consumePrefetchImage } from '@/lib/nav'
+import ProductGridCard from '@/components/ProductGridCard.vue'
 
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
@@ -925,6 +903,7 @@ const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
 const categoryName = ref<string>('')
+const categoryId = ref<string>('')
 const safeDescription = computed(()=>{
   try{
     const html = String(product.value?.description||'')
@@ -1220,69 +1199,40 @@ const tabs = ref<Array<{ key:string; label:string }>>([
 
 // ==================== RECOMMENDED PRODUCTS ====================
 const isLoadingRecommended = ref(false)
-const recommendedProducts = ref<any[]>([
-  {
-    brand: 'COSMINA',
-    title: 'فستان أسود كلاسيكي أنيق',
-    image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400',
-    price: 149,
-    colors: ['#000000', '#ffffff', '#2a62ff'],
-    colorCount: 3,
-    discountPercent: 20,
-    bestRank: 2,
-    soldPlus: 'باع 300+'
-  },
-  {
-    brand: 'Elenzga',
-    title: 'بلوزة صيفية مريحة',
-    image: 'https://images.unsplash.com/photo-1564584217132-2271feaeb3c5?w=400',
-    price: 89,
-    colors: ['#ff6b6b', '#4ecdc4'],
-    colorCount: 2,
-    discountPercent: 15,
-    soldPlus: 'باع 500+'
-  },
-  {
-    brand: 'SHEIN',
-    title: 'إكسسوار ذهبي فاخر',
-    image: 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=400',
-    price: 59,
-    discountPercent: 25,
-    couponPrice: 44,
-    soldPlus: 'باع 200+'
-  },
-  {
-    brand: 'SHEIN',
-    title: 'جاكيت نسائي شتوي دافئ',
-    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-    price: 120,
-    colors: ['#2c3e50', '#34495e'],
-    colorCount: 2,
-    discountPercent: 18,
-    soldPlus: 'باع 400+'
-  },
-  {
-    brand: 'Elenzga',
-    title: 'بنطلون جينز نسائي كاجوال',
-    image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400',
-    price: 95,
-    colors: ['#2c3e50'],
-    colorCount: 1,
-    discountPercent: 10,
-    bestRank: 5,
-    soldPlus: 'باع 600+'
-  },
-  {
-    brand: 'COSMINA',
-    title: 'تنورة نسائية قصيرة صيفية',
-    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
-    price: 75,
-    colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-    colorCount: 4,
-    discountPercent: 22,
-    soldPlus: 'باع 350+'
-  }
+type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string }
+const recommendedProducts = ref<RecItem[]>([])
+
+// Rec tabs: recommendation + subcategories
+const recTabs = ref<Array<{ key:string; label:string; catId?:string }>>([
+  { key:'reco', label:'التوصية' }
 ])
+const activeRecTab = ref<string>('reco')
+function switchRecTab(key:string){
+  if (activeRecTab.value===key) return
+  activeRecTab.value = key
+  fetchRecommendations()
+}
+
+async function buildRecTabsFromCategory(){
+  try{
+    const j = await apiGet<any>('/api/categories?limit=200')
+    const cats: Array<any> = Array.isArray(j?.categories)? j.categories : []
+    if (!cats.length || !categoryId.value) return
+    const idToCat = new Map<string, any>()
+    cats.forEach(c=> idToCat.set(String(c.id), c))
+    const current = idToCat.get(String(categoryId.value))
+    if (!current) return
+    // Find parent if any
+    const parentId = current.parentId || current.parentID || current.parent_id || null
+    const parent = parentId ? idToCat.get(String(parentId)) : null
+    const children = cats.filter(c=> String(c.parentId||c.parentID||c.parent_id||'') === String(parent ? parent.id : current.id))
+    const tabs: Array<{key:string;label:string;catId?:string}> = [ { key:'reco', label:'التوصية' } ]
+    for (const ch of children){
+      tabs.push({ key: 'cat:'+String(ch.id), label: String(ch.name||''), catId: String(ch.id) })
+    }
+    recTabs.value = tabs
+  }catch{}
+}
 
 // Load More Recommended Products (Infinite Scroll)
 function loadMoreRecommended() {
@@ -1292,29 +1242,23 @@ function loadMoreRecommended() {
   
   // Simulate loading from API
   setTimeout(() => {
-    const newProducts = [
+    const baseIdx = recommendedProducts.value.length
+    const newProducts: RecItem[] = [
       {
-        brand: 'SHEIN',
-        title: 'منتج جديد ' + (recommendedProducts.value.length + 1),
-        image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400',
-        price: 85,
-        colors: ['#ff6b6b', '#4ecdc4'],
-        colorCount: 2,
+        id: 'sim-'+(baseIdx+1),
+        title: 'منتج جديد ' + (baseIdx + 1),
+        img: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400',
+        priceText: (85) + ' ر.س',
         discountPercent: 18,
-        soldPlus: 'باع 400+'
       },
       {
-        brand: 'Elenzga',
-        title: 'منتج جديد ' + (recommendedProducts.value.length + 2),
-        image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-        price: 105,
-        colors: ['#2c3e50', '#34495e'],
-        colorCount: 3,
+        id: 'sim-'+(baseIdx+2),
+        title: 'منتج جديد ' + (baseIdx + 2),
+        img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
+        priceText: (105) + ' ر.س',
         discountPercent: 22,
-        soldPlus: 'باع 350+'
       }
     ]
-    
     recommendedProducts.value.push(...newProducts)
     isLoadingRecommended.value = false
   }, 1500)
@@ -1711,6 +1655,39 @@ onMounted(()=>{
   }catch{}
 })
 
+// Force refresh when navigating to same component with different ?id (URL changes but Vue keeps instance)
+watch(() => route.query.id, async (nv, ov)=>{
+  try{
+    if (String(nv||'') !== String(ov||'')) {
+      // in-place reload: reset UI state and re-fetch instead of hard reload
+      activeIdx.value = 0
+      images.value = []
+      allImages.value = []
+      product.value = null
+      title.value = 'منتج'
+      price.value = 0
+      colorVariants.value = []
+      sizeOptions.value = []
+      size.value = ''
+      selectedGroupValues.value = {}
+      pdpMeta.value = { badges: [] }
+      reviews.value = []
+      avgRating.value = 0
+      recommendedProducts.value = []
+      categorySlug.value = ''
+      categoryName.value = ''
+      categoryId.value = ''
+      // re-run loaders using new id from route
+      await loadProductData()
+      await fetchRecommendations()
+      await loadPdpMeta()
+      await loadSeller()
+      computeGalleryHeight()
+      window.scrollTo({ top: 0, behavior: 'instant' as any })
+    }
+  }catch{}
+})
+
 onBeforeUnmount(()=> {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', computeGalleryHeight)
@@ -1730,14 +1707,29 @@ async function loadProductData() {
       title.value = d.name || title.value
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
-      allImages.value = imgs
-      if (imgs.length) { images.value = imgs; try { await nextTick(); await computeGalleryHeight() } catch {} }
+      try{
+        // If we have a prefetched hero, ensure it is the first to avoid flash
+        const pref = consumePrefetchImage(String(d.id||id))
+        if (pref){
+          const list = [pref, ...imgs.filter((u:string)=> u!==pref)]
+          allImages.value = list
+          images.value = list
+        } else {
+          allImages.value = imgs
+          images.value = imgs
+        }
+      }catch{
+        allImages.value = imgs
+        images.value = imgs
+      }
+      if (images.value.length) { try { await nextTick(); await computeGalleryHeight() } catch {} }
       // Load color galleries if present
       if (Array.isArray(d.colorGalleries)) colorGalleries.value = d.colorGalleries
       // defer color/size mapping to normalized loader
       original.value = ''
       categorySlug.value = String(d?.category?.slug||'')
       categoryName.value = String(d?.category?.name||'')
+      categoryId.value = String(d?.category?.id||'')
       brand.value = String(d?.brand||'')
       
       // Sizes from API if available (accept only real size tokens)
@@ -1760,6 +1752,7 @@ async function loadProductData() {
       try { await nextTick(); await updateImagesForColor() } catch {}
       
       // After primary data is ready, fire dependent loads (non-blocking)
+      try { await buildRecTabsFromCategory() } catch {}
       try { fetchRecommendations() } catch {}
       try { fetchSizeGuide() } catch {}
       try { loadWishlist() } catch {}
@@ -2021,32 +2014,99 @@ watch(colorIdx, ()=>{
 
 // ==================== RECOMMENDATIONS FETCH ====================
 async function fetchRecommendations(){
+  isLoadingRecommended.value = true
   try{
-    isLoadingRecommended.value = true
-    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`)
-    const list = Array.isArray(sim?.items) ? sim!.items : []
-    if (list.length) {
-      recommendedProducts.value = list.map((it:any)=> ({
-        id: it.id,
-        brand: it.brand||'',
-        title: it.name||'',
-        image: Array.isArray(it.images)&&it.images[0]? it.images[0]: '',
-        price: Number(it.price||0),
-      }))
+    // If a subcategory tab is active, fetch catalog for that category
+    const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
+    if (tab && tab.catId){
+      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=24`)
+      const items = Array.isArray(j?.items)? j.items : []
+      recommendedProducts.value = items.map((it:any)=> toRecItem(it))
       return
     }
-  }catch{}
-  try{
+    // Default: similar by current product's category, then recent
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`)
+    const list = Array.isArray(sim?.items) ? sim!.items : []
+    if (list.length) { recommendedProducts.value = list.map((it:any)=> toRecItem(it)); return }
     const rec = await apiGet<any>('/api/recommendations/recent')
     const items = Array.isArray(rec?.items) ? rec!.items : []
-    recommendedProducts.value = items.map((it:any)=> ({
-      id: it.id,
-      brand: it.brand||'',
-      title: it.name||'',
-      image: Array.isArray(it.images)&&it.images[0]? it.images[0]: '',
-      price: Number(it.price||0),
-    }))
+    recommendedProducts.value = items.map((it:any)=> toRecItem(it))
   }catch{} finally { isLoadingRecommended.value = false }
+}
+
+function toRecItem(it:any): RecItem{
+  const img = Array.isArray(it?.images)&&it.images[0]? it.images[0] : (it.image||'')
+  const price = Number(it?.price||0)
+  return {
+    id: String(it?.id||it?.sku||''),
+    title: String(it?.name||''),
+    brand: it?.brand||'',
+    img: img || '/images/placeholder-product.jpg',
+    priceText: (price||0) + ' ر.س',
+    originalText: undefined,
+    afterCoupon: undefined,
+    discountPercent: undefined,
+    soldCount: undefined,
+    fast: false,
+    bestRank: undefined,
+    thumbs: undefined,
+    href: `/p?id=${encodeURIComponent(String(it?.id||''))}`
+  }
+}
+
+async function onRecoAdd(pid: string){
+  try{
+    // probe options
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(pid)}`)
+    const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+    const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+    const hasColors = colorsCount > 1
+    const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+    const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+    const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+    if (!hasColors && !hasSizes){
+      try{ await apiPost('/api/cart/add', { productId: pid, quantity: 1 }) }catch{}
+      try{ cart.add({ id: pid, title: '', price: 0, img: '' }, 1) }catch{}
+      try{ toast.value = true }catch{}
+      return
+    }
+    // open options modal for reco
+    await openRecOptions(pid)
+  }catch{
+    try{ cart.add({ id: pid, title: '', price: 0, img: '' }, 1) }catch{}
+    try{ toast.value = true }catch{}
+  }
+}
+
+// Reco modal state and helpers (mirror Products.vue behavior)
+const recOptionsOpen = ref(false)
+const recModalProduct = ref<any|null>(null)
+const recModalColor = ref<string>('')
+const recModalSize = ref<string>('')
+async function openRecOptions(pid: string){
+  recOptionsOpen.value = true
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(pid)}`)
+    const imgs = Array.isArray(d.images)? d.images : []
+    const colors = Array.isArray(d.colorGalleries) ? d.colorGalleries.map((g:any)=> ({ label: g.name, img: g.primaryImageUrl || g.images?.[0] || imgs[0] || '/images/placeholder-product.jpg' })) : []
+    const sizes: string[] = Array.isArray(d.sizes)? d.sizes : []
+    const letters = sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
+    const numbers = sizes.filter((s:string)=> /^\d{1,3}$/.test(String(s)))
+    const groups: Array<{label:string; values:string[]}> = []
+    if (letters.length) groups.push({ label:'مقاسات بالأحرف', values: letters })
+    if (numbers.length) groups.push({ label:'مقاسات بالأرقام', values: numbers })
+    recModalProduct.value = { id: d.id||pid, title: d.name||'', price: Number(d.price||0), images: imgs, colors, sizes, sizeGroups: groups }
+    recModalColor.value = colors?.[0]?.label || ''
+    recModalSize.value = ''
+  }catch{ recModalProduct.value = { id: pid, title:'', price:0, images: [], colors: [], sizes: [], sizeGroups: [] } }
+}
+function onRecModalSave(payload: { color: string; size: string }){
+  try{
+    const color = payload?.color || ''
+    const size = payload?.size || ''
+    if (!recModalProduct.value) return
+    cart.add({ id: recModalProduct.value.id, title: recModalProduct.value.title, price: Number(recModalProduct.value.price||0), img: (recModalProduct.value.images?.[0]||''), variantColor: color||undefined, variantSize: size||undefined }, 1)
+  }finally{ recOptionsOpen.value = false }
 }
 
 // ==================== SIZE GUIDE (CMS) ====================

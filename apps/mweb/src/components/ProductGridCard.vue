@@ -1,7 +1,7 @@
 <template>
   <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button"
        :aria-label="'افتح '+(title||'المنتج')" tabindex="0"
-       @click="open()" @keydown.enter.prevent="open()" @keydown.space.prevent="open()">
+       @click="open($event)" @keydown.enter.prevent="open($event)" @keydown.space.prevent="open($event)">
     <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
       <div class="flex">
         <img v-for="(img,idx) in gallery" :key="'img-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
@@ -44,6 +44,7 @@ import { computed } from 'vue'
 import { fmtPrice, initCurrency } from '@/lib/currency'
 import { useRouter } from 'vue-router'
 import { useCart } from '@/store/cart'
+import { setPrefetchImage } from '@/lib/nav'
 import { ShoppingCart, Store } from 'lucide-vue-next'
 
 type P = {
@@ -95,7 +96,23 @@ const gallery = computed(()=> {
   return [props.product?.image || '/images/placeholder-product.jpg']
 })
 
-function open(){ if (id.value) router.push(`/p?id=${encodeURIComponent(id.value)}`) }
+function open(ev?: MouseEvent){
+  if (!id.value) return
+  const go = ()=> {
+    try{ setPrefetchImage(id.value, (gallery.value?.[0]||'')) }catch{}
+    router.push(`/p?id=${encodeURIComponent(id.value)}`)
+  }
+  try{
+    const img = (ev?.currentTarget as HTMLElement)?.querySelector('img') as HTMLElement | null
+    if ((document as any).startViewTransition && img){
+      const name = `p-img-${id.value}`
+      ;(img as any).style.viewTransitionName = name
+      ;(document as any).startViewTransition(()=>{ go() })
+      return
+    }
+  }catch{}
+  go()
+}
 function add(){ if (id.value){ emit('add', id.value); return } cart.add({ id: id.value, title: title.value, price: Number((basePrice.value||'0').toString().replace(/[^\d.]/g,''))||0, img: gallery.value[0]||'' }, 1) }
 </script>
 
