@@ -9,11 +9,9 @@
         </svg>
       </button>
       <h1 class="text-lg font-semibold text-gray-900">تأكيد الطلب ({{ totalItems }})</h1>
-      <!-- أيقونة سماعة -->
-      <button>
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-        </svg>
+      <!-- أيقونة سماعة كمبيوتر → خدمة العملاء -->
+      <button @click="goSupport" aria-label="خدمة العملاء">
+        <Headset class="w-6 h-6 text-gray-700" />
       </button>
     </header>
 
@@ -45,10 +43,10 @@
             <div class="text-sm text-gray-800">{{ item.title }}</div>
             <div class="text-xs text-gray-500 mt-1">
               <span v-if="item.variantColor">اللون: {{ item.variantColor }}</span>
-              <span v-if="item.variantSize" class="mr-2">المقاس: {{ item.variantSize }}</span>
+              <span v-if="item.variantSize" class="mr-2">{{ item.variantSize }}</span>
             </div>
             <div class="flex justify-between items-center mt-2">
-              <span class="text-[#8a1538] font-semibold">{{ Number(item.price).toFixed(2) }} {{ currencySymbol }}</span>
+              <span class="text-[#8a1538] font-semibold">{{ Math.round(Number(item.price)) }} {{ currencySymbol }}</span>
               <!-- عداد -->
               <div class="flex items-center border rounded">
                 <button class="px-2" @click="decreaseQty(idx)">-</button>
@@ -168,20 +166,11 @@
       </section>
 
       <!-- نقاط المكافأة -->
-      <section class="bg-white px-4 py-3 mt-2">
-       <!-- عملة ذهبية دائرية -->
-       <span
-       role="img"
-       aria-label="عملة ذهبية"
-       class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 text-yellow-900 font-extrabold shadow-md ring-1 ring-yellow-700/30"
-       >
-       j
-       </span>
-
-       <span class="text-red-600 font-semibold">31</span>
-       <span class="text-sm">نقاط مكافأة</span>
-
-       <button @click="showPointsInfo = true" class="ml-auto w-5 h-5 flex items-center justify-center rounded-full border text-gray-400">?</button>
+      <section v-if="showRewards" class="bg-white px-4 py-3 mt-2">
+        <span role="img" aria-label="عملة ذهبية" class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 text-yellow-900 font-extrabold shadow-md ring-1 ring-yellow-700/30">j</span>
+        <span class="text-red-600 font-semibold">{{ points }}</span>
+        <span class="text-sm">نقاط مكافأة</span>
+        <button @click="showPointsInfo = true" class="ml-auto w-5 h-5 flex items-center justify-center rounded-full border text-gray-400">?</button>
       </section>
 
       <!-- منبثق نقاط المكافأة -->
@@ -306,7 +295,9 @@ import { useRouter } from 'vue-router'
 import { apiGet, apiPost } from '@/lib/api'
 
 const router = useRouter()
+import { Headset } from 'lucide-vue-next'
 function goBack(){ router.back() }
+function goSupport(){ router.push('/help') }
 
 const items = ref<any[]>([])
 let selectedUids: string[] = []
@@ -336,6 +327,7 @@ function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null):
 }
 
 const showPointsInfo = ref(false)
+const showRewards = ref(false)
 
 const addr = ref<any>(null)
 const addrNameDisplay = computed(()=> addr?.value?.fullName || addr?.value?.name || '—')
@@ -374,7 +366,7 @@ async function loadPayments(){ const r = await apiGet<{ items:any[] }>(`/api/pay
 function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
 async function placeOrder(){
   // إنشاء الطلب من السلة مع الشحن والخصومات
-  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedIds }
+  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids }
   const ord = await apiPost('/api/orders', payload)
   if (ord && (ord as any).order?.id){
     // الدفع عند الاستلام: لا توجد بوابة دفع، انتقل مباشرةً لتأكيد الطلب/تفاصيله
@@ -427,6 +419,10 @@ async function applyGift(){
 async function loadBalances(){
   try{ const w = await apiGet<{ balance:number }>('/api/wallet/balance'); walletBalance.value = Number(w?.balance||0) }catch{}
   try{ const p = await apiGet<{ points:number }>('/api/points/balance'); points.value = Number(p?.points||0) }catch{}
+  try{
+    const settings = await apiGet<any>('/api/admin/policies/rewards/settings')
+    showRewards.value = !!settings?.enabled
+  }catch{ showRewards.value = false }
 }
 function applyWallet(){
   const amt = Math.max(0, Math.min(walletAmount.value||0, walletBalance.value, subtotal.value))

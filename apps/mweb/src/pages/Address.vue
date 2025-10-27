@@ -526,8 +526,8 @@ async function loadAddresses(){
   const list = Array.isArray(r) ? r : []
   addresses.value = list.map((a:any)=> ({
     id: a.id,
-    fullName: a.fullName || form.value.fullName || '',
-    phone: a.phone || form.value.phone || '',
+    fullName: a.fullName || '',
+    phone: a.phone || '',
     altPhone: a.altPhone || '',
     country: a.country || 'اليمن',
     governorate: a.state || a.province || '',

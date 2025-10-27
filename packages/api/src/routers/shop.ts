@@ -1816,11 +1816,20 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId, ref, shippingPrice, discount, selectedIds } = req.body || {};
+    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds } = req.body || {};
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
-    const selectedSet = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
-    const cartItems = selectedSet ? cart.items.filter(ci => selectedSet!.has(String(ci.productId))) : cart.items;
+    const selectedProductIds = Array.isArray(selectedIds) ? new Set(selectedIds.map(String)) : null;
+    const selectedCartUids = Array.isArray(selectedUids) ? new Set(selectedUids.map(String)) : null;
+    const cartItems = (selectedProductIds || selectedCartUids)
+      ? cart.items.filter(ci => {
+          const pid = String(ci.productId);
+          const uid = `${pid}|${String((ci as any).color||'').trim().toLowerCase()}|${String((ci as any).size||'').trim().toLowerCase()}`;
+          if (selectedCartUids && selectedCartUids.has(uid)) return true;
+          if (selectedProductIds && selectedProductIds.has(pid)) return true;
+          return false;
+        })
+      : cart.items;
     if (!cartItems.length) return res.status(400).json({ error:'No items selected' });
     const subtotal = cartItems.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
     const ship = Number(shippingPrice || 0);
@@ -1833,7 +1842,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
         total,
         shippingAddressId: shippingAddressId || null,
         discountAmount: disc,
-        items: { create: cartItems.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0), attributes: (ci as any).attributes || null })) },
+        items: { create: cartItems.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0) })) },
       },
       include: { items: true },
     });
