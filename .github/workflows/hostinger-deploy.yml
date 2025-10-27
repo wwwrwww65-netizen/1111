@@ -1,0 +1,129 @@
+name: Deploy to Hostinger (SSH)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Use pnpm 8.6.10
+        run: corepack prepare pnpm@8.6.10 --activate
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build packages
+        run: |
+          pnpm --filter @repo/db build
+          pnpm --filter web build
+          pnpm --filter admin build
+          pnpm --filter @repo/api build
+
+      - name: Create deploy bundle
+        run: |
+          tar -czf deploy.tar.gz \
+            apps/web/.next \
+            apps/admin/.next \
+            packages/api/dist \
+            infra/deploy/ecosystem.config.js \
+            package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json \
+            apps/web/package.json apps/admin/package.json packages/api/package.json \
+            apps/web/render-start.js || true
+
+      - name: Upload and deploy over SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT || '22' }}
+          source: "deploy.tar.gz"
+          target: ${{ secrets.HOSTINGER_PROJECT_DIR }}
+
+      - name: Run remote deploy
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
+          NEXT_PUBLIC_TRPC_URL: ${{ secrets.NEXT_PUBLIC_TRPC_URL }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          COOKIE_DOMAIN: ${{ secrets.COOKIE_DOMAIN }}
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT || '22' }}
+          script_stop: true
+          script: |
+            set -e
+            PROJECT_DIR="${{ secrets.HOSTINGER_PROJECT_DIR }}"
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
+            echo "Extracting bundle..."
+            tar -xzf deploy.tar.gz
+            rm -f deploy.tar.gz
+            echo "Setting up Node & pnpm (userland)"
+            corepack enable || true
+            corepack prepare pnpm@8.6.10 --activate || true
+            export PRISMA_IGNORE_ENV_CONFLICT=1
+            echo "Installing production deps for web/admin/api..."
+            pnpm install --prod --no-frozen-lockfile || true
+            echo "Running runtime deploy: starting/restarting services"
+            # Use simple Node/Next start if PM2 not available
+            if command -v pm2 >/dev/null 2>&1; then
+              export PROJECT_DIR="$PROJECT_DIR"
+              node -e "process.exit(0)" || true
+              # Ensure directories
+              mkdir -p apps/web apps/admin packages/api
+              # Start via PM2 ecosystem if present
+              if [ -f infra/deploy/ecosystem.config.js ]; then
+                pm2 delete ecom-web || true
+                pm2 delete ecom-admin || true
+                pm2 delete ecom-api || true
+                pm2 start infra/deploy/ecosystem.config.js --only ecom-web --update-env || true
+                pm2 start infra/deploy/ecosystem.config.js --only ecom-admin --update-env || true
+                pm2 start infra/deploy/ecosystem.config.js --only ecom-api --update-env || true
+                pm2 save || true
+              fi
+            else
+              # Fallback: start minimal servers in background via nohup
+              echo "Starting fallback servers..."
+              nohup node apps/web/.next/standalone/server.js >/tmp/web.out 2>&1 &
+              nohup node apps/admin/.next/standalone/server.js -p 3001 >/tmp/admin.out 2>&1 &
+              nohup node packages/api/dist/index.js >/tmp/api.out 2>&1 &
+            fi
+            echo "Health checks..."
+            curl -fsS http://127.0.0.1:4000/health | cat || true
+            curl -fsSI http://127.0.0.1:3000/ | head -n 5 | cat || true
+            curl -fsSI http://127.0.0.1:3001/ | head -n 5 | cat || true
+
