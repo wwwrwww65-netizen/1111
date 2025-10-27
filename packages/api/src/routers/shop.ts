@@ -2307,19 +2307,24 @@ shop.get('/shipping/methods', async (req, res) => {
 // Payments methods from PaymentGateway
 shop.get('/payments/methods', async (req: any, res) => {
   try{
-    const list = await db.paymentGateway.findMany({ where: { isActive: true }, select: { id:true, name:true, provider:true, mode:true } } as any)
+    const list = await db.paymentGateway.findMany({ where: { isActive: true }, select: { id:true, name:true, provider:true, mode:true, sortOrder:true }, orderBy: { sortOrder: 'asc' } } as any)
     // Deduplicate by provider/name and normalize COD id
     const itemsMap = new Map<string, any>()
     for (const g of (list||[])){
       const key = `${String(g.provider||'').toLowerCase()}::${String(g.name||'').trim()}`
       if (!itemsMap.has(key)) itemsMap.set(key, { id: g.provider==='cod' ? 'cod' : g.id, name: g.name, provider: g.provider, mode: g.mode })
     }
-    const items = Array.from(itemsMap.values())
+    let items = Array.from(itemsMap.values())
     // Add COD if configured in settings
     try{
       const s = await db.setting.findUnique({ where: { key: 'payments:cod' } });
       const enableCod = !s?.value || (s?.value as any)?.enabled !== false
       if (enableCod && !items.find((x:any)=> x.provider==='cod' || x.id==='cod')) items.push({ id:'cod', name:'الدفع عند الاستلام', provider:'cod', mode:'LIVE' })
+    }catch{}
+    // Ensure final list respects PaymentGateway.sortOrder (already applied) and keeps COD first if desired
+    try{
+      const codIndex = items.findIndex((x:any)=> x.id==='cod' || x.provider==='cod')
+      if (codIndex>0) { const [cod] = items.splice(codIndex,1); items = [cod, ...items] }
     }catch{}
     res.json({ items })
   }catch{ res.status(500).json({ error:'failed' }) }
