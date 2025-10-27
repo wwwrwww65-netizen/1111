@@ -78,13 +78,11 @@
             <div class="flex-1">
               <div class="flex items-center gap-2">
                 <svg class="w-5 h-5 text-[#8a1538]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path v-if="ship.name === 'شحن مجاني'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                  <path v-else-if="ship.name === 'شحن سريع'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                  <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17l4 4 4-4m-4-5v9m0-13a4 4 0 00-4 4v1a2 2 0 002 2h4a2 2 0 002-2V8a4 4 0 00-4-4z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
-                <span>{{ ship.name }}</span>
+                <span>{{ ship.offerTitle || ship.name }}</span>
               </div>
-              <div class="text-xs text-gray-600 ml-7">{{ ship.desc }} - {{ Number(ship.price||0).toFixed(2) }} {{ currencySymbol }}</div>
+              <div class="text-xs text-gray-600 ml-7">{{ formatEtaRange(ship.etaMinHours, ship.etaMaxHours) }} • {{ Number(ship.price||0).toFixed(2) }} {{ currencySymbol }}</div>
             </div>
           </div>
         </div>
@@ -311,19 +309,31 @@ const router = useRouter()
 function goBack(){ router.back() }
 
 const items = ref<any[]>([])
-let selectedIds: string[] = []
+let selectedUids: string[] = []
 
 function increaseQty(idx:number){ items.value[idx].qty++ }
 function decreaseQty(idx:number){ if(items.value[idx].qty>1) items.value[idx].qty-- }
 
 const totalItems = computed(()=> items.value.reduce((s,i)=>s+i.qty,0))
 
-const shippingOptions = ref<Array<{ id:string; name:string; desc:string; price:number }>>([])
+const shippingOptions = ref<Array<{ id:string; name:string; desc:string; price:number; offerTitle?: string; etaMinHours?:number; etaMaxHours?:number }>>([])
 const selectedShipping = ref('')
 
 const paymentOptions = ref<Array<{ id:string; name:string }>>([])
 const selectedPayment = ref('')
 const currencySymbol = ref('ر.س')
+function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null): string {
+  const min = Number(minH||0); const max = Number(maxH||0)
+  if (max<=0 && min<=0) return ''
+  const a = Math.max(0, min||max)
+  const b = Math.max(a, max)
+  if (b >= 24) {
+    const da = Math.ceil(a/24)
+    const db = Math.ceil(b/24)
+    return da===db ? `${db} أيام` : `${da}-${db} أيام`
+  }
+  return `${a}-${b} ساعات`
+}
 
 const showPointsInfo = ref(false)
 
@@ -348,10 +358,10 @@ async function loadCart(){
   try{
     const { useCart } = await import('@/store/cart');
     const c = useCart();
-    try{ const raw = sessionStorage.getItem('checkout_selected_ids'); selectedIds = raw ? (JSON.parse(raw)||[]) : [] }catch{ selectedIds = [] }
-    const idsSet = new Set((selectedIds||[]).map(String))
+    try{ const raw = sessionStorage.getItem('checkout_selected_uids'); selectedUids = raw ? (JSON.parse(raw)||[]) : [] }catch{ selectedUids = [] }
+    const uidsSet = new Set((selectedUids||[]).map(String))
     const all = c.items
-    items.value = idsSet.size? all.filter((it:any)=> idsSet.has(String(it.id))) : all
+    items.value = uidsSet.size? all.filter((it:any)=> uidsSet.has(String(it.uid))) : all
   }catch{ items.value = [] }
 }
 async function loadAddress(){

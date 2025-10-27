@@ -887,6 +887,7 @@ import {
 } from 'lucide-vue-next'
 import { consumePrefetchPayload } from '@/lib/nav'
 import ProductGridCard from '@/components/ProductGridCard.vue'
+import { fmtPrice, getCurrency } from '@/lib/currency'
 
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
@@ -904,7 +905,7 @@ const images = ref<string[]>([])
 const allImages = ref<string[]>([])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
-const displayPrice = computed(()=> price.value==null ? '' : (Number(price.value)||0) + ' ر.س')
+const displayPrice = computed(()=> price.value==null ? '' : fmtPrice(Number(price.value)||0))
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
 const categoryName = ref<string>('')
@@ -1253,14 +1254,14 @@ function loadMoreRecommended() {
         id: 'sim-'+(baseIdx+1),
         title: 'منتج جديد ' + (baseIdx + 1),
         img: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400',
-        priceText: (85) + ' ر.س',
+        priceText: fmtPrice(85),
         discountPercent: 18,
       },
       {
         id: 'sim-'+(baseIdx+2),
         title: 'منتج جديد ' + (baseIdx + 2),
         img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-        priceText: (105) + ' ر.س',
+        priceText: fmtPrice(105),
         discountPercent: 22,
       }
     ]
@@ -2062,7 +2063,7 @@ function toRecItem(it:any): RecItem{
     title: String(it?.name||''),
     brand: it?.brand||'',
     img: img || '/images/placeholder-product.jpg',
-    priceText: (price||0) + ' ر.س',
+    priceText: fmtPrice(price||0),
     originalText: undefined,
     afterCoupon: undefined,
     discountPercent: undefined,
@@ -2216,15 +2217,15 @@ async function loadAddresses(){
 function trackViewItem(){
   try{
     ;(window as any).dataLayer = (window as any).dataLayer || []
-    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0) }] } })
+    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0), currency:getCurrency() }] } })
   }catch{}
   try{
-    const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','ViewContent',{ content_ids:[id], content_type:'product', value:Number(price.value||0), currency:'SAR' })
+    const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','ViewContent',{ content_ids:[id], content_type:'product', value:Number(price.value||0), currency:getCurrency() })
   }catch{}
 }
 function trackAddToCart(){
-  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1 }] } }) }catch{}
-  try{ const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','AddToCart',{ content_ids:[selectedVariantId.value||id], content_type:'product', value:Number(price.value||0), currency:'SAR' }) }catch{}
+  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1, currency:getCurrency() }] } }) }catch{}
+  try{ const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','AddToCart',{ content_ids:[selectedVariantId.value||id], content_type:'product', value:Number(price.value||0), currency:getCurrency() }) }catch{}
 }
 
 // ==================== SEO: JSON-LD ====================
@@ -2273,7 +2274,7 @@ function injectHeadMeta(){
     if (images.value[0]) setMeta('og:image', images.value[0])
     setMeta('og:url', url.href)
     setMeta('product:price:amount', String(Number(price.value||0)))
-    setMeta('product:price:currency', 'SAR')
+    setMeta('product:price:currency', getCurrency())
   }catch{}
 }
 // ==================== CLUB THEME HELPERS ====================

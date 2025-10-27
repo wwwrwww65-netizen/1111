@@ -4,7 +4,7 @@
     <header class="w-full bg-white border-b border-gray-200 px-4 pt-3 pb-2">
       <div class="flex items-center justify-between">
         <!-- إذا كانت السلة ممتلئة - عرض تحديد الكل -->
-        <div v-if="items.length" class="flex items-center gap-1.5">
+        <div v-if="validItems.length" class="flex items-center gap-1.5">
           <button
             @click="toggleSelectAll"
             :class="`w-5 h-5 rounded-full border flex items-center justify-center ${
@@ -63,7 +63,7 @@
     <!-- المحتوى الرئيسي -->
     <main class="w-full flex-1">
       <!-- السلة الفارغة -->
-      <section v-if="!items.length" class="bg-white w-full flex flex-col items-center justify-center py-8 space-y-4">
+      <section v-if="!items.length && !hasOutOfStock" class="bg-white w-full flex flex-col items-center justify-center py-8 space-y-4">
         <!-- أيقونة السلة -->
         <div class="w-20 h-20 rounded-full bg-white border border-gray-300 flex items-center justify-center shadow-sm">
           <ShoppingCart class="w-10 h-10 text-gray-400" />
@@ -95,7 +95,7 @@
       <!-- السلة الممتلئة -->
       <div v-else class="space-y-1 pt-1">
         <!-- المنتجات في السلة -->
-        <section v-for="item in items" :key="item.uid" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-2 flex items-start gap-2">
+        <section v-for="item in validItems" :key="item.uid" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-2 flex items-start gap-2">
           <!-- Select item -->
           <button
             @click="toggleItem(item.uid)"
@@ -162,55 +162,31 @@
 
         <!-- بطاقة انتهى من المخزون + المنتجات غير صالحة -->
         <section v-if="hasOutOfStock" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-3 space-y-3">
-          <!-- شريط تنبيه أعلى البطاقة -->
           <div class="w-full rounded-[6px] border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700 text-center">
             انتهى من المخزون والمنتجات غير صالحة
-            </div>
-
-          <!-- محتوى البطاقة -->
-          <div class="flex items-start gap-3">
-            <!-- صورة المنتج -->
+          </div>
+          <div v-for="item in oosItems" :key="'oos-'+item.uid" class="flex items-start gap-3">
             <div class="relative w-20 h-20 bg-gray-100 rounded-[6px] overflow-hidden shrink-0">
-              <img src="https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=200&auto=format&fit=crop" alt="منتج انتهى من المخزون" class="w-full h-full object-cover opacity-50" />
-              <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[11px] text-center py-0.5">تم البيع</div>
-            </div>
-
-            <!-- التفاصيل -->
-            <div class="flex-1 text-right space-y-2">
-              <div class="text-[13px] font-semibold text-gray-900 leading-5 opacity-60">
-                منتج انتهى من المخزون
+              <img :src="item.img" :alt="item.title" class="w-full h-full object-cover opacity-50" />
+              <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[11px] text-center py-0.5">
+                {{ statusOf(item.uid)==='invalid' ? 'غير صالح' : 'تم البيع' }}
               </div>
-
-              <!-- السعر والخصم -->
+            </div>
+            <div class="flex-1 text-right space-y-2">
+              <div class="text-[13px] font-semibold text-gray-900 leading-5 opacity-60 line-clamp-2">{{ item.title }}</div>
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 opacity-60">
-                  <span class="text-[13px] font-bold text-[#8a1538]">{{ fmtPrice(9) }}</span>
-                  <span class="text-[12px] text-gray-500 line-through">{{ fmtPrice(20) }}</span>
-                  <span class="text-[11px] px-2 py-0.5 rounded-[4px] bg-rose-100 text-rose-700 border border-rose-200">
-                    55%
-                  </span>
+                  <span class="text-[13px] font-bold text-[#8a1538]">{{ fmtPrice(item.price) }}</span>
+                  <span v-if="item.variantColor || item.variantSize" class="text-[11px] text-gray-500">{{ item.variantColor || '—' }} / {{ formatSizeForChip(item.variantSize) }}</span>
                 </div>
-
-                <!-- أيقونات الإجراءات -->
                 <div class="flex items-center gap-2">
-                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="مشاركة">
-                    <Share2 class="w-4 h-4 text-gray-600" />
-                  </button>
-                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="إضافة للمفضلة">
-                    <Heart class="w-4 h-4 text-gray-600" />
-                  </button>
-                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="حذف">
+                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="حذف" @click="cart.remove(item.uid)">
                     <X class="w-4 h-4 text-gray-600" />
                   </button>
                 </div>
               </div>
-
-              <!-- زر منتجات مشابهة -->
               <div class="flex justify-start">
-                <button
-                  class="h-9 px-3 rounded-[6px] text-[12px] font-semibold border border-[#8a1538] text-[#8a1538] bg-white"
-                  aria-label="منتجات مشابهة"
-                >
+                <button class="h-9 px-3 rounded-[6px] text-[12px] font-semibold border border-[#8a1538] text-[#8a1538] bg-white" aria-label="منتجات مشابهة">
                   منتجات مشابهة
                 </button>
               </div>
@@ -243,7 +219,7 @@
     </main>
 
     <!-- شريط الدفع السفلي - يظهر فقط عندما تكون السلة ممتلئة -->
-    <footer v-if="items.length" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex items-center justify-between z-50">
+    <footer v-if="validItems.length" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex items-center justify-between z-50">
       <div class="text-[14px] font-semibold text-gray-900">{{ fmtPrice(selectedTotal) }}</div>
       <button
         class="flex items-center justify-center px-3 h-9 rounded-[6px] text-[12px] font-semibold text-white bg-[#8a1538]"
@@ -320,7 +296,7 @@ const cart = useCart()
 const router = useRouter()
 const { items, total } = storeToRefs(cart)
 
-// عنوان الشحن الديناميكي
+// عنوان الشحن الديناميكي: إظهار المحافظة والمنطقة فقط
 const shippingAddress = ref('اليمن')
 const hasAnyAddress = ref(false)
 
@@ -328,7 +304,11 @@ const hasAnyAddress = ref(false)
 const selectedItems = ref<string[]>([])
 const selectAll = ref(false)
 const menuOpen = ref(false)
-const hasOutOfStock = ref(true)
+const hasOutOfStock = ref(false)
+const oosMap = ref<Record<string,'oos'|'invalid'>>({})
+const validItems = computed(()=> items.value.filter(i=> !oosMap.value[i.uid]))
+const oosItems = computed(()=> items.value.filter(i=> !!oosMap.value[i.uid]))
+function statusOf(uid: string){ return oosMap.value[uid] }
 const isLoggedIn = ref(false)
 const suggested = ref<Array<{ id:string; title:string; image:string; images?: string[]; imagesNormalized?: string[]; price:number; brand?:string; colors?: string[]; colorCount?: number; discountPercent?: number; soldPlus?: string; bestRank?: number; bestRankCategory?: string; couponPrice?: string }>>([])
 
@@ -363,6 +343,7 @@ const selectedTotal = computed(() => {
   return selectedItems.value.reduce((sum, uid) => {
     const item = items.value.find(i => i.uid === uid)
     if (!item) return sum
+    if (oosMap.value[item.uid]) return sum
     return sum + item.price * item.qty
   }, 0)
 })
@@ -389,7 +370,7 @@ async function goToCheckout() {
     router.push('/address?return=/checkout'); return
   }
   // Persist selected items to sessionStorage for Checkout filtering
-  try{ sessionStorage.setItem('checkout_selected_ids', JSON.stringify(selectedItems.value)) }catch{}
+  try{ sessionStorage.setItem('checkout_selected_uids', JSON.stringify(selectedItems.value)) }catch{}
   router.push('/checkout')
 }
 
@@ -449,14 +430,14 @@ function toggleItem(uid: string) {
 function toggleSelectAll() {
   selectAll.value = !selectAll.value
   if (selectAll.value) {
-    selectedItems.value = items.value.map(item => item.uid)
+    selectedItems.value = validItems.value.map(item => item.uid)
   } else {
     selectedItems.value = []
   }
 }
 
 function updateSelectAll() {
-  selectAll.value = selectedItems.value.length === items.value.length
+  selectAll.value = selectedItems.value.length > 0 && selectedItems.value.length === validItems.value.length
 }
 
 function changeQty(uid: string, delta: number) {
@@ -656,9 +637,41 @@ function hasOptions(id: string){
 
 // Preload options for all cart items on page load
 onMounted(async () => {
+  // حدّد كل العناصر مبدئياً حتى يراها المستخدم محددة فوراً
+  try{
+    selectedItems.value = items.value.map(i=> i.uid)
+    selectAll.value = selectedItems.value.length > 0
+  }catch{}
   try{
     const ids = Array.from(new Set(items.value.map(i=> i.id)))
     await Promise.all(ids.map(id => fetchProductDetails(id)))
+  }catch{}
+  // تحقق من صلاحية وتوفر عناصر السلة الحالية
+  try{
+    const base = (await import('@/lib/api')).API_BASE
+    const prods = await Promise.all(items.value.map(async (it)=>{
+      try{
+        const res = await fetch(`${base}/api/product/${encodeURIComponent(it.id)}`, { headers:{ 'Accept':'application/json' } })
+        if (!res.ok) return { uid: it.uid, status: 'invalid' as const }
+        const d = await res.json()
+        const stock = typeof d.stock === 'number' ? d.stock : (Array.isArray(d.variants)? d.variants.reduce((n:any,v:any)=> n + (Number(v.stockQuantity||0)), 0) : 0)
+        const isActive = d?.isActive !== false
+        const available = isActive && stock > 0
+        return { uid: it.uid, status: available ? null : ('oos' as const) }
+      }catch{ return { uid: it.uid, status: 'invalid' as const } }
+    }))
+    const map: Record<string,'oos'|'invalid'> = {}
+    for (const p of prods){ if (p.status) map[p.uid] = p.status }
+    oosMap.value = map
+    hasOutOfStock.value = Object.keys(map).length > 0
+    // نظّف التحديدات لتقتصر على العناصر الصالحة فقط
+    selectedItems.value = selectedItems.value.filter(uid => !map[uid])
+    updateSelectAll()
+    // في الزيارة الأولى: حدد جميع العناصر الصالحة تلقائياً
+    if (selectedItems.value.length === 0 && validItems.value.length > 0){
+      selectedItems.value = validItems.value.map(it=> it.uid)
+      selectAll.value = true
+    }
   }catch{}
 })
 
@@ -698,8 +711,8 @@ onMounted(async () => {
     hasAnyAddress.value = Array.isArray(list) && list.length>0
     if (hasAnyAddress.value){
       const a = (list.find((x:any)=>x.isDefault) || list[0]) || {}
-      const parts = [a.country || 'اليمن', (a.state||a.province), a.city, a.area, a.street].filter((s:string)=>!!s)
-      shippingAddress.value = parts.join(' / ') || 'اليمن'
+      const parts = [(a.state||a.province), a.area].filter((s:string)=>!!s)
+      shippingAddress.value = parts.join(' / ') || '—'
     } else {
       shippingAddress.value = 'اليمن'
     }
