@@ -53,6 +53,15 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
   }
 
   if (!order) return <main className="panel">جارٍ التحميل…</main>;
+  const recName = order.shippingAddress?.fullName || order.address?.fullName || order.user?.name || '-';
+  const recPhone = order.shippingAddress?.phone || order.address?.phone || order.user?.phone || '-';
+  const recLine = [
+    order.shippingAddress?.country || order.address?.country,
+    order.shippingAddress?.state || order.address?.state,
+    order.shippingAddress?.city || order.address?.city,
+    order.shippingAddress?.street || order.address?.street,
+    order.shippingAddress?.details || order.address?.details,
+  ].filter(Boolean).join(' / ');
   return (
     <main className="grid" style={{ gap:16 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -70,27 +79,56 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
           <div>
             <div style={{ color:'var(--sub)' }}>العميل</div>
             <div>{order.user?.name||'-'} — {order.user?.email||'-'} — {order.user?.phone||'-'}</div>
-            <div style={{ color:'var(--sub)', marginTop:8 }}>العنوان</div>
-            <div>{order.shippingAddress?.street||'-'}</div>
+            <div style={{ color:'var(--sub)', marginTop:8 }}>اسم المستلم</div>
+            <div>{recName}</div>
+            <div style={{ color:'var(--sub)', marginTop:8 }}>رقم الهاتف</div>
+            <div>{recPhone}</div>
+            <div style={{ color:'var(--sub)', marginTop:8 }}>عنوان التوصيل</div>
+            <div>{recLine || '-'}</div>
+            <div style={{ color:'var(--sub)', marginTop:8 }}>الدفع</div>
+            <div>{(()=>{ const pm = (order as any).paymentDisplay || (order.paymentMethod || order.payment?.method || '-'); const pms = String(pm).toLowerCase()==='cod' ? 'الدفع عند الاستلام' : String(pm); return pms; })()}</div>
+            <div style={{ color:'var(--sub)', marginTop:8 }}>طريقة الشحن</div>
+            <div>
+              {!order.shippingMethod ? (
+                <span>{order.shippingMethodId || '-'}</span>
+              ) : (
+                <div>
+                  <div><b>{order.shippingMethod.offerTitle||order.shippingMethod.id}</b></div>
+                  <div style={{ color:'var(--sub)' }}>
+                    السعر: {Number(order.shippingMethod.price||0).toFixed(2)} • المدة: {order.shippingMethod.etaMinHours||'-'}-{order.shippingMethod.etaMaxHours||'-'} ساعة
+                  </div>
+                  {order.shippingMethod.carrier && <div style={{ color:'var(--sub)' }}>الناقل: {order.shippingMethod.carrier}</div>}
+                </div>
+              )}
+            </div>
             <div style={{ color:'var(--sub)', marginTop:8 }}>ملاحظات</div>
             <div>-</div>
           </div>
           <div>
             <div style={{ color:'var(--sub)' }}>ملخص المبلغ</div>
-            <div>Subtotal: {order.items?.reduce((s:number,i:any)=>s+(i.price*i.quantity),0) || 0}</div>
-            <div>Shipping: 0</div>
-            <div>Tax: 0</div>
-            <div>Total: {order.total}</div>
+            {(()=>{ const subtotal = (order.items||[]).reduce((s:number,i:any)=> s + Number(i.price||0)*Number(i.quantity||1), 0); const ship = Number(order.shippingAmount||order.shippingMethod?.price||0); const disc = Number(order.discountAmount||0); const total = Math.max(0, subtotal + ship - disc); return (
+              <>
+                <div>المجموع: {subtotal}</div>
+                <div>الشحن: {ship}</div>
+                <div>الخصم: {disc}</div>
+                <div>الإجمالي: {total}</div>
+              </>
+            )})()}
           </div>
         </div>
       </div>
       <div className="panel">
         <h3 style={{ marginTop:0 }}>الأصناف</h3>
+        <div style={{ textAlign:'left', marginBottom:8 }}>
+          <a className="btn btn-sm" href={`${apiBase}/api/admin/orders/${id}/invoice`} target="_blank" rel="noreferrer">إنشاء فاتورة</a>
+        </div>
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
             <thead><tr>
               <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>الصورة</th>
               <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>الاسم</th>
+              <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>المتغير</th>
+              <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>المورد</th>
               <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>الكمية</th>
               <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>السعر</th>
               <th style={{ textAlign:'right', padding:10, borderBottom:'1px solid var(--muted)' }}>المجموع</th>
@@ -98,8 +136,25 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
             <tbody>
               {order.items?.map((it:any, idx:number)=> (
                 <tr key={it.id} style={{ background: idx%2? '#0a0e17':'transparent' }}>
-                  <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}><div style={{ width:64, height:64, background:'#111', borderRadius:8 }} /></td>
+                  <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>
+                    {(()=>{ const m = (it as any).meta; const sel = m?.attributes?.image || it.product?.images?.[0]; return sel ? (
+                      <img src={sel} alt={it.product?.name||''} style={{ width:64, height:64, objectFit:'cover', borderRadius:8 }} />
+                    ) : (<div style={{ width:64, height:64, background:'#111', borderRadius:8 }} />) })()}
+                  </td>
                   <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{it.product?.name||'-'}</td>
+                  <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>
+                    {(()=>{
+                      const m = (it as any).meta || (it as any).variant || {}
+                      const attrs = (m as any).attributes || {}
+                      const parts:string[] = []
+                      if ((m as any).color) parts.push(`اللون: ${(m as any).color}`)
+                      if (attrs.size_letters) parts.push(`مقاسات بالأحرف: ${attrs.size_letters}`)
+                      if (attrs.size_numbers) parts.push(`مقاسات بالأرقام: ${attrs.size_numbers}`)
+                      if (!parts.length && (m as any).size) parts.push((m as any).size)
+                      return parts.length? parts.join(' | ') : '-'
+                    })()}
+                  </td>
+                  <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{it.product?.vendor?.name || '-'}</td>
                   <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{it.quantity}</td>
                   <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{it.price}</td>
                   <td style={{ padding:10, borderBottom:'1px solid var(--muted)' }}>{it.price*it.quantity}</td>

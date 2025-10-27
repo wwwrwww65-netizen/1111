@@ -1816,36 +1816,131 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds } = req.body || {};
+    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, paymentMethod, shippingMethodId } = req.body || {};
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
-    const selectedProductIds = Array.isArray(selectedIds) ? new Set(selectedIds.map(String)) : null;
-    const selectedCartUids = Array.isArray(selectedUids) ? new Set(selectedUids.map(String)) : null;
-    const cartItems = (selectedProductIds || selectedCartUids)
-      ? cart.items.filter(ci => {
-          const pid = String(ci.productId);
-          const uid = `${pid}|${String((ci as any).color||'').trim().toLowerCase()}|${String((ci as any).size||'').trim().toLowerCase()}`;
-          if (selectedCartUids && selectedCartUids.has(uid)) return true;
-          if (selectedProductIds && selectedProductIds.has(pid)) return true;
-          return false;
-        })
-      : cart.items;
-    if (!cartItems.length) return res.status(400).json({ error:'No items selected' });
+    const selectedProductIds = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
+    const selectedCartUids = Array.isArray(selectedUids) && selectedUids.length ? new Set(selectedUids.map(String)) : null;
+    // Derive productIds from UIDs like productId|color|size
+    const selectedFromUids = selectedCartUids ? new Set(Array.from(selectedCartUids).map(u => String(u).split('|')[0])) : null;
+    const unionSelectedPids: Set<string> | null = (() => {
+      const s = new Set<string>();
+      if (selectedProductIds) selectedProductIds.forEach(x => s.add(String(x)));
+      if (selectedFromUids) selectedFromUids.forEach(x => s.add(String(x)));
+      return s.size ? s : null;
+    })();
+    let cartItems = unionSelectedPids ? cart.items.filter(ci => unionSelectedPids.has(String(ci.productId))) : cart.items;
+    if (!cartItems.length) {
+      // Fallback #1: proceed with all server cart items
+      if (cart.items.length) {
+        cartItems = cart.items;
+      } else {
+        // Fallback #2: synthesize lines from selectedFromUids when server cart is empty
+        if (selectedFromUids && selectedFromUids.size) {
+          const ids = Array.from(selectedFromUids);
+          const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, price: true } })
+          cartItems = prods.map((p:any)=> ({ productId: p.id, quantity: 1, product: { price: Number(p.price||0) } } as any))
+        }
+        if (!cartItems.length) return res.status(400).json({ error:'No items selected' });
+      }
+    }
+    // Build variant meta map from selectedUids (best-effort): pid -> { color, size, uid, attributes }
+    const variantMetaByPid: Record<string, { color?: string; size?: string; uid?: string; attributes?: any }> = {}
+    try {
+      if (selectedCartUids) {
+        for (const u of Array.from(selectedCartUids)) {
+          const parts = String(u).split('|')
+          const pid = parts[0]
+          const segs = parts.slice(1)
+          let color: string | undefined = undefined
+          const attributes: Record<string, string> = {}
+          for (const seg of segs) {
+            if (!seg) continue
+            const idx = seg.indexOf(':')
+            if (idx > -1) {
+              const rawKey = seg.slice(0, idx).trim()
+              const rawVal = seg.slice(idx + 1).trim()
+              const keyNorm = rawKey
+                .replace(/^اللون$/i, 'color')
+                .replace(/^لون$/i, 'color')
+                .replace(/^مقاسات?\s*بالأحرف$/i, 'size_letters')
+                .replace(/^مقاسات?\s*بالارقام$/i, 'size_numbers')
+                .replace(/^مقاسات?\s*بالأرقام$/i, 'size_numbers')
+                .replace(/^size$/i, 'size')
+              attributes[keyNorm || rawKey] = rawVal
+            } else {
+              // Segment without explicit key, treat the first such as color if not set
+              if (!color) color = seg
+            }
+          }
+          // Derive a concise size label for quick display (combine if both exist)
+          const sizeLabel = [attributes['size_letters'], attributes['size_numbers'], attributes['size']]
+            .filter(Boolean)
+            .join(' / ') || undefined
+          if (pid && !variantMetaByPid[pid]) variantMetaByPid[pid] = { color, size: sizeLabel, uid: u, attributes }
+        }
+        // Try enrich attributes.image from cart items (selected lines first)
+        try{
+          for (const ci of cartItems){
+            const pid = String(ci.productId)
+            const meta = variantMetaByPid[pid]
+            if (!meta) continue
+            const img = (ci as any).img || (ci.product?.images?.[0])
+            if (img){
+              meta.attributes = meta.attributes || {}
+              if (!meta.attributes.image) meta.attributes.image = String(img)
+            }
+          }
+        }catch{}
+      }
+    } catch {}
     const subtotal = cartItems.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
     const ship = Number(shippingPrice || 0);
     const disc = Number(discount || 0);
     const total = Math.max(0, subtotal + ship - disc);
+    // Validate shipping address against Address table only; fall back to null
+    let shippingAddressIdResolved: string | null = null
+    try {
+      const sid = shippingAddressId ? String(shippingAddressId) : ''
+      if (sid) {
+        const addrRow = await db.address.findUnique({ where: { id: sid } })
+        if (addrRow) shippingAddressIdResolved = addrRow.id
+      }
+    } catch {}
+
     const order = await db.order.create({
       data: {
         userId,
         status: 'PENDING',
         total,
-        shippingAddressId: shippingAddressId || null,
+        shippingAddressId: shippingAddressIdResolved,
         discountAmount: disc,
         items: { create: cartItems.map((ci) => ({ productId: ci.productId, quantity: ci.quantity, price: Number(ci.product?.price || 0) })) },
       },
       include: { items: true },
     });
+    // Persist per-line variant meta without schema migration (side table)
+    try {
+      await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderItemMeta" (id TEXT PRIMARY KEY, "orderId" TEXT, "orderItemId" TEXT, "productId" TEXT, color TEXT, size TEXT, uid TEXT, attributes JSONB, "createdAt" TIMESTAMP DEFAULT NOW())')
+      // Ensure columns exist if table was created previously without them
+      try { await db.$executeRawUnsafe('ALTER TABLE "OrderItemMeta" ADD COLUMN IF NOT EXISTS "orderItemId" TEXT'); } catch {}
+      try { await db.$executeRawUnsafe('ALTER TABLE "OrderItemMeta" ADD COLUMN IF NOT EXISTS attributes JSONB'); } catch {}
+      for (const it of order.items) {
+        const meta = variantMetaByPid[String(it.productId)]
+        if (!meta) continue
+        const idm = Math.random().toString(36).slice(2)
+        await db.$executeRawUnsafe('INSERT INTO "OrderItemMeta" (id, "orderId", "orderItemId", "productId", color, size, uid, attributes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', idm, order.id, String(it.id), String(it.productId), meta.color||null, meta.size||null, meta.uid||null, meta.attributes? JSON.stringify(meta.attributes): null)
+      }
+    } catch {}
+    // Persist chosen payment/shipping method when available (tolerant if columns missing)
+    try {
+      if (paymentMethod) {
+        await db.$executeRawUnsafe('ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "shippingMethodId" TEXT');
+        await db.$executeRawUnsafe('ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT');
+        await db.$executeRawUnsafe('ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "shippingAmount" DOUBLE PRECISION');
+        await db.$executeRawUnsafe('UPDATE "Order" SET "paymentMethod"=$1, "shippingMethodId"=$2, "shippingAmount"=$3 WHERE id=$4', String(paymentMethod), shippingMethodId? String(shippingMethodId): null, ship, order.id);
+      }
+    } catch {}
     // Affiliate ledger (create table if needed)
     if (ref) {
       try {
@@ -1855,7 +1950,10 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
         await db.$executeRawUnsafe('INSERT INTO "AffiliateLedger" (id, ref, "orderId", amount, commission, status) VALUES ($1,$2,$3,$4,$5,$6)', id, String(ref), order.id, Number(total), commission, 'PENDING');
       } catch {}
     }
-    await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+    try {
+      const delIds = cartItems.map((ci:any)=> ci?.id).filter((x:any)=> !!x)
+      if (delIds.length) await db.cartItem.deleteMany({ where: { id: { in: delIds } } });
+    } catch {}
     res.json({ order });
   } catch {
     res.status(500).json({ error: 'failed' });

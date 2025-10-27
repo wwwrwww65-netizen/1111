@@ -100,14 +100,14 @@
         </div>
         <div class="divide-y divide-gray-300 text-sm">
           <label v-for="(pay, i) in paymentOptions" :key="i" class="flex items-center gap-2 py-3">
-            <input type="radio" :value="pay.id" v-model="selectedPayment"/>
+            <input type="radio" name="payment" :value="pay.id" v-model="selectedPayment"/>
             <svg class="w-5 h-5 text-[#8a1538]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path v-if="pay.id === 'cod'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
               <path v-else-if="pay.name === 'خدمة حاسب عبر الكريمي'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               <path v-else-if="pay.name === 'محفظة جوالي'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
             </svg>
-            <span>{{ pay.name }}</span>
+               <span>{{ pay.id==='cod' ? 'الدفع عند الاستلام' : pay.name }}</span>
           </label>
         </div>
       </section>
@@ -284,7 +284,14 @@
 
     <!-- زر الدفع -->
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-3">
-      <button class="w-full bg-[#8a1538] text-white font-semibold py-2 text-sm" @click="placeOrder">تأكيد الطلب</button>
+      <button
+        class="w-full bg-[#8a1538] text-white font-semibold py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="placing || !selectedPayment || !selectedShipping || items.length===0"
+        @click="placeOrder"
+      >
+        <span v-if="!placing">تأكيد الطلب</span>
+        <span v-else>جاري المعالجة…</span>
+      </button>
     </div>
   </div>
 </template>
@@ -312,6 +319,7 @@ const selectedShipping = ref('')
 
 const paymentOptions = ref<Array<{ id:string; name:string }>>([])
 const selectedPayment = ref('')
+const placing = ref(false)
 const currencySymbol = ref('ر.س')
 function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null): string {
   const min = Number(minH||0); const max = Number(maxH||0)
@@ -361,21 +369,43 @@ async function loadAddress(){
   addr.value = Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null
 }
 async function loadShipping(){ const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?city=${encodeURIComponent(addr.value?.city||'')}`); shippingOptions.value = r?.items||[]; if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id }
-async function loadPayments(){ const r = await apiGet<{ items:any[] }>(`/api/payments/methods`); paymentOptions.value = r?.items?.map((x:any)=>({ id:x.id, name:x.name }))||[]; if (!selectedPayment.value && paymentOptions.value[0]) selectedPayment.value = paymentOptions.value[0].id }
+async function loadPayments(){
+  const r = await apiGet<{ items:any[] }>(`/api/payments/methods`)
+  paymentOptions.value = r?.items?.filter((x:any)=> x && x.isActive !== false).sort((a:any,b:any)=> Number(a.sortOrder||0)-Number(b.sortOrder||0)).map((x:any)=>({ id:String(x.id), name:String(x.name) }))||[]
+  if (!selectedPayment.value && paymentOptions.value[0]) selectedPayment.value = paymentOptions.value[0].id
+}
 
 function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
 async function placeOrder(){
-  // إنشاء الطلب من السلة مع الشحن والخصومات
-  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids }
-  const ord = await apiPost('/api/orders', payload)
-  if (ord && (ord as any).order?.id){
-    // الدفع عند الاستلام: لا توجد بوابة دفع، انتقل مباشرةً لتأكيد الطلب/تفاصيله
-    if (selectedPayment.value === 'cod') { router.push(`/order/${(ord as any).order.id}`); return }
-    // إنشاء جلسة دفع (اختصار عبر /api/payments/session الجاهزة في API)
-    const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: (window as any).__CURRENCY_CODE__||'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
-    if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
-    // إن لم يكن هناك إعادة توجيه، انتقل لصفحة المعالجة
-    router.push('/pay/processing')
+  if (placing.value || !selectedPayment.value || !selectedShipping.value || items.value.length===0) return
+  placing.value = true
+  try{
+    const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids, paymentMethod: selectedPayment.value, shippingMethodId: selectedShipping.value, shippingAddressId: addr.value?.id }
+    const ord = await apiPost('/api/orders', payload)
+    if (ord && (ord as any).order?.id){
+      // بعد نجاح إنشاء الطلب: نظّف عناصر السلة المحددة محلياً وعلى الخادم
+      try{
+        const { useCart } = await import('@/store/cart')
+        const cart = useCart()
+        const toRemove = (selectedUids && selectedUids.length)
+          ? new Set((selectedUids||[]).map((u:string)=> String(u)))
+          : new Set((items.value||[]).map((it:any)=> String(it.uid)))
+        const removed = cart.items.filter((it:any)=> toRemove.has(String(it.uid)))
+        cart.items = cart.items.filter((it:any)=> !toRemove.has(String(it.uid)))
+        try{ cart.saveLocal() }catch{}
+        try{
+          const ids = Array.from(new Set(removed.map((r:any)=> String(r.id))))
+          for (const pid of ids){ apiPost('/api/cart/remove', { productId: pid }).catch(()=>{}) }
+        }catch{}
+        try{ sessionStorage.removeItem('checkout_selected_uids') }catch{}
+      }catch{}
+      if (selectedPayment.value === 'cod') { router.push(`/order/${(ord as any).order.id}`); return }
+      const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: (window as any).__CURRENCY_CODE__||'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
+      if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
+      router.push('/pay/processing')
+    }
+  } finally {
+    placing.value = false
   }
 }
 

@@ -117,22 +117,8 @@ async function ensureSchema(): Promise<void> {
     // Ensure Vendor columns exist for admin panel features
     await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "priority" TEXT');
 
-    // Ensure Category SEO/structure columns exist (idempotent)
-    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
-    try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE slug IS NOT NULL'); } catch {}
-    for (const col of [
-      'seoTitle TEXT',
-      'seoDescription TEXT',
-      'seoKeywords TEXT[]',
-      'translations JSONB',
-      'sortOrder INTEGER DEFAULT 0',
-      'image TEXT',
-      'ogImage TEXT',
-      'parentId TEXT',
-      'isActive BOOLEAN DEFAULT TRUE'
-    ]) {
-      try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
-    }
+    // Category runtime DDL disabled to avoid 54011 (too many columns) on some DBs.
+    // Use optional reads with information_schema in admin-rest instead.
     // Ensure Driver table exists for logistics/WS features
     await db.$executeRawUnsafe(
       'CREATE TABLE IF NOT EXISTS "Driver" ('+
@@ -184,31 +170,8 @@ async function ensureSchema(): Promise<void> {
   }
 }
 
-// Always-ensure Category columns exist in ANY environment (safe, idempotent)
-async function ensureCategoryColumnsAlways(): Promise<void> {
-  try {
-    // Minimal columns referenced by runtime code and smoke tests
-    await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT');
-    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE "slug" IS NOT NULL');
-    for (const col of [
-      'seoTitle TEXT',
-      'seoDescription TEXT',
-      'seoKeywords TEXT[]',
-      'translations JSONB',
-      'sortOrder INTEGER DEFAULT 0',
-      'image TEXT',
-      'parentId TEXT'
-    ]) {
-      try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
-    }
-    // Ensure FK for parentId
-    await db.$executeRawUnsafe(
-      "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CategoryHierarchy_parentId_fkey') THEN ALTER TABLE \"Category\" ADD CONSTRAINT \"CategoryHierarchy_parentId_fkey\" FOREIGN KEY (\"parentId\") REFERENCES \"Category\"(\"id\") ON DELETE SET NULL; END IF; END $$;"
-    );
-  } catch (e) {
-    console.error('[ensureCategoryColumnsAlways] warning:', e);
-  }
-}
+// Disabled: Category DDL at runtime
+async function ensureCategoryColumnsAlways(): Promise<void> { return; }
 
 applySecurityMiddleware(app);
 app.use(cookieParser());
@@ -239,7 +202,7 @@ const port = process.env.PORT || 4000;
 // Health for local reverse-proxy sanity check
 app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 (async () => {
-  // Always ensure runtime-critical Category columns before serving traffic
+  // Skip Category runtime DDL to prevent Postgres 54011 on large/legacy databases
   await ensureCategoryColumnsAlways();
   // Always ensure logistics tables exist (safe, idempotent) even in production
   try {

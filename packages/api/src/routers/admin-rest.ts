@@ -1706,8 +1706,58 @@ adminRest.get('/orders/:id', async (req, res) => {
     const user = (req as any).user;
     if (!(await can(user.userId, 'orders.manage'))) { await audit(req,'orders','forbidden_detail',{ path:req.path }); return res.status(403).json({ error: 'forbidden' }); }
     const { id } = req.params;
-    const o = await db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true } }, payment: true, shipments: { include: { carrier: true, driver: true } }, assignedDriver: true } });
+  const o = await db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: { select: { id:true, name:true, price:true, images:true, vendor: { select: { id:true, name:true } } } } } }, payment: true, shipments: { include: { carrier: true, driver: true } }, assignedDriver: true } });
     if (!o) return res.status(404).json({ error: 'not_found' });
+  // Attach OrderItemMeta (color/size/uid/attributes) if exists
+  try {
+    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderItemMeta" (id TEXT PRIMARY KEY, "orderId" TEXT, "orderItemId" TEXT, "productId" TEXT, color TEXT, size TEXT, uid TEXT, attributes JSONB, "createdAt" TIMESTAMP DEFAULT NOW())');
+    try { await db.$executeRawUnsafe('ALTER TABLE "OrderItemMeta" ADD COLUMN IF NOT EXISTS "orderItemId" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "OrderItemMeta" ADD COLUMN IF NOT EXISTS attributes JSONB'); } catch {}
+    let metas: any[] = [];
+    try { metas = await db.$queryRawUnsafe('SELECT id, "orderItemId", "productId", color, size, uid, attributes FROM "OrderItemMeta" WHERE "orderId"=$1', id) as any[]; }
+    catch { metas = await db.$queryRawUnsafe('SELECT id, NULL as "orderItemId", "productId", color, size, uid, NULL as attributes FROM "OrderItemMeta" WHERE "orderId"=$1', id) as any[]; }
+    const metaByItem = new Map<string,{id?:string;color?:string; size?:string; uid?:string; attributes?:any}>();
+    for (const m of (metas||[])) { metaByItem.set(String(m.orderItemId||m.productId), { id: m.id, color: m.color||undefined, size: m.size||undefined, uid: m.uid||undefined, attributes: m.attributes||undefined }); }
+    for (const it of (o.items||[])) { const meta = metaByItem.get(String(it.id)) || metaByItem.get(String(it.productId)); if (meta) (it as any).meta = meta; }
+  } catch {}
+  // Attach payment/shipping method columns if present in DB and include shipping amount
+  try {
+    const rows: any[] = await db.$queryRawUnsafe('SELECT "paymentMethod", "shippingMethodId", "shippingAmount" FROM "Order" WHERE id=$1', id) as any[];
+    if (rows && rows[0]) {
+      (o as any).paymentMethod = rows[0].paymentMethod || null;
+      (o as any).shippingMethodId = rows[0].shippingMethodId || null;
+      (o as any).shippingAmount = Number(rows[0].shippingAmount||0);
+      if (rows[0].shippingMethodId) {
+        try {
+          const r = await db.deliveryRate.findUnique({ where: { id: String(rows[0].shippingMethodId) } });
+          if (r) {
+            (o as any).shippingMethod = {
+              id: r.id,
+              offerTitle: r.offerTitle || null,
+              carrier: r.carrier || null,
+              price: Number(r.baseFee || 0),
+              etaMinHours: r.etaMinHours || null,
+              etaMaxHours: r.etaMaxHours || null,
+            };
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+  // Attach last AddressBook snapshot (for fullName/phone) regardless of shippingAddress relation
+  try {
+    const ab: any[] = await db.$queryRawUnsafe('SELECT id, "fullName", phone, country, state, city, street, details FROM "AddressBook" WHERE "userId"=$1 ORDER BY "isDefault" DESC, "updatedAt" DESC LIMIT 1', o.userId) as any[];
+    if (ab && ab[0]) (o as any).address = ab[0];
+  } catch {}
+  // Map payment method to Arabic label when COD
+  try {
+    const pm = (o as any).paymentMethod || o.payment?.method
+    if (pm && String(pm).toLowerCase()==='cod') {
+      (o as any).paymentDisplay = 'الدفع عند الاستلام'
+    } else if (pm) {
+      (o as any).paymentDisplay = String(pm)
+    }
+  } catch {}
     // Notes table (idempotent ensure)
     try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderNote" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, body TEXT NOT NULL, author TEXT, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
     let notes: any[] = [];
@@ -1717,6 +1767,27 @@ adminRest.get('/orders/:id', async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'order_detail_failed' });
   }
+});
+
+// Printable HTML invoice for an order
+adminRest.get('/orders/:id/invoice', async (req, res) => {
+  try {
+    const user = (req as any).user; if (!(await can(user.userId, 'orders.manage'))) return res.status(403).send('forbidden');
+    const { id } = req.params;
+    const o = await db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true } }, payment: true } });
+    if (!o) return res.status(404).send('not_found');
+    // Fetch OrderItemMeta for attributes
+    let metas: any[] = [];
+    try { metas = await db.$queryRawUnsafe('SELECT "orderItemId", color, size, uid, attributes FROM "OrderItemMeta" WHERE "orderId"=$1', id) as any[]; } catch {}
+    const metaByItem = new Map<string, any>(); for (const m of metas) metaByItem.set(String(m.orderItemId), m);
+    const subtotal = (o.items||[]).reduce((s:any,i:any)=> s + Number(i.price||0)*Number(i.quantity||1), 0);
+    const shipRow: any[] = await db.$queryRawUnsafe('SELECT "shippingAmount" FROM "Order" WHERE id=$1', id) as any[];
+    const shippingAmount = shipRow && shipRow[0] ? Number(shipRow[0].shippingAmount||0) : 0;
+    const disc = Number((o as any).discountAmount||0);
+    const total = Math.max(0, subtotal + shippingAmount - disc);
+    res.setHeader('Content-Type','text/html; charset=utf-8');
+    res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>فاتورة #${o.id}</title><style>body{font-family:Arial,Helvetica,sans-serif;background:#f6f7fb;color:#111;margin:0} .container{max-width:820px;margin:20px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden} .header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#8a1538;color:#fff} .brand{font-size:18px;font-weight:800} .meta{font-size:12px;opacity:.9} .section{padding:16px 20px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px} .card{border:1px solid #eee;border-radius:10px;padding:12px;background:#fafafa} h3{margin:0 0 8px 0;font-size:14px;color:#555} table{width:100%;border-collapse:separate;border-spacing:0} th,td{text-align:right;padding:10px;border-bottom:1px solid #eee;font-size:12px} th{background:#fafafa;color:#555} .total{font-weight:800} .footer{padding:14px 20px;text-align:center;color:#666;font-size:12px;border-top:1px solid #eee} .badge{display:inline-block;padding:2px 10px;border-radius:10px;background:#111;color:#fff;font-size:11px}</style></head><body><div class="container"><div class="header"><div class="brand">jeeey</div><div class="meta">فاتورة #${o.id}<br/>${new Date(o.createdAt as any).toLocaleString('ar')}</div></div><div class="section grid"><div class="card"><h3>العميل</h3><div>${o.user?.name||'-'} — ${o.user?.email||'-'}</div><div>${o.user?.phone||'-'}</div></div><div class="card"><h3>عنوان الشحن</h3><div>${(o as any).shippingAddress?.fullName||''}</div><div>${[o.shippingAddress?.street,o.shippingAddress?.city,o.shippingAddress?.state,o.shippingAddress?.country].filter(Boolean).join('، ')}</div><div>${(o as any).shippingAddress?.phone||''}</div></div></div><div class="section"><table><thead><tr><th>الصورة</th><th>المنتج</th><th>المتغير</th><th>السعر</th><th>الكمية</th><th>الإجمالي</th></tr></thead><tbody>${(o.items||[]).map((it:any)=>{ const m = metaByItem.get(String(it.id))||{}; const attrs = m.attributes||{}; const varTxt = [m.color?`اللون: ${m.color}`:'', attrs.size_letters?`مقاسات بالأحرف: ${attrs.size_letters}`:'', attrs.size_numbers?`مقاسات بالأرقام: ${attrs.size_numbers}`:''].filter(Boolean).join(' | ') || (m.size||'-'); return `<tr><td>${it.product?.images?.[0]? `<img src=\"${it.product.images[0]}\" style=\"width:46px;height:46px;object-fit:cover;border-radius:6px;\"/>` : ''}</td><td>${it.product?.name||'-'}</td><td>${varTxt}</td><td>${Number(it.price||0).toFixed(2)}</td><td>${it.quantity}</td><td class=\"total\">${(Number(it.price||0)*Number(it.quantity||1)).toFixed(2)}</td></tr>` }).join('')}</tbody></table></div><div class=\"section grid\"><div class=\"card\"><h3>الدفع</h3><div>${String((o as any).paymentMethod||o.payment?.method||'').toLowerCase()==='cod' ? 'الدفع عند الاستلام' : (o as any).paymentMethod||o.payment?.method||'-'}</div></div><div class=\"card\"><h3>الملخص</h3><div>المجموع: ${subtotal.toFixed(2)}</div><div>الشحن: ${shippingAmount.toFixed(2)}</div><div>الخصم: ${disc.toFixed(2)}</div><div class=\"total\">الإجمالي: ${total.toFixed(2)}</div></div></div><div class=\"footer\">jeeey — شكراً لتسوقك معنا</div></div></body></html>`);
+  } catch (e:any) { res.status(500).send(e.message||'invoice_failed'); }
 });
 
 // Order notes add endpoint
@@ -7672,31 +7743,12 @@ adminRest.delete('/attributes/brands/:id', async (req, res) => {
   res.json({ success: true });
 });
 // Categories
-async function ensureCategorySeo(){
-  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "slug" TEXT'); } catch {}
-  try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Category_slug_key" ON "Category" ("slug") WHERE "slug" IS NOT NULL'); } catch {}
-  const cols = ['seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','sortOrder INTEGER DEFAULT 0','image TEXT','parentId TEXT'];
-  for (const col of cols){
-    try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {}
-  }
-  // Relax NOT NULL constraints on legacy columns and ensure sane defaults
-  for (const col of ['slug','description','image','parentId','seoTitle','seoDescription','translations','ogImage']){
-    try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ALTER COLUMN "${col}" DROP NOT NULL`); } catch {}
-  }
-  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ALTER COLUMN "sortOrder" SET DEFAULT 0'); } catch {}
-  try { await db.$executeRawUnsafe('UPDATE "Category" SET "sortOrder" = 0 WHERE "sortOrder" IS NULL'); } catch {}
-  try { await db.$executeRawUnsafe('ALTER TABLE "Category" ALTER COLUMN "updatedAt" SET DEFAULT NOW()'); } catch {}
-}
+async function ensureCategorySeo(){ /* disabled runtime DDL to avoid 54011 */ }
 
 // Avoid running DDL on every request; ensure at most once per process (with hourly refresh guard)
 let __catSeoEnsured = false;
 let __catSeoEnsuredAt = 0;
-async function ensureCategorySeoOnce(){
-  const now = Date.now();
-  if (!__catSeoEnsured || (now - __catSeoEnsuredAt) > 60*60*1000) {
-    try { await ensureCategorySeo(); __catSeoEnsured = true; __catSeoEnsuredAt = now; } catch {}
-  }
-}
+async function ensureCategorySeoOnce(){ return; }
 async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
   try {
     const rows: Array<{ name: string }> = await db.$queryRawUnsafe(
