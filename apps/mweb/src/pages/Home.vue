@@ -25,8 +25,8 @@
 
     <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
       <div ref="tabsRef" class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
-        <button v-for="(t,i) in tabs" :key="t" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="activeTab=i" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
-          {{ t }}
+        <button v-for="(t,i) in tabs" :key="t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
+          {{ (t.label || t) }}
           <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
         </button>
       </div>
@@ -220,7 +220,7 @@ const headerRef = ref<HTMLElement|null>(null)
 const headerH = ref<number>(64)
 const scrolled = ref(false)
 const activeTab = ref(0)
-const tabs = ['كل','نساء','رجال','أطفال','أحجام كبيرة','جمال','المنزل','أحذية','فساتين']
+const tabs = ref<Array<{ label:string; href:string }>>([])
 const tabsRef = ref<HTMLDivElement|null>(null)
 function measureHeader(){ try{ const h = headerRef.value?.getBoundingClientRect().height; if (typeof h === 'number' && h > 0) headerH.value = Math.round(h) }catch{} }
 const tabsTopPx = computed(()=> headerH.value)
@@ -257,7 +257,7 @@ onMounted(()=>{ onScroll(); measureHeader(); window.addEventListener('scroll', o
 onBeforeUnmount(()=>{ window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', measureHeader) })
 watch(scrolled, ()=> nextTick(measureHeader))
 function onTabsKeyDown(e: KeyboardEvent){
-  if (e.key === 'ArrowRight') activeTab.value = Math.min(activeTab.value + 1, tabs.length - 1)
+  if (e.key === 'ArrowRight') activeTab.value = Math.min(activeTab.value + 1, tabs.value.length - 1)
   if (e.key === 'ArrowLeft') activeTab.value = Math.max(activeTab.value - 1, 0)
   const el = tabsRef.value?.children[activeTab.value] as HTMLElement | undefined
   el?.scrollIntoView({ inline: 'center', behavior: 'smooth' })
@@ -291,6 +291,13 @@ function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
 
 onMounted(async ()=>{
+  // Load published tabs for device
+  try{
+    const r = await fetch('/api/tabs/list?device=MOBILE', { credentials:'include' })
+    const j = await r.json()
+    const list = Array.isArray(j.tabs) ? j.tabs : []
+    tabs.value = list.map((t:any)=> ({ label: t.label, href: `/tabs/${encodeURIComponent(t.slug)}` }))
+  }catch{}
   // Categories
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')

@@ -211,6 +211,50 @@ shop.get('/reverse-geocode', async (req: any, res) => {
   }
 });
 
+// =============== Tabs (published) public endpoints ===============
+// List published tabs for device (default: MOBILE)
+shop.get('/tabs/list', async (_req: any, res) => {
+  try {
+    const device = String(_req.query.device || 'MOBILE').toUpperCase();
+    const rows = await db.tabPage.findMany({
+      where: { status: 'PUBLISHED', device: device as any },
+      orderBy: { updatedAt: 'desc' },
+      select: { slug: true, label: true }
+    } as any);
+    return res.json({ tabs: rows });
+  } catch (e: any) { return res.status(500).json({ error: e?.message || 'tabs_list_failed' }); }
+});
+
+// Get published tab content by slug
+shop.get('/tabs/:slug', async (req: any, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug) return res.status(400).json({ error: 'invalid_slug' });
+    const page: any = await db.tabPage.findUnique({ where: { slug }, select: { id: true, status: true, currentVersionId: true } } as any);
+    if (!page || page.status !== 'PUBLISHED' || !page.currentVersionId) return res.status(404).json({ error: 'not_found' });
+    const version: any = await db.tabPageVersion.findUnique({ where: { id: page.currentVersionId }, select: { content: true } } as any);
+    return res.json({ slug, content: version?.content || { sections: [] } });
+  } catch (e: any) { return res.status(500).json({ error: e?.message || 'tabs_get_failed' }); }
+});
+
+// Track impressions/clicks for a tab page by slug (best-effort; day-bucketed)
+shop.post('/tabs/track', async (req: any, res) => {
+  try {
+    const { slug, type } = req.body || {};
+    if (!slug || !['impression', 'click'].includes(String(type))) return res.status(400).json({ ok: false });
+    const p: any = await db.tabPage.findUnique({ where: { slug }, select: { id: true } } as any);
+    if (!p) return res.json({ ok: true });
+    const day = new Date(); day.setUTCHours(0,0,0,0);
+    const existing: any = await db.tabPageStat.findUnique({ where: { tabPageId_date: { tabPageId: p.id, date: day } } } as any).catch(()=>null);
+    if (!existing) {
+      await db.tabPageStat.create({ data: { tabPageId: p.id, date: day, impressions: type==='impression'?1:0, clicks: type==='click'?1:0 } } as any);
+    } else {
+      await db.tabPageStat.update({ where: { tabPageId_date: { tabPageId: p.id, date: day } }, data: { impressions: existing.impressions + (type==='impression'?1:0), clicks: existing.clicks + (type==='click'?1:0) } } as any);
+    }
+    return res.json({ ok: true });
+  } catch { return res.json({ ok: true }); }
+});
+
 // Geo helpers
 async function ensureCountry(code?: string | null, name?: string | null) {
   const codeNorm = (code || '').trim().toUpperCase() || null;
