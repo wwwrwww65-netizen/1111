@@ -19,6 +19,8 @@ import { fbSendEvents, hashEmail } from '../services/fb';
 import nodemailer from 'nodemailer';
 
 const adminRest = Router();
+// Ephemeral store for Tabs preview tokens (no persistence; short-lived)
+const tabsPreviewStore: Map<string, { content: any; exp: number }> = new Map();
 // Ensure body parsers explicitly for this router
 // Allow up to ~20mb JSON to accommodate base64 images (~13.3mb for 10mb binary)
 adminRest.use(express.json({ limit: '20mb' }));
@@ -3837,6 +3839,30 @@ adminRest.get('/tabs/pages/:id', async (req, res) => {
   const p = await db.tabPage.findUnique({ where: { id } });
   if (!p) return res.status(404).json({ error:'not_found' });
   res.json({ page: p });
+});
+
+// -------- Tabs Preview: sign ephemeral token for payload (admin only)
+adminRest.post('/tabs/preview/sign', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'tabs.read'))) return res.status(403).json({ error:'forbidden' });
+    const content = req.body?.content || { sections: [] };
+    const device = req.body?.device || 'MOBILE';
+    const now = Date.now();
+    const token = require('crypto').randomUUID();
+    tabsPreviewStore.set(token, { content: { content, device }, exp: now + 5*60*1000 }); // 5 minutes TTL
+    res.json({ token, exp: new Date(now + 5*60*1000).toISOString() });
+  } catch (e:any) { res.status(500).json({ error: e.message||'tabs_preview_sign_failed' }); }
+});
+
+// Resolve preview token
+adminRest.get('/tabs/preview/:token', async (req, res) => {
+  try{
+    const token = String(req.params.token||'');
+    const row = tabsPreviewStore.get(token);
+    if (!row) return res.status(404).json({ error:'not_found' });
+    if (row.exp < Date.now()) { tabsPreviewStore.delete(token); return res.status(410).json({ error:'expired' }); }
+    return res.json({ ...row.content });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'tabs_preview_fetch_failed' }); }
 });
 
 // Create or update a tab page

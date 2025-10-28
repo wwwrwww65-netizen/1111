@@ -37,6 +37,13 @@ onMounted(()=>{
     const url = new URL(location.href)
     const raw = url.searchParams.get('payload')
     if (raw) payload.value = JSON.parse(decodeURIComponent(raw))
+    const token = url.searchParams.get('token')
+    if (token){
+      try{
+        const r = await fetch(`/api/admin/tabs/preview/${encodeURIComponent(token)}`, { credentials:'include' })
+        if (r.ok){ const j = await r.json(); if (j?.content) payload.value = j.content; if (j?.device) device.value = j.device }
+      }catch{}
+    }
   }catch{}
   // Accept postMessage for live updates (from admin)
   window.addEventListener('message', (e: MessageEvent)=>{
