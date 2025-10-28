@@ -3841,16 +3841,23 @@ adminRest.get('/tabs/pages/:id', async (req, res) => {
 
 // Create or update a tab page
 adminRest.post('/tabs/pages', async (req, res) => {
-  const u = (req as any).user; if (!(await can(u.userId, 'tabs.create'))) return res.status(403).json({ error:'forbidden' });
-  const { id, slug, label, device='MOBILE', theme, permissions } = req.body || {};
-  if (!slug || !label) return res.status(400).json({ error:'slug_label_required' });
-  const data:any = { slug, label, device, theme, permissions, updatedByUserId: u.userId };
-  if (!id){ data.createdByUserId = u.userId; }
-  const page = id
-    ? await db.tabPage.update({ where:{ id }, data })
-    : await db.tabPage.create({ data });
-  await audit(req, 'tabs', id? 'update_page':'create_page', { id: page.id, slug });
-  res.json({ page });
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'tabs.create'))) return res.status(403).json({ error:'forbidden' });
+    const { id, slug, label, device='MOBILE', theme, permissions } = req.body || {};
+    if (!slug || !label) return res.status(400).json({ error:'slug_label_required' });
+    const safeSlug = String(slug).trim().toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'');
+    const data:any = { slug: safeSlug || slug, label: String(label).trim(), device, theme, permissions, updatedByUserId: u.userId };
+    if (!id){ data.createdByUserId = u.userId; }
+    const page = id
+      ? await db.tabPage.update({ where:{ id }, data })
+      : await db.tabPage.create({ data });
+    await audit(req, 'tabs', id? 'update_page':'create_page', { id: page.id, slug: page.slug });
+    return res.json({ page });
+  } catch (e:any) {
+    const msg = String(e?.message||'create_failed');
+    if (/unique/i.test(msg) && /slug/i.test(msg)) return res.status(409).json({ error:'slug_conflict' });
+    return res.status(500).json({ error:'tabs_pages_failed', detail: msg.slice(0,400) });
+  }
 });
 
 adminRest.delete('/tabs/pages/:id', async (req, res) => {
