@@ -23,6 +23,7 @@ function renderBlock(s:any){
   const t = String(s?.type||'')
   if (t==='hero') return HeroBlock
   if (t==='promoTiles') return PromoTiles
+  if (t==='midPromo') return MidPromo
   if (t==='productCarousel') return ProductCarousel
   if (t==='categories' || t==='brands') return CategoriesBlock
   return UnknownBlock
@@ -81,6 +82,7 @@ const PromoTiles = {
   props: ['cfg','device'],
   template: `<div class="tiles"><div v-for="(t,i) in (cfg.tiles||[])" :key="i" class="tile"><img v-if="t.image" :src="t.image" alt="" /><div v-if="t.title" class="caption">{{ t.title }}</div></div></div>`
 }
+const MidPromo = { props: ['cfg','device'], template: `<div class=\"mid-promo\"><a :href=\"cfg.href||'#'\"><img v-if=\"cfg.image\" :src=\"cfg.image\" alt=\"\" class=\"mid\" /><div v-if=\"cfg.text\" class=\"caption\">{{ cfg.text }}</div></a></div>` }
 const ProductCarousel = {
   props: ['cfg','device'],
   template: `<div class="carousel"><div v-if="cfg.title" class="title">{{ cfg.title }}</div><div class="row"><div v-for="i in (device==='MOBILE'?6:10)" :key="i" class="card"><div class="img" /><div class="name">اسم منتج</div><div v-if="cfg.showPrice" class="price">99.00</div></div></div></div>`
@@ -111,6 +113,9 @@ const UnknownBlock = { template: `<div class="unknown">قسم غير مدعوم<
 .carousel .img{ height:140px; background:#101828 }
 .carousel .name{ padding:8px; height:32px; color:#e2e8f0 }
 .carousel .price{ color:#22c55e; padding: 0 8px 8px }
+.mid-promo{ position:relative; padding:12px }
+.mid-promo .mid{ width:100%; height:90px; object-fit:cover; border-radius:10px; border:1px solid #1c2333 }
+.mid-promo .caption{ position:absolute; inset-inline:24px; top:50%; transform:translateY(-50%); color:#fff; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.6) }
 .categories{ padding:12px }
 .categories .grid{ display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:12px }
 .categories .cat img{ width:100%; height:90px; object-fit:cover; border-radius:10px; border:1px solid #1c2333 }

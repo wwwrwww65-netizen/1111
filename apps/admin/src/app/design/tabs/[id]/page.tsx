@@ -201,6 +201,7 @@ export default function TabPageBuilder(): JSX.Element {
           <div className="toolbar">
             <button onClick={()=> addSection('hero')} className="btn btn-outline btn-sm">Hero</button>
             <button onClick={()=> addSection('promoTiles')} className="btn btn-outline btn-sm">Promo Tiles</button>
+            <button onClick={()=> addSection('midPromo')} className="btn btn-outline btn-sm">Mid Promo</button>
             <button onClick={()=> addSection('productCarousel')} className="btn btn-outline btn-sm">Product Carousel</button>
             <button onClick={()=> addSection('categories')} className="btn btn-outline btn-sm">Categories</button>
             <button onClick={()=> addSection('brands')} className="btn btn-outline btn-sm">Brands</button>
@@ -441,6 +442,24 @@ function SectionInspector({ section, onChange, openMedia, openCategories, openPr
           ))}
           {!tiles.length && <div className="muted">لا توجد بلاطات</div>}
         </div>
+      </div>
+    );
+  }
+
+  if (t==='midPromo') {
+    const cfg = section.config||{};
+    return (
+      <div style={{display:'grid',gap:12}}>
+        <div onDragOver={(e)=> e.preventDefault()} onDrop={(e)=>{ e.preventDefault(); const f=(e.dataTransfer?.files||[])[0]; if (!f) return; const reader=new FileReader(); reader.onload=()=> onChange({ config: { ...cfg, image: String(reader.result||'') } }); reader.readAsDataURL(f); }}>
+          <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <div style={{flex:1, border:'1px dashed #334155', borderRadius:10, padding:8, minHeight:90, display:'grid', placeItems:'center', overflow:'hidden'}}>
+              {cfg.image ? (<img src={cfg.image} alt="mid" style={{ width:'100%', height:90, objectFit:'cover', borderRadius:8 }} />) : (<span className="muted">اسحب صورة هنا أو اختر</span>)}
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={()=> openMedia((u)=> onChange({ config: { ...cfg, image: u } }))}>اختر صورة</button>
+          </div>
+        </div>
+        <input className="input" placeholder="نص ترويجي" value={cfg.text||''} onChange={(e)=> onChange({ config: { ...cfg, text: e.target.value } })} />
+        <input className="input" placeholder="رابط عند النقر" value={cfg.href||''} onChange={(e)=> onChange({ config: { ...cfg, href: e.target.value } })} />
       </div>
     );
   }
