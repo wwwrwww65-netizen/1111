@@ -77,66 +77,87 @@ export default function TabPagesList(): JSX.Element {
   }
 
   function StatusBadge({s}:{s:TabPage['status']}){
-    const map: Record<string,string> = { DRAFT:'bg-gray-100 text-gray-700', SCHEDULED:'bg-amber-100 text-amber-800', PUBLISHED:'bg-green-100 text-green-700', ARCHIVED:'bg-slate-100 text-slate-600' };
-    const cls = map[s] || 'bg-gray-100 text-gray-700';
-    return <span className={`inline-block px-2 py-0.5 rounded text-[11px] ${cls}`}>{s}</span>
+    const cls = s==='PUBLISHED' ? 'badge ok' : s==='SCHEDULED' ? 'badge warn' : s==='ARCHIVED' ? 'badge' : 'badge';
+    return <span className={cls} style={{height:24}}>{s}</span>
   }
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">مدير تبويبات الصفحة</h1>
-        <button onClick={createDraft} className="px-3 py-1.5 rounded bg-black text-white text-sm">إنشاء تبويب جديد</button>
+    <div className="container centered">
+      <div className="panel">
+        <div className="toolbar">
+          <div>
+            <h1 className="h1">مدير تبويبات الصفحة</h1>
+            <div className="muted">إدارة التبويبات والمنشورات مع فلاتر وأدوات سريعة</div>
+          </div>
+          <button onClick={createDraft} className="btn btn-md">إنشاء تبويب جديد</button>
+        </div>
+        <div className="toolbar">
+          <label className="search">
+            <select value={status} onChange={e=> setStatus(e.target.value)} className="select">
+              <option value="">كل الحالات</option>
+              <option value="DRAFT">مسودة</option>
+              <option value="SCHEDULED">مجدول</option>
+              <option value="PUBLISHED">منشور</option>
+              <option value="ARCHIVED">أرشيف</option>
+            </select>
+          </label>
+          <label className="search">
+            <select value={device} onChange={e=> setDevice(e.target.value)} className="select">
+              <option value="">كل الأجهزة</option>
+              <option value="MOBILE">موبايل</option>
+              <option value="DESKTOP">ديسكتوب</option>
+            </select>
+          </label>
+          <div className="actions">
+            <button onClick={()=> setPage(1)} className="btn btn-outline btn-md">تطبيق</button>
+          </div>
+        </div>
       </div>
-      <div className="flex gap-2 mb-3">
-        <select value={status} onChange={e=> setStatus(e.target.value)} className="border px-2 py-1 rounded text-sm">
-          <option value="">كل الحالات</option>
-          <option value="DRAFT">مسودة</option>
-          <option value="SCHEDULED">مجدول</option>
-          <option value="PUBLISHED">منشور</option>
-          <option value="ARCHIVED">أرشيف</option>
-        </select>
-        <select value={device} onChange={e=> setDevice(e.target.value)} className="border px-2 py-1 rounded text-sm">
-          <option value="">كل الأجهزة</option>
-          <option value="MOBILE">موبايل</option>
-          <option value="DESKTOP">ديسكتوب</option>
-        </select>
-        <button onClick={()=> setPage(1)} className="border px-2 py-1 rounded text-sm">تطبيق</button>
-      </div>
-      {loading? <div>جار التحميل…</div> : error? <div className="text-red-600">{error}</div> : (
-        <table className="w-full text-sm border">
-          <thead>
-            <tr className="bg-gray-50 text-gray-700">
-              <th className="text-right p-2 border">Slug</th>
-              <th className="text-right p-2 border">Label</th>
-              <th className="text-right p-2 border">Status</th>
-              <th className="text-right p-2 border">Device</th>
-              <th className="text-right p-2 border">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map(it=> (
-              <tr key={it.id}>
-                <td className="p-2 border font-mono">{it.slug}</td>
-                <td className="p-2 border">{it.label}</td>
-                <td className="p-2 border"><StatusBadge s={it.status} /></td>
-                <td className="p-2 border">{it.device}</td>
-                <td className="p-2 border">
-                  <div className="flex items-center gap-3">
-                    <Link href={`/design/tabs/${it.id}`} className="text-blue-600">تحرير</Link>
-                    <button onClick={()=> duplicateTab(it.id)} className="text-amber-600">نسخ</button>
-                    <button onClick={()=> deleteTab(it.id)} className="text-red-600">حذف</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <div className="mt-3 flex items-center gap-2">
-        <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1,p-1))} className="border px-2 py-1 rounded text-sm disabled:opacity-50">السابق</button>
-        <div className="text-sm">صفحة {page} من {totalPages}</div>
-        <button disabled={page>=totalPages} onClick={()=> setPage(p=> p+1)} className="border px-2 py-1 rounded text-sm disabled:opacity-50">التالي</button>
+
+      <div className="panel">
+        {loading? (
+          <div className="skeleton-table-row" />
+        ) : error? (
+          <div className="toast err">{error}</div>
+        ) : (
+          <div className="table-wrapper">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Slug</th>
+                  <th>Label</th>
+                  <th>Status</th>
+                  <th>Device</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(it=> (
+                  <tr key={it.id}>
+                    <td><span style={{fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'}}>{it.slug}</span></td>
+                    <td>{it.label}</td>
+                    <td><StatusBadge s={it.status} /></td>
+                    <td>{it.device}</td>
+                    <td>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        <Link href={`/design/tabs/${it.id}`} className="btn btn-outline btn-sm">تحرير</Link>
+                        <button onClick={()=> duplicateTab(it.id)} className="btn btn-outline btn-sm">نسخ</button>
+                        <button onClick={()=> deleteTab(it.id)} className="btn danger btn-sm">حذف</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="toolbar mt-2">
+          <div className="muted">صفحة {page} من {totalPages}</div>
+          <div className="actions">
+            <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1,p-1))} className="btn btn-outline btn-sm">السابق</button>
+            <button disabled={page>=totalPages} onClick={()=> setPage(p=> p+1)} className="btn btn-outline btn-sm">التالي</button>
+          </div>
+        </div>
       </div>
     </div>
   );
