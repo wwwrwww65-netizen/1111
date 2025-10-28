@@ -1717,22 +1717,48 @@ adminRest.get('/orders/:id', async (req, res) => {
     try { metas = await db.$queryRawUnsafe('SELECT id, "orderItemId", "productId", color, size, uid, attributes FROM "OrderItemMeta" WHERE "orderId"=$1', id) as any[]; }
     catch { metas = await db.$queryRawUnsafe('SELECT id, NULL as "orderItemId", "productId", color, size, uid, NULL as attributes FROM "OrderItemMeta" WHERE "orderId"=$1', id) as any[]; }
     const metaByItem = new Map<string,{id?:string;color?:string; size?:string; uid?:string; attributes?:any}>();
-    for (const m of (metas||[])) { metaByItem.set(String(m.orderItemId||m.productId), { id: m.id, color: m.color||undefined, size: m.size||undefined, uid: m.uid||undefined, attributes: m.attributes||undefined }); }
+    for (const m of (metas||[])) {
+      let attrs: any = (m as any).attributes;
+      try { if (typeof attrs === 'string') attrs = JSON.parse(attrs); } catch {}
+      metaByItem.set(String(m.orderItemId||m.productId), { id: m.id, color: (m as any).color||undefined, size: (m as any).size||undefined, uid: (m as any).uid||undefined, attributes: attrs||undefined });
+    }
     // Enrich image from ProductColor galleries when color selected but image missing
     try {
       const pids = Array.from(new Set((o.items||[]).map((it:any)=> String(it.productId))));
       if (pids.length) {
         const colors = await db.productColor.findMany({ where: { productId: { in: pids } }, select: { productId: true, name: true, primaryImageUrl: true } });
+        const norm = (s: string): string => {
+          const t = String(s||'').toLowerCase().trim()
+            .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g,'') // remove tashkeel
+            .replace(/[أإآ]/g,'ا')
+            .replace(/ة/g,'ه')
+            .replace(/ى/g,'ي')
+            .replace(/\s+/g,'')
+            .replace(/[^a-z0-9\u0600-\u06FF]/g,'');
+          return t;
+        };
         const key = (pid:string, name:string)=> `${pid}|${String(name||'').trim().toLowerCase()}`;
+        const nkey = (pid:string, name:string)=> `${pid}|${norm(String(name||''))}`;
         const colorImgByKey = new Map<string,string>();
-        for (const c of colors) { if (c.name && (c.primaryImageUrl||'')) colorImgByKey.set(key(String(c.productId), String(c.name)), String(c.primaryImageUrl)); }
+        for (const c of colors) {
+          const img = (c as any).primaryImageUrl || '';
+          if (!img) continue;
+          const pidS = String((c as any).productId);
+          const nm = String((c as any).name||'');
+          if (nm) {
+            colorImgByKey.set(key(pidS, nm), String(img));
+            colorImgByKey.set(nkey(pidS, nm), String(img));
+          }
+        }
         for (const it of (o.items||[])) {
           const meta = metaByItem.get(String(it.id)) || metaByItem.get(String(it.productId));
           if (!meta) continue;
           const hasImg = meta.attributes && typeof meta.attributes.image === 'string' && meta.attributes.image;
           if (!hasImg && meta.color) {
-            const k = key(String(it.productId), String(meta.color));
-            const img = colorImgByKey.get(k);
+            const pidS = String(it.productId);
+            const k1 = key(pidS, String(meta.color));
+            const k2 = nkey(pidS, String(meta.color));
+            const img = colorImgByKey.get(k1) || colorImgByKey.get(k2);
             if (img) {
               meta.attributes = meta.attributes || {};
               meta.attributes.image = img;
@@ -1741,7 +1767,30 @@ adminRest.get('/orders/:id', async (req, res) => {
         }
       }
     } catch {}
-    for (const it of (o.items||[])) { const meta = metaByItem.get(String(it.id)) || metaByItem.get(String(it.productId)); if (meta) (it as any).meta = meta; }
+    for (const it of (o.items||[])) {
+      const meta = metaByItem.get(String(it.id)) || metaByItem.get(String(it.productId));
+      if (meta) {
+        // Normalize size_letters/size_numbers when size is composite like "حروف:XL|أرقام:44"
+        try{
+          const attrs = (meta as any).attributes || {};
+          const size = (meta as any).size || '';
+          if (!attrs.size_letters || !attrs.size_numbers) {
+            const parts = String(size||'').split('|').map(s=> String(s||'').trim()).filter(Boolean);
+            for (const p of parts) {
+              const idx = p.indexOf(':');
+              if (idx> -1){
+                const k = p.slice(0,idx).trim();
+                const v = p.slice(idx+1).trim();
+                if (/بالأحرف|letters/i.test(k) && v) attrs.size_letters = v;
+                if (/بالأرقام|بالارقام|numbers/i.test(k) && v) attrs.size_numbers = v;
+              }
+            }
+            (meta as any).attributes = attrs;
+          }
+        }catch{}
+        (it as any).meta = meta;
+      }
+    }
   } catch {}
   // Attach payment/shipping method columns if present in DB and include shipping amount
   try {

@@ -19,13 +19,15 @@
         <div class="list">
           <div v-for="it in order.items" :key="it.id" class="row" style="justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
             <div class="row" style="gap:10px;align-items:center">
-              <img :src="it.product?.images?.[0]" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:#f3f3f3" />
+              <img :src="resolveItemImage(it)" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:#f3f3f3" />
               <div>
                 <div style="font-weight:600">{{ it.product?.name }}</div>
                 <div class="muted">الكمية: {{ it.quantity }}</div>
-                <div class="muted" v-if="(it as any).attributes">
-                  <span v-if="(it as any).attributes?.color">اللون: {{ (it as any).attributes.color }}</span>
-                  <span v-if="(it as any).attributes?.size" style="margin-right:6px">المقاس: {{ (it as any).attributes.size }}</span>
+                <div class="muted">
+                  <template v-if="(it as any).attributes">
+                    <span v-if="(it as any).attributes?.color">اللون: {{ (it as any).attributes.color }}</span>
+                    <span v-if="displaySize(it)" style="margin-right:6px">المقاس: {{ displaySize(it) }}</span>
+                  </template>
                 </div>
               </div>
             </div>
@@ -61,6 +63,31 @@ const route = useRoute()
 const id = String(route.params.id||'')
 const order = ref<any|null>(null)
 const currencySymbol = ref('ر.س')
+
+function resolveItemImage(it: any): string {
+  try{
+    const attrs = (it && (it as any).attributes) || {}
+    const raw = attrs.image || (it?.product?.images?.[0]) || ''
+    const s = String(raw||'').trim()
+    if (!s) return ''
+    if (/^https?:\/\//i.test(s)) return s
+    // Normalize uploads path when relative
+    const base = (window as any).API_BASE || ''
+    if (s.startsWith('/uploads')) return `${base}${s}`
+    if (s.startsWith('uploads/')) return `${base}/${s}`
+    return s
+  }catch{ return it?.product?.images?.[0] || '' }
+}
+
+function displaySize(it: any): string {
+  try{
+    const attrs = (it && (it as any).attributes) || {}
+    if (attrs.size) return String(attrs.size)
+    const letters = String(attrs.size_letters||'').trim()
+    const numbers = String(attrs.size_numbers||'').trim()
+    return [letters, numbers].filter(Boolean).join(' / ')
+  }catch{ return '' }
+}
 
 function t(s:string){
   const m: any = { PENDING:'قيد المعالجة', PAID:'تم الدفع', SHIPPED:'قيد الشحن', DELIVERED:'مكتمل', CANCELLED:'ملغي' }

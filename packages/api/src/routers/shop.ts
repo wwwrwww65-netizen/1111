@@ -1034,6 +1034,8 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
     const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
     const isProd = (process.env.NODE_ENV || 'production') === 'production';
+    const host = String(req.headers?.host || '').toLowerCase();
+    const isLocalHost = host.includes('localhost') || host.startsWith('127.0.0.1') || host.startsWith('10.') || host.startsWith('192.168.');
     // Clear any previous cookies (avoid old admin/user token collisions)
     try {
       res.clearCookie('auth_token', { domain: cookieDomain, path: '/' });
@@ -1041,18 +1043,20 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
       if (root) res.clearCookie('auth_token', { domain: `api.${root}`, path: '/' });
     } catch {}
     // Primary cookie on root/domain (shop-specific name)
-    res.cookie('shop_auth_token', token, {
-      httpOnly: true,
-      domain: cookieDomain,
-      sameSite: isProd ? 'none' : 'lax',
-      secure: isProd,
-      maxAge: 3600 * 24 * 30 * 1000,
-      path: '/',
-    });
+    try {
+      res.cookie('shop_auth_token', token, {
+        httpOnly: true,
+        domain: isLocalHost ? undefined : cookieDomain,
+        sameSite: isProd && !isLocalHost ? 'none' : 'lax',
+        secure: isProd && !isLocalHost,
+        maxAge: 3600 * 24 * 30 * 1000,
+        path: '/',
+      } as any);
+    } catch {}
     // Also set cookie specifically for api subdomain to avoid mixed old tokens
     try {
       const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
-      if (root) {
+      if (root && !isLocalHost) {
         res.cookie('shop_auth_token', token, {
           httpOnly: true,
           domain: `api.${root}`,
@@ -1820,7 +1824,8 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
     const selectedProductIds = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
-    const selectedCartUids = Array.isArray(selectedUids) && selectedUids.length ? new Set(selectedUids.map(String)) : null;
+    const selectedUidsList: string[] = Array.isArray(selectedUids) && selectedUids.length ? selectedUids.map(String) : [];
+    const selectedCartUids = selectedUidsList.length ? new Set(selectedUidsList) : null;
     // Derive productIds from UIDs like productId|color|size
     const selectedFromUids = selectedCartUids ? new Set(Array.from(selectedCartUids).map(u => String(u).split('|')[0])) : null;
     const unionSelectedPids: Set<string> | null = (() => {
@@ -1846,9 +1851,11 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
     }
     // Build variant meta map from selectedUids (best-effort): pid -> { color, size, uid, attributes }
     const variantMetaByPid: Record<string, { color?: string; size?: string; uid?: string; attributes?: any }> = {}
+    const variantMetaByUid: Record<string, { color?: string; size?: string; uid?: string; attributes?: any }> = {}
+    const metaQueueByPid: Record<string, Array<{ uid?: string; meta: { color?: string; size?: string; uid?: string; attributes?: any } }>> = {}
     try {
-      if (selectedCartUids) {
-        for (const u of Array.from(selectedCartUids)) {
+      if (selectedUidsList.length) {
+        for (const u of selectedUidsList) {
           const parts = String(u).split('|')
           const pid = parts[0]
           const segs = parts.slice(1)
@@ -1877,18 +1884,50 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
           const sizeLabel = [attributes['size_letters'], attributes['size_numbers'], attributes['size']]
             .filter(Boolean)
             .join(' / ') || undefined
-          if (pid && !variantMetaByPid[pid]) variantMetaByPid[pid] = { color, size: sizeLabel, uid: u, attributes }
+          if (pid) {
+            const meta = { color, size: sizeLabel, uid: u, attributes }
+            variantMetaByUid[u] = meta
+            if (!variantMetaByPid[pid]) variantMetaByPid[pid] = meta
+            metaQueueByPid[pid] = metaQueueByPid[pid] || []
+            metaQueueByPid[pid].push({ uid: u, meta })
+          }
         }
-        // Try enrich attributes.image from cart items (selected lines first)
+        // Enrich attributes.image from ProductColor galleries when color present
         try{
-          for (const ci of cartItems){
-            const pid = String(ci.productId)
-            const meta = variantMetaByPid[pid]
-            if (!meta) continue
-            const img = (ci as any).img || (ci.product?.images?.[0])
-            if (img){
-              meta.attributes = meta.attributes || {}
-              if (!meta.attributes.image) meta.attributes.image = String(img)
+          const pids = Array.from(new Set(selectedUidsList.map(u=> String(u).split('|')[0]))).filter(Boolean)
+          if (pids.length){
+            const colors = await db.productColor.findMany({ where: { productId: { in: pids } }, select: { productId: true, name: true, primaryImageUrl: true } })
+            const norm = (s: string): string => {
+              const t = String(s||'').toLowerCase().trim()
+                .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g,'')
+                .replace(/[أإآ]/g,'ا')
+                .replace(/ة/g,'ه')
+                .replace(/ى/g,'ي')
+                .replace(/\s+/g,'')
+                .replace(/[^a-z0-9\u0600-\u06FF]/g,'');
+              return t;
+            };
+            const makeKey = (pid:string, name:string)=> `${pid}|${norm(String(name||''))}`
+            const imgByKey = new Map<string,string>()
+            for (const c of colors){
+              const pid = String((c as any).productId)
+              const nm = String((c as any).name||'')
+              const img = (c as any).primaryImageUrl||''
+              if (!nm || !img) continue
+              imgByKey.set(makeKey(pid, nm), String(img))
+            }
+            for (const pid of Object.keys(metaQueueByPid)){
+              for (const entry of metaQueueByPid[pid]){
+                const m = entry.meta
+                const color = m.color
+                if (!color) continue
+                const key = makeKey(String(pid), String(color))
+                const found = imgByKey.get(key)
+                if (found){
+                  m.attributes = m.attributes || {}
+                  if (!m.attributes.image) m.attributes.image = found
+                }
+              }
             }
           }
         }catch{}
@@ -1926,10 +1965,12 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       try { await db.$executeRawUnsafe('ALTER TABLE "OrderItemMeta" ADD COLUMN IF NOT EXISTS "orderItemId" TEXT'); } catch {}
       try { await db.$executeRawUnsafe('ALTER TABLE "OrderItemMeta" ADD COLUMN IF NOT EXISTS attributes JSONB'); } catch {}
       for (const it of order.items) {
-        const meta = variantMetaByPid[String(it.productId)]
+        const pid = String(it.productId)
+        let entry = (metaQueueByPid[pid] && metaQueueByPid[pid].length) ? metaQueueByPid[pid].shift()! : undefined
+        let meta = entry?.meta || variantMetaByPid[pid]
         if (!meta) continue
         const idm = Math.random().toString(36).slice(2)
-        await db.$executeRawUnsafe('INSERT INTO "OrderItemMeta" (id, "orderId", "orderItemId", "productId", color, size, uid, attributes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', idm, order.id, String(it.id), String(it.productId), meta.color||null, meta.size||null, meta.uid||null, meta.attributes? JSON.stringify(meta.attributes): null)
+        await db.$executeRawUnsafe('INSERT INTO "OrderItemMeta" (id, "orderId", "orderItemId", "productId", color, size, uid, attributes) VALUES ($1,$2,$3,$4,$5,$6,$7,CAST($8 AS JSONB))', idm, order.id, String(it.id), String(it.productId), meta.color||null, meta.size||null, (entry?.uid||meta.uid||null), meta.attributes? JSON.stringify(meta.attributes): null)
       }
     } catch {}
     // Persist chosen payment/shipping method when available (tolerant if columns missing)
@@ -1970,6 +2011,33 @@ shop.get('/orders/:id', requireAuth, async (req: any, res) => {
       include: { items: { include: { product: { select: { id: true, name: true, images: true, price: true } } } }, payment: true, shippingAddress: true },
     });
     if (!order) return res.status(404).json({ error: 'not_found' });
+    // Attach variant meta for each line from OrderItemMeta
+    try{
+      const metas: any[] = await db.$queryRawUnsafe('SELECT "orderItemId", color, size, uid, attributes FROM "OrderItemMeta" WHERE "orderId"=$1', id) as any[]
+      const byItem = new Map<string, any>()
+      for (const m of metas){
+        let attrs: any = (m as any).attributes
+        try{ if (typeof attrs === 'string') attrs = JSON.parse(attrs) }catch{}
+        const obj: any = {
+          color: (m as any).color || undefined,
+          size: (m as any).size || undefined,
+          uid: (m as any).uid || undefined,
+          attributes: attrs || undefined,
+        }
+        byItem.set(String((m as any).orderItemId||''), obj)
+      }
+      for (const it of (order.items||[])){
+        const m = byItem.get(String(it.id))
+        if (!m) continue
+        const attrs = (m.attributes || {}) as any
+        if (m.color && !attrs.color) attrs.color = m.color
+        if (!attrs.size){
+          const composite = m.size || [attrs.size_letters, attrs.size_numbers].filter(Boolean).join(' / ')
+          if (composite) attrs.size = composite
+        }
+        ;(it as any).attributes = attrs
+      }
+    }catch{}
     // Attach addressBook snapshot if exists
     try{
       if (!order.shippingAddressId) {
@@ -2042,11 +2110,21 @@ shop.get('/geo/governorates', async (req, res) => {
     let country: any = null;
     try { country = await db.country.findFirst({ where: { OR: [{ code }, { name: code }] } }); } catch {}
     const where: any = country ? { countryId: country.id } : {};
-    const cities = await db.city.findMany({ where, select: { name: true, region: true } });
-    // Prefer distinct regions when present; else distinct city names as top-level governorates
-    const regions = Array.from(new Set((cities || []).map((c: any) => (String(c.region || '').trim())))).filter(Boolean);
-    const list = regions.length ? regions : Array.from(new Set((cities || []).map((c: any) => String(c.name || '').trim()))).filter(Boolean);
-    res.json({ items: list.map((n) => ({ name: n })) });
+    const cities = await db.city.findMany({ where, select: { id: true, name: true, region: true } });
+    // Map displayName -> a representative cityId (if any) and emit unique list
+    const map = new Map<string,{ id?: string; name: string }>();
+    const put = (name: string, id?: string) => {
+      const key = String(name||'').trim(); if (!key) return;
+      if (!map.has(key)) map.set(key, { id, name: key });
+    }
+    for (const c of (cities||[])) {
+      const r = String((c as any).region||'').trim();
+      const n = String((c as any).name||'').trim();
+      if (r) put(r, (c as any).id);
+      if (n) put(n, (c as any).id);
+    }
+    const items = Array.from(map.values()).sort((a,b)=> a.name.localeCompare(b.name,'ar'));
+    res.json({ items });
   } catch { res.status(500).json({ error: 'failed' }); }
 });
 
@@ -2075,9 +2153,13 @@ shop.get('/geo/areas', async (req, res) => {
     const byId = String(req.query.cityId || '').trim();
     const byName = String(req.query.city || '').trim();
     const byGov = String(req.query.governorate || '').trim();
+    const countryCode = String(req.query.country || 'YE').toUpperCase();
     // Governorate shortcut: collect all areas for cities under this governorate
     if (byGov) {
-      const cities = await db.city.findMany({ where: { OR: [{ region: byGov }, { name: byGov }] }, select: { id: true } });
+      // Restrict by country if provided
+      let country: any = null; try { country = await db.country.findFirst({ where: { OR: [{ code: countryCode }, { name: countryCode }] } }) } catch {}
+      const whereCity: any = country ? { countryId: country.id, OR: [{ region: byGov }, { name: byGov }] } : { OR: [{ region: byGov }, { name: byGov }] };
+      const cities = await db.city.findMany({ where: whereCity, select: { id: true } });
       if (!cities.length) return res.json({ items: [] });
       const ids = cities.map(c => c.id);
       const rows = await db.area.findMany({ where: { cityId: { in: ids } }, select: { id: true, name: true } });
@@ -2125,6 +2207,118 @@ shop.delete('/addresses/:id', requireAuth, async (req: any, res) => {
   } catch {
     res.status(500).json({ error: 'failed' });
   }
+});
+
+// ---------------- Cart (user + guest) ----------------
+function getGuestSession(req: any, res: any): string {
+  try {
+    const name = 'guest_session';
+    const cookies = (req.headers?.cookie || '').split(';').map((s:string)=> s.trim());
+    const m = cookies.find((c:string)=> c.startsWith(name+'='));
+    let sid = m ? decodeURIComponent(m.split('=')[1]||'') : '';
+    if (!sid) {
+      sid = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      try { res.cookie(name, sid, { httpOnly: false, sameSite: 'lax', path: '/', maxAge: 180*24*3600*1000 }); } catch {}
+    }
+    return sid;
+  } catch { return Math.random().toString(36).slice(2); }
+}
+
+shop.get('/cart', async (req: any, res) => {
+  try {
+    if (req.user && req.user.userId) {
+      // User cart
+      const userId = req.user.userId;
+      let cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
+      if (!cart) cart = await db.cart.create({ data: { userId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
+      return res.json({ cart });
+    }
+    // Guest cart
+    const sessionId = getGuestSession(req, res);
+    let g = await db.guestCart.findUnique({ where: { sessionId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
+    if (!g) g = await db.guestCart.create({ data: { sessionId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
+    return res.json({ cart: { id: g.id, items: g.items } });
+  } catch { return res.status(500).json({ error: 'failed' }); }
+});
+
+shop.post('/cart/add', async (req: any, res) => {
+  try {
+    const { productId, quantity } = req.body || {};
+    const qty = Math.max(1, Number(quantity || 1));
+    if (!productId) return res.status(400).json({ error: 'productId required' });
+    if (req.user && req.user.userId) {
+      const userId = req.user.userId;
+      let cart = await db.cart.findUnique({ where: { userId } });
+      if (!cart) cart = await db.cart.create({ data: { userId } });
+      const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
+      if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
+      else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty } });
+      return res.json({ ok: true });
+    }
+    const sessionId = getGuestSession(req, res);
+    let g = await db.guestCart.findUnique({ where: { sessionId } });
+    if (!g) g = await db.guestCart.create({ data: { sessionId } });
+    const ex = await db.guestCartItem.findFirst({ where: { cartId: g.id, productId: String(productId) } });
+    if (ex) await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
+    else await db.guestCartItem.create({ data: { cartId: g.id, productId: String(productId), quantity: qty } });
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'failed' }); }
+});
+
+shop.post('/cart/update', async (req: any, res) => {
+  try {
+    const { productId, quantity } = req.body || {};
+    const qty = Math.max(0, Number(quantity || 0));
+    if (!productId) return res.status(400).json({ error: 'productId required' });
+    if (req.user && req.user.userId) {
+      const userId = req.user.userId;
+      const cart = await db.cart.findUnique({ where: { userId } });
+      if (!cart) return res.json({ ok: true });
+      const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
+      if (!ex) return res.json({ ok: true });
+      if (qty <= 0) await db.cartItem.delete({ where: { id: ex.id } });
+      else await db.cartItem.update({ where: { id: ex.id }, data: { quantity: qty } });
+      return res.json({ ok: true });
+    }
+    const sessionId = getGuestSession(req, res);
+    const g = await db.guestCart.findUnique({ where: { sessionId } });
+    if (!g) return res.json({ ok: true });
+    const ex = await db.guestCartItem.findFirst({ where: { cartId: g.id, productId: String(productId) } });
+    if (!ex) return res.json({ ok: true });
+    if (qty <= 0) await db.guestCartItem.delete({ where: { id: ex.id } });
+    else await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: qty } });
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'failed' }); }
+});
+
+shop.post('/cart/remove', async (req: any, res) => {
+  try {
+    const { productId } = req.body || {};
+    if (!productId) return res.status(400).json({ error: 'productId required' });
+    if (req.user && req.user.userId) {
+      const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
+      if (cart) await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+      return res.json({ ok: true });
+    }
+    const sessionId = getGuestSession(req, res);
+    const g = await db.guestCart.findUnique({ where: { sessionId } });
+    if (g) await db.guestCartItem.deleteMany({ where: { cartId: g.id, productId: String(productId) } });
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'failed' }); }
+});
+
+shop.post('/cart/clear', async (req: any, res) => {
+  try {
+    if (req.user && req.user.userId) {
+      const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
+      if (cart) await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+      return res.json({ ok: true });
+    }
+    const sessionId = getGuestSession(req, res);
+    const g = await db.guestCart.findUnique({ where: { sessionId } });
+    if (g) await db.guestCartItem.deleteMany({ where: { cartId: g.id } });
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'failed' }); }
 });
 
 // Wishlist

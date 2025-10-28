@@ -360,7 +360,7 @@ const openGovPicker = ref(false)
 const openCityPicker = ref(false)
 const openAreaPicker = ref(false)
 
-const governorates = ref<Array<{ name: string }>>([])
+const governorates = ref<Array<{ id?: string; name: string }>>([])
 const cities = ref<Array<{ id: string; name: string }>>([])
 const areas = ref<Array<{ id: string; name: string }>>([])
 
@@ -492,7 +492,7 @@ function selectArea(name: string){
 }
 
 async function loadGovernorates(){
-  const r = await apiGet<{ items: Array<{ name: string }> }>('/api/geo/governorates?country=YE')
+  const r = await apiGet<{ items: Array<{ id?: string; name: string }> }>('/api/geo/governorates?country=YE')
   governorates.value = Array.isArray(r?.items) ? r!.items : []
 }
 
