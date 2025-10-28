@@ -49,7 +49,7 @@ export default function TabPageBuilder(): JSX.Element {
   },[apiBase,id]);
 
   function addSection(type:string){
-    setContent((c:any)=> ({ ...c, sections: [...(Array.isArray(c.sections)? c.sections:[]), { id: crypto.randomUUID?.() || String(Date.now()), type, config:{} }] }));
+    setContent((c:any)=> ({ ...c, sections: [...(Array.isArray(c.sections)? c.sections:[]), { id: (globalThis as any).crypto?.randomUUID?.() || String(Date.now()), type, config:{} }] }));
   }
 
   function moveSection(idx:number, dir:-1|1){
@@ -98,36 +98,39 @@ export default function TabPageBuilder(): JSX.Element {
   }
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-semibold">Tab Page Builder</h1>
-          <div className="text-gray-500 text-sm">ID: {id} {page?.slug? `(/${page.slug})`: ''}</div>
+    <div className="container centered">
+      <div className="panel">
+        <div className="toolbar">
+          <div>
+            <h1 className="h1">مصمم تبويبات الصفحة</h1>
+            <div className="muted">ID: {id} {page?.slug? `(/${page.slug})`: ''}</div>
+          </div>
+          <Link href="/design/tabs" className="btn btn-outline btn-md">رجوع للقائمة</Link>
         </div>
-        <Link href="/design/tabs" className="text-sm text-blue-600">رجوع للقائمة</Link>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="border rounded p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-semibold">المحتوى</h2>
-            <select value={device} onChange={e=> setDevice(e.target.value as any)} className="border px-2 py-1 rounded text-sm">
+      <div className="grid cols-2">
+        <div className="panel">
+          <div className="toolbar">
+            <h2 className="h2" style={{margin:0}}>المحتوى</h2>
+            <select value={device} onChange={e=> setDevice(e.target.value as any)} className="select" style={{minWidth:140}}>
               <option value="MOBILE">Mobile</option>
               <option value="DESKTOP">Desktop</option>
             </select>
           </div>
-          <div className="flex gap-2 mb-3">
-            <button onClick={()=> addSection('hero')} className="px-2 py-1 border rounded text-sm">Hero Banner</button>
-            <button onClick={()=> addSection('promoTiles')} className="px-2 py-1 border rounded text-sm">Promo Tiles</button>
-            <button onClick={()=> addSection('productCarousel')} className="px-2 py-1 border rounded text-sm">Product Carousel</button>
-            <button onClick={()=> addSection('categories')} className="px-2 py-1 border rounded text-sm">Categories</button>
-            <button onClick={()=> addSection('brands')} className="px-2 py-1 border rounded text-sm">Brands</button>
-            <button onClick={()=> addSection('masonryForYou')} className="px-2 py-1 border rounded text-sm">Masonry For You</button>
+          <div className="toolbar">
+            <button onClick={()=> addSection('hero')} className="btn btn-outline btn-sm">Hero Banner</button>
+            <button onClick={()=> addSection('promoTiles')} className="btn btn-outline btn-sm">Promo Tiles</button>
+            <button onClick={()=> addSection('productCarousel')} className="btn btn-outline btn-sm">Product Carousel</button>
+            <button onClick={()=> addSection('categories')} className="btn btn-outline btn-sm">Categories</button>
+            <button onClick={()=> addSection('brands')} className="btn btn-outline btn-sm">Brands</button>
+            <button onClick={()=> addSection('masonryForYou')} className="btn btn-outline btn-sm">Masonry For You</button>
           </div>
-          <div className="space-y-2">
+          <div style={{display:'grid', gap:12}}>
             {(Array.isArray(content.sections)? content.sections:[]).map((s:any, i:number)=> (
               <div
                 key={s.id||i}
-                className={`border rounded p-2 flex items-center justify-between ${selectedIdx===i? 'ring-2 ring-blue-500':''}`}
+                className="card"
+                style={{display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer', outline: selectedIdx===i? '2px solid #2563eb' : 'none'}}
                 draggable
                 onClick={()=> setSelectedIdx(i)}
                 onDragStart={(e)=>{ setDragIdx(i); e.dataTransfer.setData('text/plain', String(i)); }}
@@ -137,96 +140,96 @@ export default function TabPageBuilder(): JSX.Element {
                   setContent((c:any)=>{ const arr = Array.isArray(c.sections)? [...c.sections]:[]; const [m] = arr.splice(from,1); arr.splice(to,0,m); return { ...c, sections: arr }; }); setDragIdx(null);
                 }}
               >
-                <div className="text-sm font-semibold cursor-grab">{s.type}</div>
-                <div className="flex items-center gap-2">
-                  <button onClick={()=> moveSection(i,-1)} className="px-2 py-1 border rounded text-xs">↑</button>
-                  <button onClick={()=> moveSection(i, 1)} className="px-2 py-1 border rounded text-xs">↓</button>
-                  <button onClick={()=> removeSection(i)} className="px-2 py-1 border rounded text-xs text-red-600">حذف</button>
+                <div style={{fontWeight:600}}>{s.type}</div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <button onClick={()=> moveSection(i,-1)} className="btn btn-outline btn-sm">↑</button>
+                  <button onClick={()=> moveSection(i, 1)} className="btn btn-outline btn-sm">↓</button>
+                  <button onClick={()=> removeSection(i)} className="btn danger btn-sm">حذف</button>
                 </div>
               </div>
             ))}
           </div>
           <div className="mt-2">
             <details>
-              <summary className="cursor-pointer text-xs text-gray-600">عرض JSON</summary>
-              <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto" dir="ltr">{JSON.stringify(content, null, 2)}</pre>
+              <summary className="muted" style={{cursor:'pointer'}}>عرض JSON</summary>
+              <pre style={{fontSize:12, background:'rgba(255,255,255,0.03)', padding:12, borderRadius:8, overflow:'auto'}} dir="ltr">{JSON.stringify(content, null, 2)}</pre>
             </details>
           </div>
-          <div className="mt-3 flex gap-2">
-            <input value={title} onChange={e=> setTitle(e.target.value)} placeholder="عنوان الإصدار" className="border px-2 py-1 rounded text-sm flex-1" />
-            <input value={notes} onChange={e=> setNotes(e.target.value)} placeholder="ملاحظات" className="border px-2 py-1 rounded text-sm flex-1" />
-            <button disabled={saving} onClick={saveDraft} className="px-3 py-1.5 rounded bg-black text-white text-sm disabled:opacity-50">حفظ كإصدار</button>
+          <div className="toolbar mt-2">
+            <input value={title} onChange={e=> setTitle(e.target.value)} placeholder="عنوان الإصدار" className="input" />
+            <input value={notes} onChange={e=> setNotes(e.target.value)} placeholder="ملاحظات" className="input" />
+            <button disabled={saving} onClick={saveDraft} className="btn btn-md" style={{whiteSpace:'nowrap'}}>حفظ كإصدار</button>
           </div>
         </div>
-        <div className="border rounded p-3 space-y-4">
+        <div className="panel" style={{display:'grid', gap:16}}>
           {/* Inspector */}
           <div>
-            <h2 className="font-semibold mb-2">المحرر</h2>
+            <h2 className="h3" style={{marginBottom:8}}>المحرر</h2>
             {selectedIdx>=0 && (content.sections?.[selectedIdx]) ? (
               <SectionInspector section={content.sections[selectedIdx]} onChange={(upd)=>{
                 setContent((c:any)=>{ const arr = Array.isArray(c.sections)? [...c.sections]:[]; arr[selectedIdx] = { ...arr[selectedIdx], ...upd }; return { ...c, sections: arr }; });
               }} />
             ) : (
-              <div className="text-xs text-gray-500">اختر قسماً لتحريره</div>
+              <div className="muted">اختر قسماً لتحريره</div>
             )}
           </div>
 
           {/* Versions */}
           <div>
-            <h2 className="font-semibold mb-2">الإصدارات</h2>
-          <ul className="space-y-2">
-            {versions.map(v=> (
-              <li key={v.id} className="border rounded p-2 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold">Version {v.version}</div>
-                  <div className="text-xs text-gray-500">{v.title||'-'}</div>
+            <h2 className="h3" style={{marginBottom:8}}>الإصدارات</h2>
+            <div style={{display:'grid', gap:8}}>
+              {versions.map(v=> (
+                <div key={v.id} className="card" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div>
+                    <div style={{fontWeight:600}}>Version {v.version}</div>
+                    <div className="muted" style={{fontSize:12}}>{v.title||'-'}</div>
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=> publish(v.version)} className="btn btn-outline btn-sm">نشر</button>
+                    <button onClick={()=> rollback(v.version)} className="btn btn-outline btn-sm">استرجاع</button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={()=> publish(v.version)} className="px-2 py-1 border rounded text-sm">نشر</button>
-                  <button onClick={()=> rollback(v.version)} className="px-2 py-1 border rounded text-sm">استرجاع</button>
-                </div>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
           </div>
 
           {/* Publish/Schedule */}
           <div>
-            <h2 className="font-semibold mb-2">النشر والجدولة</h2>
-            <div className="flex items-center gap-2">
-              <input type="datetime-local" value={scheduleAt} onChange={e=> setScheduleAt(e.target.value)} className="border px-2 py-1 rounded text-sm" />
-              <button onClick={schedule} className="px-2 py-1 border rounded text-sm">حفظ الجدولة/إيقاف</button>
-              <button onClick={flushCache} className="px-2 py-1 border rounded text-sm">Flush cache</button>
+            <h2 className="h3" style={{marginBottom:8}}>النشر والجدولة</h2>
+            <div className="toolbar">
+              <input type="datetime-local" value={scheduleAt} onChange={e=> setScheduleAt(e.target.value)} className="input" />
+              <button onClick={schedule} className="btn btn-outline btn-sm">حفظ الجدولة/إيقاف</button>
+              <button onClick={flushCache} className="btn btn-outline btn-sm">تفريغ الكاش</button>
             </div>
           </div>
 
           {/* Stats */}
           <div>
-            <h2 className="font-semibold mb-2">الإحصاءات (30 يوم)</h2>
+            <h2 className="h3" style={{marginBottom:8}}>الإحصاءات (30 يوم)</h2>
             {stats? (
-              <div className="text-xs">
-                <div className="mb-1">Impressions: <b>{stats.totals.impressions}</b> • Clicks: <b>{stats.totals.clicks}</b> • CTR: <b>{(stats.totals.ctr*100).toFixed(2)}%</b></div>
-                <div className="max-h-40 overflow-auto border rounded">
-                  <table className="w-full text-xs">
-                    <thead><tr className="bg-gray-50"><th className="p-1 text-right">Date</th><th className="p-1 text-right">Impr</th><th className="p-1 text-right">Clk</th></tr></thead>
+              <div>
+                <div className="muted" style={{marginBottom:8,fontSize:12}}>Impressions: <b>{stats.totals.impressions}</b> • Clicks: <b>{stats.totals.clicks}</b> • CTR: <b>{(stats.totals.ctr*100).toFixed(2)}%</b></div>
+                <div className="table-wrapper" style={{maxHeight:200, overflow:'auto'}}>
+                  <table className="table">
+                    <thead><tr><th>التاريخ</th><th>الظهور</th><th>النقرات</th></tr></thead>
                     <tbody>
                       {stats.series.map((r:any,i:number)=> (
-                        <tr key={i}><td className="p-1 border">{String(r.date).slice(0,10)}</td><td className="p-1 border">{r.impressions}</td><td className="p-1 border">{r.clicks}</td></tr>
+                        <tr key={i}><td>{String(r.date).slice(0,10)}</td><td>{r.impressions}</td><td>{r.clicks}</td></tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
-            ) : <div className="text-xs text-gray-500">—</div>}
+            ) : <div className="muted">—</div>}
           </div>
 
           {/* Published preview */}
           <div>
-            <h3 className="font-semibold mb-1">المعاينة (المنشور)</h3>
+            <h3 className="h3" style={{marginBottom:8}}>المعاينة (المنشور)</h3>
             {published? (
-              <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto" dir="ltr">{JSON.stringify(published, null, 2)}</pre>
+              <pre style={{fontSize:12, background:'rgba(255,255,255,0.03)', padding:12, borderRadius:8, overflow:'auto'}} dir="ltr">{JSON.stringify(published, null, 2)}</pre>
             ) : (
-              <div className="text-xs text-gray-500">لا يوجد محتوى منشور بعد</div>
+              <div className="muted">لا يوجد محتوى منشور بعد</div>
             )}
           </div>
         </div>
@@ -239,13 +242,13 @@ function SectionInspector({ section, onChange }:{ section:any; onChange:(upd:any
   const t = String(section?.type||'');
   if (t==='hero') {
     return (
-      <div className="space-y-2">
-        <input className="border px-2 py-1 rounded text-sm w-full" placeholder="صورة (URL)" value={section.config?.image||''} onChange={e=> onChange({ config: { ...section.config, image: e.target.value } })} />
-        <input className="border px-2 py-1 rounded text-sm w-full" placeholder="عنوان" value={section.config?.title||''} onChange={e=> onChange({ config: { ...section.config, title: e.target.value } })} />
-        <input className="border px-2 py-1 rounded text-sm w-full" placeholder="وصف" value={section.config?.subtitle||''} onChange={e=> onChange({ config: { ...section.config, subtitle: e.target.value } })} />
-        <div className="flex gap-2">
-          <input className="border px-2 py-1 rounded text-sm flex-1" placeholder="CTA نص" value={section.config?.ctaText||''} onChange={e=> onChange({ config: { ...section.config, ctaText: e.target.value } })} />
-          <input className="border px-2 py-1 rounded text-sm flex-1" placeholder="CTA رابط" value={section.config?.ctaHref||''} onChange={e=> onChange({ config: { ...section.config, ctaHref: e.target.value } })} />
+      <div style={{display:'grid',gap:12}}>
+        <input className="input" placeholder="صورة (URL)" value={section.config?.image||''} onChange={e=> onChange({ config: { ...section.config, image: e.target.value } })} />
+        <input className="input" placeholder="عنوان" value={section.config?.title||''} onChange={e=> onChange({ config: { ...section.config, title: e.target.value } })} />
+        <input className="input" placeholder="وصف" value={section.config?.subtitle||''} onChange={e=> onChange({ config: { ...section.config, subtitle: e.target.value } })} />
+        <div className="form-grid">
+          <input className="input" placeholder="CTA نص" value={section.config?.ctaText||''} onChange={e=> onChange({ config: { ...section.config, ctaText: e.target.value } })} />
+          <input className="input" placeholder="CTA رابط" value={section.config?.ctaHref||''} onChange={e=> onChange({ config: { ...section.config, ctaHref: e.target.value } })} />
         </div>
       </div>
     );
@@ -253,13 +256,13 @@ function SectionInspector({ section, onChange }:{ section:any; onChange:(upd:any
   if (t==='promoTiles') {
     const tiles = Array.isArray(section.config?.tiles)? section.config.tiles : [];
     return (
-      <div className="space-y-2">
-        <button className="px-2 py-1 border rounded text-xs" onClick={()=> onChange({ config: { ...section.config, tiles: [...tiles, { image:'', title:'' }] } })}>إضافة بلاطة</button>
-        <div className="space-y-2 max-h-48 overflow-auto">
+      <div style={{display:'grid',gap:12}}>
+        <button className="btn btn-outline btn-sm" onClick={()=> onChange({ config: { ...section.config, tiles: [...tiles, { image:'', title:'' }] } })}>إضافة بلاطة</button>
+        <div style={{display:'grid',gap:12,maxHeight:240,overflow:'auto'}}>
           {tiles.map((tile:any, idx:number)=> (
-            <div key={idx} className="border rounded p-2 space-y-1">
-              <input className="border px-2 py-1 rounded text-sm w-full" placeholder={`صورة #${idx+1}`} value={tile.image||''} onChange={e=>{ const arr=[...tiles]; arr[idx]={ ...arr[idx], image:e.target.value }; onChange({ config:{ ...section.config, tiles: arr } }) }} />
-              <input className="border px-2 py-1 rounded text-sm w-full" placeholder={`عنوان #${idx+1}`} value={tile.title||''} onChange={e=>{ const arr=[...tiles]; arr[idx]={ ...arr[idx], title:e.target.value }; onChange({ config:{ ...section.config, tiles: arr } }) }} />
+            <div key={idx} className="card" style={{display:'grid',gap:8}}>
+              <input className="input" placeholder={`صورة #${idx+1}`} value={tile.image||''} onChange={e=>{ const arr=[...tiles]; arr[idx]={ ...arr[idx], image:e.target.value }; onChange({ config:{ ...section.config, tiles: arr } }) }} />
+              <input className="input" placeholder={`عنوان #${idx+1}`} value={tile.title||''} onChange={e=>{ const arr=[...tiles]; arr[idx]={ ...arr[idx], title:e.target.value }; onChange({ config:{ ...section.config, tiles: arr } }) }} />
             </div>
           ))}
         </div>
@@ -268,13 +271,13 @@ function SectionInspector({ section, onChange }:{ section:any; onChange:(upd:any
   }
   if (t==='productCarousel') {
     return (
-      <div className="space-y-2">
-        <input className="border px-2 py-1 rounded text-sm w-full" placeholder="عنوان القسم" value={section.config?.title||''} onChange={e=> onChange({ config: { ...section.config, title: e.target.value } })} />
-        <div className="flex gap-2">
-          <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={!!section.config?.autoScroll} onChange={e=> onChange({ config: { ...section.config, autoScroll: e.target.checked } })} />Auto scroll</label>
-          <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={!!section.config?.showPrice} onChange={e=> onChange({ config: { ...section.config, showPrice: e.target.checked } })} />Show price</label>
+      <div style={{display:'grid',gap:12}}>
+        <input className="input" placeholder="عنوان القسم" value={section.config?.title||''} onChange={e=> onChange({ config: { ...section.config, title: e.target.value } })} />
+        <div style={{display:'flex',gap:12,alignItems:'center'}}>
+          <label className="muted" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}><input type="checkbox" checked={!!section.config?.autoScroll} onChange={e=> onChange({ config: { ...section.config, autoScroll: e.target.checked } })} />Auto scroll</label>
+          <label className="muted" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}><input type="checkbox" checked={!!section.config?.showPrice} onChange={e=> onChange({ config: { ...section.config, showPrice: e.target.checked } })} />Show price</label>
         </div>
-        <textarea className="border px-2 py-1 rounded text-sm w-full" rows={4} placeholder="قواعد الفلترة (JSON)" value={JSON.stringify(section.config?.filter||{},null,0)} onChange={e=> { try{ onChange({ config: { ...section.config, filter: JSON.parse(e.target.value||'{}') } }) }catch{} }} />
+        <textarea className="input" rows={4} placeholder="قواعد الفلترة (JSON)" value={JSON.stringify(section.config?.filter||{},null,0)} onChange={e=> { try{ onChange({ config: { ...section.config, filter: JSON.parse(e.target.value||'{}') } }) }catch{} }} />
       </div>
     );
   }
@@ -282,13 +285,13 @@ function SectionInspector({ section, onChange }:{ section:any; onChange:(upd:any
     const key = t==='categories'? 'categories' : 'brands';
     const list = Array.isArray(section.config?.[key])? section.config[key] : [];
     return (
-      <div className="space-y-2">
-        <button className="px-2 py-1 border rounded text-xs" onClick={()=> onChange({ config: { ...section.config, [key]: [...list, { name:'', image:'' }] } })}>إضافة عنصر</button>
-        <div className="space-y-2 max-h-48 overflow-auto">
+      <div style={{display:'grid',gap:12}}>
+        <button className="btn btn-outline btn-sm" onClick={()=> onChange({ config: { ...section.config, [key]: [...list, { name:'', image:'' }] } })}>إضافة عنصر</button>
+        <div style={{display:'grid',gap:12,maxHeight:240,overflow:'auto'}}>
           {list.map((it:any, idx:number)=> (
-            <div key={idx} className="border rounded p-2 space-y-1">
-              <input className="border px-2 py-1 rounded text-sm w-full" placeholder="الاسم" value={it.name||''} onChange={e=>{ const arr=[...list]; arr[idx]={ ...arr[idx], name:e.target.value }; onChange({ config:{ ...section.config, [key]: arr } }) }} />
-              <input className="border px-2 py-1 rounded text-sm w-full" placeholder="الصورة" value={it.image||''} onChange={e=>{ const arr=[...list]; arr[idx]={ ...arr[idx], image:e.target.value }; onChange({ config:{ ...section.config, [key]: arr } }) }} />
+            <div key={idx} className="card" style={{display:'grid',gap:8}}>
+              <input className="input" placeholder="الاسم" value={it.name||''} onChange={e=>{ const arr=[...list]; arr[idx]={ ...arr[idx], name:e.target.value }; onChange({ config:{ ...section.config, [key]: arr } }) }} />
+              <input className="input" placeholder="الصورة" value={it.image||''} onChange={e=>{ const arr=[...list]; arr[idx]={ ...arr[idx], image:e.target.value }; onChange({ config:{ ...section.config, [key]: arr } }) }} />
             </div>
           ))}
         </div>
@@ -297,14 +300,12 @@ function SectionInspector({ section, onChange }:{ section:any; onChange:(upd:any
   }
   if (t==='masonryForYou') {
     return (
-      <div className="space-y-2">
-        <label className="text-xs">عدد الأعمدة</label>
-        <input type="number" className="border px-2 py-1 rounded text-sm w-full" value={Number(section.config?.columns||2)} onChange={e=> onChange({ config: { ...section.config, columns: Number(e.target.value||2) } })} />
-        <textarea className="border px-2 py-1 rounded text-sm w-full" rows={4} placeholder="قواعد التوصيات (JSON)" value={JSON.stringify(section.config?.recommend||{},null,0)} onChange={e=> { try{ onChange({ config: { ...section.config, recommend: JSON.parse(e.target.value||'{}') } }) }catch{} }} />
+      <div style={{display:'grid',gap:12}}>
+        <label className="form-label">عدد الأعمدة</label>
+        <input type="number" className="input" value={Number(section.config?.columns||2)} onChange={e=> onChange({ config: { ...section.config, columns: Number(e.target.value||2) } })} />
+        <textarea className="input" rows={4} placeholder="قواعد التوصيات (JSON)" value={JSON.stringify(section.config?.recommend||{},null,0)} onChange={e=> { try{ onChange({ config: { ...section.config, recommend: JSON.parse(e.target.value||'{}') } }) }catch{} }} />
       </div>
     );
   }
-  return <div className="text-xs text-gray-500">لا يوجد محرر لهذا النوع</div>;
+  return <div className="muted">لا يوجد محرر لهذا النوع</div>;
 }
-
-
