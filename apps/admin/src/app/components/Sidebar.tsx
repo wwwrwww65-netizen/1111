@@ -101,6 +101,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     items: [
       { href: '/cms', label: 'المحتوى (CMS)' },
       { href: '/media', label: 'الوسائط' },
+      { href: '/design/tabs', label: 'مدير تبويبات الصفحة' },
       { href: '/cms/size-guides', label: 'دلائل المقاسات' },
       { href: '/cms/qa', label: 'أسئلة وأجوبة' },
       { href: '/cms/photos', label: 'صور العملاء' },

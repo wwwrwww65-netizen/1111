@@ -3800,6 +3800,144 @@ adminRest.get('/cms/pages', async (_req, res) => {
   res.json({ pages });
 });
 
+// ---------- Tab Page Manager (Page Builder) ----------
+adminRest.post('/tabs/ensure-perms', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const perms = [
+      'tabs.read','tabs.create','tabs.update','tabs.delete','tabs.publish','tabs.rollback','tabs.flush','tabs.stats'
+    ];
+    for (const key of perms){ try{ await db.permission.create({ data: { key } } as any).catch(()=>null) }catch{} }
+    return res.json({ ok:true });
+  } catch(e:any){ return res.status(500).json({ error: e.message||'ensure_perms_failed' }); }
+});
+
+// List tab pages with pagination and filters
+adminRest.get('/tabs/pages', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.read'))) return res.status(403).json({ error:'forbidden' });
+  const page = Math.max(1, Number(req.query.page||1));
+  const limit = Math.min(100, Number(req.query.limit||20));
+  const skip = (page-1)*limit;
+  const status = (req.query.status as string|undefined) || undefined;
+  const device = (req.query.device as string|undefined) || undefined;
+  const where:any = {};
+  if (status) where.status = status;
+  if (device) where.device = device;
+  const [items,total] = await Promise.all([
+    db.tabPage.findMany({ where, orderBy: { updatedAt: 'desc' }, skip, take: limit }),
+    db.tabPage.count({ where })
+  ]);
+  res.json({ pages: items, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
+});
+
+// Get single tab page by id
+adminRest.get('/tabs/pages/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.read'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  const p = await db.tabPage.findUnique({ where: { id } });
+  if (!p) return res.status(404).json({ error:'not_found' });
+  res.json({ page: p });
+});
+
+// Create or update a tab page
+adminRest.post('/tabs/pages', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.create'))) return res.status(403).json({ error:'forbidden' });
+  const { id, slug, label, device='MOBILE', theme, permissions } = req.body || {};
+  if (!slug || !label) return res.status(400).json({ error:'slug_label_required' });
+  const data:any = { slug, label, device, theme, permissions, updatedByUserId: u.userId };
+  if (!id){ data.createdByUserId = u.userId; }
+  const page = id
+    ? await db.tabPage.update({ where:{ id }, data })
+    : await db.tabPage.create({ data });
+  await audit(req, 'tabs', id? 'update_page':'create_page', { id: page.id, slug });
+  res.json({ page });
+});
+
+adminRest.delete('/tabs/pages/:id', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.delete'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  await db.tabPage.delete({ where: { id } });
+  await audit(req, 'tabs', 'delete_page', { id });
+  res.json({ ok:true });
+});
+
+// Create a new version
+adminRest.post('/tabs/pages/:id/versions', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.update'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  const { title, content, notes } = req.body || {};
+  const last = await db.tabPageVersion.findFirst({ where: { tabPageId: id }, orderBy: { version: 'desc' } });
+  const version = (last?.version||0) + 1;
+  const v = await db.tabPageVersion.create({ data: { tabPageId: id, version, title, content, notes, createdByUserId: u.userId } });
+  await audit(req, 'tabs', 'create_version', { id, version });
+  res.json({ version: v });
+});
+
+// Publish specific version
+adminRest.post('/tabs/pages/:id/publish', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.publish'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  const version = Number(req.body?.version);
+  const v = await db.tabPageVersion.findUnique({ where: { tabPageId_version: { tabPageId: id, version } } as any });
+  if (!v) return res.status(404).json({ error:'version_not_found' });
+  const p = await db.tabPage.update({ where: { id }, data: { status: 'PUBLISHED', currentVersionId: v.id, publishedAt: new Date() } });
+  await audit(req, 'tabs', 'publish', { id, version });
+  res.json({ page: p, version: v });
+});
+
+// Rollback to older version
+adminRest.post('/tabs/pages/:id/rollback', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.rollback'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  const version = Number(req.body?.version);
+  const v = await db.tabPageVersion.findUnique({ where: { tabPageId_version: { tabPageId: id, version } } as any });
+  if (!v) return res.status(404).json({ error:'version_not_found' });
+  const p = await db.tabPage.update({ where: { id }, data: { currentVersionId: v.id, status: 'PUBLISHED', publishedAt: new Date() } });
+  await audit(req, 'tabs', 'rollback', { id, version });
+  res.json({ page: p, version: v });
+});
+
+// Schedule publish or pause
+adminRest.post('/tabs/pages/:id/schedule', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.update'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  const { at, pause } = req.body || {};
+  const data:any = {};
+  if (pause) { data.status = 'DRAFT'; data.scheduledAt = null; }
+  else if (at) { data.status = 'SCHEDULED'; data.scheduledAt = new Date(at); }
+  const p = await db.tabPage.update({ where: { id }, data });
+  await audit(req, 'tabs', 'schedule', { id, at, pause });
+  res.json({ page: p });
+});
+
+// Get versions list
+adminRest.get('/tabs/pages/:id/versions', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.read'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  const list = await db.tabPageVersion.findMany({ where: { tabPageId: id }, orderBy: { version: 'desc' } });
+  res.json({ versions: list });
+});
+
+// Basic stats
+adminRest.get('/tabs/pages/:id/stats', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.stats'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params;
+  const since = String(req.query.since||'30d');
+  const from = new Date(Date.now() - (since.endsWith('d')? Number(since.slice(1,-1)||30)*86400000 : 30*86400000));
+  const rows = await db.tabPageStat.findMany({ where: { tabPageId: id, date: { gte: from } }, orderBy: { date: 'asc' } });
+  const agg = rows.reduce((a:any,r:any)=>{ a.impressions+=r.impressions; a.clicks+=r.clicks; return a; }, { impressions:0, clicks:0 });
+  const ctr = agg.impressions>0 ? (agg.clicks/agg.impressions) : 0;
+  res.json({ series: rows, totals: { ...agg, ctr } });
+});
+
+// Flush CDN cache hook (no-op placeholder)
+adminRest.post('/tabs/pages/:id/flush-cache', async (req, res) => {
+  const u = (req as any).user; if (!(await can(u.userId, 'tabs.flush'))) return res.status(403).json({ error:'forbidden' });
+  const { id } = req.params; const _ = id; // future: call CDN API
+  await audit(req, 'tabs', 'flush_cache', { id });
+  res.json({ ok:true });
+});
+
 // ---------- PDP Settings (stored in Setting: key 'pdp:settings') ----------
 adminRest.get('/pdp/settings', async (req, res) => {
   try {

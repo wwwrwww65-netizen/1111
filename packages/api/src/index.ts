@@ -165,6 +165,54 @@ async function ensureSchema(): Promise<void> {
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_name_trgm_idx" ON "Product" USING gin (name gin_trgm_ops)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_sku_idx" ON "Product"(sku)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_created_idx" ON "Product"("createdAt")'); } catch {}
+
+    // Tab Page Builder tables (idempotent)
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "TabPage" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"slug" TEXT UNIQUE NOT NULL,'+
+      '"label" TEXT NOT NULL,'+
+      '"device" TEXT NOT NULL DEFAULT ' + "'MOBILE'" + ','+
+      '"status" TEXT NOT NULL DEFAULT ' + "'DRAFT'" + ','+
+      '"scheduledAt" TIMESTAMP NULL,'+
+      '"publishedAt" TIMESTAMP NULL,'+
+      '"theme" JSONB NULL,'+
+      '"permissions" JSONB NULL,'+
+      '"currentVersionId" TEXT NULL,'+
+      '"createdByUserId" TEXT NULL,'+
+      '"updatedByUserId" TEXT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "TabPage_device_status_idx" ON "TabPage"("device","status")');
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "TabPageVersion" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"tabPageId" TEXT NOT NULL,'+
+      '"version" INTEGER NOT NULL,'+
+      '"title" TEXT NULL,'+
+      '"content" JSONB NOT NULL,'+
+      '"notes" TEXT NULL,'+
+      '"createdByUserId" TEXT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      'CONSTRAINT "TabPageVersion_tabPageId_fkey" FOREIGN KEY ("tabPageId") REFERENCES "TabPage"("id") ON DELETE CASCADE'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "TabPageVersion_unique" ON "TabPageVersion"("tabPageId","version")');
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "TabPageStat" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"tabPageId" TEXT NOT NULL,'+
+      '"date" DATE NOT NULL,'+
+      '"impressions" INTEGER NOT NULL DEFAULT 0,'+
+      '"clicks" INTEGER NOT NULL DEFAULT 0,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW(),'+
+      'CONSTRAINT "TabPageStat_tabPageId_fkey" FOREIGN KEY ("tabPageId") REFERENCES "TabPage"("id") ON DELETE CASCADE'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "TabPageStat_unique" ON "TabPageStat"("tabPageId","date")');
   } catch (e) {
     console.error('[ensureSchema] warning:', e);
   }

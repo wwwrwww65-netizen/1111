@@ -653,6 +653,70 @@ model CMSPage {
   updatedAt DateTime @updatedAt
 }
 
+// Tab Page Builder
+enum DeviceType {
+  MOBILE
+  DESKTOP
+}
+
+enum TabPageStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+model TabPage {
+  id              String         @id @default(cuid())
+  slug            String         @unique
+  label           String         // visible tab label (RTL supported)
+  device          DeviceType     @default(MOBILE)
+  status          TabPageStatus  @default(DRAFT)
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  theme           Json?          // colors, icons, sizes, radii, spacing
+  permissions     Json?          // optional role overrides per page
+  currentVersionId String?
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  versions        TabPageVersion[]
+  stats           TabPageStat[]
+}
+
+model TabPageVersion {
+  id         String   @id @default(cuid())
+  tabPageId  String
+  version    Int
+  title      String?
+  content    Json      // sections array: Hero, PromoTiles, ProductCarousel, Categories, Brands, Masonry
+  notes      String?
+  createdByUserId String?
+  createdAt  DateTime @default(now())
+
+  tabPage    TabPage  @relation(fields: [tabPageId], references: [id], onDelete: Cascade)
+
+  @@unique([tabPageId, version])
+  @@index([tabPageId, version])
+}
+
+model TabPageStat {
+  id         String   @id @default(cuid())
+  tabPageId  String
+  date       DateTime // day bucket (UTC midnight)
+  impressions Int     @default(0)
+  clicks      Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tabPage     TabPage @relation(fields: [tabPageId], references: [id], onDelete: Cascade)
+
+  @@unique([tabPageId, date])
+  @@index([tabPageId, date])
+}
+
 // Vendors
 model Vendor {
   id           String   @id @default(cuid())
