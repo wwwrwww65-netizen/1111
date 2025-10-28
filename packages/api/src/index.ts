@@ -167,13 +167,24 @@ async function ensureSchema(): Promise<void> {
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_created_idx" ON "Product"("createdAt")'); } catch {}
 
     // Tab Page Builder tables (idempotent)
+    // Ensure Postgres ENUM types expected by Prisma exist
+    await db.$executeRawUnsafe(
+      'DO $$ BEGIN '\
+      +'IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = ' + "'DeviceType'" + ') THEN '\
+      +'  CREATE TYPE "DeviceType" AS ENUM (' + "'MOBILE','DESKTOP'" + '); '\
+      +'END IF; '\
+      +'IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = ' + "'TabPageStatus'" + ') THEN '\
+      +'  CREATE TYPE "TabPageStatus" AS ENUM (' + "'DRAFT','SCHEDULED','PUBLISHED','ARCHIVED'" + '); '\
+      +'END IF; '\
+      +'END $$;'
+    );
     await db.$executeRawUnsafe(
       'CREATE TABLE IF NOT EXISTS "TabPage" ('+
       '"id" TEXT PRIMARY KEY,'+
       '"slug" TEXT UNIQUE NOT NULL,'+
       '"label" TEXT NOT NULL,'+
-      '"device" TEXT NOT NULL DEFAULT ' + "'MOBILE'" + ','+
-      '"status" TEXT NOT NULL DEFAULT ' + "'DRAFT'" + ','+
+      '"device" "DeviceType" NOT NULL DEFAULT ' + "'MOBILE'" + ','+
+      '"status" "TabPageStatus" NOT NULL DEFAULT ' + "'DRAFT'" + ','+
       '"scheduledAt" TIMESTAMP NULL,'+
       '"publishedAt" TIMESTAMP NULL,'+
       '"theme" JSONB NULL,'+
@@ -184,6 +195,31 @@ async function ensureSchema(): Promise<void> {
       '"createdAt" TIMESTAMP DEFAULT NOW(),'+
       '"updatedAt" TIMESTAMP DEFAULT NOW()'+
       ')'
+    );
+    // If table pre-existed with TEXT columns, coerce to ENUM types
+    await db.$executeRawUnsafe(
+      'DO $$ BEGIN '\
+      +'IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = ' + "'TabPage'" + ' AND column_name = ' + "'device'" + ') THEN '\
+      +'  BEGIN '\
+      +'    ALTER TABLE "TabPage" ALTER COLUMN "device" TYPE "DeviceType" USING "device"::"DeviceType"; '\
+      +'  EXCEPTION WHEN others THEN NULL; '\
+      +'  END; '\
+      +'  BEGIN '\
+      +'    ALTER TABLE "TabPage" ALTER COLUMN "device" SET DEFAULT ' + "'MOBILE'" + '::"DeviceType"; '\
+      +'  EXCEPTION WHEN others THEN NULL; '\
+      +'  END; '\
+      +'END IF; '\
+      +'IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = ' + "'TabPage'" + ' AND column_name = ' + "'status'" + ') THEN '\
+      +'  BEGIN '\
+      +'    ALTER TABLE "TabPage" ALTER COLUMN "status" TYPE "TabPageStatus" USING "status"::"TabPageStatus"; '\
+      +'  EXCEPTION WHEN others THEN NULL; '\
+      +'  END; '\
+      +'  BEGIN '\
+      +'    ALTER TABLE "TabPage" ALTER COLUMN "status" SET DEFAULT ' + "'DRAFT'" + '::"TabPageStatus"; '\
+      +'  EXCEPTION WHEN others THEN NULL; '\
+      +'  END; '\
+      +'END IF; '\
+      +'END $$;'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "TabPage_device_status_idx" ON "TabPage"("device","status")');
     await db.$executeRawUnsafe(
