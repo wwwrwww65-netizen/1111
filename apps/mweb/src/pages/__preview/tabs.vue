@@ -28,7 +28,7 @@ function renderBlock(s:any){
   return UnknownBlock
 }
 
-onMounted(()=>{
+onMounted(async ()=>{
   try{
     const d = new URLSearchParams(location.search).get('device') as any
     if (d==='MOBILE' || d==='DESKTOP') device.value = d
@@ -45,6 +45,15 @@ onMounted(()=>{
       }catch{}
     }
   }catch{}
+  // Track impression
+  try{
+    const url = new URL(location.href)
+    const slug = url.searchParams.get('slug') || (payload.value?.slug || payload.value?.content?.slug || '')
+    if (slug) {
+      fetch('/api/tabs/track', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ slug, type:'impression' }) })
+        .catch(()=>{})
+    }
+  }catch{}
   // Accept postMessage for live updates (from admin)
   window.addEventListener('message', (e: MessageEvent)=>{
     try{
@@ -57,9 +66,16 @@ onMounted(()=>{
   })
 })
 
+function trackClick(){
+  try{
+    const url = new URL(location.href)
+    const slug = url.searchParams.get('slug') || (payload.value?.slug || payload.value?.content?.slug || '')
+    if (slug) fetch('/api/tabs/track', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ slug, type:'click' }) }).catch(()=>{})
+  }catch{}
+}
 const HeroBlock = {
   props: ['cfg','device'],
-  template: `<div class="hero"><div v-if="Array.isArray(cfg.slides) && cfg.slides.length" class="slides"><a v-for="(sl,i) in cfg.slides" :key="i" :href="sl.href||'#'"><img :src="sl.image||''" alt="" /></a></div><div v-else class="placeholder">Hero</div></div>`
+  template: `<div class=\"hero\"><div v-if=\"Array.isArray(cfg.slides) && cfg.slides.length\" class=\"slides\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" @click=\"trackClick()\"><img :src=\"sl.image||''\" alt=\"\" /></a></div><div v-else class=\"placeholder\">Hero</div></div>`
 }
 const PromoTiles = {
   props: ['cfg','device'],
