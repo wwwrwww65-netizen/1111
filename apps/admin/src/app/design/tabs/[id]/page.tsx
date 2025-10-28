@@ -13,6 +13,8 @@ type MediaAsset = { id:string; url:string; alt?:string; meta?:{ width?:number; h
 
 type Category = { id:string; name:string; image?:string };
 
+type ProductMini = { id:string; name:string; image?:string; price?:number };
+
 function useApiBase(){ return React.useMemo(()=> (typeof window!=='undefined' ? '' : ''), []); }
 
 export default function TabPageBuilder(): JSX.Element {
@@ -34,6 +36,10 @@ export default function TabPageBuilder(): JSX.Element {
 
   // Live preview state
   const [previewDevice, setPreviewDevice] = React.useState<Device>('MOBILE');
+  const [previewLang, setPreviewLang] = React.useState<'ar'|'en'>('ar');
+
+  // Validation state
+  const [errors, setErrors] = React.useState<string[]>([]);
 
   // Media and pickers
   const [mediaOpen, setMediaOpen] = React.useState(false);
@@ -43,6 +49,10 @@ export default function TabPageBuilder(): JSX.Element {
   const [categoriesOpen, setCategoriesOpen] = React.useState(false);
   const categoriesOnSaveRef = React.useRef<(items:Category[])=>void>(()=>{});
   const openCategoriesPicker = (onSave:(items:Category[])=>void)=>{ categoriesOnSaveRef.current = onSave; setCategoriesOpen(true); };
+
+  const [productsOpen, setProductsOpen] = React.useState(false);
+  const productsOnSaveRef = React.useRef<(items:ProductMini[])=>void>(()=>{});
+  const openProductsPicker = (onSave:(items:ProductMini[])=>void)=>{ productsOnSaveRef.current = onSave; setProductsOpen(true); };
 
   // Load data
   React.useEffect(()=>{
@@ -88,6 +98,10 @@ export default function TabPageBuilder(): JSX.Element {
       if (raw) setHasLocal(JSON.parse(raw));
     }catch{}
   }, [autosaveKey]);
+
+  React.useEffect(()=>{
+    setErrors(validateContent(content));
+  }, [content]);
 
   function addSection(type:string){
     setContent((c:any)=> ({ ...c, sections: [...(Array.isArray(c.sections)? c.sections:[]), { id: (globalThis as any).crypto?.randomUUID?.() || String(Date.now()), type, config:{} }] }));
@@ -138,6 +152,15 @@ export default function TabPageBuilder(): JSX.Element {
     await fetch(`${apiBase}/api/admin/tabs/pages/${id}/flush-cache`, { method:'POST', credentials:'include' });
   }
 
+  function buildPreviewUrl(): string {
+    try{
+      const q = `?device=${previewDevice}&payload=${encodeURIComponent(JSON.stringify(content))}`;
+      return `/__preview/tabs${q}`;
+    }catch{ return '/__preview/tabs'; }
+  }
+  function openExternalPreview(){ try{ window.open(buildPreviewUrl(), '_blank'); }catch{} }
+  async function copyExternalPreview(){ try{ await navigator.clipboard.writeText((location.origin||'') + buildPreviewUrl()); }catch{} }
+
   return (
     <div className="container centered">
       <div className="panel">
@@ -157,6 +180,10 @@ export default function TabPageBuilder(): JSX.Element {
             <select value={previewDevice} onChange={e=> setPreviewDevice(e.target.value as Device)} className="select" style={{minWidth:140}}>
               <option value="MOBILE">Preview: Mobile</option>
               <option value="DESKTOP">Preview: Desktop</option>
+            </select>
+            <select value={previewLang} onChange={e=> setPreviewLang(e.target.value as any)} className="select" style={{minWidth:120}}>
+              <option value="ar">AR</option>
+              <option value="en">EN</option>
             </select>
             <Link href="/design/tabs" className="btn btn-outline btn-md">رجوع للقائمة</Link>
           </div>
@@ -212,15 +239,22 @@ export default function TabPageBuilder(): JSX.Element {
           <div className="toolbar mt-2">
             <input value={title} onChange={e=> setTitle(e.target.value)} placeholder="عنوان الإصدار" className="input" />
             <input value={notes} onChange={e=> setNotes(e.target.value)} placeholder="ملاحظات" className="input" />
-            <button disabled={saving} onClick={saveDraft} className="btn btn-md" style={{whiteSpace:'nowrap'}}>حفظ كإصدار</button>
+            <button disabled={saving || errors.length>0} onClick={saveDraft} className="btn btn-md" style={{whiteSpace:'nowrap'}}>حفظ كإصدار</button>
+            {errors.length>0 && <div className="muted" style={{color:'#f59e0b'}}>({errors.length}) أخطاء يجب إصلاحها قبل الحفظ</div>}
           </div>
         </div>
         <div className="panel" style={{display:'grid', gap:16}}>
           {/* Preview (live) */}
           <div>
-            <h2 className="h3" style={{marginBottom:8}}>المعاينة الفورية</h2>
+            <div className="toolbar" style={{ marginBottom: 0 }}>
+              <h2 className="h3" style={{margin:0}}>المعاينة الفورية</h2>
+              <div className="actions">
+                <button className="btn btn-outline btn-sm" onClick={openExternalPreview}>فتح المعاينة الخارجية</button>
+                <button className="btn btn-outline btn-sm" onClick={copyExternalPreview}>نسخ رابط المعاينة</button>
+              </div>
+            </div>
             <div className="panel" style={{ padding: 0 }}>
-              <TabPreview content={content} device={previewDevice} />
+              <TabPreview content={content} device={previewDevice} lang={previewLang} />
             </div>
           </div>
 
@@ -235,6 +269,7 @@ export default function TabPageBuilder(): JSX.Element {
                 }}
                 openMedia={openMediaPicker}
                 openCategories={openCategoriesPicker}
+                openProducts={openProductsPicker}
               />
             ) : (
               <div className="muted">اختر قسماً لتحريره</div>
@@ -275,7 +310,7 @@ export default function TabPageBuilder(): JSX.Element {
             <h2 className="h3" style={{marginBottom:8}}>الإحصاءات (30 يوم)</h2>
             {stats? (
               <div>
-                <div className="muted" style={{marginBottom:8,fontSize:12}}>Impressions: <b>{stats.totals.impressions}</b> • Clicks: <b>{stats.totals.clicks}</b> • CTR: <b>{(stats.totals.ctr*100).toFixed(2)}%</b></div>
+                <div className="muted" style={{marginBottom:8, fontSize:12}}>Impressions: <b>{stats.totals.impressions}</b> • Clicks: <b>{stats.totals.clicks}</b> • CTR: <b>{(stats.totals.ctr*100).toFixed(2)}%</b></div>
                 <div className="table-wrapper" style={{maxHeight:200, overflow:'auto'}}>
                   <table className="table">
                     <thead><tr><th>التاريخ</th><th>الظهور</th><th>النقرات</th></tr></thead>
@@ -305,11 +340,40 @@ export default function TabPageBuilder(): JSX.Element {
       {/* Shared modals */}
       <MediaPickerModal open={mediaOpen} onClose={()=> setMediaOpen(false)} onSelect={(u)=>{ try{ mediaOnSelectRef.current && mediaOnSelectRef.current(u); } finally { setMediaOpen(false); } }} />
       <CategoriesPickerModal open={categoriesOpen} onClose={()=> setCategoriesOpen(false)} onSave={(items)=>{ try{ categoriesOnSaveRef.current && categoriesOnSaveRef.current(items); } finally { setCategoriesOpen(false); } }} />
+      <ProductsPickerModal open={productsOpen} onClose={()=> setProductsOpen(false)} onSave={(items)=>{ try{ productsOnSaveRef.current && productsOnSaveRef.current(items); } finally { setProductsOpen(false); } }} />
     </div>
   );
 }
 
-function SectionInspector({ section, onChange, openMedia, openCategories }:{ section:any; onChange:(upd:any)=>void; openMedia:(cb:(url:string)=>void)=>void; openCategories:(cb:(items:Category[])=>void)=>void }): JSX.Element {
+function validateContent(c:any): string[] {
+  const errs: string[] = [];
+  const sections = Array.isArray(c?.sections)? c.sections : [];
+  sections.forEach((s:any, idx:number)=>{
+    const t = String(s?.type||'');
+    const cfg = s?.config||{};
+    if (t==='hero'){
+      const slides = Array.isArray(cfg.slides)? cfg.slides : [];
+      if (!slides.length) errs.push(`hero: لا توجد شرائح`);
+      slides.forEach((sl:any,i:number)=>{ if (!sl?.image) errs.push(`hero: شريحة ${i+1} بدون صورة`); });
+    }
+    if (t==='promoTiles'){
+      const tiles = Array.isArray(cfg.tiles)? cfg.tiles : [];
+      tiles.forEach((tl:any,i:number)=>{ if (!tl?.image) errs.push(`promoTiles: بلاطة ${i+1} بدون صورة`); });
+    }
+    if (t==='categories' || t==='brands'){
+      const list = Array.isArray(cfg[t])? cfg[t] : [];
+      if (!list.length) errs.push(`${t}: اختر عناصر`);
+    }
+    if (t==='productCarousel'){
+      const hasExplicit = Array.isArray(cfg.products) && cfg.products.length>0;
+      const hasFilter = cfg.filter && typeof cfg.filter==='object';
+      if (!hasExplicit && !hasFilter) errs.push('productCarousel: حدد منتجات أو أنشئ فلترة');
+    }
+  });
+  return errs;
+}
+
+function SectionInspector({ section, onChange, openMedia, openCategories, openProducts }:{ section:any; onChange:(upd:any)=>void; openMedia:(cb:(url:string)=>void)=>void; openCategories:(cb:(items:Category[])=>void)=>void; openProducts:(cb:(items:ProductMini[])=>void)=>void }): JSX.Element {
   const t = String(section?.type||'');
 
   // Helpers for image pick/drag
@@ -382,14 +446,62 @@ function SectionInspector({ section, onChange, openMedia, openCategories }:{ sec
   }
 
   if (t==='productCarousel') {
+    const cfg = section.config||{};
+    const products: ProductMini[] = Array.isArray(cfg.products)? cfg.products : [];
+    const filter: any = (cfg.filter && typeof cfg.filter==='object')? cfg.filter : {};
+    const setCfg = (next:any)=> onChange({ config: { ...cfg, ...next } });
     return (
       <div style={{display:'grid',gap:12}}>
-        <input className="input" placeholder="عنوان القسم" value={section.config?.title||''} onChange={e=> onChange({ config: { ...section.config, title: e.target.value } })} />
+        <input className="input" placeholder="عنوان القسم" value={cfg.title||''} onChange={e=> setCfg({ title: e.target.value })} />
         <div style={{display:'flex',gap:12,alignItems:'center'}}>
-          <label className="muted" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}><input type="checkbox" checked={!!section.config?.autoScroll} onChange={e=> onChange({ config: { ...section.config, autoScroll: e.target.checked } })} />تمرير تلقائي</label>
-          <label className="muted" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}><input type="checkbox" checked={!!section.config?.showPrice} onChange={e=> onChange({ config: { ...section.config, showPrice: e.target.checked } })} />عرض السعر</label>
+          <label className="muted" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}><input type="checkbox" checked={!!cfg.autoScroll} onChange={e=> setCfg({ autoScroll: e.target.checked })} />تمرير تلقائي</label>
+          <label className="muted" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}><input type="checkbox" checked={!!cfg.showPrice} onChange={e=> setCfg({ showPrice: e.target.checked })} />عرض السعر</label>
         </div>
-        <textarea className="input" rows={4} placeholder="قواعد الفلترة (JSON)" value={JSON.stringify(section.config?.filter||{},null,0)} onChange={e=> { try{ onChange({ config: { ...section.config, filter: JSON.parse(e.target.value||'{}') } }) }catch{} }} />
+        <div className="card" style={{display:'grid', gap:8}}>
+          <div className="toolbar" style={{marginBottom:0}}>
+            <div className="muted">اختيار منتجات محددة</div>
+            <div className="actions">
+              <button className="btn btn-outline btn-sm" onClick={()=> openProducts((items)=> setCfg({ products: items }))}>اختر منتجات</button>
+              {Array.isArray(products) && products.length>0 && (
+                <button className="btn btn-outline btn-sm" onClick={()=> setCfg({ products: [] })}>مسح</button>
+              )}
+            </div>
+          </div>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+            {products.map((p)=> (
+              <div key={p.id} className="badge" style={{gap:6}}>
+                {p.image && <img src={p.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}
+                <span className="line-2" style={{ maxWidth:160 }}>{p.name}</span>
+              </div>
+            ))}
+            {!products.length && <div className="muted">— لا توجد منتجات محددة</div>}
+          </div>
+        </div>
+        <div className="card" style={{display:'grid', gap:8}}>
+          <div className="toolbar" style={{marginBottom:0}}>
+            <div className="muted">منشئ فلترة (بديل للاختيار اليدوي)</div>
+            <div className="actions">
+              <button className="btn btn-outline btn-sm" onClick={()=> openCategories((cats)=> setCfg({ filter: { ...(filter||{}), categoryIds: cats.map(c=> c.id) } }))}>اختر فئات</button>
+              <button className="btn btn-outline btn-sm" onClick={()=> setCfg({ filter: {} })}>مسح</button>
+            </div>
+          </div>
+          <div style={{display:'grid', gap:10, gridTemplateColumns:'1fr 1fr'}}>
+            <label className="form-label">الترتيب</label>
+            <select className="select" value={filter.sortBy||'newest'} onChange={(e)=> setCfg({ filter: { ...filter, sortBy: e.target.value } })}>
+              <option value="newest">الأحدث</option>
+              <option value="bestseller">الأكثر مبيعاً</option>
+              <option value="price_asc">السعر تصاعدي</option>
+              <option value="price_desc">السعر تنازلي</option>
+            </select>
+            <label className="form-label">حد العناصر</label>
+            <input type="number" className="input" value={Number(filter.limit||12)} onChange={(e)=> setCfg({ filter: { ...filter, limit: Math.max(1, Number(e.target.value||12)) } })} />
+          </div>
+          <label className="muted" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}>
+            <input type="checkbox" checked={!!filter.onlyDiscounted} onChange={(e)=> setCfg({ filter: { ...filter, onlyDiscounted: e.target.checked } })} />
+            منتجات مخفّضة فقط
+          </label>
+          <textarea className="input" rows={4} placeholder="قواعد إضافية (JSON)" value={JSON.stringify(filter||{},null,0)} onChange={e=> { try{ setCfg({ filter: JSON.parse(e.target.value||'{}') }); }catch{} }} />
+        </div>
       </div>
     );
   }
@@ -429,12 +541,12 @@ function SectionInspector({ section, onChange, openMedia, openCategories }:{ sec
   return <div className="muted">لا يوجد محرر لهذا النوع</div>;
 }
 
-function TabPreview({ content, device }:{ content:any; device:Device }): JSX.Element {
+function TabPreview({ content, device, lang }:{ content:any; device:Device; lang:'ar'|'en' }): JSX.Element {
   const sections: any[] = Array.isArray(content?.sections) ? content.sections : [];
   const isMobile = device==='MOBILE';
   return (
     <div style={{ width:'100%', padding: 12 }}>
-      <div style={{ marginBottom: 8, color:'#94a3b8', fontSize:12 }}>المعاينة: {device==='MOBILE'? 'موبايل' : 'ديسكتوب'}</div>
+      <div style={{ marginBottom: 8, color:'#94a3b8', fontSize:12 }}>المعاينة: {device==='MOBILE'? 'موبايل' : 'ديسكتوب'} • اللغة: {lang.toUpperCase()}</div>
       <div style={{ maxWidth: isMobile? 420 : 980, margin:'0 auto', border:'1px solid #1c2333', borderRadius:12, overflow:'hidden', background:'#0b0e14' }}>
         {sections.map((s:any, idx:number)=> {
           const cfg = s?.config||{};
@@ -638,6 +750,67 @@ function CategoriesPickerModal({ open, onClose, onSave }:{ open:boolean; onClose
             );
           })}
           {!rows.length && <div className="muted">لا توجد نتائج</div>}
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:12 }}>
+          <button className="btn btn-outline btn-sm" onClick={onClose}>إلغاء</button>
+          <button className="btn btn-sm" onClick={()=> onSave(items)}>تأكيد</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductsPickerModal({ open, onClose, onSave }:{ open:boolean; onClose:()=>void; onSave:(items:ProductMini[])=>void }): JSX.Element|null {
+  const [rows, setRows] = React.useState<ProductMini[]>([]);
+  const [search, setSearch] = React.useState('');
+  const [selected, setSelected] = React.useState<Record<string, ProductMini>>({});
+  const [page, setPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(1);
+
+  React.useEffect(()=>{ if(!open) return; (async()=>{
+    try{
+      const r = await fetch(`/api/admin/products?page=${page}&limit=24&search=${encodeURIComponent(search)}`, { credentials:'include' });
+      const j = await r.json();
+      const list = Array.isArray(j.products)? j.products : (Array.isArray(j.items)? j.items: []);
+      setRows(list.map((p:any)=> ({ id:p.id, name:p.name, image: (p.images||[])[0]||'', price: p.price })));
+      const total = j.pagination?.totalPages || 1; setTotalPages(total);
+    }catch{}
+  })(); },[open, search, page]);
+
+  if (!open) return null;
+  const items = Object.values(selected);
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }} onClick={onClose}>
+      <div style={{ width:'min(1000px, 94vw)', maxHeight:'86vh', overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }} onClick={(e)=> e.stopPropagation()}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <h3 style={{ margin:0 }}>اختيار المنتجات</h3>
+          <button onClick={onClose} className="btn btn-outline btn-sm">إغلاق</button>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, marginBottom:12 }}>
+          <input value={search} onChange={(e)=> setSearch((e.target as HTMLInputElement).value)} placeholder="بحث" className="input" />
+          <button className="btn btn-outline btn-sm" onClick={()=> setSelected({})}>مسح</button>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4, minmax(0,1fr))', gap:12 }}>
+          {rows.map((p)=>{
+            const isSel = !!selected[p.id];
+            return (
+              <button key={p.id} onClick={()=> setSelected(s=> ({ ...s, [p.id]: isSel? undefined as any : p }))} style={{ textAlign:'start', background: isSel? '#101828' : '#0f1320', border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
+                {p.image ? <img src={p.image} alt={p.name||''} style={{ width:'100%', height:120, objectFit:'cover' }} /> : <div style={{ height:120, background:'#101828' }} />}
+                <div style={{ padding:8 }}>
+                  <div className="line-2" style={{ fontSize:14 }}>{p.name}</div>
+                  {p.price!=null && <div style={{ color:'#22c55e', marginTop:4, fontSize:12 }}>{Number(p.price).toLocaleString()}</div>}
+                </div>
+              </button>
+            );
+          })}
+          {!rows.length && <div className="muted">لا توجد نتائج</div>}
+        </div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
+          <div className="muted">صفحة {page} من {totalPages}</div>
+          <div style={{ display:'flex', gap:6 }}>
+            <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1, p-1))} className="btn btn-outline btn-sm">السابق</button>
+            <button disabled={page>=totalPages} onClick={()=> setPage(p=> Math.min(totalPages, p+1))} className="btn btn-outline btn-sm">التالي</button>
+          </div>
         </div>
         <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:12 }}>
           <button className="btn btn-outline btn-sm" onClick={onClose}>إلغاء</button>
