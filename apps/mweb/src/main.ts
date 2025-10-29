@@ -13,6 +13,7 @@ import { initCurrency } from './lib/currency'
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
 const manualRoutes = [
+  { path: '/', redirect: '/tabs/all' },
   { path: '/mis', component: () => import('./pages/Mis.vue') },
   { path: '/categories', component: () => import('./pages/Categories.vue') },
   { path: '/products', component: () => import('./pages/Products.vue') },

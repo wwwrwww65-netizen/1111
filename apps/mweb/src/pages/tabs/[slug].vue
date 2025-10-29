@@ -6,6 +6,12 @@
       <div />
     </header>
     <main>
+      <nav class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" role="tablist" aria-label="التبويبات">
+        <button v-for="(t,i) in tabs" :key="t.slug" role="tab" :aria-selected="t.slug===slug" tabindex="0" @click="go('/tabs/'+encodeURIComponent(t.slug))" :class="['text-sm whitespace-nowrap relative pb-1', (t.slug===slug) ? 'text-white font-semibold' : 'text-[#cbd5e1]']">
+          {{ t.label }}
+          <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', (t.slug===slug) ? 'bg-white' : 'bg-transparent']" />
+        </button>
+      </nav>
       <section v-for="(s,i) in sections" :key="i">
         <component :is="renderBlock(s)" :cfg="s.config||{}" />
       </section>
@@ -20,6 +26,7 @@ const route = useRoute()
 const router = useRouter()
 const slug = computed(()=> String(route.params.slug||''))
 const content = ref<any>({ sections: [] })
+const tabs = ref<Array<{ slug:string; label:string }>>([])
 const sections = computed(()=> Array.isArray(content.value?.content?.sections) ? content.value.content.sections : (Array.isArray(content.value?.sections)? content.value.sections : []))
 function go(p:string){ router.push(p) }
 function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return Hero; if (t==='promoTiles') return PromoTiles; if (t==='midPromo') return MidPromo; if (t==='productCarousel') return ProductCarousel; if (t==='categories'||t==='brands') return Categories; return Unknown }
@@ -30,6 +37,10 @@ onMounted(async ()=>{
     const j = await r.json(); if (j?.content) content.value = j
     // track impression
     fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: slug.value, type:'impression' }) }).catch(()=>{})
+  }catch{}
+  try{
+    const rl = await fetch('/api/tabs/list?device=MOBILE')
+    const jl = await rl.json(); tabs.value = Array.isArray(jl.tabs)? jl.tabs : []
   }catch{}
 })
 
