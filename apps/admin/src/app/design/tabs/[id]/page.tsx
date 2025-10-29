@@ -470,8 +470,8 @@ function LivePreviewFrame({ content, device, slug }:{ content:any; device:Device
   }, [content, device, src]);
   // Also update external window if open
   React.useEffect(()=>{
-    try{ const w = externalWinRef.current; if (w && !w.closed){ w.postMessage({ __tabs_preview: true, device: previewDevice, content }, 'https://m.jeeey.com'); } }catch{}
-  }, [content, previewDevice]);
+    try{ const w = externalWinRef.current; if (w && !w.closed){ w.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com'); } }catch{}
+  }, [content, device]);
   return (
     <iframe ref={frameRef} title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} onLoad={()=>{
       try{
@@ -755,33 +755,36 @@ function TabPreview({ content, device, lang }:{ content:any; device:Device; lang
           if (isLight) {
             if (t==='hero'){
               const slides = Array.isArray(cfg.slides)? cfg.slides : (cfg.image? [{ image: cfg.image, href: cfg.ctaHref||'' }]: []);
+              const h = isMobile? 257 : 360;
               return (
                 <div key={idx} style={{ position:'relative' }}>
                   {slides.length? (
                     <div style={{ display:'grid', gridTemplateColumns: `repeat(${slides.length}, 100%)`, overflowX:'auto', scrollSnapType:'x mandatory' }}>
                       {slides.map((sl:any, i:number)=> (
-                        <a key={i} href={sl.href||'#'} style={{ display:'block', scrollSnapAlign:'start' }}>
-                          <img src={sl.image||''} alt="slide" style={{ width:'100%', height: isMobile? 257: 360, objectFit:'cover' }} />
+                        <a key={i} href={sl.href||'#'} style={{ position:'relative', display:'block', scrollSnapAlign:'start' }}>
+                          <img src={sl.image||''} alt="slide" style={{ width:'100%', height: h, objectFit:'cover' }} />
+                          <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(0,0,0,.5), rgba(0,0,0,.2), transparent)' }} />
                         </a>
                       ))}
                     </div>
                   ) : (
-                    <div style={{ height: isMobile? 257: 360, background:'#e5e7eb' }} />
+                    <div style={{ height: h, background:'#e5e7eb' }} />
                   )}
                 </div>
               );
             }
             if (t==='promoTiles'){
               const tiles = Array.isArray(cfg.tiles)? cfg.tiles: [];
-              const gridCols = isMobile? 3 : 6;
               return (
-                <div key={idx} style={{ padding:12, background:'#ffffff', borderTop:`1px solid ${cardBorder}` }}>
-                  <div style={{ display:'grid', gridTemplateColumns:`repeat(${gridCols}, minmax(0,1fr))`, gap:8 }}>
-                    {tiles.map((it:any,i:number)=> (
-                      <div key={i} style={{ position:'relative', height:50, border:`1px solid ${cardBorder}`, borderRadius:8, overflow:'hidden', background:'#fff' }}>
-                        {it.image && <img src={it.image} alt={it.title||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} />}
-                      </div>
-                    ))}
+                <div key={idx} style={{ background:'#ffffff', borderTop:`1px solid ${cardBorder}` }}>
+                  <div style={{ padding:12 }}>
+                    <div style={{ display:'flex', gap:6, overflowX:'auto' }}>
+                      {tiles.map((it:any,i:number)=> (
+                        <div key={i} style={{ position:'relative', width:100, height:50, flex:'0 0 auto', border:`1px solid ${cardBorder}`, borderRadius:6, overflow:'hidden', background:'#fff' }}>
+                          {it.image && <img src={it.image} alt={it.title||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} />}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );
@@ -789,8 +792,9 @@ function TabPreview({ content, device, lang }:{ content:any; device:Device; lang
             if (t==='midPromo'){
               return (
                 <div key={idx} style={{ padding:'12px 12px 0 12px' }}>
-                  <div style={{ position:'relative', height:90, border:`1px solid ${cardBorder}`, borderRadius:6, overflow:'hidden', background:'#fff' }}>
+                  <div style={{ position:'relative', height:90, border:`1px solid ${cardBorder}`, borderRadius:4, overflow:'hidden', background:'#fff' }}>
                     {cfg.image && <img src={cfg.image} alt={cfg.text||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} />}
+                    <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.10)' }} />
                     {cfg.text && <div style={{ position:'absolute', left:12, right:12, top:'50%', transform:'translateY(-50%)', color:'#fff', fontSize:12, fontWeight:600 }}>{cfg.text}</div>}
                   </div>
                 </div>
@@ -800,33 +804,53 @@ function TabPreview({ content, device, lang }:{ content:any; device:Device; lang
               const count = isMobile? 6 : 10;
               return (
                 <div key={idx} style={{ padding:12 }}>
-                  {cfg.title && <div style={{ marginBottom:8, fontWeight:700, color:'#111827' }}>{cfg.title}</div>}
-                  <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, minmax(0,1fr))`, gap:8 }}>
-                    {Array.from({ length: count }).map((_,i)=> (
-                      <div key={i} style={{ border:`1px solid ${cardBorder}`, borderRadius:6, overflow:'hidden', background:'#fff' }}>
-                        <div style={{ height:120, background:'#f3f4f6' }} />
-                        <div style={{ padding:8 }}>
-                          <div style={{ height:32, fontSize:12, color:'#111827' }} className="line-2">اسم منتج</div>
-                          {cfg.showPrice && <div style={{ marginTop:4, color:'#ef4444', fontWeight:700, fontSize:12 }}>99.00</div>}
-                        </div>
+                  <div style={{ background:'#fff', border:`1px solid ${cardBorder}`, borderRadius:4, padding:'12px' }}>
+                    {cfg.title && (
+                      <div style={{ marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div style={{ fontWeight:700, color:'#111827', fontSize:14 }}>{cfg.title}</div>
+                        <div style={{ fontSize:12, color:'#374151' }}>المزيد ▸</div>
                       </div>
-                    ))}
+                    )}
+                    <div style={{ display:'flex', gap:6, overflowX:'auto' }}>
+                      {Array.from({ length: count }).map((_,i)=> (
+                        <div key={i} style={{ width: isMobile? 150 : 170 }}>
+                          <div style={{ border:`1px solid ${cardBorder}`, borderRadius:4, overflow:'hidden', background:'#fff' }}>
+                            <div style={{ aspectRatio:'255/192', width:'100%', background:'#f3f4f6' }} />
+                          </div>
+                          {cfg.showPrice && <div style={{ marginTop:6, color:'#ef4444', fontWeight:700, fontSize:12 }}>99.00</div>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );
             }
             if (t==='categories' || t==='brands'){
               const list = Array.isArray(cfg[t])? cfg[t] : [];
-              const colCount = isMobile? 3 : 6;
+              const perCol = 3;
+              const colsArr:any[] = [];
+              for (let c=0;c<Math.ceil(list.length/perCol)||1;c++) colsArr[c] = list.slice(c*perCol, (c+1)*perCol);
               return (
-                <div key={idx} style={{ padding:12 }}>
-                  <div style={{ display:'grid', gridTemplateColumns:`repeat(${colCount}, minmax(0,1fr))`, gap:8 }}>
-                    {list.map((it:any,i:number)=> (
-                      <div key={i} style={{ textAlign:'center' }}>
-                        {it.image ? (<img src={it.image} alt={it.name||''} style={{ width:'100%', height:isMobile? 72: 90, objectFit:'cover', borderRadius:10, border:`1px solid ${cardBorder}` }} />) : (<div style={{ height:isMobile? 72: 90, background:'#f3f4f6', borderRadius:10 }} />)}
-                        <div style={{ marginTop:6, fontSize:12, color:'#111827' }} className="line-2">{it.name||'-'}</div>
-                      </div>
-                    ))}
+                <div key={idx} style={{ padding:'12px 0' }}>
+                  <div style={{ overflowX:'auto' }}>
+                    <div style={{ display:'flex', gap:8, padding:'0 12px 2px 12px' }}>
+                      {colsArr.map((col:any[],ci:number)=> (
+                        <div key={ci} style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                          {col.map((it:any,ri:number)=> (
+                            <div key={`${ci}-${ri}`} style={{ width:96, textAlign:'center', background:'transparent' }}>
+                              <div style={{ width:68, height:68, border:`1px solid ${cardBorder}`, borderRadius:'999px', overflow:'hidden', margin:'0 auto 8px', background:'#fff' }}>
+                                {it.image ? (
+                                  <img src={it.image} alt={it.name||''} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                                ) : (
+                                  <div style={{ width:'100%', height:'100%', background:'#f3f4f6' }} />
+                                )}
+                              </div>
+                              <div style={{ fontSize:11, color:'#374151' }}>{it.name||'-'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );

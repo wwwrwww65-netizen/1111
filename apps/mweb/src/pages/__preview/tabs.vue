@@ -20,12 +20,13 @@ const deviceLabel = computed(()=> device.value==='MOBILE'? 'Mobile' : 'Desktop')
 const frameStyle = computed(()=> ({ maxWidth: device.value==='MOBILE'? '420px' : '980px' }))
 
 function renderBlock(s:any){
-  const t = String(s?.type||'')
+  const t = String(s?.type||'').toLowerCase()
   if (t==='hero') return HeroBlock
-  if (t==='promoTiles') return PromoTiles
-  if (t==='midPromo') return MidPromo
-  if (t==='productCarousel') return ProductCarousel
+  if (t==='promotiles' || t==='promotitles') return PromoTiles
+  if (t==='midpromo') return MidPromo
+  if (t==='productcarousel') return ProductCarousel
   if (t==='categories' || t==='brands') return CategoriesBlock
+  if (t==='masonryforyou' || t==='masonry') return MasonryForYou
   return UnknownBlock
 }
 
@@ -91,6 +92,7 @@ const CategoriesBlock = {
   props: ['cfg','device'],
   template: `<div class="categories"><div class="grid"><div v-for="(c,i) in (cfg.categories||cfg.brands||[])" :key="i" class="cat"><img v-if="c.image" :src="c.image" alt="" /><div class="name">{{ c.name||'-' }}</div></div></div></div>`
 }
+const MasonryForYou = { props:['cfg','device'], template: `<div class="masonry"><div class="grid"><div v-for="i in (device==='MOBILE'?6:10)" :key="i" class="card"><div class="img" /><div class="name">منتج</div></div></div></div>` }
 const UnknownBlock = { template: `<div class="unknown">قسم غير مدعوم</div>` }
 </script>
 

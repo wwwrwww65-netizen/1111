@@ -39,7 +39,7 @@
           :modules="[Autoplay]"
           :slides-per-view="1"
           :loop="true"
-          :autoplay="{ delay: 5000, disableOnInteraction: true, reverseDirection: false }"
+          :autoplay="homeAutoplayCfg"
           :space-between="0"
           class="h-full"
           dir="rtl"
@@ -176,7 +176,7 @@
 
     <template v-else>
       <div class="w-screen px-0">
-        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-3 py-2">
+        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-0 py-0">
           <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
         </section>
         <div style="height:80px" />
@@ -223,6 +223,12 @@ import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid,
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Autoplay } from 'swiper/modules'
 import 'swiper/css'
+import HeroBlock from '@/components/blocks/HeroBlock.vue'
+import PromoTilesBlock from '@/components/blocks/PromoTilesBlock.vue'
+import MidPromoBlock from '@/components/blocks/MidPromoBlock.vue'
+import ProductCarouselBlock from '@/components/blocks/ProductCarouselBlock.vue'
+import CategoriesBlock from '@/components/blocks/CategoriesBlock.vue'
+import MasonryForYouBlock from '@/components/blocks/MasonryForYouBlock.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -234,6 +240,7 @@ const scrolled = ref(false)
 const activeTab = ref(0)
 const tabs = ref<Array<{ label:string; slug:string; href:string }>>([])
 const tabsRef = ref<HTMLDivElement|null>(null)
+const homeAutoplayCfg: any = { delay: 5000, disableOnInteraction: true, reverseDirection: false }
 // Preview controls (for Admin live preview compatibility)
 const previewActive = ref<boolean>(false)
 const previewLayout = ref<any>(null)
@@ -248,12 +255,12 @@ const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
 function renderBlock(s:any){ 
   const t=String(s?.type||'').toLowerCase();
-  if (t==='hero') return Hero; 
-  if (t==='promotiles' || t==='promotitles') return PromoTiles; 
-  if (t==='midpromo') return MidPromo; 
-  if (t==='productcarousel') return ProductCarousel; 
-  if (t==='categories'||t==='brands') return Categories; 
-  if (t==='masonryforyou' || t==='masonry') return MasonryForYou; 
+  if (t==='hero') return HeroBlock; 
+  if (t==='promotiles' || t==='promotitles') return PromoTilesBlock; 
+  if (t==='midpromo') return MidPromoBlock; 
+  if (t==='productcarousel') return ProductCarouselBlock; 
+  if (t==='categories'||t==='brands') return CategoriesBlock; 
+  if (t==='masonryforyou' || t==='masonry') return MasonryForYouBlock; 
   return Unknown 
 }
 async function loadTab(slug:string){
@@ -513,67 +520,6 @@ function addToCartFY(p: any){
   }catch{}
 }
 
-// Lightweight renderers for Admin Tabs sections (light theme)
-const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[257px] object-cover rounded border border-gray-200\" /></a></div></div>` }
-const PromoTiles = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-2 gap-2\"><div v-for=\"(t,i) in (cfg.tiles||[])\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><img v-if=\"t.image\" :src=\"t.image\" class=\"w-full h-[100px] object-cover\" /><div v-if=\"t.title\" class=\"p-2 text-xs text-gray-900\">{{ t.title }}</div></div></div>` }
-const MidPromo = { props:['cfg'], template:`<div class=\"p-3\"><a :href=\"cfg.href||'#'\"><img v-if=\"cfg.image\" :src=\"cfg.image\" class=\"w-full h-[90px] object-cover rounded border border-gray-200\" /><div v-if=\"cfg.text\" class=\"-mt-6 ps-3 text-[12px] text-white\">{{ cfg.text }}</div></a></div>` }
-const ProductCarousel = {
-  props: ['cfg'],
-  setup(props){
-    const items = ref<Array<{ id?:string; image?:string; title?:string; price?:string }>>([])
-    const loading = ref<boolean>(false)
-    async function load(){
-      loading.value = true
-      try{
-        const cfg:any = props.cfg || {}
-        if (Array.isArray(cfg.products) && cfg.products.length){
-          items.value = cfg.products.map((p:any)=> ({ id:p.id, image:p.image||(p.images?.[0]||''), title:p.name||p.title||'', price: (p.price!=null? String(p.price) : '') }))
-        } else {
-          const limit = Number(cfg?.filter?.limit||12)
-          const data = await apiGet<any>(`/api/products?limit=${encodeURIComponent(String(limit))}`)
-          const arr = Array.isArray(data?.items)? data.items : []
-          items.value = arr.map((p:any)=> ({ id:p.id, image:(p.images?.[0]||''), title:(p.name||''), price:(p.price!=null? String(p.price)+' ر.س' : '') }))
-        }
-      } catch { items.value = [] } finally { loading.value = false }
-    }
-    onMounted(load)
-    watch(()=> props.cfg, ()=> load(), { deep:true })
-    return { items, loading }
-  },
-  template: `<div class="p-3">
-    <div v-if="cfg.title" class="mb-2 font-semibold text-gray-900">{{ cfg.title }}</div>
-    <div class="grid grid-cols-2 gap-2">
-      <div v-for="(p,i) in (items.length? items : Array.from({length:6}))" :key="p?.id || i" class="bg-white border border-gray-200 rounded overflow-hidden">
-        <div class="h-[120px] bg-gray-100">
-          <img v-if="p && p.image" :src="p.image" alt="" class="w-full h-full object-cover" />
-        </div>
-        <div class="p-2">
-          <div class="text-xs text-gray-900 line-clamp-2">{{ p?.title || 'اسم منتج' }}</div>
-          <div v-if="cfg.showPrice && (p?.price||'').length" class="text-red-600 text-xs mt-1">{{ p?.price }}</div>
-        </div>
-      </div>
-    </div>
-  </div>`
-}
-const MasonryForYou = {
-  props: ['cfg'],
-  setup(props){
-    const columns = computed(()=> Math.max(2, Number((props as any)?.cfg?.columns||2)))
-    return { columns, forYouShein }
-  },
-  template: `<div class="p-3">
-    <div class="grid" :style="{ gridTemplateColumns: 'repeat(' + columns + ', minmax(0,1fr))', gap: '6px' }">
-      <div v-for="(p,i) in forYouShein" :key="p.id||i" class="bg-white border border-gray-200 rounded overflow-hidden">
-        <img :src="p.image" :alt="p.title||''" class="w-full object-cover" />
-        <div class="p-2">
-          <div class="text-xs text-gray-900 line-clamp-2">{{ p.title || 'منتج' }}</div>
-          <div v-if="p.basePrice" class="text-red-600 text-xs mt-1">{{ p.basePrice }} ريال</div>
-        </div>
-      </div>
-    </div>
-  </div>`
-}
-const Categories = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-3 gap-2\"><div v-for=\"(c,i) in (cfg.categories||cfg.brands||[])\" :key=\"i\" class=\"text-center\"><img v-if=\"c.image\" :src=\"c.image\" class=\"w-full h-[72px] object-cover rounded border border-gray-200\" /><div class=\"mt-1 text-[11px] text-gray-800\">{{ c.name||'-' }}</div></div></div>` }
 const Unknown = { template:`<div class=\"p-3 text-xs text-gray-500\">قسم غير مدعوم</div>` }
 </script>
 

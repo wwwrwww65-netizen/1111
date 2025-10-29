@@ -28,18 +28,29 @@ function fallbackVuePage() {
   } as const;
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [vue(), fallbackVuePage()],
-  server: { host: true },
+  server: { host: true, hmr: { overlay: false } },
   build: {
-    sourcemap: false
+    sourcemap: false,
+    target: 'es2018'
   },
   preview: { host: true },
   resolve: {
     alias: {
+      // Enable runtime template compilation for inline component templates used in pages
+      'vue': 'vue/dist/vue.esm-bundler.js',
       '@': path.resolve(__dirname, 'src')
     }
   },
+  esbuild: {
+    target: 'es2018',
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+    legalComments: 'none'
+  },
+  optimizeDeps: {
+    esbuildOptions: { target: 'es2018' }
+  }
   // Set response headers in preview (dev) only; Nginx will handle prod headers
-});
+}));
 
