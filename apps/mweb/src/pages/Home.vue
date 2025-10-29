@@ -32,7 +32,8 @@
       </div>
     </div>
 
-    <div v-if="!tabSections.length" class="w-screen px-0">
+    <template v-if="!tabSections.length">
+    <div class="w-screen px-0">
       <div class="relative w-full h-[257.172px]">
         <swiper
           :modules="[Autoplay]"
@@ -171,14 +172,16 @@
 
       <div style="height:80px" />
     </div>
+    </template>
 
-    <!-- Dynamic tab content when available (rendered in home layout) -->
-    <div v-else class="w-screen px-0">
-      <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-3 py-2">
-        <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
-      </section>
-      <div style="height:80px" />
-    </div>
+    <template v-else>
+      <div class="w-screen px-0">
+        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-3 py-2">
+          <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
+        </section>
+        <div style="height:80px" />
+      </div>
+    </template>
 
     <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
       <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
