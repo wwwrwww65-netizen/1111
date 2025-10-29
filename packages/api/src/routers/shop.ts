@@ -1609,19 +1609,7 @@ shop.get('/cms/page/:slug', async (req, res) => {
   }
 });
 
-// Public: Published Tab Page JSON by slug (mobile)
-shop.get('/tabs/:slug', async (req, res) => {
-  try {
-    const slug = String(req.params.slug);
-    const page = await (db as any).tabPage.findUnique({ where: { slug } });
-    if (!page || !(page.status==='PUBLISHED' || page.status==='SCHEDULED')) return res.status(404).json({ error:'not_found' });
-    const v = page.currentVersionId ? await (db as any).tabPageVersion.findUnique({ where: { id: page.currentVersionId } }) : await (db as any).tabPageVersion.findFirst({ where: { tabPageId: page.id }, orderBy: { version: 'desc' } });
-    const content = v?.content || {};
-    return res.json({ slug: page.slug, label: page.label, device: page.device, status: page.status, theme: page.theme, publishedAt: page.publishedAt, content });
-  } catch {
-    return res.status(500).json({ error:'tabs_fetch_failed' });
-  }
-});
+// (duplicate endpoint removed) — unified earlier /tabs/:slug implementation is used
 
 // Categories list
 shop.get('/categories', async (req, res) => {

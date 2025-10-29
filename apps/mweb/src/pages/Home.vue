@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
-    <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
+    <div v-if="layoutShowHeader" ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
       <div class="w-screen px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة" @click="go('/categories')">
@@ -23,7 +23,7 @@
       </div>
     </div>
 
-    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
+    <div v-if="layoutShowTopTabs" :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
       <div ref="tabsRef" class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
         <button v-for="(t,i) in tabs" :key="t.slug || t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ (t.label || t) }}
@@ -183,7 +183,7 @@
       </div>
     </template>
 
-    <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
+    <nav v-if="layoutShowBottomNav" class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
       <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
         <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
           <Home :size="24" class="mx-auto mb-1 text-gray-600" />
@@ -234,8 +234,14 @@ const scrolled = ref(false)
 const activeTab = ref(0)
 const tabs = ref<Array<{ label:string; slug:string; href:string }>>([])
 const tabsRef = ref<HTMLDivElement|null>(null)
+// Preview controls (for Admin live preview compatibility)
+const previewActive = ref<boolean>(false)
+const previewLayout = ref<any>(null)
+const layoutShowHeader = computed(()=> previewActive.value ? (previewLayout.value?.showHeader !== false) : true)
+const layoutShowTopTabs = computed(()=> previewActive.value ? (previewLayout.value?.showTopTabs !== false) : true)
+const layoutShowBottomNav = computed(()=> previewActive.value ? (previewLayout.value?.showBottomNav !== false) : true)
 function measureHeader(){ try{ const h = headerRef.value?.getBoundingClientRect().height; if (typeof h === 'number' && h > 0) headerH.value = Math.round(h) }catch{} }
-const tabsTopPx = computed(()=> headerH.value)
+const tabsTopPx = computed(()=> layoutShowHeader.value ? headerH.value : 0)
 
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
@@ -322,16 +328,34 @@ function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0
 function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'SHEIN' } }
 
 onMounted(async ()=>{
-  // Load published tabs for device
+  // Detect admin preview token (optional): render preview content without affecting live design defaults
   try{
-    const r = await fetch('/api/tabs/list?device=MOBILE', { credentials:'include' })
-    const j = await r.json()
-    const list = Array.isArray(j.tabs) ? j.tabs : []
-    tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
-    const paramSlug = String(route.params.slug||'')
-    const initial = paramSlug || (tabs.value[0]?.slug || 'all')
-    if (initial) await loadTab(initial)
+    const u = new URL(location.href)
+    const tok = u.searchParams.get('previewToken') || u.searchParams.get('token') || ''
+    if (tok) {
+      previewActive.value = true
+      try{
+        const r = await fetch(`/api/admin/tabs/preview/${encodeURIComponent(tok)}`, { credentials:'include' })
+        const j = await r.json()
+        const payload = j?.content || j
+        const sections = Array.isArray(payload?.sections) ? payload.sections : (Array.isArray(payload?.content?.sections)? payload.content.sections : [])
+        tabSections.value = sections
+        previewLayout.value = payload?.layout || null
+      }catch{}
+    }
   }catch{}
+  // Load published tabs for device
+  if (!previewActive.value){
+    try{
+      const r = await fetch('/api/tabs/list?device=MOBILE', { credentials:'include' })
+      const j = await r.json()
+      const list = Array.isArray(j.tabs) ? j.tabs : []
+      tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
+      const paramSlug = String(route.params.slug||'')
+      const initial = paramSlug || (tabs.value[0]?.slug || 'all')
+      if (initial) await loadTab(initial)
+    }catch{}
+  }
   // Categories
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')
@@ -405,6 +429,7 @@ onMounted(async ()=>{
 
 // React to route param change (navigating between tabs)
 watch(()=> route.params.slug, (nv, ov)=>{
+  if (previewActive.value) return
   const slug = String(nv||'')
   if (slug && slug !== String(ov||'')) loadTab(slug)
 })
