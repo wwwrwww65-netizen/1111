@@ -260,11 +260,23 @@ async function loadTab(slug:string){
     // Impression tracking
     fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
   }catch{ tabSections.value = [] }
-  // If loaded sections contain only unsupported types, fallback to home content
+  // If loaded sections are empty or effectively not renderable, fallback to home content
   try{
-    const supported = new Set(['hero','promotiles','midpromo','productcarousel','categories','brands'])
-    const hasRenderable = Array.isArray(tabSections.value) && tabSections.value.some((s:any)=> supported.has(String(s?.type||'').toLowerCase()))
-    if (!hasRenderable) tabSections.value = []
+    function isRenderableSection(s:any): boolean {
+      const t = String(s?.type||'').toLowerCase();
+      const cfg = s?.config||{};
+      if (t==='hero') return Array.isArray(cfg.slides) && cfg.slides.length>0;
+      if (t==='promotiles') return Array.isArray(cfg.tiles) && cfg.tiles.length>0;
+      if (t==='categories' || t==='brands') {
+        const list = Array.isArray(cfg[t]) ? cfg[t] : [];
+        return list.length>0;
+      }
+      if (t==='productcarousel') return true; // show placeholders even without data
+      if (t==='midpromo') return !!(cfg.image || cfg.text);
+      return false;
+    }
+    const hasRenderable = Array.isArray(tabSections.value) && tabSections.value.some(isRenderableSection);
+    if (!hasRenderable) tabSections.value = [];
   }catch{}
   const idx = tabs.value.findIndex(t=> t.slug === slug)
   if (idx >= 0) activeTab.value = idx
