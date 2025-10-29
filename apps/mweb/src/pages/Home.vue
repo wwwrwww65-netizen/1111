@@ -25,14 +25,14 @@
 
     <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
       <div ref="tabsRef" class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
-        <button v-for="(t,i) in tabs" :key="t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
+        <button v-for="(t,i) in tabs" :key="t.slug || t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ (t.label || t) }}
           <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
         </button>
       </div>
     </div>
 
-    <div class="w-screen px-0">
+    <div v-if="!tabSections.length" class="w-screen px-0">
       <div class="relative w-full h-[257.172px]">
         <swiper
           :modules="[Autoplay]"
@@ -172,6 +172,14 @@
       <div style="height:80px" />
     </div>
 
+    <!-- Dynamic tab content when available (rendered in home layout) -->
+    <div v-else class="w-screen px-0">
+      <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-3 py-2">
+        <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
+      </section>
+      <div style="height:80px" />
+    </div>
+
     <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
       <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
         <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
@@ -204,7 +212,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { apiGet } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
@@ -214,16 +222,36 @@ import { Autoplay } from 'swiper/modules'
 import 'swiper/css'
 
 const router = useRouter()
+const route = useRoute()
 const cart = useCart()
 const wishlist = useWishlist()
 const headerRef = ref<HTMLElement|null>(null)
 const headerH = ref<number>(64)
 const scrolled = ref(false)
 const activeTab = ref(0)
-const tabs = ref<Array<{ label:string; href:string }>>([])
+const tabs = ref<Array<{ label:string; slug:string; href:string }>>([])
 const tabsRef = ref<HTMLDivElement|null>(null)
 function measureHeader(){ try{ const h = headerRef.value?.getBoundingClientRect().height; if (typeof h === 'number' && h > 0) headerH.value = Math.round(h) }catch{} }
 const tabsTopPx = computed(()=> headerH.value)
+
+// Selected tab content from Admin Tabs Designer
+const tabSections = ref<any[]>([])
+const currentSlug = ref<string>('')
+function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return Hero; if (t==='promoTiles') return PromoTiles; if (t==='midPromo') return MidPromo; if (t==='productCarousel') return ProductCarousel; if (t==='categories'||t==='brands') return Categories; return Unknown }
+async function loadTab(slug:string){
+  currentSlug.value = slug
+  try{
+    const r = await fetch(`/api/tabs/${encodeURIComponent(slug)}`)
+    const j = await r.json()
+    const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
+    tabSections.value = sections
+    // Impression tracking
+    fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
+  }catch{ tabSections.value = [] }
+  const idx = tabs.value.findIndex(t=> t.slug === slug)
+  if (idx >= 0) activeTab.value = idx
+}
+function clickTrack(){ try{ if(currentSlug.value) fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
 // Banner responsive sources
 const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
@@ -296,7 +324,10 @@ onMounted(async ()=>{
     const r = await fetch('/api/tabs/list?device=MOBILE', { credentials:'include' })
     const j = await r.json()
     const list = Array.isArray(j.tabs) ? j.tabs : []
-    tabs.value = list.map((t:any)=> ({ label: t.label, href: `/tabs/${encodeURIComponent(t.slug)}` }))
+    tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
+    const paramSlug = String(route.params.slug||'')
+    const initial = paramSlug || (tabs.value[0]?.slug || 'all')
+    if (initial) await loadTab(initial)
   }catch{}
   // Categories
   try {
@@ -369,6 +400,12 @@ onMounted(async ()=>{
   }catch{}
 })
 
+// React to route param change (navigating between tabs)
+watch(()=> route.params.slug, (nv, ov)=>{
+  const slug = String(nv||'')
+  if (slug && slug !== String(ov||'')) loadTab(slug)
+})
+
 const rows = 3
 const catRows = computed(()=>{
   const list = categories.value || []
@@ -409,6 +446,14 @@ function addToCartFY(p: any){
     cart.add({ id, title, price, img }, 1)
   }catch{}
 }
+
+// Lightweight renderers for Admin Tabs sections (light theme)
+const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div></div>` }
+const PromoTiles = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-2 gap-2\"><div v-for=\"(t,i) in (cfg.tiles||[])\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><img v-if=\"t.image\" :src=\"t.image\" class=\"w-full h-[100px] object-cover\" /><div v-if=\"t.title\" class=\"p-2 text-xs text-gray-900\">{{ t.title }}</div></div></div>` }
+const MidPromo = { props:['cfg'], template:`<div class=\"p-3\"><a :href=\"cfg.href||'#'\"><img v-if=\"cfg.image\" :src=\"cfg.image\" class=\"w-full h-[90px] object-cover rounded border border-gray-200\" /><div v-if=\"cfg.text\" class=\"-mt-6 ps-3 text-[12px] text-white\">{{ cfg.text }}</div></a></div>` }
+const ProductCarousel = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"cfg.title\" class=\"mb-2 font-semibold text-gray-900\">{{ cfg.title }}</div><div class=\"grid grid-cols-2 gap-2\"><div v-for=\"i in 6\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><div class=\"h-[120px] bg-gray-100\"></div><div class=\"p-2\"><div class=\"text-xs text-gray-900\">اسم منتج</div><div v-if=\"cfg.showPrice\" class=\"text-red-600 text-xs\">99.00</div></div></div></div></div>` }
+const Categories = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-3 gap-2\"><div v-for=\"(c,i) in (cfg.categories||cfg.brands||[])\" :key=\"i\" class=\"text-center\"><img v-if=\"c.image\" :src=\"c.image\" class=\"w-full h-[72px] object-cover rounded border border-gray-200\" /><div class=\"mt-1 text-[11px] text-gray-800\">{{ c.name||'-' }}</div></div></div>` }
+const Unknown = { template:`<div class=\"p-3 text-xs text-gray-500\">قسم غير مدعوم</div>` }
 </script>
 
 <style scoped>
