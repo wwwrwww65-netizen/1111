@@ -1,39 +1,38 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
-    <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', lightHeader ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
+    <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
       <div class="w-screen px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة" @click="go('/categories')">
-            <Menu :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <Menu :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="الإشعارات" @click="go('/notifications')">
-            <Bell :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
-        <div :class="['text-lg sm:text-xl font-semibold', lightHeader ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
+        <div :class="['text-lg sm:text-xl font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="السلة" @click="go('/cart')">
-            <ShoppingCart :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <ShoppingCart :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="البحث" @click="go('/search')">
-            <Search :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <Search :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
       </div>
     </div>
 
-    <div :class="[lightHeader ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
+    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
       <div ref="tabsRef" class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
-        <button v-for="(t,i) in tabs" :key="t.slug || t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (lightHeader ? 'text-gray-700' : 'text-white')]">
+        <button v-for="(t,i) in tabs" :key="t.slug || t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
           {{ (t.label || t) }}
-          <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (lightHeader ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
+          <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
         </button>
       </div>
     </div>
 
-    <template v-if="!tabSections.length">
-    <div class="w-screen px-0">
+    <div v-if="!tabSections.length" class="w-screen px-0">
       <div class="relative w-full h-[257.172px]">
         <swiper
           :modules="[Autoplay]"
@@ -172,16 +171,14 @@
 
       <div style="height:80px" />
     </div>
-    </template>
 
-    <template v-else>
-      <div class="w-screen px-0">
-        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-3 py-2">
-          <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
-        </section>
-        <div style="height:80px" />
-      </div>
-    </template>
+    <!-- Dynamic tab content when available (rendered in home layout) -->
+    <div v-else class="w-screen px-0">
+      <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-3 py-2">
+        <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
+      </section>
+      <div style="height:80px" />
+    </div>
 
     <nav class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
       <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
@@ -216,7 +213,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { apiGet, API_BASE } from '@/lib/api'
+import { apiGet } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
 import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home, ChevronLeft, Store } from 'lucide-vue-next'
@@ -231,7 +228,6 @@ const wishlist = useWishlist()
 const headerRef = ref<HTMLElement|null>(null)
 const headerH = ref<number>(64)
 const scrolled = ref(false)
-const lightHeader = computed(()=> scrolled.value || !!String(route.params.slug||'') || (tabSections.value.length>0))
 const activeTab = ref(0)
 const tabs = ref<Array<{ label:string; slug:string; href:string }>>([])
 const tabsRef = ref<HTMLDivElement|null>(null)
@@ -241,59 +237,21 @@ const tabsTopPx = computed(()=> headerH.value)
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
-function renderBlock(s:any){
-  const t = String(s?.type || '').toLowerCase();
-  if (t === 'hero') return Hero;
-  if (t === 'promotiles') return PromoTiles;
-  if (t === 'midpromo') return MidPromo;
-  if (t === 'productcarousel') return ProductCarousel;
-  if (t === 'categories' || t === 'brands') return Categories;
-  if (t === 'masonryforyou') return MasonryForYou;
-  return Unknown;
-}
+function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return Hero; if (t==='promoTiles') return PromoTiles; if (t==='midPromo') return MidPromo; if (t==='productCarousel') return ProductCarousel; if (t==='categories'||t==='brands') return Categories; return Unknown }
 async function loadTab(slug:string){
   currentSlug.value = slug
   try{
-    const j = await apiGet(`/api/tabs/${encodeURIComponent(slug)}`)
-    const sections = Array.isArray(j?.content?.sections)
-      ? j.content.sections
-      : (Array.isArray(j?.sections) ? j.sections : [])
-    tabSections.value = Array.isArray(sections) ? sections : []
+    const r = await fetch(`/api/tabs/${encodeURIComponent(slug)}`)
+    const j = await r.json()
+    const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
+    tabSections.value = sections
     // Impression tracking
-    fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
+    fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
   }catch{ tabSections.value = [] }
-  // If loaded sections are empty or effectively not renderable, fallback to home content
-  try{
-    function isRenderableSection(s:any): boolean {
-      const t = String(s?.type||'').toLowerCase();
-      const cfg = s?.config||{};
-      if (t==='hero') return Array.isArray(cfg.slides) && cfg.slides.length>0;
-      if (t==='promotiles') return Array.isArray(cfg.tiles) && cfg.tiles.length>0;
-      if (t==='categories' || t==='brands') {
-        const list = Array.isArray(cfg[t]) ? cfg[t] : [];
-        return list.length>0;
-      }
-      if (t==='productcarousel') return true; // show placeholders even without data
-      if (t==='midpromo') return !!(cfg.image || cfg.text);
-      return false;
-    }
-    const hasRenderable = Array.isArray(tabSections.value) && tabSections.value.some(isRenderableSection);
-    if (!hasRenderable) tabSections.value = [];
-  }catch{}
   const idx = tabs.value.findIndex(t=> t.slug === slug)
   if (idx >= 0) activeTab.value = idx
 }
-function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
-
-async function loadPreview(token: string){
-  try{
-    const j = await apiGet(`/api/admin/tabs/preview/${encodeURIComponent(token)}`)
-    const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
-    tabSections.value = sections
-    const slug = String(j?.slug || j?.content?.slug || '')
-    if (slug) currentSlug.value = slug
-  }catch{ tabSections.value = [] }
-}
+function clickTrack(){ try{ if(currentSlug.value) fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
 // Banner responsive sources
 const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
@@ -363,13 +321,13 @@ function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image:
 onMounted(async ()=>{
   // Load published tabs for device
   try{
-    const j = await apiGet('/api/tabs/list?device=MOBILE')
-    const list = Array.isArray(j?.tabs) ? j.tabs : []
+    const r = await fetch('/api/tabs/list?device=MOBILE', { credentials:'include' })
+    const j = await r.json()
+    const list = Array.isArray(j.tabs) ? j.tabs : []
     tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
     const paramSlug = String(route.params.slug||'')
-    const token = String((route.query as any)?.token || '')
     const initial = paramSlug || (tabs.value[0]?.slug || 'all')
-    if (token) await loadPreview(token); else if (initial) await loadTab(initial)
+    if (initial) await loadTab(initial)
   }catch{}
   // Categories
   try {
@@ -448,11 +406,6 @@ watch(()=> route.params.slug, (nv, ov)=>{
   if (slug && slug !== String(ov||'')) loadTab(slug)
 })
 
-watch(()=> (route.query as any)?.token, (nv, ov)=>{
-  const token = String(nv||'')
-  if (token && token !== String(ov||'')) loadPreview(token)
-})
-
 const rows = 3
 const catRows = computed(()=>{
   const list = categories.value || []
@@ -495,13 +448,12 @@ function addToCartFY(p: any){
 }
 
 // Lightweight renderers for Admin Tabs sections (light theme)
-const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div><div v-else class=\"h-[200px] bg-gray-100 border border-gray-200 rounded\"></div></div>` }
+const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div></div>` }
 const PromoTiles = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-2 gap-2\"><div v-for=\"(t,i) in (cfg.tiles||[])\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><img v-if=\"t.image\" :src=\"t.image\" class=\"w-full h-[100px] object-cover\" /><div v-if=\"t.title\" class=\"p-2 text-xs text-gray-900\">{{ t.title }}</div></div></div>` }
 const MidPromo = { props:['cfg'], template:`<div class=\"p-3\"><a :href=\"cfg.href||'#'\"><img v-if=\"cfg.image\" :src=\"cfg.image\" class=\"w-full h-[90px] object-cover rounded border border-gray-200\" /><div v-if=\"cfg.text\" class=\"-mt-6 ps-3 text-[12px] text-white\">{{ cfg.text }}</div></a></div>` }
 const ProductCarousel = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"cfg.title\" class=\"mb-2 font-semibold text-gray-900\">{{ cfg.title }}</div><div class=\"grid grid-cols-2 gap-2\"><div v-for=\"i in 6\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><div class=\"h-[120px] bg-gray-100\"></div><div class=\"p-2\"><div class=\"text-xs text-gray-900\">اسم منتج</div><div v-if=\"cfg.showPrice\" class=\"text-red-600 text-xs\">99.00</div></div></div></div></div>` }
 const Categories = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-3 gap-2\"><div v-for=\"(c,i) in (cfg.categories||cfg.brands||[])\" :key=\"i\" class=\"text-center\"><img v-if=\"c.image\" :src=\"c.image\" class=\"w-full h-[72px] object-cover rounded border border-gray-200\" /><div class=\"mt-1 text-[11px] text-gray-800\">{{ c.name||'-' }}</div></div></div>` }
 const Unknown = { template:`<div class=\"p-3 text-xs text-gray-500\">قسم غير مدعوم</div>` }
-const MasonryForYou = { props:['cfg'], template:`<div class=\"p-3\"><div class=\"grid grid-cols-2 md:grid-cols-3 gap-1\"><div v-for=\"i in 8\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><div class=\"w-full h-[160px] bg-gray-100\"></div><div class=\"p-2\"><div class=\"text-xs text-gray-900\">منتج</div></div></div></div></div>` }
 </script>
 
 <style scoped>
