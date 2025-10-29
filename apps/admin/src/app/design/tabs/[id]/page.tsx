@@ -200,8 +200,12 @@ export default function TabPageBuilder(): JSX.Element {
     try{
       const token = await signPreviewToken();
       const slug = page?.slug || 'preview';
-      // Use Home.vue live route for 1:1 preview
-      return `https://m.jeeey.com/tabs/${encodeURIComponent(slug)}?token=${encodeURIComponent(String(token||''))}`;
+      const payload = encodeURIComponent(JSON.stringify(content||{ sections: [] }));
+      // Use Home.vue live route for 1:1 preview; include token (if sign worked) and payload as fallback
+      const qs = new URLSearchParams();
+      if (token) qs.set('token', String(token));
+      if (payload) qs.set('payload', payload);
+      return `https://m.jeeey.com/tabs/${encodeURIComponent(slug)}?${qs.toString()}`;
     }catch{ return 'https://m.jeeey.com/__admin_preview'; }
   }
   async function openExternalPreview(){ try{ const url = await buildPreviewUrl(); window.open(url, '_blank'); }catch{} }
@@ -432,7 +436,9 @@ function LivePreviewFrame({ content, device, slug }:{ content:any; device:Device
     try{
       const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device, content }) });
       const j = await r.json(); const token = j?.token||'';
-      setSrc(`https://m.jeeey.com/tabs/${encodeURIComponent(slug||'preview')}?token=${encodeURIComponent(token)}`);
+      const payload = encodeURIComponent(JSON.stringify(content||{ sections: [] }));
+      const qs = new URLSearchParams(); if (token) qs.set('token', token); if (payload) qs.set('payload', payload);
+      setSrc(`https://m.jeeey.com/tabs/${encodeURIComponent(slug||'preview')}?${qs.toString()}`);
     }catch{ setSrc(''); }
   })(); }, [content, device, slug]);
   const h = device==='MOBILE'? 820 : 920;

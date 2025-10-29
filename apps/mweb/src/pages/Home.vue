@@ -246,7 +246,16 @@ const tabsTopPx = computed(()=> layoutShowHeader.value ? headerH.value : 0)
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
-function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return Hero; if (t==='promoTiles') return PromoTiles; if (t==='midPromo') return MidPromo; if (t==='productCarousel') return ProductCarousel; if (t==='categories'||t==='brands') return Categories; if (t==='masonryForYou') return MasonryForYou; return Unknown }
+function renderBlock(s:any){ 
+  const t=String(s?.type||'').toLowerCase();
+  if (t==='hero') return Hero; 
+  if (t==='promotiles' || t==='promotitles') return PromoTiles; 
+  if (t==='midpromo') return MidPromo; 
+  if (t==='productcarousel') return ProductCarousel; 
+  if (t==='categories'||t==='brands') return Categories; 
+  if (t==='masonryforyou' || t==='masonry') return MasonryForYou; 
+  return Unknown 
+}
 async function loadTab(slug:string){
   currentSlug.value = slug
   try{
@@ -332,15 +341,29 @@ onMounted(async ()=>{
   try{
     const u = new URL(location.href)
     const tok = u.searchParams.get('previewToken') || u.searchParams.get('token') || ''
+    const raw = u.searchParams.get('payload') || ''
+    if (raw) {
+      try{
+        const payload = JSON.parse(decodeURIComponent(raw))
+        const sections = Array.isArray(payload?.sections) ? payload.sections : (Array.isArray(payload?.content?.sections)? payload.content.sections : [])
+        if (sections && sections.length){
+          previewActive.value = true
+          tabSections.value = sections
+          previewLayout.value = payload?.layout || null
+        }
+      }catch{}
+    }
     if (tok) {
-      previewActive.value = true
       try{
         const r = await fetch(`/api/admin/tabs/preview/${encodeURIComponent(tok)}`, { credentials:'include' })
         const j = await r.json()
         const payload = j?.content || j
         const sections = Array.isArray(payload?.sections) ? payload.sections : (Array.isArray(payload?.content?.sections)? payload.content.sections : [])
-        tabSections.value = sections
-        previewLayout.value = payload?.layout || null
+        if (sections && sections.length){
+          previewActive.value = true
+          tabSections.value = sections
+          previewLayout.value = payload?.layout || null
+        }
       }catch{}
     }
   }catch{}
