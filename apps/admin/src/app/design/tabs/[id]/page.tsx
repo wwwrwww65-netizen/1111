@@ -76,6 +76,7 @@ export default function TabPageBuilder(): JSX.Element {
       ];
       const midPromo = { image:'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', text:'قسائم إضافية + شحن مجاني', href:'/products' };
       const blueprint = {
+        layout: { showHeader: true, showTopTabs: true, showBottomNav: true, theme: 'light' },
         sections: [
           { type:'hero', config: { slides: heroSlides } },
           { type:'promoTiles', config: { tiles: promoTiles } },
@@ -245,6 +246,31 @@ export default function TabPageBuilder(): JSX.Element {
               <button className="btn btn-outline btn-sm" onClick={importFromMwebHome}>استيراد تصميم الرئيسية (m.jeeey.com)</button>
             </div>
           </div>
+        {/* Layout controls */}
+        <div className="toolbar" style={{display:'grid', gap:8}}>
+          <div style={{fontWeight:600}}>التخطيط</div>
+          <div style={{display:'flex', gap:12, flexWrap:'wrap', alignItems:'center'}}>
+            <label style={{display:'inline-flex', alignItems:'center', gap:6}}>
+              <input type="checkbox" checked={!!(content as any)?.layout?.showHeader} onChange={e=> setContent((c:any)=> ({ ...c, layout: { ...(c?.layout||{}), showHeader: e.target.checked } }))} />
+              هيدر
+            </label>
+            <label style={{display:'inline-flex', alignItems:'center', gap:6}}>
+              <input type="checkbox" checked={!!(content as any)?.layout?.showTopTabs} onChange={e=> setContent((c:any)=> ({ ...c, layout: { ...(c?.layout||{}), showTopTabs: e.target.checked } }))} />
+              شريط التبويبات
+            </label>
+            <label style={{display:'inline-flex', alignItems:'center', gap:6}}>
+              <input type="checkbox" checked={!!(content as any)?.layout?.showBottomNav} onChange={e=> setContent((c:any)=> ({ ...c, layout: { ...(c?.layout||{}), showBottomNav: e.target.checked } }))} />
+              شريط سفلي
+            </label>
+            <div style={{display:'inline-flex', alignItems:'center', gap:8}}>
+              <span className="muted">الثيم</span>
+              <select value={String((content as any)?.layout?.theme||'light')} onChange={e=> setContent((c:any)=> ({ ...c, layout: { ...(c?.layout||{}), theme: e.target.value } }))} className="select" style={{minWidth:140}}>
+                <option value="light">Light (مثل m.jeeey.com)</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
+          </div>
+        </div>
           <div className="toolbar">
             <button onClick={()=> addSection('hero')} className="btn btn-outline btn-sm">Hero</button>
             <button onClick={()=> addSection('promoTiles')} className="btn btn-outline btn-sm">Promo Tiles</button>
@@ -610,13 +636,159 @@ function SectionInspector({ section, onChange, openMedia, openCategories, openPr
 function TabPreview({ content, device, lang }:{ content:any; device:Device; lang:'ar'|'en' }): JSX.Element {
   const sections: any[] = Array.isArray(content?.sections) ? content.sections : [];
   const isMobile = device==='MOBILE';
+  const layout = (content && (content as any).layout) || {};
+  const showHeader = layout.showHeader !== false;
+  const showTopTabs = layout.showTopTabs !== false;
+  const showBottomNav = layout.showBottomNav !== false;
+  const theme = String(layout.theme||'light').toLowerCase();
+  const isLight = theme !== 'dark';
+  const shellBg = isLight ? '#f7f7f7' : '#0b0e14';
+  const cardBorder = isLight ? '#e5e7eb' : '#1c2333';
+  const textMuted = isLight ? '#6b7280' : '#94a3b8';
+  const headerText = isLight ? '#111827' : '#e2e8f0';
+  const [tabs, setTabs] = React.useState<Array<{slug:string;label:string}>>([]);
+  React.useEffect(()=>{ if (!showTopTabs) return; fetch('/api/tabs/list?device=MOBILE', { credentials:'include' }).then(r=> r.json()).then(j=> setTabs(Array.isArray(j.tabs)? j.tabs: [])).catch(()=>{}); },[showTopTabs]);
   return (
     <div style={{ width:'100%', padding: 12 }}>
-      <div style={{ marginBottom: 8, color:'#94a3b8', fontSize:12 }}>المعاينة: {device==='MOBILE'? 'موبايل' : 'ديسكتوب'} • اللغة: {lang.toUpperCase()}</div>
-      <div style={{ maxWidth: isMobile? 420 : 980, margin:'0 auto', border:'1px solid #1c2333', borderRadius:12, overflow:'hidden', background:'#0b0e14' }}>
+      <div style={{ marginBottom: 8, color:textMuted, fontSize:12 }}>المعاينة: {device==='MOBILE'? 'موبايل' : 'ديسكتوب'} • اللغة: {lang.toUpperCase()} • الثيم: {isLight? 'Light':'Dark'}</div>
+      <div style={{ maxWidth: isMobile? 420 : 980, margin:'0 auto', border:`1px solid ${cardBorder}`, borderRadius:12, overflow:'hidden', background:shellBg }}>
+        {/* Header (shell) */}
+        {showHeader && (
+          <div style={{ position:'sticky', top:0, zIndex:10, background:isLight? 'rgba(255,255,255,0.95)':'#0b0e14', backdropFilter:'blur(6px)', height:48, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 12px', borderBottom:`1px solid ${cardBorder}` }}>
+            <div style={{ display:'flex', gap:8 }}>
+              <div style={{ width:36, height:36, display:'grid', placeItems:'center', color:headerText }}>☰</div>
+              <div style={{ width:36, height:36, display:'grid', placeItems:'center', color:headerText }}>🔔</div>
+            </div>
+            <div style={{ color:headerText, fontWeight:700 }}>jeeey</div>
+            <div style={{ display:'flex', gap:8 }}>
+              <div style={{ width:36, height:36, display:'grid', placeItems:'center', color:headerText }}>🛒</div>
+              <div style={{ width:36, height:36, display:'grid', placeItems:'center', color:headerText }}>🔎</div>
+            </div>
+          </div>
+        )}
+        {/* Top Tabs bar (shell) */}
+        {showTopTabs && (
+          <div style={{ position:'sticky', top: showHeader? 48: 0, zIndex:9, background:isLight? 'rgba(255,255,255,0.95)':'transparent', backdropFilter: isLight? 'blur(6px)':'none', padding:'8px 12px', borderBottom: isLight? `1px solid ${cardBorder}`:'none' }}>
+            <div style={{ display:'flex', gap:12, overflow:'auto' }}>
+              {tabs.map((t:any, i:number)=> (
+                <button key={i} style={{ background:isLight? 'transparent':'transparent', color:isLight? '#111827':'#e2e8f0', border:'0', padding:'6px 8px', borderBottom: i===0? `2px solid ${isLight? '#111':'#fff'}`:'2px solid transparent' }}>{t.label}</button>
+              ))}
+              {!tabs.length && (
+                <>
+                  <button style={{ background:'transparent', color:isLight? '#111827':'#e2e8f0', border:'0', padding:'6px 8px', borderBottom:`2px solid ${isLight? '#111':'#fff'}` }}>الكل</button>
+                  <button style={{ background:'transparent', color:textMuted, border:'0', padding:'6px 8px' }}>نساء</button>
+                  <button style={{ background:'transparent', color:textMuted, border:'0', padding:'6px 8px' }}>رجال</button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Sections */}
         {sections.map((s:any, idx:number)=> {
           const cfg = s?.config||{};
-          if (s.type==='hero'){
+          const t = String(s?.type||'');
+          const cols = isMobile? 2 : 5;
+          // Light theme renderers (match m.jeeey.com)
+          if (isLight) {
+            if (t==='hero'){
+              const slides = Array.isArray(cfg.slides)? cfg.slides : (cfg.image? [{ image: cfg.image, href: cfg.ctaHref||'' }]: []);
+              return (
+                <div key={idx} style={{ position:'relative' }}>
+                  {slides.length? (
+                    <div style={{ display:'grid', gridTemplateColumns: `repeat(${slides.length}, 100%)`, overflowX:'auto', scrollSnapType:'x mandatory' }}>
+                      {slides.map((sl:any, i:number)=> (
+                        <a key={i} href={sl.href||'#'} style={{ display:'block', scrollSnapAlign:'start' }}>
+                          <img src={sl.image||''} alt="slide" style={{ width:'100%', height: isMobile? 257: 360, objectFit:'cover' }} />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ height: isMobile? 257: 360, background:'#e5e7eb' }} />
+                  )}
+                </div>
+              );
+            }
+            if (t==='promoTiles'){
+              const tiles = Array.isArray(cfg.tiles)? cfg.tiles: [];
+              const gridCols = isMobile? 3 : 6;
+              return (
+                <div key={idx} style={{ padding:12, background:'#ffffff', borderTop:`1px solid ${cardBorder}` }}>
+                  <div style={{ display:'grid', gridTemplateColumns:`repeat(${gridCols}, minmax(0,1fr))`, gap:8 }}>
+                    {tiles.map((it:any,i:number)=> (
+                      <div key={i} style={{ position:'relative', height:50, border:`1px solid ${cardBorder}`, borderRadius:8, overflow:'hidden', background:'#fff' }}>
+                        {it.image && <img src={it.image} alt={it.title||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            if (t==='midPromo'){
+              return (
+                <div key={idx} style={{ padding:'12px 12px 0 12px' }}>
+                  <div style={{ position:'relative', height:90, border:`1px solid ${cardBorder}`, borderRadius:6, overflow:'hidden', background:'#fff' }}>
+                    {cfg.image && <img src={cfg.image} alt={cfg.text||''} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} />}
+                    {cfg.text && <div style={{ position:'absolute', left:12, right:12, top:'50%', transform:'translateY(-50%)', color:'#fff', fontSize:12, fontWeight:600 }}>{cfg.text}</div>}
+                  </div>
+                </div>
+              );
+            }
+            if (t==='productCarousel'){
+              const count = isMobile? 6 : 10;
+              return (
+                <div key={idx} style={{ padding:12 }}>
+                  {cfg.title && <div style={{ marginBottom:8, fontWeight:700, color:'#111827' }}>{cfg.title}</div>}
+                  <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, minmax(0,1fr))`, gap:8 }}>
+                    {Array.from({ length: count }).map((_,i)=> (
+                      <div key={i} style={{ border:`1px solid ${cardBorder}`, borderRadius:6, overflow:'hidden', background:'#fff' }}>
+                        <div style={{ height:120, background:'#f3f4f6' }} />
+                        <div style={{ padding:8 }}>
+                          <div style={{ height:32, fontSize:12, color:'#111827' }} className="line-2">اسم منتج</div>
+                          {cfg.showPrice && <div style={{ marginTop:4, color:'#ef4444', fontWeight:700, fontSize:12 }}>99.00</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            if (t==='categories' || t==='brands'){
+              const list = Array.isArray(cfg[t])? cfg[t] : [];
+              const colCount = isMobile? 3 : 6;
+              return (
+                <div key={idx} style={{ padding:12 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:`repeat(${colCount}, minmax(0,1fr))`, gap:8 }}>
+                    {list.map((it:any,i:number)=> (
+                      <div key={i} style={{ textAlign:'center' }}>
+                        {it.image ? (<img src={it.image} alt={it.name||''} style={{ width:'100%', height:isMobile? 72: 90, objectFit:'cover', borderRadius:10, border:`1px solid ${cardBorder}` }} />) : (<div style={{ height:isMobile? 72: 90, background:'#f3f4f6', borderRadius:10 }} />)}
+                        <div style={{ marginTop:6, fontSize:12, color:'#111827' }} className="line-2">{it.name||'-'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            if (t==='masonryForYou'){
+              return (
+                <div key={idx} style={{ padding:12 }}>
+                  <div style={{ display:'grid', gridTemplateColumns: isMobile? 'repeat(2, minmax(0,1fr))':'repeat(3, minmax(0,1fr))', gap:6 }}>
+                    {Array.from({ length: isMobile? 8: 9 }).map((_,i)=> (
+                      <div key={i} style={{ background:'#fff', border:`1px solid ${cardBorder}`, borderRadius:6, overflow:'hidden' }}>
+                        <div style={{ width:'100%', height:160, background:'#f3f4f6' }} />
+                        <div style={{ padding:8 }}>
+                          <div style={{ fontSize:12, color:'#111827' }}>منتج</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            // Unknown
+            return (<div key={idx} style={{ padding:12 }}><div className="muted">قسم غير مدعوم في المعاينة</div></div>);
+          }
+          // Dark theme renderers (existing)
+          if (t==='hero'){
             const slides = Array.isArray(cfg.slides)? cfg.slides : (cfg.image? [{ image: cfg.image, href: cfg.ctaHref||'' }]: []);
             return (
               <div key={idx} style={{ position:'relative' }}>
@@ -634,23 +806,23 @@ function TabPreview({ content, device, lang }:{ content:any; device:Device; lang
               </div>
             );
           }
-          if (s.type==='promoTiles'){
+          if (t==='promoTiles'){
             const tiles = Array.isArray(cfg.tiles)? cfg.tiles: [];
-            const cols = isMobile? 2 : 4;
+            const gridCols = isMobile? 2 : 4;
             return (
               <div key={idx} style={{ padding: 12 }}>
-                <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, minmax(0,1fr))`, gap:12 }}>
-                  {tiles.map((t:any, i:number)=> (
+                <div style={{ display:'grid', gridTemplateColumns:`repeat(${gridCols}, minmax(0,1fr))`, gap:12 }}>
+                  {tiles.map((it:any, i:number)=> (
                     <div key={i} style={{ background:'#0f1420', border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
-                      {t.image ? <img src={t.image} alt={t.title||''} style={{ width:'100%', height: isMobile? 100: 140, objectFit:'cover' }} /> : <div style={{ height:isMobile? 100: 140 }} className="muted" />}
-                      {t.title && <div style={{ padding:'6px 8px' }}>{t.title}</div>}
+                      {it.image ? <img src={it.image} alt={it.title||''} style={{ width:'100%', height: isMobile? 100: 140, objectFit:'cover' }} /> : <div style={{ height:isMobile? 100: 140 }} className="muted" />}
+                      {it.title && <div style={{ padding:'6px 8px' }}>{it.title}</div>}
                     </div>
                   ))}
                 </div>
               </div>
             );
           }
-          if (s.type==='productCarousel'){
+          if (t==='productCarousel'){
             const count = isMobile? 6 : 10;
             return (
               <div key={idx} style={{ padding:12 }}>
@@ -669,12 +841,12 @@ function TabPreview({ content, device, lang }:{ content:any; device:Device; lang
               </div>
             );
           }
-          if (s.type==='categories' || s.type==='brands'){
-            const list = Array.isArray(cfg[s.type])? cfg[s.type] : [];
-            const cols = isMobile? 3 : 6;
+          if (t==='categories' || t==='brands'){
+            const list = Array.isArray(cfg[t])? cfg[t] : [];
+            const colCount = isMobile? 3 : 6;
             return (
               <div key={idx} style={{ padding:12 }}>
-                <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, minmax(0,1fr))`, gap:12 }}>
+                <div style={{ display:'grid', gridTemplateColumns:`repeat(${colCount}, minmax(0,1fr))`, gap:12 }}>
                   {list.map((it:any, i:number)=> (
                     <div key={i} style={{ textAlign:'center' }}>
                       {it.image ? (<img src={it.image} alt={it.name||''} style={{ width:'100%', height:isMobile? 72: 90, objectFit:'cover', borderRadius:10, border:'1px solid #1c2333' }} />) : (<div style={{ height:isMobile? 72: 90, background:'#101828', borderRadius:10 }} />)}
@@ -685,7 +857,7 @@ function TabPreview({ content, device, lang }:{ content:any; device:Device; lang
               </div>
             );
           }
-          if (s.type==='masonryForYou'){
+          if (t==='masonryForYou'){
             return (
               <div key={idx} style={{ padding:12 }}>
                 <div className="muted">For You (masonry) — المعاينة مكان حامل</div>
@@ -698,6 +870,33 @@ function TabPreview({ content, device, lang }:{ content:any; device:Device; lang
             </div>
           );
         })}
+        {/* Bottom Nav (shell) */}
+        {showBottomNav && (
+          <div style={{ position:'sticky', bottom:0, background:'#ffffff', borderTop:`1px solid ${cardBorder}`, padding:'8px 12px', display:'grid' }}>
+            <div style={{ display:'flex', justifyContent:'space-around' }}>
+              <div style={{ textAlign:'center', color:'#4b5563' }}>
+                <div>🏠</div>
+                <div style={{ fontSize:11 }}>الرئيسية</div>
+              </div>
+              <div style={{ textAlign:'center', color:'#4b5563' }}>
+                <div>🔳</div>
+                <div style={{ fontSize:11 }}>الفئات</div>
+              </div>
+              <div style={{ textAlign:'center', color:'#4b5563' }}>
+                <div>🆕</div>
+                <div style={{ fontSize:11 }}>جديد</div>
+              </div>
+              <div style={{ textAlign:'center', color:'#4b5563' }}>
+                <div>👜</div>
+                <div style={{ fontSize:11 }}>الحقيبة</div>
+              </div>
+              <div style={{ textAlign:'center', color:'#4b5563' }}>
+                <div>👤</div>
+                <div style={{ fontSize:11 }}>حسابي</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
