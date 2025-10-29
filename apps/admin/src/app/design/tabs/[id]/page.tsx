@@ -200,8 +200,8 @@ export default function TabPageBuilder(): JSX.Element {
     try{
       const token = await signPreviewToken();
       const slug = page?.slug || 'preview';
-      // Use mweb live shell for exact preview
-      return `https://m.jeeey.com/__admin_preview?token=${encodeURIComponent(String(token||''))}&device=${encodeURIComponent(previewDevice)}&slug=${encodeURIComponent(slug)}`;
+      // Use Home.vue live route for 1:1 preview
+      return `https://m.jeeey.com/tabs/${encodeURIComponent(slug)}?token=${encodeURIComponent(String(token||''))}`;
     }catch{ return 'https://m.jeeey.com/__admin_preview'; }
   }
   async function openExternalPreview(){ try{ const url = await buildPreviewUrl(); window.open(url, '_blank'); }catch{} }
@@ -334,7 +334,7 @@ export default function TabPageBuilder(): JSX.Element {
               </div>
             </div>
           <div className="panel" style={{ padding: 0 }}>
-            <LivePreviewFrame content={content} device={previewDevice} />
+            <LivePreviewFrame content={content} device={previewDevice} slug={page?.slug || 'preview'} />
           </div>
           </div>
 
@@ -425,22 +425,22 @@ export default function TabPageBuilder(): JSX.Element {
   );
 }
 
-function LivePreviewFrame({ content, device }:{ content:any; device:Device }): JSX.Element {
+function LivePreviewFrame({ content, device, slug }:{ content:any; device:Device; slug:string }): JSX.Element {
   const frameRef = React.useRef<HTMLIFrameElement|null>(null);
   const [src, setSrc] = React.useState<string>('');
   React.useEffect(()=>{ (async()=>{
     try{
       const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device, content }) });
       const j = await r.json(); const token = j?.token||'';
-      const params = new URLSearchParams({ token, device });
-      setSrc(`https://m.jeeey.com/__admin_preview?${params.toString()}`);
+      setSrc(`https://m.jeeey.com/tabs/${encodeURIComponent(slug||'preview')}?token=${encodeURIComponent(token)}`);
     }catch{ setSrc(''); }
-  })(); }, [content, device]);
+  })(); }, [content, device, slug]);
   const h = device==='MOBILE'? 820 : 920;
   // Post live updates to iframe for instant preview
   React.useEffect(()=>{
     try{
       const win = frameRef.current?.contentWindow; if (!win) return;
+      // No postMessage needed when using tokenized Home.vue route; kept for backward compatibility
       win.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com');
     }catch{}
   }, [content, device, src]);
