@@ -440,7 +440,12 @@ function LivePreviewFrame({ content, device }:{ content:any; device:Device }): J
     }catch{}
   }, [content, device, src]);
   return (
-    <iframe ref={frameRef} title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} />
+    <iframe ref={frameRef} title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} onLoad={()=>{
+      try{
+        const win = frameRef.current?.contentWindow; if (!win) return;
+        win.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com');
+      }catch{}
+    }} />
   );
 }
 

@@ -109,6 +109,8 @@ onMounted(async ()=>{
       }
     }catch{}
   })
+  // Notify parent (Admin) that preview frame is ready to receive payload
+  try{ if (window.parent) window.parent.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
 })
 
 const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div><div v-else class=\"h-[200px] bg-gray-100 border border-gray-200 rounded\"></div></div>` }
