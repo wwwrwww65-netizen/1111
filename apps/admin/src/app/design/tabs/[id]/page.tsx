@@ -189,14 +189,21 @@ export default function TabPageBuilder(): JSX.Element {
     await fetch(`${apiBase}/api/admin/tabs/pages/${id}/flush-cache`, { method:'POST', credentials:'include' });
   }
 
-  function buildPreviewUrl(): string {
+  async function signPreviewToken(): Promise<string|undefined> {
     try{
-      const q = `?device=${previewDevice}&payload=${encodeURIComponent(JSON.stringify(content))}`;
-      return `/__preview/tabs${q}`;
-    }catch{ return '/__preview/tabs'; }
+      const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device: previewDevice, content }) });
+      if (!r.ok) return undefined; const j = await r.json(); return j?.token;
+    }catch{ return undefined; }
   }
-  function openExternalPreview(){ try{ window.open(buildPreviewUrl(), '_blank'); }catch{} }
-  async function copyExternalPreview(){ try{ await navigator.clipboard.writeText((location.origin||'') + buildPreviewUrl()); }catch{} }
+  async function buildPreviewUrl(): Promise<string> {
+    try{
+      const token = await signPreviewToken();
+      const slug = page?.slug || 'preview';
+      return `/tabs/preview?token=${encodeURIComponent(String(token||''))}&device=${encodeURIComponent(previewDevice)}&slug=${encodeURIComponent(slug)}`;
+    }catch{ return '/tabs/preview'; }
+  }
+  async function openExternalPreview(){ try{ const url = await buildPreviewUrl(); window.open(url, '_blank'); }catch{} }
+  async function copyExternalPreview(){ try{ const url = await buildPreviewUrl(); await navigator.clipboard.writeText((location.origin||'') + url); }catch{} }
 
   return (
     <div className="container centered">
