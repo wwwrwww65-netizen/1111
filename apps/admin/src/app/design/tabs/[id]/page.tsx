@@ -200,8 +200,9 @@ export default function TabPageBuilder(): JSX.Element {
     try{
       const token = await signPreviewToken();
       const slug = page?.slug || 'preview';
-      return `/tabs/preview?token=${encodeURIComponent(String(token||''))}&device=${encodeURIComponent(previewDevice)}&slug=${encodeURIComponent(slug)}`;
-    }catch{ return '/tabs/preview'; }
+      // Use mweb live shell for exact preview
+      return `https://m.jeeey.com/__admin_preview?token=${encodeURIComponent(String(token||''))}&device=${encodeURIComponent(previewDevice)}&slug=${encodeURIComponent(slug)}`;
+    }catch{ return 'https://m.jeeey.com/__admin_preview'; }
   }
   async function openExternalPreview(){ try{ const url = await buildPreviewUrl(); window.open(url, '_blank'); }catch{} }
   async function copyExternalPreview(){ try{ const url = await buildPreviewUrl(); await navigator.clipboard.writeText((location.origin||'') + url); }catch{} }
@@ -327,9 +328,9 @@ export default function TabPageBuilder(): JSX.Element {
                 <button className="btn btn-outline btn-sm" onClick={copyExternalPreview}>نسخ رابط المعاينة</button>
               </div>
             </div>
-            <div className="panel" style={{ padding: 0 }}>
-              <TabPreview content={content} device={previewDevice} lang={previewLang} />
-            </div>
+          <div className="panel" style={{ padding: 0 }}>
+            <LivePreviewFrame content={content} device={previewDevice} />
+          </div>
           </div>
 
           {/* Inspector */}
@@ -416,6 +417,22 @@ export default function TabPageBuilder(): JSX.Element {
       <CategoriesPickerModal open={categoriesOpen} onClose={()=> setCategoriesOpen(false)} onSave={(items)=>{ try{ categoriesOnSaveRef.current && categoriesOnSaveRef.current(items); } finally { setCategoriesOpen(false); } }} />
       <ProductsPickerModal open={productsOpen} onClose={()=> setProductsOpen(false)} onSave={(items)=>{ try{ productsOnSaveRef.current && productsOnSaveRef.current(items); } finally { setProductsOpen(false); } }} />
     </div>
+  );
+}
+
+function LivePreviewFrame({ content, device }:{ content:any; device:Device }): JSX.Element {
+  const [src, setSrc] = React.useState<string>('');
+  React.useEffect(()=>{ (async()=>{
+    try{
+      const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device, content }) });
+      const j = await r.json(); const token = j?.token||'';
+      const params = new URLSearchParams({ token, device });
+      setSrc(`https://m.jeeey.com/__admin_preview?${params.toString()}`);
+    }catch{ setSrc(''); }
+  })(); }, [content, device]);
+  const h = device==='MOBILE'? 820 : 920;
+  return (
+    <iframe title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} />
   );
 }
 
