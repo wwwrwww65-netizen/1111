@@ -391,8 +391,9 @@ onMounted(async ()=>{
     const initial = paramSlug || (tabs.value[0]?.slug || 'all')
     if (!previewActive.value && initial) await loadTab(initial)
   }catch{}
-  // Notify parent admin that preview is ready
+  // Notify admin that preview is ready (parent iframe or opener window)
   try{ if (window.parent) window.parent.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
+  try{ if (window.opener) window.opener.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
   // Categories
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')

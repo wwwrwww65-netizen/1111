@@ -206,6 +206,28 @@ export default function TabPageBuilder(): JSX.Element {
     }catch{ return 'https://m.jeeey.com/__admin_preview'; }
   }
   async function openExternalPreview(){ try{ const url = await buildPreviewUrl(); window.open(url, '_blank'); }catch{} }
+  // Keep reference to external preview window and live update it via postMessage
+  const externalWinRef = React.useRef<Window|null>(null);
+  React.useEffect(()=>{
+    function onMsg(e: MessageEvent){
+      try{
+        const data:any = e.data; if (data && data.__tabs_preview_ready && externalWinRef.current){
+          externalWinRef.current.postMessage({ __tabs_preview: true, device: previewDevice, content }, 'https://m.jeeey.com');
+        }
+      }catch{}
+    }
+    window.addEventListener('message', onMsg);
+    return ()=> window.removeEventListener('message', onMsg);
+  }, [content, previewDevice]);
+  async function openExternalPreview(){
+    try{
+      const url = await buildPreviewUrl();
+      const w = window.open(url, '_blank');
+      if (w) externalWinRef.current = w;
+      // try to push initial content after small delay
+      setTimeout(()=>{ try{ if (externalWinRef.current) externalWinRef.current.postMessage({ __tabs_preview: true, device: previewDevice, content }, 'https://m.jeeey.com'); }catch{} }, 600);
+    }catch{}
+  }
   async function copyExternalPreview(){
     try{
       const url = await buildPreviewUrl();
@@ -446,6 +468,10 @@ function LivePreviewFrame({ content, device, slug }:{ content:any; device:Device
       win.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com');
     }catch{}
   }, [content, device, src]);
+  // Also update external window if open
+  React.useEffect(()=>{
+    try{ const w = externalWinRef.current; if (w && !w.closed){ w.postMessage({ __tabs_preview: true, device: previewDevice, content }, 'https://m.jeeey.com'); } }catch{}
+  }, [content, previewDevice]);
   return (
     <iframe ref={frameRef} title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} onLoad={()=>{
       try{
