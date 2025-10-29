@@ -205,7 +205,12 @@ export default function TabPageBuilder(): JSX.Element {
     }catch{ return 'https://m.jeeey.com/__admin_preview'; }
   }
   async function openExternalPreview(){ try{ const url = await buildPreviewUrl(); window.open(url, '_blank'); }catch{} }
-  async function copyExternalPreview(){ try{ const url = await buildPreviewUrl(); await navigator.clipboard.writeText((location.origin||'') + url); }catch{} }
+  async function copyExternalPreview(){
+    try{
+      const url = await buildPreviewUrl();
+      await navigator.clipboard.writeText(url);
+    }catch{}
+  }
 
   return (
     <div className="container centered">

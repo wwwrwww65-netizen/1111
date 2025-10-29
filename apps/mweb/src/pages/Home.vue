@@ -240,7 +240,7 @@ const tabsTopPx = computed(()=> headerH.value)
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
-function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return Hero; if (t==='promoTiles') return PromoTiles; if (t==='midPromo') return MidPromo; if (t==='productCarousel') return ProductCarousel; if (t==='categories'||t==='brands') return Categories; return Unknown }
+function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return Hero; if (t==='promoTiles') return PromoTiles; if (t==='midPromo') return MidPromo; if (t==='productCarousel') return ProductCarousel; if (t==='categories'||t==='brands') return Categories; if (t==='masonryForYou') return MasonryForYou; return Unknown }
 async function loadTab(slug:string){
   currentSlug.value = slug
   try{
@@ -454,7 +454,62 @@ function addToCartFY(p: any){
 const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div></div>` }
 const PromoTiles = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-2 gap-2\"><div v-for=\"(t,i) in (cfg.tiles||[])\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><img v-if=\"t.image\" :src=\"t.image\" class=\"w-full h-[100px] object-cover\" /><div v-if=\"t.title\" class=\"p-2 text-xs text-gray-900\">{{ t.title }}</div></div></div>` }
 const MidPromo = { props:['cfg'], template:`<div class=\"p-3\"><a :href=\"cfg.href||'#'\"><img v-if=\"cfg.image\" :src=\"cfg.image\" class=\"w-full h-[90px] object-cover rounded border border-gray-200\" /><div v-if=\"cfg.text\" class=\"-mt-6 ps-3 text-[12px] text-white\">{{ cfg.text }}</div></a></div>` }
-const ProductCarousel = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"cfg.title\" class=\"mb-2 font-semibold text-gray-900\">{{ cfg.title }}</div><div class=\"grid grid-cols-2 gap-2\"><div v-for=\"i in 6\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><div class=\"h-[120px] bg-gray-100\"></div><div class=\"p-2\"><div class=\"text-xs text-gray-900\">اسم منتج</div><div v-if=\"cfg.showPrice\" class=\"text-red-600 text-xs\">99.00</div></div></div></div></div>` }
+const ProductCarousel = {
+  props: ['cfg'],
+  setup(props){
+    const items = ref<Array<{ id?:string; image?:string; title?:string; price?:string }>>([])
+    const loading = ref<boolean>(false)
+    async function load(){
+      loading.value = true
+      try{
+        const cfg:any = props.cfg || {}
+        if (Array.isArray(cfg.products) && cfg.products.length){
+          items.value = cfg.products.map((p:any)=> ({ id:p.id, image:p.image||(p.images?.[0]||''), title:p.name||p.title||'', price: (p.price!=null? String(p.price) : '') }))
+        } else {
+          const limit = Number(cfg?.filter?.limit||12)
+          const data = await apiGet<any>(`/api/products?limit=${encodeURIComponent(String(limit))}`)
+          const arr = Array.isArray(data?.items)? data.items : []
+          items.value = arr.map((p:any)=> ({ id:p.id, image:(p.images?.[0]||''), title:(p.name||''), price:(p.price!=null? String(p.price)+' ر.س' : '') }))
+        }
+      } catch { items.value = [] } finally { loading.value = false }
+    }
+    onMounted(load)
+    watch(()=> props.cfg, ()=> load(), { deep:true })
+    return { items, loading }
+  },
+  template: `<div class="p-3">
+    <div v-if="cfg.title" class="mb-2 font-semibold text-gray-900">{{ cfg.title }}</div>
+    <div class="grid grid-cols-2 gap-2">
+      <div v-for="(p,i) in (items.length? items : Array.from({length:6}))" :key="p?.id || i" class="bg-white border border-gray-200 rounded overflow-hidden">
+        <div class="h-[120px] bg-gray-100">
+          <img v-if="p && p.image" :src="p.image" alt="" class="w-full h-full object-cover" />
+        </div>
+        <div class="p-2">
+          <div class="text-xs text-gray-900 line-clamp-2">{{ p?.title || 'اسم منتج' }}</div>
+          <div v-if="cfg.showPrice && (p?.price||'').length" class="text-red-600 text-xs mt-1">{{ p?.price }}</div>
+        </div>
+      </div>
+    </div>
+  </div>`
+}
+const MasonryForYou = {
+  props: ['cfg'],
+  setup(props){
+    const columns = computed(()=> Math.max(2, Number((props as any)?.cfg?.columns||2)))
+    return { columns, forYouShein }
+  },
+  template: `<div class="p-3">
+    <div class="grid" :style="{ gridTemplateColumns: 'repeat(' + columns + ', minmax(0,1fr))', gap: '6px' }">
+      <div v-for="(p,i) in forYouShein" :key="p.id||i" class="bg-white border border-gray-200 rounded overflow-hidden">
+        <img :src="p.image" :alt="p.title||''" class="w-full object-cover" />
+        <div class="p-2">
+          <div class="text-xs text-gray-900 line-clamp-2">{{ p.title || 'منتج' }}</div>
+          <div v-if="p.basePrice" class="text-red-600 text-xs mt-1">{{ p.basePrice }} ريال</div>
+        </div>
+      </div>
+    </div>
+  </div>`
+}
 const Categories = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-3 gap-2\"><div v-for=\"(c,i) in (cfg.categories||cfg.brands||[])\" :key=\"i\" class=\"text-center\"><img v-if=\"c.image\" :src=\"c.image\" class=\"w-full h-[72px] object-cover rounded border border-gray-200\" /><div class=\"mt-1 text-[11px] text-gray-800\">{{ c.name||'-' }}</div></div></div>` }
 const Unknown = { template:`<div class=\"p-3 text-xs text-gray-500\">قسم غير مدعوم</div>` }
 </script>
