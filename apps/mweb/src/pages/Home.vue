@@ -216,7 +216,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { apiGet } from '@/lib/api'
+import { apiGet, API_BASE } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
 import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home, ChevronLeft, Store } from 'lucide-vue-next'
@@ -259,17 +259,17 @@ function renderBlock(s:any){
 async function loadTab(slug:string){
   currentSlug.value = slug
   try{
-    const r = await fetch(`/api/tabs/${encodeURIComponent(slug)}`)
+    const r = await fetch(`${API_BASE}/api/tabs/${encodeURIComponent(slug)}`)
     const j = await r.json()
     const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
     tabSections.value = sections
     // Impression tracking
-    fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
+    fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
   }catch{ tabSections.value = [] }
   const idx = tabs.value.findIndex(t=> t.slug === slug)
   if (idx >= 0) activeTab.value = idx
 }
-function clickTrack(){ try{ if(currentSlug.value) fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
+function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
 // Banner responsive sources
 const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
@@ -370,7 +370,7 @@ onMounted(async ()=>{
   // Load published tabs for device
   if (!previewActive.value){
     try{
-      const r = await fetch('/api/tabs/list?device=MOBILE', { credentials:'include' })
+      const r = await fetch(`${API_BASE}/api/tabs/list?device=MOBILE`)
       const j = await r.json()
       const list = Array.isArray(j.tabs) ? j.tabs : []
       tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
