@@ -13,6 +13,7 @@ import { initCurrency } from './lib/currency'
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
 const manualRoutes = [
+  { path: '/', redirect: '/tabs/all' },
   { path: '/mis', component: () => import('./pages/Mis.vue') },
   { path: '/categories', component: () => import('./pages/Categories.vue') },
   { path: '/products', component: () => import('./pages/Products.vue') },
@@ -47,6 +48,7 @@ const manualRoutes = [
   ,{ path: '/points', component: () => import('./pages/Points.vue') }
   ,{ path: '/prefs', component: () => import('./pages/Prefs.vue') }
   ,{ path: '/tabs/:slug', component: () => import('./pages/tabs/[slug].vue') }
+  ,{ path: '/tabs/preview', component: () => import('./pages/tabs/preview.vue') }
   ,{ path: '/__preview/tabs', component: () => import('./pages/__preview/tabs.vue') }
   ,{ path: '/auth/google/callback', component: () => import('./pages/auth/google/callback.vue') }
   ,{ path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }

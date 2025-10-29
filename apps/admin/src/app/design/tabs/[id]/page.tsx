@@ -54,6 +54,43 @@ export default function TabPageBuilder(): JSX.Element {
   const productsOnSaveRef = React.useRef<(items:ProductMini[])=>void>(()=>{});
   const openProductsPicker = (onSave:(items:ProductMini[])=>void)=>{ productsOnSaveRef.current = onSave; setProductsOpen(true); };
 
+  // Import blueprint from current m.jeeey.com Home (All tab)
+  const importFromMwebHome = React.useCallback(async()=>{
+    try{
+      // Fetch categories (admin endpoint for richer data)
+      const cats = await fetch(`/api/admin/categories?limit=15`, { credentials:'include' }).then(r=> r.ok? r.json(): {categories:[]} ).catch(()=> ({categories:[]}));
+      const categories = Array.isArray(cats.categories)? cats.categories.slice(0,15).map((c:any)=> ({ name: c.name||c.title||'', image: c.image||'' })) : [];
+      // Build product carousels using filters (bestseller/newest) instead of hardcoding ids
+      const heroSlides = [
+        { image:'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1600&q=60', href:'/products' },
+        { image:'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1600&auto=format&fit=crop', href:'/products' },
+        { image:'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&w=1600&auto=format&fit=crop', href:'/products' },
+      ];
+      const promoTiles = [
+        { title:'شحن مجاني', image:'https://csspicker.dev/api/image/?q=free+shipping+icon&image_type=photo' },
+        { title:'خصم 90%', image:'https://csspicker.dev/api/image/?q=sale+tag&image_type=photo' },
+        { title:'الدفع عند الاستلام', image:'https://csspicker.dev/api/image/?q=cod+payment&image_type=photo' },
+        { title:'نقاط ومكافآت', image:'https://csspicker.dev/api/image/?q=reward+points&image_type=photo' },
+        { title:'خصم الطلاب', image:'https://csspicker.dev/api/image/?q=student+discount&image_type=photo' },
+        { title:'عروض اليوم', image:'https://csspicker.dev/api/image/?q=deal+of+the+day&image_type=photo' },
+      ];
+      const midPromo = { image:'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', text:'قسائم إضافية + شحن مجاني', href:'/products' };
+      const blueprint = {
+        sections: [
+          { type:'hero', config: { slides: heroSlides } },
+          { type:'promoTiles', config: { tiles: promoTiles } },
+          { type:'midPromo', config: midPromo },
+          { type:'categories', config: { categories } },
+          { type:'productCarousel', config: { title:'عروض كبرى', showPrice:true, filter:{ sortBy:'price_desc', limit:12 } } },
+          { type:'productCarousel', config: { title:'أهم الترندات', showPrice:true, filter:{ sortBy:'bestseller', limit:12 } } },
+          { type:'masonryForYou', config: { columns: 2, recommend: {} } },
+        ]
+      };
+      setContent(blueprint);
+      setSelectedIdx(-1);
+    }catch{}
+  },[]);
+
   // Load data
   React.useEffect(()=>{
     fetch(`${apiBase}/api/admin/tabs/pages/${id}/versions`, { credentials:'include' })
@@ -152,14 +189,21 @@ export default function TabPageBuilder(): JSX.Element {
     await fetch(`${apiBase}/api/admin/tabs/pages/${id}/flush-cache`, { method:'POST', credentials:'include' });
   }
 
-  function buildPreviewUrl(): string {
+  async function signPreviewToken(): Promise<string|undefined> {
     try{
-      const q = `?device=${previewDevice}&payload=${encodeURIComponent(JSON.stringify(content))}`;
-      return `/__preview/tabs${q}`;
-    }catch{ return '/__preview/tabs'; }
+      const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device: previewDevice, content }) });
+      if (!r.ok) return undefined; const j = await r.json(); return j?.token;
+    }catch{ return undefined; }
   }
-  function openExternalPreview(){ try{ window.open(buildPreviewUrl(), '_blank'); }catch{} }
-  async function copyExternalPreview(){ try{ await navigator.clipboard.writeText((location.origin||'') + buildPreviewUrl()); }catch{} }
+  async function buildPreviewUrl(): Promise<string> {
+    try{
+      const token = await signPreviewToken();
+      const slug = page?.slug || 'preview';
+      return `/tabs/preview?token=${encodeURIComponent(String(token||''))}&device=${encodeURIComponent(previewDevice)}&slug=${encodeURIComponent(slug)}`;
+    }catch{ return '/tabs/preview'; }
+  }
+  async function openExternalPreview(){ try{ const url = await buildPreviewUrl(); window.open(url, '_blank'); }catch{} }
+  async function copyExternalPreview(){ try{ const url = await buildPreviewUrl(); await navigator.clipboard.writeText((location.origin||'') + url); }catch{} }
 
   return (
     <div className="container centered">
@@ -197,6 +241,9 @@ export default function TabPageBuilder(): JSX.Element {
               <option value="MOBILE">Mobile</option>
               <option value="DESKTOP">Desktop</option>
             </select>
+            <div className="actions">
+              <button className="btn btn-outline btn-sm" onClick={importFromMwebHome}>استيراد تصميم الرئيسية (m.jeeey.com)</button>
+            </div>
           </div>
           <div className="toolbar">
             <button onClick={()=> addSection('hero')} className="btn btn-outline btn-sm">Hero</button>

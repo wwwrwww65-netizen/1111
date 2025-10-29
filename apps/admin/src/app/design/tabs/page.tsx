@@ -43,6 +43,60 @@ export default function TabPagesList(): JSX.Element {
   React.useEffect(()=>{ fetch(`${apiBase}/api/admin/tabs/ensure-perms`, { method:'POST', credentials:'include' }); },[apiBase]);
   React.useEffect(()=>{ fetchList(); },[fetchList]);
 
+  async function importAllFromMwebHome(){
+    try{
+      // Build blueprint from current mweb design
+      const cats = await fetch(`${apiBase}/api/admin/categories?limit=15`, { credentials:'include' }).then(r=> r.ok? r.json(): {categories:[]} ).catch(()=> ({categories:[]}));
+      const categories = Array.isArray(cats.categories)? cats.categories.slice(0,15).map((c:any)=> ({ name: c.name||c.title||'', image: c.image||'' })) : [];
+      const heroSlides = [
+        { image:'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1600&q=60', href:'/products' },
+        { image:'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1600&auto=format&fit=crop', href:'/products' },
+        { image:'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&w=1600&auto=format&fit=crop', href:'/products' },
+      ];
+      const promoTiles = [
+        { title:'شحن مجاني', image:'https://csspicker.dev/api/image/?q=free+shipping+icon&image_type=photo' },
+        { title:'خصم 90%', image:'https://csspicker.dev/api/image/?q=sale+tag&image_type=photo' },
+        { title:'الدفع عند الاستلام', image:'https://csspicker.dev/api/image/?q=cod+payment&image_type=photo' },
+        { title:'نقاط ومكافآت', image:'https://csspicker.dev/api/image/?q=reward+points&image_type=photo' },
+        { title:'خصم الطلاب', image:'https://csspicker.dev/api/image/?q=student+discount&image_type=photo' },
+        { title:'عروض اليوم', image:'https://csspicker.dev/api/image/?q=deal+of+the+day&image_type=photo' },
+      ];
+      const midPromo = { image:'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', text:'قسائم إضافية + شحن مجاني', href:'/products' };
+      const blueprint = {
+        sections: [
+          { type:'hero', config: { slides: heroSlides } },
+          { type:'promoTiles', config: { tiles: promoTiles } },
+          { type:'midPromo', config: midPromo },
+          { type:'categories', config: { categories } },
+          { type:'productCarousel', config: { title:'عروض كبرى', showPrice:true, filter:{ sortBy:'price_desc', limit:12 } } },
+          { type:'productCarousel', config: { title:'أهم الترندات', showPrice:true, filter:{ sortBy:'bestseller', limit:12 } } },
+          { type:'masonryForYou', config: { columns: 2, recommend: {} } },
+        ]
+      };
+      // Find or create 'all' tab (MOBILE)
+      let allId: string | undefined;
+      try{
+        const r = await fetch(`${apiBase}/api/admin/tabs/pages?page=1&limit=200`, { credentials:'include' });
+        const j = await r.json();
+        const found = Array.isArray(j.pages)? j.pages.find((p:any)=> String(p.slug||'').toLowerCase()==='all' && String(p.device||'')==='MOBILE') : undefined;
+        if (found) allId = found.id;
+      }catch{}
+      if (!allId){
+        const r = await fetch(`${apiBase}/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ slug:'all', label:'الكل', device:'MOBILE' }) });
+        const j = await r.json(); allId = j?.page?.id;
+      }
+      if (!allId) return;
+      // Create version
+      const vres = await fetch(`${apiBase}/api/admin/tabs/pages/${allId}/versions`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ title:'استيراد من الصفحة الرئيسية', notes:'m.jeeey.com', content: blueprint }) });
+      const vj = await vres.json();
+      const verNum = vj?.version?.version || vj?.version || vj?.ver || vj?.data?.version || 1;
+      // Publish
+      await fetch(`${apiBase}/api/admin/tabs/pages/${allId}/publish`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ version: verNum }) });
+      await fetchList();
+      alert('تم إنشاء/تحديث تبويب "الكل" ونشره.');
+    }catch{ alert('فشل الاستيراد'); }
+  }
+
   function createDraft(){
     const slug = prompt('Slug (مثال: women)') || '';
     const label = prompt('Label (مثال: نساء)') || '';
@@ -89,7 +143,10 @@ export default function TabPagesList(): JSX.Element {
             <h1 className="h1">مدير تبويبات الصفحة</h1>
             <div className="muted">إدارة التبويبات والمنشورات مع فلاتر وأدوات سريعة</div>
           </div>
-          <button onClick={createDraft} className="btn btn-md">إنشاء تبويب جديد</button>
+          <div className="actions" style={{display:'flex', gap:8}}>
+            <button onClick={importAllFromMwebHome} className="btn btn-outline btn-md">جلب تصميم الرئيسية → "الكل"</button>
+            <button onClick={createDraft} className="btn btn-md">إنشاء تبويب جديد</button>
+          </div>
         </div>
         <div className="toolbar">
           <label className="search">
