@@ -216,7 +216,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { apiGet } from '@/lib/api'
+import { apiGet, API_BASE } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
 import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home, ChevronLeft, Store } from 'lucide-vue-next'
@@ -244,17 +244,26 @@ function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return
 async function loadTab(slug:string){
   currentSlug.value = slug
   try{
-    const r = await fetch(`/api/tabs/${encodeURIComponent(slug)}`)
-    const j = await r.json()
+    const j = await apiGet(`/api/tabs/${encodeURIComponent(slug)}`)
     const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
     tabSections.value = sections
     // Impression tracking
-    fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
+    fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
   }catch{ tabSections.value = [] }
   const idx = tabs.value.findIndex(t=> t.slug === slug)
   if (idx >= 0) activeTab.value = idx
 }
-function clickTrack(){ try{ if(currentSlug.value) fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
+function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
+
+async function loadPreview(token: string){
+  try{
+    const j = await apiGet(`/api/admin/tabs/preview/${encodeURIComponent(token)}`)
+    const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
+    tabSections.value = sections
+    const slug = String(j?.slug || j?.content?.slug || '')
+    if (slug) currentSlug.value = slug
+  }catch{ tabSections.value = [] }
+}
 
 // Banner responsive sources
 const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
@@ -324,13 +333,13 @@ function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image:
 onMounted(async ()=>{
   // Load published tabs for device
   try{
-    const r = await fetch('/api/tabs/list?device=MOBILE', { credentials:'include' })
-    const j = await r.json()
-    const list = Array.isArray(j.tabs) ? j.tabs : []
+    const j = await apiGet('/api/tabs/list?device=MOBILE')
+    const list = Array.isArray(j?.tabs) ? j.tabs : []
     tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
     const paramSlug = String(route.params.slug||'')
+    const token = String((route.query as any)?.token || '')
     const initial = paramSlug || (tabs.value[0]?.slug || 'all')
-    if (initial) await loadTab(initial)
+    if (token) await loadPreview(token); else if (initial) await loadTab(initial)
   }catch{}
   // Categories
   try {
@@ -407,6 +416,11 @@ onMounted(async ()=>{
 watch(()=> route.params.slug, (nv, ov)=>{
   const slug = String(nv||'')
   if (slug && slug !== String(ov||'')) loadTab(slug)
+})
+
+watch(()=> (route.query as any)?.token, (nv, ov)=>{
+  const token = String(nv||'')
+  if (token && token !== String(ov||'')) loadPreview(token)
 })
 
 const rows = 3
