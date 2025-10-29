@@ -300,7 +300,21 @@ function onSlideChange(swiper: any) {
 function go(path: string){ router.push(path) }
 function onScroll(){ scrolled.value = window.scrollY > 60; nextTick(measureHeader) }
 onMounted(()=>{ onScroll(); measureHeader(); window.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('resize', measureHeader) })
-onBeforeUnmount(()=>{ window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', measureHeader) })
+// live preview updates from Admin via postMessage
+function onPreviewMessage(e: MessageEvent){
+  try{
+    const data:any = e.data
+    if (data && typeof data==='object' && data.__tabs_preview){
+      previewActive.value = true
+      const payload = data.content || {}
+      const sections = Array.isArray(payload?.sections) ? payload.sections : (Array.isArray(payload?.content?.sections)? payload.content.sections : [])
+      if (sections && sections.length) tabSections.value = sections
+      previewLayout.value = payload?.layout || null
+    }
+  }catch{}
+}
+onMounted(()=>{ try{ window.addEventListener('message', onPreviewMessage) }catch{} })
+onBeforeUnmount(()=>{ window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', measureHeader); try{ window.removeEventListener('message', onPreviewMessage) }catch{} })
 watch(scrolled, ()=> nextTick(measureHeader))
 function onTabsKeyDown(e: KeyboardEvent){
   if (e.key === 'ArrowRight') activeTab.value = Math.min(activeTab.value + 1, tabs.value.length - 1)
@@ -355,7 +369,7 @@ onMounted(async ()=>{
     }
     if (tok) {
       try{
-        const r = await fetch(`/api/admin/tabs/preview/${encodeURIComponent(tok)}`, { credentials:'include' })
+        const r = await fetch(`${API_BASE}/api/admin/tabs/preview/${encodeURIComponent(tok)}`, { credentials:'omit' })
         const j = await r.json()
         const payload = j?.content || j
         const sections = Array.isArray(payload?.sections) ? payload.sections : (Array.isArray(payload?.content?.sections)? payload.content.sections : [])
@@ -368,17 +382,17 @@ onMounted(async ()=>{
     }
   }catch{}
   // Load published tabs for device
-  if (!previewActive.value){
-    try{
-      const r = await fetch(`${API_BASE}/api/tabs/list?device=MOBILE`)
-      const j = await r.json()
-      const list = Array.isArray(j.tabs) ? j.tabs : []
-      tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
-      const paramSlug = String(route.params.slug||'')
-      const initial = paramSlug || (tabs.value[0]?.slug || 'all')
-      if (initial) await loadTab(initial)
-    }catch{}
-  }
+  try{
+    const r = await fetch(`${API_BASE}/api/tabs/list?device=MOBILE`)
+    const j = await r.json()
+    const list = Array.isArray(j.tabs) ? j.tabs : []
+    tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
+    const paramSlug = String(route.params.slug||'')
+    const initial = paramSlug || (tabs.value[0]?.slug || 'all')
+    if (!previewActive.value && initial) await loadTab(initial)
+  }catch{}
+  // Notify parent admin that preview is ready
+  try{ if (window.parent) window.parent.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
   // Categories
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')
