@@ -240,16 +240,32 @@ const tabsTopPx = computed(()=> headerH.value)
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
-function renderBlock(s:any){ const t=String(s?.type||''); if (t==='hero') return Hero; if (t==='promoTiles') return PromoTiles; if (t==='midPromo') return MidPromo; if (t==='productCarousel') return ProductCarousel; if (t==='categories'||t==='brands') return Categories; return Unknown }
+function renderBlock(s:any){
+  const t = String(s?.type || '').toLowerCase();
+  if (t === 'hero') return Hero;
+  if (t === 'promotiles') return PromoTiles;
+  if (t === 'midpromo') return MidPromo;
+  if (t === 'productcarousel') return ProductCarousel;
+  if (t === 'categories' || t === 'brands') return Categories;
+  return Unknown;
+}
 async function loadTab(slug:string){
   currentSlug.value = slug
   try{
     const j = await apiGet(`/api/tabs/${encodeURIComponent(slug)}`)
-    const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
-    tabSections.value = sections
+    const sections = Array.isArray(j?.content?.sections)
+      ? j.content.sections
+      : (Array.isArray(j?.sections) ? j.sections : [])
+    tabSections.value = Array.isArray(sections) ? sections : []
     // Impression tracking
     fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
   }catch{ tabSections.value = [] }
+  // If loaded sections contain only unsupported types, fallback to home content
+  try{
+    const supported = new Set(['hero','promotiles','midpromo','productcarousel','categories','brands'])
+    const hasRenderable = Array.isArray(tabSections.value) && tabSections.value.some((s:any)=> supported.has(String(s?.type||'').toLowerCase()))
+    if (!hasRenderable) tabSections.value = []
+  }catch{}
   const idx = tabs.value.findIndex(t=> t.slug === slug)
   if (idx >= 0) activeTab.value = idx
 }
