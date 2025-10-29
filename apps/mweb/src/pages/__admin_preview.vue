@@ -99,6 +99,16 @@ onMounted(async ()=>{
   let slug = ''
   try{ const u = new URL(location.href); token = u.searchParams.get('token')||''; slug = u.searchParams.get('slug')||'' }catch{}
   if (token) await loadToken(token); else if (slug) await loadSlug(slug); else if (tabs.value[0]?.slug) await loadSlug(tabs.value[0].slug)
+  // Accept postMessage for live updates from Admin
+  window.addEventListener('message', (e: MessageEvent)=>{
+    try{
+      const data = e.data as any
+      if (data && typeof data==='object' && data.__tabs_preview){
+        if (data.device && (data.device==='MOBILE' || data.device==='DESKTOP')){}
+        if (data.content){ payload.value = data.content; }
+      }
+    }catch{}
+  })
 })
 
 const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div><div v-else class=\"h-[200px] bg-gray-100 border border-gray-200 rounded\"></div></div>` }

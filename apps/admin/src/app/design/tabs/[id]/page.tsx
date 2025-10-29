@@ -421,6 +421,7 @@ export default function TabPageBuilder(): JSX.Element {
 }
 
 function LivePreviewFrame({ content, device }:{ content:any; device:Device }): JSX.Element {
+  const frameRef = React.useRef<HTMLIFrameElement|null>(null);
   const [src, setSrc] = React.useState<string>('');
   React.useEffect(()=>{ (async()=>{
     try{
@@ -431,8 +432,15 @@ function LivePreviewFrame({ content, device }:{ content:any; device:Device }): J
     }catch{ setSrc(''); }
   })(); }, [content, device]);
   const h = device==='MOBILE'? 820 : 920;
+  // Post live updates to iframe for instant preview
+  React.useEffect(()=>{
+    try{
+      const win = frameRef.current?.contentWindow; if (!win) return;
+      win.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com');
+    }catch{}
+  }, [content, device, src]);
   return (
-    <iframe title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} />
+    <iframe ref={frameRef} title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} />
   );
 }
 
