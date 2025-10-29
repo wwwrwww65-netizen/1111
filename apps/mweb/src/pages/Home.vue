@@ -1,33 +1,33 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
-    <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
+    <div ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', lightHeader ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
       <div class="w-screen px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="القائمة" @click="go('/categories')">
-            <Menu :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <Menu :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="الإشعارات" @click="go('/notifications')">
-            <Bell :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <Bell :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
-        <div :class="['text-lg sm:text-xl font-semibold', scrolled ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
+        <div :class="['text-lg sm:text-xl font-semibold', lightHeader ? 'text-gray-900' : 'text-white']" aria-label="شعار المتجر">jeeey</div>
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="السلة" @click="go('/cart')">
-            <ShoppingCart :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <ShoppingCart :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="البحث" @click="go('/search')">
-            <Search :class="scrolled ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
+            <Search :class="lightHeader ? 'text-gray-800' : 'text-white'" class="w-6 h-6" />
           </button>
         </div>
       </div>
     </div>
 
-    <div :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
+    <div :class="[lightHeader ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
       <div ref="tabsRef" class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
-        <button v-for="(t,i) in tabs" :key="t.slug || t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
+        <button v-for="(t,i) in tabs" :key="t.slug || t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (lightHeader ? 'text-gray-700' : 'text-white')]">
           {{ (t.label || t) }}
-          <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
+          <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (lightHeader ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
         </button>
       </div>
     </div>
@@ -231,6 +231,7 @@ const wishlist = useWishlist()
 const headerRef = ref<HTMLElement|null>(null)
 const headerH = ref<number>(64)
 const scrolled = ref(false)
+const lightHeader = computed(()=> scrolled.value || !!String(route.params.slug||'') || (tabSections.value.length>0))
 const activeTab = ref(0)
 const tabs = ref<Array<{ label:string; slug:string; href:string }>>([])
 const tabsRef = ref<HTMLDivElement|null>(null)
@@ -247,6 +248,7 @@ function renderBlock(s:any){
   if (t === 'midpromo') return MidPromo;
   if (t === 'productcarousel') return ProductCarousel;
   if (t === 'categories' || t === 'brands') return Categories;
+  if (t === 'masonryforyou') return MasonryForYou;
   return Unknown;
 }
 async function loadTab(slug:string){
@@ -493,12 +495,13 @@ function addToCartFY(p: any){
 }
 
 // Lightweight renderers for Admin Tabs sections (light theme)
-const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div></div>` }
+const Hero = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"Array.isArray(cfg.slides)\" class=\"grid grid-flow-col auto-cols-[100%] overflow-auto snap-x snap-mandatory\"><a v-for=\"(sl,i) in cfg.slides\" :key=\"i\" :href=\"sl.href||'#'\" class=\"block snap-start\"><img :src=\"sl.image||''\" class=\"w-full h-[200px] object-cover rounded border border-gray-200\" /></a></div><div v-else class=\"h-[200px] bg-gray-100 border border-gray-200 rounded\"></div></div>` }
 const PromoTiles = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-2 gap-2\"><div v-for=\"(t,i) in (cfg.tiles||[])\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><img v-if=\"t.image\" :src=\"t.image\" class=\"w-full h-[100px] object-cover\" /><div v-if=\"t.title\" class=\"p-2 text-xs text-gray-900\">{{ t.title }}</div></div></div>` }
 const MidPromo = { props:['cfg'], template:`<div class=\"p-3\"><a :href=\"cfg.href||'#'\"><img v-if=\"cfg.image\" :src=\"cfg.image\" class=\"w-full h-[90px] object-cover rounded border border-gray-200\" /><div v-if=\"cfg.text\" class=\"-mt-6 ps-3 text-[12px] text-white\">{{ cfg.text }}</div></a></div>` }
 const ProductCarousel = { props:['cfg'], template:`<div class=\"p-3\"><div v-if=\"cfg.title\" class=\"mb-2 font-semibold text-gray-900\">{{ cfg.title }}</div><div class=\"grid grid-cols-2 gap-2\"><div v-for=\"i in 6\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><div class=\"h-[120px] bg-gray-100\"></div><div class=\"p-2\"><div class=\"text-xs text-gray-900\">اسم منتج</div><div v-if=\"cfg.showPrice\" class=\"text-red-600 text-xs\">99.00</div></div></div></div></div>` }
 const Categories = { props:['cfg'], template:`<div class=\"p-3 grid grid-cols-3 gap-2\"><div v-for=\"(c,i) in (cfg.categories||cfg.brands||[])\" :key=\"i\" class=\"text-center\"><img v-if=\"c.image\" :src=\"c.image\" class=\"w-full h-[72px] object-cover rounded border border-gray-200\" /><div class=\"mt-1 text-[11px] text-gray-800\">{{ c.name||'-' }}</div></div></div>` }
 const Unknown = { template:`<div class=\"p-3 text-xs text-gray-500\">قسم غير مدعوم</div>` }
+const MasonryForYou = { props:['cfg'], template:`<div class=\"p-3\"><div class=\"grid grid-cols-2 md:grid-cols-3 gap-1\"><div v-for=\"i in 8\" :key=\"i\" class=\"bg-white border border-gray-200 rounded overflow-hidden\"><div class=\"w-full h-[160px] bg-gray-100\"></div><div class=\"p-2\"><div class=\"text-xs text-gray-900\">منتج</div></div></div></div></div>` }
 </script>
 
 <style scoped>
