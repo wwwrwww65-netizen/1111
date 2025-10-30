@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useSearchParams } from "next/navigation";
-import { resolveApiBase } from "../../lib/apiBase";
+import { resolveApiBase } from "../../../lib/apiBase";
 
 type Site = "web" | "mweb";
 type CategoryMini = { id: string; name: string; image?: string };

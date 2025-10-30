@@ -785,8 +785,21 @@ jobs:
             fi
             head -n 2 /tmp/cat.body | sed -n '1,2p'
             if [ "$CODE" != "200" ]; then echo "Category create failed: $CODE"; cat /tmp/cat.body; echo '=== API logs (tail) ==='; journalctl -u ecom-api --no-pager -n 120 || true; exit 1; fi
+            ID=$(grep -o '"id":"[^"]\+"' /tmp/cat.body | head -n1 | sed 's/.*"id":"\([^"]\+\)".*/\1/') || true
+            if [ -z "$ID" ]; then echo 'Missing id in create response'; cat /tmp/cat.body; exit 1; fi
+            echo "created id: $ID"
             echo '--- List categories (search=SmokeCat) ---'
             curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/categories?search=SmokeCat' | sed -n '1,200p' || curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
+            echo '--- Delete created category (cleanup) ---'
+            PAY=$(printf '{"ids":["%s"]}' "$ID")
+            DCODE=$(curl -sS -w '%{http_code}' -o /tmp/cat.del -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST http://127.0.0.1:4000/api/admin/categories/bulk-delete --data "$PAY" || true)
+            if [ "$DCODE" != "200" ]; then
+              DCODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.del -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST https://api.jeeey.com/api/admin/categories/bulk-delete --data "$PAY" || true)
+            fi
+            if [ "$DCODE" != "200" ]; then echo "Cleanup delete failed: $DCODE"; cat /tmp/cat.del; exit 1; fi
+            echo '--- Verify deleted not found ---'
+            OUT=$(curl -sS -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:4000/api/admin/categories?search=$ID" || curl -k -sS -H "Authorization: Bearer $TOKEN" "https://api.jeeey.com/api/admin/categories?search=$ID" || true)
+            if echo "$OUT" | grep -q "$ID"; then echo 'Cleanup verification failed (ID still present)'; echo "$OUT"; exit 1; fi
 
       - name: Server & Prisma comprehensive self-check
         if: ${{ env.HAVE_SSH == '1' }}
