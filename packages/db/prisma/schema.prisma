@@ -93,6 +93,9 @@ model User {
   events            Event[]
   sessions          Session[]
   vendor            Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  // Promotions relations
+  userRewards       UserReward[]
+  claims            Claim[]
 }
 
 model Category {
@@ -920,6 +923,7 @@ model Reward {
   updatedAt   DateTime    @updatedAt
 
   userRewards UserReward[]
+  campaigns  Campaign[]
 }
 
 enum CampaignStatus {
@@ -946,6 +950,7 @@ model Campaign {
 
   reward      Reward?         @relation(fields: [rewardId], references: [id], onDelete: SetNull)
   claims      Claim[]
+  userRewards UserReward[]
 
   @@index([status, priority])
 }
