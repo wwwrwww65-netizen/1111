@@ -1674,6 +1674,20 @@ shop.get('/categories/page', async (req, res) => {
   } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_failed' }); }
 });
 
+// Promotions: return best-matching active popup campaign (MVP)
+shop.get('/popups', async (req, res) => {
+  try{
+    const nowIso = new Date().toISOString();
+    const rows = await db.campaign.findMany({ where: { status: 'LIVE' as any }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }] } as any);
+    // naive pick first LIVE campaign; targeting evaluation can be added later
+    const c = rows[0];
+    if (!c) return res.json({ items: [] });
+    const variant = (c as any).variantA || null; const rewardId = (c as any).rewardId||null;
+    res.set('Cache-Control','public, max-age=30');
+    return res.json({ items: [ { id: c.id, name: c.name, priority: c.priority, variant, rewardId, status: c.status, schedule: c.schedule, targeting: c.targeting, now: nowIso } ] });
+  }catch(e:any){ return res.status(500).json({ error: e?.message||'popups_failed' }); }
+});
+
 // Catalog by category slug or id
 shop.get('/catalog/:slug', async (req, res) => {
   try {

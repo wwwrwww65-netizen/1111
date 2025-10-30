@@ -8797,6 +8797,81 @@ adminRest.get('/notifications/rules', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'rules_list_failed' }); }
 });
 
+// ===== Promotions: Campaigns & Rewards (MVP) =====
+adminRest.get('/promotions/rewards', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.reward.findMany({ orderBy: { createdAt: 'desc' } } as any);
+    res.json({ rewards: rows });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'rewards_list_failed' }); }
+});
+adminRest.post('/promotions/rewards', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const payload = req.body||{}; const r = await db.reward.create({ data: payload } as any);
+    res.json({ reward: r });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'reward_create_failed' }); }
+});
+
+adminRest.get('/promotions/campaigns', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.campaign.findMany({ orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }] } as any);
+    res.json({ campaigns: rows });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'campaigns_list_failed' }); }
+});
+adminRest.post('/promotions/campaigns', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const payload = req.body||{}; const row = await db.campaign.create({ data: payload } as any);
+    res.json({ campaign: row });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'campaign_create_failed' }); }
+});
+adminRest.put('/promotions/campaigns/:id', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const id = String(req.params.id||''); const payload = req.body||{};
+    const row = await db.campaign.update({ where: { id }, data: payload } as any);
+    res.json({ campaign: row });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'campaign_update_failed' }); }
+});
+adminRest.delete('/promotions/campaigns/:id', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const id = String(req.params.id||''); await db.campaign.delete({ where: { id } } as any);
+    res.json({ ok:true });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'campaign_delete_failed' }); }
+});
+
+// Claim flow (start -> complete)
+adminRest.post('/promotions/claim/start', async (req, res) => {
+  try{
+    const campaignId = String(req.body?.campaignId||''); if (!campaignId) return res.status(400).json({ error:'missing_campaign' });
+    const expMs = 10*60*1000; const token = require('crypto').randomUUID();
+    const c = await db.claim.create({ data: { campaignId, token, status:'initiated', expiresAt: new Date(Date.now()+expMs) } as any });
+    res.json({ token: c.token, exp: c.expiresAt });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'claim_start_failed' }); }
+});
+adminRest.post('/promotions/claim/complete', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!u?.userId) return res.status(401).json({ error:'unauthorized' });
+    const token = String(req.body?.token||''); if (!token) return res.status(400).json({ error:'missing_token' });
+    const cl = await db.claim.findUnique({ where: { token } } as any);
+    if (!cl) return res.status(404).json({ error:'not_found' });
+    if (new Date(cl.expiresAt).getTime() < Date.now()) return res.status(410).json({ error:'expired' });
+    if (cl.status === 'completed') return res.json({ ok:true, already:true });
+    const camp = await db.campaign.findUnique({ where: { id: cl.campaignId } } as any);
+    if (!camp) return res.status(404).json({ error:'campaign_not_found' });
+    const rewardId = (camp as any).rewardId as string|undefined;
+    if (!rewardId) { await db.claim.update({ where:{ token }, data:{ status:'completed', userId: u.userId } } as any); return res.json({ ok:true, granted:false }); }
+    // grant reward idempotently
+    const exists = await db.userReward.findFirst({ where: { userId: u.userId, rewardId, campaignId: camp.id } } as any);
+    if (!exists){ await db.userReward.create({ data: { userId: u.userId, rewardId, campaignId: camp.id, status:'granted' } } as any); }
+    await db.claim.update({ where:{ token }, data:{ status:'completed', userId: u.userId } } as any);
+    res.json({ ok:true, granted:true });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'claim_complete_failed' }); }
+});
+
 // Facebook Marketing: settings, analytics, recommendations, catalog feed
 adminRest.get('/marketing/facebook/settings', async (req, res) => {
   try{
