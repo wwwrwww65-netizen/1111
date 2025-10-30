@@ -8624,6 +8624,22 @@ adminRest.get('/categories/page', async (req, res) => {
     res.json({ site, mode, config: s?.value||null });
   } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_get_failed' }); }
 });
+// Summary for manager table (draft/live per site)
+adminRest.get('/categories/page/summary', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const sites = ['mweb','web'];
+    const rows = [] as any[];
+    for (const site of sites){
+      const draftKey = `categoriesPage:${site}:draft`;
+      const liveKey = `categoriesPage:${site}:live`;
+      const d = await db.setting.findUnique({ where: { key: draftKey } });
+      const l = await db.setting.findUnique({ where: { key: liveKey } });
+      rows.push({ site, hasDraft: !!d, hasLive: !!l, draftUpdatedAt: (d as any)?.updatedAt||null, liveUpdatedAt: (l as any)?.updatedAt||null });
+    }
+    res.json({ items: rows });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'categories_page_summary_failed' }); }
+});
 adminRest.put('/categories/page', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
