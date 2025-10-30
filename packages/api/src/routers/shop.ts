@@ -1726,6 +1726,42 @@ shop.post('/promotions/claim/complete', async (req: any, res) => {
   }catch(e:any){ res.status(500).json({ error: e?.message||'claim_complete_failed' }); }
 });
 
+// Pricing: compute effective totals with active user rewards (MVP: single coupon)
+shop.post('/pricing/effective', async (req: any, res) => {
+  try{
+    const items: Array<{ id:string; qty:number }> = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) return res.json({ subtotal: 0, discount: 0, total: 0 });
+    const ids = Array.from(new Set(items.map(i=> String(i.id||'').trim()).filter(Boolean)));
+    const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id:true, price:true } });
+    const priceMap = new Map<string, number>(); for (const p of prods) priceMap.set(p.id, Number(p.price||0));
+    const subtotal = items.reduce((s,it)=> s + (priceMap.get(it.id)||0) * Math.max(1, Number(it.qty||1)), 0);
+    // Identify user similar to /me
+    const header = (req?.headers?.authorization as string|undefined) || '';
+    let tokenAuth = '';
+    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    const jwt = require('jsonwebtoken');
+    let userId: string|undefined;
+    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+    let discount = 0;
+    if (userId){
+      // Load granted rewards for user
+      const urs = await db.userReward.findMany({ where: { userId, status: 'granted' as any }, include: { reward: true } } as any);
+      // MVP: apply first COUPON type
+      const rw = urs.find(u=> (u as any).reward?.type === 'COUPON');
+      if (rw && (rw as any).reward?.config){
+        const cfg = (rw as any).reward.config || {};
+        const percent = Number(cfg.percent||cfg.discountPercent||0);
+        const amount = Number(cfg.amount||cfg.discountAmount||0);
+        if (percent>0) discount = Math.max(discount, Math.min(subtotal, (subtotal * percent)/100));
+        else if (amount>0) discount = Math.max(discount, Math.min(subtotal, amount));
+      }
+    }
+    const total = Math.max(0, subtotal - discount);
+    res.json({ subtotal, discount, total });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'pricing_failed' }); }
+});
+
 // Catalog by category slug or id
 shop.get('/catalog/:slug', async (req, res) => {
   try {

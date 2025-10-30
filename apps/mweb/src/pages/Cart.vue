@@ -220,7 +220,8 @@
 
     <!-- شريط الدفع السفلي - يظهر فقط عندما تكون السلة ممتلئة -->
     <footer v-if="validItems.length" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex items-center justify-between z-50">
-      <div class="text-[14px] font-semibold text-gray-900">{{ fmtPrice(selectedTotal) }}</div>
+      <div class="text-[12px] text-gray-500" v-if="effectiveDiscount>0">خصم مفعّل: -{{ fmtPrice(effectiveDiscount) }}</div>
+      <div class="text-[14px] font-semibold text-gray-900">{{ fmtPrice(effectiveTotal) }}</div>
       <button
         class="flex items-center justify-center px-3 h-9 rounded-[6px] text-[12px] font-semibold text-white bg-[#8a1538]"
         aria-label="الانتقال إلى الدفع"
@@ -339,7 +340,7 @@ const enhancedItems = computed(() => {
 })
 
 // حساب الإجمالي للمنتجات المحددة
-const selectedTotal = computed(() => {
+const selectedSubtotal = computed(() => {
   return selectedItems.value.reduce((sum, uid) => {
     const item = items.value.find(i => i.uid === uid)
     if (!item) return sum
@@ -347,6 +348,17 @@ const selectedTotal = computed(() => {
     return sum + item.price * item.qty
   }, 0)
 })
+const effectiveTotal = ref<number>(0)
+const effectiveDiscount = ref<number>(0)
+async function refreshEffectivePricing(){
+  try{
+    const itemsPayload = selectedItems.value.map(uid=>{ const it = items.value.find(i=> i.uid===uid); return it? { id: it.id, qty: it.qty } : null }).filter(Boolean)
+    const r = await fetch('/api/pricing/effective', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ items: itemsPayload }) })
+    const j = await r.json(); effectiveTotal.value = Number(j?.total||selectedSubtotal.value); effectiveDiscount.value = Number(j?.discount||0)
+  }catch{ effectiveTotal.value = selectedSubtotal.value; effectiveDiscount.value = 0 }
+}
+watch([selectedItems, items], ()=>{ refreshEffectivePricing() }, { deep:true })
+onMounted(()=> refreshEffectivePricing())
 
 // وظائف التنقل
 function goBack() {
