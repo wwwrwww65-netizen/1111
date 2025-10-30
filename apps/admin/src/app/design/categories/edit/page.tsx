@@ -4,10 +4,13 @@ import { useSearchParams } from "next/navigation";
 
 type Site = "web" | "mweb";
 type CategoryMini = { id: string; name: string; image?: string };
-type SidebarItem = { label: string; icon?: string; tabKey?: string };
-type TabConfig = { key: string; label: string; featured?: CategoryMini[]; grid?: { mode: "explicit"; categories: CategoryMini[] } | { mode: "filter"; categoryIds?: string[]; limit?: number; sortBy?: string } };
+type SidebarItem = { label: string; icon?: string; tabKey?: string; href?: string };
+type TabFilterGrid = { mode: "filter"; categoryIds?: string[]; parentId?: string; limit?: number; sortBy?: string };
+type TabExplicitGrid = { mode: "explicit"; categories: CategoryMini[] };
 type PromoBanner = { enabled: boolean; image?: string; title?: string; href?: string };
-type CategoriesPageConfig = { layout?: { showHeader?: boolean; showTabs?: boolean; showSidebar?: boolean; showPromoPopup?: boolean }; promoBanner?: PromoBanner; tabs: TabConfig[]; sidebar?: SidebarItem[]; suggestions?: CategoryMini[]; badges?: Array<{ categoryId: string; text: string }>; seo?: { title?: string; description?: string } };
+type TabConfig = { key: string; label: string; featured?: CategoryMini[]; grid?: TabExplicitGrid | TabFilterGrid; promoBanner?: PromoBanner };
+type SuggestionsConfig = { enabled: boolean; title?: string; items?: CategoryMini[] };
+type CategoriesPageConfig = { layout?: { showHeader?: boolean; showTabs?: boolean; showSidebar?: boolean; showPromoPopup?: boolean }; promoBanner?: PromoBanner; tabs: TabConfig[]; sidebar?: SidebarItem[]; suggestions?: SuggestionsConfig | CategoryMini[]; badges?: Array<{ categoryId: string; text: string }>; seo?: { title?: string; description?: string } };
 
 export default function CategoriesDesignerPage(): JSX.Element {
   const sp = useSearchParams();
@@ -26,7 +29,7 @@ export default function CategoriesDesignerPage(): JSX.Element {
     promoBanner: { enabled: true, image: "", title: "", href: "/products" },
     tabs: [ { key: "all", label: "كل", grid: { mode: "explicit", categories: [] } } ],
     sidebar: [ { label: "ملابس نسائية", icon: "👗", tabKey: "women" } ],
-    suggestions: [], badges: [], seo: { title: "الفئات", description: "تصفح فئات jeeey" },
+    suggestions: { enabled: true, title: "ربما يعجبك هذا أيضاً", items: [] }, badges: [], seo: { title: "الفئات", description: "تصفح فئات jeeey" },
   });
 
   React.useEffect(()=>{ (async()=>{
@@ -36,7 +39,12 @@ export default function CategoriesDesignerPage(): JSX.Element {
   function setLayout(upd: Partial<NonNullable<CategoriesPageConfig['layout']>>){ setConfig(c=> ({ ...c, layout: { ...(c.layout||{}), ...upd } })); }
   function setTabs(items: TabConfig[]){ setConfig(c=> ({ ...c, tabs: items })); }
   function setSidebar(items: SidebarItem[]){ setConfig(c=> ({ ...c, sidebar: items })); }
-  function setSuggestions(items: CategoryMini[]){ setConfig(c=> ({ ...c, suggestions: items })); }
+  function setSuggestions(items: CategoryMini[]){
+    setConfig(c=> ({ ...c, suggestions: Array.isArray(c.suggestions) ? items : { ...(c.suggestions as SuggestionsConfig||{enabled:true,title:"ربما يعجبك هذا أيضاً"}), items } }));
+  }
+  function setSuggestionsMeta(upd: Partial<SuggestionsConfig>){
+    setConfig(c=> ({ ...c, suggestions: Array.isArray(c.suggestions) ? { enabled: (upd.enabled??true), title: upd.title||"ربما يعجبك هذا أيضاً", items: c.suggestions as any } : { ...(c.suggestions as SuggestionsConfig||{enabled:true}), ...upd } }));
+  }
   function setPromo(upd: Partial<PromoBanner>){ setConfig(c=> ({ ...c, promoBanner: { ...(c.promoBanner||{enabled:false}), ...upd } })); }
   function setSeo(upd: Partial<NonNullable<CategoriesPageConfig['seo']>>){ setConfig(c=> ({ ...c, seo: { ...(c.seo||{}), ...upd } })); }
   function updateAt<T>(arr: T[], idx:number, v:T){ const next=[...arr]; next[idx]=v; return next; }
@@ -98,10 +106,14 @@ export default function CategoriesDesignerPage(): JSX.Element {
             <div style={{display:'grid', gap:12}}>
               {(config.tabs||[]).map((t, idx)=> (
                 <div key={idx} className="card" style={{display:'grid', gap:8}}>
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8}}>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr auto auto', gap:8}}>
                     <input className="input" placeholder="المفتاح (women)" value={t.key} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, key: e.target.value }))} />
                     <input className="input" placeholder="التسمية (نساء)" value={t.label} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, label: e.target.value }))} />
                     <div style={{display:'flex', gap:6, justifyContent:'flex-end'}}><button className="btn btn-outline btn-sm" onClick={()=> setTabs(removeAt(config.tabs, idx))}>حذف</button></div>
+                    <div style={{display:'flex', gap:6, justifyContent:'flex-end'}}>
+                      <button className="btn btn-outline btn-sm" onClick={()=> idx>0 && setTabs((()=>{ const next=[...config.tabs]; const tmp=next[idx-1]; next[idx-1]=next[idx]; next[idx]=tmp; return next; })())}>▲</button>
+                      <button className="btn btn-outline btn-sm" onClick={()=> idx<((config.tabs||[]).length-1) && setTabs((()=>{ const next=[...config.tabs]; const tmp=next[idx+1]; next[idx+1]=next[idx]; next[idx]=tmp; return next; })())}>▼</button>
+                    </div>
                   </div>
                   <div className="toolbar" style={{marginBottom:0}}>
                     <div className="muted">فئات مميّزة (شرائح)</div>
@@ -110,6 +122,21 @@ export default function CategoriesDesignerPage(): JSX.Element {
                   <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
                     {(t.featured||[]).map((c)=> (<div key={c.id} className="badge" style={{gap:6}}>{c.image && <img src={c.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}<span>{c.name}</span></div>))}
                     {!(t.featured||[]).length && <div className="muted">— لا عناصر</div>}
+                  </div>
+                  <div className="toolbar" style={{marginBottom:0}}>
+                    <div className="muted">بانر التبويب</div>
+                    <div className="actions" />
+                  </div>
+                  <div style={{display:'grid', gap:8}}>
+                    <label className="muted" style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                      <input type="checkbox" checked={!!t.promoBanner?.enabled} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, promoBanner: { ...(t.promoBanner||{}), enabled: e.target.checked } }))} /> مفعّل
+                    </label>
+                    <input className="input" placeholder="عنوان" value={t.promoBanner?.title||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, promoBanner: { ...(t.promoBanner||{enabled:true}), title: e.target.value } }))} />
+                    <input className="input" placeholder="رابط عند النقر" value={t.promoBanner?.href||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, promoBanner: { ...(t.promoBanner||{enabled:true}), href: e.target.value } }))} />
+                    <div style={{display:'grid', gridTemplateColumns:'1fr auto', gap:8}}>
+                      <input className="input" placeholder="رابط صورة" value={t.promoBanner?.image||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, promoBanner: { ...(t.promoBanner||{enabled:true}), image: e.target.value } }))} />
+                      <button className="btn btn-outline btn-sm" onClick={()=> openMediaPicker((u)=> setTabs(updateAt(config.tabs, idx, { ...t, promoBanner: { ...(t.promoBanner||{enabled:true}), image: u } })))}>اختر صورة</button>
+                    </div>
                   </div>
                   <div className="toolbar" style={{marginBottom:0}}>
                     <div className="muted">شبكة الفئات</div>
@@ -124,8 +151,17 @@ export default function CategoriesDesignerPage(): JSX.Element {
                         <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker((items)=> setTabs(updateAt(config.tabs, idx, { ...t, grid: { mode:'explicit', categories: items } })))}>اختيار فئات</button>
                         {(t.grid as any)?.categories?.length>0 && <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, grid: { mode:'explicit', categories: [] } }))}>مسح</button>}
                       </div>
-                      <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-                        {((t.grid as any)?.categories||[]).map((c:CategoryMini)=> (<div key={c.id} className="badge" style={{gap:6}}>{c.image && <img src={c.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}<span>{c.name}</span></div>))}
+                      <div style={{display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
+                        {((t.grid as any)?.categories||[]).map((c:CategoryMini, ci:number)=> (
+                          <div key={c.id} className="badge" style={{gap:6, display:'inline-flex', alignItems:'center'}}>
+                            {c.image && <img src={c.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}
+                            <span>{c.name}</span>
+                            <div style={{display:'inline-flex', gap:4, marginInlineStart:6}}>
+                              <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, grid: { mode:'explicit', categories: (():CategoryMini[]=>{ const arr=[...((t.grid as any).categories||[])]; if(ci>0){ const tmp=arr[ci-1]; arr[ci-1]=arr[ci]; arr[ci]=tmp; } return arr; })() } }))}>▲</button>
+                              <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, grid: { mode:'explicit', categories: (():CategoryMini[]=>{ const arr=[...((t.grid as any).categories||[])]; if(ci<(((t.grid as any).categories||[]).length-1)){ const tmp=arr[ci+1]; arr[ci+1]=arr[ci]; arr[ci]=tmp; } return arr; })() } }))}>▼</button>
+                            </div>
+                          </div>
+                        ))}
                         {!((t.grid as any)?.categories||[]).length && <div className="muted">— لا عناصر</div>}
                       </div>
                     </div>
@@ -139,6 +175,18 @@ export default function CategoriesDesignerPage(): JSX.Element {
                         <option value="name_desc">الاسم تنازلي</option>
                         <option value="created_desc">الأحدث</option>
                       </select>
+                      <div style={{gridColumn:'1 / -1', display:'grid', gap:8}}>
+                        <div className="toolbar" style={{marginBottom:0}}>
+                          <div className="muted">العناصر المختارة (IDs)</div>
+                          <div className="actions" style={{display:'flex', gap:8}}>
+                            <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker((items)=> setTabs(updateAt(config.tabs, idx, { ...t, grid: { ...(t.grid as any), mode:'filter', categoryIds: items.map(x=> x.id) } as any })))}>اختيار فئات</button>
+                            {Array.isArray((t.grid as any)?.categoryIds) && (t.grid as any).categoryIds.length>0 && (
+                              <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, grid: { ...(t.grid as any), mode:'filter', categoryIds: [] } as any }))}>مسح</button>
+                            )}
+                          </div>
+                        </div>
+                        <code dir="ltr" style={{fontSize:12, color:'#94a3b8'}}>{JSON.stringify(((t.grid as any)?.categoryIds||[]))}</code>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -147,13 +195,14 @@ export default function CategoriesDesignerPage(): JSX.Element {
           </div>
 
           <div className="card" style={{display:'grid', gap:8}}>
-            <div className="toolbar" style={{marginBottom:0}}><div className="muted">الشريط الجانبي</div><div className="actions"><button className="btn btn-outline btn-sm" onClick={()=> setSidebar([...(config.sidebar||[]), { label:'عنصر', icon:'✨', tabKey:'' }])}>+ عنصر</button></div></div>
+            <div className="toolbar" style={{marginBottom:0}}><div className="muted">الشريط الجانبي</div><div className="actions"><button className="btn btn-outline btn-sm" onClick={()=> setSidebar([...(config.sidebar||[]), { label:'عنصر', icon:'✨', tabKey:'', href:'' }])}>+ عنصر</button></div></div>
             <div style={{display:'grid', gap:8}}>
               {(config.sidebar||[]).map((s, idx)=> (
-                <div key={`${s.label}:${idx}`} style={{display:'grid', gridTemplateColumns:'1fr 120px 160px auto', gap:8}}>
+                <div key={`${s.label}:${idx}`} style={{display:'grid', gridTemplateColumns:'1fr 120px 160px 1fr auto', gap:8}}>
                   <input className="input" placeholder="التسمية" value={s.label} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, label: e.target.value }))} />
                   <input className="input" placeholder="أيقونة" value={s.icon||''} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, icon: e.target.value }))} />
                   <input className="input" placeholder="tabKey (اختياري)" value={s.tabKey||''} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, tabKey: e.target.value }))} />
+                  <input className="input" placeholder="href (اختياري)" value={(s as any).href||''} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, href: (e.target as HTMLInputElement).value }))} />
                   <button className="btn btn-outline" onClick={()=> setSidebar(removeAt(config.sidebar||[], idx))}>حذف</button>
                 </div>
               ))}
@@ -161,10 +210,22 @@ export default function CategoriesDesignerPage(): JSX.Element {
           </div>
 
           <div className="card" style={{display:'grid', gap:8}}>
-            <div className="toolbar" style={{marginBottom:0}}><div className="muted">اقتراحات أسفل الصفحة</div><div className="actions" style={{display:'flex', gap:8}}><button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker((items)=> setSuggestions(items))}>اختيار فئات</button>{(config.suggestions||[]).length>0 && <button className="btn btn-outline btn-sm" onClick={()=> setSuggestions([])}>مسح</button>}</div></div>
+            <div className="toolbar" style={{marginBottom:0}}>
+              <div className="muted">اقتراحات أسفل الصفحة</div>
+              <div className="actions" style={{display:'flex', gap:8}}>
+                <label className="muted" style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                  <input type="checkbox" checked={Array.isArray(config.suggestions)? (config.suggestions.length>0) : !!(config.suggestions as SuggestionsConfig)?.enabled} onChange={e=> setSuggestionsMeta({ enabled: e.target.checked })} /> مفعّل
+                </label>
+                <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker((items)=> setSuggestions(items))}>اختيار فئات</button>
+                <button className="btn btn-outline btn-sm" onClick={()=> setSuggestions([])}>مسح</button>
+              </div>
+            </div>
+            <input className="input" placeholder="عنوان القسم" value={Array.isArray(config.suggestions)? 'ربما يعجبك هذا أيضاً' : ((config.suggestions as SuggestionsConfig)?.title||'')} onChange={e=> setSuggestionsMeta({ title: (e.target as HTMLInputElement).value })} />
             <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-              {(config.suggestions||[]).map((c)=> (<div key={c.id} className="badge" style={{gap:6}}>{c.image && <img src={c.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}<span>{c.name}</span></div>))}
-              {!(config.suggestions||[]).length && <div className="muted">— لا عناصر</div>}
+              {(Array.isArray(config.suggestions)? (config.suggestions as CategoryMini[]) : (((config.suggestions as SuggestionsConfig)?.items)||[])).map((c)=> (
+                <div key={c.id} className="badge" style={{gap:6}}>{c.image && <img src={c.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}<span>{c.name}</span></div>
+              ))}
+              {!(Array.isArray(config.suggestions)? (config.suggestions as CategoryMini[]).length : ((((config.suggestions as SuggestionsConfig)?.items)||[]).length)) && <div className="muted">— لا عناصر</div>}
             </div>
           </div>
 

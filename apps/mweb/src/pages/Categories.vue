@@ -19,7 +19,7 @@
     </div>
 
     <!-- Header -->
-    <div class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm h-14" aria-label="رأس الصفحة">
+    <div v-if="showHeader" class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm h-14" aria-label="رأس الصفحة">
       <div class="w-screen px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="الإشعارات" @click="go('/notifications')">
@@ -39,13 +39,13 @@
       </div>
 
     <!-- Tabs (ملتصقة بالهيدر) -->
-    <nav class="tabs fixed left-0 right-0 z-40 bg-white border-t border-b border-gray-200" style="top: 50px;">
+    <nav v-if="showTabs" class="tabs fixed left-0 right-0 z-40 bg-white border-t border-b border-gray-200" :style="{ top: navTop }">
       <button v-for="t in tabsList" :key="t.key" :class="{on: active===t.key}" @click="setTab(t.key)">{{ t.label }}</button>
     </nav>
 
-    <div class="layout">
+    <div class="layout" :style="{ marginTop: layoutTop, height: layoutHeight }">
       <!-- Sidebar -->
-      <aside class="side">
+      <aside v-if="showSidebar" class="side">
         <button 
           class="it" 
           v-for="(item,i) in sidebarItems" 
@@ -54,17 +54,19 @@
           @click="applySide(item)"
           :class="{active: selectedSidebarItem === item.label}"
         >
-          {{ item.label }}
+          <span class="ico" v-if="item.icon && isUrl(item.icon)"><img :src="item.icon" alt="" /></span>
+          <span class="ico" v-else-if="item.icon">{{ item.icon }}</span>
+          <span>{{ item.label }}</span>
         </button>
       </aside>
 
       <!-- Main grid -->
       <main class="main">
-        <!-- Promo Banner -->
-        <div class="promo-banner" v-if="promoBanner.enabled && (active === 'all')">
+        <!-- Promo Banner (tab override -> global) -->
+        <div class="promo-banner" v-if="activePromoBanner.enabled">
           <div class="promo-content">
-            <h3>{{ promoBanner.title || 'بانر ترويجي' }}</h3>
-            <img :src="promoBanner.image || 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo'" alt="بانر ترويجي" class="promo-img" />
+            <h3>{{ activePromoBanner.title || 'بانر ترويجي' }}</h3>
+            <img :src="activePromoBanner.image || 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo'" alt="بانر ترويجي" class="promo-img" />
           </div>
         </div>
 
@@ -94,19 +96,21 @@
         </div>
 
         <!-- Suggestions Section -->
-        <h3 class="ttl2">ربما يعجبك هذا أيضاً</h3>
-        <div class="grid suggestions">
-          <a 
-            v-for="(sug, idx) in suggestions" 
-            :key="idx" 
-            class="cell"
-            :href="`/c/${encodeURIComponent(sug.id)}`"
-            @click="trackSuggestionClick(sug)"
-          >
-            <img :src="sug.image" :alt="sug.name" loading="lazy" />
-            <div class="name">{{ sug.name }}</div>
-          </a>
-        </div>
+        <template v-if="suggestionsEnabled && suggestions.length">
+          <h3 class="ttl2">{{ suggestionsTitle }}</h3>
+          <div class="grid suggestions">
+            <a 
+              v-for="(sug, idx) in suggestions" 
+              :key="idx" 
+              class="cell"
+              :href="`/c/${encodeURIComponent(sug.id)}`"
+              @click="trackSuggestionClick(sug)"
+            >
+              <img :src="sug.image" :alt="sug.name" loading="lazy" />
+              <div class="name">{{ sug.name }}</div>
+            </a>
+          </div>
+        </template>
       </main>
     </div>
 
@@ -152,6 +156,20 @@ const promoEmail = ref('')
 // Config/preview
 const catConfig = ref<any>(null)
 const previewActive = ref<boolean>(false)
+const showHeader = computed(()=> catConfig.value?.layout?.showHeader!==false)
+const showTabs = computed(()=> catConfig.value?.layout?.showTabs!==false)
+const showSidebar = computed(()=> catConfig.value?.layout?.showSidebar!==false)
+const navTop = computed(()=> showHeader.value ? '50px' : '0px')
+const layoutTop = computed(()=> {
+  const headerH = showHeader.value ? 56 : 0
+  const tabsH = showTabs.value ? 48 : 0
+  return `${headerH + tabsH}px`
+})
+const layoutHeight = computed(()=> {
+  const headerH = showHeader.value ? 56 : 0
+  const tabsH = showTabs.value ? 48 : 0
+  return `calc(100dvh - ${headerH + tabsH}px - 60px)`
+})
 const tabsList = computed(()=>{
   const tabs = Array.isArray(catConfig.value?.tabs)? catConfig.value.tabs : []
   if (tabs.length) return tabs.map((t:any)=> ({ key: String(t.key||'all'), label: String(t.label||t.key||'') }))
@@ -166,6 +184,12 @@ const tabsList = computed(()=>{
   ]
 })
 const promoBanner = computed(()=> ({ enabled: !!catConfig.value?.promoBanner?.enabled, title: catConfig.value?.promoBanner?.title||'', image: catConfig.value?.promoBanner?.image||'', href: catConfig.value?.promoBanner?.href||'' }))
+const activePromoBanner = computed(()=>{
+  const t = (catConfig.value?.tabs||[]).find((x:any)=> String(x.key||'')===active.value)
+  const tabBanner = t?.promoBanner
+  if (tabBanner && tabBanner.enabled) return { enabled:true, title: tabBanner.title||'', image: tabBanner.image||'', href: tabBanner.href||'' }
+  return promoBanner.value
+})
 
 const router = useRouter()
 function go(path: string) { router.push(path) }
@@ -173,7 +197,7 @@ function go(path: string) { router.push(path) }
 // Enhanced Sidebar with icons (from config or fallback)
 const sidebarItems = computed<SidebarItem[]>(()=>{
   const arr = Array.isArray(catConfig.value?.sidebar)? catConfig.value.sidebar : null
-  if (arr) return arr.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, tab: s.tabKey||s.tab }))
+  if (arr) return arr.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, tab: s.tabKey||s.tab, href: s.href }))
   return [
     { label: 'لأحلامكم فقط', icon: '✨' },
     { label: 'جديد في', icon: '🆕', tab: 'all' },
@@ -274,9 +298,13 @@ function applySide(item: SidebarItem) {
   selectedSidebarItem.value = item.label
   if (item.tab) {
     setTab(item.tab)
+  } else if ((item as any).href) {
+    try { router.push(String((item as any).href)) } catch{}
   }
   trackSidebarClick(item.label)
 }
+
+function isUrl(s?:string){ return !!s && /^(https?:)?\/\//.test(s) }
 
 // Featured categories (subcategories for current tab)
 const featuredCategories = computed(() => {
@@ -305,7 +333,24 @@ const displayedCategories = computed(() => {
     const tabCfg = (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value)
     if (tabCfg) {
       if (tabCfg.grid?.mode === 'explicit') return (tabCfg.grid?.categories||[])
-      // filter mode fallback to API list
+      if (tabCfg.grid?.mode === 'filter') {
+        // Client-side filter using categoryIds if provided; fallback to all
+        const ids = (tabCfg.grid?.categoryIds||[]) as string[]
+        const limit = Number(tabCfg.grid?.limit||36)
+        const sortBy = String(tabCfg.grid?.sortBy||'name_asc')
+        let pool = cats.value
+        if (Array.isArray(ids) && ids.length) {
+          const byId: Record<string, any> = {}
+          for (const c of cats.value) byId[c.id] = c
+          pool = ids.map(id=> byId[id]).filter(Boolean)
+        }
+        const sorted = [...pool].sort((a:any,b:any)=>{
+          if (sortBy==='name_desc') return String(b.name||'').localeCompare(String(a.name||''), 'ar')
+          if (sortBy==='created_desc') return 0 // unknown; keep API order
+          return String(a.name||'').localeCompare(String(b.name||''), 'ar')
+        })
+        return sorted.slice(0, limit)
+      }
     }
     return categoryHierarchy[active.value] || []
   }
@@ -319,6 +364,20 @@ const currentSectionTitle = computed(() => {
   if (t?.label) return t.label
   const titles: Record<string, string> = { all: 'مختارات من أجلك', women: 'ملابس نسائية', men: 'ملابس رجالية', kids: 'ملابس أطفال', plus: 'مقاسات كبيرة', home: 'المنزل والحيوانات الأليفة', beauty: 'منتجات التجميل' }
   return titles[active.value] || 'مختارات من أجلك'
+})
+
+// Suggestions controls (backward compatible: array or object)
+const suggestionsEnabled = computed(()=>{
+  const s = catConfig.value?.suggestions
+  if (!s) return false
+  if (Array.isArray(s)) return s.length>0
+  return !!s.enabled && Array.isArray(s.items) && s.items.length>0
+})
+const suggestionsTitle = computed(()=>{
+  const s = catConfig.value?.suggestions
+  if (!s) return 'ربما يعجبك هذا أيضاً'
+  if (Array.isArray(s)) return 'ربما يعجبك هذا أيضاً'
+  return s.title || 'ربما يعجبك هذا أيضاً'
 })
 
 // Promo popup management
@@ -379,13 +438,16 @@ onMounted(async () => {
   // Live config
   if (!previewActive.value){ try{ const r = await fetch('/api/categories/page?site=mweb'); const j = await r.json(); if (j?.config) catConfig.value = j.config; }catch{} }
 
-  const data = await apiGet<any>('/api/categories?limit=36')
+  const data = await apiGet<any>('/api/categories?limit=200')
   if (data && Array.isArray(data.categories)) {
+    const badges: Record<string,string> = {}
+    try{ for (const b of (catConfig.value?.badges||[])) { if (b?.categoryId && b?.text) badges[b.categoryId]=b.text } }catch{}
     cats.value = data.categories.map((c: any) => ({ 
       id: c.slug || c.id, 
       name: c.name, 
       image: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug || c.id)}/200/200`,
-      categoryType: c.categoryType
+      categoryType: c.categoryType,
+      badge: badges[c.slug||c.id] || undefined,
     }))
   } else {
     // Fallback with mixed categories
@@ -414,8 +476,8 @@ onMounted(async () => {
   
   // Init suggestions from config or fallback
   try{
-    const arr = Array.isArray(catConfig.value?.suggestions)? catConfig.value.suggestions : []
-    if (arr.length) suggestions.value = arr
+    if (Array.isArray(catConfig.value?.suggestions)) suggestions.value = catConfig.value?.suggestions
+    else if (Array.isArray(catConfig.value?.suggestions?.items)) suggestions.value = catConfig.value?.suggestions?.items
     else suggestions.value = [
       { id: 'sug-accessories', name: 'إكسسوارات عصرية', image: 'https://csspicker.dev/api/image/?q=fashion+accessories&image_type=photo' },
       { id: 'sug-kids', name: 'ملابس أطفال مريحة', image: 'https://csspicker.dev/api/image/?q=kids+comfortable+clothing&image_type=photo' },
@@ -428,6 +490,18 @@ onMounted(async () => {
 
   // Show promo popup from config
   if (catConfig.value?.layout?.showPromoPopup) setTimeout(()=>{ showPromoPopup.value = true }, 2000)
+
+  // Apply SEO
+  try{
+    const t = catConfig.value?.seo?.title || 'الفئات'
+    const d = catConfig.value?.seo?.description || ''
+    if (t) document.title = t
+    if (d) {
+      let m = document.querySelector('meta[name="description"]') as HTMLMetaElement|null
+      if (!m) { m = document.createElement('meta'); m.setAttribute('name','description'); document.head.appendChild(m) }
+      m.setAttribute('content', d)
+    }
+  }catch{}
 
   // Live preview updates from Admin
   try{
@@ -483,6 +557,8 @@ onMounted(async () => {
   border-radius:6px;
   margin-bottom:2px;
 }
+.side .it .ico{display:inline-grid;place-items:center;width:20px;height:20px;margin-inline-end:6px}
+.side .it .ico img{width:18px;height:18px;object-fit:cover;border-radius:4px}
 .side .it:hover{background:#e5e7eb;transform:translateX(-2px)}
 .side .it.active{background:#fff;color:#111;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
 
