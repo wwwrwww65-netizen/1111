@@ -34,6 +34,9 @@ export default function CategoriesDesignerPage(): JSX.Element {
   const [pickerOpen, setPickerOpen] = React.useState<boolean>(false);
   const pickerCbRef = React.useRef<(items: CategoryMini[])=>void>(()=>{});
   function openCategoriesPicker(cb:(items: CategoryMini[])=>void){ pickerCbRef.current = cb; setPickerOpen(true); }
+  const [mediaOpen, setMediaOpen] = React.useState<boolean>(false);
+  const mediaOnSelectRef = React.useRef<(url:string)=>void>(()=>{});
+  function openMediaPicker(cb:(url:string)=>void){ mediaOnSelectRef.current = cb; setMediaOpen(true); }
   const [config, setConfig] = React.useState<CategoriesPageConfig>({
     layout: { showHeader: true, showTabs: true, showSidebar: true, showPromoPopup: false },
     promoBanner: { enabled: true, image: "", title: "", href: "/products" },
@@ -155,7 +158,7 @@ export default function CategoriesDesignerPage(): JSX.Element {
             <input className="input" placeholder="رابط عند النقر" value={config.promoBanner?.href||''} onChange={e=> setPromo({ href: e.target.value })} />
             <div style={{display:'grid', gridTemplateColumns:'1fr auto', gap:8}}>
               <input className="input" placeholder="رابط صورة" value={config.promoBanner?.image||''} onChange={e=> setPromo({ image: e.target.value })} />
-              {/* Could add MediaPicker here like Tabs builder */}
+              <button className="btn btn-outline" onClick={()=> openMediaPicker((u)=> setPromo({ image: u }))}>اختر صورة</button>
             </div>
           </div>
 
@@ -294,6 +297,7 @@ export default function CategoriesDesignerPage(): JSX.Element {
 
       {/* Modals */}
       <CategoriesPickerModal open={pickerOpen} onClose={()=> setPickerOpen(false)} onSave={(items)=>{ try{ pickerCbRef.current && pickerCbRef.current(items); } finally{ setPickerOpen(false); } }} />
+      <MediaPickerModal open={mediaOpen} onClose={()=> setMediaOpen(false)} onSelect={(u)=>{ try{ mediaOnSelectRef.current && mediaOnSelectRef.current(u); } finally { setMediaOpen(false); } }} />
     </main>
   );
 }
@@ -372,3 +376,72 @@ function CategoriesPickerModal({ open, onClose, onSave }:{ open:boolean; onClose
 }
 
 // (no global picker state needed)
+
+function MediaPickerModal({ open, onClose, onSelect }:{ open:boolean; onClose:()=>void; onSelect:(url:string)=>void }): JSX.Element|null {
+  const [rows, setRows] = React.useState<Array<{ id:string; url:string; alt?:string }>>([]);
+  const [search, setSearch] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
+  const [busy, setBusy] = React.useState(false);
+  const limit = 24;
+
+  const load = React.useCallback(async()=>{
+    if (!open) return;
+    try{
+      const r = await fetch(`/api/admin/media/list?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, { credentials:'include' });
+      const j = await r.json(); setRows((j.assets||[]) as any); setTotal(Number(j.total||0));
+    }catch{}
+  },[open, page, search]);
+  React.useEffect(()=>{ load(); },[load]);
+
+  async function toBase64(file: File): Promise<string> {
+    return await new Promise((resolve, reject)=>{ const reader = new FileReader(); reader.onload=()=> resolve(String(reader.result||'')); reader.onerror=reject; reader.readAsDataURL(file); });
+  }
+  async function uploadFiles(list: File[]){
+    try{ setBusy(true);
+      for (const f of list){
+        try{ const b64 = await toBase64(f); await fetch(`/api/admin/media`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ base64: b64, type: f.type||'image' }) }); }catch{}
+      }
+      await load();
+    } finally { setBusy(false); }
+  }
+
+  if (!open) return null;
+  const pages = Math.max(1, Math.ceil(total/limit));
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }} onClick={onClose}>
+      <div style={{ width:'min(1000px, 94vw)', maxHeight:'86vh', overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }} onClick={(e)=> e.stopPropagation()}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <h3 style={{ margin:0 }}>الوسائط</h3>
+          <button onClick={onClose} className="btn btn-outline btn-sm">إغلاق</button>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, marginBottom:12 }}>
+          <input value={search} onChange={(e)=> setSearch((e.target as HTMLInputElement).value)} placeholder="بحث" className="input" />
+          <label className="btn btn-outline btn-sm" style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+            اختر ملفات
+            <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e)=>{ const list = Array.from((e.target as HTMLInputElement).files||[]); if (list.length) uploadFiles(list); }} />
+          </label>
+        </div>
+        <div onDragOver={(e)=> e.preventDefault()} onDrop={(e)=>{ e.preventDefault(); const list = Array.from(e.dataTransfer?.files||[]); if (list.length) uploadFiles(list); }} style={{ border:'1px dashed #334155', borderRadius:10, padding:12, textAlign:'center', color:'#94a3b8', marginBottom:12 }}>
+          {busy? 'جارٍ الرفع…' : 'اسحب وأفلت الصور هنا أو اختر من جهازك'}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(6, minmax(120px, 1fr))', gap:10 }}>
+          {rows.map((a)=> (
+            <button key={a.id} onClick={()=> onSelect(a.url)} style={{ background:'#0f1320', border:'1px solid #1c2333', borderRadius:8, padding:6 }}>
+              <img src={a.url} alt={a.alt||''} style={{ width:'100%', borderRadius:6 }} />
+            </button>
+          ))}
+          {!rows.length && <div className="muted">لا توجد عناصر</div>}
+        </div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
+          <div style={{ color:'#94a3b8', fontSize:12 }}>{total} عنصر</div>
+          <div style={{ display:'flex', gap:6 }}>
+            <button disabled={page<=1} onClick={()=> setPage(p=> Math.max(1, p-1))} className="btn btn-outline btn-sm">السابق</button>
+            <span style={{ color:'#94a3b8' }}>{page} / {pages}</span>
+            <button disabled={page>=pages} onClick={()=> setPage(p=> Math.min(pages, p+1))} className="btn btn-outline btn-sm">التالي</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
