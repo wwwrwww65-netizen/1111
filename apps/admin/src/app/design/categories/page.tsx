@@ -20,7 +20,21 @@ export default function CategoriesManagerPage(): JSX.Element {
 
   const loadTabs = React.useCallback(async(s:'mweb'|'web')=>{
     try{
-      const j = await (await fetch(`/api/admin/categories/page?site=${s}&mode=draft`, { credentials:'include' })).json();
+      const r = await fetch(`${resolveApiBase()}/api/admin/categories/page?site=${s}&mode=draft`, { credentials:'include' });
+      if (!r.ok) {
+        // Seed draft if missing (404)
+        if (r.status === 404) {
+          await fetch(`${resolveApiBase()}/api/admin/categories/page/import-default`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site: s }) });
+          const r2 = await fetch(`${resolveApiBase()}/api/admin/categories/page?site=${s}&mode=draft`, { credentials:'include' });
+          const j2 = await r2.json();
+          const cfg2 = (j2?.config||{}) as any;
+          const list2 = Array.isArray(cfg2.tabs)? cfg2.tabs : [];
+          setTabs(list2.map((t:any)=> ({ key: String(t.key||''), label: String(t.label||''), sidebarCount: Array.isArray(t.sidebarItems)? t.sidebarItems.length : 0, gridMode: String(t.grid?.mode||'explicit') })));
+          return;
+        }
+        throw new Error('failed');
+      }
+      const j = await r.json();
       const cfg = (j?.config||{}) as any;
       const list = Array.isArray(cfg.tabs)? cfg.tabs : [];
       setTabs(list.map((t:any)=> ({ key: String(t.key||''), label: String(t.label||''), sidebarCount: Array.isArray(t.sidebarItems)? t.sidebarItems.length : 0, gridMode: String(t.grid?.mode||'explicit') })));

@@ -35,7 +35,18 @@ export default function CategoriesDesignerPage(): JSX.Element {
   });
 
   React.useEffect(()=>{ (async()=>{
-    try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page?site=${site}&mode=draft`, { credentials:'include' }); const j = await r.json(); if (j?.config) setConfig(j.config as CategoriesPageConfig); }catch{}
+    try{
+      const r = await fetch(`${resolveApiBase()}/api/admin/categories/page?site=${site}&mode=draft`, { credentials:'include' });
+      if (!r.ok) {
+        if (r.status === 404) {
+          await fetch(`${resolveApiBase()}/api/admin/categories/page/import-default`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site }) });
+          const r2 = await fetch(`${resolveApiBase()}/api/admin/categories/page?site=${site}&mode=draft`, { credentials:'include' });
+          const j2 = await r2.json(); if (j2?.config) setConfig(j2.config as CategoriesPageConfig); return;
+        }
+        throw new Error('failed');
+      }
+      const j = await r.json(); if (j?.config) setConfig(j.config as CategoriesPageConfig);
+    }catch{}
   })(); }, [site]);
 
   // Scroll to tab if provided
