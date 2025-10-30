@@ -1688,6 +1688,44 @@ shop.get('/popups', async (req, res) => {
   }catch(e:any){ return res.status(500).json({ error: e?.message||'popups_failed' }); }
 });
 
+// Promotions claim (shop user)
+shop.post('/promotions/claim/start', async (req: any, res) => {
+  try{
+    const campaignId = String(req.body?.campaignId||''); if (!campaignId) return res.status(400).json({ error:'missing_campaign' });
+    const expMs = 10*60*1000; const token = require('crypto').randomUUID();
+    const c = await db.claim.create({ data: { campaignId, token, status:'initiated', expiresAt: new Date(Date.now()+expMs) } as any });
+    res.json({ token: c.token, exp: c.expiresAt });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'claim_start_failed' }); }
+});
+shop.post('/promotions/claim/complete', async (req: any, res) => {
+  try{
+    // Identify user from shop cookie/headers similar to /me
+    const header = (req?.headers?.authorization as string|undefined) || '';
+    let tokenAuth = '';
+    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    const jwt = require('jsonwebtoken');
+    let payload:any = null;
+    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ payload = jwt.verify(t, process.env.JWT_SECRET||''); break; }catch{} }
+    if (!payload?.userId) return res.status(401).json({ error:'unauthorized' });
+    const userId = String(payload.userId);
+    const token = String(req.body?.token||''); if (!token) return res.status(400).json({ error:'missing_token' });
+    const cl = await db.claim.findUnique({ where: { token } } as any);
+    if (!cl) return res.status(404).json({ error:'not_found' });
+    if (new Date(cl.expiresAt).getTime() < Date.now()) return res.status(410).json({ error:'expired' });
+    if (cl.status === 'completed') return res.json({ ok:true, already:true });
+    const camp = await db.campaign.findUnique({ where: { id: cl.campaignId } } as any);
+    if (!camp) return res.status(404).json({ error:'campaign_not_found' });
+    const rewardId = (camp as any).rewardId as string|undefined;
+    if (rewardId){
+      const exists = await db.userReward.findFirst({ where: { userId, rewardId, campaignId: camp.id } } as any);
+      if (!exists){ await db.userReward.create({ data: { userId, rewardId, campaignId: camp.id, status:'granted' } } as any); }
+    }
+    await db.claim.update({ where:{ token }, data:{ status:'completed', userId } } as any);
+    res.json({ ok:true, granted: !!rewardId });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'claim_complete_failed' }); }
+});
+
 // Catalog by category slug or id
 shop.get('/catalog/:slug', async (req, res) => {
   try {

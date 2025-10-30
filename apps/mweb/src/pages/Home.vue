@@ -214,6 +214,7 @@
 </template>
 
 <script setup lang="ts">
+import PromoPopup from '@/components/PromoPopup.vue'
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { apiGet, API_BASE } from '@/lib/api'

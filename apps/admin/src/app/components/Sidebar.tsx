@@ -89,7 +89,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     title: 'التسويق',
     items: [
       { href: '/coupons', label: 'الكوبونات' },
-      { href: '/promotions', label: 'العروض' },
+      { href: '/marketing/promotions', label: 'العروض والنوافذ الترويجية' },
       { href: '/trends/management', label: 'الاتجاهات' },
       { href: '/marketing/facebook', label: 'تسويق فيسبوك' },
       { href: '/recommendations/rules', label: 'قواعد التوصيات' },

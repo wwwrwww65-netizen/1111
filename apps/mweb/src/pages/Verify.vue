@@ -233,6 +233,8 @@ async function onSubmit(){
         writeCookie('shop_auth_token', r.token)
         try{ localStorage.setItem('shop_token', r.token) }catch{}
       }
+      // Complete pending claim if any
+      try{ const claimTok = String(route.query.claimToken||''); if (claimTok){ await fetch('/api/promotions/claim/complete', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ token: claimTok }) }) } }catch{}
       // Fetch session and hydrate user store before redirect
       const me = await meWithRetry(2)
       const ret = String(route.query.return || '/account')
