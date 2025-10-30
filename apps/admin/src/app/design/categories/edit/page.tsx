@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { useSearchParams } from "next/navigation";
+import { resolveApiBase } from "../../lib/apiBase";
 
 type Site = "web" | "mweb";
 type CategoryMini = { id: string; name: string; image?: string };
@@ -34,7 +35,7 @@ export default function CategoriesDesignerPage(): JSX.Element {
   });
 
   React.useEffect(()=>{ (async()=>{
-    try{ const r = await fetch(`/api/admin/categories/page?site=${site}&mode=draft`, { credentials:'include' }); const j = await r.json(); if (j?.config) setConfig(j.config as CategoriesPageConfig); }catch{}
+    try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page?site=${site}&mode=draft`, { credentials:'include' }); const j = await r.json(); if (j?.config) setConfig(j.config as CategoriesPageConfig); }catch{}
   })(); }, [site]);
 
   // Scroll to tab if provided
@@ -55,9 +56,9 @@ export default function CategoriesDesignerPage(): JSX.Element {
   function updateAt<T>(arr: T[], idx:number, v:T){ const next=[...arr]; next[idx]=v; return next; }
   function removeAt<T>(arr: T[], idx:number){ return arr.filter((_,i)=> i!==idx); }
 
-  async function save(){ try{ const r = await fetch('/api/admin/categories/page', { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site, mode:'draft', config }) }); if (!r.ok) throw new Error('failed'); alert('تم الحفظ'); }catch{ alert('فشل الحفظ'); } }
-  async function publish(){ if (!confirm('نشر صفحة الفئات للنسخة الحية؟')) return; try{ const r = await fetch('/api/admin/categories/page/publish', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site }) }); if (!r.ok) throw new Error('failed'); alert('تم النشر'); }catch{ alert('فشل النشر'); } }
-  async function signPreviewToken(): Promise<string|undefined> { try{ const r = await fetch('/api/admin/categories/page/preview/sign', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ content: config }) }); if (!r.ok) return; const j = await r.json(); return j?.token; }catch{ return; } }
+  async function save(){ try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site, mode:'draft', config }) }); if (!r.ok) throw new Error('failed'); alert('تم الحفظ'); }catch{ alert('فشل الحفظ'); } }
+  async function publish(){ if (!confirm('نشر صفحة الفئات للنسخة الحية؟')) return; try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page/publish`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site }) }); if (!r.ok) throw new Error('failed'); alert('تم النشر'); }catch{ alert('فشل النشر'); } }
+  async function signPreviewToken(): Promise<string|undefined> { try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page/preview/sign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ content: config }) }); if (!r.ok) return; const j = await r.json(); return j?.token; }catch{ return; } }
   async function openExternalPreview(){ try{ const token = await signPreviewToken(); const qs = new URLSearchParams(); if (token) qs.set('token', token); window.open(`https://m.jeeey.com/categories?${qs.toString()}`, '_blank'); }catch{} }
 
   return (
@@ -353,16 +354,15 @@ export default function CategoriesDesignerPage(): JSX.Element {
 function CategoriesLivePreview({ content }:{ content: CategoriesPageConfig }): JSX.Element {
   const frameRef = React.useRef<HTMLIFrameElement|null>(null);
   const [src, setSrc] = React.useState<string>("");
-  React.useEffect(()=>{ (async()=>{ try{ const r = await fetch('/api/admin/categories/page/preview/sign', { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify({ content }) }); const j = await r.json(); const token = j?.token||''; const qs = new URLSearchParams(); if (token) qs.set('token', token); setSrc(`https://m.jeeey.com/categories?${qs.toString()}`); }catch{ setSrc(''); } })(); }, [JSON.stringify(content)]);
-  React.useEffect(()=>{ try{ const win = frameRef.current?.contentWindow; if (!win) return; win.postMessage({ __categories_preview: true, content }, 'https://m.jeeey.com'); }catch{} }, [src, JSON.stringify(content)]);
-  return (<iframe ref={frameRef} title="Live Categories Preview" src={src} style={{ width:'100%', height: 860, border:0 }} onLoad={()=>{ try{ const win = frameRef.current?.contentWindow; if (!win) return; win.postMessage({ __categories_preview: true, content }, 'https://m.jeeey.com'); }catch{} }} />);
+  React.useEffect(()=>{ (async()=>{ try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page/preview/sign`, { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify({ content }) }); const j = await r.json(); const token = j?.token||''; const qs = new URLSearchParams(); if (token) qs.set('token', token); setSrc(`https://m.jeeey.com/categories?${qs.toString()}`); }catch{ setSrc(''); } })(); }, [JSON.stringify(content)]);
+  return (<iframe ref={frameRef} title="Live Categories Preview" src={src} style={{ width:'100%', height: 860, border:0 }} onLoad={()=>{ try{ const win = frameRef.current?.contentWindow; if (!win) return; win.postMessage({ __categories_preview: true, content }, '*'); }catch{} }} />);
 }
 
 function CategoriesPickerModal({ open, onClose, onSave }:{ open:boolean; onClose:()=>void; onSave:(items: CategoryMini[])=>void }): JSX.Element|null {
   const [rows, setRows] = React.useState<CategoryMini[]>([]);
   const [search, setSearch] = React.useState('');
   const [selected, setSelected] = React.useState<Record<string, CategoryMini>>({});
-  React.useEffect(()=>{ if(!open) return; (async()=>{ try{ const r = await fetch(`/api/admin/categories?search=${encodeURIComponent(search)}`, { credentials:'include' }); const j = await r.json(); const list = Array.isArray(j.categories)? j.categories : []; setRows(list.map((c:any)=> ({ id:c.id, name:c.name, image: c.image||'' }))); }catch{} })(); },[open, search]);
+  React.useEffect(()=>{ if(!open) return; (async()=>{ try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories?search=${encodeURIComponent(search)}`, { credentials:'include' }); const j = await r.json(); const list = Array.isArray(j.categories)? j.categories : []; setRows(list.map((c:any)=> ({ id:c.id, name:c.name, image: c.image||'' }))); }catch{} })(); },[open, search]);
   if (!open) return null; const items = Object.values(selected);
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }} onClick={onClose}>
@@ -400,10 +400,10 @@ function MediaPickerModal({ open, onClose, onSelect }:{ open:boolean; onClose:()
   const [total, setTotal] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
   const limit = 24;
-  const load = React.useCallback(async()=>{ if (!open) return; try{ const r = await fetch(`/api/admin/media/list?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, { credentials:'include' }); const j = await r.json(); setRows((j.assets||[]) as any); setTotal(Number(j.total||0)); }catch{} },[open, page, search]);
+  const load = React.useCallback(async()=>{ if (!open) return; try{ const r = await fetch(`${resolveApiBase()}/api/admin/media/list?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, { credentials:'include' }); const j = await r.json(); setRows((j.assets||[]) as any); setTotal(Number(j.total||0)); }catch{} },[open, page, search]);
   React.useEffect(()=>{ load(); },[load]);
   async function toBase64(file: File): Promise<string> { return await new Promise((resolve, reject)=>{ const reader = new FileReader(); reader.onload=()=> resolve(String(reader.result||'')); reader.onerror=reject; reader.readAsDataURL(file); }); }
-  async function uploadFiles(list: File[]){ try{ setBusy(true); for (const f of list){ try{ const b64 = await toBase64(f); await fetch(`/api/admin/media`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ base64: b64, type: f.type||'image' }) }); }catch{} } await load(); } finally { setBusy(false); } }
+  async function uploadFiles(list: File[]){ try{ setBusy(true); for (const f of list){ try{ const b64 = await toBase64(f); await fetch(`${resolveApiBase()}/api/admin/media`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ base64: b64, type: f.type||'image' }) }); }catch{} } await load(); } finally { setBusy(false); } }
   if (!open) return null; const pages = Math.max(1, Math.ceil(total/limit));
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }} onClick={onClose}>

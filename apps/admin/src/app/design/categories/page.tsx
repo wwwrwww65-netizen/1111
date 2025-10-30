@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../../lib/apiBase";
 
 export default function CategoriesManagerPage(): JSX.Element {
   const [rows, setRows] = React.useState<Array<{ site:'mweb'|'web'; hasDraft:boolean; hasLive:boolean; draftUpdatedAt?:string|null; liveUpdatedAt?:string|null }>>([]);
@@ -11,7 +12,7 @@ export default function CategoriesManagerPage(): JSX.Element {
 
   async function load(){
     setLoading(true); setMsg('');
-    try{ const j = await (await fetch('/api/admin/categories/page/summary', { credentials:'include' })).json(); setRows(j.items||[]); }
+    try{ const j = await (await fetch(`${resolveApiBase()}/api/admin/categories/page/summary`, { credentials:'include' })).json(); setRows(j.items||[]); }
     catch(e:any){ setMsg(e?.message||'failed'); }
     finally{ setLoading(false); }
   }
@@ -28,7 +29,7 @@ export default function CategoriesManagerPage(): JSX.Element {
   React.useEffect(()=>{ loadTabs(site); },[site, loadTabs]);
 
   async function publish(site:'mweb'|'web'){
-    try{ const r = await fetch('/api/admin/categories/page/publish', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site }) }); if (!r.ok) throw new Error('فشل النشر'); setMsg('تم النشر'); await load(); }
+    try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page/publish`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site }) }); if (!r.ok) throw new Error('فشل النشر'); setMsg('تم النشر'); await load(); }
     catch(e:any){ setMsg(e?.message||'فشل النشر'); }
     finally{ setTimeout(()=> setMsg(''), 1400); }
   }
@@ -45,7 +46,7 @@ export default function CategoriesManagerPage(): JSX.Element {
           </div>
           <div className="actions" style={{display:'flex', gap:8}}>
             <button className="btn btn-outline" onClick={load}>تحديث</button>
-            <button className="btn btn-outline" onClick={async ()=>{ try{ const r = await fetch('/api/admin/categories/page/import-default', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site:'mweb' }) }); if (!r.ok) throw new Error('failed'); await load(); }catch{ alert('فشل الاستيراد'); } }}>استيراد القالب الحالي (mweb)</button>
+            <button className="btn btn-outline" onClick={async ()=>{ try{ const r = await fetch(`${resolveApiBase()}/api/admin/categories/page/import-default`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site:'mweb' }) }); if (!r.ok) throw new Error('failed'); await load(); }catch{ alert('فشل الاستيراد'); } }}>استيراد القالب الحالي (mweb)</button>
           </div>
         </div>
         {msg && (<div className={`toast ${/فشل/.test(msg)? 'err':'ok'}`}>{msg}</div>)}
