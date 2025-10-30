@@ -898,6 +898,91 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+// Promotions: Popups & Rewards
+enum RewardType {
+  COUPON
+  FREE_SHIPPING
+  POINTS
+  WALLET_CREDIT
+}
+
+model Reward {
+  id          String     @id @default(cuid())
+  type        RewardType
+  name        String
+  config      Json        // {couponCode, percent, amount, minSubtotal, points, walletAmount, validity}
+  isActive    Boolean     @default(true)
+  totalBudget Int?        // optional cap (points/uses)
+  usedBudget  Int         @default(0)
+  validFrom   DateTime?
+  validUntil  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  userRewards UserReward[]
+}
+
+enum CampaignStatus {
+  DRAFT
+  LIVE
+  PAUSED
+  ENDED
+}
+
+model Campaign {
+  id          String          @id @default(cuid())
+  name        String
+  status      CampaignStatus  @default(DRAFT)
+  priority    Int             @default(0)
+  schedule    Json?           // {start,end,daysOfWeek,hours}
+  targeting   Json?           // {pages,devices,segments,locale}
+  frequency   Json?           // {perSession, perUser, perDay}
+  variantA    Json?           // blocks/layout for A
+  variantB    Json?           // blocks/layout for B (optional)
+  abWeights   Json?           // {A:70,B:30}
+  rewardId    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  reward      Reward?         @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+  claims      Claim[]
+
+  @@index([status, priority])
+}
+
+model UserReward {
+  id         String   @id @default(cuid())
+  userId     String
+  rewardId   String
+  campaignId String?
+  status     String   @default("granted") // granted|used|expired|revoked
+  meta       Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward     Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([userId, rewardId])
+}
+
+model Claim {
+  id         String   @id @default(cuid())
+  campaignId String
+  userId     String?
+  anonymousId String?
+  token      String   @unique
+  status     String   @default("initiated") // initiated|completed|failed
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, status])
+}
+
 // Shipping Zones and Delivery Rates
 model ShippingZone {
   id            String   @id @default(cuid())
