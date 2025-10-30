@@ -5,6 +5,9 @@ export default function CategoriesManagerPage(): JSX.Element {
   const [rows, setRows] = React.useState<Array<{ site:'mweb'|'web'; hasDraft:boolean; hasLive:boolean; draftUpdatedAt?:string|null; liveUpdatedAt?:string|null }>>([]);
   const [loading, setLoading] = React.useState(true);
   const [msg, setMsg] = React.useState('');
+  const [site, setSite] = React.useState<'mweb'|'web'>('mweb');
+  const [tabs, setTabs] = React.useState<Array<{ key:string; label:string; sidebarCount:number; gridMode:string }>>([]);
+  const [busy, setBusy] = React.useState(false);
 
   async function load(){
     setLoading(true); setMsg('');
@@ -13,6 +16,16 @@ export default function CategoriesManagerPage(): JSX.Element {
     finally{ setLoading(false); }
   }
   React.useEffect(()=>{ load(); },[]);
+
+  const loadTabs = React.useCallback(async(s:'mweb'|'web')=>{
+    try{
+      const j = await (await fetch(`/api/admin/categories/page?site=${s}&mode=draft`, { credentials:'include' })).json();
+      const cfg = (j?.config||{}) as any;
+      const list = Array.isArray(cfg.tabs)? cfg.tabs : [];
+      setTabs(list.map((t:any)=> ({ key: String(t.key||''), label: String(t.label||''), sidebarCount: Array.isArray(t.sidebarItems)? t.sidebarItems.length : 0, gridMode: String(t.grid?.mode||'explicit') })));
+    }catch{ setTabs([]); }
+  },[]);
+  React.useEffect(()=>{ loadTabs(site); },[site, loadTabs]);
 
   async function publish(site:'mweb'|'web'){
     try{ const r = await fetch('/api/admin/categories/page/publish', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site }) }); if (!r.ok) throw new Error('فشل النشر'); setMsg('تم النشر'); await load(); }
@@ -68,6 +81,58 @@ export default function CategoriesManagerPage(): JSX.Element {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="panel">
+        <div className="toolbar">
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <div style={{fontWeight:800}}>تبويبات الموقع</div>
+            <select className="select" value={site} onChange={e=> setSite((e.target as HTMLSelectElement).value as any)}>
+              <option value="mweb">mweb</option>
+              <option value="web">web</option>
+            </select>
+          </div>
+          <div className="actions" style={{display:'flex', gap:8}}>
+            <button disabled={busy} className="btn btn-outline btn-sm" onClick={()=> loadTabs(site)}>تحديث</button>
+            <button disabled={busy} className="btn btn-sm" onClick={async()=>{
+              try{
+                setBusy(true);
+                const j = await (await fetch(`/api/admin/categories/page?site=${site}&mode=draft`, { credentials:'include' })).json();
+                const cfg = (j?.config||{}) as any; const t = Array.isArray(cfg.tabs)? cfg.tabs : [];
+                const idx = t.length+1; const newTab = { key:`tab${idx}`, label:`تبويب ${idx}`, grid:{ mode:'explicit', categories: [] }, sidebarItems: [] } as any;
+                const next = { ...(cfg||{}), tabs: [...t, newTab] };
+                const r = await fetch('/api/admin/categories/page', { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site, mode:'draft', config: next }) });
+                if (!r.ok) throw new Error('failed');
+                await loadTabs(site);
+              }catch{ alert('تعذر إضافة تبويب'); }
+              finally{ setBusy(false); }
+            }}>+ تبويب جديد</button>
+          </div>
+        </div>
+        <div className="table-wrapper">
+          <table className="table">
+            <thead>
+              <tr><th>#</th><th>المفتاح</th><th>التسمية</th><th>عناصر الشريط</th><th>الشبكة</th><th>إجراءات</th></tr>
+            </thead>
+            <tbody>
+              {tabs.map((t, i)=> (
+                <tr key={`tab-${i}`}>
+                  <td>{i+1}</td>
+                  <td dir="ltr">{t.key}</td>
+                  <td>{t.label}</td>
+                  <td>{t.sidebarCount}</td>
+                  <td>{t.gridMode}</td>
+                  <td>
+                    <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                      <a className="btn btn-outline btn-sm" href={`/design/categories/edit?site=${site}&tab=${encodeURIComponent(t.key)}`}>تحرير</a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!tabs.length && (<tr><td colSpan={6}><div className="muted">— لا توجد تبويبات</div></td></tr>)}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

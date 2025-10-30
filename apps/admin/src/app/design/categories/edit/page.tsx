@@ -15,6 +15,7 @@ type CategoriesPageConfig = { layout?: { showHeader?: boolean; showTabs?: boolea
 export default function CategoriesDesignerPage(): JSX.Element {
   const sp = useSearchParams();
   const siteParam = (sp?.get('site') as Site) || undefined;
+  const tabParam = sp?.get('tab') || '';
   const [site, setSite] = React.useState<Site>(siteParam||"mweb");
   React.useEffect(()=>{ if (siteParam && (siteParam==='mweb'||siteParam==='web')) setSite(siteParam); },[siteParam]);
 
@@ -35,6 +36,10 @@ export default function CategoriesDesignerPage(): JSX.Element {
   React.useEffect(()=>{ (async()=>{
     try{ const r = await fetch(`/api/admin/categories/page?site=${site}&mode=draft`, { credentials:'include' }); const j = await r.json(); if (j?.config) setConfig(j.config as CategoriesPageConfig); }catch{}
   })(); }, [site]);
+
+  // Scroll to tab if provided
+  const tabRefs = React.useRef<Record<string, HTMLDivElement|null>>({});
+  React.useEffect(()=>{ try{ if(!tabParam) return; const el = tabRefs.current[tabParam]; if(el) el.scrollIntoView({ behavior:'smooth', block:'center' }); }catch{} }, [tabParam, JSON.stringify(config.tabs||[])]);
 
   function setLayout(upd: Partial<NonNullable<CategoriesPageConfig['layout']>>){ setConfig(c=> ({ ...c, layout: { ...(c.layout||{}), ...upd } })); }
   function setTabs(items: TabConfig[]){ setConfig(c=> ({ ...c, tabs: items })); }
@@ -105,7 +110,7 @@ export default function CategoriesDesignerPage(): JSX.Element {
             </div>
             <div style={{display:'grid', gap:12}}>
               {(config.tabs||[]).map((t, idx)=> (
-                <div key={idx} className="card" style={{display:'grid', gap:8}}>
+                <div key={`tab-${t.key||idx}`} ref={el=> { try{ tabRefs.current[String(t.key||'')] = el; }catch{} }} className="card" style={{display:'grid', gap:8}}>
                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr auto auto', gap:8}}>
                     <input className="input" placeholder="المفتاح (women)" value={t.key} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, key: e.target.value }))} />
                     <input className="input" placeholder="التسمية (نساء)" value={t.label} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, label: e.target.value }))} />
@@ -284,12 +289,11 @@ export default function CategoriesDesignerPage(): JSX.Element {
           </div>
 
           <div className="card" style={{display:'grid', gap:8}}>
-            <div className="toolbar" style={{marginBottom:0}}><div className="muted">الشريط الجانبي</div><div className="actions"><button className="btn btn-outline btn-sm" onClick={()=> setSidebar([...(config.sidebar||[]), { label:'عنصر', icon:'✨', tabKey:'', href:'' }])}>+ عنصر</button></div></div>
+            <div className="toolbar" style={{marginBottom:0}}><div className="muted">الشريط الجانبي</div><div className="actions"><button className="btn btn-outline btn-sm" onClick={()=> setSidebar([...(config.sidebar||[]), { label:'عنصر', tabKey:'', href:'' }])}>+ عنصر</button></div></div>
             <div style={{display:'grid', gap:8}}>
               {(config.sidebar||[]).map((s, idx)=> (
-                <div key={`${s.label}:${idx}`} style={{display:'grid', gridTemplateColumns:'1fr 120px 160px 1fr auto', gap:8}}>
+                <div key={`gs-${idx}`} style={{display:'grid', gridTemplateColumns:'1fr 160px 1fr auto', gap:8}}>
                   <input className="input" placeholder="التسمية" value={s.label} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, label: e.target.value }))} />
-                  <input className="input" placeholder="أيقونة" value={s.icon||''} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, icon: e.target.value }))} />
                   <input className="input" placeholder="tabKey (اختياري)" value={s.tabKey||''} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, tabKey: e.target.value }))} />
                   <input className="input" placeholder="href (اختياري)" value={(s as any).href||''} onChange={e=> setSidebar(updateAt(config.sidebar||[], idx, { ...s, href: (e.target as HTMLInputElement).value }))} />
                   <button className="btn btn-outline" onClick={()=> setSidebar(removeAt(config.sidebar||[], idx))}>حذف</button>
