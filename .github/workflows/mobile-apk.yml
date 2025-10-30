@@ -1,0 +1,103 @@
+name: Mobile - Build Android APK
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS profile to use (preview/internal/production)
+        required: false
+        default: preview
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL || vars.EXPO_PUBLIC_TRPC_URL }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID || vars.EAS_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies (no frozen lockfile)
+        run: |
+          pnpm config set frozen-lockfile false
+          pnpm install --no-frozen-lockfile
+
+      - name: Setup Expo & EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ env.EXPO_TOKEN }}
+
+      - name: Ensure EAS login
+        run: eas whoami || eas account:login --token ${{ env.EXPO_TOKEN }}
+
+      - name: Inject EAS projectId into app.json
+        if: env.EAS_PROJECT_ID != ''
+        working-directory: apps/mobile
+        run: |
+          node -e "const fs=require('fs');const p='app.json';const cfg=JSON.parse(fs.readFileSync(p,'utf8')); cfg.expo=cfg.expo||{}; cfg.expo.extra=cfg.expo.extra||{}; cfg.expo.extra.eas=cfg.expo.extra.eas||{}; cfg.expo.extra.eas.projectId='${{ env.EAS_PROJECT_ID }}'; fs.writeFileSync(p, JSON.stringify(cfg,null,2)); console.log('Injected projectId into app.json');"
+          echo "Validating EAS project id..."
+          eas project:info --json
+
+      - name: Type check (mobile)
+        working-directory: apps/mobile
+        run: pnpm exec tsc -p tsconfig.json --noEmit
+
+      - name: Verify required secrets
+        run: |
+          if [ -z "${{ env.EXPO_TOKEN }}" ]; then echo "EXPO_TOKEN is missing in Secrets" && exit 1; fi
+          if [ -z "${{ env.EXPO_PUBLIC_TRPC_URL }}" ]; then echo "Warning: EXPO_PUBLIC_TRPC_URL is not set; using app.json default"; fi
+
+      - name: Build APK with EAS (remote)
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_TRPC_URL: ${{ env.EXPO_PUBLIC_TRPC_URL }}
+          EAS_PROJECT_ID: ${{ env.EAS_PROJECT_ID }}
+        continue-on-error: true
+        run: |
+          PROFILE=${{ github.event.inputs.profile || 'preview' }}
+          echo "Using EAS profile: $PROFILE"
+          eas build --platform android --profile "$PROFILE" --non-interactive
+
+      - name: Download APK artifact
+        working-directory: apps/mobile
+        run: |
+          eas build:download --latest --platform android --output app.apk || true
+          if [ ! -s app.apk ]; then
+            echo "APK not downloaded; listing recent builds to help debugging..."
+            eas build:list --json --limit 5 --platform android || true
+            echo "HAVE_APK=0" >> $GITHUB_ENV
+          else
+            echo "HAVE_APK=1" >> $GITHUB_ENV
+          fi
+
+      # Local fallback build disabled per request
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-apk-${{ github.sha }}
+          path: |
+            apps/mobile/app.apk
+            apps/mobile/app-*.apk
+          if-no-files-found: warn
