@@ -30,8 +30,9 @@ export default function CategoriesManagerPage(): JSX.Element {
             <h1 className="h1">مدير صفحة الفئات</h1>
             <div className="muted">إدارة إعدادات صفحة الفئات لكل موقع مع الوصول إلى المصمم</div>
           </div>
-          <div className="actions">
+          <div className="actions" style={{display:'flex', gap:8}}>
             <button className="btn btn-outline" onClick={load}>تحديث</button>
+            <button className="btn btn-outline" onClick={async ()=>{ try{ const r = await fetch('/api/admin/categories/page/import-default', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ site:'mweb' }) }); if (!r.ok) throw new Error('failed'); await load(); }catch{ alert('فشل الاستيراد'); } }}>استيراد القالب الحالي (mweb)</button>
           </div>
         </div>
         {msg && (<div className={`toast ${/فشل/.test(msg)? 'err':'ok'}`}>{msg}</div>)}

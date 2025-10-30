@@ -8640,6 +8640,122 @@ adminRest.get('/categories/page/summary', async (req, res) => {
     res.json({ items: rows });
   }catch(e:any){ res.status(500).json({ error: e?.message||'categories_page_summary_failed' }); }
 });
+// Import default config from current mweb template (seed)
+adminRest.post('/categories/page/import-default', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.body?.site||'mweb');
+    const promoBanner = { enabled: true, image: 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo', title: 'جديد ملابس النساء', href: '/products' };
+    const mk = (id:string, name:string, q:string, badge?:string)=> ({ id, name, image: `https://csspicker.dev/api/image/?q=${encodeURIComponent(q)}&image_type=photo`, ...(badge? { badge }: {}) });
+    const women = [
+      mk('women-new','الجديد في','new women fashion','جديد'),
+      mk('women-dresses','فساتين','dresses'),
+      mk('women-long-dresses','فساتين طويلة','long dresses'),
+      mk('women-tops','ملابس علوية','women tops'),
+      mk('women-tshirts','تي شيرتات','women tshirts'),
+      mk('women-blouses','بلايز','blouses'),
+      mk('women-bottoms','ملابس سفلية','women bottoms'),
+      mk('women-skirts','تنانير','skirts'),
+      mk('women-pants','بناطيل','women pants'),
+      mk('women-knits','منسوجة','knit wear'),
+      mk('women-sweaters','سويترات','sweaters'),
+      mk('women-sets','أطقم منسقة','matching sets'),
+    ];
+    const men = [
+      mk('men-new','جديد رجالي','men fashion new','جديد'),
+      mk('men-shirts','قمصان','men shirts'),
+      mk('men-tshirts','تيشيرتات','men tshirts'),
+      mk('men-pants','بناطيل','men pants'),
+      mk('men-hoodies','هوديز','men hoodies'),
+      mk('men-jackets','جاكيتات','men jackets'),
+      mk('men-shoes','أحذية رجالية','men shoes'),
+      mk('men-accessories','إكسسوارات رجالية','men accessories'),
+    ];
+    const kids = [
+      mk('kids-new','جديد أطفال','kids fashion new','جديد'),
+      mk('kids-girls','ملابس بنات','girls clothing'),
+      mk('kids-boys','ملابس أولاد','boys clothing'),
+      mk('kids-baby','ملابس رضع','baby clothing'),
+      mk('kids-shoes','أحذية أطفال','kids shoes'),
+      mk('kids-toys','ألعاب','kids toys'),
+    ];
+    const plus = [
+      mk('plus-women','مقاسات كبيرة نساء','plus size women'),
+      mk('plus-men','مقاسات كبيرة رجال','plus size men'),
+      mk('plus-dresses','فساتين واسعة','plus size dresses'),
+      mk('plus-activewear','ملابس رياضية','plus size activewear'),
+    ];
+    const home = [
+      mk('home-decor','ديكور منزلي','home decor'),
+      mk('home-kitchen','أدوات مطبخ','kitchen tools'),
+      mk('home-bedding','مفروشات','bedding'),
+      mk('home-pets','مستلزمات حيوانات','pet supplies'),
+      mk('home-storage','تخزين وتنظيم','storage organization'),
+    ];
+    const beauty = [
+      mk('beauty-makeup','مكياج','makeup'),
+      mk('beauty-skincare','العناية بالبشرة','skincare'),
+      mk('beauty-haircare','العناية بالشعر','haircare'),
+      mk('beauty-fragrance','عطور','perfume'),
+      mk('beauty-nails','العناية بالأظافر','nail care'),
+      mk('beauty-tools','أدوات تجميل','beauty tools'),
+    ];
+    const suggestions = [
+      mk('sug-accessories','إكسسوارات عصرية','fashion accessories'),
+      mk('sug-kids','ملابس أطفال مريحة','kids comfortable clothing'),
+      mk('sug-sports','معدات رياضية','sports equipment'),
+      mk('sug-bags','حقائب أنيقة','stylish bags'),
+      mk('sug-shoes','أحذية مريحة','comfortable shoes'),
+      mk('sug-jewelry','مجوهرات','jewelry'),
+    ];
+    const tabs = [
+      { key:'all', label:'كل', grid:{ mode:'explicit', categories: [] as any[] } },
+      { key:'women', label:'نساء', featured: women, grid:{ mode:'explicit', categories: women } },
+      { key:'kids', label:'أطفال', featured: kids, grid:{ mode:'explicit', categories: kids } },
+      { key:'men', label:'رجال', featured: men, grid:{ mode:'explicit', categories: men } },
+      { key:'plus', label:'مقاسات كبيرة', featured: plus, grid:{ mode:'explicit', categories: plus } },
+      { key:'home', label:'المنزل + الحيوانات الأليفة', featured: home, grid:{ mode:'explicit', categories: home } },
+      { key:'beauty', label:'تجميل', featured: beauty, grid:{ mode:'explicit', categories: beauty } },
+    ];
+    const sidebar = [
+      { label:'لأحلامكم فقط', icon:'✨' },
+      { label:'جديد في', icon:'🆕', tabKey:'all' },
+      { label:'تخفيض الأسعار', icon:'🔥' },
+      { label:'ملابس نسائية', icon:'👗', tabKey:'women' },
+      { label:'إلكترونيات', icon:'📱' },
+      { label:'أحذية', icon:'👟' },
+      { label:'الملابس الرجالية', icon:'👔', tabKey:'men' },
+      { label:'الأطفال', icon:'👶', tabKey:'kids' },
+      { label:'المنزل والمطبخ', icon:'🏠', tabKey:'home' },
+      { label:'ملابس داخلية، وملابس نوم', icon:'🛏️' },
+      { label:'مقاسات كبيرة', icon:'➕', tabKey:'plus' },
+      { label:'مجوهرات وإكسسوارات', icon:'💎' },
+      { label:'الأطفال والأمومة', icon:'🍼' },
+      { label:'الرياضة والأنشطة الخارجية', icon:'⚽' },
+      { label:'الصحة والجمال', icon:'💄', tabKey:'beauty' },
+      { label:'الحقائب والأمتعة', icon:'👜' },
+      { label:'منسوجات منزلية', icon:'🛋️' },
+      { label:'هواتف خليوية وإكسسوارات', icon:'📱' },
+      { label:'الألعاب', icon:'🎮' },
+      { label:'أدوات وتحسين المنزل', icon:'🔧' },
+      { label:'مستلزمات مكتبية ومدرسية', icon:'📚' },
+      { label:'أجهزة', icon:'⚙️' },
+      { label:'السيارات', icon:'🚗' },
+      { label:'مستلزمات الحيوانات الأليفة', icon:'🐾' },
+    ];
+    const config = {
+      layout: { showHeader:true, showTabs:true, showSidebar:true, showPromoPopup:false },
+      promoBanner, tabs, sidebar, suggestions,
+      seo: { title:'الفئات', description:'تصفح الفئات على jeeey' },
+    } as any;
+    const draftKey = `categoriesPage:${site}:draft`;
+    const liveKey = `categoriesPage:${site}:live`;
+    await db.setting.upsert({ where: { key: draftKey }, update: { value: config }, create: { key: draftKey, value: config } } as any);
+    await db.setting.upsert({ where: { key: liveKey }, update: { value: config }, create: { key: liveKey, value: config } } as any);
+    await audit(req,'categories_page','import_default',{ site });
+    res.json({ ok:true, site });
+  }catch(e:any){ res.status(500).json({ error: e?.message||'categories_page_import_failed' }); }
+});
 adminRest.put('/categories/page', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
