@@ -1662,6 +1662,18 @@ shop.get('/categories', async (req, res) => {
   }
 });
 
+// Categories page (published config)
+shop.get('/categories/page', async (req, res) => {
+  try {
+    const site = String(req.query.site||'mweb');
+    const key = `categoriesPage:${site}:live`;
+    const s = await db.setting.findUnique({ where: { key } });
+    const config = (s?.value as any) || null;
+    res.set('Cache-Control','public, max-age=60');
+    return res.json({ site, config });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_failed' }); }
+});
+
 // Catalog by category slug or id
 shop.get('/catalog/:slug', async (req, res) => {
   try {

@@ -21,6 +21,8 @@ import nodemailer from 'nodemailer';
 const adminRest = Router();
 // Ephemeral store for Tabs preview tokens (no persistence; short-lived)
 const tabsPreviewStore: Map<string, { content: any; exp: number }> = new Map();
+// Ephemeral store for Categories Page preview tokens
+const catsPreviewStore: Map<string, { content: any; exp: number }> = new Map();
 // Ensure body parsers explicitly for this router
 // Allow up to ~20mb JSON to accommodate base64 images (~13.3mb for 10mb binary)
 adminRest.use(express.json({ limit: '20mb' }));
@@ -8609,6 +8611,63 @@ adminRest.get('/public/theme/config', async (req, res) => {
     res.set('Cache-Control','public, max-age=60');
     res.json({ site, theme });
   } catch (e:any) { res.status(500).json({ error: e.message||'theme_config_failed' }); }
+});
+
+// ===== Categories Page Builder (Draft/Live stored in Setting) =====
+adminRest.get('/categories/page', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.query.site||'mweb');
+    const mode = String(req.query.mode||'draft'); // draft|live
+    const key = `categoriesPage:${site}:${mode}`;
+    const s = await db.setting.findUnique({ where: { key } });
+    res.json({ site, mode, config: s?.value||null });
+  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_get_failed' }); }
+});
+adminRest.put('/categories/page', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.body?.site||'mweb');
+    const mode = String(req.body?.mode||'draft');
+    const config = req.body?.config||{};
+    const key = `categoriesPage:${site}:${mode}`;
+    const r = await db.setting.upsert({ where: { key }, update: { value: config }, create: { key, value: config } });
+    await audit(req,'categories_page','save',{ site, mode });
+    res.json({ ok:true, config: r.value });
+  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_put_failed' }); }
+});
+adminRest.post('/categories/page/publish', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.body?.site||'mweb');
+    const draftKey = `categoriesPage:${site}:draft`;
+    const liveKey = `categoriesPage:${site}:live`;
+    const d = await db.setting.findUnique({ where: { key: draftKey } });
+    const config = d?.value||{};
+    await db.setting.upsert({ where: { key: liveKey }, update: { value: config }, create: { key: liveKey, value: config } });
+    await audit(req,'categories_page','publish',{ site });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_publish_failed' }); }
+});
+// Preview sign/resolve (similar to tabs)
+adminRest.post('/categories/page/preview/sign', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const content = req.body?.content || {};
+    const now = Date.now();
+    const token = require('crypto').randomUUID();
+    catsPreviewStore.set(token, { content, exp: now + 5*60*1000 }); // 5 minutes TTL
+    res.json({ token, exp: new Date(now + 5*60*1000).toISOString() });
+  } catch (e:any) { res.status(500).json({ error: e.message||'categories_preview_sign_failed' }); }
+});
+adminRest.get('/categories/page/preview/:token', async (req, res) => {
+  try{
+    const token = String(req.params.token||'');
+    const row = catsPreviewStore.get(token);
+    if (!row) return res.status(404).json({ error:'not_found' });
+    if (row.exp < Date.now()) { catsPreviewStore.delete(token); return res.status(410).json({ error:'expired' }); }
+    return res.json({ ...row.content });
+  } catch (e:any) { return res.status(500).json({ error: e.message||'categories_preview_fetch_failed' }); }
 });
 adminRest.get('/notifications/rules', async (req, res) => {
   try {

@@ -40,13 +40,7 @@
 
     <!-- Tabs (ملتصقة بالهيدر) -->
     <nav class="tabs fixed left-0 right-0 z-40 bg-white border-t border-b border-gray-200" style="top: 50px;">
-      <button :class="{on: active==='all'}" @click="setTab('all')">كل</button>
-      <button :class="{on: active==='women'}" @click="setTab('women')">نساء</button>
-      <button :class="{on: active==='kids'}" @click="setTab('kids')">أطفال</button>
-      <button :class="{on: active==='men'}" @click="setTab('men')">رجال</button>
-      <button :class="{on: active==='plus'}" @click="setTab('plus')">مقاسات كبيرة</button>
-      <button class="sm" :class="{on: active==='home'}" @click="setTab('home')">المنزل + الحيوانات الأليفة</button>
-      <button :class="{on: active==='beauty'}" @click="setTab('beauty')">تجميل</button>
+      <button v-for="t in tabsList" :key="t.key" :class="{on: active===t.key}" @click="setTab(t.key)">{{ t.label }}</button>
     </nav>
 
     <div class="layout">
@@ -67,10 +61,10 @@
       <!-- Main grid -->
       <main class="main">
         <!-- Promo Banner -->
-        <div class="promo-banner" v-if="active === 'all'">
+        <div class="promo-banner" v-if="promoBanner.enabled && (active === 'all')">
           <div class="promo-content">
-            <h3>جديد ملابس النساء</h3>
-            <img src="https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo" alt="بانر ترويجي" class="promo-img" />
+            <h3>{{ promoBanner.title || 'بانر ترويجي' }}</h3>
+            <img :src="promoBanner.image || 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo'" alt="بانر ترويجي" class="promo-img" />
           </div>
         </div>
 
@@ -127,7 +121,7 @@ import Icon from '@/components/Icon.vue'
 import SkeletonGrid from '@/components/SkeletonGrid.vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiGet } from '@/lib/api'
+import { apiGet, API_BASE } from '@/lib/api'
 import { Bell, ShoppingCart, Search } from 'lucide-vue-next'
 
 // Types
@@ -155,39 +149,60 @@ const selectedSidebarItem = ref('')
 const selectedSubcategory = ref<string | null>(null)
 const showPromoPopup = ref(false)
 const promoEmail = ref('')
+// Config/preview
+const catConfig = ref<any>(null)
+const previewActive = ref<boolean>(false)
+const tabsList = computed(()=>{
+  const tabs = Array.isArray(catConfig.value?.tabs)? catConfig.value.tabs : []
+  if (tabs.length) return tabs.map((t:any)=> ({ key: String(t.key||'all'), label: String(t.label||t.key||'') }))
+  return [
+    { key:'all', label:'كل' },
+    { key:'women', label:'نساء' },
+    { key:'kids', label:'أطفال' },
+    { key:'men', label:'رجال' },
+    { key:'plus', label:'مقاسات كبيرة' },
+    { key:'home', label:'المنزل + الحيوانات الأليفة' },
+    { key:'beauty', label:'تجميل' },
+  ]
+})
+const promoBanner = computed(()=> ({ enabled: !!catConfig.value?.promoBanner?.enabled, title: catConfig.value?.promoBanner?.title||'', image: catConfig.value?.promoBanner?.image||'', href: catConfig.value?.promoBanner?.href||'' }))
 
 const router = useRouter()
 function go(path: string) { router.push(path) }
 
-// Enhanced Sidebar with icons
-const sidebarItems: SidebarItem[] = [
-  { label: 'لأحلامكم فقط', icon: '✨' },
-  { label: 'جديد في', icon: '🆕', tab: 'all' },
-  { label: 'تخفيض الأسعار', icon: '🔥' },
-  { label: 'ملابس نسائية', icon: '👗', tab: 'women' },
-  { label: 'إلكترونيات', icon: '📱' },
-  { label: 'أحذية', icon: '👟' },
-  { label: 'الملابس الرجالية', icon: '👔', tab: 'men' },
-  { label: 'الأطفال', icon: '👶', tab: 'kids' },
-  { label: 'المنزل والمطبخ', icon: '🏠', tab: 'home' },
-  { label: 'ملابس داخلية، وملابس نوم', icon: '🛏️' },
-  { label: 'مقاسات كبيرة', icon: '➕', tab: 'plus' },
-  { label: 'مجوهرات وإكسسوارات', icon: '💎' },
-  { label: 'الأطفال والأمومة', icon: '🍼' },
-  { label: 'الرياضة والأنشطة الخارجية', icon: '⚽' },
-  { label: 'الصحة والجمال', icon: '💄', tab: 'beauty' },
-  { label: 'الحقائب والأمتعة', icon: '👜' },
-  { label: 'منسوجات منزلية', icon: '🛋️' },
-  { label: 'هواتف خليوية وإكسسوارات', icon: '📱' },
-  { label: 'الألعاب', icon: '🎮' },
-  { label: 'أدوات وتحسين المنزل', icon: '🔧' },
-  { label: 'مستلزمات مكتبية ومدرسية', icon: '📚' },
-  { label: 'أجهزة', icon: '⚙️' },
-  { label: 'السيارات', icon: '🚗' },
-  { label: 'مستلزمات الحيوانات الأليفة', icon: '🐾' }
-]
+// Enhanced Sidebar with icons (from config or fallback)
+const sidebarItems = computed<SidebarItem[]>(()=>{
+  const arr = Array.isArray(catConfig.value?.sidebar)? catConfig.value.sidebar : null
+  if (arr) return arr.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, tab: s.tabKey||s.tab }))
+  return [
+    { label: 'لأحلامكم فقط', icon: '✨' },
+    { label: 'جديد في', icon: '🆕', tab: 'all' },
+    { label: 'تخفيض الأسعار', icon: '🔥' },
+    { label: 'ملابس نسائية', icon: '👗', tab: 'women' },
+    { label: 'إلكترونيات', icon: '📱' },
+    { label: 'أحذية', icon: '👟' },
+    { label: 'الملابس الرجالية', icon: '👔', tab: 'men' },
+    { label: 'الأطفال', icon: '👶', tab: 'kids' },
+    { label: 'المنزل والمطبخ', icon: '🏠', tab: 'home' },
+    { label: 'ملابس داخلية، وملابس نوم', icon: '🛏️' },
+    { label: 'مقاسات كبيرة', icon: '➕', tab: 'plus' },
+    { label: 'مجوهرات وإكسسوارات', icon: '💎' },
+    { label: 'الأطفال والأمومة', icon: '🍼' },
+    { label: 'الرياضة والأنشطة الخارجية', icon: '⚽' },
+    { label: 'الصحة والجمال', icon: '💄', tab: 'beauty' },
+    { label: 'الحقائب والأمتعة', icon: '👜' },
+    { label: 'منسوجات منزلية', icon: '🛋️' },
+    { label: 'هواتف خليوية وإكسسوارات', icon: '📱' },
+    { label: 'الألعاب', icon: '🎮' },
+    { label: 'أدوات وتحسين المنزل', icon: '🔧' },
+    { label: 'مستلزمات مكتبية ومدرسية', icon: '📚' },
+    { label: 'أجهزة', icon: '⚙️' },
+    { label: 'السيارات', icon: '🚗' },
+    { label: 'مستلزمات الحيوانات الأليفة', icon: '🐾' }
+  ]
+})
 
-// Hierarchical category structure
+// Hierarchical category structure (fallback)
 const categoryHierarchy: Record<string, Cat[]> = {
   women: [
     { id: 'women-new', name: 'الجديد في', image: 'https://csspicker.dev/api/image/?q=new+women+fashion&image_type=photo', badge: 'جديد' },
@@ -245,14 +260,7 @@ const categoryHierarchy: Record<string, Cat[]> = {
 }
 
 // Suggestions data
-const suggestions = ref<Cat[]>([
-  { id: 'sug-accessories', name: 'إكسسوارات عصرية', image: 'https://csspicker.dev/api/image/?q=fashion+accessories&image_type=photo' },
-  { id: 'sug-kids', name: 'ملابس أطفال مريحة', image: 'https://csspicker.dev/api/image/?q=kids+comfortable+clothing&image_type=photo' },
-  { id: 'sug-sports', name: 'معدات رياضية', image: 'https://csspicker.dev/api/image/?q=sports+equipment&image_type=photo' },
-  { id: 'sug-bags', name: 'حقائب أنيقة', image: 'https://csspicker.dev/api/image/?q=stylish+bags&image_type=photo' },
-  { id: 'sug-shoes', name: 'أحذية مريحة', image: 'https://csspicker.dev/api/image/?q=comfortable+shoes&image_type=photo' },
-  { id: 'sug-jewelry', name: 'مجوهرات', image: 'https://csspicker.dev/api/image/?q=jewelry&image_type=photo' }
-])
+const suggestions = ref<Cat[]>([])
 
 // Tab management
 function setTab(v: string) { 
@@ -273,6 +281,8 @@ function applySide(item: SidebarItem) {
 // Featured categories (subcategories for current tab)
 const featuredCategories = computed(() => {
   if (active.value === 'all') return []
+  const tabCfg = (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value)
+  if (tabCfg && Array.isArray(tabCfg.featured)) return tabCfg.featured
   return categoryHierarchy[active.value] || []
 })
 
@@ -288,31 +298,26 @@ function selectSubcategory(id: string) {
 
 // Enhanced filtering with hierarchical support
 const displayedCategories = computed(() => {
-  // If a specific subcategory is selected, show only that
   if (selectedSubcategory.value) {
     return featuredCategories.value.filter(c => c.id === selectedSubcategory.value)
   }
-  
-  // If a tab is selected, show its categories
   if (active.value !== 'all') {
+    const tabCfg = (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value)
+    if (tabCfg) {
+      if (tabCfg.grid?.mode === 'explicit') return (tabCfg.grid?.categories||[])
+      // filter mode fallback to API list
+    }
     return categoryHierarchy[active.value] || []
   }
-  
-  // Otherwise show all categories from API or fallback
   return cats.value
 })
 
 // Section title
 const currentSectionTitle = computed(() => {
-  const titles: Record<string, string> = {
-    all: 'مختارات من أجلك',
-    women: 'ملابس نسائية',
-    men: 'ملابس رجالية',
-    kids: 'ملابس أطفال',
-    plus: 'مقاسات كبيرة',
-    home: 'المنزل والحيوانات الأليفة',
-    beauty: 'منتجات التجميل'
-  }
+  const tabs = Array.isArray(catConfig.value?.tabs)? catConfig.value.tabs : []
+  const t = tabs.find((x:any)=> String(x.key||'')===active.value)
+  if (t?.label) return t.label
+  const titles: Record<string, string> = { all: 'مختارات من أجلك', women: 'ملابس نسائية', men: 'ملابس رجالية', kids: 'ملابس أطفال', plus: 'مقاسات كبيرة', home: 'المنزل والحيوانات الأليفة', beauty: 'منتجات التجميل' }
   return titles[active.value] || 'مختارات من أجلك'
 })
 
@@ -361,8 +366,19 @@ function trackPromoSubscription(email: string) {
   console.log('[Analytics] Promo subscription:', email)
 }
 
-// Load categories
+// Load categories & config
 onMounted(async () => {
+  // Preview support
+  try{
+    const u = new URL(location.href)
+    const tok = u.searchParams.get('token') || u.searchParams.get('previewToken') || ''
+    const raw = u.searchParams.get('payload') || ''
+    if (raw) { try{ const payload = JSON.parse(decodeURIComponent(raw)); catConfig.value = payload; previewActive.value = true }catch{} }
+    if (!previewActive.value && tok){ try{ const r = await fetch(`${API_BASE}/api/admin/categories/page/preview/${encodeURIComponent(tok)}`, { credentials:'omit' }); const j = await r.json(); if (j) { catConfig.value = j; previewActive.value = true } }catch{} }
+  }catch{}
+  // Live config
+  if (!previewActive.value){ try{ const r = await fetch('/api/categories/page?site=mweb'); const j = await r.json(); if (j?.config) catConfig.value = j.config; }catch{} }
+
   const data = await apiGet<any>('/api/categories?limit=36')
   if (data && Array.isArray(data.categories)) {
     cats.value = data.categories.map((c: any) => ({ 
@@ -396,10 +412,29 @@ onMounted(async () => {
   }
   loading.value = false
   
-  // Show promo popup after 2 seconds
-  setTimeout(() => {
-    showPromoPopup.value = true
-  }, 2000)
+  // Init suggestions from config or fallback
+  try{
+    const arr = Array.isArray(catConfig.value?.suggestions)? catConfig.value.suggestions : []
+    if (arr.length) suggestions.value = arr
+    else suggestions.value = [
+      { id: 'sug-accessories', name: 'إكسسوارات عصرية', image: 'https://csspicker.dev/api/image/?q=fashion+accessories&image_type=photo' },
+      { id: 'sug-kids', name: 'ملابس أطفال مريحة', image: 'https://csspicker.dev/api/image/?q=kids+comfortable+clothing&image_type=photo' },
+      { id: 'sug-sports', name: 'معدات رياضية', image: 'https://csspicker.dev/api/image/?q=sports+equipment&image_type=photo' },
+      { id: 'sug-bags', name: 'حقائب أنيقة', image: 'https://csspicker.dev/api/image/?q=stylish+bags&image_type=photo' },
+      { id: 'sug-shoes', name: 'أحذية مريحة', image: 'https://csspicker.dev/api/image/?q=comfortable+shoes&image_type=photo' },
+      { id: 'sug-jewelry', name: 'مجوهرات', image: 'https://csspicker.dev/api/image/?q=jewelry&image_type=photo' }
+    ]
+  }catch{}
+
+  // Show promo popup from config
+  if (catConfig.value?.layout?.showPromoPopup) setTimeout(()=>{ showPromoPopup.value = true }, 2000)
+
+  // Live preview updates from Admin
+  try{
+    window.addEventListener('message', (e: MessageEvent)=>{
+      try{ const data:any = e.data; if (data && data.__categories_preview){ catConfig.value = data.content || {}; previewActive.value = true } }catch{}
+    })
+  }catch{}
 })
 </script>
 
