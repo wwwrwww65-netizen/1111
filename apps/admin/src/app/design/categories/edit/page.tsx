@@ -123,6 +123,84 @@ export default function CategoriesDesignerPage(): JSX.Element {
                     {(t.featured||[]).map((c)=> (<div key={c.id} className="badge" style={{gap:6}}>{c.image && <img src={c.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}<span>{c.name}</span></div>))}
                     {!(t.featured||[]).length && <div className="muted">— لا عناصر</div>}
                   </div>
+
+                  <div className="toolbar" style={{marginBottom:0}}>
+                    <div className="muted">الشريط الجانبي لهذا التبويب</div>
+                    <div className="actions"><button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: [ ...((t as any).sidebarItems||[]), { label:'عنصر', icon:'✨', href:'' } ] }))}>+ عنصر</button></div>
+                  </div>
+                  <div style={{display:'grid', gap:8}}>
+                    {(((t as any).sidebarItems)||[]).map((s:any, si:number)=> (
+                      <div key={`${s.label}:${si}`} className="card" style={{display:'grid', gap:8}}>
+                        <div style={{display:'grid', gridTemplateColumns:'1fr 120px 1fr auto auto', gap:8}}>
+                          <input className="input" placeholder="التسمية" value={s.label||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], label:(e.target as HTMLInputElement).value }; return arr; })() }))} />
+                          <input className="input" placeholder="أيقونة" value={s.icon||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], icon:(e.target as HTMLInputElement).value }; return arr; })() }))} />
+                          <input className="input" placeholder="href (اختياري)" value={s.href||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], href:(e.target as HTMLInputElement).value }; return arr; })() }))} />
+                          <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; if(si>0){ const tmp=arr[si-1]; arr[si-1]=arr[si]; arr[si]=tmp; } return arr; })() }))}>▲</button>
+                          <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; if(si<(((t as any).sidebarItems||[]).length-1)){ const tmp=arr[si+1]; arr[si+1]=arr[si]; arr[si]=tmp; } return arr; })() }))}>▼</button>
+                        </div>
+                        <div className="toolbar" style={{marginBottom:0}}>
+                          <div className="muted">بانر هذا العنصر</div>
+                          <div className="actions" />
+                        </div>
+                        <label className="muted" style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                          <input type="checkbox" checked={!!s.promoBanner?.enabled} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], promoBanner: { ...(arr[si]?.promoBanner||{}), enabled: e.target.checked } }; return arr; })() }))} /> مفعّل
+                        </label>
+                        <input className="input" placeholder="عنوان" value={s.promoBanner?.title||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], promoBanner: { ...(arr[si]?.promoBanner||{enabled:true}), title: (e.target as HTMLInputElement).value } }; return arr; })() }))} />
+                        <input className="input" placeholder="رابط عند النقر" value={s.promoBanner?.href||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], promoBanner: { ...(arr[si]?.promoBanner||{enabled:true}), href: (e.target as HTMLInputElement).value } }; return arr; })() }))} />
+                        <div style={{display:'grid', gridTemplateColumns:'1fr auto', gap:8}}>
+                          <input className="input" placeholder="رابط صورة" value={s.promoBanner?.image||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], promoBanner: { ...(arr[si]?.promoBanner||{enabled:true}), image: (e.target as HTMLInputElement).value } }; return arr; })() }))} />
+                          <button className="btn btn-outline btn-sm" onClick={()=> openMediaPicker((u)=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], promoBanner: { ...(arr[si]?.promoBanner||{enabled:true}), image: u } }; return arr; })() })))}>اختر صورة</button>
+                        </div>
+
+                        <div className="toolbar" style={{marginBottom:0}}>
+                          <div className="muted">شبكة هذا العنصر</div>
+                          <div className="actions" style={{display:'flex', gap:8}}>
+                            <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { mode:'explicit', categories: [] } }; return arr; })() }))}>قائمة صريحة</button>
+                            <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { mode:'filter', limit:36, sortBy:'name_asc' } as any } ; return arr; })() }))}>فلترة</button>
+                          </div>
+                        </div>
+                        {s.grid?.mode==='explicit' ? (
+                          <div style={{display:'grid', gap:8}}>
+                            <div className="actions" style={{display:'flex', gap:8}}>
+                              <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker((items)=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { mode:'explicit', categories: items } }; return arr; })() })))}>اختيار فئات</button>
+                              {(s.grid as any)?.categories?.length>0 && <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { mode:'explicit', categories: [] } }; return arr; })() }))}>مسح</button>}
+                            </div>
+                            <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                              {((s.grid as any)?.categories||[]).map((c:CategoryMini)=> (<div key={c.id} className="badge" style={{gap:6}}>{c.image && <img src={c.image} alt="thumb" style={{ width:18, height:18, objectFit:'cover', borderRadius:4 }} />}<span>{c.name}</span></div>))}
+                              {!((s.grid as any)?.categories||[]).length && <div className="muted">— لا عناصر</div>}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{display:'grid', gap:8, gridTemplateColumns:'1fr 1fr'}}>
+                            <label className="form-label">الحد</label>
+                            <input type="number" className="input" value={Number((s.grid as any)?.limit||36)} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { ...(arr[si]?.grid||{}), mode:'filter', limit: Math.max(1, Number((e.target as HTMLInputElement).value||36)) } as any } ; return arr; })() }))} />
+                            <label className="form-label">الترتيب</label>
+                            <select className="select" value={(s.grid as any)?.sortBy||'name_asc'} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { ...(arr[si]?.grid||{}), mode:'filter', sortBy: (e.target as HTMLSelectElement).value } as any } ; return arr; })() }))}>
+                              <option value="name_asc">الاسم تصاعدي</option>
+                              <option value="name_desc">الاسم تنازلي</option>
+                              <option value="created_desc">الأحدث</option>
+                            </select>
+                            <div style={{gridColumn:'1 / -1', display:'grid', gap:8}}>
+                              <div className="toolbar" style={{marginBottom:0}}>
+                                <div className="muted">العناصر المختارة (IDs)</div>
+                                <div className="actions" style={{display:'flex', gap:8}}>
+                                  <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker((items)=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { ...(arr[si]?.grid||{}), mode:'filter', categoryIds: items.map((x:any)=> x.id) } as any } ; return arr; })() })))}>اختيار فئات</button>
+                                  {Array.isArray((s.grid as any)?.categoryIds) && (s.grid as any).categoryIds.length>0 && (
+                                    <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], grid: { ...(arr[si]?.grid||{}), mode:'filter', categoryIds: [] } as any } ; return arr; })() }))}>مسح</button>
+                                  )}
+                                </div>
+                              </div>
+                              <code dir="ltr" style={{fontSize:12, color:'#94a3b8'}}>{JSON.stringify(((s.grid as any)?.categoryIds||[]))}</code>
+                            </div>
+                          </div>
+                        )}
+                        <div style={{display:'flex', justifyContent:'flex-end'}}>
+                          <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: ((t as any).sidebarItems||[]).filter((_:any, j:number)=> j!==si) }))}>حذف العنصر</button>
+                        </div>
+                      </div>
+                    ))}
+                    {!((t as any).sidebarItems||[]).length && <div className="muted">— لا عناصر</div>}
+                  </div>
                   <div className="toolbar" style={{marginBottom:0}}>
                     <div className="muted">بانر التبويب</div>
                     <div className="actions" />

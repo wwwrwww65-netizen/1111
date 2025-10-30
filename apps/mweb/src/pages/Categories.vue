@@ -51,8 +51,8 @@
           v-for="(item,i) in sidebarItems" 
           :key="i" 
           type="button" 
-          @click="applySide(item)"
-          :class="{active: selectedSidebarItem === item.label}"
+          @click="applySide(item, i)"
+          :class="{active: i === selectedSidebarIndex}"
         >
           <span class="ico" v-if="item.icon && isUrl(item.icon)"><img :src="item.icon" alt="" /></span>
           <span class="ico" v-else-if="item.icon">{{ item.icon }}</span>
@@ -143,13 +143,14 @@ type SidebarItem = {
   label: string
   icon?: string
   tab?: string
+  href?: string
 }
 
 // State
 const cats = ref<Cat[]>([])
 const loading = ref(true)
 const active = ref('all')
-const selectedSidebarItem = ref('')
+const selectedSidebarIndex = ref<number>(0)
 const selectedSubcategory = ref<string | null>(null)
 const showPromoPopup = ref(false)
 const promoEmail = ref('')
@@ -185,8 +186,9 @@ const tabsList = computed(()=>{
 })
 const promoBanner = computed(()=> ({ enabled: !!catConfig.value?.promoBanner?.enabled, title: catConfig.value?.promoBanner?.title||'', image: catConfig.value?.promoBanner?.image||'', href: catConfig.value?.promoBanner?.href||'' }))
 const activePromoBanner = computed(()=>{
-  const t = (catConfig.value?.tabs||[]).find((x:any)=> String(x.key||'')===active.value)
-  const tabBanner = t?.promoBanner
+  const sideBanner = (currentSideCfg.value as any)?.promoBanner
+  if (sideBanner && sideBanner.enabled) return { enabled:true, title: sideBanner.title||'', image: sideBanner.image||'', href: sideBanner.href||'' }
+  const tabBanner = (activeTabCfg.value as any)?.promoBanner
   if (tabBanner && tabBanner.enabled) return { enabled:true, title: tabBanner.title||'', image: tabBanner.image||'', href: tabBanner.href||'' }
   return promoBanner.value
 })
@@ -195,7 +197,10 @@ const router = useRouter()
 function go(path: string) { router.push(path) }
 
 // Enhanced Sidebar with icons (from config or fallback)
+const activeTabCfg = computed(()=> (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value) )
 const sidebarItems = computed<SidebarItem[]>(()=>{
+  const tabSide = Array.isArray((activeTabCfg.value as any)?.sidebarItems) ? (activeTabCfg.value as any).sidebarItems : null
+  if (tabSide) return tabSide.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, href: s.href }))
   const arr = Array.isArray(catConfig.value?.sidebar)? catConfig.value.sidebar : null
   if (arr) return arr.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, tab: s.tabKey||s.tab, href: s.href }))
   return [
@@ -290,12 +295,13 @@ const suggestions = ref<Cat[]>([])
 function setTab(v: string) { 
   active.value = v
   selectedSubcategory.value = null
+  selectedSidebarIndex.value = 0
   trackTabChange(v)
 }
 
 // Sidebar management
-function applySide(item: SidebarItem) {
-  selectedSidebarItem.value = item.label
+function applySide(item: SidebarItem, idx?: number) {
+  selectedSidebarIndex.value = typeof idx==='number' ? idx : 0
   if (item.tab) {
     setTab(item.tab)
   } else if ((item as any).href) {
@@ -307,10 +313,14 @@ function applySide(item: SidebarItem) {
 function isUrl(s?:string){ return !!s && /^(https?:)?\/\//.test(s) }
 
 // Featured categories (subcategories for current tab)
+const currentSideCfg = computed(()=>{
+  const list:any[] = Array.isArray((activeTabCfg.value as any)?.sidebarItems) ? ((activeTabCfg.value as any).sidebarItems as any[]) : []
+  return list[selectedSidebarIndex.value] || null
+})
 const featuredCategories = computed(() => {
   if (active.value === 'all') return []
-  const tabCfg = (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value)
-  if (tabCfg && Array.isArray(tabCfg.featured)) return tabCfg.featured
+  if (currentSideCfg.value && Array.isArray((currentSideCfg.value as any).featured)) return (currentSideCfg.value as any).featured
+  if (activeTabCfg.value && Array.isArray((activeTabCfg.value as any).featured)) return (activeTabCfg.value as any).featured
   return categoryHierarchy[active.value] || []
 })
 
@@ -330,7 +340,27 @@ const displayedCategories = computed(() => {
     return featuredCategories.value.filter(c => c.id === selectedSubcategory.value)
   }
   if (active.value !== 'all') {
-    const tabCfg = (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value)
+    const side = currentSideCfg.value as any
+    if (side?.grid?.mode === 'explicit') return (side.grid?.categories||[])
+    if (side?.grid?.mode === 'filter') {
+      // Client-side filter using categoryIds if provided; fallback to all
+      const ids = (side.grid?.categoryIds||[]) as string[]
+      const limit = Number(side.grid?.limit||36)
+      const sortBy = String(side.grid?.sortBy||'name_asc')
+      let pool = cats.value
+      if (Array.isArray(ids) && ids.length) {
+        const byId: Record<string, any> = {}
+        for (const c of cats.value) byId[c.id] = c
+        pool = ids.map(id=> byId[id]).filter(Boolean)
+      }
+      const sorted = [...pool].sort((a:any,b:any)=>{
+        if (sortBy==='name_desc') return String(b.name||'').localeCompare(String(a.name||''), 'ar')
+        if (sortBy==='created_desc') return 0 // unknown; keep API order
+        return String(a.name||'').localeCompare(String(b.name||''), 'ar')
+      })
+      return sorted.slice(0, limit)
+    }
+    const tabCfg = (activeTabCfg.value as any)
     if (tabCfg) {
       if (tabCfg.grid?.mode === 'explicit') return (tabCfg.grid?.categories||[])
       if (tabCfg.grid?.mode === 'filter') {
