@@ -54,8 +54,6 @@
           @click="applySide(item, i)"
           :class="{active: i === selectedSidebarIndex}"
         >
-          <span class="ico" v-if="item.icon && isUrl(item.icon)"><img :src="item.icon" alt="" /></span>
-          <span class="ico" v-else-if="item.icon">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
         </button>
       </aside>
@@ -96,11 +94,11 @@
         </div>
 
         <!-- Suggestions Section -->
-        <template v-if="suggestionsEnabled && suggestions.length">
-          <h3 class="ttl2">{{ suggestionsTitle }}</h3>
+        <template v-if="activeSuggestions.length">
+          <h3 class="ttl2">{{ activeSuggestionsTitle }}</h3>
           <div class="grid suggestions">
             <a 
-              v-for="(sug, idx) in suggestions" 
+              v-for="(sug, idx) in activeSuggestions" 
               :key="idx" 
               class="cell"
               :href="`/c/${encodeURIComponent(sug.id)}`"
@@ -396,18 +394,25 @@ const currentSectionTitle = computed(() => {
   return titles[active.value] || 'مختارات من أجلك'
 })
 
-// Suggestions controls (backward compatible: array or object)
-const suggestionsEnabled = computed(()=>{
+// Suggestions resolution priority: sidebar item > tab > global > fallback
+const activeSuggestions = computed(()=>{
+  const side = currentSideCfg.value as any
+  if (side?.suggestions?.enabled && Array.isArray(side?.suggestions?.items) && side.suggestions.items.length) return side.suggestions.items
+  const tab = activeTabCfg.value as any
+  if (tab?.suggestions?.enabled && Array.isArray(tab?.suggestions?.items) && tab.suggestions.items.length) return tab.suggestions.items
   const s = catConfig.value?.suggestions
-  if (!s) return false
-  if (Array.isArray(s)) return s.length>0
-  return !!s.enabled && Array.isArray(s.items) && s.items.length>0
+  if (Array.isArray(s)) return s
+  if (s?.enabled && Array.isArray(s.items)) return s.items
+  return suggestions.value
 })
-const suggestionsTitle = computed(()=>{
+const activeSuggestionsTitle = computed(()=>{
+  const side = currentSideCfg.value as any
+  if (side?.suggestions?.enabled && (side?.suggestions?.title||'').trim()) return side.suggestions.title
+  const tab = activeTabCfg.value as any
+  if (tab?.suggestions?.enabled && (tab?.suggestions?.title||'').trim()) return tab.suggestions.title
   const s = catConfig.value?.suggestions
-  if (!s) return 'ربما يعجبك هذا أيضاً'
-  if (Array.isArray(s)) return 'ربما يعجبك هذا أيضاً'
-  return s.title || 'ربما يعجبك هذا أيضاً'
+  if (!Array.isArray(s) && (s?.title||'').trim()) return s?.title
+  return 'ربما يعجبك هذا أيضاً'
 })
 
 // Promo popup management

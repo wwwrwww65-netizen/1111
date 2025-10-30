@@ -126,22 +126,21 @@ export default function CategoriesDesignerPage(): JSX.Element {
 
                   <div className="toolbar" style={{marginBottom:0}}>
                     <div className="muted">الشريط الجانبي لهذا التبويب</div>
-                    <div className="actions"><button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: [ ...((t as any).sidebarItems||[]), { label:'عنصر', icon:'✨', href:'' } ] }))}>+ عنصر</button></div>
+                    <div className="actions"><button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: [ ...((t as any).sidebarItems||[]), { label:'عنصر', href:'' } ] }))}>+ عنصر</button></div>
                   </div>
                   <div style={{display:'grid', gap:8}}>
                     {(((t as any).sidebarItems)||[]).map((s:any, si:number)=> (
-                      <div key={`${s.label}:${si}`} className="card" style={{display:'grid', gap:8}}>
-                        <div style={{display:'grid', gridTemplateColumns:'1fr 120px 1fr auto auto', gap:8}}>
+                      <div key={`si-${si}`} className="card" style={{display:'grid', gap:8}}>
+                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr auto auto', gap:8}}>
                           <input className="input" placeholder="التسمية" value={s.label||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], label:(e.target as HTMLInputElement).value }; return arr; })() }))} />
-                          <input className="input" placeholder="أيقونة" value={s.icon||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], icon:(e.target as HTMLInputElement).value }; return arr; })() }))} />
                           <input className="input" placeholder="href (اختياري)" value={s.href||''} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], href:(e.target as HTMLInputElement).value }; return arr; })() }))} />
                           <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; if(si>0){ const tmp=arr[si-1]; arr[si-1]=arr[si]; arr[si]=tmp; } return arr; })() }))}>▲</button>
                           <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; if(si<(((t as any).sidebarItems||[]).length-1)){ const tmp=arr[si+1]; arr[si+1]=arr[si]; arr[si]=tmp; } return arr; })() }))}>▼</button>
                         </div>
-                        <div className="toolbar" style={{marginBottom:0}}>
-                          <div className="muted">بانر هذا العنصر</div>
-                          <div className="actions" />
-                        </div>
+                    <div className="toolbar" style={{marginBottom:0}}>
+                      <div className="muted">بانر هذا العنصر</div>
+                      <div className="actions" />
+                    </div>
                         <label className="muted" style={{display:'inline-flex', alignItems:'center', gap:6}}>
                           <input type="checkbox" checked={!!s.promoBanner?.enabled} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; arr[si]={ ...arr[si], promoBanner: { ...(arr[si]?.promoBanner||{}), enabled: e.target.checked } }; return arr; })() }))} /> مفعّل
                         </label>
@@ -197,6 +196,18 @@ export default function CategoriesDesignerPage(): JSX.Element {
                         <div style={{display:'flex', justifyContent:'flex-end'}}>
                           <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: ((t as any).sidebarItems||[]).filter((_:any, j:number)=> j!==si) }))}>حذف العنصر</button>
                         </div>
+
+                        <div className="toolbar" style={{marginBottom:0}}>
+                          <div className="muted">اقتراحات أسفل الصفحة (للعنصر)</div>
+                          <div className="actions" style={{display:'flex', gap:8}}>
+                            <label className="muted" style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                              <input type="checkbox" checked={!!s.suggestions?.enabled} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; const cur=arr[si]?.suggestions||{ enabled:false, title:'ربما يعجبك هذا أيضاً', items: [] }; arr[si]={ ...arr[si], suggestions: { ...cur, enabled: e.target.checked } }; return arr; })() }))} /> مفعّل
+                            </label>
+                            <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker((items)=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; const cur=arr[si]?.suggestions||{ enabled:true, title:'ربما يعجبك هذا أيضاً', items: [] }; arr[si]={ ...arr[si], suggestions: { ...cur, items } }; return arr; })() })))}>اختيار فئات</button>
+                            <button className="btn btn-outline btn-sm" onClick={()=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; const cur=arr[si]?.suggestions||{ enabled:true, title:'ربما يعجبك هذا أيضاً', items: [] }; arr[si]={ ...arr[si], suggestions: { ...cur, items: [] } }; return arr; })() }))}>مسح</button>
+                          </div>
+                        </div>
+                        <input className="input" placeholder="عنوان الاقتراحات" value={(s.suggestions?.title||'') as string} onChange={e=> setTabs(updateAt(config.tabs, idx, { ...t, sidebarItems: (():any[]=>{ const arr=[...((t as any).sidebarItems||[])]; const cur=arr[si]?.suggestions||{ enabled:true, title:'', items: [] }; arr[si]={ ...arr[si], suggestions: { ...cur, title: (e.target as HTMLInputElement).value } }; return arr; })() }))} />
                       </div>
                     ))}
                     {!((t as any).sidebarItems||[]).length && <div className="muted">— لا عناصر</div>}
