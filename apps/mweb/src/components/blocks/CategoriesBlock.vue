@@ -3,12 +3,12 @@
     <div class="overflow-x-auto no-scrollbar px-0">
       <div class="flex gap-2 pb-0.5 px-3">
         <div v-for="(col,ci) in catColsLocked" :key="'col-'+ci" class="flex flex-col gap-1">
-          <button v-for="(c,ri) in col" :key="(c.name||c.id)+'-'+ci+'-'+ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0">
+          <RouterLink v-for="(c,ri) in col" :key="(c.name||c.id)+'-'+ci+'-'+ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0 inline-block" :to="'/c/'+encodeURIComponent(c.id||c.name||'')">
             <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
               <img v-if="c.image" :src="c.image" :alt="c.name||c.id" class="w-full h-full object-cover" loading="lazy" />
             </div>
             <div class="text-[11px] text-gray-700">{{ c.name||c.id||'-' }}</div>
-          </button>
+          </RouterLink>
         </div>
       </div>
     </div>
@@ -17,6 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 
 type Item = { id?: string; name?: string; image?: string }
 type Cfg = { categories?: Item[]; brands?: Item[] }

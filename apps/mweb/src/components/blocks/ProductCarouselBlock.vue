@@ -1,30 +1,37 @@
 <template>
   <div dir="rtl">
     <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
-    <div v-if="title" class="mb-1.5 flex items-center justify-between">
-      <h2 class="text-sm font-semibold text-gray-900">{{ title }}</h2>
-      <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد" @click="goMore">
-        <span class="mr-1">المزيد</span>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-    </div>
-    <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
-      <div class="simple-row-inner">
-        <button v-for="i in count" :key="'card-'+i" class="text-start snap-item simple-item" aria-label="منتج">
-          <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
-            <div class="w-full aspect-[255/192] bg-gray-100" />
-          </div>
-          <div v-if="showPrice" class="mt-1"><span class="text-red-600 font-bold text-sm">99.00</span></div>
+      <div v-if="title" class="mb-1.5 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-900">{{ title }}</h2>
+        <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد" @click="goMore">
+          <span class="mr-1">المزيد</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
       </div>
-    </div>
+      <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+        <div v-if="loading" class="simple-row-inner">
+          <div v-for="i in count" :key="'sk-'+i" class="text-start snap-item simple-item">
+            <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-gray-200 animate-pulse aspect-[255/192]" />
+            <div v-if="showPrice" class="mt-1"><span class="inline-block w-12 h-3 rounded bg-gray-200" /></div>
+          </div>
+        </div>
+        <div class="simple-row-inner">
+          <button v-for="(p,i) in items" :key="'prod-'+i" class="text-start snap-item simple-item" :aria-label="'منتج '+(p.name||'')" @click="open(p)">
+            <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
+              <img :src="p.image" :alt="p.name||p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
+            </div>
+            <div v-if="showPrice" class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.priceText }}</span></div>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
-</template>
+  </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { API_BASE } from '@/lib/api'
 
 type Filter = { sortBy?: string; limit?: number }
 type Cfg = { title?: string; showPrice?: boolean; products?: any[]; filter?: Filter }
@@ -34,7 +41,25 @@ const router = useRouter()
 const showPrice = computed(()=> !!props.cfg?.showPrice)
 const title = computed(()=> props.cfg?.title || '')
 const count = computed(()=> (props.device ?? 'MOBILE') === 'MOBILE' ? 6 : 10)
-function goMore(){ try{ router.push('/products') }catch{} }
+const items = ref<Array<{ id:string; name:string; image:string; price:number; priceText:string }>>([])
+const loading = ref(true)
+function goMore(){
+  const sort = String(props.cfg?.filter?.sortBy||'new')
+  try{ router.push(`/products?sort=${encodeURIComponent(sort)}`) }catch{}
+}
+function open(p: { id?: string }){ const id = String(p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(id)}`) }
+
+onMounted(async ()=>{
+  try{
+    const limit = Number(props.cfg?.filter?.limit||12)
+    const sort = String(props.cfg?.filter?.sortBy||'new')
+    const r = await fetch(`${API_BASE}/api/products?limit=${encodeURIComponent(String(limit))}&sort=${encodeURIComponent(sort)}`)
+    const j = await r.json()
+    const arr = Array.isArray(j?.items)? j.items: []
+    items.value = arr.map((p:any)=> ({ id: String(p.id||''), name: String(p.name||''), image: (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg', price: Number(p.price||0), priceText: (Number(p.price||0)).toFixed(2)+' ر.س' }))
+  }catch{ items.value = [] }
+  finally{ loading.value = false }
+})
 </script>
 
 <style scoped>

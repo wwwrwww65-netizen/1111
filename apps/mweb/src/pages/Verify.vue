@@ -19,7 +19,7 @@
           <input
             v-for="(_, i) in length"
             :key="i"
-            ref="setInputRef"
+            :ref="(el)=> setInputRef(el, i)"
             inputmode="numeric"
             maxlength="1"
             :value="code[i]"
@@ -75,10 +75,6 @@
       بتسجيل الدخول إلى حسابك، فإنك توافق على سياسة الخصوصية وملفات تعريف الارتباط والشروط والأحكام الخاصة بنا.
     </footer>
 
-    <style scoped>
-    @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
-    .animate-shake{ animation: shake .45s ease-in-out; }
-    </style>
   </div>
 </template>
 
@@ -109,8 +105,8 @@ function editNumber(){ router.push('/login') }
 
 const length = 6
 const code = ref<string[]>(Array.from({ length }, ()=>''))
-const inputsRef = ref<Array<HTMLInputElement|null>>([])
-function setInputRef(el: any){ if (el) inputsRef.value.push(el as HTMLInputElement) }
+const inputsRef = ref<Array<HTMLInputElement|null>>(Array.from({ length }, ()=> null))
+function setInputRef(el: any, idx:number){ if (el) inputsRef.value[idx] = el as HTMLInputElement }
 
 const timeLeft = ref<number>(60)
 const canResend = ref<boolean>(false)
@@ -120,7 +116,7 @@ const shake = ref<boolean>(false)
 const errorText = ref<string>('')
 const verifying = ref<boolean>(false)
 
-onMounted(()=>{ tick() })
+onMounted(()=>{ tick(); try{ inputsRef.value[0]?.focus() }catch{} })
 // Auto request on arrive if query auto=1
 onMounted(async ()=>{
   const auto = String(route.query.auto||'') === '1'
@@ -166,6 +162,10 @@ function onPaste(e: ClipboardEvent){
   const next = [...code.value]
   for (let i=0;i<length;i++) next[i] = pasted[i]||''
   code.value = next
+  // move focus to first empty or last
+  const firstEmpty = next.findIndex(c=> !c)
+  const pos = firstEmpty === -1 ? length-1 : firstEmpty
+  try{ inputsRef.value[pos]?.focus() }catch{}
 }
 
 const codeFilled = computed(()=> code.value.every(c=> c.length===1))
@@ -256,4 +256,9 @@ async function onSubmit(){
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
 </script>
+
+<style scoped>
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+.animate-shake{ animation: shake .45s ease-in-out; }
+</style>
 

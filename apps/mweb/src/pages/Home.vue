@@ -85,12 +85,12 @@
         <div class="overflow-x-auto no-scrollbar px-3">
           <div class="flex gap-2 pb-0.5">
             <div v-for="(col,ci) in catColsLocked" :key="'col-'+ci" class="flex flex-col gap-1">
-              <button v-for="(c,ri) in col" :key="c.name + '-' + ci + '-' + ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0" :aria-label="'فئة ' + c.name" @click="go('/products?category='+encodeURIComponent(c.name))">
+              <RouterLink v-for="(c,ri) in col" :key="(c.slug||c.name) + '-' + ci + '-' + ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0 inline-block" :aria-label="'فئة ' + c.name" :to="'/c/'+encodeURIComponent(c.slug||c.id||c.name)">
                 <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
                   <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div class="text-[11px] text-gray-700">{{ c.name }}</div>
-              </button>
+              </RouterLink>
             </div>
           </div>
         </div>
@@ -100,12 +100,18 @@
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <div class="mb-1.5 flex items-center justify-between">
             <h2 class="text-sm font-semibold text-gray-900">عروض كبرى</h2>
-            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في عروض كبرى" @click="go('/products')">
+            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في عروض كبرى" @click="go('/products?sort=price_desc')">
               <span class="mr-1">المزيد</span>
               <ChevronLeft class="w-4 h-4" />
             </button>
           </div>
-          <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+          <div ref="dealsRef" class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+            <div v-if="dealsLoading" class="simple-row-inner">
+              <div v-for="i in 6" :key="'sk-deal-'+i" class="text-start snap-item simple-item">
+                <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-gray-200 animate-pulse aspect-[255/192]" />
+                <div class="mt-1"><span class="inline-block w-12 h-3 bg-gray-200 rounded" /></div>
+              </div>
+            </div>
             <div class="simple-row-inner">
               <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
                 <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
@@ -122,12 +128,18 @@
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <div class="mb-1.5 flex items-center justify-between">
             <h2 class="text-sm font-semibold text-gray-900">أهم الترندات</h2>
-            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في أهم الترندات" @click="go('/products')">
+            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في أهم الترندات" @click="go('/products?sort=new')">
               <span class="mr-1">المزيد</span>
               <ChevronLeft class="w-4 h-4" />
             </button>
           </div>
-          <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+          <div ref="trendsRef" class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+            <div v-if="trendsLoading" class="simple-row-inner">
+              <div v-for="i in 6" :key="'sk-trend-'+i" class="text-start snap-item simple-item">
+                <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-gray-200 animate-pulse aspect-[255/192]" />
+                <div class="mt-1"><span class="inline-block w-12 h-3 bg-gray-200 rounded" /></div>
+              </div>
+            </div>
             <div class="simple-row-inner">
               <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
                 <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
@@ -145,7 +157,12 @@
           <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
         </div>
 
-        <div class="mt-0 masonry">
+        <div ref="fyRef" class="mt-0 masonry">
+          <template v-if="fyLoading">
+            <div v-for="i in 8" :key="'sk-fy-'+i" class="mb-1">
+              <div class="w-full border border-gray-200 rounded bg-gray-200 overflow-hidden h-40 animate-pulse" />
+            </div>
+          </template>
           <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.enter="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.space.prevent="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })">
               <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar x-snap">
@@ -160,7 +177,7 @@
                 <div class="flex items-center gap-1 mt-1.5"><div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div><div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div></div>
                 <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden"><div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div><button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ p.bestRankCategory }}</span><span>&gt;</span></button></div>
                 <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1"><span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span><span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span></div>
-                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCartFY(p)"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
+                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="openSuggestOptions(String(p.id||''))"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
                 <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>
               </div>
             </div>
@@ -210,13 +227,27 @@
         </button>
       </div>
     </nav>
+
+    <!-- Options Modal for For You cards -->
+    <ProductOptionsModal
+      v-if="optionsModal.open"
+      :onClose="closeOptions"
+      :onSave="onOptionsSave"
+      :product="optionsProduct"
+      :selectedColor="optionsModal.color"
+      :selectedSize="optionsModal.size"
+      :groupValues="optionsModal.groupValues"
+      :hideTitle="true"
+      :primaryLabel="'أضف إلى عربة التسوق'"
+      :showWishlist="false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import PromoPopup from '@/components/PromoPopup.vue'
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { apiGet, API_BASE } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
@@ -230,6 +261,7 @@ import MidPromoBlock from '@/components/blocks/MidPromoBlock.vue'
 import ProductCarouselBlock from '@/components/blocks/ProductCarouselBlock.vue'
 import CategoriesBlock from '@/components/blocks/CategoriesBlock.vue'
 import MasonryForYouBlock from '@/components/blocks/MasonryForYouBlock.vue'
+import ProductOptionsModal from '../components/ProductOptionsModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -332,7 +364,7 @@ function onTabsKeyDown(e: KeyboardEvent){
 }
 
 type Prod = { id?: string; title: string; image: string; price: string; oldPrice?: string; rating: number; reviews: number; brand?: string; coupon?: string }
-type Cat = { name: string; image: string }
+type Cat = { name: string; image: string; slug?: string; id?: string }
 
 const promoTiles = reactive([
   { title: 'شحن مجاني', sub: 'للطلبات فوق 99 ر.س', image: 'https://csspicker.dev/api/image/?q=free+shipping+icon&image_type=photo', bg: '#ffffff' },
@@ -347,6 +379,12 @@ const midPromo = reactive({ image: 'https://images.unsplash.com/photo-1512203492
 const categories = ref<Cat[]>([])
 const bigDeals = ref<Array<{ id?:string; image:string; price:string }>>([])
 const hotTrends = ref<Array<{ id?:string; image:string; price:string }>>([])
+const dealsLoading = ref(true)
+const trendsLoading = ref(true)
+const fyLoading = ref(true)
+const dealsRef = ref<HTMLElement|null>(null)
+const trendsRef = ref<HTMLElement|null>(null)
+const fyRef = ref<HTMLElement|null>(null)
 type ForYouShein = { id?:string; image:string; images?:string[]; overlayBannerSrc?:string; overlayBannerAlt?:string; title:string; brand?:string; discountPercent?:number; bestRank?:number; bestRankCategory?:string; basePrice?:string; soldPlus?:string; couponPrice?:string; colors?:string[]; colorCount?:number; imageAspect?:string }
 const forYouShein = ref<ForYouShein[]>([])
 
@@ -410,7 +448,7 @@ onMounted(async ()=>{
   try {
     const cats = await apiGet<any>('/api/categories?limit=15')
     const arr = Array.isArray(cats?.categories) ? cats.categories : Array.isArray(cats?.items) ? cats.items : []
-    categories.value = arr.map((c:any)=> ({ name: c.name||c.title, image: c.image||`https://csspicker.dev/api/image/?q=${encodeURIComponent(c.name||'fashion')}&image_type=photo` }))
+    categories.value = arr.map((c:any)=> ({ name: c.name||c.title, image: c.image||`https://csspicker.dev/api/image/?q=${encodeURIComponent(c.name||'fashion')}&image_type=photo`, slug: c.slug||undefined, id: c.id||undefined }))
   } catch {}
   if (!categories.value.length){
     categories.value = [
@@ -432,14 +470,17 @@ onMounted(async ()=>{
     ]
   }
 
-  // Products to sections
-  try{
-    const data = await apiGet<any>('/api/products?limit=24')
-    const items: Array<{ id?:string; image:string; price:string; name?:string }> = (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
-    bigDeals.value = items.slice(0, 6)
-    hotTrends.value = items.slice(6, 12)
+  // Products to sections (lazy on visibility)
+  async function loadDeals(){ if (!dealsLoading.value) return; try{
+    const [deals, trends] = await Promise.all([
+      apiGet<any>('/api/products?limit=12&sort=price_desc'),
+      apiGet<any>('/api/products?limit=12&sort=new')
+    ])
+    const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
+    bigDeals.value = mapItems(deals)
+    if (!hotTrends.value.length) hotTrends.value = mapItems(trends)
     // For You section (use same items, map to structure)
-    const fy = (data?.items||[]).slice(12, 20)
+    const fy = (trends?.items||[]).slice(0, 8)
     function extractColors(prod:any): string[]{
       const c1 = Array.isArray(prod.colorsHex)? prod.colorsHex : undefined
       const c2 = Array.isArray(prod.colors)? prod.colors.filter((x:any)=> typeof x === 'string' && /^#?[0-9a-fA-F]{3,6}$/.test(String(x))).map((x:string)=> x.startsWith('#')? x : '#'+x) : undefined
@@ -461,20 +502,113 @@ onMounted(async ()=>{
       colorCount: Array.isArray(p.colors)? p.colors.length : undefined,
       imageAspect: aspectClassByIndex(i)
     }))
-    if (!forYouShein.value.length && items.length){
-      forYouShein.value = items.slice(0,8).map((p:any, i:number)=>({
-        id: p.id,
-        image: p.image,
-        images: [p.image],
-        title: p.name || '',
-        brand: p.brand || 'JEEEY',
-        basePrice: p.price.replace(/[^0-9.]/g,'') || '0',
-        colors: [],
-        colorCount: undefined,
-        imageAspect: aspectClassByIndex(i)
-      }))
+    if (!forYouShein.value.length){
+      const base = hotTrends.value.length ? hotTrends.value : bigDeals.value
+      if (base.length){
+        forYouShein.value = base.slice(0,8).map((p:any, i:number)=>({
+          id: p.id,
+          image: p.image,
+          images: [p.image],
+          title: p.name || '',
+          brand: 'JEEEY',
+          basePrice: String(parsePrice(p.price)),
+          colors: [],
+          colorCount: undefined,
+          imageAspect: aspectClassByIndex(i)
+        }))
+      }
     }
-  }catch{}
+    dealsLoading.value = false
+  }catch{ dealsLoading.value = false }
+
+  async function loadTrends(){ if (!trendsLoading.value) return; try{
+    const t = await apiGet<any>('/api/products?limit=12&sort=new')
+    const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
+    hotTrends.value = mapItems(t)
+    trendsLoading.value = false
+  }catch{ trendsLoading.value = false }
+
+  async function loadFY(){ if (!fyLoading.value) return; try{
+    if (!forYouShein.value.length){
+      const t = await apiGet<any>('/api/products?limit=12&sort=new')
+      const arr = (t?.items||[]).slice(0,8)
+      forYouShein.value = arr.map((p:any, i:number)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', images: Array.isArray(p.images)&&p.images.length? p.images: undefined, title: p.name||'', brand: 'JEEEY', basePrice: String(p.price||0), colors: [], colorCount: undefined, imageAspect: aspectClassByIndex(i) }))
+    }
+    fyLoading.value = false
+  }catch{ fyLoading.value = false }
+
+  const io = new IntersectionObserver((entries)=>{
+    for (const e of entries){
+      if (e.isIntersecting){
+        if (e.target === dealsRef.value) loadDeals()
+        if (e.target === trendsRef.value) loadTrends()
+        if (e.target === fyRef.value) loadFY()
+      }
+    }
+  }, { rootMargin: '100px' })
+  try{ if (dealsRef.value) io.observe(dealsRef.value); if (trendsRef.value) io.observe(trendsRef.value); if (fyRef.value) io.observe(fyRef.value) }catch{}
+  // Fallback: load trends quickly after first paint
+  setTimeout(()=>{ try{ loadTrends() }catch{} }, 250)
+  
+  // End lazy products
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+},)
 })
 
 // React to route param change (navigating between tabs)
@@ -523,6 +657,54 @@ function addToCartFY(p: any){
     const img = p.image
     cart.add({ id, title, price, img }, 1)
   }catch{}
+}
+
+// Options modal for For You cards
+const optionsModal = reactive({ open:false, productId:'', color:'', size:'', groupValues:{} as Record<string,string>, source:'suggest' as const })
+const optionsCache = reactive<Record<string, any>>({})
+const optionsProduct = computed(()=> optionsCache[optionsModal.productId] || null)
+async function fetchProductDetails(id: string){
+  try{
+    if (optionsCache[id]) return optionsCache[id]
+    const base = API_BASE
+    const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { headers:{ 'Accept':'application/json' } })
+    if (!res.ok) return
+    const d = await res.json()
+    const imgs = Array.isArray(d.images)? d.images : []
+    const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
+    const normalizeImage = (u: any): string => {
+      const s = String(u || '').trim()
+      if (!s) return filteredImgs[0] || '/images/placeholder-product.jpg'
+      if (/^https?:\/\//i.test(s)) return s
+      if (s.startsWith('/uploads')) return `${base}${s}`
+      if (s.startsWith('uploads/')) return `${base}/${s}`
+      return s
+    }
+    let colors: Array<{ label: string; img: string }> = []
+    if (galleries.length){ colors = galleries.map((g:any)=> ({ label: String(g.name||'').trim(), img: normalizeImage(g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || '') })).filter(c=> !!c.label) }
+    optionsCache[id] = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes: Array.isArray(d.sizes)? d.sizes: [] }
+    return optionsCache[id]
+  }catch{}
+}
+async function openSuggestOptions(id: string){
+  try{
+    optionsModal.productId = id
+    optionsModal.color = ''
+    optionsModal.size = ''
+    optionsModal.groupValues = {}
+    optionsModal.open = true
+    await fetchProductDetails(id)
+  }catch{}
+}
+function closeOptions(){ optionsModal.open = false }
+function onOptionsSave(payload: { color: string; size: string }){
+  try{
+    const prod = optionsProduct.value
+    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
+    cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
+  }catch{}
+  optionsModal.open = false
 }
 
 const Unknown = { template:`<div class=\"p-3 text-xs text-gray-500\">قسم غير مدعوم</div>` }

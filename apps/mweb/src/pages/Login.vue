@@ -84,10 +84,6 @@
       <p class="text-[11px] text-gray-600 text-center">بالمُتابعة، فإنك توافق على سياسة الخصوصية وشروط الاستخدام الخاصة بنا</p>
     </main>
 
-    <style scoped>
-    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    .animate-fadeIn{animation:fadeIn .6s ease-in-out}
-    </style>
   </div>
 </template>
 
@@ -149,4 +145,7 @@ async function verifyOtp(){
   } catch { msg.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
 </script>
-
+<style scoped>
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.animate-fadeIn{animation:fadeIn .6s ease-in-out}
+</style>

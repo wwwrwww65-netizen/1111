@@ -272,7 +272,7 @@
 import { storeToRefs } from 'pinia'
 import { useCart } from '@/store/cart'
 import { useRouter } from 'vue-router'
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { initCurrency, fmtPrice } from '@/lib/currency'
 import { 
   X, 
