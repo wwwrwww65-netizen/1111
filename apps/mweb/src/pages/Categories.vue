@@ -121,9 +121,9 @@
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
 import SkeletonGrid from '@/components/SkeletonGrid.vue'
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiGet, API_BASE } from '@/lib/api'
+import { apiGet } from '@/lib/api'
 import { Bell, ShoppingCart, Search } from 'lucide-vue-next'
 
 // Types
@@ -144,6 +144,41 @@ type SidebarItem = {
   href?: string
 }
 
+const DEFAULT_SUGGESTIONS: Cat[] = [
+  { id: 'sug-accessories', name: 'إكسسوارات عصرية', image: 'https://csspicker.dev/api/image/?q=fashion+accessories&image_type=photo' },
+  { id: 'sug-kids', name: 'ملابس أطفال مريحة', image: 'https://csspicker.dev/api/image/?q=kids+comfortable+clothing&image_type=photo' },
+  { id: 'sug-sports', name: 'معدات رياضية', image: 'https://csspicker.dev/api/image/?q=sports+equipment&image_type=photo' },
+  { id: 'sug-bags', name: 'حقائب أنيقة', image: 'https://csspicker.dev/api/image/?q=stylish+bags&image_type=photo' },
+  { id: 'sug-shoes', name: 'أحذية مريحة', image: 'https://csspicker.dev/api/image/?q=comfortable+shoes&image_type=photo' },
+  { id: 'sug-jewelry', name: 'مجوهرات', image: 'https://csspicker.dev/api/image/?q=jewelry&image_type=photo' }
+]
+
+const DEFAULT_CATEGORIES_CONFIG = {
+  layout: { showHeader: true, showTabs: true, showSidebar: true, showPromoPopup: false },
+  promoBanner: { enabled: true, image: 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo', title: 'تسوّقي الجديد', href: '/products' },
+  tabs: [
+    { key: 'all', label: 'كل' },
+    { key: 'women', label: 'نساء' },
+    { key: 'kids', label: 'أطفال' },
+    { key: 'men', label: 'رجال' },
+    { key: 'plus', label: 'مقاسات كبيرة' },
+    { key: 'home', label: 'المنزل + الحيوانات الأليفة' },
+    { key: 'beauty', label: 'تجميل' }
+  ],
+  sidebar: [
+    { label: 'جديد في', tabKey: 'all' },
+    { label: 'ملابس نسائية', tabKey: 'women' },
+    { label: 'الرجالية', tabKey: 'men' },
+    { label: 'الأطفال', tabKey: 'kids' },
+    { label: 'المنزل والمطبخ', tabKey: 'home' },
+    { label: 'مقاسات كبيرة', tabKey: 'plus' },
+    { label: 'تجميل', tabKey: 'beauty' }
+  ],
+  suggestions: DEFAULT_SUGGESTIONS,
+  badges: [],
+  seo: { title: 'الفئات', description: 'تصفّح فئات jeeey' }
+} as const
+
 // State
 const cats = ref<Cat[]>([])
 const loading = ref(true)
@@ -152,9 +187,8 @@ const selectedSidebarIndex = ref<number>(0)
 const selectedSubcategory = ref<string | null>(null)
 const showPromoPopup = ref(false)
 const promoEmail = ref('')
-// Config/preview
-const catConfig = ref<any>(null)
-const previewActive = ref<boolean>(false)
+// Config (static defaults after removing admin builder)
+const catConfig = ref<any>({ ...DEFAULT_CATEGORIES_CONFIG })
 const showHeader = computed(()=> catConfig.value?.layout?.showHeader!==false)
 const showTabs = computed(()=> catConfig.value?.layout?.showTabs!==false)
 const showSidebar = computed(()=> catConfig.value?.layout?.showSidebar!==false)
@@ -462,16 +496,7 @@ function trackPromoSubscription(email: string) {
 
 // Load categories & config
 onMounted(async () => {
-  // Preview support
-  try{
-    const u = new URL(location.href)
-    const tok = u.searchParams.get('token') || u.searchParams.get('previewToken') || ''
-    const raw = u.searchParams.get('payload') || ''
-    if (raw) { try{ const payload = JSON.parse(decodeURIComponent(raw)); catConfig.value = payload; previewActive.value = true }catch{} }
-    if (!previewActive.value && tok){ try{ const r = await fetch(`${API_BASE}/api/admin/categories/page/preview/${encodeURIComponent(tok)}`, { credentials:'omit' }); const j = await r.json(); if (j) { catConfig.value = j; previewActive.value = true } }catch{} }
-  }catch{}
-  // Live config
-  if (!previewActive.value){ try{ const r = await fetch('/api/categories/page?site=mweb'); const j = await r.json(); if (j?.config) catConfig.value = j.config; }catch{} }
+  catConfig.value = { ...DEFAULT_CATEGORIES_CONFIG }
 
   const data = await apiGet<any>('/api/categories?limit=200')
   if (data && Array.isArray(data.categories)) {
@@ -513,14 +538,7 @@ onMounted(async () => {
   try{
     if (Array.isArray(catConfig.value?.suggestions)) suggestions.value = catConfig.value?.suggestions
     else if (Array.isArray(catConfig.value?.suggestions?.items)) suggestions.value = catConfig.value?.suggestions?.items
-    else suggestions.value = [
-      { id: 'sug-accessories', name: 'إكسسوارات عصرية', image: 'https://csspicker.dev/api/image/?q=fashion+accessories&image_type=photo' },
-      { id: 'sug-kids', name: 'ملابس أطفال مريحة', image: 'https://csspicker.dev/api/image/?q=kids+comfortable+clothing&image_type=photo' },
-      { id: 'sug-sports', name: 'معدات رياضية', image: 'https://csspicker.dev/api/image/?q=sports+equipment&image_type=photo' },
-      { id: 'sug-bags', name: 'حقائب أنيقة', image: 'https://csspicker.dev/api/image/?q=stylish+bags&image_type=photo' },
-      { id: 'sug-shoes', name: 'أحذية مريحة', image: 'https://csspicker.dev/api/image/?q=comfortable+shoes&image_type=photo' },
-      { id: 'sug-jewelry', name: 'مجوهرات', image: 'https://csspicker.dev/api/image/?q=jewelry&image_type=photo' }
-    ]
+    else suggestions.value = [...DEFAULT_SUGGESTIONS]
   }catch{}
 
   // Show promo popup from config
@@ -538,12 +556,6 @@ onMounted(async () => {
     }
   }catch{}
 
-  // Live preview updates from Admin
-  try{
-    window.addEventListener('message', (e: MessageEvent)=>{
-      try{ const data:any = e.data; if (data && data.__categories_preview){ catConfig.value = data.content || {}; previewActive.value = true } }catch{}
-    })
-  }catch{}
 })
 </script>
 

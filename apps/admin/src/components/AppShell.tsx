@@ -51,7 +51,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/design/home', label: 'مصمم الصفحة الرئيسية' },
       { href: '/design/navigation', label: 'التنقل والشرائط' },
       { href: '/design/tabs', label: 'مصمم تبويبات الصفحة' },
-      { href: '/design/categories', label: 'مصمم صفحة الفئات' },
     ],
   },
   {

@@ -4,7 +4,6 @@ import { db } from '@repo/db';
 import type { Prisma } from '@prisma/client';
 import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express';
-import { normalizeCategoriesPageConfig } from '../validators/categories-page';
 
 const shop = Router();
 
@@ -1664,24 +1663,8 @@ shop.get('/categories', async (req, res) => {
 });
 
 // Categories page (published config)
-shop.get('/categories/page', async (req, res) => {
-  try {
-    const site = String(req.query.site||'mweb');
-    const key = `categoriesPage:${site}:live`;
-    const s = await db.setting.findUnique({ where: { key } });
-    const rawConfig = s?.value ?? null;
-    if (rawConfig == null) {
-      res.set('Cache-Control','public, max-age=60');
-      return res.json({ site, config: null });
-    }
-    const { config, error } = normalizeCategoriesPageConfig(rawConfig);
-    if (!config && error) {
-      console.warn('categories_page_live_invalid_config', { site, error });
-    }
-    const payload = config ?? rawConfig;
-    res.set('Cache-Control','public, max-age=60');
-    return res.json({ site, config: payload });
-  } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_failed' }); }
+shop.get('/categories/page', async (_req, res) => {
+  res.status(410).json({ error: 'categories_page_removed' });
 });
 
 // Promotions: return best-matching active popup campaign (MVP)
