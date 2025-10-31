@@ -13,6 +13,8 @@ import { authenticator } from 'otplib';
 import { v2 as cloudinary } from 'cloudinary';
 import type { Readable } from 'stream';
 import { z } from 'zod';
+import { assertCategoriesPageConfig, normalizeCategoriesPageConfig } from '../validators/categories-page';
+import type { CategoriesPageConfig } from '../validators/categories-page';
 import { getIo } from '../io';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
@@ -22,7 +24,7 @@ const adminRest = Router();
 // Ephemeral store for Tabs preview tokens (no persistence; short-lived)
 const tabsPreviewStore: Map<string, { content: any; exp: number }> = new Map();
 // Ephemeral store for Categories Page preview tokens
-const catsPreviewStore: Map<string, { content: any; exp: number }> = new Map();
+const catsPreviewStore: Map<string, { content: CategoriesPageConfig; exp: number }> = new Map();
 // Ensure body parsers explicitly for this router
 // Allow up to ~20mb JSON to accommodate base64 images (~13.3mb for 10mb binary)
 adminRest.use(express.json({ limit: '20mb' }));
@@ -8621,7 +8623,15 @@ adminRest.get('/categories/page', async (req, res) => {
     const mode = String(req.query.mode||'draft'); // draft|live
     const key = `categoriesPage:${site}:${mode}`;
     const s = await db.setting.findUnique({ where: { key } });
-    res.json({ site, mode, config: s?.value||null });
+    const rawConfig = s?.value ?? null;
+    if (rawConfig == null) {
+      return res.json({ site, mode, config: null });
+    }
+    const { config, error } = normalizeCategoriesPageConfig(rawConfig);
+    if (!config && error) {
+      console.warn('categories_page_get_invalid_config', { site, mode, error });
+    }
+    res.json({ site, mode, config: config ?? rawConfig });
   } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_get_failed' }); }
 });
 // Summary for manager table (draft/live per site)
@@ -8745,7 +8755,12 @@ adminRest.put('/categories/page', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
     const site = String(req.body?.site||'mweb');
     const mode = String(req.body?.mode||'draft');
-    const config = req.body?.config||{};
+    let config: CategoriesPageConfig;
+    try {
+      config = assertCategoriesPageConfig(req.body?.config);
+    } catch (err: any) {
+      return res.status(400).json({ error: 'invalid_config', message: err?.message || 'invalid_categories_config' });
+    }
     const key = `categoriesPage:${site}:${mode}`;
     const r = await db.setting.upsert({ where: { key }, update: { value: config }, create: { key, value: config } });
     await audit(req,'categories_page','save',{ site, mode });
@@ -8759,7 +8774,13 @@ adminRest.post('/categories/page/publish', async (req, res) => {
     const draftKey = `categoriesPage:${site}:draft`;
     const liveKey = `categoriesPage:${site}:live`;
     const d = await db.setting.findUnique({ where: { key: draftKey } });
-    const config = d?.value||{};
+    if (!d?.value) return res.status(404).json({ error:'draft_not_found' });
+    let config: CategoriesPageConfig;
+    try {
+      config = assertCategoriesPageConfig(d.value);
+    } catch (err: any) {
+      return res.status(400).json({ error:'invalid_draft_config', message: err?.message || 'invalid_categories_config' });
+    }
     await db.setting.upsert({ where: { key: liveKey }, update: { value: config }, create: { key: liveKey, value: config } });
     await audit(req,'categories_page','publish',{ site });
     res.json({ ok:true });
@@ -8769,7 +8790,12 @@ adminRest.post('/categories/page/publish', async (req, res) => {
 adminRest.post('/categories/page/preview/sign', async (req, res) => {
   try{
     const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const content = req.body?.content || {};
+    let content: CategoriesPageConfig;
+    try {
+      content = assertCategoriesPageConfig(req.body?.content);
+    } catch (err: any) {
+      return res.status(400).json({ error:'invalid_config', message: err?.message || 'invalid_categories_config' });
+    }
     const now = Date.now();
     const token = require('crypto').randomUUID();
     catsPreviewStore.set(token, { content, exp: now + 5*60*1000 }); // 5 minutes TTL
