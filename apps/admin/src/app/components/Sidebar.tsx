@@ -12,7 +12,6 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/design/branding', label: 'الشعارات والأيقونات' },
       { href: '/design/navigation', label: 'التنقل والشرائط' },
       { href: '/design/home', label: 'الصفحة الرئيسية' },
-      { href: '/design/categories', label: 'صفحة الفئات (الجوال)' },
     ],
   },
   {
@@ -103,6 +102,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/cms', label: 'المحتوى (CMS)' },
       { href: '/media', label: 'الوسائط' },
       { href: '/design/tabs', label: 'مدير تبويبات الصفحة' },
+      { href: '/categories-tabs', label: 'تبويبات الفئات' },
       { href: '/cms/size-guides', label: 'دلائل المقاسات' },
       { href: '/cms/qa', label: 'أسئلة وأجوبة' },
       { href: '/cms/photos', label: 'صور العملاء' },

@@ -40,10 +40,26 @@
 
     <!-- Tabs (ملتصقة بالهيدر) -->
     <nav v-if="showTabs" class="tabs fixed left-0 right-0 z-40 bg-white border-t border-b border-gray-200" :style="{ top: navTop }">
-      <button v-for="t in tabsList" :key="t.key" :class="{on: active===t.key}" @click="setTab(t.key)">{{ t.label }}</button>
+      <button v-for="t in tabsList" :key="t.key" :class="{on: currentTabKey===t.key}" @click="setTab(t.key)">{{ t.label }}</button>
     </nav>
 
-    <div class="layout" :style="{ marginTop: layoutTop, height: layoutHeight }">
+    <!-- أثناء تحديد التبويب والانتقال إليه، اعرض هيكل عظمي -->
+    <div v-if="redirecting" class="px-0" :style="{ marginTop: layoutTop }">
+      <div class="layout" :style="{ height: layoutHeight }">
+        <aside class="side">
+          <div v-for="i in 8" :key="'sk-side-'+i" class="h-8 rounded bg-gray-200 animate-pulse mb-2" />
+        </aside>
+        <main class="main">
+          <div class="grid">
+            <div v-for="i in 12" :key="'sk-circ-'+i" class="cell">
+              <div class="w-20 h-20 bg-gray-200 rounded-full animate-pulse" />
+              <div class="name"><span class="inline-block w-16 h-3 bg-gray-200 rounded mt-2"></span></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <div v-else class="layout" :style="{ marginTop: layoutTop, height: layoutHeight }">
       <!-- Sidebar -->
       <aside v-if="showSidebar" class="side">
         <button 
@@ -144,6 +160,13 @@ type SidebarItem = {
   href?: string
 }
 
+type Mini = { id: string; name: string; image?: string }
+type GridExplicit = { mode: 'explicit'; categories: Mini[] }
+type GridFilter = { mode: 'filter'; categoryIds?: string[]; limit?: number; sortBy?: 'name_asc'|'name_desc'|'created_desc' }
+type Grid = GridExplicit | GridFilter
+type Suggestions = { enabled?: boolean; title?: string; items?: Mini[] } | Mini[]
+type PageData = { layout?: { showHeader?: boolean; showSidebar?: boolean }; promoBanner?: any; title?: string; featured?: Mini[]; grid?: Grid; sidebarItems?: SidebarItem[]; suggestions?: Suggestions; seo?: { title?: string; description?: string } }
+
 // State
 const cats = ref<Cat[]>([])
 const loading = ref(true)
@@ -151,14 +174,24 @@ const active = ref('all')
 const selectedSidebarIndex = ref<number>(0)
 const selectedSubcategory = ref<string | null>(null)
 const showPromoPopup = ref(false)
+const redirecting = ref(false)
 const promoEmail = ref('')
 // Config/preview
 const catConfig = ref<any>(null)
 const previewActive = ref<boolean>(false)
+const publishedTabs = ref<Array<{ slug: string; label: string }>>([])
+const activePublishedSlug = ref<string>('')
+const page = ref<PageData>({})
 const showHeader = computed(()=> catConfig.value?.layout?.showHeader!==false)
-const showTabs = computed(()=> catConfig.value?.layout?.showTabs!==false)
-const showSidebar = computed(()=> catConfig.value?.layout?.showSidebar!==false)
-const navTop = computed(()=> showHeader.value ? '50px' : '0px')
+// أظهر شريط التبويبات دائماً إذا كانت هناك تبويبات منشورة من API،
+// وإلا اتبع إعدادات التصميم (showTabs !== false)
+const showTabs = computed(()=> (publishedTabs.value.length>0) || (catConfig.value?.layout?.showTabs!==false))
+// عند وجود تبويبات منشورة: اتبع إعداد التبويب/الصفحة لعرض الشريط الجانبي (لا نخفيه)
+const showSidebar = computed(()=> {
+  if (publishedTabs.value.length>0) return page.value?.layout?.showSidebar !== false
+  return (catConfig.value?.layout?.showSidebar!==false)
+})
+const navTop = computed(()=> showHeader.value ? '56px' : '0px')
 const layoutTop = computed(()=> {
   const headerH = showHeader.value ? 56 : 0
   const tabsH = showTabs.value ? 48 : 0
@@ -170,20 +203,22 @@ const layoutHeight = computed(()=> {
   return `calc(100dvh - ${headerH + tabsH}px - 60px)`
 })
 const tabsList = computed(()=>{
-  const tabs = Array.isArray(catConfig.value?.tabs)? catConfig.value.tabs : []
-  if (tabs.length) return tabs.map((t:any)=> ({ key: String(t.key||'all'), label: String(t.label||t.key||'') }))
-  return [
-    { key:'all', label:'كل' },
-    { key:'women', label:'نساء' },
-    { key:'kids', label:'أطفال' },
-    { key:'men', label:'رجال' },
-    { key:'plus', label:'مقاسات كبيرة' },
-    { key:'home', label:'المنزل + الحيوانات الأليفة' },
-    { key:'beauty', label:'تجميل' },
-  ]
+  // أعرض فقط التبويبات المنشورة الحقيقية من API
+  if (publishedTabs.value.length) return publishedTabs.value.map((t:any)=> ({ key: String(t.slug||''), label: String(t.label||t.slug||'') }))
+  // بدون تبويبات منشورة، لا نعرض تبويبات وهمية
+  return []
 })
+const currentTabKey = computed(()=> usingPublishedTabs.value ? activePublishedSlug.value : active.value)
+const usingPublishedTabs = computed(()=> publishedTabs.value.length>0)
 const promoBanner = computed(()=> ({ enabled: !!catConfig.value?.promoBanner?.enabled, title: catConfig.value?.promoBanner?.title||'', image: catConfig.value?.promoBanner?.image||'', href: catConfig.value?.promoBanner?.href||'' }))
 const activePromoBanner = computed(()=>{
+  if (usingPublishedTabs.value){
+    const side = currentSideCfg.value as any
+    if (side?.promoBanner?.enabled) return { enabled:true, title: side.promoBanner.title||'', image: side.promoBanner.image||'', href: side.promoBanner.href||'' }
+    const p = page.value?.promoBanner as any
+    if (p?.enabled) return { enabled:true, title: p.title||'', image: p.image||'', href: p.href||'' }
+    return { enabled:false, title:'', image:'', href:'' }
+  }
   const sideBanner = (currentSideCfg.value as any)?.promoBanner
   if (sideBanner && sideBanner.enabled) return { enabled:true, title: sideBanner.title||'', image: sideBanner.image||'', href: sideBanner.href||'' }
   const tabBanner = (activeTabCfg.value as any)?.promoBanner
@@ -197,6 +232,10 @@ function go(path: string) { router.push(path) }
 // Enhanced Sidebar with icons (from config or fallback)
 const activeTabCfg = computed(()=> (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value) )
 const sidebarItems = computed<SidebarItem[]>(()=>{
+  if (usingPublishedTabs.value){
+    const arr = Array.isArray(page.value?.sidebarItems)? (page.value?.sidebarItems as SidebarItem[]): []
+    return arr
+  }
   const tabSide = Array.isArray((activeTabCfg.value as any)?.sidebarItems) ? (activeTabCfg.value as any).sidebarItems : null
   if (tabSide) return tabSide.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, href: s.href }))
   const arr = Array.isArray(catConfig.value?.sidebar)? catConfig.value.sidebar : null
@@ -290,7 +329,25 @@ const categoryHierarchy: Record<string, Cat[]> = {
 const suggestions = ref<Cat[]>([])
 
 // Tab management
-function setTab(v: string) { 
+async function setTab(v: string) { 
+  // إن كان v تبويب فئات منشور: حمّل محتواه داخلياً
+  if (publishedTabs.value.some(t=> String(t.slug||'')===v)){
+    try{
+      redirecting.value = true
+      activePublishedSlug.value = v
+      selectedSidebarIndex.value = 0
+      selectedSubcategory.value = null
+      const r = await fetch(`${API_BASE}/api/tabs/${encodeURIComponent(v)}`)
+      const j = await r.json()
+      const content = j?.content
+      const data = (content && (content as any).type==='categories-v1') ? (content as any).data as PageData : {}
+      page.value = data||{}
+    }catch{ page.value = {} }
+    finally{ redirecting.value = false }
+    trackTabChange(v)
+    return
+  }
+  // تبويب تصميمي محلي ضمن صفحة الفئات
   active.value = v
   selectedSubcategory.value = null
   selectedSidebarIndex.value = 0
@@ -312,10 +369,20 @@ function isUrl(s?:string){ return !!s && /^(https?:)?\/\//.test(s) }
 
 // Featured categories (subcategories for current tab)
 const currentSideCfg = computed(()=>{
+  if (usingPublishedTabs.value){
+    const list:any[] = Array.isArray(page.value?.sidebarItems)? (page.value?.sidebarItems as any[]): []
+    return list[selectedSidebarIndex.value] || null
+  }
   const list:any[] = Array.isArray((activeTabCfg.value as any)?.sidebarItems) ? ((activeTabCfg.value as any).sidebarItems as any[]) : []
   return list[selectedSidebarIndex.value] || null
 })
 const featuredCategories = computed(() => {
+  if (usingPublishedTabs.value){
+    const side = currentSideCfg.value as any
+    if (side?.featured && Array.isArray(side.featured)) return side.featured
+    if (Array.isArray(page.value?.featured)) return page.value?.featured||[]
+    return []
+  }
   if (active.value === 'all') return []
   if (currentSideCfg.value && Array.isArray((currentSideCfg.value as any).featured)) return (currentSideCfg.value as any).featured
   if (activeTabCfg.value && Array.isArray((activeTabCfg.value as any).featured)) return (activeTabCfg.value as any).featured
@@ -336,6 +403,28 @@ function selectSubcategory(id: string) {
 const displayedCategories = computed(() => {
   if (selectedSubcategory.value) {
     return featuredCategories.value.filter(c => c.id === selectedSubcategory.value)
+  }
+  if (usingPublishedTabs.value){
+    const side = currentSideCfg.value as any
+    const resolve = (grid?: Grid): Mini[]=>{
+      if (!grid) return []
+      if ((grid as GridExplicit).mode==='explicit') return (grid as GridExplicit).categories||[]
+      const g = grid as GridFilter
+      let pool = cats.value
+      if (Array.isArray(g.categoryIds) && g.categoryIds.length){
+        const byId: Record<string,Cat> = {}; for (const c of cats.value) byId[c.id]=c
+        pool = g.categoryIds.map(id=> byId[id]).filter(Boolean) as any
+      }
+      const sorted = [...pool].sort((a:any,b:any)=>{
+        if (g.sortBy==='name_desc') return String(b.name||'').localeCompare(String(a.name||''), 'ar')
+        if (g.sortBy==='created_desc') return 0
+        return String(a.name||'').localeCompare(String(b.name||''), 'ar')
+      })
+      return (g.limit? sorted.slice(0, g.limit): sorted) as any
+    }
+    if (side?.grid) return resolve(side.grid)
+    if (page.value?.grid) return resolve(page.value.grid)
+    return cats.value as any
   }
   if (active.value !== 'all') {
     const side = currentSideCfg.value as any
@@ -387,6 +476,7 @@ const displayedCategories = computed(() => {
 
 // Section title
 const currentSectionTitle = computed(() => {
+  if (usingPublishedTabs.value) return page.value?.title || 'مختارات من أجلك'
   const tabs = Array.isArray(catConfig.value?.tabs)? catConfig.value.tabs : []
   const t = tabs.find((x:any)=> String(x.key||'')===active.value)
   if (t?.label) return t.label
@@ -394,10 +484,16 @@ const currentSectionTitle = computed(() => {
   return titles[active.value] || 'مختارات من أجلك'
 })
 
-// Suggestions resolution priority: sidebar item > tab > global > fallback
+// Suggestions resolution priority: sidebar item > page-level/tab > global > fallback
 const activeSuggestions = computed(()=>{
   const side = currentSideCfg.value as any
   if (side?.suggestions?.enabled && Array.isArray(side?.suggestions?.items) && side.suggestions.items.length) return side.suggestions.items
+  if (usingPublishedTabs.value){
+    const s2 = page.value?.suggestions as any
+    if (Array.isArray(s2)) return s2
+    if (s2?.enabled && Array.isArray(s2.items)) return s2.items
+    return []
+  }
   const tab = activeTabCfg.value as any
   if (tab?.suggestions?.enabled && Array.isArray(tab?.suggestions?.items) && tab.suggestions.items.length) return tab.suggestions.items
   const s = catConfig.value?.suggestions
@@ -408,6 +504,10 @@ const activeSuggestions = computed(()=>{
 const activeSuggestionsTitle = computed(()=>{
   const side = currentSideCfg.value as any
   if (side?.suggestions?.enabled && (side?.suggestions?.title||'').trim()) return side.suggestions.title
+  if (usingPublishedTabs.value){
+    const s2 = page.value?.suggestions as any
+    if (!Array.isArray(s2) && (s2?.title||'').trim()) return s2.title
+  }
   const tab = activeTabCfg.value as any
   if (tab?.suggestions?.enabled && (tab?.suggestions?.title||'').trim()) return tab.suggestions.title
   const s = catConfig.value?.suggestions
@@ -470,8 +570,25 @@ onMounted(async () => {
     if (raw) { try{ const payload = JSON.parse(decodeURIComponent(raw)); catConfig.value = payload; previewActive.value = true }catch{} }
     if (!previewActive.value && tok){ try{ const r = await fetch(`${API_BASE}/api/admin/categories/page/preview/${encodeURIComponent(tok)}`, { credentials:'omit' }); const j = await r.json(); if (j) { catConfig.value = j; previewActive.value = true } }catch{} }
   }catch{}
-  // Live config
-  if (!previewActive.value){ try{ const r = await fetch('/api/categories/page?site=mweb'); const j = await r.json(); if (j?.config) catConfig.value = j.config; }catch{} }
+  // Live config (use API_BASE to work in dev/prod)
+  if (!previewActive.value){ try{ const r = await fetch(`${API_BASE}/api/categories/page?site=mweb`); const j = await r.json(); if (j?.config) catConfig.value = j.config; }catch{} }
+
+  // اجلب تبويبات الفئات المنشورة فقط (من API_BASE)
+  try{
+    redirecting.value = !previewActive.value
+    const jl = await apiGet<any>('/api/tabs/categories/list')
+    const list = Array.isArray(jl?.tabs)? jl.tabs: []
+    publishedTabs.value = list.map((x:any)=> ({ slug: String(x.slug||''), label: String(x.label||x.slug||'') }))
+    // افتح التبويب المفضل إن كان محدداً وصالحاً، وإلا الأول (داخلياً)
+    try{
+      if (!previewActive.value && publishedTabs.value.length){
+        const preferred = String(catConfig.value?.defaultTabSlug||'').trim()
+        const candidate = publishedTabs.value.find(t=> t.slug===preferred)?.slug || publishedTabs.value[0].slug
+        await setTab(candidate)
+      }
+      redirecting.value = false
+    }catch{ redirecting.value = false }
+  }catch{ publishedTabs.value = []; redirecting.value = false }
 
   const data = await apiGet<any>('/api/categories?limit=200')
   if (data && Array.isArray(data.categories)) {

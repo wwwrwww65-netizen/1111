@@ -92,6 +92,8 @@ export const CategoriesPageConfigSchema = z.object({
       showPromoPopup: z.boolean().optional(),
     })
     .optional(),
+  // Optional preferred default tab slug to open on /categories
+  defaultTabSlug: StringOrEmpty,
   promoBanner: PromoBannerSchema.optional(),
   tabs: z.array(TabSchema).default([]),
   sidebar: z.array(GlobalSidebarItemSchema).optional(),

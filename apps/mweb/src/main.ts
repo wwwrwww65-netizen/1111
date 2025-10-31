@@ -24,6 +24,7 @@ const manualRoutes = [
   { path: '/order/:id', component: () => import('./pages/OrderDetail.vue') },
   { path: '/checkout', component: () => import('./pages/Checkout.vue') },
   { path: '/p', component: () => import('./pages/Product.vue') },
+  { path: '/categories/:slug', component: () => import('./pages/categories/[slug].vue') },
   { path: '/confirm', component: () => import('./pages/Confirm.vue') },
   { path: '/address', component: () => import('./pages/Address.vue') },
   // { path: '/map', component: () => import('./pages/Map.vue') }, // merged into Address.vue

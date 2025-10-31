@@ -1,0 +1,51 @@
+[33m9339e1f1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{2025-10-30 16:58:08 +0300}: reset: moving to HEAD
+[33m9339e1f1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{2025-10-30 10:26:57 +0300}: pull origin main: Fast-forward
+[33me4acfd17[m HEAD@{2025-10-30 10:26:14 +0300}: reset: moving to HEAD
+[33me4acfd17[m HEAD@{2025-10-29 13:59:58 +0300}: commit: تحديث المشروع ادارة التبويبات
+[33m1870fc56[m[33m ([m[1;31morigin/cursor/review-homepage-tab-interface-and-report-errors-9901[m[33m)[m HEAD@{2025-10-29 11:09:55 +0300}: checkout: moving from main to main
+[33m1870fc56[m[33m ([m[1;31morigin/cursor/review-homepage-tab-interface-and-report-errors-9901[m[33m)[m HEAD@{2025-10-29 11:09:00 +0300}: pull origin main: Fast-forward
+[33mecc72436[m HEAD@{2025-10-29 11:08:43 +0300}: reset: moving to HEAD
+[33mecc72436[m HEAD@{2025-10-28 12:07:01 +0300}: pull origin main: Fast-forward
+[33m6093f18d[m HEAD@{2025-10-28 12:06:56 +0300}: reset: moving to HEAD
+[33m6093f18d[m HEAD@{2025-10-28 11:36:12 +0300}: checkout: moving from main to main
+[33m6093f18d[m HEAD@{2025-10-28 05:25:27 +0300}: commit: تحديث المشروع صفحة لوحة ادارة التبويبات1
+[33m034ca350[m HEAD@{2025-10-28 05:18:37 +0300}: commit: تحديث المشروع صفحة لوحة ادارة التبويبا1ت
+[33mede97a74[m HEAD@{2025-10-28 05:14:53 +0300}: commit: تحديث المشروع صفحة لوحة ادارة التبويبات
+[33mf7694be3[m HEAD@{2025-10-28 03:17:03 +0300}: commit: تحديث المشروع صفحة تفاصيل الطلب
+[33m0880fc04[m HEAD@{2025-10-27 11:48:12 +0300}: commit: تحديث المشروع صفحة الطلبات1
+[33m2f1b7df2[m HEAD@{2025-10-27 11:03:41 +0300}: commit: تحديث المشروع صفحة الطلبات
+[33m4c1cd3d6[m HEAD@{2025-10-27 05:27:50 +0300}: commit: تحديث المشروع صفحة السلة وشيك او1ت1
+[33m064c8d16[m HEAD@{2025-10-27 05:11:56 +0300}: commit: تحديث المشروع صفحة السلة وشيك اوت1
+[33m29d968cf[m HEAD@{2025-10-27 04:52:52 +0300}: commit: تحديث المشروع صفحة السلة وشيك اوت
+[33ma750539a[m HEAD@{2025-10-27 04:25:06 +0300}: commit: تحديث المشروع صفحة المنتح22
+[33me5b7fc16[m HEAD@{2025-10-27 03:37:05 +0300}: commit: تحديث المشروع صفحة المنتح2
+[33m558de1ab[m HEAD@{2025-10-27 02:29:56 +0300}: commit: تحديث المشروع صفحة المنتح
+[33m5cd9e740[m HEAD@{2025-10-25 05:16:22 +0300}: commit: تحديث المشروع تعديل الخيارات والسلة من الجهاز الي1
+[33m0c80e0b9[m HEAD@{2025-10-25 05:01:09 +0300}: commit: تحديث المشروع تعديل الخيارات والسلة من الجهاز المحي1
+[33mcc1b2cfb[m HEAD@{2025-10-25 04:49:08 +0300}: commit: تحديث المشروع تعديل الخيارات والسلة من الجهاز المحلي1
+[33m82a77e04[m HEAD@{2025-10-25 02:16:42 +0300}: commit: تحديث المشروع تعديل الخيارات من الجهاز المحلي1
+[33m7160050c[m HEAD@{2025-10-24 06:25:39 +0300}: commit: تحديث المشروع الالوان من الجهاز المحلي1
+[33m2ef181f9[m HEAD@{2025-10-24 05:19:36 +0300}: commit: تحديث المشروع الحا من الجهاز المحلي1
+[33mb55edd4e[m HEAD@{2025-10-24 04:52:01 +0300}: commit: تحديث المشروع الابي من الجهاز المحلي1
+[33m79704cdb[m HEAD@{2025-10-24 04:21:16 +0300}: commit: Deploy: add mweb deploy + CORS fix + robust /api/categories
+[33mec163390[m HEAD@{2025-10-24 03:37:29 +0300}: checkout: moving from main to main
+[33mec163390[m HEAD@{2025-10-24 03:36:43 +0300}: commit: تحديث المشروع من الجهاز المحلي
+[33m8b6040de[m HEAD@{2025-10-24 01:43:57 +0300}: commit: chore: normalize PR template filename to PULL_REQUEST_TEMPLATE.md
+[33maa91baf7[m HEAD@{2025-10-24 01:43:27 +0300}: commit: chore: temp rename PR template (fix case)
+[33m2f11d563[m[33m ([m[1;31morigin/fix-categories-and-media-upload[m[33m)[m HEAD@{2025-10-24 01:37:23 +0300}: reset: moving to origin/main
+[33m2f11d563[m[33m ([m[1;31morigin/fix-categories-and-media-upload[m[33m)[m HEAD@{2025-10-24 01:33:40 +0300}: reset: moving to origin/main
+[33md4046eb9[m HEAD@{2025-10-24 01:32:48 +0300}: checkout: moving from backup-local-20251024 to main
+[33m837018e2[m[33m ([m[1;31morigin/backup-local-20251024[m[33m, [m[1;32mbackup-local-20251024[m[33m)[m HEAD@{2025-10-24 01:30:12 +0300}: commit: WIP: backup local changes before sync (backup-local-20251024)
+[33md4046eb9[m HEAD@{2025-10-24 01:29:31 +0300}: checkout: moving from main to backup-local-20251024
+[33md4046eb9[m HEAD@{2025-10-24 01:27:03 +0300}: checkout: moving from main to main
+[33md4046eb9[m HEAD@{2025-10-16 04:49:38 +0300}: commit: deploy: push latest workspace updates
+[33m43df4c27[m HEAD@{2025-10-16 03:00:04 +0300}: commit: fix(db): add back-relations for ProductQA and UGCPhoto on User/Product
+[33m539212ec[m HEAD@{2025-10-16 02:55:23 +0300}: commit: fix(db): add ProductQA and UGCPhoto Prisma models to satisfy admin-rest typings
+[33m26807b0c[m HEAD@{2025-10-16 02:51:23 +0300}: commit: deploy: push new changes
+[33ma26f7057[m HEAD@{2025-10-15 05:02:39 +0300}: commit: deploy: push updates to main
+[33m47877886[m HEAD@{2025-10-15 03:13:47 +0300}: commit: chore: push latest updates for Hostinger VPS deploy (admin, web, api); fix security middleware and JWT/cookies; add scripts/start-all.ps1
+[33m5d1e4783[m HEAD@{2025-10-14 23:36:16 +0300}: commit: mweb: integrate Leaflet/OSM fallback, disable Google Maps; fix locate button z-index; update CSP for Leaflet/Nominatim; admin/web image fallbacks; shipping/payment/currency API links; misc fixes
+[33m78e03811[m HEAD@{2025-10-14 02:20:06 +0300}: commit: mweb: Address hide city; area by governorate; map merge; Cart: address check redirect; Checkout: click-to-pick address, fix shipping selection with price+currency, payments by id, prices bound to currency, terms/privacy links; api: /geo/areas governorate param, /payments/methods public
+[33meb5ed43a[m HEAD@{2025-10-14 01:36:42 +0300}: commit: mweb(api): allow Google Maps in CSP; make /api/payments/methods public (no auth)
+[33m676cfde6[m HEAD@{2025-10-14 00:32:08 +0300}: commit: feat(mweb): address↔checkout flow, embedded map, geo APIs, shipping/payments, coupons/giftcards, wallet/points
+[33m8b0a74a6[m[33m ([m[1;31morigin/jam[m[33m)[m HEAD@{2025-10-13 22:06:08 +0300}: clone: from https://github.com/wwwrwww65-netizen/1111.git

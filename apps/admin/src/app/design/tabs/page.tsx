@@ -30,7 +30,7 @@ export default function TabPagesList(): JSX.Element {
 
   const fetchList = React.useCallback(()=>{
     setLoading(true); setError(undefined);
-    const qs = new URLSearchParams({ page: String(page), limit: '20' });
+    const qs = new URLSearchParams({ page: String(page), limit: '20', excludeCategories: '1' });
     if (status) qs.set('status', status);
     if (device) qs.set('device', device);
     fetch(`${apiBase}/api/admin/tabs/pages?`+qs.toString(), { credentials:'include' })

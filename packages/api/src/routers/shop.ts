@@ -226,6 +226,29 @@ shop.get('/tabs/list', async (_req: any, res) => {
   } catch (e: any) { return res.status(500).json({ error: e?.message || 'tabs_list_failed' }); }
 });
 
+// List published Categories tabs only (content.type === 'categories-v1')
+shop.get('/tabs/categories/list', async (req: any, res) => {
+  try {
+    const device = String(req.query.device || 'MOBILE').toUpperCase();
+    const pages: Array<any> = await db.tabPage.findMany({
+      where: { status: 'PUBLISHED', device: device as any },
+      orderBy: { updatedAt: 'desc' },
+      select: { slug: true, label: true, currentVersionId: true }
+    } as any);
+    const versionIds = pages.map((p: any) => p.currentVersionId).filter(Boolean);
+    if (!versionIds.length) return res.json({ tabs: [] });
+    const versions: Array<any> = await db.tabPageVersion.findMany({
+      where: { id: { in: versionIds } },
+      select: { id: true, content: true }
+    } as any);
+    const byId = new Map<string, any>(versions.map((v: any) => [v.id, v]));
+    const tabs = pages
+      .filter((p: any) => p.currentVersionId && byId.get(p.currentVersionId)?.content?.type === 'categories-v1')
+      .map((p: any) => ({ slug: p.slug, label: p.label }));
+    return res.json({ tabs });
+  } catch (e: any) { return res.status(500).json({ error: e?.message || 'tabs_categories_list_failed' }); }
+});
+
 // Get published tab content by slug
 shop.get('/tabs/:slug', async (req: any, res) => {
   try {

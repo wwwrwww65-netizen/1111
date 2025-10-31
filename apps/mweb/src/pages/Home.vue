@@ -389,14 +389,18 @@ onMounted(async ()=>{
       }catch{}
     }
   }catch{}
-  // Load published tabs for device
+  // Load published tabs for device, then exclude categories tabs
   try{
-    const r = await fetch(`${API_BASE}/api/tabs/list?device=MOBILE`)
-    const j = await r.json()
-    const list = Array.isArray(j.tabs) ? j.tabs : []
-    tabs.value = list.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
+    const [allResp, catsResp] = await Promise.all([
+      fetch(`${API_BASE}/api/tabs/list?device=MOBILE`).then(r=>r.json()).catch(()=>({ tabs: [] })),
+      fetch(`${API_BASE}/api/tabs/categories/list`).then(r=>r.json()).catch(()=>({ tabs: [] }))
+    ])
+    const all = Array.isArray(allResp?.tabs)? allResp.tabs: []
+    const cats = new Set((Array.isArray(catsResp?.tabs)? catsResp.tabs: []).map((t:any)=> String(t.slug||'')))
+    const filtered = all.filter((t:any)=> !cats.has(String(t.slug||'')))
+    tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
     const paramSlug = String(route.params.slug||'')
-    const initial = paramSlug || (tabs.value[0]?.slug || 'all')
+    const initial = paramSlug || (tabs.value[0]?.slug || '')
     if (!previewActive.value && initial) await loadTab(initial)
   }catch{}
   // Notify admin that preview is ready (parent iframe or opener window)

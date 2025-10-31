@@ -13,18 +13,15 @@ import { authenticator } from 'otplib';
 import { v2 as cloudinary } from 'cloudinary';
 import type { Readable } from 'stream';
 import { z } from 'zod';
-import { assertCategoriesPageConfig, normalizeCategoriesPageConfig } from '../validators/categories-page';
-import type { CategoriesPageConfig } from '../validators/categories-page';
 import { getIo } from '../io';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
 import nodemailer from 'nodemailer';
+import { normalizeCategoriesPageConfig } from '../validators/categories-page';
 
 const adminRest = Router();
 // Ephemeral store for Tabs preview tokens (no persistence; short-lived)
 const tabsPreviewStore: Map<string, { content: any; exp: number }> = new Map();
-// Ephemeral store for Categories Page preview tokens
-const catsPreviewStore: Map<string, { content: CategoriesPageConfig; exp: number }> = new Map();
 // Ensure body parsers explicitly for this router
 // Allow up to ~20mb JSON to accommodate base64 images (~13.3mb for 10mb binary)
 adminRest.use(express.json({ limit: '20mb' }));
@@ -3826,6 +3823,7 @@ adminRest.get('/tabs/pages', async (req, res) => {
   const skip = (page-1)*limit;
   const status = (req.query.status as string|undefined) || undefined;
   const device = (req.query.device as string|undefined) || undefined;
+  const excludeCategories = String(req.query.excludeCategories||'').toLowerCase() === 'true' || req.query.excludeCategories === '1';
   const where:any = {};
   if (status) where.status = status;
   if (device) where.device = device;
@@ -3833,6 +3831,19 @@ adminRest.get('/tabs/pages', async (req, res) => {
     db.tabPage.findMany({ where, orderBy: { updatedAt: 'desc' }, skip, take: limit }),
     db.tabPage.count({ where })
   ]);
+  if (excludeCategories) {
+    try{
+      const versionIds = items.map((p:any)=> p.currentVersionId).filter(Boolean);
+      const versions:any[] = versionIds.length ? await db.tabPageVersion.findMany({ where: { id: { in: versionIds } }, select:{ id:true, content:true } } as any) : [];
+      const byId = new Map<string, any>(versions.map(v=> [v.id, v]));
+      const filtered = items.filter((p:any)=> {
+        const v = p.currentVersionId? byId.get(p.currentVersionId): null;
+        const t = v?.content?.type;
+        return t !== 'categories-v1';
+      });
+      return res.json({ pages: filtered, pagination: { page, limit, total: filtered.length, totalPages: Math.ceil(filtered.length/limit) } });
+    }catch(e:any){ return res.json({ pages: items, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } }); }
+  }
   res.json({ pages: items, pagination: { page, limit, total, totalPages: Math.ceil(total/limit) } });
 });
 
@@ -3908,6 +3919,77 @@ adminRest.post('/tabs/pages/:id/versions', async (req, res) => {
   const v = await db.tabPageVersion.create({ data: { tabPageId: id, version, title, content, notes, createdByUserId: u.userId } });
   await audit(req, 'tabs', 'create_version', { id, version });
   res.json({ version: v });
+});
+
+// ---------- Categories Page (builder) ----------
+const categoriesPreviewStore = new Map<string, { content: any; exp: number }>();
+
+adminRest.get('/categories/page', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.read'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.query.site||'mweb');
+    const draftKey = `categoriesPage:${site}:draft`;
+    const liveKey = `categoriesPage:${site}:live`;
+    const [d, l] = await Promise.all([
+      db.setting.findUnique({ where: { key: draftKey } }),
+      db.setting.findUnique({ where: { key: liveKey } })
+    ]);
+    const draft = d?.value ?? null;
+    const live = l?.value ?? null;
+    const effective = draft || live || null;
+    return res.json({ site, draft, live, effective });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_get_failed' }); }
+});
+
+adminRest.put('/categories/page', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.write'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.query.site||'mweb');
+    const body = req.body || {};
+    const { config, error } = normalizeCategoriesPageConfig(body?.config ?? body);
+    if (!config && error) return res.status(400).json({ error });
+    const draftKey = `categoriesPage:${site}:draft`;
+    const row = await db.setting.upsert({ where: { key: draftKey }, update: { value: config }, create: { key: draftKey, value: config } } as any);
+    await audit(req, 'categories.page', 'save_draft', { site });
+    return res.json({ ok:true, draft: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_save_failed' }); }
+});
+
+adminRest.post('/categories/page/publish', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const site = String(req.query.site||'mweb');
+    const draftKey = `categoriesPage:${site}:draft`;
+    const liveKey = `categoriesPage:${site}:live`;
+    const d = await db.setting.findUnique({ where: { key: draftKey } });
+    if (!d?.value) return res.status(400).json({ error:'no_draft' });
+    const row = await db.setting.upsert({ where: { key: liveKey }, update: { value: d.value }, create: { key: liveKey, value: d.value } } as any);
+    await audit(req, 'categories.page', 'publish', { site });
+    return res.json({ ok:true, live: row.value });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_publish_failed' }); }
+});
+
+adminRest.post('/categories/page/preview/sign', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.read'))) return res.status(403).json({ error:'forbidden' });
+    const content = req.body?.content || req.body?.config || {};
+    const { config, error } = normalizeCategoriesPageConfig(content);
+    if (!config && error) return res.status(400).json({ error });
+    const now = Date.now();
+    const token = require('crypto').randomUUID();
+    categoriesPreviewStore.set(token, { content: config, exp: now + 5*60*1000 });
+    return res.json({ token, exp: new Date(now + 5*60*1000).toISOString() });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_preview_sign_failed' }); }
+});
+
+adminRest.get('/categories/page/preview/:token', async (req, res) => {
+  try{
+    const token = String(req.params.token||'');
+    const row = categoriesPreviewStore.get(token);
+    if (!row) return res.status(404).json({ error:'not_found' });
+    if (row.exp < Date.now()) { categoriesPreviewStore.delete(token); return res.status(410).json({ error:'expired' }); }
+    return res.json(row.content);
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_preview_failed' }); }
 });
 
 // Publish specific version
@@ -8615,202 +8697,6 @@ adminRest.get('/public/theme/config', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'theme_config_failed' }); }
 });
 
-// ===== Categories Page Builder (Draft/Live stored in Setting) =====
-adminRest.get('/categories/page', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.query.site||'mweb');
-    const mode = String(req.query.mode||'draft'); // draft|live
-    const key = `categoriesPage:${site}:${mode}`;
-    const s = await db.setting.findUnique({ where: { key } });
-    const rawConfig = s?.value ?? null;
-    if (rawConfig == null) {
-      return res.json({ site, mode, config: null });
-    }
-    const { config, error } = normalizeCategoriesPageConfig(rawConfig);
-    if (!config && error) {
-      console.warn('categories_page_get_invalid_config', { site, mode, error });
-    }
-    res.json({ site, mode, config: config ?? rawConfig });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_get_failed' }); }
-});
-// Summary for manager table (draft/live per site)
-adminRest.get('/categories/page/summary', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const sites = ['mweb','web'];
-    const rows = [] as any[];
-    for (const site of sites){
-      const draftKey = `categoriesPage:${site}:draft`;
-      const liveKey = `categoriesPage:${site}:live`;
-      const d = await db.setting.findUnique({ where: { key: draftKey } });
-      const l = await db.setting.findUnique({ where: { key: liveKey } });
-      rows.push({ site, hasDraft: !!d, hasLive: !!l, draftUpdatedAt: (d as any)?.updatedAt||null, liveUpdatedAt: (l as any)?.updatedAt||null });
-    }
-    res.json({ items: rows });
-  }catch(e:any){ res.status(500).json({ error: e?.message||'categories_page_summary_failed' }); }
-});
-// Import default config from current mweb template (seed)
-adminRest.post('/categories/page/import-default', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.body?.site||'mweb');
-    const promoBanner = { enabled: true, image: 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo', title: 'جديد ملابس النساء', href: '/products' };
-    const mk = (id:string, name:string, q:string, badge?:string)=> ({ id, name, image: `https://csspicker.dev/api/image/?q=${encodeURIComponent(q)}&image_type=photo`, ...(badge? { badge }: {}) });
-    const women = [
-      mk('women-new','الجديد في','new women fashion','جديد'),
-      mk('women-dresses','فساتين','dresses'),
-      mk('women-long-dresses','فساتين طويلة','long dresses'),
-      mk('women-tops','ملابس علوية','women tops'),
-      mk('women-tshirts','تي شيرتات','women tshirts'),
-      mk('women-blouses','بلايز','blouses'),
-      mk('women-bottoms','ملابس سفلية','women bottoms'),
-      mk('women-skirts','تنانير','skirts'),
-      mk('women-pants','بناطيل','women pants'),
-      mk('women-knits','منسوجة','knit wear'),
-      mk('women-sweaters','سويترات','sweaters'),
-      mk('women-sets','أطقم منسقة','matching sets'),
-    ];
-    const men = [
-      mk('men-new','جديد رجالي','men fashion new','جديد'),
-      mk('men-shirts','قمصان','men shirts'),
-      mk('men-tshirts','تيشيرتات','men tshirts'),
-      mk('men-pants','بناطيل','men pants'),
-      mk('men-hoodies','هوديز','men hoodies'),
-      mk('men-jackets','جاكيتات','men jackets'),
-      mk('men-shoes','أحذية رجالية','men shoes'),
-      mk('men-accessories','إكسسوارات رجالية','men accessories'),
-    ];
-    const kids = [
-      mk('kids-new','جديد أطفال','kids fashion new','جديد'),
-      mk('kids-girls','ملابس بنات','girls clothing'),
-      mk('kids-boys','ملابس أولاد','boys clothing'),
-      mk('kids-baby','ملابس رضع','baby clothing'),
-      mk('kids-shoes','أحذية أطفال','kids shoes'),
-      mk('kids-toys','ألعاب','kids toys'),
-    ];
-    const plus = [
-      mk('plus-women','مقاسات كبيرة نساء','plus size women'),
-      mk('plus-men','مقاسات كبيرة رجال','plus size men'),
-      mk('plus-dresses','فساتين واسعة','plus size dresses'),
-      mk('plus-activewear','ملابس رياضية','plus size activewear'),
-    ];
-    const home = [
-      mk('home-decor','ديكور منزلي','home decor'),
-      mk('home-kitchen','أدوات مطبخ','kitchen tools'),
-      mk('home-bedding','مفروشات','bedding'),
-      mk('home-pets','مستلزمات حيوانات','pet supplies'),
-      mk('home-storage','تخزين وتنظيم','storage organization'),
-    ];
-    const beauty = [
-      mk('beauty-makeup','مكياج','makeup'),
-      mk('beauty-skincare','العناية بالبشرة','skincare'),
-      mk('beauty-haircare','العناية بالشعر','haircare'),
-      mk('beauty-fragrance','عطور','perfume'),
-      mk('beauty-nails','العناية بالأظافر','nail care'),
-      mk('beauty-tools','أدوات تجميل','beauty tools'),
-    ];
-    const suggestions = [
-      mk('sug-accessories','إكسسوارات عصرية','fashion accessories'),
-      mk('sug-kids','ملابس أطفال مريحة','kids comfortable clothing'),
-      mk('sug-sports','معدات رياضية','sports equipment'),
-      mk('sug-bags','حقائب أنيقة','stylish bags'),
-      mk('sug-shoes','أحذية مريحة','comfortable shoes'),
-      mk('sug-jewelry','مجوهرات','jewelry'),
-    ];
-    const makeItem = (label:string, cats:any[])=> ({ label, grid:{ mode:'explicit', categories: cats }, promoBanner:{ enabled:false }, suggestions:{ enabled:true, title:'ربما يعجبك هذا أيضاً', items: suggestions } });
-    const tabs = [
-      { key:'all', label:'كل', grid:{ mode:'explicit', categories: [] as any[] }, sidebarItems: [ makeItem('مختارات', [...women.slice(0,4), ...men.slice(0,4)]) ] },
-      { key:'women', label:'نساء', featured: women, grid:{ mode:'explicit', categories: women }, sidebarItems: [ makeItem('الكل', women) ] },
-      { key:'kids', label:'أطفال', featured: kids, grid:{ mode:'explicit', categories: kids }, sidebarItems: [ makeItem('الكل', kids) ] },
-      { key:'men', label:'رجال', featured: men, grid:{ mode:'explicit', categories: men }, sidebarItems: [ makeItem('الكل', men) ] },
-      { key:'plus', label:'مقاسات كبيرة', featured: plus, grid:{ mode:'explicit', categories: plus }, sidebarItems: [ makeItem('الكل', plus) ] },
-      { key:'home', label:'المنزل + الحيوانات الأليفة', featured: home, grid:{ mode:'explicit', categories: home }, sidebarItems: [ makeItem('الكل', home) ] },
-      { key:'beauty', label:'تجميل', featured: beauty, grid:{ mode:'explicit', categories: beauty }, sidebarItems: [ makeItem('الكل', beauty) ] },
-    ];
-    const sidebar = [
-      { label:'جديد في', tabKey:'all' },
-      { label:'ملابس نسائية', tabKey:'women' },
-      { label:'الرجالية', tabKey:'men' },
-      { label:'الأطفال', tabKey:'kids' },
-      { label:'المنزل والمطبخ', tabKey:'home' },
-      { label:'مقاسات كبيرة', tabKey:'plus' },
-      { label:'تجميل', tabKey:'beauty' },
-    ];
-    const config = {
-      layout: { showHeader:true, showTabs:true, showSidebar:true, showPromoPopup:false },
-      promoBanner, tabs, sidebar, suggestions,
-      seo: { title:'الفئات', description:'تصفح الفئات على jeeey' },
-    } as any;
-    const draftKey = `categoriesPage:${site}:draft`;
-    const liveKey = `categoriesPage:${site}:live`;
-    await db.setting.upsert({ where: { key: draftKey }, update: { value: config }, create: { key: draftKey, value: config } } as any);
-    await db.setting.upsert({ where: { key: liveKey }, update: { value: config }, create: { key: liveKey, value: config } } as any);
-    await audit(req,'categories_page','import_default',{ site });
-    res.json({ ok:true, site });
-  }catch(e:any){ res.status(500).json({ error: e?.message||'categories_page_import_failed' }); }
-});
-adminRest.put('/categories/page', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.body?.site||'mweb');
-    const mode = String(req.body?.mode||'draft');
-    let config: CategoriesPageConfig;
-    try {
-      config = assertCategoriesPageConfig(req.body?.config);
-    } catch (err: any) {
-      return res.status(400).json({ error: 'invalid_config', message: err?.message || 'invalid_categories_config' });
-    }
-    const key = `categoriesPage:${site}:${mode}`;
-    const r = await db.setting.upsert({ where: { key }, update: { value: config }, create: { key, value: config } });
-    await audit(req,'categories_page','save',{ site, mode });
-    res.json({ ok:true, config: r.value });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_put_failed' }); }
-});
-adminRest.post('/categories/page/publish', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.body?.site||'mweb');
-    const draftKey = `categoriesPage:${site}:draft`;
-    const liveKey = `categoriesPage:${site}:live`;
-    const d = await db.setting.findUnique({ where: { key: draftKey } });
-    if (!d?.value) return res.status(404).json({ error:'draft_not_found' });
-    let config: CategoriesPageConfig;
-    try {
-      config = assertCategoriesPageConfig(d.value);
-    } catch (err: any) {
-      return res.status(400).json({ error:'invalid_draft_config', message: err?.message || 'invalid_categories_config' });
-    }
-    await db.setting.upsert({ where: { key: liveKey }, update: { value: config }, create: { key: liveKey, value: config } });
-    await audit(req,'categories_page','publish',{ site });
-    res.json({ ok:true });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_publish_failed' }); }
-});
-// Preview sign/resolve (similar to tabs)
-adminRest.post('/categories/page/preview/sign', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    let content: CategoriesPageConfig;
-    try {
-      content = assertCategoriesPageConfig(req.body?.content);
-    } catch (err: any) {
-      return res.status(400).json({ error:'invalid_config', message: err?.message || 'invalid_categories_config' });
-    }
-    const now = Date.now();
-    const token = require('crypto').randomUUID();
-    catsPreviewStore.set(token, { content, exp: now + 5*60*1000 }); // 5 minutes TTL
-    res.json({ token, exp: new Date(now + 5*60*1000).toISOString() });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_preview_sign_failed' }); }
-});
-adminRest.get('/categories/page/preview/:token', async (req, res) => {
-  try{
-    const token = String(req.params.token||'');
-    const row = catsPreviewStore.get(token);
-    if (!row) return res.status(404).json({ error:'not_found' });
-    if (row.exp < Date.now()) { catsPreviewStore.delete(token); return res.status(410).json({ error:'expired' }); }
-    return res.json({ ...row.content });
-  } catch (e:any) { return res.status(500).json({ error: e.message||'categories_preview_fetch_failed' }); }
-});
 adminRest.get('/notifications/rules', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
