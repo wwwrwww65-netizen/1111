@@ -12,7 +12,6 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/design/branding', label: 'الشعارات والأيقونات' },
       { href: '/design/navigation', label: 'التنقل والشرائط' },
       { href: '/design/home', label: 'الصفحة الرئيسية' },
-      { href: '/design/categories', label: 'صفحة الفئات (الجوال)' },
     ],
   },
   {

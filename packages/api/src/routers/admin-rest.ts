@@ -13,8 +13,6 @@ import { authenticator } from 'otplib';
 import { v2 as cloudinary } from 'cloudinary';
 import type { Readable } from 'stream';
 import { z } from 'zod';
-import { assertCategoriesPageConfig, normalizeCategoriesPageConfig } from '../validators/categories-page';
-import type { CategoriesPageConfig } from '../validators/categories-page';
 import { getIo } from '../io';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
@@ -23,8 +21,6 @@ import nodemailer from 'nodemailer';
 const adminRest = Router();
 // Ephemeral store for Tabs preview tokens (no persistence; short-lived)
 const tabsPreviewStore: Map<string, { content: any; exp: number }> = new Map();
-// Ephemeral store for Categories Page preview tokens
-const catsPreviewStore: Map<string, { content: CategoriesPageConfig; exp: number }> = new Map();
 // Ensure body parsers explicitly for this router
 // Allow up to ~20mb JSON to accommodate base64 images (~13.3mb for 10mb binary)
 adminRest.use(express.json({ limit: '20mb' }));
@@ -163,7 +159,7 @@ adminRest.post('/whatsapp/send', async (req, res) => {
         try {
           const smsTo = to.startsWith('+') ? to : `+${to}`;
           const codeParam = (Array.isArray(bodyParams) && bodyParams.length ? String(bodyParams[0]) : '');
-          const bodyText = codeParam ? `رمز التأكيد: ${codeParam}` : `رمز التأكيد: 123456`;
+          const bodyText = codeParam ? `??? ???????: ${codeParam}` : `??? ???????: 123456`;
           const sid = process.env.TWILIO_ACCOUNT_SID || '';
           const tok = process.env.TWILIO_AUTH_TOKEN || '';
           const from = process.env.TWILIO_SMS_FROM || '';
@@ -183,7 +179,7 @@ adminRest.post('/whatsapp/send', async (req, res) => {
       // As a last resort, try plain text message
       try{
         const url2 = `https://graph.facebook.com/v17.0/${encodeURIComponent(String(phoneId))}/messages`;
-        const payloadText = { messaging_product:'whatsapp', to, type:'text', text:{ body: (Array.isArray(bodyParams) && bodyParams[0]) ? String(bodyParams[0]) : 'رمز التأكيد' } };
+        const payloadText = { messaging_product:'whatsapp', to, type:'text', text:{ body: (Array.isArray(bodyParams) && bodyParams[0]) ? String(bodyParams[0]) : '??? ???????' } };
         const rt = await fetch(url2, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payloadText) });
         const rawt = await rt.text().catch(()=> '');
         let parsedt: any = null; try { parsedt = rawt ? JSON.parse(rawt) : null; } catch {}
@@ -336,7 +332,7 @@ adminRest.post('/whatsapp/send-smart', async (req, res) => {
     if (!strict) {
       try {
         const txt = String((Array.isArray(bodyParams)&&bodyParams[0]) || '123456');
-        const payloadText = { messaging_product:'whatsapp', to, type:'text', text:{ body: `رمز التحقق: ${txt}` } };
+        const payloadText = { messaging_product:'whatsapp', to, type:'text', text:{ body: `??? ??????: ${txt}` } };
         const rt = await fetch(urlMsg, { method:'POST', headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(payloadText) });
         const rawt = await rt.text().catch(()=> ''); let parsedt: any=null; try{ parsedt = rawt? JSON.parse(rawt): null; } catch {}
         const mid = parsedt?.messages?.[0]?.id || null;
@@ -1082,9 +1078,9 @@ adminRest.get('/inventory/export/pdf', async (req, res) => {
   doc.fontSize(16).text('Inventory Report', { align: 'center' });
   doc.moveDown();
   items.forEach(p => {
-    doc.fontSize(12).text(`${p.name} [${p.sku||''}] • ${p.category?.name||''} • stock: ${p.stockQuantity}`);
+    doc.fontSize(12).text(`${p.name} [${p.sku||''}] ? ${p.category?.name||''} ? stock: ${p.stockQuantity}`);
     if (p.variants.length) {
-      p.variants.forEach(v => doc.fontSize(10).text(` - ${v.name}:${v.value} • stock: ${v.stockQuantity}`));
+      p.variants.forEach(v => doc.fontSize(10).text(` - ${v.name}:${v.value} ? stock: ${v.stockQuantity}`));
     }
     doc.moveDown(0.5);
   });
@@ -1160,7 +1156,7 @@ adminRest.get('/orders/export/csv', async (req, res) => {
       paymentStatus:o.payment?.status||'',
       shipments:o.shipments.length,
       itemCount:o.items.length,
-      items:o.items.map(i=> `${i.product?.name||''}×${i.quantity}`).join(' | ')
+      items:o.items.map(i=> `${i.product?.name||''}?${i.quantity}`).join(' | ')
     }));
     const parser = new CsvParser({ fields: ['id','date','userEmail','userPhone','itemCount','items','total','status','paymentStatus','shipments'] });
     const csv = parser.parse(flat);
@@ -1266,7 +1262,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
         const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'welcome\' AND "userId"=$1', usr.id);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
         if (usr.email) {
-          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: 'مرحبا بك في جيي', html: 'أهلا ' + (usr.name||'') + '! يسعدنا انضمامك.' }); } catch {}
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: '????? ?? ?? ???', html: '???? ' + (usr.name||'') + '! ?????? ???????.' }); } catch {}
           await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type) VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), usr.id, 'welcome');
           sent.push({ flow:'welcome', userId: usr.id });
         }
@@ -1283,7 +1279,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
         const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'abandoned_cart\' AND "userId"=$1', c.userId);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
         if (c.user?.email) {
-          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: c.user.email, subject: 'سلة التسوق بانتظارك', html: 'لديك عناصر في السلة، أكمل الطلب الآن.' }); } catch {}
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: c.user.email, subject: '??? ?????? ????????', html: '???? ????? ?? ?????? ???? ????? ????.' }); } catch {}
           await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type) VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), c.user.id, 'abandoned_cart');
           sent.push({ flow:'abandoned_cart', userId: c.user.id });
         }
@@ -1298,7 +1294,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
         const exists: Array<{count: bigint}> = await db.$queryRawUnsafe(`SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type='win_back' AND "userId"=$1 AND "createdAt">NOW()- INTERVAL '30 days'`, usr.id);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
         if (usr.email) {
-          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: 'نفتقدك!', html: 'عُد إلينا وتمتع بعرض خاص.' }); } catch {}
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: usr.email, subject: '??????!', html: '??? ????? ????? ???? ???.' }); } catch {}
           await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type) VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), usr.id, 'win_back');
           sent.push({ flow:'win_back', userId: usr.id });
         }
@@ -1310,7 +1306,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
         const exists: Array<{count: bigint}> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'post_purchase\' AND "userId"=$1 AND "targetId"=$2', o.userId, o.id);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
         if (o.user?.email) {
-          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: o.user.email, subject: 'شكراً لطلبك', html: 'شكراً لطلبك ' + o.id + '. نتمنى لك تجربة رائعة.' }); } catch {}
+          try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: o.user.email, subject: '????? ?????', html: '????? ????? ' + o.id + '. ????? ?? ????? ?????.' }); } catch {}
           await db.$executeRawUnsafe('INSERT INTO "MarketingEvent" (id, "userId", type, "targetId") VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), o.userId, 'post_purchase', o.id);
           sent.push({ flow:'post_purchase', userId: o.userId, orderId: o.id });
         }
@@ -1439,7 +1435,7 @@ adminRest.post('/returns/:id/approve', async (req, res) => {
 });
 
 // =====================
-// Shipping rates quote (stub) — avoid conflict with CRUD
+// Shipping rates quote (stub) ? avoid conflict with CRUD
 // =====================
 adminRest.post('/shipping/rates/quote', async (req, res) => {
   try {
@@ -1736,9 +1732,9 @@ adminRest.get('/orders/:id', async (req, res) => {
         const norm = (s: string): string => {
           const t = String(s||'').toLowerCase().trim()
             .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g,'') // remove tashkeel
-            .replace(/[أإآ]/g,'ا')
-            .replace(/ة/g,'ه')
-            .replace(/ى/g,'ي')
+            .replace(/[???]/g,'?')
+            .replace(/?/g,'?')
+            .replace(/?/g,'?')
             .replace(/\s+/g,'')
             .replace(/[^a-z0-9\u0600-\u06FF]/g,'');
           return t;
@@ -1776,7 +1772,7 @@ adminRest.get('/orders/:id', async (req, res) => {
     for (const it of (o.items||[])) {
       const meta = metaByItem.get(String(it.id)) || metaByItem.get(String(it.productId));
       if (meta) {
-        // Normalize size_letters/size_numbers when size is composite like "حروف:XL|أرقام:44"
+        // Normalize size_letters/size_numbers when size is composite like "????:XL|?????:44"
         try{
           const attrs = (meta as any).attributes || {};
           const size = (meta as any).size || '';
@@ -1787,8 +1783,8 @@ adminRest.get('/orders/:id', async (req, res) => {
               if (idx> -1){
                 const k = p.slice(0,idx).trim();
                 const v = p.slice(idx+1).trim();
-                if (/بالأحرف|letters/i.test(k) && v) attrs.size_letters = v;
-                if (/بالأرقام|بالارقام|numbers/i.test(k) && v) attrs.size_numbers = v;
+                if (/???????|letters/i.test(k) && v) attrs.size_letters = v;
+                if (/????????|????????|numbers/i.test(k) && v) attrs.size_numbers = v;
               }
             }
             (meta as any).attributes = attrs;
@@ -1831,7 +1827,7 @@ adminRest.get('/orders/:id', async (req, res) => {
   try {
     const pm = (o as any).paymentMethod || o.payment?.method
     if (pm && String(pm).toLowerCase()==='cod') {
-      (o as any).paymentDisplay = 'الدفع عند الاستلام'
+      (o as any).paymentDisplay = '????? ??? ????????'
     } else if (pm) {
       (o as any).paymentDisplay = String(pm)
     }
@@ -1864,7 +1860,7 @@ adminRest.get('/orders/:id/invoice', async (req, res) => {
     const disc = Number((o as any).discountAmount||0);
     const total = Math.max(0, subtotal + shippingAmount - disc);
     res.setHeader('Content-Type','text/html; charset=utf-8');
-    res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>فاتورة #${o.id}</title><style>body{font-family:Arial,Helvetica,sans-serif;background:#f6f7fb;color:#111;margin:0} .container{max-width:820px;margin:20px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden} .header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#8a1538;color:#fff} .brand{font-size:18px;font-weight:800} .meta{font-size:12px;opacity:.9} .section{padding:16px 20px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px} .card{border:1px solid #eee;border-radius:10px;padding:12px;background:#fafafa} h3{margin:0 0 8px 0;font-size:14px;color:#555} table{width:100%;border-collapse:separate;border-spacing:0} th,td{text-align:right;padding:10px;border-bottom:1px solid #eee;font-size:12px} th{background:#fafafa;color:#555} .total{font-weight:800} .footer{padding:14px 20px;text-align:center;color:#666;font-size:12px;border-top:1px solid #eee} .badge{display:inline-block;padding:2px 10px;border-radius:10px;background:#111;color:#fff;font-size:11px}</style></head><body><div class="container"><div class="header"><div class="brand">jeeey</div><div class="meta">فاتورة #${o.id}<br/>${new Date(o.createdAt as any).toLocaleString('ar')}</div></div><div class="section grid"><div class="card"><h3>العميل</h3><div>${o.user?.name||'-'} — ${o.user?.email||'-'}</div><div>${o.user?.phone||'-'}</div></div><div class="card"><h3>عنوان الشحن</h3><div>${(o as any).shippingAddress?.fullName||''}</div><div>${[o.shippingAddress?.street,o.shippingAddress?.city,o.shippingAddress?.state,o.shippingAddress?.country].filter(Boolean).join('، ')}</div><div>${(o as any).shippingAddress?.phone||''}</div></div></div><div class="section"><table><thead><tr><th>الصورة</th><th>المنتج</th><th>المتغير</th><th>السعر</th><th>الكمية</th><th>الإجمالي</th></tr></thead><tbody>${(o.items||[]).map((it:any)=>{ const m = metaByItem.get(String(it.id))||{}; const attrs = m.attributes||{}; const varTxt = [m.color?`اللون: ${m.color}`:'', attrs.size_letters?`مقاسات بالأحرف: ${attrs.size_letters}`:'', attrs.size_numbers?`مقاسات بالأرقام: ${attrs.size_numbers}`:''].filter(Boolean).join(' | ') || (m.size||'-'); return `<tr><td>${it.product?.images?.[0]? `<img src=\"${it.product.images[0]}\" style=\"width:46px;height:46px;object-fit:cover;border-radius:6px;\"/>` : ''}</td><td>${it.product?.name||'-'}</td><td>${varTxt}</td><td>${Number(it.price||0).toFixed(2)}</td><td>${it.quantity}</td><td class=\"total\">${(Number(it.price||0)*Number(it.quantity||1)).toFixed(2)}</td></tr>` }).join('')}</tbody></table></div><div class=\"section grid\"><div class=\"card\"><h3>الدفع</h3><div>${String((o as any).paymentMethod||o.payment?.method||'').toLowerCase()==='cod' ? 'الدفع عند الاستلام' : (o as any).paymentMethod||o.payment?.method||'-'}</div></div><div class=\"card\"><h3>الملخص</h3><div>المجموع: ${subtotal.toFixed(2)}</div><div>الشحن: ${shippingAmount.toFixed(2)}</div><div>الخصم: ${disc.toFixed(2)}</div><div class=\"total\">الإجمالي: ${total.toFixed(2)}</div></div></div><div class=\"footer\">jeeey — شكراً لتسوقك معنا</div></div></body></html>`);
+    res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>?????? #${o.id}</title><style>body{font-family:Arial,Helvetica,sans-serif;background:#f6f7fb;color:#111;margin:0} .container{max-width:820px;margin:20px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden} .header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#8a1538;color:#fff} .brand{font-size:18px;font-weight:800} .meta{font-size:12px;opacity:.9} .section{padding:16px 20px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px} .card{border:1px solid #eee;border-radius:10px;padding:12px;background:#fafafa} h3{margin:0 0 8px 0;font-size:14px;color:#555} table{width:100%;border-collapse:separate;border-spacing:0} th,td{text-align:right;padding:10px;border-bottom:1px solid #eee;font-size:12px} th{background:#fafafa;color:#555} .total{font-weight:800} .footer{padding:14px 20px;text-align:center;color:#666;font-size:12px;border-top:1px solid #eee} .badge{display:inline-block;padding:2px 10px;border-radius:10px;background:#111;color:#fff;font-size:11px}</style></head><body><div class="container"><div class="header"><div class="brand">jeeey</div><div class="meta">?????? #${o.id}<br/>${new Date(o.createdAt as any).toLocaleString('ar')}</div></div><div class="section grid"><div class="card"><h3>??????</h3><div>${o.user?.name||'-'} ? ${o.user?.email||'-'}</div><div>${o.user?.phone||'-'}</div></div><div class="card"><h3>????? ?????</h3><div>${(o as any).shippingAddress?.fullName||''}</div><div>${[o.shippingAddress?.street,o.shippingAddress?.city,o.shippingAddress?.state,o.shippingAddress?.country].filter(Boolean).join('? ')}</div><div>${(o as any).shippingAddress?.phone||''}</div></div></div><div class="section"><table><thead><tr><th>??????</th><th>??????</th><th>???????</th><th>?????</th><th>??????</th><th>????????</th></tr></thead><tbody>${(o.items||[]).map((it:any)=>{ const m = metaByItem.get(String(it.id))||{}; const attrs = m.attributes||{}; const varTxt = [m.color?`?????: ${m.color}`:'', attrs.size_letters?`?????? ???????: ${attrs.size_letters}`:'', attrs.size_numbers?`?????? ????????: ${attrs.size_numbers}`:''].filter(Boolean).join(' | ') || (m.size||'-'); return `<tr><td>${it.product?.images?.[0]? `<img src=\"${it.product.images[0]}\" style=\"width:46px;height:46px;object-fit:cover;border-radius:6px;\"/>` : ''}</td><td>${it.product?.name||'-'}</td><td>${varTxt}</td><td>${Number(it.price||0).toFixed(2)}</td><td>${it.quantity}</td><td class=\"total\">${(Number(it.price||0)*Number(it.quantity||1)).toFixed(2)}</td></tr>` }).join('')}</tbody></table></div><div class=\"section grid\"><div class=\"card\"><h3>?????</h3><div>${String((o as any).paymentMethod||o.payment?.method||'').toLowerCase()==='cod' ? '????? ??? ????????' : (o as any).paymentMethod||o.payment?.method||'-'}</div></div><div class=\"card\"><h3>??????</h3><div>???????: ${subtotal.toFixed(2)}</div><div>?????: ${shippingAmount.toFixed(2)}</div><div>?????: ${disc.toFixed(2)}</div><div class=\"total\">????????: ${total.toFixed(2)}</div></div></div><div class=\"footer\">jeeey ? ????? ?????? ????</div></div></body></html>`);
   } catch (e:any) { res.status(500).send(e.message||'invoice_failed'); }
 });
 
@@ -1933,7 +1929,7 @@ adminRest.post('/orders/assign-driver', async (req, res) => {
     const { orderId, driverId } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const updated = await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId || null } });
-    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'ASSIGN_DRIVER', 'تعيين سائق', { driverId }); } catch {}
+    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'ASSIGN_DRIVER', '????? ????', { driverId }); } catch {}
     await audit(req, 'orders', 'assign_driver', { orderId, driverId });
     res.json({ order: updated });
   } catch (e: any) {
@@ -1947,7 +1943,7 @@ adminRest.post('/orders/ship', async (req, res) => {
     const { orderId, trackingNumber } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
     const order = await db.order.update({ where: { id: orderId }, data: { status: 'SHIPPED', trackingNumber } });
-    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'SHIPPED', 'تم شحن الطلب', { trackingNumber }); } catch {}
+    try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), orderId, 'SHIPPED', '?? ??? ?????', { trackingNumber }); } catch {}
     await audit(req, 'orders', 'ship', { orderId, trackingNumber });
     res.json({ success: true, order });
   } catch (e: any) {
@@ -1988,7 +1984,7 @@ adminRest.post('/orders', async (req, res) => {
   const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderTimeline" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, type TEXT NOT NULL, message TEXT, meta JSONB, "createdAt" TIMESTAMP DEFAULT NOW())');
-    await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), order.id, 'CREATED', 'تم إنشاء الطلب', { total, items: itemsData.length });
+    await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), order.id, 'CREATED', '?? ????? ?????', { total, items: itemsData.length });
   } catch {}
     // Fire FB CAPI AddToCart (server-side) best-effort
     try {
@@ -2384,7 +2380,7 @@ adminRest.get('/notifications/recent', async (req, res) => {
     const events = orders.map(o => ({
       type: 'order',
       id: o.id,
-      message: `Order ${o.id} → ${o.status}`,
+      message: `Order ${o.id} ? ${o.status}`,
       at: o.updatedAt
     }));
     return res.json({ events });
@@ -2941,7 +2937,7 @@ adminRest.get('/drivers/export/pdf', async (req, res) => {
     const doc = new PDFDocument({ autoFirstPage: true }); doc.pipe(res);
     doc.fontSize(16).text('Drivers Report', { align:'center' }); doc.moveDown();
     const rows = await db.driver.findMany({ orderBy: { name: 'asc' } });
-    rows.forEach(d=>{ doc.fontSize(11).text(`${d.name} • ${d.phone||'-'} • ${d.vehicleType||'-'} • ${(d.isActive===false?'DISABLED':(d.status||'-'))}`); });
+    rows.forEach(d=>{ doc.fontSize(11).text(`${d.name} ? ${d.phone||'-'} ? ${d.vehicleType||'-'} ? ${(d.isActive===false?'DISABLED':(d.status||'-'))}`); });
     doc.end();
   } catch (e:any) { res.status(500).json({ error: e.message||'drivers_export_pdf_failed' }); }
 });
@@ -3183,7 +3179,7 @@ adminRest.get('/orders/:id/invoice.pdf', async (req, res) => {
     res.setHeader('Content-Disposition', `inline; filename="invoice-${id}.pdf"`);
     const doc = new (require('pdfkit'))({ size:'A4', margin: 36 });
     doc.pipe(res as unknown as NodeJS.WritableStream);
-    doc.fontSize(18).text('فاتورة / Invoice', { align:'center' });
+    doc.fontSize(18).text('?????? / Invoice', { align:'center' });
     doc.moveDown(0.5);
     doc.fontSize(12).text(`Order: ${order.id}`);
     doc.text(`Date: ${new Date(order.createdAt).toLocaleString()}`);
@@ -4003,7 +3999,7 @@ adminRest.put('/pdp/settings', async (req, res) => {
         sites: ['mweb','web'],
         discountType: 'percent',
         discountValue: 5,
-        textTemplate: 'وفر بخصم {{amount}} ر.س بعد الانضمام',
+        textTemplate: '??? ???? {{amount}} ?.? ??? ????????',
         joinUrl: '/register?club=1',
         style: { theme: 'orange', rounded: true },
         placement: { pdp: { enabled: true, position: 'price_below' } },
@@ -4024,7 +4020,7 @@ adminRest.put('/pdp/settings', async (req, res) => {
         sites: Array.isArray(payload.sites) ? payload.sites.filter((s:string)=> s==='web'||s==='mweb') : ['mweb','web'],
         discountType: (payload.discountType==='fixed'?'fixed':'percent'),
         discountValue: Number(payload.discountValue||0),
-        textTemplate: String(payload.textTemplate||'وفر بخصم {{amount}} ر.س بعد الانضمام'),
+        textTemplate: String(payload.textTemplate||'??? ???? {{amount}} ?.? ??? ????????'),
         joinUrl: String(payload.joinUrl||'/register?club=1'),
         style: (payload.style && typeof payload.style==='object') ? payload.style : { theme: 'orange', rounded: true },
         placement: (payload.placement && typeof payload.placement==='object') ? payload.placement : { pdp: { enabled: true, position: 'price_below' } },
@@ -4117,7 +4113,7 @@ adminRest.post('/products/:id/variants/bulk', async (req, res) => {
         const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
         if (!colorVal && hex) colorVal = hex[0];
         if (!sizeVal) {
-          const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+          const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|????|???|?????|????|???? ???|???|????|??)\b/i);
           if (m) sizeVal = m[1];
         }
         const normalizedOV = ov && Array.isArray(ov) ? ov : undefined;
@@ -4432,7 +4428,7 @@ adminRest.get('/occasion/strip/settings', async (req, res) => {
     const row = await db.setting.findUnique({ where: { key } } as any);
     const defaults = {
       enabled: false,
-      title: 'مناسبة المطلة',
+      title: '?????? ??????',
       subtitle: '',
       kpiText: '',
       cta: { label: '', url: '' },
@@ -4480,9 +4476,9 @@ adminRest.get('/policies/pdp/settings', async (req, res) => {
     const row = await db.setting.findUnique({ where: { key } } as any);
     const defaults = {
       enabled: true,
-      cod: { enabled: true, title: 'خدمة الدفع عند الاستلام', content: '' },
-      returns: { enabled: true, title: 'سياسة الإرجاع', content: '' },
-      secure: { enabled: true, title: 'آمن للتسوق', content: '' },
+      cod: { enabled: true, title: '???? ????? ??? ????????', content: '' },
+      returns: { enabled: true, title: '????? ???????', content: '' },
+      secure: { enabled: true, title: '??? ??????', content: '' },
       targeting: { products:{include:[],exclude:[]}, categories:{include:[],exclude:[]}, vendors:{include:[],exclude:[]}, brands:{include:[],exclude:[]}, tags:{include:[],exclude:[]} },
       schedule: { from: null, to: null },
     };
@@ -4726,7 +4722,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
         const nlpCfg = loadNlpConfig()
         const removeMarketing = (s:string)=> {
-          const phrases = [ 'لايفوتك','العرض','العرض محدود','عرض','عروض','تخفيض','خصم','كوبون','هدية','مجانا','شحن مجاني','مجاني','جديد','حصري','مميز','افضل','الأفضل','اصلي','اصلية','تقليد','🔥','👇','💎','🤩','👌','سعر اليوم','لفترة محدودة', ...(nlpCfg.noisePhrases||[]) ]
+          const phrases = [ '???????','?????','????? ?????','???','????','?????','???','?????','????','?????','??? ?????','?????','????','????','????','????','??????','????','?????','?????','??','??','??','??','??','??? ?????','????? ??????', ...(nlpCfg.noisePhrases||[]) ]
           let out = s; for (const p of phrases) out = out.replace(new RegExp(p,'gi'),' '); return out;
         }
         const normalizeLetters = (s:string)=> s
@@ -4744,25 +4740,25 @@ adminRest.post('/products/analyze', async (req, res) => {
           const v = String(value||'').trim(); if (!v) return; if (arr.some(r=> r.key===key)) return; arr.push({ key, label, value: v, confidence: conf });
         }
 
-        // Derive name (8–12 كلمات) من النص فقط (مع مرادفات وضجيج مستبعد)
-        const builtinTypes = ['ملاعق','ملاعق\\s*طعام','مطرقه','شاشه','طقم','فستان','جلابيه','جلابية','لانجري','لنجري','عبايه','عباية','قميص','بلوزه','بلوزة','سويتر','بلوفر','هودي','حذاء','شنطه','حقيبه','ساعه','كوب','قدر','خلاط','مكوى','مكواة','تي\\s*شيرت','بنطال','جاكيت','درع','قفطان','قافطان','سديري','بدلة','طقم\\s*أطفال','قفطان\\s*مغربي'] as string[]
+        // Derive name (8?12 ?????) ?? ???? ??? (?? ??????? ????? ??????)
+        const builtinTypes = ['?????','?????\\s*????','?????','????','???','?????','??????','??????','??????','?????','?????','?????','????','?????','?????','?????','?????','????','????','????','?????','????','???','???','????','????','?????','??\\s*????','?????','?????','???','?????','??????','?????','????','???\\s*?????','?????\\s*?????'] as string[]
         const extraTypes = Array.isArray((nlpCfg as any).types) ? (nlpCfg as any).types as string[] : []
         const typeUnion = builtinTypes.concat(extraTypes.map((t)=> String(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')))
         const TYPE_RE = new RegExp(`(${typeUnion.join('|')})`,'i')
-        const MAT_RE = /(شيفون|حرير\s*باربي|حرير|دنيم|قطن|جلد|تول|تل|ستان|بوليستر|خشب|ستانلس|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك)/i
-        const FEATS_RE = /(كم\s*كامل|مطرز|كريستال|كرستال|شفاف|ربطة\s*خصر|حزام\s*خصر|سهرة|خارجي|عملي|لمس|لاسلكي|سلكي|ذكي|مضاد\s*للماء)/gi
+        const MAT_RE = /(?????|????\s*?????|????|????|???|???|???|??|????|???????|???|??????|??????\s*????|????|???????|???????)/i
+        const FEATS_RE = /(??\s*????|????|???????|??????|????|????\s*???|????\s*???|????|?????|????|???|??????|????|???|????\s*?????)/gi
         const type = (rt.match(TYPE_RE)||['',''])[1] || ''
         const mat = (rt.match(MAT_RE)||['',''])[1] || ''
         const feats = Array.from(new Set((rt.match(FEATS_RE)||[]))).slice(0,4)
-        // أرقام مفيدة للاسم (مثل 55"، 220V)
+        // ????? ????? ????? (??? 55"? 220V)
         const numTokens: string[] = []
-        const mInch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i); if (mInch) numTokens.push(`${mInch[1]}"`)
-        const mVolt = rt.match(/(\d{2,4}(?:\.\d+)?)\s*(?:v|volt|فولت(?:يه)?)/i); if (mVolt) numTokens.push(`${mVolt[1]}V`)
+        const mInch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|????|????)/i); if (mInch) numTokens.push(`${mInch[1]}"`)
+        const mVolt = rt.match(/(\d{2,4}(?:\.\d+)?)\s*(?:v|volt|????(?:??)?)/i); if (mVolt) numTokens.push(`${mVolt[1]}V`)
         const noiseBase = [
-          'لا','لايفوتكم','لا يفوتكم','لاطلالة','اطلاله','إطلالة','جديدنا','جديدناا','عرض','عروض','تخفيض','خصم','مجاني','مجانا','جديد','حصري','انيق','انيقه','اناقه','راقي','راقيه','مميز','مميزه','عصري','عصريه','مريح','مريحه','ناعم','جدا','مذهل','رائع','جميل','لامع','بتصميم','مميز',
+          '??','????????','?? ??????','???????','??????','??????','??????','???????','???','????','?????','???','?????','?????','????','????','????','?????','?????','????','?????','????','?????','????','?????','????','?????','????','???','????','????','????','????','??????','????',
           'premium','sale','offer','original','copy','free','hot','deal'
         ].concat([
-          'احجزي','احجز','احجزي الآن','اطلب','اطلب الآن','احصلي','لا تفوتي','لا تفوت','سارع','متوفر الآن','وصلنا','وصل حديثاً','جديد الموسم'
+          '?????','????','????? ????','????','???? ????','?????','?? ?????','?? ????','????','????? ????','?????','??? ??????','???? ??????'
         ])
         const noiseWords = new Set<string>(noiseBase.concat((nlpCfg.noisePhrases||[])))
         const applySyn = (t:string)=>{ const k=String(t||'').toLowerCase().trim(); const m=(nlpCfg.synonyms||{})[k]; return (typeof m==='string'&&m.trim())? m:t }
@@ -4780,23 +4776,23 @@ adminRest.post('/products/analyze', async (req, res) => {
         let sizes: string[] = []
         let sizes2: string[] = []
         let colorsCandidates: string[] = []
-        // Price selection (prefer OLD, then NORTH; ignore NEW/SOUTH/قعيطي/سعودي contexts)
+        // Price selection (prefer OLD, then NORTH; ignore NEW/SOUTH/?????/????? contexts)
         const NUM = '(\\d+(?:[\\.,]\\d{1,2})?)'
-        const CUR = '(?:﷼|ريال|sar|aed|usd|\\$|egp|kwd|qr|omr|jod|bhd|iqd|lyd|yer)'
+        const CUR = '(?:?|????|sar|aed|usd|\\$|egp|kwd|qr|omr|jod|bhd|iqd|lyd|yer)'
         type PriceCand = { v:number; tag:number; ctx:string }
         const cands: PriceCand[] = []
         const addCand = (v:number, around:string)=>{
-          const bad = /(جديد|جنوب|جنوبي|قعيطي|سعودي)/i.test(around)
+          const bad = /(????|????|?????|?????|?????)/i.test(around)
           if (bad) return
           // ignore weight contexts even if price word appears nearby
-          if (/وزن/i.test(around)) return
+          if (/???/i.test(around)) return
           let tag = 4
-          if (/قديم/i.test(around)) tag = 1
-          else if (/(للشمال|الشمال|\bشمال\b|شمالي)/i.test(around)) tag = 2
+          if (/????/i.test(around)) tag = 1
+          else if (/(??????|??????|\b????\b|?????)/i.test(around)) tag = 2
           cands.push({ v, tag, ctx: around })
         }
         const hasCurrencyTok = (s:string)=> new RegExp(CUR,'i').test(s)
-        const hasPriceWord = (s:string)=> /(السعر|سعر|price|البيع|خصم|قبل|بعد|now|was)/i.test(s)
+        const hasPriceWord = (s:string)=> /(?????|???|price|?????|???|???|???|now|was)/i.test(s)
         const looksPhone = (s:string)=> /\b\d{7,}\b/.test(s)
         // scan windows around numeric tokens but keep only plausible price contexts
         const rxAll = new RegExp(`${NUM}\\s*${CUR}?`, 'ig')
@@ -4816,17 +4812,17 @@ adminRest.post('/products/analyze', async (req, res) => {
         let cost = cands.length ? cands[0].v : (typeof parsed.purchasePrice === 'number' ? Number(parsed.purchasePrice) : undefined)
         // Fallback: try explicit priority scans if no valid cost yet
         if (!(typeof cost === 'number' && Number.isFinite(cost))) {
-          const num = (s:string)=> Number(String(s).replace(/[٬٫,]/g,'.'))
-          const oldM = rt.match(/(?:(?:قديم|القديم)|(?:قبل|السعر\s*السابق|كان|was))[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
-          const northM = rt.match(/(?:للشمال|الشمال|\bشمال\b|شمالي)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
-          const priceM = rt.match(/(?:السعر|سعر|price|البيع)[^\d]{0,16}(\d+[\.,٬٫]?\d*)/i)
-          const currM = rt.match(/(\d+[\.,٬٫]?\d*)\s*(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i)
+          const num = (s:string)=> Number(String(s).replace(/[??,]/g,'.'))
+          const oldM = rt.match(/(?:(?:????|??????)|(?:???|?????\s*??????|???|was))[^\d]{0,16}(\d+[\.,??]?\d*)/i)
+          const northM = rt.match(/(?:??????|??????|\b????\b|?????)[^\d]{0,16}(\d+[\.,??]?\d*)/i)
+          const priceM = rt.match(/(?:?????|???|price|?????)[^\d]{0,16}(\d+[\.,??]?\d*)/i)
+          const currM = rt.match(/(\d+[\.,??]?\d*)\s*(?:?|????|sar|aed|usd|\$|egp|kwd|qr)/i)
           const pick = oldM?.[1] ?? northM?.[1] ?? priceM?.[1] ?? currM?.[1]
           const cand = pick ? num(pick) : undefined
           if (typeof cand === 'number' && Number.isFinite(cand) && cand >= 80) cost = cand
         }
         // Stock
-        const stockMatch = rt.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)
+        const stockMatch = rt.match(/(?:???????|??????|?????\s*??????|stock|qty)[^\n]*?(\d{1,5})/i)
         const stock = stockMatch ? Number(stockMatch[1]) : undefined
         // Keywords (exclude noise and name tokens)
         const nameSet = new Set(nameWords)
@@ -4834,11 +4830,11 @@ adminRest.post('/products/analyze', async (req, res) => {
         const keywords = Array.from(new Set(kwCandidates)).slice(0,6)
 
         // Colors candidates from lexicon (Arabic + English translit)
-        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|لبني|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ذهبي|فضي|أوف\s*-?\s*وايت|اوف\s*-?\s*وايت|بيج\s*غامق|بيج\s*فاتح)/gi
+        const colorLex = /(????|????|????|????|????|????|????|????|????|????|????|????|??????|???|?????|????|?????|????|????|?????|??????|???????|??????|????|?????|???????|??????|???|???|?????|?????|????|????|????|???|???\s*-?\s*????|???\s*-?\s*????|???\s*????|???\s*????)/gi
         const colorSyn = (nlpCfg as any).colorSynonyms || {}
-        colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> (colorSyn[s] || s).replace(/ورديه/i,'وردي'))))
-        // استثناء ألوان الزينة القريبة من مفردات الديكور
-        const deco = /(خرز|تطريز|كريستال|كرستال|ترتر|سلاسل|حواف|سحاب|أزرار|زرار|تطريزات|حبات|حبوب)/i
+        colorsCandidates = Array.from(new Set((rt.match(colorLex)||[]).map(s=> (colorSyn[s] || s).replace(/?????/i,'????'))))
+        // ??????? ????? ?????? ??????? ?? ?????? ???????
+        const deco = /(???|?????|???????|??????|????|?????|????|????|?????|????|???????|????|????)/i
         const decorColors = new Set<string>()
         for (const c of colorsCandidates){
           const re = new RegExp(`(?:${deco.source})[\\s\S]{0,20}?${c}|${c}[\\s\S]{0,20}?(?:${deco.source})`,'i')
@@ -4846,8 +4842,8 @@ adminRest.post('/products/analyze', async (req, res) => {
         }
         const finalColors = colorsCandidates.filter(c=> !decorColors.has(c))
 
-        // Sizes: تتطلب مرساة صريحة أو رموز أحرف
-        const hasSizeAnchor = /(المقاسات|المقاس|\bsize\b|\bEU\b|\bUS\b|\bUK\b|فري\s*سايز)/i.test(rt)
+        // Sizes: ????? ????? ????? ?? ???? ????
+        const hasSizeAnchor = /(????????|??????|\bsize\b|\bEU\b|\bUS\b|\bUK\b|???\s*????)/i.test(rt)
         const letterSizes = Array.from(new Set((rt.match(/\b(XXL|XL|L|M|S|XS)\b/gi)||[]).map(s=> s.toUpperCase())))
         if (hasSizeAnchor || letterSizes.length){
           const numMatches = Array.from(rt.matchAll(/\b(\d{2})\b/g))
@@ -4858,14 +4854,14 @@ adminRest.post('/products/analyze', async (req, res) => {
               const start = Math.max(0, o.index - 20)
               const end = Math.min(rt.length, o.index + String(o.raw).length + 20)
               const ctx = rt.slice(start, end)
-              return !/(السعر|سعر|price|البيع)/i.test(ctx) && !new RegExp(CUR,'i').test(ctx)
+              return !/(?????|???|price|?????)/i.test(ctx) && !new RegExp(CUR,'i').test(ctx)
             })
             .map(o=> String(o.value))
           sizes = Array.from(new Set([...(parsed.sizes||[]), ...letterSizes, ...nums])) as string[]
         }
-        // Abaya-style pairs: 52عرض19 → length 52, width 19
+        // Abaya-style pairs: 52???19 ? length 52, width 19
         try{
-          const pairRe = /(\d{2})\s*عرض\s*(\d{1,2})/gi
+          const pairRe = /(\d{2})\s*???\s*(\d{1,2})/gi
           let mp: RegExpExecArray | null
           while ((mp = pairRe.exec(rt))) {
             const len = Number(mp[1]); const wid = Number(mp[2])
@@ -4877,47 +4873,47 @@ adminRest.post('/products/analyze', async (req, res) => {
         } catch {}
 
         // Domain detectors (lightweight heuristics)
-        const isCosmetics = /(روج|أحمر\s*شفاه|lipstick|ماسكارا|mascara|eyeliner|كحل|ظل\s*عيون|ظلال|foundation|بودرة|powder|blush|هايلايتر|مناكير|nail|جل\s*أظافر|toner|سيروم|serum|spf|عامل\s*حماية|واقي\s*شمس|sunscreen|شامبو|بلسم|عطر|fragrance|perfume|soap|لوشن|كريم)/i.test(rt)
-        const isElectronics = /(شاشه|شاشة|هاتف|جوال|كمبيوتر|حاسوب|laptop|notebook|gpu|cpu|رام|ram|rom|ssd|hdmi|usb|bluetooth|wifi|ios|android|windows|linux|كاميرا|ميجابكسل|ميغابكسل|ذواكر|بطاريه|بطارية|mAh|Hz|واط|وات)/i.test(rt)
-        const isClothing = /(فستان|قميص|بنطال|بنطلون|عبايه|عباية|هودي|جاكيت|تنوره|تنورة|بدله|بدلة|حذاء|حقيبه|شنطه|شراب|جوارب|سويت|تي\s*شيرت|بلوزه|بلوزة|جلابيه|جلابية|عباية)/i.test(rt)
-        const isFood = /(طعام|غذاء|عسل|تمر|بهارات|توابل|رز|أرز|قمح|سكر|ملح|جبن|حليب|لبن|قهوة|شاي|معكرونه|مكرونة|بسكويت|شوكولاته|كاكاو|زيت|خل|معلبات|تاريخ\s*انتهاء|صلاحية|منتج\s*غذائي|غذائي)/i.test(rt)
+        const isCosmetics = /(???|????\s*????|lipstick|???????|mascara|eyeliner|???|??\s*????|????|foundation|?????|powder|blush|????????|??????|nail|??\s*?????|toner|?????|serum|spf|????\s*?????|????\s*???|sunscreen|?????|????|???|fragrance|perfume|soap|????|????)/i.test(rt)
+        const isElectronics = /(????|????|????|????|???????|?????|laptop|notebook|gpu|cpu|???|ram|rom|ssd|hdmi|usb|bluetooth|wifi|ios|android|windows|linux|??????|????????|????????|?????|??????|??????|mAh|Hz|???|???)/i.test(rt)
+        const isClothing = /(?????|????|?????|??????|?????|?????|????|?????|?????|?????|????|????|????|?????|????|????|?????|????|??\s*????|?????|?????|??????|??????|?????)/i.test(rt)
+        const isFood = /(????|????|???|???|??????|?????|??|???|???|???|???|???|????|???|????|???|???????|??????|??????|????????|?????|???|??|??????|?????\s*??????|??????|????\s*?????|?????)/i.test(rt)
 
         // Build dynamic description_table from text only (no fixed rows)
         const table: Array<{ key:string; label:string; value:string; confidence?:number }> = []
-        // مواد وتصميم واستخدام إن وُجدت دلالات
-        const materials = Array.from(new Set((rt.match(/شيفون|تول|تل|قطن|صوف|حرير|دنيم|جلد|ستانلس\s*ستيل|زجاج|سيراميك|بلاستيك/gi)||[]))).join('، ')
-        const designTokens = Array.from(new Set((rt.match(/سلاسل\s*ذهب|سلاسل\s*ذهبيه?|تطريز|مطرز|كريستال|كرستال|شفاف|حواف|سحاب|أزرار|زرار/gi)||[]))).join('، ')
-        const usageTokens = Array.from(new Set((rt.match(/مناسب(?:\s*ل)?(?:طعام|المطبخ|المنزل|العمل|السفر|لمناسبات|للمناسبات|سهرة|يومي|خارجي|عملي)/gi)||[]))).join('، ')
-        if (!isCosmetics && materials) addRow(table,'material','الخامة',materials,0.9)
-        if (designTokens) addRow(table,'design','التصميم',designTokens,0.88)
-        if (usageTokens) addRow(table,'usage','الاستخدام',usageTokens,0.75)
+        // ???? ?????? ???????? ?? ????? ??????
+        const materials = Array.from(new Set((rt.match(/?????|???|??|???|???|????|????|???|??????\s*????|????|???????|???????/gi)||[]))).join('? ')
+        const designTokens = Array.from(new Set((rt.match(/?????\s*???|?????\s*??????|?????|????|???????|??????|????|????|????|?????|????/gi)||[]))).join('? ')
+        const usageTokens = Array.from(new Set((rt.match(/?????(?:\s*?)?(?:????|??????|??????|?????|?????|????????|?????????|????|????|?????|????)/gi)||[]))).join('? ')
+        if (!isCosmetics && materials) addRow(table,'material','??????',materials,0.9)
+        if (designTokens) addRow(table,'design','???????',designTokens,0.88)
+        if (usageTokens) addRow(table,'usage','?????????',usageTokens,0.75)
 
-        // وحدات عامة: الجهد/التردد/القدرة/التيار
-        const volt = rt.match(/(\d{2,4}(?:[\.\-]\d{1,3})?)\s*(?:v|volt|فولت(?:يه)?)/i)?.[0]
-        const freq = rt.match(/(\d{2,3}(?:\s*\/\s*\d{2,3})?)\s*(?:hz|هرتز)/i)?.[0]
-        const watt = rt.match(/(\d{2,5}(?:[\.\-]\d{1,3})?)\s*(?:w|watt|واط|وات)/i)?.[0]
-        const amp  = rt.match(/(\d{1,3}(?:\.\d+)?)\s*(?:a|amp|أمبير)/i)?.[0]
-        if (volt) addRow(table,'voltage','الجهد',volt)
-        if (freq) addRow(table,'frequency','التردد',freq)
-        if (watt) addRow(table,'power','القدرة',watt)
-        if (amp)  addRow(table,'current','التيار',amp)
+        // ????? ????: ?????/??????/??????/??????
+        const volt = rt.match(/(\d{2,4}(?:[\.\-]\d{1,3})?)\s*(?:v|volt|????(?:??)?)/i)?.[0]
+        const freq = rt.match(/(\d{2,3}(?:\s*\/\s*\d{2,3})?)\s*(?:hz|????)/i)?.[0]
+        const watt = rt.match(/(\d{2,5}(?:[\.\-]\d{1,3})?)\s*(?:w|watt|???|???)/i)?.[0]
+        const amp  = rt.match(/(\d{1,3}(?:\.\d+)?)\s*(?:a|amp|?????)/i)?.[0]
+        if (volt) addRow(table,'voltage','?????',volt)
+        if (freq) addRow(table,'frequency','??????',freq)
+        if (watt) addRow(table,'power','??????',watt)
+        if (amp)  addRow(table,'current','??????',amp)
 
-        // الشاشة/البوصة/الهرتز
-        const inch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|بوصه|بوصة)/i)?.[0]
-        const isTouch = /(?:شاشه|شاشة)\s*لمس|\btouch\b/i.test(rt)
-        if (!isCosmetics && (inch || isTouch)) addRow(table,'screen','الشاشة',[inch,isTouch?'لمس': ''].filter(Boolean).join(' ').trim(),0.85)
+        // ??????/??????/??????
+        const inch = rt.match(/(\d{2}(?:\.\d+)?)\s*(?:"|????|????)/i)?.[0]
+        const isTouch = /(?:????|????)\s*???|\btouch\b/i.test(rt)
+        if (!isCosmetics && (inch || isTouch)) addRow(table,'screen','??????',[inch,isTouch?'???': ''].filter(Boolean).join(' ').trim(),0.85)
 
-        // الأبعاد والوزن (دعم x و ×)
-        const dims = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)(?:\s*[x×X]\s*\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)){0,2}/i)?.[0]
-        if (!isCosmetics && dims) addRow(table,'dimensions','الأبعاد',dims,0.82)
+        // ??????? ?????? (??? x ? ?)
+        const dims = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|????|??|???????|???|???????|???|???)(?:\s*[x?X]\s*\d+(?:[\.,]\d+)?\s*(?:cm|mm|in|"|????|??|???????|???|???????|???|???)){0,2}/i)?.[0]
+        if (!isCosmetics && dims) addRow(table,'dimensions','???????',dims,0.82)
         // Capture length/width without units if explicitly labeled
-        const lenM = rt.match(/الطول\s*(\d{2,4})/i)
-        if (!isCosmetics && lenM) addRow(table,'length','الطول',lenM[1],0.82)
-        const widM = rt.match(/العرض\s*(\d{2,4})/i)
-        if (!isCosmetics && widM) addRow(table,'width','العرض',widM[1],0.82)
+        const lenM = rt.match(/?????\s*(\d{2,4})/i)
+        if (!isCosmetics && lenM) addRow(table,'length','?????',lenM[1],0.82)
+        const widM = rt.match(/?????\s*(\d{2,4})/i)
+        if (!isCosmetics && widM) addRow(table,'width','?????',widM[1],0.82)
         // Secondary sizes from dimensions or labeled length/width
         try {
-          const m2 = rt.match(/\b(\d+(?:[\.,]\d+)?)\s*(?:cm|mm|in|"|بوصة|سم|سنتيمتر|ملم|ميليمتر|إنش|انش)\s*[x×X]\s*(\d+(?:[\.,]\d+)?)/i)
+          const m2 = rt.match(/\b(\d+(?:[\.,]\d+)?)\s*(?:cm|mm|in|"|????|??|???????|???|???????|???|???)\s*[x?X]\s*(\d+(?:[\.,]\d+)?)/i)
           const alt: string[] = []
           if (m2) { alt.push(String(m2[1]).replace(',', '.')); alt.push(String(m2[2]).replace(',', '.')); }
           if (lenM?.[1]) alt.push(lenM[1])
@@ -4926,99 +4922,99 @@ adminRest.post('/products/analyze', async (req, res) => {
             sizes2 = Array.from(new Set(alt.map(s=> s.trim()))).filter(Boolean) as string[]
           }
         } catch {}
-        const weight = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:kg|كجم|g|جرام)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','الوزن',weight,0.82)
-        const netWeight = rt.match(/(?:الوزن\s*الصافي|صافي\s*الوزن|net\s*(?:wt\.?|weight))\s*[:：=\-–—→»›]?\s*([^\n\r]{2,40})/i)?.[1]
-        if (!isCosmetics && netWeight) addRow(table,'net_weight','الوزن الصافي',netWeight,0.8)
-        const netVolume = rt.match(/(?:الحجم\s*الصافي|صافي\s*الحجم|net\s*(?:vol\.?|volume))\s*[:：=\-–—→»›]?\s*([^\n\r]{2,40})/i)?.[1]
-        if (!isCosmetics && netVolume) addRow(table,'net_volume','الحجم الصافي',netVolume,0.8)
+        const weight = rt.match(/\b\d+(?:[\.,]\d+)?\s*(?:kg|???|g|????)\b/i)?.[0]; if (!isCosmetics && weight) addRow(table,'weight','?????',weight,0.82)
+        const netWeight = rt.match(/(?:?????\s*??????|????\s*?????|net\s*(?:wt\.?|weight))\s*[:?=\-?????]?\s*([^\n\r]{2,40})/i)?.[1]
+        if (!isCosmetics && netWeight) addRow(table,'net_weight','????? ??????',netWeight,0.8)
+        const netVolume = rt.match(/(?:?????\s*??????|????\s*?????|net\s*(?:vol\.?|volume))\s*[:?=\-?????]?\s*([^\n\r]{2,40})/i)?.[1]
+        if (!isCosmetics && netVolume) addRow(table,'net_volume','????? ??????',netVolume,0.8)
 
-        // السعة/الذاكرة/التخزين/البطارية
-        const capacity = rt.match(/\b\d+(?:\.\d+)?\s*(?:ml|l)\b/i)?.[0]; if (!isCosmetics && capacity) addRow(table,'capacity','السعة',capacity,0.82)
-        const memory = rt.match(/\b\d+\s*(?:gb|mb|tb)\b/i)?.[0]; if (!isCosmetics && memory) addRow(table,'memory','الذاكرة/التخزين',memory,0.82)
-        const battery = rt.match(/\b\d+\s*(?:mAh|Wh|Ah)\b/i)?.[0]; if (!isCosmetics && battery) addRow(table,'battery','البطارية',battery,0.82)
+        // ?????/???????/???????/????????
+        const capacity = rt.match(/\b\d+(?:\.\d+)?\s*(?:ml|l)\b/i)?.[0]; if (!isCosmetics && capacity) addRow(table,'capacity','?????',capacity,0.82)
+        const memory = rt.match(/\b\d+\s*(?:gb|mb|tb)\b/i)?.[0]; if (!isCosmetics && memory) addRow(table,'memory','???????/???????',memory,0.82)
+        const battery = rt.match(/\b\d+\s*(?:mAh|Wh|Ah)\b/i)?.[0]; if (!isCosmetics && battery) addRow(table,'battery','????????',battery,0.82)
 
-        // الاتصال والمنافذ
+        // ??????? ????????
         const conns = Array.from(new Set((rt.match(/wi-?fi|Bluetooth|NFC|Ethernet|LAN|WLAN|\b4G\b|\b5G\b/ig)||[]))).join(', ')
-        if (!isCosmetics && conns) addRow(table,'connectivity','الاتصال',conns,0.8)
+        if (!isCosmetics && conns) addRow(table,'connectivity','???????',conns,0.8)
         const ports = Array.from(new Set((rt.match(/USB-?C|USB-?A|HDMI|DisplayPort|3\.5mm|microSD|SD/ig)||[]))).join(', ')
-        if (!isCosmetics && ports) addRow(table,'ports','المنافذ',ports,0.8)
+        if (!isCosmetics && ports) addRow(table,'ports','???????',ports,0.8)
 
-        // موديل/ضمان/منشأ
-        const model = rt.match(/(?:موديل|model)\s*[:\-\s]?([A-Za-z0-9_.\-]+)/i)?.[1]; if (!isCosmetics && model) addRow(table,'model','الموديل',model,0.85)
+        // ?????/????/????
+        const model = rt.match(/(?:?????|model)\s*[:\-\s]?([A-Za-z0-9_.\-]+)/i)?.[1]; if (!isCosmetics && model) addRow(table,'model','???????',model,0.85)
 
         // Cosmetics-specific properties
         if (isCosmetics){
-          const ingredients = rt.match(/(?:مكونات|ingredients?)\s*[:：=\-–—→»›]?\s*([^\n؛;:,،]{3,200})/i)?.[1]
-          if (ingredients) addRow(table,'ingredients','المكونات',ingredients,0.85)
-          const spf = rt.match(/\b(?:spf)\s*(\d{1,3})\b|(?:عامل\s*حماية)\s*(\d{1,3})/i)
-          if (spf) addRow(table,'spf','عامل الحماية', spf[1]||spf[2]||'', 0.85)
-          const usage = rt.match(/(?:طريقة\s*الاستخدام|الاستخدام|usage)\s*[:：=\-–—→»›]?\s*([^\n]{5,200})/i)?.[1]
-          if (usage) addRow(table,'usage_how','طريقة الاستخدام',usage,0.75)
-          const shade = rt.match(/(?:الدرجة|shade|لون)\s*[:：=\-–—→»›]?\s*([^\n؛;:,،]{2,80})/i)?.[1]
-          if (shade) addRow(table,'shade','الدرجة/اللون',shade,0.78)
-          const net = rt.match(/(?:الوزن|الحجم|net\s*(?:wt\.?|weight))\s*[:：=\-–—→»›]?\s*([^\n]{2,40})/i)?.[1]
-          if (net) addRow(table,'net','الوزن/الحجم',net,0.78)
+          const ingredients = rt.match(/(?:??????|ingredients?)\s*[:?=\-?????]?\s*([^\n?;:,?]{3,200})/i)?.[1]
+          if (ingredients) addRow(table,'ingredients','????????',ingredients,0.85)
+          const spf = rt.match(/\b(?:spf)\s*(\d{1,3})\b|(?:????\s*?????)\s*(\d{1,3})/i)
+          if (spf) addRow(table,'spf','???? ???????', spf[1]||spf[2]||'', 0.85)
+          const usage = rt.match(/(?:?????\s*?????????|?????????|usage)\s*[:?=\-?????]?\s*([^\n]{5,200})/i)?.[1]
+          if (usage) addRow(table,'usage_how','????? ?????????',usage,0.75)
+          const shade = rt.match(/(?:??????|shade|???)\s*[:?=\-?????]?\s*([^\n?;:,?]{2,80})/i)?.[1]
+          if (shade) addRow(table,'shade','??????/?????',shade,0.78)
+          const net = rt.match(/(?:?????|?????|net\s*(?:wt\.?|weight))\s*[:?=\-?????]?\s*([^\n]{2,40})/i)?.[1]
+          if (net) addRow(table,'net','?????/?????',net,0.78)
         }
 
         // Food-specific properties
         if (isFood){
-          const ingredients = rt.match(/(?:المكونات|مكونات|ingredients?)\s*[:：=\-–—→»›]?\s*([^\n؛;:,،]{3,200})/i)?.[1]
-          if (ingredients) addRow(table,'ingredients','المكونات',ingredients,0.85)
-          const nutrition = rt.match(/(?:حقائق\s*غذائية|القيم\s*الغذائية|nutrition|calories|kcal|بروتين|دهون|كربوهيدرات)[^\n]{0,5}[:：=\-–—→»›]?\s*([^\n]{3,200})/i)?.[1]
-          if (nutrition) addRow(table,'nutrition','القيم الغذائية',nutrition,0.78)
-          const expiry = rt.match(/(?:تاريخ\s*الانتهاء|انتهاء|الصلاحية|expiry|exp)\s*[:：=\-–—→»›]?\s*([^\n]{3,40})/i)?.[1]
-          if (expiry) addRow(table,'expiry','تاريخ الانتهاء/الصلاحية',expiry,0.85)
-          const halal = rt.match(/\b(?:حلال|ذبح\s*اسلامي|حلال\s*معتمد)\b/i)
-          if (halal) addRow(table,'halal','حلال', 'نعم', 0.8)
-          const allergens = rt.match(/(?:تحذير\s*حساسية|يحتوي\s*على|contains)\s*[:：=\-–—→»›]?\s*([^\n]{3,140})/i)?.[1]
-          if (allergens) addRow(table,'allergens','تحذير حساسية',allergens,0.8)
+          const ingredients = rt.match(/(?:????????|??????|ingredients?)\s*[:?=\-?????]?\s*([^\n?;:,?]{3,200})/i)?.[1]
+          if (ingredients) addRow(table,'ingredients','????????',ingredients,0.85)
+          const nutrition = rt.match(/(?:?????\s*??????|?????\s*????????|nutrition|calories|kcal|??????|????|??????????)[^\n]{0,5}[:?=\-?????]?\s*([^\n]{3,200})/i)?.[1]
+          if (nutrition) addRow(table,'nutrition','????? ????????',nutrition,0.78)
+          const expiry = rt.match(/(?:?????\s*????????|??????|????????|expiry|exp)\s*[:?=\-?????]?\s*([^\n]{3,40})/i)?.[1]
+          if (expiry) addRow(table,'expiry','????? ????????/????????',expiry,0.85)
+          const halal = rt.match(/\b(?:????|???\s*??????|????\s*?????)\b/i)
+          if (halal) addRow(table,'halal','????', '???', 0.8)
+          const allergens = rt.match(/(?:?????\s*??????|?????\s*???|contains)\s*[:?=\-?????]?\s*([^\n]{3,140})/i)?.[1]
+          if (allergens) addRow(table,'allergens','????? ??????',allergens,0.8)
         }
 
         // Electronics-specific properties
         if (isElectronics){
-          const cpu = rt.match(/(?:cpu|معالج)\s*[:：=\-–—→»›]?\s*([^\n]{2,80})/i)?.[1]
-          if (cpu) addRow(table,'cpu','المعالج',cpu,0.85)
-          const gpu = rt.match(/(?:gpu|كرت\s*شاشه|كرت\s*شاشة|معالج\s*رسومي)\s*[:：=\-–—→»›]?\s*([^\n]{2,80})/i)?.[1]
-          if (gpu) addRow(table,'gpu','المعالج الرسومي',gpu,0.82)
-          const ram = rt.match(/(?:ram|رام|ذاكره\s*عشوائيه|ذاكرة\s*عشوائية)\s*[:：=\-–—→»›]?\s*([^\n]{1,40})/i)?.[1]
-          if (ram) addRow(table,'ram','الذاكرة العشوائية',ram,0.85)
-          const rom = rt.match(/(?:rom|التخزين|سعة\s*التخزين)\s*[:：=\-–—→»›]?\s*([^\n]{1,40})/i)?.[1]
-          if (rom) addRow(table,'rom','سعة التخزين',rom,0.85)
-          const cam = rt.match(/(?:كاميرا|camera)[^\d]{0,5}(\d{1,3})\s*(?:mp|ميجا|ميجابكسل|ميغابكسل)/i)
-          if (cam) addRow(table,'camera_mp','الكاميرا',`${cam[1]} MP`,0.8)
+          const cpu = rt.match(/(?:cpu|?????)\s*[:?=\-?????]?\s*([^\n]{2,80})/i)?.[1]
+          if (cpu) addRow(table,'cpu','???????',cpu,0.85)
+          const gpu = rt.match(/(?:gpu|???\s*????|???\s*????|?????\s*?????)\s*[:?=\-?????]?\s*([^\n]{2,80})/i)?.[1]
+          if (gpu) addRow(table,'gpu','??????? ???????',gpu,0.82)
+          const ram = rt.match(/(?:ram|???|?????\s*???????|?????\s*???????)\s*[:?=\-?????]?\s*([^\n]{1,40})/i)?.[1]
+          if (ram) addRow(table,'ram','??????? ?????????',ram,0.85)
+          const rom = rt.match(/(?:rom|???????|???\s*???????)\s*[:?=\-?????]?\s*([^\n]{1,40})/i)?.[1]
+          if (rom) addRow(table,'rom','??? ???????',rom,0.85)
+          const cam = rt.match(/(?:??????|camera)[^\d]{0,5}(\d{1,3})\s*(?:mp|????|????????|????????)/i)
+          if (cam) addRow(table,'camera_mp','????????',`${cam[1]} MP`,0.8)
           const os = rt.match(/\b(Android|iOS|Windows|Linux)\b/i)?.[1]
-          if (os) addRow(table,'os','نظام التشغيل',os,0.8)
-          const fast = rt.match(/(?:شحن\s*سريع|fast\s*charge)[^\d]{0,6}(\d{1,3})\s*(?:W|واط|وات)/i)
-          if (fast) addRow(table,'fast_charge','الشحن السريع',`${fast[1]}W`,0.8)
+          if (os) addRow(table,'os','???? ???????',os,0.8)
+          const fast = rt.match(/(?:???\s*????|fast\s*charge)[^\d]{0,6}(\d{1,3})\s*(?:W|???|???)/i)
+          if (fast) addRow(table,'fast_charge','????? ??????',`${fast[1]}W`,0.8)
         }
 
         // Clothing-specific properties
         if (isClothing){
-          const fit = rt.match(/(?:القص|القَص|fit|قص)\s*[:：=\-–—→»›]?\s*([^\n]{2,40})/i)?.[1]
-          if (fit) addRow(table,'fit','القص/القَص',fit,0.78)
-          const care = rt.match(/(?:تعليمات\s*الغسيل|الغسيل|العناية|care)\s*[:：=\-–—→»›]?\s*([^\n]{3,120})/i)?.[1]
-          if (care) addRow(table,'care','العناية/الغسيل',care,0.78)
-          const pattern = rt.match(/(?:النقشه|النقشة|pattern|طبعة|مطبوع)\s*[:：=\-–—→»›]?\s*([^\n]{2,60})/i)?.[1]
-          if (pattern) addRow(table,'pattern','النقشة/الطبعة',pattern,0.75)
-          const season = rt.match(/\b(شتوي|صيفي|ربيعي|خريفي|all\s*season)\b/i)?.[1]
-          if (season) addRow(table,'season','الموسم',season,0.75)
-          const gender = rt.match(/\b(نسائي|رجالي|أطفالي|بناتي|ولادي|women|men|kids)\b/i)?.[1]
-          if (gender) addRow(table,'gender','الجنس',gender,0.75)
+          const fit = rt.match(/(?:????|?????|fit|??)\s*[:?=\-?????]?\s*([^\n]{2,40})/i)?.[1]
+          if (fit) addRow(table,'fit','????/?????',fit,0.78)
+          const care = rt.match(/(?:???????\s*??????|??????|???????|care)\s*[:?=\-?????]?\s*([^\n]{3,120})/i)?.[1]
+          if (care) addRow(table,'care','???????/??????',care,0.78)
+          const pattern = rt.match(/(?:??????|??????|pattern|????|?????)\s*[:?=\-?????]?\s*([^\n]{2,60})/i)?.[1]
+          if (pattern) addRow(table,'pattern','??????/??????',pattern,0.75)
+          const season = rt.match(/\b(????|????|?????|?????|all\s*season)\b/i)?.[1]
+          if (season) addRow(table,'season','??????',season,0.75)
+          const gender = rt.match(/\b(?????|?????|??????|?????|?????|women|men|kids)\b/i)?.[1]
+          if (gender) addRow(table,'gender','?????',gender,0.75)
         }
-        const warranty = rt.match(/ضمان\s*(\d{1,2})\s*(سنه|سنة|شهر|اشهر|أشهر)/i); if (warranty) addRow(table,'warranty','الضمان',warranty[0],0.8)
-        const origin = rt.match(/صنع\s*في\s*([\u0600-\u06FFA-Za-z\s]+)/i)?.[0]; if (origin) addRow(table,'origin','بلد الصنع',origin,0.75)
+        const warranty = rt.match(/????\s*(\d{1,2})\s*(???|???|???|????|????)/i); if (warranty) addRow(table,'warranty','??????',warranty[0],0.8)
+        const origin = rt.match(/???\s*??\s*([\u0600-\u06FFA-Za-z\s]+)/i)?.[0]; if (origin) addRow(table,'origin','??? ?????',origin,0.75)
 
-        // المقاسات/الألوان كنص (بدون عبارة "كما ذُكرت")
-        const colorsText = finalColors.join('، ')
+        // ????????/??????? ??? (???? ????? "??? ?????")
+        const colorsText = finalColors.join('? ')
         // Normalize free-size with weight range to a single entry
-        if (/فري\s*سايز|مقاس\s*واحد|one\s*size|free\s*size/i.test(rt)) {
-          const w = rt.replace(/[_/\\-]+/g,' ').match(/وزن\s*(\d{2,3})[^\d]{0,16}?(?:حتى|إلى|الى|-|–)\s*(?:وزن)?\s*(\d{2,3})/i)
-          if (w) sizes = [`فري سايز (${Math.min(Number(w[1]),Number(w[2]))}–${Math.max(Number(w[1]),Number(w[2]))} كجم)`]
-          else sizes = Array.from(new Set(['فري سايز', ...sizes.filter(s=> !/^\d{2,3}$/.test(String(s)))]))
+        if (/???\s*????|????\s*????|one\s*size|free\s*size/i.test(rt)) {
+          const w = rt.replace(/[_/\\-]+/g,' ').match(/???\s*(\d{2,3})[^\d]{0,16}?(?:???|???|???|-|?)\s*(?:???)?\s*(\d{2,3})/i)
+          if (w) sizes = [`??? ???? (${Math.min(Number(w[1]),Number(w[2]))}?${Math.max(Number(w[1]),Number(w[2]))} ???)`]
+          else sizes = Array.from(new Set(['??? ????', ...sizes.filter(s=> !/^\d{2,3}$/.test(String(s)))]))
         }
-        // Paired size lines like "52عرض19" or "54 عرض 20": push primary to sizes and width to sizes2
+        // Paired size lines like "52???19" or "54 ??? 20": push primary to sizes and width to sizes2
         try {
-          const pairRe = /(\d{2,3})\s*عرض\s*(\d{1,2})/ig
+          const pairRe = /(\d{2,3})\s*???\s*(\d{1,2})/ig
           let mp: RegExpExecArray | null
           while ((mp = pairRe.exec(rt))) {
             const len = String(mp[1])
@@ -5027,70 +5023,70 @@ adminRest.post('/products/analyze', async (req, res) => {
             sizes2.push(wid)
           }
         } catch {}
-        const sizesText = sizes.join('، ')
-        if (colorsText) addRow(table,'colors_text','الألوان',colorsText,0.75)
-        if (sizesText) addRow(table,'sizes_text','المقاسات',sizesText,0.75)
+        const sizesText = sizes.join('? ')
+        if (colorsText) addRow(table,'colors_text','???????',colorsText,0.75)
+        if (sizesText) addRow(table,'sizes_text','????????',sizesText,0.75)
 
-        // Extra capture: bullet-like lines and components section (e.g., 🌹1سرير ...)
+        // Extra capture: bullet-like lines and components section (e.g., ??1???? ...)
         try {
           const lines = String(raw||'').split(/\r?\n/)
           let inComponents = false
           let added = 0
-          const isBulletLike = (s:string)=> /^(?:\s*(?:[-*•·–—]|[🌹🎈💫🔥📌👉✅☑️⚫️🔹🔸★☆•·]))/.test(s) || /^(?:\s*\d+[\s\-\.)]?\s*\S+)/.test(s)
-          const stripLead = (s:string)=> String(s||'').replace(/^[\s🌹🎈💫🔥📌👉✅☑️⚫️🔹🔸★☆•·\-\*–—]+/, '').trim()
-          const looksPriceHint = (s:string)=> /(سعر|price|ريال|﷼|usd|aed|sar|egp|kwd|qr)/i.test(String(s||''))
+          const isBulletLike = (s:string)=> /^(?:\s*(?:[-*????]|[?????????????????????????]))/.test(s) || /^(?:\s*\d+[\s\-\.)]?\s*\S+)/.test(s)
+          const stripLead = (s:string)=> String(s||'').replace(/^[\s?????????????????????????\-\*??]+/, '').trim()
+          const looksPriceHint = (s:string)=> /(???|price|????|?|usd|aed|sar|egp|kwd|qr)/i.test(String(s||''))
           for (const ln of lines){
             const t = String(ln||'').trim()
             if (!t) continue
-            if (/(?:مكونات\s*الطقم|المكونات)\b/i.test(t)) { inComponents = true; continue }
+            if (/(?:??????\s*?????|????????)\b/i.test(t)) { inComponents = true; continue }
             if (inComponents && added < 12) {
               const content = stripLead(t)
               if (!content || looksPriceHint(content)) continue
-              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, 'تفصيل', content, /(\d|cm|mm|in|kg|كجم|g|جرام)/i.test(content)? 0.75 : 0.6); added++ }
+              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, '?????', content, /(\d|cm|mm|in|kg|???|g|????)/i.test(content)? 0.75 : 0.6); added++ }
               continue
             }
             if (isBulletLike(t) && added < 6) {
               const content = stripLead(t)
               if (!content || looksPriceHint(content)) continue
-              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, 'تفصيل', content, /(\d|cm|mm|in|kg|كجم|g|جرام)/i.test(content)? 0.7 : 0.6); added++ }
+              if (!table.some(r=> r.value===content)) { addRow(table, `detail_${table.length+added+1}`, '?????', content, /(\d|cm|mm|in|kg|???|g|????)/i.test(content)? 0.7 : 0.6); added++ }
             }
           }
         } catch {}
 
-        // أي key:value صريح في النص نلتقطه كما هو (AR/EN) مع فواصل متعددة، ونستبعد ما يشير للسعر
-        const hasCurrency = (s: unknown): boolean => /(?:﷼|ريال|sar|aed|usd|\$|egp|kwd|qr)/i.test(String(s||''))
+        // ?? key:value ???? ?? ???? ?????? ??? ?? (AR/EN) ?? ????? ??????? ??????? ?? ???? ?????
+        const hasCurrency = (s: unknown): boolean => /(?:?|????|sar|aed|usd|\$|egp|kwd|qr)/i.test(String(s||''))
         const looksLikeBareNumber = (s: unknown): boolean => /^\[?\s*\d{2,7}(?:[\.,][0-9]{1,2})?\s*\]?$/i.test(String(s||'').trim())
-        const looksLikeNewOldLabel = (s: unknown): boolean => /(قديم|قديمة|جديد|جديدة|عملة|السعر)/i.test(String(s||''))
-        const kvRegex = /(^|[\s\-؛;:,،])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,40})\s*[:：=\-–—→»›]\s*([^\n؛;:,،]{1,200})/g
+        const looksLikeNewOldLabel = (s: unknown): boolean => /(????|?????|????|?????|????|?????)/i.test(String(s||''))
+        const kvRegex = /(^|[\s\-?;:,?])([\u0600-\u06FFA-Za-z][\u0600-\u06FF\w\s]{1,40})\s*[:?=\-?????]\s*([^\n?;:,?]{1,200})/g
         let m: RegExpExecArray | null
         while ((m = kvRegex.exec(raw))){
           const kRaw = m[2].trim(); const v = m[3].trim(); const k = applySyn(kRaw)
-          // تخطّي إن كان صفاً معروفاً سبق إضافته
+          // ????? ?? ??? ???? ??????? ??? ??????
           const kSlug = k.toLowerCase().replace(/[^\u0600-\u06FFA-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'field'
           if (table.some(r=> r.label===k || r.key===kSlug)) continue
-          if (/(?:^|\s)(?:سعر|price|cost)(?:\s|$)/i.test(k) || hasCurrency(k) || hasCurrency(v) || /\b(?:سعر|price|cost)\b/i.test(v) || looksLikeBareNumber(v) || looksLikeNewOldLabel(k)) continue
+          if (/(?:^|\s)(?:???|price|cost)(?:\s|$)/i.test(k) || hasCurrency(k) || hasCurrency(v) || /\b(?:???|price|cost)\b/i.test(v) || looksLikeBareNumber(v) || looksLikeNewOldLabel(k)) continue
           addRow(table, kSlug, k, v, 0.8)
         }
 
-        // التقاط عناصر القوائم النقطية/الشرطات كصفوف تفاصيل عامة
+        // ?????? ????? ??????? ???????/??????? ????? ?????? ????
         try {
-          const bulletRe = /(^|\n)\s*(?:[-*•·]|[–—])\s*([^\n]{3,120})/g
+          const bulletRe = /(^|\n)\s*(?:[-*??]|[??])\s*([^\n]{3,120})/g
           let mb: RegExpExecArray | null; let idx = 1
           const unitSet = new Set<string>([...((nlpCfg.unitTokens||[]) as string[]),'cm','mm','in','ml','l','kg','g','mAh','Wh','Ah','hz','v','w','gb','mb','tb'])
           while ((mb = bulletRe.exec(raw))){
             const content = String(mb[2]||'').trim();
             if (!content) continue
-            if (hasCurrency(content) || /\b(?:سعر|price|cost)\b/i.test(content)) continue
+            if (hasCurrency(content) || /\b(?:???|price|cost)\b/i.test(content)) continue
             if (table.some(r=> r.value===content)) continue
             const hasUnit = Array.from(unitSet).some(u=> new RegExp(`(^|\s)${u}(?:\b|\s|$)`, 'i').test(content)) || /\d/.test(content)
-            addRow(table, `detail_${table.length+idx}`, 'تفصيل', content, hasUnit? 0.75 : 0.6)
+            addRow(table, `detail_${table.length+idx}`, '?????', content, hasUnit? 0.75 : 0.6)
             idx++
           }
         } catch {}
 
-        // أصل محلي إن ذُكر صراحة ولم يلتقط سابقًا
+        // ??? ???? ?? ???? ????? ??? ????? ??????
         if (!table.some(r=> r.key==='origin')){
-          if (/(?:منتج\s*محلي|محلي\s*الصنع|صنع\s*محلي)/i.test(raw)) addRow(table,'origin','بلد الصنع','محلي الصنع',0.75)
+          if (/(?:????\s*????|????\s*?????|???\s*????)/i.test(raw)) addRow(table,'origin','??? ?????','???? ?????',0.75)
         }
 
         const analyzed: any = {}
@@ -5141,7 +5137,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         if (typeof (ds as any).price === 'number') analyzed.price_range = { value: { low: (ds as any).price, high: (ds as any).price }, source: 'ai' }
         if ((ds as any).price_range && typeof (ds as any).price_range.low === 'number') analyzed.price_range = { value: { low: (ds as any).price_range.low, high: (ds as any).price_range.high ?? (ds as any).price_range.low }, source: 'ai' }
         if (Array.isArray(ds.colors)) {
-          const filtered = (ds.colors as any[]).filter(c=> String(c||'').trim() && !/^غير\s*محدد$/i.test(String(c||'')) && !/(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة))/i.test(String(c||'')));
+          const filtered = (ds.colors as any[]).filter(c=> String(c||'').trim() && !/^???\s*????$/i.test(String(c||'')) && !/(?:???\s*????|??????\s*(?:??????|?????(?:?|?)|?????))/i.test(String(c||'')));
           if (filtered.length) analyzed.colors = { value: filtered, source: 'ai' }
         }
         if (Array.isArray(ds.sizes)) analyzed.sizes = { value: ds.sizes, source: 'ai' }
@@ -5215,7 +5211,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           .replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0)-0x0660))
           .replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0)-0x06F0))
         const rt = toLatinDigits(rawText)
-        // 1) name — keep AI only; no local inference
+        // 1) name ? keep AI only; no local inference
         if (ds.name && String(ds.name).trim()) {
           analyzed.name = { value: String(ds.name), source: 'ai' }
         }
@@ -5229,7 +5225,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         // 4) colors
         if (Array.isArray(ds.colors)) analyzed.colors = { value: ds.colors, source: 'ai' }
         if (!analyzed.colors && !deepseekOnly) {
-          const general = rt.match(/(\b\d+\s*ألوان\b|ألوان\s*متعددة|ألوان\s*متنوعة|عدة\s*ألوان)/i)
+          const general = rt.match(/(\b\d+\s*?????\b|?????\s*??????|?????\s*??????|???\s*?????)/i)
           if (general) analyzed.colors = { value: [general[1]], source: 'ai' }
         }
         // 5) sizes
@@ -5250,14 +5246,14 @@ adminRest.post('/products/analyze', async (req, res) => {
     const sources:any = {};
     // Helpers
     const stripEmojis = (s:string)=> s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]/gu, ' ');
-    const cleanSymbols = (s:string)=> s.replace(/[✦☆★✨🔥🤩💃🏼🤑🤤]+/g, ' ').replace(/[\u0000-\u001f]/g,' ');
+    const cleanSymbols = (s:string)=> s.replace(/[????????????????]+/g, ' ').replace(/[\u0000-\u001f]/g,' ');
     const normalizeSpaces = (s:string)=> s.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim();
     const toLatinDigits = (s:string)=> s
       .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
       .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)));
     const clamp = (s:string, n:number)=> s.length>n ? s.slice(0,n) : s;
-    const synonymsMap: Record<string,string[]> = { 'صوف': ['شتوي','دافئ'], 'قطن': ['خفيف','صيفي'], 'جلد': ['فاخر'], 'فنيلة': ['توب','بلوزة'] };
-    const arabicStop: string[] = Array.isArray((sw as any)?.ar) ? (sw as any).ar : ['و','في','من','الى','على','عن','هو','هي','هذا','هذه','ذلك','تلك','ثم','كما','قد','لقد','مع','حسب','أو','أي','ما','لا','لم','لن','إن','أن','كان','كانت','يكون','يمكن','فقط','متوفر','متوفرة','جديد','جديدة','عرض','السعر','كمية','الكبرى','الصغرى','لون','الوان','لونين'];
+    const synonymsMap: Record<string,string[]> = { '???': ['????','????'], '???': ['????','????'], '???': ['????'], '?????': ['???','?????'] };
+    const arabicStop: string[] = Array.isArray((sw as any)?.ar) ? (sw as any).ar : ['?','??','??','???','???','??','??','??','???','???','???','???','??','???','??','???','??','???','??','??','??','??','??','??','??','??','???','????','????','????','???','?????','??????','????','?????','???','?????','????','??????','??????','???','?????','?????'];
     // Text pass (rule-based + optional zero-shot classification)
     if (typeof text === 'string' && text.trim()) {
       const pre = normalizeSpaces(cleanSymbols(stripEmojis(text||'')));
@@ -5272,52 +5268,52 @@ adminRest.post('/products/analyze', async (req, res) => {
           zsc = await cls.classifySentences(pre, ['PRICE','SIZE','MATERIAL','FEATURE','COLOR','NOISE']);
         }
       } catch {}
-      // Name generation with priority: <type> <attr> من <material> — <feature>
-      const isTableware = /(ملاعق|ملعقة|شوكة|سكاكين|سكين|طقم\s*ملاعق|أدوات\s*مائدة|صحون|صحن|أطباق|قدور|قدر|كاسات|كوب|اكواب|أكواب)/i.test(pre);
-      const typeMatch = isTableware ? null : pre.match(/(^|\s)(طقم|فنيلة|فنيله|فنائل|بلوزة|بلوزه|جاكيت|جاكت|قميص|فستان|هودي|سويتر|بلوفر|set)(?=\s|$)/i);
-      let normalizedType = isTableware ? 'أدوات مائدة' : (typeMatch ? (/فنائل/i.test(typeMatch[2]) ? 'فنيلة' : typeMatch[2].replace(/ه$/,'ة')) : '');
-      if (!normalizedType && /(فنائل|فنيله|فنيلة)/i.test(pre)) normalizedType = 'فنيلة';
-      let material = typeMatch ? (():string=>{ const m = typeMatch[2].toLowerCase(); if (m==='wool') return 'صوف'; if (m==='cotton') return 'قطن'; if (m==='silk' || m==='حرير') return 'حرير'; if (m==='satin') return 'ساتان'; if (m==='polyester') return 'بوليستر'; if (m==='باربي') return 'حرير باربي'; return typeMatch[2]; })() : '';
+      // Name generation with priority: <type> <attr> ?? <material> ? <feature>
+      const isTableware = /(?????|?????|????|??????|????|???\s*?????|?????\s*?????|????|???|?????|????|???|?????|???|?????|?????)/i.test(pre);
+      const typeMatch = isTableware ? null : pre.match(/(^|\s)(???|?????|?????|?????|?????|?????|?????|????|????|?????|????|?????|?????|set)(?=\s|$)/i);
+      let normalizedType = isTableware ? '????? ?????' : (typeMatch ? (/?????/i.test(typeMatch[2]) ? '?????' : typeMatch[2].replace(/?$/,'?')) : '');
+      if (!normalizedType && /(?????|?????|?????)/i.test(pre)) normalizedType = '?????';
+      let material = typeMatch ? (():string=>{ const m = typeMatch[2].toLowerCase(); if (m==='wool') return '???'; if (m==='cotton') return '???'; if (m==='silk' || m==='????') return '????'; if (m==='satin') return '?????'; if (m==='polyester') return '???????'; if (m==='?????') return '???? ?????'; return typeMatch[2]; })() : '';
       if (material) {
-        // أضف "ال" للتعبير العربي الطبيعي
-        if (!/^ال/.test(material)) material = `الصوف` === material ? material : (material === 'صوف' ? 'الصوف' : material === 'قطن' ? 'القطن' : material);
+        // ??? "??" ??????? ?????? ???????
+        if (!/^??/.test(material)) material = `?????` === material ? material : (material === '???' ? '?????' : material === '???' ? '?????' : material);
       }
-      let attr = typeMatch ? (typeMatch[2].replace('موحد','فري سايز')) : '';
-      const feminineType = /ة$/.test(normalizedType);
+      let attr = typeMatch ? (typeMatch[2].replace('????','??? ????')) : '';
+      const feminineType = /?$/.test(normalizedType);
       if (feminineType) {
-        if (/^نسائي$/i.test(attr)) attr = 'نسائية';
-        if (/^شتوي$/i.test(attr)) attr = 'شتوية';
-        if (/^صيفي$/i.test(attr)) attr = 'صيفية';
+        if (/^?????$/i.test(attr)) attr = '??????';
+        if (/^????$/i.test(attr)) attr = '?????';
+        if (/^????$/i.test(attr)) attr = '?????';
       }
       let feature = typeMatch ? typeMatch[2] : '';
       const featureTags: string[] = [];
-      if (/زرارات|أزرار/i.test(pre)) featureTags.push('أزرار أنيقة');
-      if (/كم\s*كامل/i.test(pre)) featureTags.push('كم كامل');
-      if (/كلوش|امبريلا/i.test(pre)) featureTags.push('قصة كلوش');
-      if (/مورد|مطبوع/i.test(pre)) featureTags.push('نقشة مورد');
-      if (/ربطة\s*خصر|ربطه\s*خصر/i.test(pre)) featureTags.push('ربطة خصر');
-      if (/(أكمام|اكمام)\s*طويل(ه|ة)/i.test(pre)) featureTags.push('أكمام طويلة');
+      if (/??????|?????/i.test(pre)) featureTags.push('????? ?????');
+      if (/??\s*????/i.test(pre)) featureTags.push('?? ????');
+      if (/????|???????/i.test(pre)) featureTags.push('??? ????');
+      if (/????|?????/i.test(pre)) featureTags.push('???? ????');
+      if (/????\s*???|????\s*???/i.test(pre)) featureTags.push('???? ???');
+      if (/(?????|?????)\s*????(?|?)/i.test(pre)) featureTags.push('????? ?????');
       if (!feature && featureTags.length) feature = featureTags[0];
-      const namePrefix = [ normalizedType, attr, (material && !isTableware) ? `من ${material}` : '' ].filter(Boolean).join(' ').trim();
+      const namePrefix = [ normalizedType, attr, (material && !isTableware) ? `?? ${material}` : '' ].filter(Boolean).join(' ').trim();
       const genName = [ namePrefix, feature ].filter(Boolean).join(' ').trim();
       if (genName) { out.name = clamp(genName, 60); sources.name = { source:'rules', confidence:0.8 }; }
       else if (extracted.name) { out.name = clamp(extracted.name, 60); sources.name = { source:'rules', confidence:0.6 }; }
       // Description (3 sentences)
       const introParts: string[] = [];
-      // لا نعيد ذكر اسم المنتج أو نوعه أو المقاسات داخل الوصف
-      if (material) introParts.push(`مصنوع من ${material}`);
+      // ?? ???? ??? ??? ?????? ?? ???? ?? ???????? ???? ?????
+      if (material) introParts.push(`????? ?? ${material}`);
       const introFeatures: string[] = [];
       if (featureTags.length) introFeatures.push(...featureTags);
-      const intro = normalizeSpaces(`${introParts.join(' ')}${(introFeatures.length && !isTableware) ? ' مع ' + introFeatures.join(' و') : ''}.`);
+      const intro = normalizeSpaces(`${introParts.join(' ')}${(introFeatures.length && !isTableware) ? ' ?? ' + introFeatures.join(' ?') : ''}.`);
       const mats: string[] = [];
-      if (/\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(pre)) mats.push('متوفر بعدة ألوان');
-      if (!isTableware && /خارجي/i.test(pre)) mats.push('مناسبة للإطلالة الخارجية');
-      const sentence2 = mats.length? `${mats.join('، ')}.` : '';
-      // لا نذكر المقاسات في الوصف (تُعرض في حقلها)
+      if (/\b(?:3|????(?:?|?)?)\s*?????|(?:?????|?????)\s*?????\b/i.test(pre)) mats.push('????? ???? ?????');
+      if (!isTableware && /?????/i.test(pre)) mats.push('?????? ???????? ????????');
+      const sentence2 = mats.length? `${mats.join('? ')}.` : '';
+      // ?? ???? ???????? ?? ????? (????? ?? ?????)
       let sz = '';
-      const wMatch = preNum.replace(/[_/\\-]+/g,' ').match(/وزن\s*(\d{2,3})[^\d]{0,16}?(?:حتى|إلى|الى|-|–)\s*(?:وزن)?\s*(\d{2,3})/i);
-      // تجاهل نص المقاسات المقروءة
-      // لا نذكر المخزون/الكمية في الوصف
+      const wMatch = preNum.replace(/[_/\\-]+/g,' ').match(/???\s*(\d{2,3})[^\d]{0,16}?(?:???|???|???|-|?)\s*(?:???)?\s*(\d{2,3})/i);
+      // ????? ?? ???????? ????????
+      // ?? ???? ???????/?????? ?? ?????
       const sentence3 = '';
       // Always exactly three concise sentences
       const sentences = [intro, sentence2 || '', sentence3 || ''].map(s=> s.trim()).filter(Boolean);
@@ -5329,70 +5325,70 @@ adminRest.post('/products/analyze', async (req, res) => {
       const tooSimilar = jaccard(out.name||'', finalDesc||'') > 0.6;
       if (tooShort || tooSimilar) {
         const alt: string[] = [];
-        if (material) alt.push(`مصنوع من ${material} بملمس مريح.`); else alt.push('تصميم أنيق بخامات مريحة.');
-        if (featureTags.length) alt.push(`يوفر ${featureTags.join(' و')} لإطلالة مميزة.`); else alt.push('تفاصيل متقنة تمنح لمسة راقية.');
-        alt.push('ملائم للاستخدام اليومي والمناسبات.');
+        if (material) alt.push(`????? ?? ${material} ????? ????.`); else alt.push('????? ???? ?????? ?????.');
+        if (featureTags.length) alt.push(`???? ${featureTags.join(' ?')} ??????? ?????.`); else alt.push('?????? ????? ???? ???? ?????.');
+        alt.push('????? ????????? ?????? ??????????.');
         finalDesc = normalizeSpaces(alt.join(' '));
       }
       if (finalDesc) { out.description = finalDesc; sources.description = { source:'rules', confidence:0.85 }; }
       // Sizes field (normalized)
-      if (!isTableware && wMatch) { out.sizes = [`فري سايز (${Math.min(Number(wMatch[1]),Number(wMatch[2]))}–${Math.max(Number(wMatch[1]),Number(wMatch[2]))} كجم)`]; sources.sizes = { source:'rules', confidence:0.8 }; }
+      if (!isTableware && wMatch) { out.sizes = [`??? ???? (${Math.min(Number(wMatch[1]),Number(wMatch[2]))}?${Math.max(Number(wMatch[1]),Number(wMatch[2]))} ???)`]; sources.sizes = { source:'rules', confidence:0.8 }; }
       else if (Array.isArray(extracted.sizes) && extracted.sizes.length) {
         const cleanedSizes = (extracted.sizes as string[]).filter(s=> !/^\s*\d+(?:[\.,]\d+)?\s*$/.test(String(s)));
         if (cleanedSizes.length) { out.sizes = cleanedSizes; sources.sizes = { source:'rules', confidence:0.7 }; }
       }
       if (Array.isArray(extracted.colors) && extracted.colors.length) { out.colors = Array.from(new Set(extracted.colors)); sources.colors = { source:'rules', confidence:0.4 }; }
       // Preserve general color phrases from raw text if present
-      const generalColorsRe = /\b(?:(\d+)\s*(?:ألوان|الوان)|أرب(?:ع|ة)\s*(?:ألوان|الوان)|اربعه\s*(?:ألوان|الوان)|ألوان\s*متعدد(?:ة|ه)|ألوان\s*متنوع(?:ة|ه)|عدة\s*(?:ألوان|الوان))\b/i
+      const generalColorsRe = /\b(?:(\d+)\s*(?:?????|?????)|???(?:?|?)\s*(?:?????|?????)|?????\s*(?:?????|?????)|?????\s*?????(?:?|?)|?????\s*?????(?:?|?)|???\s*(?:?????|?????))\b/i
       const gMatch = pre.match(generalColorsRe)
       if (gMatch) {
-        const label = gMatch[1] ? `${gMatch[1]} ألوان` : gMatch[0]
+        const label = gMatch[1] ? `${gMatch[1]} ?????` : gMatch[0]
         out.colors = [label]
         sources.colors = { source:'rules', confidence:0.8 }
       }
       if (Array.isArray(extracted.keywords)) {
-        const noise = new Set<string>(['وزن','فقط','متوفر','متوفرة','متوووفر','دلع','اناقة','أنَاقة','واناقه','جديد','جديدة','جديديناءغيرر','لون','الوان','لونين']);
+        const noise = new Set<string>(['???','???','?????','??????','???????','???','?????','??????','??????','????','?????','????????????','???','?????','?????']);
         const filtered = (extracted.keywords||[])
           .map((k:string)=> String(k).trim())
           .filter((k:string)=> k.length>=3 && !/\d/.test(k) && !arabicStop.includes(k) && !noise.has(k));
         const expanded = new Set<string>();
         for (const k of filtered) { expanded.add(k); if (synonymsMap[k]) for (const s of synonymsMap[k]) expanded.add(s); }
-        const canonicalized = Array.from(expanded).map(k=> /فنائل/i.test(k)? 'فنيلة' : k);
+        const canonicalized = Array.from(expanded).map(k=> /?????/i.test(k)? '?????' : k);
         out.tags = Array.from(new Set(canonicalized)).filter(Boolean).slice(0,6);
         sources.tags = { source:'rules', confidence:0.5 };
       }
-      // Prices: prefer explicit north/old/similar price lines; ignore non-price lines like "2 الوان"
+      // Prices: prefer explicit north/old/similar price lines; ignore non-price lines like "2 ?????"
       const priceNums: number[] = [];
       const lines = preNum.split(/\n|\r|\u2028|\u2029/).map(normalizeSpaces).filter(Boolean);
-      // Inline north price like "السعرللشمال 850"
-      const northInline = preNum.match(/(?:السعر\s*للشمال|السعرللشمال)[^\n\r]*?(\d+[\.,٬٫]?\d*)/i);
+      // Inline north price like "??????????? 850"
+      const northInline = preNum.match(/(?:?????\s*??????|???????????)[^\n\r]*?(\d+[\.,??]?\d*)/i);
       if (northInline) {
-        const v = Number(String(northInline[1]).replace(/[٬٫,]/g,'.'));
+        const v = Number(String(northInline[1]).replace(/[??,]/g,'.'));
         if (!Number.isNaN(v) && v >= 80) priceNums.push(v);
       }
       for (const ln of lines) {
-        const mentionsSouth = /جنوبي/i.test(ln);
-        const mentionsNorth = /الشمال|للشمال/i.test(ln);
-        const priceLine = /(السعر|💱|ريال|دولار|SAR|YER)/i.test(ln);
-        const prefer = priceLine && (mentionsNorth || /قديم|مشابه/i.test(ln) || (!mentionsSouth && /السعر/i.test(ln)));
+        const mentionsSouth = /?????/i.test(ln);
+        const mentionsNorth = /??????|??????/i.test(ln);
+        const priceLine = /(?????|??|????|?????|SAR|YER)/i.test(ln);
+        const prefer = priceLine && (mentionsNorth || /????|?????/i.test(ln) || (!mentionsSouth && /?????/i.test(ln)));
         if (!prefer) continue;
-        const m = ln.match(/(\d+[\.,٬٫]?\d*)/g);
-        if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v) && v >= 80) priceNums.push(v); });
+        const m = ln.match(/(\d+[\.,??]?\d*)/g);
+        if (m) m.forEach(x=> { const v = Number(String(x).replace(/[??,]/g,'.')); if (!Number.isNaN(v) && v >= 80) priceNums.push(v); });
       }
       if (!priceNums.length) {
         // Try zero-shot strongest PRICE sentence
         if (zsc && Array.isArray(zsc.PRICE) && zsc.PRICE.length) {
           const best = zsc.PRICE[0]?.label || '';
-          const m = best.match(/(\d+[\.,٬٫]?\d*)/g);
-          if (m) m.forEach(x=> { const v = Number(String(x).replace(/[٬٫,]/g,'.')); if (!Number.isNaN(v) && v >= 80) priceNums.push(v); });
+          const m = best.match(/(\d+[\.,??]?\d*)/g);
+          if (m) m.forEach(x=> { const v = Number(String(x).replace(/[??,]/g,'.')); if (!Number.isNaN(v) && v >= 80) priceNums.push(v); });
         }
         if (typeof extracted.purchasePrice === 'number' && Number.isFinite(Number(extracted.purchasePrice)) && Number(extracted.purchasePrice) >= 80) priceNums.push(Number(extracted.purchasePrice));
         if (typeof extracted.salePrice === 'number' && Number.isFinite(Number(extracted.salePrice)) && Number(extracted.salePrice) >= 80) priceNums.push(Number(extracted.salePrice));
       }
       // Final heuristic fallback: pick numeric tokens >= 100 from entire text and ignore weight contexts
       if (!priceNums.length) {
-        const allNums = (preNum.match(/(\d+[\.,٬٫]?\d*)/g) || [])
-          .map(x=> Number(String(x).replace(/[٬٫,]/g,'.')))
+        const allNums = (preNum.match(/(\d+[\.,??]?\d*)/g) || [])
+          .map(x=> Number(String(x).replace(/[??,]/g,'.')))
           .filter(v=> Number.isFinite(v) && v > 100);
         if (allNums.length) priceNums.push(...allNums);
       }
@@ -5498,42 +5494,42 @@ adminRest.post('/products/analyze', async (req, res) => {
                 const raw = String((req.body as any)?.text || '')
                 const feats: string[] = []
                 const has = (re: RegExp)=> re.test(raw)
-                if (/(جلابيه|جلابية|جلاب)/i.test(raw)) feats.push('جلابية')
-                if (/(تطريز|مطرز|سيم|سيم\s*ذهبي|ذهبي)/i.test(raw)) feats.push('بتطريز ذهبي')
-                if (/كرستال|كريستال/i.test(raw)) feats.push('مزينة بالكريستال')
-                if (/شيفون/i.test(raw)) feats.push('من قماش شيفون')
-                if (/مبطن|بطانة/i.test(raw)) feats.push('مبطنة لمزيد من الراحة')
-                if (/(أكمام|كم|طويله|طويل)/i.test(raw)) feats.push('بأكمام طويلة')
+                if (/(??????|??????|????)/i.test(raw)) feats.push('??????')
+                if (/(?????|????|???|???\s*????|????)/i.test(raw)) feats.push('?????? ????')
+                if (/??????|???????/i.test(raw)) feats.push('????? ??????????')
+                if (/?????/i.test(raw)) feats.push('?? ???? ?????')
+                if (/????|?????/i.test(raw)) feats.push('????? ????? ?? ??????')
+                if (/(?????|??|?????|????)/i.test(raw)) feats.push('?????? ?????')
                 // Compose name (ensure type first, no colors)
-                const isDress = /(فستان|فسان)/i.test(raw)
-                const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-                const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
-                const baseType = isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : ''))
+                const isDress = /(?????|????)/i.test(raw)
+                const isJalabiya = /(??????|??????)/i.test(raw)
+                const isLingerie = /(??????|?????|lingerie)/i.test(raw)
+                const baseType = isLingerie ? '??????' : (isDress ? '?????' : (isJalabiya ? '??????' : ''))
                 const attrs: string[] = []
-                if (/(طويله|طويل)/i.test(raw) && baseType==='فستان') attrs.push('طويل')
-                if (/(تطريز|مطرز)/i.test(raw)) attrs.push('مطرز')
-                if (/كرستال|كريستال/i.test(raw) && baseType!=='لانجري') attrs.push('بالكريستال')
-                if (/(مناسب\s*للمناسبات|سهرة)/i.test(raw) && baseType==='فستان') attrs.unshift('سهرة')
-                // removed auto-adding "طقم" to avoid forcing set naming
+                if (/(?????|????)/i.test(raw) && baseType==='?????') attrs.push('????')
+                if (/(?????|????)/i.test(raw)) attrs.push('????')
+                if (/??????|???????/i.test(raw) && baseType!=='??????') attrs.push('??????????')
+                if (/(?????\s*?????????|????)/i.test(raw) && baseType==='?????') attrs.unshift('????')
+                // removed auto-adding "???" to avoid forcing set naming
                 const synthesizedName = [baseType, ...attrs].join(' ').replace(/\s{2,}/g,' ').trim()
-                // Compose description (بدون تكرار الاسم/مرادفاته وبدون ألوان/مقاسات/أسعار)
-                const hasChiffon = /شيفون/i.test(raw)
-                const hasLining = /(مبطن|بطانة)/i.test(raw)
-                const hasEmb = /(تطريز|مطرز)/i.test(raw)
-                const hasCrystal = /كرستال|كريستال/i.test(raw)
-                const hasLongSleeve = /(أكمام|كم).*(طويله|طويل)/i.test(raw)
+                // Compose description (???? ????? ?????/???????? ????? ?????/??????/?????)
+                const hasChiffon = /?????/i.test(raw)
+                const hasLining = /(????|?????)/i.test(raw)
+                const hasEmb = /(?????|????)/i.test(raw)
+                const hasCrystal = /??????|???????/i.test(raw)
+                const hasLongSleeve = /(?????|??).*(?????|????)/i.test(raw)
                 const s1Parts: string[] = []
-                if (hasChiffon) s1Parts.push('خامة شيفون')
-                if (hasLining) s1Parts.push('مبطنة لراحة أعلى')
-                s1Parts.push('تشطيب متقن')
-                if (hasEmb || hasCrystal) s1Parts.push(hasCrystal ? 'وتفاصيل مزينة بالكريستال' : 'وتفاصيل مطرزة')
-                // للسياق الحسي: امتنع عن جملة عامة في اللانجري
-                const s1 = (s1Parts.join(' ').replace(/\s{2,}/g,' ').trim() || 'تشطيب متقن وخامة مريحة') + (/(لانجري|لنجري|lingerie)/i.test(raw) ? '.' : '، تمنح إحساساً مريحاً ومظهراً أنيقاً.')
-                // اختر سياق الاستخدام بناء على النص
-                const isOccasion = /(مناسب\s*للمناسبات|مناسبات|سهرة|عرس|زفاف|حفلات)/i.test(raw)
-                const isDaily = /(يومي|عملي|كاجوال)/i.test(raw)
-                const usage = isOccasion ? 'ملائم للمناسبات.' : (isDaily ? 'ملائم للاستخدام اليومي.' : '')
-                const s2 = (/(لانجري|لنجري|lingerie)/i.test(raw) ? '' : `تصميم عملي${hasLongSleeve ? ' بأكمام طويلة' : ''}${usage? ' ' + usage : ''}`)
+                if (hasChiffon) s1Parts.push('???? ?????')
+                if (hasLining) s1Parts.push('????? ????? ????')
+                s1Parts.push('????? ????')
+                if (hasEmb || hasCrystal) s1Parts.push(hasCrystal ? '??????? ????? ??????????' : '??????? ?????')
+                // ?????? ?????: ????? ?? ???? ???? ?? ????????
+                const s1 = (s1Parts.join(' ').replace(/\s{2,}/g,' ').trim() || '????? ???? ????? ?????') + (/(??????|?????|lingerie)/i.test(raw) ? '.' : '? ???? ??????? ?????? ??????? ??????.')
+                // ???? ???? ????????? ???? ??? ????
+                const isOccasion = /(?????\s*?????????|???????|????|???|????|?????)/i.test(raw)
+                const isDaily = /(????|????|??????)/i.test(raw)
+                const usage = isOccasion ? '????? ?????????.' : (isDaily ? '????? ????????? ??????.' : '')
+                const s2 = (/(??????|?????|lingerie)/i.test(raw) ? '' : `????? ????${hasLongSleeve ? ' ?????? ?????' : ''}${usage? ' ' + usage : ''}`)
                 const synthesizedDesc = `${s1} ${s2}`.replace(/\s{2,}/g,' ').trim()
                 if (synthesizedName) { out.name = synthesizedName; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
                 if (synthesizedDesc) { out.description = synthesizedDesc; (sources as any).description = { source:'ai', confidence: Math.max(0.85, (sources as any).description?.confidence||0.8) } }
@@ -5542,19 +5538,19 @@ adminRest.post('/products/analyze', async (req, res) => {
                   const sizesRaw = Array.from(new Set((raw.match(/\b(XXL|XL|LX|L|M|S|XS)\b/gi) || []).map(s=> s.toUpperCase().replace('LX','XL'))))
                   if (sizesRaw.length) { out.sizes = sizesRaw; (sources as any).sizes = { source:'ai', confidence: Math.max(0.7, (sources as any).sizes?.confidence||0.6) } }
                 } catch {}
-                // Enrich colors from Arabic tokens (e.g., اسود، احمر، بنفسجي)
+                // Enrich colors from Arabic tokens (e.g., ????? ????? ??????)
                 try {
                   const colorMap: Record<string,string> = {
-                    'اسود':'أسود','أسود':'أسود','ابيض':'أبيض','أبيض':'أبيض','احمر':'أحمر','أحمر':'أحمر','ازرق':'أزرق','أزرق':'أزرق','اخضر':'أخضر','أخضر':'أخضر','اصفر':'أصفر','أصفر':'أصفر','بنفسجي':'بنفسجي','بني':'بني','بيج':'بيج','رمادي':'رمادي','كحلي':'كحلي','وردي':'وردي'
+                    '????':'????','????':'????','????':'????','????':'????','????':'????','????':'????','????':'????','????':'????','????':'????','????':'????','????':'????','????':'????','??????':'??????','???':'???','???':'???','?????':'?????','????':'????','????':'????'
                   }
-                  const found = Array.from(new Set((raw.match(/(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|بني|بيج|رمادي|كحلي|وردي)/gi) || []).map(v=> colorMap[v] || v)))
+                  const found = Array.from(new Set((raw.match(/(????|????|????|????|????|????|????|????|????|????|????|????|??????|???|???|?????|????|????)/gi) || []).map(v=> colorMap[v] || v)))
                   if (found.length) { out.colors = Array.from(new Set([...(out.colors||[]), ...found])); (sources as any).colors = { source:'ai', confidence: Math.max(0.65, (sources as any).colors?.confidence||0.6) } }
                 } catch {}
                 // Enrich keywords: simple Arabic token filter without noise
                 try {
                   const noDiacritics = (s:string)=> s.normalize('NFKD').replace(/[\u064B-\u065F]/g,'').replace(/\u0640/g,'')
                   const norm = noDiacritics(raw.toLowerCase())
-                  const noise = new Set(['*','ال','بل','بلصدر','السعر','قديمة','قديمه','جديدة','جديده','الاقوى','العرض','فقط','عمله','عملة','التفاصيل','تحححفه','بنمط','خليجي','طرف','الي\s*د','مزودة','اضافه','اضافة','ب'])
+                  const noise = new Set(['*','??','??','?????','?????','?????','?????','?????','?????','??????','?????','???','????','????','????????','??????','????','?????','???','???\s*?','?????','?????','?????','?'])
                   // Avoid Unicode property classes for compatibility: keep Arabic letters via explicit range
                   const words = norm.replace(/[^\u0600-\u06FFa-z0-9\s]/g,' ').split(/\s+/).filter(w=> w && w.length>=3 && !noise.has(w))
                   const freq = new Map<string,number>()
@@ -5576,25 +5572,25 @@ adminRest.post('/products/analyze', async (req, res) => {
         const wordCount = (s:string)=> s.trim().split(/\s+/).filter(Boolean).length
         const cur = String(out.name||'')
         if (!cur || wordCount(cur) < 4) {
-          const isSet = /(طقم)/i.test(raw)
-          const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
-          const isDress = /(فستان|فسان)/i.test(raw)
-          const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-          const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : '')))
+          const isSet = /(???)/i.test(raw)
+          const isLingerie = /(??????|?????|lingerie)/i.test(raw)
+          const isDress = /(?????|????)/i.test(raw)
+          const isJalabiya = /(??????|??????)/i.test(raw)
+          const baseType = isSet ? '???' : (isLingerie ? '??????' : (isDress ? '?????' : (isJalabiya ? '??????' : '')))
           const feats:string[] = []
-          if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
-          else if (/(رجالي|رجالية)/i.test(raw)) feats.push('رجالي')
-          if (/صوف|wool/i.test(raw)) feats.push('صوف')
-          if (/قطن|cotton/i.test(raw)) feats.push('قطن')
-          if (/حرير|silk/i.test(raw)) feats.push('حرير')
-          if (/شيفون|chiffon/i.test(raw)) feats.push('شيفون')
-          if (/دنيم|denim/i.test(raw)) feats.push('دنيم')
-          if (/جلد|leather/i.test(raw)) feats.push('جلد')
-          if (/كم\s*كامل/i.test(raw)) feats.push('كم كامل')
-          if (/(كلوش|كلووش)/i.test(raw) && baseType!=='لانجري') feats.push('قصة كلّوش')
-          if (/(تول|تل)/i.test(raw)) feats.push('تول')
-          if (/شفاف/i.test(raw)) feats.push('شفاف')
-          if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
+          if (/(?????|??????)/i.test(raw)) feats.push('?????')
+          else if (/(?????|??????)/i.test(raw)) feats.push('?????')
+          if (/???|wool/i.test(raw)) feats.push('???')
+          if (/???|cotton/i.test(raw)) feats.push('???')
+          if (/????|silk/i.test(raw)) feats.push('????')
+          if (/?????|chiffon/i.test(raw)) feats.push('?????')
+          if (/????|denim/i.test(raw)) feats.push('????')
+          if (/???|leather/i.test(raw)) feats.push('???')
+          if (/??\s*????/i.test(raw)) feats.push('?? ????')
+          if (/(????|?????)/i.test(raw) && baseType!=='??????') feats.push('??? ?????')
+          if (/(???|??)/i.test(raw)) feats.push('???')
+          if (/????/i.test(raw)) feats.push('????')
+          if (/(????\s*???|????\s*???)/i.test(raw)) feats.push('????? ???')
           const synthesized = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
           if (wordCount(synthesized) >= 4) { out.name = synthesized; (sources as any).name = { source:'ai', confidence: 0.85 } }
         }
@@ -5606,28 +5602,28 @@ adminRest.post('/products/analyze', async (req, res) => {
       const raw = String(((req as any).body?.text) || '')
       const ensureColors = ((): string[] => {
         const generalPhrases = [
-          /\b(?:4\s*ألوان|٤\s*ألوان)\b/i,
-          /\bألوان\s*متعددة\b/i,
-          /\bألوان\s*متنوعة\b/i,
-          /\bعدة\s*ألوان\b/i
+          /\b(?:4\s*?????|?\s*?????)\b/i,
+          /\b?????\s*??????\b/i,
+          /\b?????\s*??????\b/i,
+          /\b???\s*?????\b/i
         ]
         const general = generalPhrases.map(re=> (raw.match(re)||[])[0]).filter(Boolean)[0]
         if (general) return Array.from(new Set([...(out.colors||[] as string[]), general]))
 
-        const normalize = (s:string)=> s.replace(/\s{2,}/g,' ').replace(/\s*[-–—]\s*/g,'-').trim()
+        const normalize = (s:string)=> s.replace(/\s{2,}/g,' ').replace(/\s*[-??]\s*/g,'-').trim()
         const pushAll = (acc:Set<string>, text:string)=>{
-          text.split(/[،;,\n]+/).map(t=> normalize(t)).filter(Boolean).forEach(t=> acc.add(t))
+          text.split(/[?;,\n]+/).map(t=> normalize(t)).filter(Boolean).forEach(t=> acc.add(t))
         }
         const acc = new Set<string>(out.colors||[])
         // Known/common color vocabulary (Arabic + variants)
-        const colorLex = /(أسود|اسود|أبيض|ابيض|أحمر|احمر|أزرق|ازرق|أخضر|اخضر|أصفر|اصفر|بنفسجي|موف|ليلكي|خمري|عنابي|نيلي|سماوي|فيروزي|تركوازي|تركواز|زيتي|كموني|برتقالي|برونزي|بني|بيج|رمادي|رصاصي|كحلي|وردي|ورديه|ذهبي|فضي|اوف\s*-?\s*وايت|أوف\s*-?\s*وايت)/gi
+        const colorLex = /(????|????|????|????|????|????|????|????|????|????|????|????|??????|???|?????|????|?????|????|?????|??????|???????|??????|????|?????|???????|??????|???|???|?????|?????|????|????|?????|????|???|???\s*-?\s*????|???\s*-?\s*????)/gi
         const lexFound = raw.match(colorLex) || []
-        lexFound.forEach(w=> acc.add(normalize(w.replace(/ورديه/i,'وردي'))))
-        // After "الألوان:" list
-        const listMatch = raw.match(/الألوان\s*[:\-]\s*([^\n]+)/i)
+        lexFound.forEach(w=> acc.add(normalize(w.replace(/?????/i,'????'))))
+        // After "???????:" list
+        const listMatch = raw.match(/???????\s*[:\-]\s*([^\n]+)/i)
         if (listMatch) pushAll(acc, listMatch[1])
-        // "باللون/لون <phrase>"
-        const byColor = Array.from(raw.matchAll(/(?:باللون|لون)\s+([^\s،\.]+(?:\s+[^\s،\.]+)?)/gi))
+        // "??????/??? <phrase>"
+        const byColor = Array.from(raw.matchAll(/(?:??????|???)\s+([^\s?\.]+(?:\s+[^\s?\.]+)?)/gi))
         byColor.forEach(m=> acc.add(normalize(m[1])))
         return Array.from(acc)
       })()
@@ -5640,7 +5636,7 @@ adminRest.post('/products/analyze', async (req, res) => {
         const xMatches = raw.match(/\b(?:[2-9]?\s*X{1,6}\s*(?:S|L)|XS|S|M|L|XL|XXL|XXXL|XXXXL|XXXXXL|XXXXXXL)\b/gi) || []
         xMatches.forEach(s=> acc.add(norm(s).replace('LX','XL')))
         // Numeric sizes (e.g., 38-44)
-        const rangeRe = /(\b\d{2})\s*(?:الى|إلى|to|[-–—])\s*(\d{2}\b)/gi
+        const rangeRe = /(\b\d{2})\s*(?:???|???|to|[-??])\s*(\d{2}\b)/gi
         for (const m of raw.matchAll(rangeRe)){
           const a = Number(m[1]); const b = Number(m[2])
           if (Number.isFinite(a) && Number.isFinite(b)){
@@ -5648,20 +5644,20 @@ adminRest.post('/products/analyze', async (req, res) => {
             if (lo>=20 && hi<=60 && hi-lo<=20){ for (let v=lo; v<=hi; v++) acc.add(String(v)) }
           }
         }
-        // Standalone numeric sizes within plausible apparel range 20–60
+        // Standalone numeric sizes within plausible apparel range 20?60
         const numMatches = raw.match(/\b(\d{2})\b/g) || []
         numMatches.forEach(n=> { const v = Number(n); if (v>=20 && v<=60) acc.add(String(v)) })
         // Arabic hints
-        if (/فري\s*سايز|مقاس\s*واحد/i.test(raw)) acc.add('FREE')
+        if (/???\s*????|????\s*????/i.test(raw)) acc.add('FREE')
         return Array.from(acc)
       })()
       if (!out.sizes || (out.sizes as string[]).length === 0) { (out as any).sizes = ensureSizes; (sources as any).sizes = { source:'ai', confidence: 0.65 } }
 
       const ensurePriceRange = ((): { low:number; high:number } | undefined => {
-        const num = (s:string)=> Number(String(s).replace(/[٬٫,]/g,'.'))
-        const old = raw.match(/(?:قديم|القديم)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
-        const north = raw.match(/(?:للشمال|الشمال)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
-        const sale = raw.match(/(?:سعر\s*البيع|السعر\s*البيع|السعر)[^\d]{0,12}(\d+[\.,٬٫]?\d*)/i)
+        const num = (s:string)=> Number(String(s).replace(/[??,]/g,'.'))
+        const old = raw.match(/(?:????|??????)[^\d]{0,12}(\d+[\.,??]?\d*)/i)
+        const north = raw.match(/(?:??????|??????)[^\d]{0,12}(\d+[\.,??]?\d*)/i)
+        const sale = raw.match(/(?:???\s*?????|?????\s*?????|?????)[^\d]{0,12}(\d+[\.,??]?\d*)/i)
         const pick = old?.[1] ? num(old[1]) : (north?.[1] ? num(north[1]) : (sale?.[1] ? num(sale[1]) : undefined))
         if (pick!==undefined && Number.isFinite(pick) && pick>10) {
           const high = sale?.[1] ? num(sale[1]) : pick
@@ -5673,63 +5669,63 @@ adminRest.post('/products/analyze', async (req, res) => {
 
       const material = ((): string => {
         const mats: Array<{ re: RegExp; val: string }> = [
-          { re:/شيفون/i, val:'شيفون' },
-          { re:/تول|تل/i, val:'تول' },
-          { re:/قطن|cotton/i, val:'قطن' },
-          { re:/صوف|wool/i, val:'صوف' },
-          { re:/حرير|silk/i, val:'حرير' },
-          { re:/دنيم|denim/i, val:'دنيم' },
-          { re:/جلد|leather/i, val:'جلد' },
+          { re:/?????/i, val:'?????' },
+          { re:/???|??/i, val:'???' },
+          { re:/???|cotton/i, val:'???' },
+          { re:/???|wool/i, val:'???' },
+          { re:/????|silk/i, val:'????' },
+          { re:/????|denim/i, val:'????' },
+          { re:/???|leather/i, val:'???' },
         ]
         const found = mats.find(m=> m.re.test(raw))?.val
-        return found ? `${found} عالي الجودة` : 'خامة مريحة متقنة'
+        return found ? `${found} ???? ??????` : '???? ????? ?????'
       })()
 
       const industry = ((): string => {
-        if (/محلي|محلية/i.test(raw)) return 'تصنيع محلي متقن'
-        if (/تركيا|تركي|صيني|الصين|باكستان|فيتنام|بنجلاديش/i.test(raw)) return 'جودة تصنيع عالية'
-        return 'جودة تصنيع عالية'
+        if (/????|?????/i.test(raw)) return '????? ???? ????'
+        if (/?????|????|????|?????|???????|??????|????????/i.test(raw)) return '???? ????? ?????'
+        return '???? ????? ?????'
       })()
 
       const design = ((): string => {
         const feats: string[] = []
-        if (/(شرقي|خليجي)/i.test(raw)) feats.push('شرقي خليجي')
-        if (/(تطريز|مطرز|سيم\s*ذهبي|ذهبي)/i.test(raw)) feats.push('بتطريز ذهبي')
-        if (/كرستال|كريستال/i.test(raw)) feats.push('مزين بالكريستال')
-        if (/شفاف/i.test(raw)) feats.push('شفاف')
-        if (/(أكمام|كم).*(طويل|طويله)/i.test(raw)) feats.push('بأكمام طويلة')
-        if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
-        return feats.length ? feats.join(' ') : 'تصميم أنيق وعصري'
+        if (/(????|?????)/i.test(raw)) feats.push('???? ?????')
+        if (/(?????|????|???\s*????|????)/i.test(raw)) feats.push('?????? ????')
+        if (/??????|???????/i.test(raw)) feats.push('???? ??????????')
+        if (/????/i.test(raw)) feats.push('????')
+        if (/(?????|??).*(????|?????)/i.test(raw)) feats.push('?????? ?????')
+        if (/(????\s*???|????\s*???)/i.test(raw)) feats.push('????? ???')
+        return feats.length ? feats.join(' ') : '????? ???? ?????'
       })()
 
       const featuresLine = ((): string => {
         const feats: string[] = []
-        if (/مريح|راحة/i.test(raw)) feats.push('مريح للارتداء')
-        if (/عملي/i.test(raw)) feats.push('عملي للاستخدام')
-        if (/انيق|أنيق/i.test(raw)) feats.push('أنيق للمناسبات')
-        if (!feats.length) feats.push('مريح','عملي','أنيق')
+        if (/????|????/i.test(raw)) feats.push('???? ????????')
+        if (/????/i.test(raw)) feats.push('???? ?????????')
+        if (/????|????/i.test(raw)) feats.push('???? ?????????')
+        if (!feats.length) feats.push('????','????','????')
         return Array.from(new Set(feats)).slice(0,3).join(' - ')
       })()
 
       const toArabicList = (arr?: string[]): string => {
         const xs = (arr||[]).filter(Boolean)
-        return xs.join('، ')
+        return xs.join('? ')
       }
 
       const hasTable = ((): boolean => {
         const d = (out as any).description
-        return (typeof d === 'string' && /•\s*الخامة:/i.test(d))
+        return (typeof d === 'string' && /?\s*??????:/i.test(d))
       })()
       if (!hasTable) {
         const colorsForList = (Array.isArray(out.colors) && (out.colors as string[]).length) ? (out.colors as string[]) : ensureColors
         const sizesForList = (Array.isArray(out.sizes) && (out.sizes as string[]).length) ? (out.sizes as string[]) : ensureSizes
         const desc = [
-          `• الخامة: ${material}`,
-          `• الصناعة: ${industry}`,
-          `• التصميم: ${design}`,
-          `• الألوان: ${toArabicList(colorsForList)}`,
-          `• المقاسات: ${toArabicList(sizesForList)}`,
-          `• الميزات: ${featuresLine}`
+          `? ??????: ${material}`,
+          `? ???????: ${industry}`,
+          `? ???????: ${design}`,
+          `? ???????: ${toArabicList(colorsForList)}`,
+          `? ????????: ${toArabicList(sizesForList)}`,
+          `? ???????: ${featuresLine}`
         ].join('\n')
         ;(out as any).description = desc
         const prevConf = Number(((sources as any).description?.confidence) || 0)
@@ -5752,7 +5748,7 @@ adminRest.post('/products/analyze', async (req, res) => {
           if ((!out.colors || (out.colors as string[]).length===0) && Array.isArray(teach.colors)) out.colors = teach.colors
           if ((!out.tags || (out.tags as string[]).length<6) && Array.isArray(teach.keywords)) out.tags = teach.keywords.slice(0,6)
           if (!out.description && Array.isArray(teach.description_table)) {
-            const desc = teach.description_table.map((r:any)=> `• ${r.label||r.key}: ${r.value}`).join('\n')
+            const desc = teach.description_table.map((r:any)=> `? ${r.label||r.key}: ${r.value}`).join('\n')
             if (desc) out.description = desc
           }
         }
@@ -5761,35 +5757,35 @@ adminRest.post('/products/analyze', async (req, res) => {
     // Global enforcement: ensure product name is not generic or too short in ANY mode
     try {
       const raw = String(((req as any).body?.text) || '')
-      const genericOnly = new Set(['فستان','لانجري','لنجري','جلابية','جلابيه','عباية','قميص','بلوزة','بلوزه'])
+      const genericOnly = new Set(['?????','??????','?????','??????','??????','?????','????','?????','?????'])
       const wc = (s:string)=> s.trim().split(/\s+/).filter(Boolean).length
       const curName = String(out.name||'').trim()
       const needsEnrich = !curName || wc(curName) < 4 || genericOnly.has(curName)
       if (needsEnrich) {
-        const isSet = /(طقم)/i.test(raw)
-        const isLingerie = /(لانجري|لنجري|lingerie)/i.test(raw)
-        const isDress = /(فستان|فسان)/i.test(raw)
-        const isJalabiya = /(جلابيه|جلابية)/i.test(raw)
-        const baseType = isSet ? 'طقم' : (isLingerie ? 'لانجري' : (isDress ? 'فستان' : (isJalabiya ? 'جلابية' : curName)))
+        const isSet = /(???)/i.test(raw)
+        const isLingerie = /(??????|?????|lingerie)/i.test(raw)
+        const isDress = /(?????|????)/i.test(raw)
+        const isJalabiya = /(??????|??????)/i.test(raw)
+        const baseType = isSet ? '???' : (isLingerie ? '??????' : (isDress ? '?????' : (isJalabiya ? '??????' : curName)))
         const feats:string[] = []
-        if (/(نسائي|نسائية)/i.test(raw)) feats.push('نسائي')
-        else if (/(رجالي|رجالية)/i.test(raw)) feats.push('رجالي')
-        if (/صوف|wool/i.test(raw)) feats.push('صوف')
-        if (/قطن|cotton/i.test(raw)) feats.push('قطن')
-        if (/حرير|silk/i.test(raw)) feats.push('حرير')
-        if (/شيفون|chiffon/i.test(raw)) feats.push('شيفون')
-        if (/(تطريز|مطرز)/i.test(raw) && baseType!=='لانجري') feats.push('مطرز')
-        if (/(كرستال|كريستال)/i.test(raw) && baseType!=='لانجري') feats.push('بالكريستال')
-        if (/كم\s*كامل/i.test(raw)) feats.push('كم كامل')
-        if (/(ربطة\s*خصر|حزام\s*خصر)/i.test(raw)) feats.push('وربطة خصر')
+        if (/(?????|??????)/i.test(raw)) feats.push('?????')
+        else if (/(?????|??????)/i.test(raw)) feats.push('?????')
+        if (/???|wool/i.test(raw)) feats.push('???')
+        if (/???|cotton/i.test(raw)) feats.push('???')
+        if (/????|silk/i.test(raw)) feats.push('????')
+        if (/?????|chiffon/i.test(raw)) feats.push('?????')
+        if (/(?????|????)/i.test(raw) && baseType!=='??????') feats.push('????')
+        if (/(??????|???????)/i.test(raw) && baseType!=='??????') feats.push('??????????')
+        if (/??\s*????/i.test(raw)) feats.push('?? ????')
+        if (/(????\s*???|????\s*???)/i.test(raw)) feats.push('????? ???')
         // Lingerie-specific cues to avoid generic single-word names
-        if (/(تول|تل)/i.test(raw)) feats.push('تول')
-        if (/شفاف/i.test(raw)) feats.push('شفاف')
-        if (/(صدريه|صدرية)/i.test(raw)) feats.push('بصدريه')
-        if (/(جبير|جلير)/i.test(raw)) feats.push('جبير')
-        if (/حزام\s*منفصل/i.test(raw)) feats.push('وحزام منفصل')
-        if (/(نمري|نمر)/i.test(raw)) feats.push('نمري')
-        if (/(\b4\s*قطع|أربع\s*قطع|٤\s*قطع)/i.test(raw)) feats.push('٤ قطع')
+        if (/(???|??)/i.test(raw)) feats.push('???')
+        if (/????/i.test(raw)) feats.push('????')
+        if (/(?????|?????)/i.test(raw)) feats.push('??????')
+        if (/(????|????)/i.test(raw)) feats.push('????')
+        if (/????\s*?????/i.test(raw)) feats.push('????? ?????')
+        if (/(????|???)/i.test(raw)) feats.push('????')
+        if (/(\b4\s*???|????\s*???|?\s*???)/i.test(raw)) feats.push('? ???')
         const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
         if (wc(enriched) >= 4) { out.name = enriched; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
       }
@@ -5797,14 +5793,14 @@ adminRest.post('/products/analyze', async (req, res) => {
     // Attach per-field reasons if missing
     // Use raw text to detect plural-colors mention without relying on local variables' scope
     const rawTextForNotes = String(((req as any).body?.text) || '');
-    const mentionsPluralColors = /\b(?:3|ثلاث(?:ه|ة)?)\s*الوان|(?:ثلاثه|ثلاثة)\s*ألوان\b/i.test(rawTextForNotes);
+    const mentionsPluralColors = /\b(?:3|????(?:?|?)?)\s*?????|(?:?????|?????)\s*?????\b/i.test(rawTextForNotes);
     const reasons: Record<string,string|undefined> = {
-      name: out.name ? undefined : 'لم يتم العثور على نوع/صفة/خامة كافية في النص.',
-      description: out.description ? undefined : 'النص قصير أو غير كافٍ لتوليد وصف.',
-      sizes: (out.sizes && out.sizes.length) ? undefined : 'لم يتم العثور على نمط مقاسات معروف (مثل فري سايز/XL/M).',
-      colors: (out.colors && out.colors.length) ? undefined : (mentionsPluralColors ? 'ذُكر وجود عدة ألوان دون تسميتها.' : 'لا توجد ألوان واضحة بالنص أو فشل استخراج الألوان من الصور.'),
-      price_range: out.price_range ? undefined : 'لم يتم العثور على سطر سعر واضح. أضف سطر السعر (الشمال/قديم/مشابه).',
-      tags: (out.tags && out.tags.length) ? undefined : 'لا توجد كلمات مفتاحية كافية بعد إزالة الضوضاء.',
+      name: out.name ? undefined : '?? ??? ?????? ??? ???/???/???? ????? ?? ????.',
+      description: out.description ? undefined : '???? ???? ?? ??? ???? ?????? ???.',
+      sizes: (out.sizes && out.sizes.length) ? undefined : '?? ??? ?????? ??? ??? ?????? ????? (??? ??? ????/XL/M).',
+      colors: (out.colors && out.colors.length) ? undefined : (mentionsPluralColors ? '???? ???? ??? ????? ??? ???????.' : '?? ???? ????? ????? ????? ?? ??? ??????? ??????? ?? ?????.'),
+      price_range: out.price_range ? undefined : '?? ??? ?????? ??? ??? ??? ????. ??? ??? ????? (??????/????/?????).',
+      tags: (out.tags && out.tags.length) ? undefined : '?? ???? ????? ??????? ????? ??? ????? ???????.',
     };
     const result:any = Object.fromEntries(Object.entries(out).map(([k,v])=> [k, { value:v, reason: reasons[k], ...(sources as any)[k] || { source:'rules', confidence:0.3 } }]));
     if (process.env.ANALYZE_DEBUG === '1') {
@@ -5813,7 +5809,7 @@ adminRest.post('/products/analyze', async (req, res) => {
     }
     // Attach meta.deepseekUsed by recomputing based on sources
     const deepseekUsed = Object.values(sources||{}).some((s:any)=> String(s?.source).toLowerCase()==='ai')
-    const reason = deepseekUsed ? undefined : (deepseekAttempted ? 'جودة عالية (لا حاجة للتصحيح)' : undefined)
+    const reason = deepseekUsed ? undefined : (deepseekAttempted ? '???? ????? (?? ???? ???????)' : undefined)
     return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted, reason } });
   }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
@@ -5847,30 +5843,30 @@ function buildDescriptionTableFromText(input: string): Array<{ label: string; va
     const v = String(val || '').trim(); if (!v) return;
     const existing = out.find(r => r.label === label);
     if (!existing) out.push({ label, value: v });
-    else if (!existing.value.split(/\s*[،,]\s*/).includes(v)) existing.value += `، ${v}`;
+    else if (!existing.value.split(/\s*[?,]\s*/).includes(v)) existing.value += `? ${v}`;
   };
   const textRaw = String(input || '');
   const toAscii = (s: string) => s
     .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
     .replace(/[\u06F0-\u06F9]/g, (d) => String((d as any).charCodeAt(0) - 0x06F0));
-  const preserve = toAscii(textRaw).replace(/[\*•]+/g, '\n');
+  const preserve = toAscii(textRaw).replace(/[\*?]+/g, '\n');
   const lines = preserve.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const labelMap: Record<string, 'الخامة'|'الصناعة'|'التصميم'|'الألوان'|'المقاسات'|'الميزات'> = {
-    'الخامة': 'الخامة', 'قماش': 'الخامة', 'fabric': 'الخامة',
-    'الصناعة': 'الصناعة',
-    'التصميم': 'التصميم', 'design': 'التصميم',
-    'الألوان': 'الألوان', 'الوان': 'الألوان', 'colors': 'الألوان',
-    'المقاسات': 'المقاسات', 'sizes': 'المقاسات',
-    'الميزات': 'الميزات', 'features': 'الميزات'
+  const labelMap: Record<string, '??????'|'???????'|'???????'|'???????'|'????????'|'???????'> = {
+    '??????': '??????', '????': '??????', 'fabric': '??????',
+    '???????': '???????',
+    '???????': '???????', 'design': '???????',
+    '???????': '???????', '?????': '???????', 'colors': '???????',
+    '????????': '????????', 'sizes': '????????',
+    '???????': '???????', 'features': '???????'
   } as any;
   for (const line of lines) {
-    const m = line.match(/^\s*([^:：\-]+)\s*[:：\-]\s*(.+)$/);
+    const m = line.match(/^\s*([^:?\-]+)\s*[:?\-]\s*(.+)$/);
     if (m) {
       const key = String(m[1]).trim(); const val = String(m[2]).trim();
       const canonical = labelMap[key as keyof typeof labelMap];
-      if (canonical === 'الألوان') {
-        const generics = /\b(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة)|غير\s*محدد)\b/i;
-        if (!generics.test(val)) put('الألوان', val.replace(/\[|\]|"/g,'').replace(/^ال/,'').trim());
+      if (canonical === '???????') {
+        const generics = /\b(?:???\s*????|??????\s*(?:??????|?????(?:?|?)|?????)|???\s*????)\b/i;
+        if (!generics.test(val)) put('???????', val.replace(/\[|\]|"/g,'').replace(/^??/,'').trim());
       } else if (canonical) {
         put(canonical, val);
       }
@@ -5878,23 +5874,23 @@ function buildDescriptionTableFromText(input: string): Array<{ label: string; va
   }
   // If explicit labels missing, infer selectively
   const text = preserve;
-  if (!out.find(r=> r.label==='الخامة')) {
-    const mat = text.match(/(استرش|قطن|صوف|جلد|لينن|دنيم|denim|cotton|wool|leather)/i)?.[0];
-    put('الخامة', mat);
+  if (!out.find(r=> r.label==='??????')) {
+    const mat = text.match(/(?????|???|???|???|????|????|denim|cotton|wool|leather)/i)?.[0];
+    put('??????', mat);
   }
-  if (!out.find(r=> r.label==='التصميم')) {
+  if (!out.find(r=> r.label==='???????')) {
     const feats: string[] = [];
-    const FEATS = /(مودرن|حديث|أوروبي|اوروب(?:ي|ي)|رقبة\s*X|سوسته\s*سحاب|حشوه\s*بالصدر|كم\s*كامل|كلوش|امبريلا)/gi;
+    const FEATS = /(?????|????|??????|?????(?:?|?)|????\s*X|?????\s*????|????\s*??????|??\s*????|????|???????)/gi;
     let fm: RegExpExecArray | null; while ((fm = FEATS.exec(text))) { const v = String(fm[0]).trim(); if (v && !feats.includes(v)) feats.push(v); }
-    if (feats.length) put('التصميم', feats.join('، '));
+    if (feats.length) put('???????', feats.join('? '));
   }
-  if (!out.find(r=> r.label==='الألوان')) {
-    const colors = Array.from(new Set((text.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|بني|بيج|رمادي|وردي|بنفسجي|كحلي)\b/gi) || []).map(s => s.replace(/^ال/,'').trim())));
-    if (colors.length) put('الألوان', colors.join('، '));
+  if (!out.find(r=> r.label==='???????')) {
+    const colors = Array.from(new Set((text.match(/\b(????|????|????|????|????|????|???|???|?????|????|??????|????)\b/gi) || []).map(s => s.replace(/^??/,'').trim())));
+    if (colors.length) put('???????', colors.join('? '));
   }
-  if (!out.find(r=> r.label==='المقاسات')) {
+  if (!out.find(r=> r.label==='????????')) {
     const sizes = Array.from(new Set((text.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s => s.toUpperCase())));
-    if (sizes.length) put('المقاسات', sizes.join(', '));
+    if (sizes.length) put('????????', sizes.join(', '));
   }
   return out;
 }
@@ -5958,7 +5954,7 @@ adminRest.get('/integrations/deepseek/health', async (req, res) => {
     // Try a minimal call; consider HTTP 200 a reachability success even if parsing fails
     let parsedOk = false; let errMsg = ''
     try {
-      const ds = await callDeepseek({ apiKey, model, input: { text: 'ping', base: { name:'اختبار', description:'نص للاختبار' } }, timeoutMs: 8000 })
+      const ds = await callDeepseek({ apiKey, model, input: { text: 'ping', base: { name:'??????', description:'?? ????????' } }, timeoutMs: 8000 })
       parsedOk = !!ds
       if (!parsedOk) errMsg = 'no_valid_response'
     } catch(e:any){ errMsg = e?.message||'request_failed' }
@@ -6009,7 +6005,7 @@ adminRest.get('/integrations/hf/health', async (req, res) => {
     const apiKey = conf['HF_API_TOKEN'] || process.env.HF_API_TOKEN
     const model = conf['HF_NER_MODEL'] || 'Davlan/bert-base-multilingual-cased-ner-hrl'
     if (!apiKey) return res.status(400).json({ ok:false, error:'missing_key' })
-    const out = await callHfNER({ apiKey, model, text: 'اختبار', timeoutMs: 8000 }).catch(()=> null)
+    const out = await callHfNER({ apiKey, model, text: '??????', timeoutMs: 8000 }).catch(()=> null)
     return res.json({ ok: !!out, count: Array.isArray(out)? out.length : 0 })
   }catch(e:any){ return res.status(500).json({ ok:false, error: e?.message||'hf_health_failed' }) }
 });
@@ -7018,13 +7014,13 @@ adminRest.post('/products/parse', async (req, res) => {
   try {
     const { text, images } = req.body || {};
     const clean = (text||'').replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}]/gu, '');
-    const nameMatch = clean.match(/(?:اسم|name)[:\s]+(.{3,80})/i);
-    const priceMatch = clean.match(/(?:سعر|price)[:\s]+(\d+[\.,]?\d*)/i);
-    const supplierMatch = clean.match(/(?:مورد|supplier)[:\s]+([\w\s-]{2,})/i);
+    const nameMatch = clean.match(/(?:???|name)[:\s]+(.{3,80})/i);
+    const priceMatch = clean.match(/(?:???|price)[:\s]+(\d+[\.,]?\d*)/i);
+    const supplierMatch = clean.match(/(?:????|supplier)[:\s]+([\w\s-]{2,})/i);
     const sizesMatch = clean.match(/\b(XXL|XL|L|M|S|XS)\b/gi) as RegExpMatchArray | null;
     const sizesSource: string[] = sizesMatch ? Array.from(sizesMatch) : [];
     const sizes: string[] = Array.from(new Set<string>(sizesSource)).map((s: string) => s.toUpperCase());
-    const colorsMatch = clean.match(/\b(أحمر|أزرق|أخضر|أسود|أبيض|أصفر|Red|Blue|Green|Black|White|Yellow)\b/gi) as RegExpMatchArray | null;
+    const colorsMatch = clean.match(/\b(????|????|????|????|????|????|Red|Blue|Green|Black|White|Yellow)\b/gi) as RegExpMatchArray | null;
     const colorsSource: string[] = colorsMatch ? Array.from(colorsMatch) : [];
     const colorsText: string[] = Array.from(new Set<string>(colorsSource));
     // Simulate palette extraction: pick random dominant per image
@@ -7070,7 +7066,7 @@ adminRest.post('/products/generate', async (req, res) => {
     const prod = product || {};
     const images: string[] = Array.isArray(media) ? media.map((m: any) => m.url || m.dataUrl || '').filter(Boolean) : [];
     const data: any = {
-      name: prod.name || prod.title || 'منتج',
+      name: prod.name || prod.title || '????',
       description: prod.description || prod.longDesc || prod.shortDesc || '',
       price: Number(prod.price ?? prod.salePrice ?? 0),
       images,
@@ -7095,11 +7091,11 @@ adminRest.post('/products/generate', async (req, res) => {
           if (sizeRaw.includes('|')) {
             for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (val) parts.push(`${k}: ${val}`); }
           } else {
-            parts.push(`المقاس: ${sizeRaw}`);
+            parts.push(`??????: ${sizeRaw}`);
           }
         }
-        if (colorRaw) parts.push(`اللون: ${colorRaw}`);
-        const label = parts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+        if (colorRaw) parts.push(`?????: ${colorRaw}`);
+        const label = parts.filter(Boolean).join(' ? ').slice(0, 120) || 'Variant';
         // Normalize option_values array
         const option_values: Array<{ name: string; value: string }> = [];
         if (sizeRaw) {
@@ -7211,7 +7207,7 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
         // Derive size/color from option_values when explicit fields are missing
         try {
           if (!out.size) {
-            const sizeVals = mapped.filter(o => /size|مقاس/i.test(o.name)).map(o => o.value).filter(Boolean);
+            const sizeVals = mapped.filter(o => /size|????/i.test(o.name)).map(o => o.value).filter(Boolean);
             if (sizeVals.length > 1) {
               // Preserve composite format (k:v) sequences separated by '|'
               out.size = sizeVals.join('|');
@@ -7220,7 +7216,7 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
             }
           }
           if (!out.color) {
-            const colorVal = mapped.find(o => /color|لون/i.test(o.name))?.value;
+            const colorVal = mapped.find(o => /color|???/i.test(o.name))?.value;
             if (colorVal) out.color = colorVal;
           }
         } catch {}
@@ -7237,10 +7233,10 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
         const name = norm(it?.name || it?.key);
         const value = norm(it?.value || it?.val || it?.label);
         if (!value) continue;
-        if (/size|مقاس/i.test(name)) {
-          // Preserve composite labels like "مقاسات بالأحرف:M"
+        if (/size|????/i.test(name)) {
+          // Preserve composite labels like "?????? ???????:M"
           if (!out.size) out.size = value;
-        } else if (/color|لون/i.test(name)) {
+        } else if (/color|???/i.test(name)) {
           if (!out.color) out.color = value;
         }
       }
@@ -7255,23 +7251,23 @@ function transliterateSkuToken(raw?: string): string {
   if (!s) return '';
   const lower = s.toLowerCase();
   const map: Record<string, string> = {
-    'أحمر': 'RED', 'احمر': 'RED', 'red': 'RED',
-    'أزرق': 'BLUE', 'ازرق': 'BLUE', 'blue': 'BLUE',
-    'أخضر': 'GRN', 'اخضر': 'GRN', 'green': 'GRN',
-    'أسود': 'BLK', 'اسود': 'BLK', 'black': 'BLK',
-    'أبيض': 'WHT', 'ابيض': 'WHT', 'white': 'WHT',
-    'أصفر': 'YLW', 'اصفر': 'YLW', 'yellow': 'YLW',
-    'بنفسجي': 'PUR', 'purple': 'PUR',
-    'وردي': 'PNK', 'زهري': 'PNK', 'pink': 'PNK',
-    'رمادي': 'GRY', 'gray': 'GRY', 'grey': 'GRY',
-    'كحلي': 'NAVY', 'navy': 'NAVY',
-    'بيج': 'BEIGE', 'beige': 'BEIGE',
-    'بني': 'BRN', 'brown': 'BRN',
-    'برتقالي': 'ORG', 'orange': 'ORG',
-    'ذهبي': 'GLD', 'gold': 'GLD',
-    'فضي': 'SLV', 'silver': 'SLV',
-    'سماوي': 'CYN', 'cyan': 'CYN',
-    'تركواز': 'TRQ', 'تركوازي': 'TRQ', 'turquoise': 'TRQ'
+    '????': 'RED', '????': 'RED', 'red': 'RED',
+    '????': 'BLUE', '????': 'BLUE', 'blue': 'BLUE',
+    '????': 'GRN', '????': 'GRN', 'green': 'GRN',
+    '????': 'BLK', '????': 'BLK', 'black': 'BLK',
+    '????': 'WHT', '????': 'WHT', 'white': 'WHT',
+    '????': 'YLW', '????': 'YLW', 'yellow': 'YLW',
+    '??????': 'PUR', 'purple': 'PUR',
+    '????': 'PNK', '????': 'PNK', 'pink': 'PNK',
+    '?????': 'GRY', 'gray': 'GRY', 'grey': 'GRY',
+    '????': 'NAVY', 'navy': 'NAVY',
+    '???': 'BEIGE', 'beige': 'BEIGE',
+    '???': 'BRN', 'brown': 'BRN',
+    '???????': 'ORG', 'orange': 'ORG',
+    '????': 'GLD', 'gold': 'GLD',
+    '???': 'SLV', 'silver': 'SLV',
+    '?????': 'CYN', 'cyan': 'CYN',
+    '??????': 'TRQ', '???????': 'TRQ', 'turquoise': 'TRQ'
   };
   if (map[lower]) return map[lower];
   // If purely alphanumeric/latin/numeric, keep sanitized upper
@@ -7293,12 +7289,12 @@ adminRest.get('/products/:id', async (req, res) => {
     const sizes = new Set<string>();
     const colors = new Set<string>();
     const norm = (s: any) => String(s||'').trim();
-    const looksSize = (s: string) => /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2}|\d{1,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(s.trim());
+    const looksSize = (s: string) => /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2}|\d{1,3}|????|???|?????|????|???? ???|???|????|??)$/i.test(s.trim());
     const isColor = (s: string) => {
       const t = s.trim().toLowerCase();
-      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
+      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','????','????','????','????','????','????','????','????','????','????','????','????','????','??????','???????','???','?????','?????','????','???'].includes(t));
     };
-    const split = (s: string) => s.split(/[,\/\-|·•]+/).map(x=>x.trim()).filter(Boolean);
+    const split = (s: string) => s.split(/[,\/\-|??]+/).map(x=>x.trim()).filter(Boolean);
     const takeFromOptions = (rec: any) => {
       const bags = [rec?.option_values, rec?.optionValues, rec?.options, rec?.attributes];
       for (const arr of bags) {
@@ -7307,8 +7303,8 @@ adminRest.get('/products/:id', async (req, res) => {
           const name = norm(it?.name||it?.key);
           const val = norm(it?.value||it?.val||it?.label);
           if (!val) continue;
-          if (/size|مقاس/i.test(name)) { if (!isColor(val)) sizes.add(val) }
-          else if (/color|لون/i.test(name)) { if (isColor(val)) colors.add(val) }
+          if (/size|????/i.test(name)) { if (!isColor(val)) sizes.add(val) }
+          else if (/color|???/i.test(name)) { if (isColor(val)) colors.add(val) }
           else if (looksSize(val)) sizes.add(val);
           else if (isColor(val)) colors.add(val);
         }
@@ -7319,8 +7315,8 @@ adminRest.get('/products/:id', async (req, res) => {
       const name = norm((v as any).name);
       const value = norm((v as any).value);
       for (const t of split(`${name} ${value}`)) { if (looksSize(t)) sizes.add(t); else if (isColor(t)) colors.add(t); }
-      if (/size|مقاس/i.test(name) && looksSize(value)) sizes.add(value);
-      if (/color|لون/i.test(name) && isColor(value)) colors.add(value);
+      if (/size|????/i.test(name) && looksSize(value)) sizes.add(value);
+      if (/color|???/i.test(name) && isColor(value)) colors.add(value);
       // Try JSON in value/name
       try { if (value && (value.startsWith('{')||value.startsWith('['))) takeFromOptions(JSON.parse(value)); } catch {}
       try { if (name && (name.startsWith('{')||name.startsWith('['))) takeFromOptions(JSON.parse(name)); } catch {}
@@ -7406,9 +7402,9 @@ adminRest.post('/products/:id/variants', async (req, res) => {
           for (const o of ov) {
             const name = norm(o?.name||o?.key);
             const val = norm(o?.value||o?.val||o?.label);
-            if (/size|مقاس/i.test(name)) {
+            if (/size|????/i.test(name)) {
               size = size || val;
-            } else if (/color|لون/i.test(name)) {
+            } else if (/color|???/i.test(name)) {
               color = color || val;
             }
           }
@@ -7423,7 +7419,7 @@ adminRest.post('/products/:id/variants', async (req, res) => {
             for (const part of size.split('|')) {
               const [k, val] = part.split(':', 2);
               const pr = norm(val||k||'');
-              if (/بالأرقام/.test(k||'') || looksNumeric(pr)) numbers.add(pr);
+              if (/????????/.test(k||'') || looksNumeric(pr)) numbers.add(pr);
               else letters.add(pr);
             }
           } else {
@@ -7439,7 +7435,7 @@ adminRest.post('/products/:id/variants', async (req, res) => {
           const { size, color } = getMeta(v);
           let L=''; let N='';
           if (size && size.includes('|')) {
-            for (const part of size.split('|')) { const [k,val]=part.split(':',2); const pr=norm(val||''); if (/بالأرقام/.test(k||'') || looksNumeric(pr)) N=pr; else L=pr; }
+            for (const part of size.split('|')) { const [k,val]=part.split(':',2); const pr=norm(val||''); if (/????????/.test(k||'') || looksNumeric(pr)) N=pr; else L=pr; }
           } else if (size) {
             if (looksNumeric(size)) N = norm(size); else L = norm(size);
           }
@@ -7452,13 +7448,13 @@ adminRest.post('/products/:id/variants', async (req, res) => {
           const k = keyOf(c, L, N);
           if (exists.has(k)) continue;
           add.push({
-            name: `مقاسات بالأحرف: ${L} • مقاسات بالأرقام: ${N} • اللون: ${c}`,
+            name: `?????? ???????: ${L} ? ?????? ????????: ${N} ? ?????: ${c}`,
             value: undefined,
             price: basePrice,
             stockQuantity: baseStock,
-            size: `مقاسات بالأحرف:${L}|مقاسات بالأرقام:${N}`,
+            size: `?????? ???????:${L}|?????? ????????:${N}`,
             color: c,
-            option_values: [ { name:'size', value:`مقاسات بالأحرف:${L}` }, { name:'size', value:`مقاسات بالأرقام:${N}` }, { name:'color', value:c } ]
+            option_values: [ { name:'size', value:`?????? ???????:${L}` }, { name:'size', value:`?????? ????????:${N}` }, { name:'color', value:c } ]
           });
         }
         if (add.length) (rows as any).push(...add);
@@ -7477,10 +7473,10 @@ adminRest.post('/products/:id/variants', async (req, res) => {
       const pfx = sanitizeToken((p as any)?.sku||'') || sanitizeToken((p as any)?.name||'');
       return pfx || ('PRD' + sanitizeToken((p as any)?.id||'').slice(-5));
     })();
-    const looksSize = (s:string)=> /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)$/i.test(String(s||'').trim());
+    const looksSize = (s:string)=> /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2,3}|????|???|?????|????|???? ???|???|????|??)$/i.test(String(s||'').trim());
     const isColor = (s:string)=> {
       const t = String(s||'').trim().toLowerCase();
-      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','أحمر','ازرق','أزرق','اخضر','أخضر','اصفر','أصفر','وردي','زهري','اسود','أسود','ابيض','أبيض','بنفسجي','برتقالي','بني','رمادي','سماوي','ذهبي','فضي'].includes(t));
+      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','????','????','????','????','????','????','????','????','????','????','????','????','????','??????','???????','???','?????','?????','????','???'].includes(t));
     };
   const batchSeen = new Set<string>();
   const baseCounts = new Map<string, number>();
@@ -7494,7 +7490,7 @@ adminRest.post('/products/:id/variants', async (req, res) => {
         const [k, val] = part.split(':', 2);
         const v = String((val||part)||'').trim();
         if (!v) continue;
-        if (/أحرف|letters/i.test(String(k||''))) { letters = letters || v; continue; }
+        if (/????|letters/i.test(String(k||''))) { letters = letters || v; continue; }
         if (/^\d{1,4}$/i.test(v)) numeric = numeric || v;
         if (!letters) letters = v;
       }
@@ -7549,7 +7545,7 @@ adminRest.post('/products/:id/variants', async (req, res) => {
           const hex = src.match(/#([0-9a-f]{3}|[0-9a-f]{6})/i);
           if (!colorVal && hex) colorVal = hex[0];
           if (!sizeVal) {
-            const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|\d{2,3}|صغير|وسط|متوسط|كبير|كبير جدا|فري|واحد|حر)\b/i);
+            const m = src.match(/\b(xxs|xs|s|m|l|xl|xxl|xxxl|\d{2,3}|????|???|?????|????|???? ???|???|????|??)\b/i);
             if (m) sizeVal = m[1];
           }
         }
@@ -7610,11 +7606,11 @@ adminRest.put('/products/:id/variants/replace', async (req, res) => {
           if (sizeRaw.includes('|')) {
             for (const part of sizeRaw.split('|')) { const [k, val] = part.split(':', 2); if (val) parts.push(`${k}: ${val}`); }
           } else {
-            parts.push(`المقاس: ${sizeRaw}`);
+            parts.push(`??????: ${sizeRaw}`);
           }
         }
-        if (colorRaw) parts.push(`اللون: ${colorRaw}`);
-        const label = parts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+        if (colorRaw) parts.push(`?????: ${colorRaw}`);
+        const label = parts.filter(Boolean).join(' ? ').slice(0, 120) || 'Variant';
         const option_values: Array<{ name: string; value: string }> = [];
         if (sizeRaw) {
           if (sizeRaw.includes('|')) {
@@ -7733,9 +7729,9 @@ adminRest.patch('/products/:id', async (req, res) => {
             colorEff = colorVal || prevColor;
             if (sizeEff && sizeEff.includes('|')) {
               for (const part of sizeEff.split('|')) { if (part) labelParts.push(part.replace(':', ': ')); }
-            } else if (sizeEff) { labelParts.push(`المقاس: ${sizeEff}`); }
-            if (colorEff) labelParts.push(`اللون: ${colorEff}`);
-            const label = labelParts.filter(Boolean).join(' • ').slice(0, 120) || 'Variant';
+            } else if (sizeEff) { labelParts.push(`??????: ${sizeEff}`); }
+            if (colorEff) labelParts.push(`?????: ${colorEff}`);
+            const label = labelParts.filter(Boolean).join(' ? ').slice(0, 120) || 'Variant';
             base.name = label;
             // Normalize option_values
             let finalOV = ovRaw && Array.isArray(ovRaw) ? ovRaw : prevOV;
@@ -7812,12 +7808,12 @@ adminRest.patch('/products/:id', async (req, res) => {
       if (old) {
         if (typeof old.stockQuantity === 'number' && typeof (p as any).stockQuantity === 'number' && old.stockQuantity <= 0 && (p as any).stockQuantity > 0) {
           const subs: any[] = await db.$queryRawUnsafe('SELECT id, email FROM "BackInStockSub" WHERE "productId"=$1', id);
-          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'المنتج عاد للمخزون', html: 'المنتج ' + ((old as any).name||id) + ' أصبح متاحاً.' }); } catch {} }
+          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: '?????? ??? ???????', html: '?????? ' + ((old as any).name||id) + ' ???? ??????.' }); } catch {} }
           await db.$executeRawUnsafe('DELETE FROM "BackInStockSub" WHERE "productId"=$1', id);
         }
         if (typeof old.price === 'number' && typeof (p as any).price === 'number' && (p as any).price < old.price) {
           const subs: any[] = await db.$queryRawUnsafe('SELECT id, email FROM "PriceDropSub" WHERE "productId"=$1', id);
-          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: 'انخفاض سعر المنتج', html: 'تم خفض سعر المنتج ' + ((old as any).name||id) + ' من ' + old.price + ' إلى ' + (p as any).price + '.' }); } catch {} }
+          for (const s of subs) { try { await tx.sendMail({ from: process.env.SMTP_FROM||'no-reply@jeeey.com', to: s.email, subject: '?????? ??? ??????', html: '?? ??? ??? ?????? ' + ((old as any).name||id) + ' ?? ' + old.price + ' ??? ' + (p as any).price + '.' }); } catch {} }
           await db.$executeRawUnsafe('DELETE FROM "PriceDropSub" WHERE "productId"=$1', id);
         }
       }
@@ -7925,7 +7921,7 @@ adminRest.post('/attributes/size-types/:id/sizes', async (req, res) => {
   } catch (e: any) {
     const msg = String(e?.message||'').toLowerCase();
     if (msg.includes('unique') || msg.includes('duplicate')) {
-      return res.status(409).json({ error: 'duplicate', message: 'المقاس موجود لهذا النوع' });
+      return res.status(409).json({ error: 'duplicate', message: '?????? ????? ???? ?????' });
     }
     return res.status(500).json({ error: 'create_failed', message: e?.message || 'failed' });
   }
@@ -8323,7 +8319,7 @@ adminRest.delete('/categories/:id', async (req, res) => {
       let replacementCategoryId: string | null = cat.parentId || null;
       if (!replacementCategoryId) {
         let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-        if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
+        if (!unc) { unc = await tx.category.create({ data: { name: '??? ????', slug: 'uncategorized' } }); }
         replacementCategoryId = unc.id;
       }
 
@@ -8342,7 +8338,7 @@ adminRest.delete('/categories/:id', async (req, res) => {
       const cat: { parentId: string|null }[] = await db.$queryRaw`SELECT "parentId" FROM "Category" WHERE id=${id} LIMIT 1`;
       const parentId = cat?.[0]?.parentId ?? null;
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
+      if (!unc) { unc = await db.category.create({ data: { name: '??? ????', slug: 'uncategorized' } }); }
       await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentId} WHERE "parentId"=${id}`;
       await db.$executeRaw`UPDATE "Product" SET "categoryId"=${unc.id} WHERE "categoryId"=${id}`;
       await db.$executeRaw`DELETE FROM "Category" WHERE id=${id}`;
@@ -8366,7 +8362,7 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
       for (const col of colsTx2){ try { await tx.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       // Ensure replacement category once per batch
       let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
+      if (!unc) { unc = await tx.category.create({ data: { name: '??? ????', slug: 'uncategorized' } }); }
       const uncId = unc.id;
 
       // Reparent all children away from any target id
@@ -8384,7 +8380,7 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
       const colsDb2 = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
       for (const col of colsDb2) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
+      if (!unc) { unc = await db.category.create({ data: { name: '??? ????', slug: 'uncategorized' } }); }
       const uncId = unc.id;
       await db.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY(${ids}::text[])`;
       await db.$executeRaw`UPDATE "Product" SET "categoryId"=${uncId} WHERE "categoryId" = ANY(${ids}::text[])`;
@@ -8615,201 +8611,27 @@ adminRest.get('/public/theme/config', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'theme_config_failed' }); }
 });
 
-// ===== Categories Page Builder (Draft/Live stored in Setting) =====
-adminRest.get('/categories/page', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.query.site||'mweb');
-    const mode = String(req.query.mode||'draft'); // draft|live
-    const key = `categoriesPage:${site}:${mode}`;
-    const s = await db.setting.findUnique({ where: { key } });
-    const rawConfig = s?.value ?? null;
-    if (rawConfig == null) {
-      return res.json({ site, mode, config: null });
-    }
-    const { config, error } = normalizeCategoriesPageConfig(rawConfig);
-    if (!config && error) {
-      console.warn('categories_page_get_invalid_config', { site, mode, error });
-    }
-    res.json({ site, mode, config: config ?? rawConfig });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_get_failed' }); }
+// ===== Categories Page Builder (removed) =====
+// Legacy endpoints `/categories/page*` have been removed. Settings entries will be cleaned up via migration.
+adminRest.get('/categories/page/summary', async (_req, res) => {
+  res.status(410).json({ error: 'categories_page_removed' });
 });
-// Summary for manager table (draft/live per site)
-adminRest.get('/categories/page/summary', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const sites = ['mweb','web'];
-    const rows = [] as any[];
-    for (const site of sites){
-      const draftKey = `categoriesPage:${site}:draft`;
-      const liveKey = `categoriesPage:${site}:live`;
-      const d = await db.setting.findUnique({ where: { key: draftKey } });
-      const l = await db.setting.findUnique({ where: { key: liveKey } });
-      rows.push({ site, hasDraft: !!d, hasLive: !!l, draftUpdatedAt: (d as any)?.updatedAt||null, liveUpdatedAt: (l as any)?.updatedAt||null });
-    }
-    res.json({ items: rows });
-  }catch(e:any){ res.status(500).json({ error: e?.message||'categories_page_summary_failed' }); }
+// Import default config from current mweb template (seed) [removed]
+adminRest.post('/categories/page/import-default', async (_req, res) => {
+  res.status(410).json({ error: 'categories_page_removed' });
 });
-// Import default config from current mweb template (seed)
-adminRest.post('/categories/page/import-default', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.body?.site||'mweb');
-    const promoBanner = { enabled: true, image: 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo', title: 'جديد ملابس النساء', href: '/products' };
-    const mk = (id:string, name:string, q:string, badge?:string)=> ({ id, name, image: `https://csspicker.dev/api/image/?q=${encodeURIComponent(q)}&image_type=photo`, ...(badge? { badge }: {}) });
-    const women = [
-      mk('women-new','الجديد في','new women fashion','جديد'),
-      mk('women-dresses','فساتين','dresses'),
-      mk('women-long-dresses','فساتين طويلة','long dresses'),
-      mk('women-tops','ملابس علوية','women tops'),
-      mk('women-tshirts','تي شيرتات','women tshirts'),
-      mk('women-blouses','بلايز','blouses'),
-      mk('women-bottoms','ملابس سفلية','women bottoms'),
-      mk('women-skirts','تنانير','skirts'),
-      mk('women-pants','بناطيل','women pants'),
-      mk('women-knits','منسوجة','knit wear'),
-      mk('women-sweaters','سويترات','sweaters'),
-      mk('women-sets','أطقم منسقة','matching sets'),
-    ];
-    const men = [
-      mk('men-new','جديد رجالي','men fashion new','جديد'),
-      mk('men-shirts','قمصان','men shirts'),
-      mk('men-tshirts','تيشيرتات','men tshirts'),
-      mk('men-pants','بناطيل','men pants'),
-      mk('men-hoodies','هوديز','men hoodies'),
-      mk('men-jackets','جاكيتات','men jackets'),
-      mk('men-shoes','أحذية رجالية','men shoes'),
-      mk('men-accessories','إكسسوارات رجالية','men accessories'),
-    ];
-    const kids = [
-      mk('kids-new','جديد أطفال','kids fashion new','جديد'),
-      mk('kids-girls','ملابس بنات','girls clothing'),
-      mk('kids-boys','ملابس أولاد','boys clothing'),
-      mk('kids-baby','ملابس رضع','baby clothing'),
-      mk('kids-shoes','أحذية أطفال','kids shoes'),
-      mk('kids-toys','ألعاب','kids toys'),
-    ];
-    const plus = [
-      mk('plus-women','مقاسات كبيرة نساء','plus size women'),
-      mk('plus-men','مقاسات كبيرة رجال','plus size men'),
-      mk('plus-dresses','فساتين واسعة','plus size dresses'),
-      mk('plus-activewear','ملابس رياضية','plus size activewear'),
-    ];
-    const home = [
-      mk('home-decor','ديكور منزلي','home decor'),
-      mk('home-kitchen','أدوات مطبخ','kitchen tools'),
-      mk('home-bedding','مفروشات','bedding'),
-      mk('home-pets','مستلزمات حيوانات','pet supplies'),
-      mk('home-storage','تخزين وتنظيم','storage organization'),
-    ];
-    const beauty = [
-      mk('beauty-makeup','مكياج','makeup'),
-      mk('beauty-skincare','العناية بالبشرة','skincare'),
-      mk('beauty-haircare','العناية بالشعر','haircare'),
-      mk('beauty-fragrance','عطور','perfume'),
-      mk('beauty-nails','العناية بالأظافر','nail care'),
-      mk('beauty-tools','أدوات تجميل','beauty tools'),
-    ];
-    const suggestions = [
-      mk('sug-accessories','إكسسوارات عصرية','fashion accessories'),
-      mk('sug-kids','ملابس أطفال مريحة','kids comfortable clothing'),
-      mk('sug-sports','معدات رياضية','sports equipment'),
-      mk('sug-bags','حقائب أنيقة','stylish bags'),
-      mk('sug-shoes','أحذية مريحة','comfortable shoes'),
-      mk('sug-jewelry','مجوهرات','jewelry'),
-    ];
-    const makeItem = (label:string, cats:any[])=> ({ label, grid:{ mode:'explicit', categories: cats }, promoBanner:{ enabled:false }, suggestions:{ enabled:true, title:'ربما يعجبك هذا أيضاً', items: suggestions } });
-    const tabs = [
-      { key:'all', label:'كل', grid:{ mode:'explicit', categories: [] as any[] }, sidebarItems: [ makeItem('مختارات', [...women.slice(0,4), ...men.slice(0,4)]) ] },
-      { key:'women', label:'نساء', featured: women, grid:{ mode:'explicit', categories: women }, sidebarItems: [ makeItem('الكل', women) ] },
-      { key:'kids', label:'أطفال', featured: kids, grid:{ mode:'explicit', categories: kids }, sidebarItems: [ makeItem('الكل', kids) ] },
-      { key:'men', label:'رجال', featured: men, grid:{ mode:'explicit', categories: men }, sidebarItems: [ makeItem('الكل', men) ] },
-      { key:'plus', label:'مقاسات كبيرة', featured: plus, grid:{ mode:'explicit', categories: plus }, sidebarItems: [ makeItem('الكل', plus) ] },
-      { key:'home', label:'المنزل + الحيوانات الأليفة', featured: home, grid:{ mode:'explicit', categories: home }, sidebarItems: [ makeItem('الكل', home) ] },
-      { key:'beauty', label:'تجميل', featured: beauty, grid:{ mode:'explicit', categories: beauty }, sidebarItems: [ makeItem('الكل', beauty) ] },
-    ];
-    const sidebar = [
-      { label:'جديد في', tabKey:'all' },
-      { label:'ملابس نسائية', tabKey:'women' },
-      { label:'الرجالية', tabKey:'men' },
-      { label:'الأطفال', tabKey:'kids' },
-      { label:'المنزل والمطبخ', tabKey:'home' },
-      { label:'مقاسات كبيرة', tabKey:'plus' },
-      { label:'تجميل', tabKey:'beauty' },
-    ];
-    const config = {
-      layout: { showHeader:true, showTabs:true, showSidebar:true, showPromoPopup:false },
-      promoBanner, tabs, sidebar, suggestions,
-      seo: { title:'الفئات', description:'تصفح الفئات على jeeey' },
-    } as any;
-    const draftKey = `categoriesPage:${site}:draft`;
-    const liveKey = `categoriesPage:${site}:live`;
-    await db.setting.upsert({ where: { key: draftKey }, update: { value: config }, create: { key: draftKey, value: config } } as any);
-    await db.setting.upsert({ where: { key: liveKey }, update: { value: config }, create: { key: liveKey, value: config } } as any);
-    await audit(req,'categories_page','import_default',{ site });
-    res.json({ ok:true, site });
-  }catch(e:any){ res.status(500).json({ error: e?.message||'categories_page_import_failed' }); }
+adminRest.put('/categories/page', async (_req, res) => {
+  res.status(410).json({ error: 'categories_page_removed' });
 });
-adminRest.put('/categories/page', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.body?.site||'mweb');
-    const mode = String(req.body?.mode||'draft');
-    let config: CategoriesPageConfig;
-    try {
-      config = assertCategoriesPageConfig(req.body?.config);
-    } catch (err: any) {
-      return res.status(400).json({ error: 'invalid_config', message: err?.message || 'invalid_categories_config' });
-    }
-    const key = `categoriesPage:${site}:${mode}`;
-    const r = await db.setting.upsert({ where: { key }, update: { value: config }, create: { key, value: config } });
-    await audit(req,'categories_page','save',{ site, mode });
-    res.json({ ok:true, config: r.value });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_put_failed' }); }
-});
-adminRest.post('/categories/page/publish', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    const site = String(req.body?.site||'mweb');
-    const draftKey = `categoriesPage:${site}:draft`;
-    const liveKey = `categoriesPage:${site}:live`;
-    const d = await db.setting.findUnique({ where: { key: draftKey } });
-    if (!d?.value) return res.status(404).json({ error:'draft_not_found' });
-    let config: CategoriesPageConfig;
-    try {
-      config = assertCategoriesPageConfig(d.value);
-    } catch (err: any) {
-      return res.status(400).json({ error:'invalid_draft_config', message: err?.message || 'invalid_categories_config' });
-    }
-    await db.setting.upsert({ where: { key: liveKey }, update: { value: config }, create: { key: liveKey, value: config } });
-    await audit(req,'categories_page','publish',{ site });
-    res.json({ ok:true });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_page_publish_failed' }); }
+adminRest.post('/categories/page/publish', async (_req, res) => {
+  res.status(410).json({ error: 'categories_page_removed' });
 });
 // Preview sign/resolve (similar to tabs)
-adminRest.post('/categories/page/preview/sign', async (req, res) => {
-  try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
-    let content: CategoriesPageConfig;
-    try {
-      content = assertCategoriesPageConfig(req.body?.content);
-    } catch (err: any) {
-      return res.status(400).json({ error:'invalid_config', message: err?.message || 'invalid_categories_config' });
-    }
-    const now = Date.now();
-    const token = require('crypto').randomUUID();
-    catsPreviewStore.set(token, { content, exp: now + 5*60*1000 }); // 5 minutes TTL
-    res.json({ token, exp: new Date(now + 5*60*1000).toISOString() });
-  } catch (e:any) { res.status(500).json({ error: e.message||'categories_preview_sign_failed' }); }
+adminRest.post('/categories/page/preview/sign', async (_req, res) => {
+  res.status(410).json({ error: 'categories_page_removed' });
 });
-adminRest.get('/categories/page/preview/:token', async (req, res) => {
-  try{
-    const token = String(req.params.token||'');
-    const row = catsPreviewStore.get(token);
-    if (!row) return res.status(404).json({ error:'not_found' });
-    if (row.exp < Date.now()) { catsPreviewStore.delete(token); return res.status(410).json({ error:'expired' }); }
-    return res.json({ ...row.content });
-  } catch (e:any) { return res.status(500).json({ error: e.message||'categories_preview_fetch_failed' }); }
+adminRest.get('/categories/page/preview/:token', async (_req, res) => {
+  res.status(410).json({ error: 'categories_page_removed' });
 });
 adminRest.get('/notifications/rules', async (req, res) => {
   try {
