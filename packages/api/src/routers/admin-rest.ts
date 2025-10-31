@@ -5756,61 +5756,102 @@ adminRest.post('/products/analyze', async (req, res) => {
     } catch {}
     // Global enforcement: ensure product name is not generic or too short in ANY mode
     try {
-      const raw = String(((req as any).body?.text) || '')
-      const genericOnly = new Set(['?????','??????','?????','??????','??????','?????','????','?????','?????'])
-      const wc = (s:string)=> s.trim().split(/\s+/).filter(Boolean).length
-      const curName = String(out.name||'').trim()
-      const needsEnrich = !curName || wc(curName) < 4 || genericOnly.has(curName)
+      const raw = String(((req as any).body?.text) || '');
+      const genericOnly = new Set([
+        'set',
+        'two piece set',
+        'three piece set',
+        'four piece set',
+        'lingerie',
+        'dress',
+        'gown',
+        'jalabiya',
+        'abaya',
+        'outfit',
+        'look'
+      ]);
+      const wc = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+      const curName = String(out.name || '').trim();
+      const needsEnrich = !curName || wc(curName) < 4 || genericOnly.has(curName.toLowerCase());
       if (needsEnrich) {
-        const isSet = /(???)/i.test(raw)
-        const isLingerie = /(??????|?????|lingerie)/i.test(raw)
-        const isDress = /(?????|????)/i.test(raw)
-        const isJalabiya = /(??????|??????)/i.test(raw)
-        const baseType = isSet ? '???' : (isLingerie ? '??????' : (isDress ? '?????' : (isJalabiya ? '??????' : curName)))
-        const feats:string[] = []
-        if (/(?????|??????)/i.test(raw)) feats.push('?????')
-        else if (/(?????|??????)/i.test(raw)) feats.push('?????')
-        if (/???|wool/i.test(raw)) feats.push('???')
-        if (/???|cotton/i.test(raw)) feats.push('???')
-        if (/????|silk/i.test(raw)) feats.push('????')
-        if (/?????|chiffon/i.test(raw)) feats.push('?????')
-        if (/(?????|????)/i.test(raw) && baseType!=='??????') feats.push('????')
-        if (/(??????|???????)/i.test(raw) && baseType!=='??????') feats.push('??????????')
-        if (/??\s*????/i.test(raw)) feats.push('?? ????')
-        if (/(????\s*???|????\s*???)/i.test(raw)) feats.push('????? ???')
-        // Lingerie-specific cues to avoid generic single-word names
-        if (/(???|??)/i.test(raw)) feats.push('???')
-        if (/????/i.test(raw)) feats.push('????')
-        if (/(?????|?????)/i.test(raw)) feats.push('??????')
-        if (/(????|????)/i.test(raw)) feats.push('????')
-        if (/????\s*?????/i.test(raw)) feats.push('????? ?????')
-        if (/(????|???)/i.test(raw)) feats.push('????')
-        if (/(\b4\s*???|????\s*???|?\s*???)/i.test(raw)) feats.push('? ???')
-        const enriched = [baseType, ...Array.from(new Set(feats))].join(' ').replace(/\s{2,}/g,' ').trim()
-        if (wc(enriched) >= 4) { out.name = enriched; (sources as any).name = { source:'ai', confidence: Math.max(0.85, (sources as any).name?.confidence||0.8) } }
+        const isSet = /\b(set|two[-\s]*piece|three[-\s]*piece|four[-\s]*piece)\b/i.test(raw);
+        const isLingerie = /\b(lingerie|underwear|sleepwear|nightwear|nightgown|bodysuit)\b/i.test(raw);
+        const isDress = /\b(dress|gown|maxi|minidress|evening)\b/i.test(raw);
+        const isJalabiya = /\b(jalabiya|jalabeya|abaya|kaftan|caftan)\b/i.test(raw);
+        const baseType = isSet
+          ? 'Curated set'
+          : isLingerie
+            ? 'Lingerie ensemble'
+            : isDress
+              ? 'Statement dress'
+              : isJalabiya
+                ? 'Traditional jalabiya'
+                : (curName || 'Fashion piece');
+        const featurePatterns: Array<[RegExp, string]> = [
+          [/\b(embroider|embroidery|threadwork|broderie)\b/i, 'embroidered detail'],
+          [/\b(sequin|sparkle|glitter|beaded)\b/i, 'sequin finish'],
+          [/\b(silk|satin)\b/i, 'silky touch'],
+          [/\b(cotton)\b/i, 'cotton comfort'],
+          [/\b(chiffon|organza)\b/i, 'light chiffon'],
+          [/\b(lace)\b/i, 'lace accents'],
+          [/\b(ruffle|pleat|frill)\b/i, 'feminine ruffles'],
+          [/\b(tulle)\b/i, 'layered tulle'],
+          [/\b(belt|waist tie|sash)\b/i, 'waist belt'],
+          [/\b(button|buttoned)\b/i, 'button front'],
+          [/\b(long\s*sleeve)\b/i, 'long sleeves'],
+          [/\b(short\s*sleeve)\b/i, 'short sleeves'],
+          [/\b(off[-\s]*shoulder)\b/i, 'off-shoulder cut'],
+          [/\b(hood)\b/i, 'hooded finish'],
+          [/\b(bralet|bralette|bodysuit)\b/i, 'matching lingerie top'],
+          [/\b(pant|trouser|bottom)\b/i, 'coordinated bottoms']
+        ];
+        const feats = new Set<string>();
+        for (const [pattern, label] of featurePatterns) {
+          if (pattern.test(raw)) feats.add(label);
+        }
+        if (isSet) feats.add('mix-and-match pieces');
+        const enrichedParts = [baseType, ...feats];
+        const enriched = enrichedParts.join(' ').replace(/\s{2,}/g, ' ').trim();
+        if (enriched && wc(enriched) >= 4) {
+          out.name = enriched;
+          (sources as any).name = { source: 'ai', confidence: Math.max(0.85, (sources as any).name?.confidence || 0.8) };
+        }
       }
     } catch {}
     // Attach per-field reasons if missing
     // Use raw text to detect plural-colors mention without relying on local variables' scope
     const rawTextForNotes = String(((req as any).body?.text) || '');
-    const mentionsPluralColors = /\b(?:3|????(?:?|?)?)\s*?????|(?:?????|?????)\s*?????\b/i.test(rawTextForNotes);
-    const reasons: Record<string,string|undefined> = {
-      name: out.name ? undefined : '?? ??? ?????? ??? ???/???/???? ????? ?? ????.',
-      description: out.description ? undefined : '???? ???? ?? ??? ???? ?????? ???.',
-      sizes: (out.sizes && out.sizes.length) ? undefined : '?? ??? ?????? ??? ??? ?????? ????? (??? ??? ????/XL/M).',
-      colors: (out.colors && out.colors.length) ? undefined : (mentionsPluralColors ? '???? ???? ??? ????? ??? ???????.' : '?? ???? ????? ????? ????? ?? ??? ??????? ??????? ?? ?????.'),
-      price_range: out.price_range ? undefined : '?? ??? ?????? ??? ??? ??? ????. ??? ??? ????? (??????/????/?????).',
-      tags: (out.tags && out.tags.length) ? undefined : '?? ???? ????? ??????? ????? ??? ????? ???????.',
+    const mentionsPluralColors = /\b(?:3|three|multi|multiple)\s*colors?\b/i.test(rawTextForNotes) || /\bcolors?\s*(available|options|tones)\b/i.test(rawTextForNotes);
+    const reasons: Record<string, string | undefined> = {
+      name: out.name ? undefined : 'Please provide a descriptive product name (e.g. "Embroidered maxi dress").',
+      description: out.description ? undefined : 'Add a short description covering fabric, fit, and styling tips.',
+      sizes: (out.sizes && out.sizes.length) ? undefined : 'List the available sizes such as S/M/L or numeric ranges.',
+      colors: (out.colors && out.colors.length)
+        ? undefined
+        : (mentionsPluralColors
+            ? 'Colors were mentioned but could not be parsed. Please list them explicitly.'
+            : 'Mention the available colors in a comma-separated list.'),
+      price_range: out.price_range ? undefined : 'Include the price or an approximate range (for example SAR 120-140).',
+      tags: (out.tags && out.tags.length) ? undefined : 'Add merchandising tags such as occasion, style, or material.',
     };
-    const result:any = Object.fromEntries(Object.entries(out).map(([k,v])=> [k, { value:v, reason: reasons[k], ...(sources as any)[k] || { source:'rules', confidence:0.3 } }]));
+    const result: any = Object.fromEntries(
+      Object.entries(out).map(([k, v]) => [k, { value: v, reason: reasons[k], ...(sources as any)[k] || { source: 'rules', confidence: 0.3 } }])
+    );
     if (process.env.ANALYZE_DEBUG === '1') {
       // minimal debug log
-      try { console.debug('[analyze.debug]', { textPresent: Boolean((req.body||{}).text), colorsLen: (out.colors||[]).length, sizesLen: (out.sizes||[]).length, price: out.price_range }); } catch {}
+      try {
+        console.debug('[analyze.debug]', {
+          textPresent: Boolean((req.body || {}).text),
+          colorsLen: (out.colors || []).length,
+          sizesLen: (out.sizes || []).length,
+          price: out.price_range
+        });
+      } catch {}
     }
     // Attach meta.deepseekUsed by recomputing based on sources
-    const deepseekUsed = Object.values(sources||{}).some((s:any)=> String(s?.source).toLowerCase()==='ai')
-    const reason = deepseekUsed ? undefined : (deepseekAttempted ? '???? ????? (?? ???? ???????)' : undefined)
-    return res.json({ ok:true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted, reason } });
+    const deepseekUsed = Object.values(sources || {}).some((s: any) => String(s?.source).toLowerCase() === 'ai');
+    const reason = deepseekUsed ? undefined : (deepseekAttempted ? 'AI enrichment was attempted but fell back to rule-based analysis.' : undefined);
+    return res.json({ ok: true, analyzed: result, warnings, errors, meta: { deepseekUsed, deepseekAttempted, reason } });
   }catch(e:any){ return res.json({ ok:false, analyzed: null, warnings: [], errors: [e.message || 'analyze_failed'] }); }
 });
 
@@ -5840,58 +5881,100 @@ async function saveAnalyzeTeachExample(text: string, analyzed: any): Promise<voi
 function buildDescriptionTableFromText(input: string): Array<{ label: string; value: string }>{
   const out: Array<{ label: string; value: string }> = [];
   const put = (label: string, val?: string) => {
-    const v = String(val || '').trim(); if (!v) return;
-    const existing = out.find(r => r.label === label);
-    if (!existing) out.push({ label, value: v });
-    else if (!existing.value.split(/\s*[?,]\s*/).includes(v)) existing.value += `? ${v}`;
-  };
-  const textRaw = String(input || '');
-  const toAscii = (s: string) => s
-    .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
-    .replace(/[\u06F0-\u06F9]/g, (d) => String((d as any).charCodeAt(0) - 0x06F0));
-  const preserve = toAscii(textRaw).replace(/[\*?]+/g, '\n');
-  const lines = preserve.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const labelMap: Record<string, '??????'|'???????'|'???????'|'???????'|'????????'|'???????'> = {
-    '??????': '??????', '????': '??????', 'fabric': '??????',
-    '???????': '???????',
-    '???????': '???????', 'design': '???????',
-    '???????': '???????', '?????': '???????', 'colors': '???????',
-    '????????': '????????', 'sizes': '????????',
-    '???????': '???????', 'features': '???????'
-  } as any;
-  for (const line of lines) {
-    const m = line.match(/^\s*([^:?\-]+)\s*[:?\-]\s*(.+)$/);
-    if (m) {
-      const key = String(m[1]).trim(); const val = String(m[2]).trim();
-      const canonical = labelMap[key as keyof typeof labelMap];
-      if (canonical === '???????') {
-        const generics = /\b(?:???\s*????|??????\s*(?:??????|?????(?:?|?)|?????)|???\s*????)\b/i;
-        if (!generics.test(val)) put('???????', val.replace(/\[|\]|"/g,'').replace(/^??/,'').trim());
-      } else if (canonical) {
-        put(canonical, val);
-      }
+    const value = String(val || '').trim();
+    if (!value) return;
+    const existing = out.find((row) => row.label === label);
+    if (!existing) {
+      out.push({ label, value });
+    } else if (!existing.value.split(/\s*,\s*/).includes(value)) {
+      existing.value = `${existing.value}, ${value}`;
     }
+  };
+
+  const textRaw = String(input || '');
+  const normalized = textRaw
+    .replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String((d as any).charCodeAt(0) - 0x06F0))
+    .replace(/[\*??\-]+\s*/g, '')
+    .replace(/\r\n?/g, '\n');
+
+  const lines = normalized.split('\n').map((line) => line.trim()).filter(Boolean);
+
+  const labelMap: Record<string, string> = {
+    fabric: 'Fabric',
+    material: 'Fabric',
+    composition: 'Fabric',
+    textile: 'Fabric',
+    design: 'Design details',
+    style: 'Design details',
+    cut: 'Design details',
+    colors: 'Colors',
+    color: 'Colors',
+    'available colors': 'Colors',
+    palette: 'Colors',
+    tones: 'Colors',
+    sizes: 'Sizes',
+    size: 'Sizes',
+    measurements: 'Sizes',
+    fit: 'Fit',
+    features: 'Key features',
+    details: 'Key features',
+    highlights: 'Key features',
+    care: 'Care instructions',
+    washing: 'Care instructions',
+    maintenance: 'Care instructions'
+  };
+
+  for (const line of lines) {
+    const match = line.match(/^([^:??-]+)[:??-]\s*(.+)$/);
+    if (!match) continue;
+    const key = match[1].trim().toLowerCase();
+    const value = match[2].trim();
+    const label = labelMap[key];
+    if (label) put(label, value);
   }
-  // If explicit labels missing, infer selectively
-  const text = preserve;
-  if (!out.find(r=> r.label==='??????')) {
-    const mat = text.match(/(?????|???|???|???|????|????|denim|cotton|wool|leather)/i)?.[0];
-    put('??????', mat);
+
+  const text = normalized;
+
+  if (!out.find((row) => row.label === 'Fabric')) {
+    const fabric = text.match(/\b(denim|cotton|linen|wool|silk|satin|chiffon|lace|leather|polyester|viscose|lycra|spandex)\b/i)?.[0];
+    put('Fabric', fabric);
   }
-  if (!out.find(r=> r.label==='???????')) {
-    const feats: string[] = [];
-    const FEATS = /(?????|????|??????|?????(?:?|?)|????\s*X|?????\s*????|????\s*??????|??\s*????|????|???????)/gi;
-    let fm: RegExpExecArray | null; while ((fm = FEATS.exec(text))) { const v = String(fm[0]).trim(); if (v && !feats.includes(v)) feats.push(v); }
-    if (feats.length) put('???????', feats.join('? '));
+
+  if (!out.find((row) => row.label === 'Key features')) {
+    const featureHits = new Set<string>();
+    const patterns: Array<[RegExp, string]> = [
+      [/\b(embroider|embroidery|broderie)\b/i, 'Embroidered accents'],
+      [/\b(sequin|sparkle|glitter|beaded)\b/i, 'Sequin finish'],
+      [/\b(lace)\b/i, 'Lace trims'],
+      [/\b(ruffle|pleat|frill)\b/i, 'Ruffle detail'],
+      [/\b(belt|waist tie|sash)\b/i, 'Waist belt'],
+      [/\b(button|buttoned)\b/i, 'Button front'],
+      [/\b(pocket)\b/i, 'Functional pockets'],
+      [/\b(hood)\b/i, 'Hooded'],
+      [/\b(tulle)\b/i, 'Tulle layers']
+    ];
+    for (const [regex, label] of patterns) {
+      if (regex.test(text)) featureHits.add(label);
+    }
+    if (featureHits.size) put('Key features', Array.from(featureHits).join(', '));
   }
-  if (!out.find(r=> r.label==='???????')) {
-    const colors = Array.from(new Set((text.match(/\b(????|????|????|????|????|????|???|???|?????|????|??????|????)\b/gi) || []).map(s => s.replace(/^??/,'').trim())));
-    if (colors.length) put('???????', colors.join('? '));
+
+  if (!out.find((row) => row.label === 'Colors')) {
+    const colors = Array.from(new Set(text.match(/\b(red|blue|green|yellow|pink|black|white|purple|orange|brown|gray|grey|navy|beige|gold|silver|teal|cyan)\b/gi) || []));
+    if (colors.length) put('Colors', colors.join(', '));
   }
-  if (!out.find(r=> r.label==='????????')) {
-    const sizes = Array.from(new Set((text.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s => s.toUpperCase())));
-    if (sizes.length) put('????????', sizes.join(', '));
+
+  if (!out.find((row) => row.label === 'Sizes')) {
+    const sizes = Array.from(new Set(text.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|XXS|\d{2})\b/gi) || []));
+    if (sizes.length) put('Sizes', sizes.join(', '));
   }
+
+  if (!out.find((row) => row.label === 'Fit')) {
+    const fit = text.match(/\b(relaxed|regular|oversized|slim|tailored|bodycon|flowy)\b/i)?.[0];
+    put('Fit', fit);
+  }
+
   return out;
 }
 
@@ -7207,7 +7290,7 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
         // Derive size/color from option_values when explicit fields are missing
         try {
           if (!out.size) {
-            const sizeVals = mapped.filter(o => /size|مقاس/i.test(o.name)).map(o => o.value).filter(Boolean);
+            const sizeVals = mapped.filter(o => /size|????/i.test(o.name)).map(o => o.value).filter(Boolean);
             if (sizeVals.length > 1) {
               // Preserve composite format (k:v) sequences separated by '|'
               out.size = sizeVals.join('|');
@@ -7216,7 +7299,7 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
             }
           }
           if (!out.color) {
-            const colorVal = mapped.find(o => /color|لون/i.test(o.name))?.value;
+            const colorVal = mapped.find(o => /color|???/i.test(o.name))?.value;
             if (colorVal) out.color = colorVal;
           }
         } catch {}
@@ -7233,10 +7316,10 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
         const name = norm(it?.name || it?.key);
         const value = norm(it?.value || it?.val || it?.label);
         if (!value) continue;
-        if (/size|مقاس/i.test(name)) {
+        if (/size|????/i.test(name)) {
           // Preserve composite labels like "?????? ???????:M"
           if (!out.size) out.size = value;
-        } else if (/color|لون/i.test(name)) {
+        } else if (/color|???/i.test(name)) {
           if (!out.color) out.color = value;
         }
       }
@@ -7263,7 +7346,8 @@ const COLOR_TOKEN_MAP: Record<string, string> = (() => {
     [['????', 'gold'], 'GLD'],
     [['???', 'silver'], 'SLV'],
     [['?????', 'cyan'], 'CYN'],
-    [['??????', '??????', 'turquoise'], 'TRQ']
+    [['??????', '??????', 'turquoise'], 'TRQ'],
+    [['??????', 'bronze'], 'BRZ']
   ];
   const out: Record<string, string> = {};
   for (const [keys, value] of synonyms) {
@@ -7324,8 +7408,8 @@ adminRest.get('/products/:id', async (req, res) => {
           const name = norm(it?.name||it?.key);
           const val = norm(it?.value||it?.val||it?.label);
           if (!val) continue;
-          if (/size|مقاس/i.test(name)) { if (!isColor(val)) sizes.add(val) }
-          else if (/color|لون/i.test(name)) { if (isColor(val)) colors.add(val) }
+          if (/size|????/i.test(name)) { if (!isColor(val)) sizes.add(val) }
+          else if (/color|???/i.test(name)) { if (isColor(val)) colors.add(val) }
           else if (looksSize(val)) sizes.add(val);
           else if (isColor(val)) colors.add(val);
         }
@@ -7336,8 +7420,8 @@ adminRest.get('/products/:id', async (req, res) => {
       const name = norm((v as any).name);
       const value = norm((v as any).value);
       for (const t of split(`${name} ${value}`)) { if (looksSize(t)) sizes.add(t); else if (isColor(t)) colors.add(t); }
-      if (/size|مقاس/i.test(name) && looksSize(value)) sizes.add(value);
-      if (/color|لون/i.test(name) && isColor(value)) colors.add(value);
+      if (/size|????/i.test(name) && looksSize(value)) sizes.add(value);
+      if (/color|???/i.test(name) && isColor(value)) colors.add(value);
       // Try JSON in value/name
       try { if (value && (value.startsWith('{')||value.startsWith('['))) takeFromOptions(JSON.parse(value)); } catch {}
       try { if (name && (name.startsWith('{')||name.startsWith('['))) takeFromOptions(JSON.parse(name)); } catch {}
@@ -7423,9 +7507,9 @@ adminRest.post('/products/:id/variants', async (req, res) => {
           for (const o of ov) {
             const name = norm(o?.name||o?.key);
             const val = norm(o?.value||o?.val||o?.label);
-            if (/size|مقاس/i.test(name)) {
+            if (/size|????/i.test(name)) {
               size = size || val;
-            } else if (/color|لون/i.test(name)) {
+            } else if (/color|???/i.test(name)) {
               color = color || val;
             }
           }
