@@ -7207,7 +7207,7 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
         // Derive size/color from option_values when explicit fields are missing
         try {
           if (!out.size) {
-            const sizeVals = mapped.filter(o => /size|????/i.test(o.name)).map(o => o.value).filter(Boolean);
+            const sizeVals = mapped.filter(o => /size|مقاس/i.test(o.name)).map(o => o.value).filter(Boolean);
             if (sizeVals.length > 1) {
               // Preserve composite format (k:v) sequences separated by '|'
               out.size = sizeVals.join('|');
@@ -7216,7 +7216,7 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
             }
           }
           if (!out.color) {
-            const colorVal = mapped.find(o => /color|???/i.test(o.name))?.value;
+            const colorVal = mapped.find(o => /color|لون/i.test(o.name))?.value;
             if (colorVal) out.color = colorVal;
           }
         } catch {}
@@ -7233,10 +7233,10 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
         const name = norm(it?.name || it?.key);
         const value = norm(it?.value || it?.val || it?.label);
         if (!value) continue;
-        if (/size|????/i.test(name)) {
+        if (/size|مقاس/i.test(name)) {
           // Preserve composite labels like "?????? ???????:M"
           if (!out.size) out.size = value;
-        } else if (/color|???/i.test(name)) {
+        } else if (/color|لون/i.test(name)) {
           if (!out.color) out.color = value;
         }
       }
@@ -7245,31 +7245,43 @@ function extractVariantMeta(rec: any): { size?: string; color?: string; option_v
   return out;
 }
 
-// SKU token normalization: transliterate common Arabic color names to Latin codes for readability
+const COLOR_TOKEN_MAP: Record<string, string> = (() => {
+  const synonyms: Array<[string[], string]> = [
+    [['????', '????', 'red'], 'RED'],
+    [['????', '????', 'blue'], 'BLUE'],
+    [['????', '????', 'green'], 'GRN'],
+    [['????', '????', 'black'], 'BLK'],
+    [['????', '????', 'white'], 'WHT'],
+    [['????', '????', 'yellow'], 'YLW'],
+    [['??????', 'purple'], 'PUR'],
+    [['????', '????', 'pink'], 'PNK'],
+    [['?????', '?????', 'gray', 'grey'], 'GRY'],
+    [['????', 'navy'], 'NAVY'],
+    [['???', 'beige'], 'BEIGE'],
+    [['???', 'brown'], 'BRN'],
+    [['???????', 'orange'], 'ORG'],
+    [['????', 'gold'], 'GLD'],
+    [['???', 'silver'], 'SLV'],
+    [['?????', 'cyan'], 'CYN'],
+    [['??????', '??????', 'turquoise'], 'TRQ']
+  ];
+  const out: Record<string, string> = {};
+  for (const [keys, value] of synonyms) {
+    for (const key of keys) {
+      const normalized = key.trim().toLowerCase();
+      if (!normalized) continue;
+      out[normalized] = value;
+    }
+  }
+  return out;
+})();
+
+// SKU token normalization: transliterate common color names to Latin codes for readability
 function transliterateSkuToken(raw?: string): string {
   const s = String(raw || '').trim();
   if (!s) return '';
   const lower = s.toLowerCase();
-  const map: Record<string, string> = {
-    '????': 'RED', '????': 'RED', 'red': 'RED',
-    '????': 'BLUE', '????': 'BLUE', 'blue': 'BLUE',
-    '????': 'GRN', '????': 'GRN', 'green': 'GRN',
-    '????': 'BLK', '????': 'BLK', 'black': 'BLK',
-    '????': 'WHT', '????': 'WHT', 'white': 'WHT',
-    '????': 'YLW', '????': 'YLW', 'yellow': 'YLW',
-    '??????': 'PUR', 'purple': 'PUR',
-    '????': 'PNK', '????': 'PNK', 'pink': 'PNK',
-    '?????': 'GRY', 'gray': 'GRY', 'grey': 'GRY',
-    '????': 'NAVY', 'navy': 'NAVY',
-    '???': 'BEIGE', 'beige': 'BEIGE',
-    '???': 'BRN', 'brown': 'BRN',
-    '???????': 'ORG', 'orange': 'ORG',
-    '????': 'GLD', 'gold': 'GLD',
-    '???': 'SLV', 'silver': 'SLV',
-    '?????': 'CYN', 'cyan': 'CYN',
-    '??????': 'TRQ', '???????': 'TRQ', 'turquoise': 'TRQ'
-  };
-  if (map[lower]) return map[lower];
+  if (COLOR_TOKEN_MAP[lower]) return COLOR_TOKEN_MAP[lower];
   // If purely alphanumeric/latin/numeric, keep sanitized upper
   const latin = s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
   const clean = latin.replace(/[^A-Za-z0-9]+/g, '').toUpperCase();
@@ -7289,12 +7301,21 @@ adminRest.get('/products/:id', async (req, res) => {
     const sizes = new Set<string>();
     const colors = new Set<string>();
     const norm = (s: any) => String(s||'').trim();
-    const looksSize = (s: string) => /^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{2}|\d{1,3}|????|???|?????|????|???? ???|???|????|??)$/i.test(s.trim());
+    const looksSize = (s: string) => {
+      const t = s.trim().toLowerCase();
+      if (!t) return false;
+      if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|\d{1,3})$/.test(t)) return true;
+      return ['????', '?????', '????', '???? ???', '???? ????', '???? ???', '???? ????'].includes(t);
+    };
     const isColor = (s: string) => {
       const t = s.trim().toLowerCase();
-      return !!t && (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) || ['red','blue','green','yellow','pink','black','white','violet','purple','orange','brown','gray','grey','navy','turquoise','beige','????','????','????','????','????','????','????','????','????','????','????','????','????','??????','???????','???','?????','?????','????','???'].includes(t));
+      if (!t) return false;
+      if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t)) return true;
+      if (COLOR_TOKEN_MAP[t]) return true;
+      const basic = ['red','blue','green','yellow','pink','black','white','purple','orange','brown','gray','grey','navy','turquoise','beige','gold','silver','cyan'];
+      return basic.includes(t);
     };
-    const split = (s: string) => s.split(/[,\/\-|??]+/).map(x=>x.trim()).filter(Boolean);
+    const split = (s: string) => s.split(/[,\/\-|\s]+/).map(x=>x.trim()).filter(Boolean);
     const takeFromOptions = (rec: any) => {
       const bags = [rec?.option_values, rec?.optionValues, rec?.options, rec?.attributes];
       for (const arr of bags) {
@@ -7303,8 +7324,8 @@ adminRest.get('/products/:id', async (req, res) => {
           const name = norm(it?.name||it?.key);
           const val = norm(it?.value||it?.val||it?.label);
           if (!val) continue;
-          if (/size|????/i.test(name)) { if (!isColor(val)) sizes.add(val) }
-          else if (/color|???/i.test(name)) { if (isColor(val)) colors.add(val) }
+          if (/size|مقاس/i.test(name)) { if (!isColor(val)) sizes.add(val) }
+          else if (/color|لون/i.test(name)) { if (isColor(val)) colors.add(val) }
           else if (looksSize(val)) sizes.add(val);
           else if (isColor(val)) colors.add(val);
         }
@@ -7315,8 +7336,8 @@ adminRest.get('/products/:id', async (req, res) => {
       const name = norm((v as any).name);
       const value = norm((v as any).value);
       for (const t of split(`${name} ${value}`)) { if (looksSize(t)) sizes.add(t); else if (isColor(t)) colors.add(t); }
-      if (/size|????/i.test(name) && looksSize(value)) sizes.add(value);
-      if (/color|???/i.test(name) && isColor(value)) colors.add(value);
+      if (/size|مقاس/i.test(name) && looksSize(value)) sizes.add(value);
+      if (/color|لون/i.test(name) && isColor(value)) colors.add(value);
       // Try JSON in value/name
       try { if (value && (value.startsWith('{')||value.startsWith('['))) takeFromOptions(JSON.parse(value)); } catch {}
       try { if (name && (name.startsWith('{')||name.startsWith('['))) takeFromOptions(JSON.parse(name)); } catch {}
@@ -7402,9 +7423,9 @@ adminRest.post('/products/:id/variants', async (req, res) => {
           for (const o of ov) {
             const name = norm(o?.name||o?.key);
             const val = norm(o?.value||o?.val||o?.label);
-            if (/size|????/i.test(name)) {
+            if (/size|مقاس/i.test(name)) {
               size = size || val;
-            } else if (/color|???/i.test(name)) {
+            } else if (/color|لون/i.test(name)) {
               color = color || val;
             }
           }
