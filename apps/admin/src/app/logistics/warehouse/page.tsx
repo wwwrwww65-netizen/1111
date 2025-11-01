@@ -20,6 +20,7 @@ export default function WarehousePage(): JSX.Element {
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
 
   async function confirmInbound(shipmentId: string){
+    if (!shipmentId) return;
     await fetch(`${apiBase}/api/admin/logistics/warehouse/inbound/confirm`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ shipmentId }) });
     await load();
   }
@@ -49,9 +50,9 @@ export default function WarehousePage(): JSX.Element {
           {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
           {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <table className="table">
-            <thead><tr><th>رقم الشحنة</th><th>السائق</th><th>وقت الوصول</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-            <tbody>{items.map((r:any)=> (
-              <tr key={r.shipmentId}><td>{r.shipmentId}</td><td>{r.driverName||'-'}</td><td>{new Date(r.arrivedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">وارد حديثاً</span></td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm" onClick={()=> confirmInbound(r.shipmentId)}>تأكيد الاستلام</button><button className="btn btn-sm btn-outline">التقاط صورة</button><button className="btn btn-sm btn-outline">ملاحظات</button><button className="btn btn-sm btn-outline">طباعة إيصال</button></td></tr>
+            <thead><tr><th>رقم الطلب</th><th>السائق</th><th>وقت الوصول</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+            <tbody>{items.map((r:any, idx:number)=> (
+              <tr key={(r.shipmentId||r.id||'in')+':'+idx}><td>{r.orderId||r.shipmentId||r.id||'-'}</td><td>{r.driverName||'-'}</td><td>{new Date(r.arrivedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">وارد حديثاً</span></td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm" onClick={()=> confirmInbound(r.shipmentId||r.id)}>تأكيد الاستلام</button><button className="btn btn-sm btn-outline">التقاط صورة</button><button className="btn btn-sm btn-outline">ملاحظات</button><button className="btn btn-sm btn-outline">طباعة إيصال</button></td></tr>
             ))}</tbody>
           </table>
         </div>
@@ -63,8 +64,8 @@ export default function WarehousePage(): JSX.Element {
           {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <table className="table">
             <thead><tr><th>المعرف</th><th>الباركود</th><th>الحالة</th><th>العمليات</th></tr></thead>
-            <tbody>{items.map((p:any)=> (
-              <tr key={p.packageId}><td>{p.packageId}</td><td>{p.barcode}</td><td>{p.status}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm" onClick={()=> addSortingResult(p.packageId, true)}>تأكيد المطابقة</button><button className="btn btn-sm btn-outline" onClick={()=> addSortingResult(p.packageId, false)}>تسجيل اختلاف</button><button className="btn btn-sm btn-outline">توثيق مشكلة</button><button className="btn btn-sm btn-outline">تقرير الجرد</button></td></tr>
+            <tbody>{items.map((p:any, idx:number)=> (
+              <tr key={(p.packageId||'pkg')+':'+idx}><td>{p.packageId}</td><td>{p.barcode}</td><td>{p.status}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm" onClick={()=> addSortingResult(p.packageId, true)}>تأكيد المطابقة</button><button className="btn btn-sm btn-outline" onClick={()=> addSortingResult(p.packageId, false)}>تسجيل اختلاف</button><button className="btn btn-sm btn-outline">توثيق مشكلة</button><button className="btn btn-sm btn-outline">تقرير الجرد</button></td></tr>
             ))}</tbody>
           </table>
         </div>
@@ -76,8 +77,8 @@ export default function WarehousePage(): JSX.Element {
           {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <table className="table">
             <thead><tr><th>المعرف</th><th>الباركود</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-            <tbody>{items.map((p:any)=> (
-              <tr key={p.packageId}><td>{p.packageId}</td><td>{p.barcode}</td><td><span className="badge ok">READY</span></td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm" onClick={()=> assignReady(p.packageId)}>تعيين سائق</button><button className="btn btn-sm btn-outline">طباعة الملصقات</button><button className="btn btn-sm btn-outline">تأكيد التسليم</button><button className="btn btn-sm btn-outline">إيصال الاستلام</button></td></tr>
+            <tbody>{items.map((p:any, idx:number)=> (
+              <tr key={(p.packageId||'ready')+':'+idx}><td>{p.packageId}</td><td>{p.barcode}</td><td><span className="badge ok">READY</span></td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm" onClick={()=> assignReady(p.packageId)}>تعيين سائق</button><button className="btn btn-sm btn-outline">طباعة الملصقات</button><button className="btn btn-sm btn-outline">تأكيد التسليم</button><button className="btn btn-sm btn-outline">إيصال الاستلام</button></td></tr>
             ))}</tbody>
           </table>
         </div>

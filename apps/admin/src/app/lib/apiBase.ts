@@ -7,6 +7,11 @@ export function resolveApiBase(): string {
   }
   if (typeof window !== 'undefined') {
     const host = window.location.host;
+    const hostname = window.location.hostname;
+    // Local development: backend runs on 4000 by default
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:4000';
+    }
     // Common pattern: admin.<root> -> api.<root>
     if (host.startsWith('admin.')) {
       return `${window.location.protocol}//api.${host.slice('admin.'.length)}`;

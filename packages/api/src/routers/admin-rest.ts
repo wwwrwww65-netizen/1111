@@ -2391,22 +2391,30 @@ adminRest.get('/notifications/recent', async (req, res) => {
 adminRest.get('/logistics/pickup/list', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    // Ensure optional columns exist for stable SELECTs across environments
+    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptedAt" TIMESTAMP'); } catch {}
     const raw = String(req.query.status||'').toUpperCase();
     let dbStatus: string | null = null;
     if (raw === 'WAITING' || raw === 'SCHEDULED') dbStatus = 'SCHEDULED';
     else if (raw === 'IN_PROGRESS' || raw === 'IN-PROGRESS') dbStatus = 'IN_PROGRESS';
     else if (raw === 'COMPLETED') dbStatus = 'COMPLETED';
     let rows: any[] = [];
-    if (dbStatus) {
-      rows = (await db.$queryRawUnsafe(
-        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1::"ShipmentLegType" AND status=$2::"ShipmentLegStatus" ORDER BY "createdAt" DESC LIMIT 200',
-        'PICKUP', dbStatus
-      )) as any[];
-    } else {
-      rows = (await db.$queryRawUnsafe(
-        'SELECT id, "orderId", "poId", "legType", status, "driverId", "createdAt", "updatedAt" FROM "ShipmentLeg" WHERE "legType"=$1::"ShipmentLegType" ORDER BY "createdAt" DESC LIMIT 200',
-        'PICKUP'
-      )) as any[];
+    try {
+      if (dbStatus) {
+        rows = (await db.$queryRawUnsafe(
+          'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"=$1::"ShipmentLegType" AND s.status=$2::"ShipmentLegStatus" ORDER BY s."createdAt" DESC LIMIT 200',
+          'PICKUP', dbStatus
+        )) as any[];
+      } else {
+        rows = (await db.$queryRawUnsafe(
+          'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"=$1::"ShipmentLegType" ORDER BY s."createdAt" DESC LIMIT 200',
+          'PICKUP'
+        )) as any[];
+      }
+    } catch {
+      // If the table or enums are not yet migrated, return empty list gracefully
+      return res.json({ pickups: [] });
     }
     // Enrich with vendor info and counts
     try {
@@ -2440,10 +2448,48 @@ adminRest.post('/logistics/pickup/assign', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error:'forbidden' });
     const { poId, driverId } = req.body||{}; if (!poId || !driverId) return res.status(400).json({ error:'poId_and_driverId_required' });
-    await db.$executeRawUnsafe('UPDATE "ShipmentLeg" SET "driverId"=$1, status=$2::"ShipmentLegStatus", "updatedAt"=NOW() WHERE "legType"=$3::"ShipmentLegType" AND "poId"=$4', driverId, 'IN_PROGRESS', 'PICKUP', poId);
+    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptedAt" TIMESTAMP'); } catch {}
+    await db.$executeRawUnsafe('UPDATE "ShipmentLeg" SET "driverId"=$1, status=$2::"ShipmentLegStatus", "driverAcceptance"=$3, "updatedAt"=NOW() WHERE "legType"=$4::"ShipmentLegType" AND "poId"=$5', driverId, 'IN_PROGRESS', 'PENDING', 'PICKUP', poId);
     await audit(req, 'logistics.pickup', 'assign_driver', { poId, driverId });
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_assign_failed' }); }
+});
+
+// Driver accept/reject pickup leg
+adminRest.post('/logistics/pickup/driver-accept', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { poId, decision } = req.body||{}; if (!poId || !decision) return res.status(400).json({ error:'poId_and_decision_required' });
+    const leg = await db.shipmentLeg.findFirst({ where: { poId: String(poId), legType: 'PICKUP' as any } });
+    if (!leg) return res.status(404).json({ error:'pickup_leg_not_found' });
+    const val = String(decision).toUpperCase()==='ACCEPT' ? 'ACCEPTED' : (String(decision).toUpperCase()==='REJECT' ? 'REJECTED' : 'PENDING');
+    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptedAt" TIMESTAMP'); } catch {}
+    await db.$executeRawUnsafe('UPDATE "ShipmentLeg" SET "driverAcceptance"=$1, "driverAcceptedAt"=NOW(), "updatedAt"=NOW() WHERE id=$2', val, leg.id);
+    await audit(req, 'logistics.pickup', 'driver_accept', { poId, decision: val });
+    return res.json({ success: true, driverAcceptance: val });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_accept_failed' }); }
+});
+
+// Fetch pickup leg by poId with driver info
+adminRest.get('/logistics/pickup/leg', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const poIdRaw = String((req.query as any).poId||''); if (!poIdRaw) return res.status(200).json({ leg: null });
+    const poId = decodeURIComponent(poIdRaw);
+    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
+    let row: any[] = await db.$queryRawUnsafe('SELECT s.id, s."orderId", s."poId", s.status, s."driverId", s."driverAcceptance", s."updatedAt", d.name as "driverName" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=$1 AND s."legType"=\'PICKUP\'::"ShipmentLegType" LIMIT 1', poId) as any[];
+    if (!row || !row[0]){
+      // Fallback by orderId if poId doesn't exist
+      const idx = poId.indexOf(':');
+      const orderId = idx>0 ? poId.slice(idx+1) : '';
+      if (orderId) {
+        row = await db.$queryRawUnsafe('SELECT s.id, s."orderId", s."poId", s.status, s."driverId", s."driverAcceptance", s."updatedAt", d.name as "driverName" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."orderId"=$1 AND s."legType"=\'PICKUP\'::"ShipmentLegType" ORDER BY s."updatedAt" DESC LIMIT 1', orderId) as any[];
+      }
+    }
+    return res.status(200).json({ leg: row && row[0] ? row[0] : null });
+  } catch (e:any) { res.status(500).json({ error: e.message||'pickup_leg_failed' }); }
 });
 
 // Loyalty summary: points per user
@@ -2474,8 +2520,8 @@ adminRest.post('/logistics/pickup/status', async (req, res) => {
     if (!leg) return res.status(404).json({ error:'pickup_leg_not_found' });
     if (String(status).toUpperCase() === 'RECEIVED') {
       await db.shipmentLeg.update({ where: { id: leg.id }, data: { status: 'COMPLETED' as any, updatedAt: new Date() as any } as any });
-      // spawn INBOUND (warehouse receiving)
-      try { await db.shipmentLeg.create({ data: { orderId: leg.orderId, legType: 'INBOUND' as any, status: 'SCHEDULED' as any } as any }); } catch {}
+      // spawn INBOUND (warehouse receiving) and carry driverId forward
+      try { await db.shipmentLeg.create({ data: { orderId: leg.orderId, driverId: (leg as any).driverId||null, legType: 'INBOUND' as any, status: 'SCHEDULED' as any } as any }); } catch {}
     } else {
       await db.shipmentLeg.update({ where: { id: leg.id }, data: { status: String(status).toUpperCase() as any, updatedAt: new Date() as any } as any });
     }
@@ -2543,16 +2589,24 @@ adminRest.get('/logistics/delivery/list', async (req, res) => {
     const tab = String(req.query.tab||'ready').toLowerCase();
     let rows: any[] = [];
     if (tab === 'ready') {
-      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
-        FROM "Order" o LEFT JOIN "User" u ON u.id=o."userId" WHERE o.status IN ('PAID','SHIPPED') ORDER BY o."createdAt" DESC`);
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total, d.name as "driverName"
+        FROM "Order" o
+        LEFT JOIN "User" u ON u.id=o."userId"
+        LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
+        WHERE o.status IN ('PAID','SHIPPED')
+        ORDER BY o."createdAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 24 }));
     } else if (tab === 'in_delivery') {
-      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as "driverName", o.status, o."updatedAt" as updatedAt
         FROM "Order" o LEFT JOIN "Driver" d ON d.id=o."assignedDriverId" WHERE o.status IN ('SHIPPED') ORDER BY o."updatedAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 6 }));
     } else if (tab === 'completed') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o."updatedAt" as deliveredAt, p.status as paymentStatus
-        FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id WHERE o.status='DELIVERED' ORDER BY o."updatedAt" DESC`);
+      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as "driverName", o."updatedAt" as deliveredAt, p.status as paymentStatus
+        FROM "Order" o
+        LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
+        LEFT JOIN "Payment" p ON p."orderId"=o.id
+        WHERE o.status='DELIVERED'
+        ORDER BY o."updatedAt" DESC`);
     } else if (tab === 'returns') {
       rows = await db.$queryRawUnsafe(`SELECT r.id as returnId, r."createdAt" as createdAt, r.reason FROM "ReturnRequest" r ORDER BY r."createdAt" DESC`);
     }
@@ -2990,15 +3044,16 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
     const { id } = req.params;
     const d = await db.driver.findUnique({ where: { id } });
     if (!d) return res.status(404).json({ error:'driver_not_found' });
-    const [assigned, delivered, pending, totalEarned, totalDue, assignedOrders] = await Promise.all([
+    const [assigned, delivered, pending, totalEarned, totalDue, assignedOrders, pickupLegs] = await Promise.all([
       db.order.count({ where: { assignedDriverId: id, status: { in: ['PENDING','PAID','SHIPPED'] } } }),
       db.order.count({ where: { assignedDriverId: id, status: 'DELIVERED' } }),
       db.order.count({ where: { assignedDriverId: id, status: 'PENDING' } }),
       db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED','PAID'] } } } }).then(r=> Number(r._sum.amount||0)),
       db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING','SHIPPED'] } } } }).then(r=> Number(r._sum.amount||0)),
-      db.order.findMany({ where: { assignedDriverId: id }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, status: true, total: true, createdAt: true } })
+      db.order.findMany({ where: { assignedDriverId: id }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, status: true, total: true, createdAt: true } }),
+      db.$queryRawUnsafe('SELECT "poId", "orderId", status, "updatedAt", "createdAt" FROM "ShipmentLeg" WHERE "driverId"=$1 AND "legType"=\'PICKUP\'::"ShipmentLegType" ORDER BY "createdAt" DESC LIMIT 10', id)
     ]);
-    res.json({ driver: d, kpis: { assigned, delivered, pending, totalEarned, totalDue }, orders: assignedOrders });
+    res.json({ driver: d, kpis: { assigned, delivered, pending, totalEarned, totalDue }, orders: assignedOrders, pickups: pickupLegs||[] });
   } catch (e:any) { res.status(500).json({ error: e.message || 'driver_overview_failed' }); }
 });
 // Carriers

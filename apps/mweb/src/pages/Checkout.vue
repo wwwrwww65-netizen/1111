@@ -450,7 +450,7 @@ async function loadBalances(){
   try{ const w = await apiGet<{ balance:number }>('/api/wallet/balance'); walletBalance.value = Number(w?.balance||0) }catch{}
   try{ const p = await apiGet<{ points:number }>('/api/points/balance'); points.value = Number(p?.points||0) }catch{}
   try{
-    const settings = await apiGet<any>('/api/admin/policies/rewards/settings')
+    const settings = await apiGet<any>('/api/policies/rewards/settings')
     showRewards.value = !!settings?.enabled
   }catch{ showRewards.value = false }
 }

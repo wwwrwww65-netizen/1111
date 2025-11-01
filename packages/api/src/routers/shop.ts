@@ -1982,6 +1982,27 @@ shop.post('/addresses/delete', requireAuth, async (req: any, res) => {
 })
 
 // Orders
+// Effective pricing for selected cart items (public; no auth required)
+shop.post('/pricing/effective', async (req: any, res) => {
+  try {
+    const items: Array<{ id: string; qty: number }> = Array.isArray(req.body?.items)
+      ? req.body.items.map((x: any) => ({ id: String(x.id), qty: Number(x.qty || 1) }))
+      : [];
+    if (!items.length) return res.json({ total: 0, discount: 0 });
+    const ids = Array.from(new Set(items.map(i => i.id)));
+    const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, price: true } });
+    const priceById = new Map(prods.map(p => [String(p.id), Number(p.price || 0)]));
+    const subtotal = items.reduce((s, it) => s + (priceById.get(it.id) || 0) * Math.max(1, it.qty), 0);
+    // Simple placeholder promotions hook: currently zero
+    const discount = 0;
+    return res.json({ total: subtotal - discount, discount });
+  } catch { return res.status(500).json({ error: 'effective_failed' }); }
+});
+
+// Rewards settings (public read)
+shop.get('/policies/rewards/settings', async (_req, res) => {
+  try { return res.json({ enabled: false }); } catch { return res.json({ enabled: false }); }
+});
 shop.get('/orders/me', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
@@ -2039,7 +2060,9 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
           const pid = parts[0]
           const segs = parts.slice(1)
           let color: string | undefined = undefined
+          let sizeUnlabeled: string | undefined = undefined
           const attributes: Record<string, string> = {}
+          let unlabeledSeen = 0
           for (const seg of segs) {
             if (!seg) continue
             const idx = seg.indexOf(':')
@@ -2055,12 +2078,13 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
                 .replace(/^size$/i, 'size')
               attributes[keyNorm || rawKey] = rawVal
             } else {
-              // Segment without explicit key, treat the first such as color if not set
-              if (!color) color = seg
+              // Segment without explicit key: first -> color, second -> size
+              if (unlabeledSeen === 0 && !color) { color = seg; unlabeledSeen++ }
+              else if (unlabeledSeen === 1 && !sizeUnlabeled) { sizeUnlabeled = seg; unlabeledSeen++ }
             }
           }
           // Derive a concise size label for quick display (combine if both exist)
-          const sizeLabel = [attributes['size_letters'], attributes['size_numbers'], attributes['size']]
+          const sizeLabel = [attributes['size_letters'], attributes['size_numbers'], attributes['size'], sizeUnlabeled]
             .filter(Boolean)
             .join(' / ') || undefined
           if (pid) {
@@ -2161,30 +2185,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
         await db.$executeRawUnsafe('UPDATE "Order" SET "paymentMethod"=$1, "shippingMethodId"=$2, "shippingAmount"=$3 WHERE id=$4', String(paymentMethod), shippingMethodId? String(shippingMethodId): null, ship, order.id);
       }
     } catch {}
-    // For COD orders: auto-mark as approved for fulfillment and spawn shipment legs so pickup shows up
-    try {
-      const pm = String(paymentMethod||'').toLowerCase();
-      if (pm === 'cod' || pm === 'cash_on_delivery' || pm === 'cash-on-delivery') {
-        // Mark as approved (PAID state used to indicate fulfillment-ready in current pipeline)
-        try { await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } }); } catch {}
-        // Create shipment legs grouped by vendor
-        try {
-          const items = await db.orderItem.findMany({ where: { orderId: order.id as any }, include: { product: { select: { vendorId: true } } } });
-          const vendorToItems = new Map<string, typeof items>();
-          for (const it of items) {
-            const vid = (it as any).product?.vendorId || 'NOVENDOR';
-            if (!vendorToItems.has(vid)) vendorToItems.set(vid, [] as any);
-            (vendorToItems.get(vid) as any).push(it);
-          }
-          for (const [vendorId] of vendorToItems) {
-            const poId = `${vendorId}:${order.id}`;
-            await db.shipmentLeg.create({ data: { orderId: order.id as any, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-          }
-          await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-          await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-        } catch {}
-      }
-    } catch {}
+    // For COD orders: keep status as PENDING (review) until approval/payment
     // Affiliate ledger (create table if needed)
     if (ref) {
       try {

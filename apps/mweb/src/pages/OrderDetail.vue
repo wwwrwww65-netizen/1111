@@ -96,7 +96,7 @@ function displaySize(it: any): string {
 }
 
 function t(s:string){
-  const m: any = { PENDING:'قيد المعالجة', PAID:'تم الدفع', SHIPPED:'قيد الشحن', DELIVERED:'مكتمل', CANCELLED:'ملغي' }
+  const m: any = { PENDING:'قيد المراجعة', PAID:'تم الدفع', SHIPPED:'قيد الشحن', DELIVERED:'مكتمل', CANCELLED:'ملغي' }
   return m[s] || s
 }
 
