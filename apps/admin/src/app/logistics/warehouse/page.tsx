@@ -50,9 +50,16 @@ export default function WarehousePage(): JSX.Element {
           {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
           {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           <table className="table">
-            <thead><tr><th>رقم الطلب</th><th>السائق</th><th>وقت الوصول</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+            <thead><tr><th>السائق</th><th>وقت آخر وصول</th><th>الحالة</th><th>إجراءات</th></tr></thead>
             <tbody>{items.map((r:any, idx:number)=> (
-              <tr key={(r.shipmentId||r.id||'in')+':'+idx}><td>{r.orderId||r.shipmentId||r.id||'-'}</td><td>{r.driverName||'-'}</td><td>{new Date(r.arrivedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">وارد حديثاً</span></td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm" onClick={()=> confirmInbound(r.shipmentId||r.id)}>تأكيد الاستلام</button><button className="btn btn-sm btn-outline">التقاط صورة</button><button className="btn btn-sm btn-outline">ملاحظات</button><button className="btn btn-sm btn-outline">طباعة إيصال</button></td></tr>
+              <tr key={(r.driverId||'driver')+':'+idx} style={{ cursor:'pointer' }} onClick={()=>{ if (r?.driverId) location.assign(`/logistics/warehouse/driver/${r.driverId}`) }}>
+                <td>{r.driverName||'-'}</td>
+                <td>{new Date(r.arrivedAt||Date.now()).toLocaleString()}</td>
+                <td><span className="badge warn">وارد حديثاً</span></td>
+                <td style={{ display:'flex', gap:6 }}>
+                  <button className="btn btn-sm" onClick={(e)=>{ e.stopPropagation(); if(r?.driverId) location.assign(`/logistics/warehouse/driver/${r.driverId}`) }}>عرض التفاصيل</button>
+                </td>
+              </tr>
             ))}</tbody>
           </table>
         </div>

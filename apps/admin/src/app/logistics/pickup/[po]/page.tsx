@@ -15,6 +15,7 @@ export default function PickupDetailPage(): JSX.Element {
   const [error, setError] = React.useState<string>('');
   const [approved, setApproved] = React.useState<boolean|undefined>(undefined);
   const [leg, setLeg] = React.useState<any>(null);
+  const [orderCode, setOrderCode] = React.useState<string>('');
 
   React.useEffect(()=>{ (async()=>{
     try{
@@ -23,6 +24,8 @@ export default function PickupDetailPage(): JSX.Element {
       url.searchParams.set('orderId', orderId);
       const j = await (await fetch(url.toString(), { credentials:'include' })).json();
       setLines(j.lines||[]);
+      // fetch order code for header
+      try{ const od = await (await fetch(`${apiBase}/api/admin/orders/${encodeURIComponent(orderId)}`, { credentials:'include' })).json(); setOrderCode(String(od?.code||od?.order?.code||'')); }catch{}
       // load pickup leg meta (driver name, acceptance)
       let legObj: any = null;
       try{
@@ -56,7 +59,7 @@ export default function PickupDetailPage(): JSX.Element {
     <main className="panel" style={{ padding:16 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
         <button className="icon-btn" onClick={()=> history.length>1? history.back() : location.assign('/logistics/pickup')}>رجوع</button>
-        <h1 style={{ margin:0 }}>تفاصيل استلام المورد · {po}</h1>
+        <h1 style={{ margin:0 }}>تفاصيل استلام المورد · #{orderCode||orderId.slice(0,6)}</h1>
       </div>
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {error && <div className="panel" style={{ color:'var(--err)' }}>{error}</div>}

@@ -1135,6 +1135,17 @@ adminRest.get('/orders/list', async (req, res) => {
       }),
       db.order.count({ where }),
     ]);
+    // Attach sequential code for each order (when present)
+    try {
+      const ids = orders.map((o:any)=> String(o.id));
+      if (ids.length){
+        const placeholders = ids.map((_,i)=> `$${i+1}`).join(',');
+        const rows: Array<{id:string;code:string|null}> = await db.$queryRawUnsafe(`SELECT id, code FROM "Order" WHERE id IN (${placeholders})`, ...ids) as any;
+        const map = new Map<string,string>();
+        for (const r of (rows||[])) if (r && (r as any).code) map.set(String((r as any).id), String((r as any).code));
+        for (const o of orders) { (o as any).code = map.get(String(o.id)) || undefined; }
+      }
+    } catch {}
     await audit(req, 'orders', 'list', { page, limit, status });
     res.json({ orders, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (e: any) {
@@ -1711,6 +1722,8 @@ adminRest.get('/orders/:id', async (req, res) => {
     const { id } = req.params;
   const o = await db.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: { select: { id:true, name:true, price:true, images:true, vendor: { select: { id:true, name:true } } } } } }, payment: true, shipments: { include: { carrier: true, driver: true } }, assignedDriver: true } });
     if (!o) return res.status(404).json({ error: 'not_found' });
+  // Attach sequential code if exists
+  try { const row: any[] = await db.$queryRaw`SELECT code FROM "Order" WHERE id=${id}` as any[]; if (row && row[0] && row[0].code) { (o as any).code = String(row[0].code) } } catch {}
   // Attach OrderItemMeta (color/size/uid/attributes) if exists
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderItemMeta" (id TEXT PRIMARY KEY, "orderId" TEXT, "orderItemId" TEXT, "productId" TEXT, color TEXT, size TEXT, uid TEXT, attributes JSONB, "createdAt" TIMESTAMP DEFAULT NOW())');
@@ -2428,14 +2441,14 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
     try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptedAt" TIMESTAMP'); } catch {}
       rows = (await db.$queryRawUnsafe(
-        'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"::text=$1 AND s.status::text=$2 ORDER BY s."createdAt" DESC LIMIT 200',
+        'SELECT s.id, s."orderId", o.code as "orderCode", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" LEFT JOIN "Order" o ON o.id=s."orderId" WHERE s."legType"::text=$1 AND s.status::text=$2 ORDER BY s."createdAt" DESC LIMIT 200',
         'PICKUP', dbStatus
       )) as any[];
     } else {
     try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptedAt" TIMESTAMP'); } catch {}
       rows = (await db.$queryRawUnsafe(
-        'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"::text=$1 ORDER BY s."createdAt" DESC LIMIT 200',
+        'SELECT s.id, s."orderId", o.code as "orderCode", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" LEFT JOIN "Order" o ON o.id=s."orderId" WHERE s."legType"::text=$1 ORDER BY s."createdAt" DESC LIMIT 200',
         'PICKUP'
       )) as any[];
     }
@@ -2502,13 +2515,13 @@ adminRest.get('/logistics/pickup/leg', async (req, res) => {
     const poIdRaw = String((req.query as any).poId||''); if (!poIdRaw) return res.status(200).json({ leg: null });
     const poId = decodeURIComponent(poIdRaw);
     try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
-    let row: any[] = await db.$queryRawUnsafe('SELECT s.id, s."orderId", s."poId", s.status, s."driverId", s."driverAcceptance", s."updatedAt", d.name as "driverName" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."poId"=$1 AND s."legType"::text=\'PICKUP\' LIMIT 1', poId) as any[];
+    let row: any[] = await db.$queryRawUnsafe('SELECT s.id, s."orderId", o.code as "orderCode", s."poId", s.status, s."driverId", s."driverAcceptance", s."updatedAt", d.name as "driverName" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" LEFT JOIN "Order" o ON o.id=s."orderId" WHERE s."poId"=$1 AND s."legType"::text=\'PICKUP\' LIMIT 1', poId) as any[];
     if (!row || !row[0]){
       // Fallback by orderId if poId doesn't exist
       const idx = poId.indexOf(':');
       const orderId = idx>0 ? poId.slice(idx+1) : '';
       if (orderId) {
-        row = await db.$queryRawUnsafe('SELECT s.id, s."orderId", s."poId", s.status, s."driverId", s."driverAcceptance", s."updatedAt", d.name as "driverName" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."orderId"=$1 AND s."legType"::text=\'PICKUP\' ORDER BY s."updatedAt" DESC LIMIT 1', orderId) as any[];
+        row = await db.$queryRawUnsafe('SELECT s.id, s."orderId", o.code as "orderCode", s."poId", s.status, s."driverId", s."driverAcceptance", s."updatedAt", d.name as "driverName" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" LEFT JOIN "Order" o ON o.id=s."orderId" WHERE s."orderId"=$1 AND s."legType"::text=\'PICKUP\' ORDER BY s."updatedAt" DESC LIMIT 1', orderId) as any[];
       }
     }
     return res.status(200).json({ leg: row && row[0] ? row[0] : null });
@@ -2559,10 +2572,22 @@ adminRest.get('/logistics/warehouse/list', async (req, res) => {
     const tab = String(req.query.tab||'inbound').toLowerCase();
     let rows: any[] = [];
     if (tab === 'inbound') {
-      rows = await db.$queryRawUnsafe(`SELECT s.id as shipmentId, d.name as driverName, s."createdAt" as arrivedAt, 'PENDING' as status
-        FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId"
-        WHERE s."legType"::text='INBOUND' AND s."status"::text IN ('SCHEDULED','IN_PROGRESS')
-        ORDER BY s."createdAt" DESC`);
+      rows = await db.$queryRawUnsafe(`
+        WITH inbound AS (
+          SELECT s.*, COALESCE(s."driverId", (
+            SELECT sl."driverId" FROM "ShipmentLeg" sl
+            WHERE sl."orderId"=s."orderId" AND sl."legType"::text='PICKUP'
+            ORDER BY sl."updatedAt" DESC LIMIT 1
+          )) AS driver_id_eff
+          FROM "ShipmentLeg" s
+          WHERE s."legType"::text='INBOUND' AND s."status"::text IN ('SCHEDULED','IN_PROGRESS')
+        )
+        SELECT inbound.driver_id_eff as "driverId", COALESCE(d.name,'—') as "driverName",
+               MAX(inbound."createdAt") as "arrivedAt", COUNT(*) as shipments
+        FROM inbound LEFT JOIN "Driver" d ON d.id=inbound.driver_id_eff
+        GROUP BY inbound.driver_id_eff, d.name
+        ORDER BY MAX(inbound."createdAt") DESC
+      `);
     } else if (tab === 'sorting') {
       rows = await db.$queryRawUnsafe(`SELECT p.id as packageId, p.barcode, p.status, p."updatedAt" as updatedAt
         FROM "Package" p WHERE p.status IN ('INBOUND','PACKED') ORDER BY p."updatedAt" DESC`);
@@ -2612,15 +2637,15 @@ adminRest.get('/logistics/delivery/list', async (req, res) => {
     const tab = String(req.query.tab||'ready').toLowerCase();
     let rows: any[] = [];
     if (tab === 'ready') {
-      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, o.code as "orderCode", u.email as customer, '' as address, o.total as total
         FROM "Order" o LEFT JOIN "User" u ON u.id=o."userId" WHERE o.status IN ('PAID','SHIPPED') ORDER BY o."createdAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 24 }));
     } else if (tab === 'in_delivery') {
-      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, o.code as "orderCode", d.name as driver, o.status, o."updatedAt" as updatedAt
         FROM "Order" o LEFT JOIN "Driver" d ON d.id=o."assignedDriverId" WHERE o.status IN ('SHIPPED') ORDER BY o."updatedAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 6 }));
     } else if (tab === 'completed') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o."updatedAt" as deliveredAt, p.status as paymentStatus
+      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o.code as "orderCode", o."updatedAt" as deliveredAt, p.status as paymentStatus
         FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id WHERE o.status='DELIVERED' ORDER BY o."updatedAt" DESC`);
     } else if (tab === 'returns') {
       rows = await db.$queryRawUnsafe(`SELECT r.id as returnId, r."createdAt" as createdAt, r.reason FROM "ReturnRequest" r ORDER BY r."createdAt" DESC`);
@@ -2636,6 +2661,100 @@ adminRest.post('/logistics/delivery/assign', async (req, res) => {
     await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId, status: 'SHIPPED' } });
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'delivery_assign_failed' }); }
+});
+
+// Warehouse: list inbound items by driver (products picked from suppliers to be delivered to warehouse)
+adminRest.get('/logistics/warehouse/driver/:id/items', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const driverId = String(id);
+    // Collect orderIds from pickup legs assigned to this driver, latest first
+    const legs: Array<{ orderId: string }> = await db.$queryRawUnsafe(
+      'SELECT DISTINCT s."orderId" FROM "ShipmentLeg" s WHERE s."driverId"=$1 AND s."legType"::text=$2 AND s.status::text IN ($3,$4) ORDER BY s."updatedAt" DESC',
+      driverId, 'PICKUP', 'IN_PROGRESS', 'COMPLETED'
+    ) as any;
+    const orderIds = Array.from(new Set((legs||[]).map(l=> String((l as any).orderId||'')).filter(Boolean)));
+    if (!orderIds.length) return res.json({ items: [] });
+    // Fetch order items + product info
+    const placeholders = orderIds.map((_,i)=> `$${i+1}`).join(',');
+    const items: any[] = await db.$queryRawUnsafe(
+      `SELECT oi.id as "orderItemId", oi."orderId", oi."productId", oi.quantity, oi.price, p.name, p.sku, p.images
+       FROM "OrderItem" oi JOIN "Product" p ON p.id=oi."productId"
+       WHERE oi."orderId" IN (${placeholders}) ORDER BY oi."createdAt" ASC`, ...orderIds
+    ) as any[];
+    // Attach order codes
+    const codesRows: any[] = await db.$queryRawUnsafe(`SELECT id, code FROM "Order" WHERE id IN (${placeholders})`, ...orderIds) as any[];
+    const codeMap = new Map<string,string>(); for (const r of (codesRows||[])){ if (r && (r as any).code) codeMap.set(String((r as any).id), String((r as any).code)); }
+    // Attach variant meta
+    const metas: any[] = await db.$queryRawUnsafe(`SELECT "orderItemId", color, size, uid, attributes FROM "OrderItemMeta" WHERE "orderId" IN (${placeholders})`, ...orderIds) as any[];
+    const metaByItem = new Map<string, any>();
+    for (const m of (metas||[])){
+      let attrs: any = (m as any).attributes; try{ if (typeof attrs === 'string') attrs = JSON.parse(attrs) }catch{}
+      metaByItem.set(String((m as any).orderItemId||''), {
+        color: (m as any).color || attrs?.color,
+        size: (m as any).size || attrs?.size || [attrs?.size_letters, attrs?.size_numbers].filter(Boolean).join(' / ') || undefined,
+        attributes: attrs || undefined,
+      });
+    }
+    // Enrich image from ProductColor by color
+    const pids = Array.from(new Set(items.map((it:any)=> String(it.productId))));
+    const colors = await db.productColor.findMany({ where: { productId: { in: pids } }, select: { productId: true, name: true, primaryImageUrl: true } } as any);
+    const norm = (s: string): string => String(s||'').toLowerCase().trim().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/\s+/g,'');
+    const imgByKey = new Map<string,string>(); for (const c of (colors||[])){ const img=(c as any).primaryImageUrl||''; const pid=String((c as any).productId); const nm=String((c as any).name||''); if (img && nm) { imgByKey.set(`${pid}|${nm.toLowerCase()}`, img); imgByKey.set(`${pid}|${norm(nm)}`, img); } }
+    const out = items.map((it:any)=>{
+      const m = metaByItem.get(String(it.orderItemId)) || {};
+      let image: string|undefined = m?.attributes?.image;
+      const color = m?.color;
+      if (!image && color){ image = imgByKey.get(`${String(it.productId)}|${String(color).toLowerCase()}`) || imgByKey.get(`${String(it.productId)}|${norm(String(color))}`) || (Array.isArray(it.images)? it.images[0]: undefined); }
+      if (!image){ try{ image = (Array.isArray(it.images) && it.images[0])? it.images[0]: undefined; }catch{} }
+      return {
+        orderItemId: String(it.orderItemId),
+        orderId: String(it.orderId),
+        orderCode: codeMap.get(String(it.orderId)) || undefined,
+        productId: String(it.productId),
+        name: it.name || '',
+        sku: it.sku || '',
+        quantity: Number(it.quantity||0),
+        color: color || null,
+        size: m?.size || null,
+        image: image || null,
+      };
+    });
+    // Merge warehouse receipt status
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    let recs: any[] = [];
+    try { const ids = out.map(i=> i.orderItemId); const ph = ids.map((_,i)=> `$${i+1}`).join(','); recs = await db.$queryRawUnsafe(`SELECT "orderItemId", status, "deliveredAt", "receivedAt" FROM "WarehouseReceipt" WHERE "orderItemId" IN (${ph})`, ...ids) as any[]; } catch {}
+    const recMap = new Map<string, any>(); for (const r of (recs||[])) recMap.set(String((r as any).orderItemId), r);
+    for (const r of out){ const s = recMap.get(r.orderItemId); if (s) { (r as any).status = s.status||null; (r as any).deliveredAt = s.deliveredAt||null; (r as any).receivedAt = s.receivedAt||null; } }
+    return res.json({ items: out });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_items_failed' }); }
+});
+
+// Warehouse: mark a driver delivered item
+adminRest.post('/logistics/warehouse/driver/item/deliver', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { orderItemId, driverId } = req.body||{}; if (!orderItemId) return res.status(400).json({ error:'orderItemId_required' });
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    const id = (require('crypto').randomUUID as ()=>string)();
+    await db.$executeRawUnsafe('DELETE FROM "WarehouseReceipt" WHERE "orderItemId"=$1', String(orderItemId));
+    await db.$executeRawUnsafe('INSERT INTO "WarehouseReceipt" (id, "orderItemId", "driverId", status, "deliveredAt") VALUES ($1,$2,$3,$4,NOW())', id, String(orderItemId), String(driverId||''), 'DELIVERED');
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'deliver_failed' }); }
+});
+
+// Warehouse: confirm receive item from driver
+adminRest.post('/logistics/warehouse/driver/item/receive', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { orderItemId } = req.body||{}; if (!orderItemId) return res.status(400).json({ error:'orderItemId_required' });
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    const id = (require('crypto').randomUUID as ()=>string)();
+    const prev: any[] = await db.$queryRawUnsafe('SELECT id FROM "WarehouseReceipt" WHERE "orderItemId"=$1 LIMIT 1', String(orderItemId)) as any[];
+    if (prev && prev[0]) await db.$executeRawUnsafe('UPDATE "WarehouseReceipt" SET status=$1, "receivedAt"=NOW() WHERE id=$2', 'RECEIVED', String((prev[0] as any).id));
+    else await db.$executeRawUnsafe('INSERT INTO "WarehouseReceipt" (id, "orderItemId", "driverId", status, "receivedAt") VALUES ($1,$2,$3,$4,NOW())', id, String(orderItemId), '', 'RECEIVED');
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'receive_failed' }); }
 });
 
 adminRest.post('/logistics/delivery/proof', async (req, res) => {
