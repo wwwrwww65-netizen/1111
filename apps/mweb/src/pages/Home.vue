@@ -673,7 +673,7 @@ onMounted(async ()=>{
   
   
   
-});
+
 
 // React to route param change (navigating between tabs)
 watch(()=> route.params.slug, (nv, ov)=>{
