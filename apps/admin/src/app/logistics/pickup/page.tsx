@@ -13,6 +13,7 @@ export default function PickupPage(): JSX.Element {
   const [message, setMessage] = React.useState('');
   const [assignPo, setAssignPo] = React.useState<string>('');
   const [assignDriver, setAssignDriver] = React.useState<string>('');
+  const [drivers, setDrivers] = React.useState<Array<{id:string;name:string}>>([]);
   // local filters
   const [vendorText, setVendorText] = React.useState('');
   const [dateFrom, setDateFrom] = React.useState('');
@@ -29,6 +30,7 @@ export default function PickupPage(): JSX.Element {
     } finally { setLoading(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers`, { credentials:'include' })).json(); setDrivers(j.drivers||[]);}catch{ setDrivers([]);} })(); }, [apiBase]);
 
   async function doAssign(){
     setMessage('');
@@ -82,9 +84,13 @@ export default function PickupPage(): JSX.Element {
         <input className="input" type="date" value={dateTo} onChange={e=> setDateTo(e.target.value)} />
       </div>
 
-      <div className="mt-4" style={{ display:'flex', gap:12, alignItems:'center' }}>
+      <div className="mt-4" style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
         <input className="input" placeholder="معرّف طلب المورد (PO)" value={assignPo} onChange={e=> setAssignPo(e.target.value)} />
-        <input className="input" placeholder="معرّف السائق" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
+        <input className="input" placeholder="معرّف السائق (اختياري)" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
+        <select className="select" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)}>
+          <option value="">اختر سائقاً</option>
+          {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
+        </select>
         <button className="btn" onClick={doAssign}>إسناد سائق</button>
         {message && <div className="text-sm" style={{ color:'#9ae6b4' }}>{message}</div>}
       </div>
@@ -105,6 +111,7 @@ export default function PickupPage(): JSX.Element {
                     <td><span className={`badge ${String(r.status).toUpperCase()==='SUBMITTED'?'warn':'ok'}`}>{r.status}</span></td>
                     <td style={{ display:'flex', gap:6 }}>
                       <button className="btn btn-sm" onClick={()=>{ setAssignPo(r.poId||r.id); }}>إسناد سائق</button>
+                      <a className="btn btn-sm btn-outline" href={`/vendors/${(r.vendorId||'').trim()}`}>المنتجات</a>
                       <a className="btn btn-sm btn-outline" href={`/api/admin/logistics/pickup/export/csv?status=waiting`}>PDF</a>
                       <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'receive')}>استلام</button>
                       <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'start')}>بدء</button>

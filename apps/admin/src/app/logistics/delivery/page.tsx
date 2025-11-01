@@ -11,6 +11,7 @@ export default function DeliveryPage(): JSX.Element {
   const [assignOrder, setAssignOrder] = React.useState('');
   const [assignDriver, setAssignDriver] = React.useState('');
   const [suggested, setSuggested] = React.useState<Array<{id:string;name:string;load:number}>>([]);
+  const [drivers, setDrivers] = React.useState<Array<{id:string;name:string}>>([]);
   const [driversLive, setDriversLive] = React.useState<Array<{id:string;name:string;lat:number;lng:number;status:string}>>([]);
   const [proofOrder, setProofOrder] = React.useState('');
   const [signature, setSignature] = React.useState('');
@@ -30,6 +31,7 @@ export default function DeliveryPage(): JSX.Element {
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
   React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/delivery/suggest-drivers`, { credentials:'include' })).json(); setSuggested(j.drivers||[]);}catch{ setSuggested([]);} })(); }, [apiBase]);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers`, { credentials:'include' })).json(); setDrivers(j.drivers||[]);}catch{ setDrivers([]);} })(); }, [apiBase]);
   React.useEffect(()=>{ const t = setInterval(async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/logistics/drivers/locations`, { credentials:'include' })).json(); setDriversLive(j.drivers||[]);}catch{} }, 5000); return ()=> clearInterval(t); }, [apiBase]);
 
   // Lazy-load MapLibre from CDN and render base map
@@ -124,12 +126,16 @@ export default function DeliveryPage(): JSX.Element {
         <div className="mt-4">
           {loading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
           {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
-          <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
+          <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap' }}>
             <input className="input" placeholder="رقم الطلب" value={assignOrder} onChange={e=> setAssignOrder(e.target.value)} />
-            <input className="input" placeholder="معرّف السائق" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
+            <input className="input" placeholder="معرّف السائق (اختياري)" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
             <select className="select" onChange={e=> setAssignDriver(e.target.value)} value={assignDriver}>
               <option value="">سائق مقترح</option>
               {suggested.map(d=> (<option key={d.id} value={d.id}>{d.name} (نشط: {d.load})</option>))}
+            </select>
+            <select className="select" onChange={e=> setAssignDriver(e.target.value)} value={assignDriver}>
+              <option value="">كل السائقين</option>
+              {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
             </select>
             <button className="btn" onClick={assign}>تعيين سائق</button>
             {message && <div className="text-sm" style={{ color:'#9ae6b4' }}>{message}</div>}

@@ -2408,6 +2408,31 @@ adminRest.get('/logistics/pickup/list', async (req, res) => {
         'PICKUP'
       )) as any[];
     }
+    // Enrich with vendor info and counts
+    try {
+      // Map by poId => { vendorId, orderId }
+      const withVendor = await Promise.all(rows.map(async (r:any)=>{
+        const poId: string = String(r.poId||'');
+        const vendorId = poId.includes(':') ? poId.split(':')[0] : '';
+        let vendorName: string|undefined; let vendorAddress: string|undefined;
+        if (vendorId) {
+          try { const v = await db.vendor.findUnique({ where: { id: vendorId }, select: { name:true, address:true } }); vendorName = v?.name||undefined; vendorAddress = (v as any)?.address||undefined; } catch {}
+        }
+        // Count items for this vendor on the order
+        let itemsCount = 0;
+        try {
+          if (r.orderId && vendorId) {
+            const c: Array<{count: bigint}> = await db.$queryRawUnsafe(
+              'SELECT COUNT(1)::bigint as count FROM "OrderItem" oi JOIN "Product" p ON p.id=oi."productId" WHERE oi."orderId"=$1 AND p."vendorId"=$2',
+              String(r.orderId), vendorId
+            ) as any[];
+            itemsCount = Number(c?.[0]?.count||0);
+          }
+        } catch {}
+        return { ...r, vendorId, vendorName, vendorAddress, itemsCount };
+      }));
+      rows = withVendor;
+    } catch {}
     res.json({ pickups: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'pickup_list_failed' }); }
 });
