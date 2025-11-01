@@ -445,12 +445,14 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
   }
   dealsLoading.value = false
 }catch{ dealsLoading.value = false }
+}
 async function loadTrends(){ if (!trendsLoading.value) return; try{
   const t = await apiGet<any>('/api/products?limit=12&sort=new')
   const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
   hotTrends.value = mapItems(t)
   trendsLoading.value = false
 }catch{ trendsLoading.value = false }
+}
 async function loadFY(){ if (!fyLoading.value) return; try{
   if (!forYouShein.value.length){
     const t = await apiGet<any>('/api/products?limit=12&sort=new')
@@ -459,6 +461,7 @@ async function loadFY(){ if (!fyLoading.value) return; try{
   }
   fyLoading.value = false
 }catch{ fyLoading.value = false }
+}
 
 onMounted(async ()=>{
   // Detect admin preview token (optional): render preview content without affecting live design defaults
@@ -584,6 +587,7 @@ onMounted(async ()=>{
     }
     dealsLoading.value = false
   }catch{ dealsLoading.value = false }
+  }
 
   async function loadTrends(){ if (!trendsLoading.value) return; try{
     const t = await apiGet<any>('/api/products?limit=12&sort=new')
@@ -591,6 +595,7 @@ onMounted(async ()=>{
     hotTrends.value = mapItems(t)
     trendsLoading.value = false
   }catch{ trendsLoading.value = false }
+  }
 
   async function loadFY(){ if (!fyLoading.value) return; try{
     if (!forYouShein.value.length){
@@ -600,6 +605,7 @@ onMounted(async ()=>{
     }
     fyLoading.value = false
   }catch{ fyLoading.value = false }
+  }
 
   const io = new IntersectionObserver((entries)=>{
     for (const e of entries){
