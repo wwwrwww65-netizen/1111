@@ -2762,7 +2762,20 @@ adminRest.post('/logistics/warehouse/driver/complete', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
     const { driverId } = req.body||{}; if (!driverId) return res.status(400).json({ error:'driverId_required' });
-    // Mark all INBOUND legs assigned to this driver as COMPLETED if still open
+    // Determine orders served by this driver via PICKUP legs
+    const orders: Array<{ orderId: string }> = await db.$queryRawUnsafe(
+      `SELECT DISTINCT s."orderId" FROM "ShipmentLeg" s WHERE s."driverId"=$1 AND s."legType"::text='PICKUP'`, String(driverId)
+    ) as any;
+    const orderIds = Array.from(new Set((orders||[]).map(o=> String((o as any).orderId||'')).filter(Boolean)));
+    if (orderIds.length) {
+      const ph = orderIds.map((_,i)=> `$${i+2}`).join(',');
+      // Complete INBOUND legs for those orders regardless of driverId on INBOUND rows
+      await db.$executeRawUnsafe(
+        `UPDATE "ShipmentLeg" SET status='COMPLETED', "updatedAt"=NOW() WHERE "legType"::text='INBOUND' AND status::text IN ('SCHEDULED','IN_PROGRESS') AND "orderId" IN (${ph})`,
+        null as any, ...orderIds
+      );
+    }
+    // Also, as a fallback, complete any INBOUND legs that explicitly carry this driverId
     await db.$executeRawUnsafe(`UPDATE "ShipmentLeg" SET status='COMPLETED', "updatedAt"=NOW() WHERE "legType"::text='INBOUND' AND status::text IN ('SCHEDULED','IN_PROGRESS') AND "driverId"=$1`, String(driverId));
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'driver_complete_inbound_failed' }); }
@@ -2787,6 +2800,20 @@ adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
       GROUP BY o.id, o.code, o.total, ab."fullName", ab.country, ab.state, ab.city, ab.street, ab.phone, o."paymentMethod", o."shippingMethodId"
       ORDER BY updated DESC
     `) as any[];
+    // Exclude orders fully matched (all items MATCH)
+    if ((rows||[]).length) {
+      const ids = rows.map(r=> String((r as any).orderId));
+      const ph = ids.map((_,i)=> `$${i+1}`).join(',');
+      const matchedRows: any[] = await db.$queryRawUnsafe(
+        `SELECT oi."orderId" as "orderId", COUNT(*)::int as matched
+         FROM "SortingResult" sr JOIN "OrderItem" oi ON oi.id=sr."orderItemId"
+         WHERE oi."orderId" IN (${ph}) AND UPPER(sr.result)='MATCH'
+         GROUP BY oi."orderId"`, ...ids
+      ) as any[];
+      const m = new Map<string, number>(); for (const r of (matchedRows||[])) m.set(String((r as any).orderId), Number((r as any).matched||0));
+      const filtered = rows.filter(r=> Number((r as any).items||0) > Number(m.get(String((r as any).orderId))||0));
+      return res.json({ orders: filtered });
+    }
     return res.json({ orders: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'sorting_orders_failed' }); }
 });

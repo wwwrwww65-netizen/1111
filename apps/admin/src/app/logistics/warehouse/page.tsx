@@ -152,7 +152,7 @@ export default function WarehousePage(): JSX.Element {
                         await Promise.all(itemsArr.map((it:any)=> fetch(`${apiBase}/api/admin/logistics/warehouse/sorting/item`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderItemId: it.orderItemId, result: 'MATCH' }) }))); 
                       }catch{}
                     }
-                    setMessage('تم التجهيز وتم الترحيل للطلبات المحددة');
+                    setMessage('تم الترحيل');
                   }}>تم التجهيز وقم بالترحيل (للمحدد)</button>
                 </div>
               </div>
@@ -167,7 +167,7 @@ export default function WarehousePage(): JSX.Element {
                   else if ((state as any).matched === (state as any).items && (state as any).items>0) { statusLabel = 'جاهز'; badgeColor = '#10b981'; }
                   return (
                     <tr key={o.orderId}>
-                      <td><input type="checkbox" checked={!!sortingSelected[String(o.orderId)]} onChange={e=> setSortingSelected(prev=> ({ ...prev, [String(o.orderId)]: e.currentTarget.checked }))} /></td>
+                      <td><input type="checkbox" checked={!!sortingSelected[String(o.orderId)]} onChange={e=> { const c=e.currentTarget.checked; setSortingSelected(prev=> ({ ...prev, [String(o.orderId)]: c })); }} /></td>
                       <td style={{ cursor:'pointer' }} onClick={()=> location.assign(`/logistics/warehouse/sorting/${o.orderId}`)}>{o.orderCode? `#${o.orderCode}`: o.orderId}</td>
                       <td>{o.items||0}</td>
                       <td><span className="badge" style={{ background: colorMeta(badgeColor).bg, color: badgeColor, border:`1px solid ${badgeColor}`, boxShadow: colorMeta(badgeColor).shadow, display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}>
@@ -181,10 +181,10 @@ export default function WarehousePage(): JSX.Element {
                           const jj = await (await fetch(qq.toString(), { credentials:'include' })).json();
                           const itemsArr: any[] = jj.items||[];
                           await Promise.all(itemsArr.map((it:any)=> fetch(`${apiBase}/api/admin/logistics/warehouse/sorting/item`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderItemId: it.orderItemId, result: 'MATCH' }) }))); 
-                          setMessage('تم التجهيز وقم بالترحيل — تم نقل الطلب إلى جاهز للتسليم');
+                          setMessage('تم الترحيل');
                           setSortingOrders(prev=> prev.filter((x:any)=> String(x.orderId)!==String(o.orderId)));
                         }catch{}
-                      }}>تم التجهيز وقم بالترحيل</button></td>
+                      }}>تم الترحيل</button></td>
                     </tr>
                   );
                 })}</tbody>

@@ -90,7 +90,7 @@ export default function SortingOrderPage(): JSX.Element {
             <tbody>
               {items.length? items.map((r:any)=> (
                 <tr key={r.orderItemId}>
-                  <td>{!readOnly && (<input type="checkbox" checked={!!selected[r.orderItemId]} onChange={e=> setSelected(prev=> ({ ...prev, [r.orderItemId]: e.currentTarget.checked }))} />)}</td>
+                  <td>{!readOnly && (<input type="checkbox" checked={!!selected[r.orderItemId]} onChange={e=> { const c=e.currentTarget.checked; setSelected(prev=> ({ ...prev, [r.orderItemId]: c })); }} />)}</td>
                   <td>
                     {r.image? (
                       <img src={normalizeImage(r.image)} style={{ width:42, height:42, objectFit:'cover', borderRadius:6, cursor:'zoom-in' }} onClick={()=> setPreview(normalizeImage(r.image))} />

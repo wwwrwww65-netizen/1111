@@ -86,9 +86,7 @@ export default function DriverInboundPage(): JSX.Element {
     setMsg('تم تأكيد الاستلام للمحدد');
   }
 
-  function renderReceiptHtml(selectedRowIds: string[]): string {
-    // Include only items that are fully received (delivery confirmed + warehouse received)
-    const selRows = rows.filter(r=> selectedRowIds.includes(r.orderItemId) && String(r.status||'').toUpperCase()==='RECEIVED');
+  function renderReceiptHtmlFromRows(selRows: any[]): string {
     const now = new Date();
     const fmt = now.toLocaleString();
     const rowsHtml = selRows.map(r=> `
@@ -113,17 +111,18 @@ export default function DriverInboundPage(): JSX.Element {
           table{width:100%; border-collapse:collapse}
           th,td{border:1px solid #ddd; padding:6px; font-size:12px; text-align:right}
           th{background:#f5f5f7}
+          .empty{padding:24px; color:#ef4444}
         </style>
       </head>
       <body>
         <h1>إيصال استلام من السائق</h1>
         <div class="meta">السائق: ${driverId} · التاريخ: ${fmt}</div>
-        <table>
+        ${selRows.length? (`<table>
           <thead>
             <tr><th>رقم الطلب</th><th>المنتج</th><th>المقاس</th><th>اللون</th><th>SKU</th><th>الكمية</th></tr>
           </thead>
           <tbody>${rowsHtml}</tbody>
-        </table>
+        </table>`) : (`<div class="empty">لا توجد عناصر مؤكدة للطباعة</div>`)}
         <script>
           window.addEventListener('load', ()=> { setTimeout(()=> { window.print(); setTimeout(()=>{ try{ if (window.opener) window.opener.postMessage({ type:'receipt-printed' }, '*'); }catch(e){} window.close(); }, 150); }, 80); });
         </script>
@@ -131,17 +130,21 @@ export default function DriverInboundPage(): JSX.Element {
     </html>`;
   }
 
-  async function printSelected(): Promise<void> {
-    if (selectedIds.length === 0) return;
-    const eligible = rows.filter(r=> selectedIds.includes(r.orderItemId) && String(r.status||'').toUpperCase()==='RECEIVED');
+  function printByIds(ids: string[]): void {
+    const eligible = rows.filter(r=> ids.includes(r.orderItemId) && String(r.status||'').toUpperCase()==='RECEIVED');
     if (eligible.length === 0) { setMsg('لا توجد عناصر مؤكدة (تم الاستلام) للطباعة'); return; }
-    const html = renderReceiptHtml(selectedIds);
-    const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+    const html = renderReceiptHtmlFromRows(eligible);
+    const w = window.open('', '_blank');
     if (!w) return;
     w.document.open();
     w.document.write(html);
     w.document.close();
     // After-print is handled inside popup via postMessage
+  }
+
+  async function printSelected(): Promise<void> {
+    if (selectedIds.length === 0) return;
+    printByIds(selectedIds);
   }
 
   return (
@@ -172,7 +175,7 @@ export default function DriverInboundPage(): JSX.Element {
         <div className="panel">
           {rows.length>0 && (
             <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
-              <button className="btn btn-sm" onClick={(e)=>{ e.preventDefault(); const allIds = rows.map((r:any)=> String(r.orderItemId)); setSelected(Object.fromEntries(allIds.map(id=> [id,true]))); setTimeout(()=> printSelected(), 50); }}>طباعة إيصال للجميع</button>
+              <button className="btn btn-sm" onClick={(e)=>{ e.preventDefault(); const allIds = rows.map((r:any)=> String(r.orderItemId)); printByIds(allIds); }}>طباعة إيصال للجميع</button>
             </div>
           )}
           <table className="table">
@@ -184,7 +187,7 @@ export default function DriverInboundPage(): JSX.Element {
                 const receivedOk = status==='RECEIVED';
                 return (
                   <tr key={r.orderItemId}>
-                    <td><input type="checkbox" checked={!!selected[r.orderItemId]} onChange={e=> setSelected(prev=> ({ ...prev, [r.orderItemId]: e.currentTarget.checked }))} /></td>
+                    <td><input type="checkbox" checked={!!selected[r.orderItemId]} onChange={e=> { const c = e.currentTarget.checked; setSelected(prev=> ({ ...prev, [r.orderItemId]: c })); }} /></td>
                     <td>{r.orderCode? `#${r.orderCode}`: r.orderId}</td>
                     <td>{r.name||'-'}</td>
                     <td>{r.image? (<img src={normalizeImage(r.image)} style={{ width:42, height:42, objectFit:'cover', borderRadius:6 }} />): (<div style={{ width:42, height:42, background:'#0b0e14', borderRadius:6 }} />)}</td>
