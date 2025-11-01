@@ -2171,6 +2171,22 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       include: { items: true },
     });
     try { await db.$executeRawUnsafe('UPDATE "Order" SET code=$1 WHERE id=$2', generatedCode, order.id); (order as any).code = generatedCode } catch {}
+    // Spawn initial shipment legs at creation to populate pickup waiting tab (one per vendor)
+    try {
+      const itemsFull = await db.orderItem.findMany({ where: { orderId: order.id as any }, include: { product: { select: { vendorId: true } } } });
+      const vendorToItems = new Map<string, typeof itemsFull>();
+      for (const it of itemsFull) {
+        const vid = (it as any).product?.vendorId || 'NOVENDOR';
+        if (!vendorToItems.has(vid)) vendorToItems.set(vid, [] as any);
+        (vendorToItems.get(vid) as any).push(it);
+      }
+      for (const [vendorId] of vendorToItems) {
+        const poId = `${vendorId}:${order.id}`;
+        await db.shipmentLeg.create({ data: { orderId: order.id as any, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+      }
+      await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+      await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+    } catch {}
     // Persist per-line variant meta without schema migration (side table)
     try {
       await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderItemMeta" (id TEXT PRIMARY KEY, "orderId" TEXT, "orderItemId" TEXT, "productId" TEXT, color TEXT, size TEXT, uid TEXT, attributes JSONB, "createdAt" TIMESTAMP DEFAULT NOW())')

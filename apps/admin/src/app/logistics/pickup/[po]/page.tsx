@@ -2,6 +2,7 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { resolveApiBase } from '../../../lib/apiBase';
+function normalizeImage(u?: string){ try{ const s=String(u||''); if(!s) return ''; if(/^https?:\/\//i.test(s)) return s; const base=(window as any).API_BASE||''; if(s.startsWith('/uploads')) return `${base}${s}`; if(s.startsWith('uploads/')) return `${base}/${s}`; return s; }catch{ return '' } }
 
 export default function PickupDetailPage(): JSX.Element {
   const params = useParams();
@@ -96,12 +97,12 @@ export default function PickupDetailPage(): JSX.Element {
                 <thead><tr><th>رقم الطلب</th><th>المنتج</th><th>الصورة</th><th>المقاس</th><th>اللون</th><th>الكمية</th></tr></thead>
                 <tbody>
                   {lines.map((l:any, idx:number)=> (
-                    <tr key={l.productId||idx}>
+                    <tr key={l.orderItemId||l.productId||idx}>
                       <td>{orderId.slice(0,6)}</td>
                       <td>{l.name}</td>
-                      <td><div style={{ width:42, height:42, background:'#0b0e14', borderRadius:6 }} /></td>
-                      <td>{l.size||'-'}</td>
-                      <td>{l.color||'-'}</td>
+                      <td>{l.image? (<img src={normalizeImage(l.image)} style={{ width:42, height:42, objectFit:'cover', borderRadius:6 }} />): (<div style={{ width:42, height:42, background:'#0b0e14', borderRadius:6 }} />)}</td>
+                      <td>{l.size||l?.attributes?.size||'-'}</td>
+                      <td>{l.color||l?.attributes?.color||'-'}</td>
                       <td>{l.requestedQty||l.quantity||0}</td>
                     </tr>
                   ))}
