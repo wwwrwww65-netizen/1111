@@ -2670,7 +2670,7 @@ adminRest.get('/logistics/warehouse/driver/:id/items', async (req, res) => {
     const { id } = req.params; const driverId = String(id);
     // Collect orderIds from pickup legs assigned to this driver, latest first
     const legs: Array<{ orderId: string }> = await db.$queryRawUnsafe(
-      'SELECT DISTINCT s."orderId" FROM "ShipmentLeg" s WHERE s."driverId"=$1 AND s."legType"::text=$2 AND s.status::text IN ($3,$4) ORDER BY s."updatedAt" DESC',
+      'SELECT DISTINCT ON (s."orderId") s."orderId" FROM "ShipmentLeg" s WHERE s."driverId"=$1 AND s."legType"::text=$2 AND s.status::text IN ($3,$4) ORDER BY s."orderId", s."updatedAt" DESC',
       driverId, 'PICKUP', 'IN_PROGRESS', 'COMPLETED'
     ) as any;
     const orderIds = Array.from(new Set((legs||[]).map(l=> String((l as any).orderId||'')).filter(Boolean)));
