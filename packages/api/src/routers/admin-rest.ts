@@ -2757,6 +2757,59 @@ adminRest.post('/logistics/warehouse/driver/item/receive', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'receive_failed' }); }
 });
 
+// Sorting: list orders pending sorting (PROCESSING legs)
+adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT o.id as "orderId", o.code as "orderCode", o.total,
+             COALESCE(ab."fullName", '') as recipient,
+             COALESCE(ab.country,'')||' '||COALESCE(ab.state,'')||' '||COALESCE(ab.city,'')||' '||COALESCE(ab.street,'') as address,
+             COALESCE(ab.phone,'') as phone,
+             COALESCE(o."paymentMethod", '') as "paymentMethod",
+             COALESCE(o."shippingMethodId", '') as "shippingMethodId",
+             (SELECT COUNT(*) FROM "OrderItem" oi WHERE oi."orderId"=o.id) as items,
+             MAX(s."updatedAt") as updated
+      FROM "ShipmentLeg" s JOIN "Order" o ON o.id=s."orderId"
+      LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
+      WHERE s."legType"::text='PROCESSING' AND s.status::text IN ('SCHEDULED','IN_PROGRESS')
+      GROUP BY o.id, o.code, o.total, ab."fullName", ab.country, ab.state, ab.city, ab.street, ab.phone, o."paymentMethod", o."shippingMethodId"
+      ORDER BY updated DESC
+    `) as any[];
+    return res.json({ orders: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'sorting_orders_failed' }); }
+});
+
+// Sorting: items for an order with receipt status
+adminRest.get('/logistics/warehouse/sorting/items', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const orderId = String((req.query as any).orderId||''); if (!orderId) return res.status(400).json({ error:'orderId_required' });
+    const items: any[] = await db.$queryRawUnsafe(
+      'SELECT oi.id as "orderItemId", oi."orderId", oi."productId", oi.quantity, p.name, p.sku, p.images FROM "OrderItem" oi JOIN "Product" p ON p.id=oi."productId" WHERE oi."orderId"=$1 ORDER BY oi."createdAt" ASC', orderId
+    ) as any[];
+    const metas: any[] = await db.$queryRawUnsafe('SELECT "orderItemId", color, size, attributes FROM "OrderItemMeta" WHERE "orderId"=$1', orderId) as any[];
+    const metaBy = new Map<string, any>(); for (const m of (metas||[])){ let attrs:any=(m as any).attributes; try{ if(typeof attrs==='string') attrs=JSON.parse(attrs) }catch{} metaBy.set(String((m as any).orderItemId||''), { color:(m as any).color||attrs?.color, size:(m as any).size||attrs?.size||[attrs?.size_letters,attrs?.size_numbers].filter(Boolean).join(' / ')||undefined, attributes: attrs||undefined }); }
+    let recs: any[]=[]; try{ recs = await db.$queryRawUnsafe('SELECT "orderItemId", status, "deliveredAt", "receivedAt" FROM "WarehouseReceipt" WHERE "orderItemId" IN (SELECT id FROM "OrderItem" WHERE "orderId"=$1)', orderId) as any[]; }catch{}
+    let sres: any[]=[]; try{ sres = await db.$queryRawUnsafe('SELECT "orderItemId", result FROM "SortingResult" WHERE "orderItemId" IN (SELECT id FROM "OrderItem" WHERE "orderId"=$1)', orderId) as any[]; }catch{}
+    const recMap = new Map<string, any>(); for (const r of (recs||[])) recMap.set(String((r as any).orderItemId), { status: String((r as any).status||''), deliveredAt: (r as any).deliveredAt||null, receivedAt: (r as any).receivedAt||null });
+    const resMap = new Map<string, string>(); for (const r of (sres||[])) resMap.set(String((r as any).orderItemId), String((r as any).result||''));
+    const out = items.map((it:any)=>{ const m = metaBy.get(String(it.orderItemId))||{}; const rec = recMap.get(String(it.orderItemId))||{}; const result = resMap.get(String(it.orderItemId))||null; return { ...it, attributes:m.attributes||null, color:m.color||null, size:m.size||null, status: rec.status||null, deliveredAt: rec.deliveredAt||null, receivedAt: rec.receivedAt||null, result, image: (m.attributes?.image || (Array.isArray(it.images)? it.images[0]: null))||null }; });
+    return res.json({ items: out });
+  } catch (e:any) { res.status(500).json({ error: e.message||'sorting_items_failed' }); }
+});
+
+// Sorting: set item result (match/diff/issue)
+adminRest.post('/logistics/warehouse/sorting/item', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { orderItemId, result, note } = req.body||{}; if (!orderItemId || !result) return res.status(400).json({ error:'orderItemId_and_result_required' });
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "SortingResult" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, result TEXT NOT NULL, note TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    await db.$executeRawUnsafe('DELETE FROM "SortingResult" WHERE "orderItemId"=$1', String(orderItemId));
+    await db.$executeRawUnsafe('INSERT INTO "SortingResult" (id, "orderItemId", result, note) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), String(orderItemId), String(result).toUpperCase(), note? String(note): null);
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'sorting_item_failed' }); }
+});
 adminRest.post('/logistics/delivery/proof', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
