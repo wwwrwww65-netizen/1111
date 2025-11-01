@@ -352,9 +352,11 @@ const effectiveTotal = ref<number>(0)
 const effectiveDiscount = ref<number>(0)
 async function refreshEffectivePricing(){
   try{
+    const { apiPost } = await import('@/lib/api')
     const itemsPayload = selectedItems.value.map(uid=>{ const it = items.value.find(i=> i.uid===uid); return it? { id: it.id, qty: it.qty } : null }).filter(Boolean)
-    const r = await fetch('/api/pricing/effective', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ items: itemsPayload }) })
-    const j = await r.json(); effectiveTotal.value = Number(j?.total||selectedSubtotal.value); effectiveDiscount.value = Number(j?.discount||0)
+    const j = await apiPost('/api/pricing/effective', { items: itemsPayload })
+    effectiveTotal.value = Number((j as any)?.total||selectedSubtotal.value)
+    effectiveDiscount.value = Number((j as any)?.discount||0)
   }catch{ effectiveTotal.value = selectedSubtotal.value; effectiveDiscount.value = 0 }
 }
 watch([selectedItems, items], ()=>{ refreshEffectivePricing() }, { deep:true })
