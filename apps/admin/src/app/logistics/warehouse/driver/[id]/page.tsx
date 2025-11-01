@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { resolveApiBase } from '../../../lib/apiBase';
+import { resolveApiBase } from '../../../../lib/apiBase';
 
 export default function DriverInboundPage(): JSX.Element {
   const apiBase = resolveApiBase();
