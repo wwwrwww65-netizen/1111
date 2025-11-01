@@ -74,7 +74,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }):
         </nav>
       </div>
       <div className="panel">
-        <h2 style={{ marginTop:0 }}>الطلب #{order.id}</h2>
+        <h2 style={{ marginTop:0 }}>الطلب #{(order as any).code || order.id}</h2>
         <div className="grid cols-2">
           <div>
             <div style={{ color:'var(--sub)' }}>العميل</div>

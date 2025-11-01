@@ -1797,7 +1797,7 @@ adminRest.get('/orders/:id', async (req, res) => {
   } catch {}
   // Attach payment/shipping method columns if present in DB and include shipping amount
   try {
-    const rows: any[] = await db.$queryRawUnsafe('SELECT "paymentMethod", "shippingMethodId", "shippingAmount" FROM "Order" WHERE id=$1', id) as any[];
+    const rows: any[] = await db.$queryRaw`SELECT "paymentMethod", "shippingMethodId", "shippingAmount" FROM "Order" WHERE id=${id}` as any[];
     if (rows && rows[0]) {
       (o as any).paymentMethod = rows[0].paymentMethod || null;
       (o as any).shippingMethodId = rows[0].shippingMethodId || null;
@@ -1982,7 +1982,18 @@ adminRest.post('/orders', async (req, res) => {
       total += price * quantity;
       itemsData.push({ productId: it.productId || (prod?.id as string), price, quantity });
     }
-  const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } }); await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
+  // Ensure sequential code
+  let nextSeq = 1; const PREFIX = '013';
+  try {
+    await db.$executeRawUnsafe('ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS code TEXT UNIQUE');
+    const cur = await db.setting.findUnique({ where: { key: 'order_seq' } });
+    nextSeq = Number(((cur as any)?.value?.last)||0) + 1;
+    await db.setting.upsert({ where: { key: 'order_seq' }, update: { value: { last: nextSeq } }, create: { key: 'order_seq', value: { last: nextSeq } } });
+  } catch {}
+  const generatedCode = `${PREFIX}${nextSeq}`;
+  const order = await db.order.create({ data: { userId: user.id, status: 'PENDING', total } });
+  try { await db.$executeRawUnsafe('UPDATE "Order" SET code=$1 WHERE id=$2', generatedCode, order.id); } catch {}
+  await audit(req,'orders','create',{ id: order.id, items: itemsData.length, total });
   try {
     await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderTimeline" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, type TEXT NOT NULL, message TEXT, meta JSONB, "createdAt" TIMESTAMP DEFAULT NOW())');
     await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), order.id, 'CREATED', 'تم إنشاء الطلب', { total, items: itemsData.length });

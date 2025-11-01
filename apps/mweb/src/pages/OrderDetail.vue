@@ -1,7 +1,7 @@
 <template>
   <div dir="rtl" class="container page">
     <HeaderBar />
-    <h1 class="title">تفاصيل الطلب #{{ id }}</h1>
+    <h1 class="title">تفاصيل الطلب #{{ (order && (order as any).code) || id }}</h1>
     <div v-if="!order" class="card">جارٍ التحميل…</div>
     <div v-else class="space-y-12">
       <div class="card row" style="justify-content:space-between;align-items:center">
@@ -35,7 +35,18 @@
           </div>
         </div>
       </div>
-      <div class="card" v-if="order.payment?.status!=='COMPLETED' && !isCod">
+      <div class="card" v-if="order.payment?.status==='COMPLETED'">
+        <div>✅ مدفوع</div>
+      </div>
+      <div class="card" v-else-if="isCod">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <div>
+            <div class="muted">الدفع</div>
+            <div>الدفع عند الاستلام</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" v-else>
         <div class="row" style="justify-content:space-between;align-items:center">
           <div>
             <div class="muted">الدفع</div>
@@ -43,9 +54,6 @@
           </div>
           <button class="btn" @click="payNow">ادفع الآن</button>
         </div>
-      </div>
-      <div class="card" v-else>
-        <div>✅ مدفوع</div>
       </div>
     </div>
     <BottomNav />

@@ -236,7 +236,7 @@ export default function OrdersPage(): JSX.Element {
           return (
             <div style={{ display:'grid', gap:6 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <a href={`/orders/${o.id}`} style={{ color:'var(--text)', fontWeight:700 }}>{o.id}</a>
+                <a href={`/orders/${o.id}`} style={{ color:'var(--text)', fontWeight:700 }}>{(o as any).code || o.id}</a>
                 <span className={`badge ${statusClass(o.status)}`}>{o.status}</span>
               </div>
               <div style={{ color:'var(--sub)', fontSize:12 }}>{new Date(o.createdAt).toLocaleString()}</div>
@@ -257,7 +257,7 @@ export default function OrdersPage(): JSX.Element {
           const shippingState = o.shipments?.[0]?.status || (o.status==='SHIPPED'?'IN_TRANSIT':o.status==='DELIVERED'?'DELIVERED':'-');
           return <>
             <td><input type="checkbox" checked={!!selected[o.id]} onChange={()=> setSelected(s=> ({...s, [o.id]: !s[o.id]}))} /></td>
-            <td><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{o.id}</a></td>
+            <td><a href={`/orders/${o.id}`} style={{ color:'var(--text)' }}>{(o as any).code || o.id}</a></td>
             <td>{new Date(o.createdAt).toLocaleString()}</td>
             <td>{o.user?.name||'-'}<div style={{color:'var(--sub)'}}>{o.user?.phone||o.user?.email||'-'}</div></td>
             <td>{formatMoney(o.total)}</td>

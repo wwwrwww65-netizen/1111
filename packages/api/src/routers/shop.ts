@@ -2011,7 +2011,7 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
       include: { items: { include: { product: { select: { id: true, name: true, images: true } } } }, payment: true },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(orders.map((o) => ({ id: o.id, status: (o.status || 'PENDING').toLowerCase(), total: Number(o.total || 0), date: o.createdAt })));
+    res.json(orders.map((o) => ({ id: o.id, code: (o as any).code||undefined, status: (o.status || 'PENDING').toLowerCase(), total: Number(o.total || 0), date: o.createdAt })));
   } catch {
     res.status(500).json({ error: 'failed' });
   }
@@ -2122,7 +2122,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
             for (const pid of Object.keys(metaQueueByPid)){
               for (const entry of metaQueueByPid[pid]){
                 const m = entry.meta
-                const color = m.color
+                const color = m.color || (m.attributes && (m.attributes as any).color)
                 if (!color) continue
                 const key = makeKey(String(pid), String(color))
                 const found = imgByKey.get(key)
@@ -2150,6 +2150,15 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       }
     } catch {}
 
+    // Ensure sequential code
+    let nextSeq = 1; const PREFIX = '013';
+    try {
+      await db.$executeRawUnsafe('ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS code TEXT UNIQUE');
+      const cur = await db.setting.findUnique({ where: { key: 'order_seq' } });
+      nextSeq = Number(((cur as any)?.value?.last)||0) + 1;
+      await db.setting.upsert({ where: { key: 'order_seq' }, update: { value: { last: nextSeq } }, create: { key: 'order_seq', value: { last: nextSeq } } });
+    } catch {}
+    const generatedCode = `${PREFIX}${nextSeq}`;
     const order = await db.order.create({
       data: {
         userId,
@@ -2161,6 +2170,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       },
       include: { items: true },
     });
+    try { await db.$executeRawUnsafe('UPDATE "Order" SET code=$1 WHERE id=$2', generatedCode, order.id); (order as any).code = generatedCode } catch {}
     // Persist per-line variant meta without schema migration (side table)
     try {
       await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderItemMeta" (id TEXT PRIMARY KEY, "orderId" TEXT, "orderItemId" TEXT, "productId" TEXT, color TEXT, size TEXT, uid TEXT, attributes JSONB, "createdAt" TIMESTAMP DEFAULT NOW())')
@@ -2242,6 +2252,12 @@ shop.get('/orders/:id', requireAuth, async (req: any, res) => {
         ;(it as any).attributes = attrs
       }
     }catch{}
+    // Ensure code is present and return a plain object including it
+    let codeVal: string | undefined = undefined
+    try{
+      const row: any[] = await db.$queryRaw`SELECT code FROM "Order" WHERE id=${id}` as any[];
+      if (row && row[0] && row[0].code){ codeVal = String(row[0].code) }
+    }catch{}
     // Attach addressBook snapshot if exists
     try{
       if (!order.shippingAddressId) {
@@ -2251,14 +2267,15 @@ shop.get('/orders/:id', requireAuth, async (req: any, res) => {
     }catch{}
     // Attach payment/shipping method columns if present in DB and include shipping amount
     try {
-      const rows: any[] = await db.$queryRawUnsafe('SELECT "paymentMethod", "shippingMethodId", "shippingAmount" FROM "Order" WHERE id=$1', id) as any[];
+      const rows: any[] = await db.$queryRaw`SELECT "paymentMethod", "shippingMethodId", "shippingAmount" FROM "Order" WHERE id=${id}` as any[];
       if (rows && rows[0]) {
         (order as any).paymentMethod = rows[0].paymentMethod || null;
         (order as any).shippingMethodId = rows[0].shippingMethodId || null;
         (order as any).shippingAmount = Number(rows[0].shippingAmount||0);
       }
     } catch {}
-    res.json(order);
+    const plain = { ...order, ...(codeVal? { code: codeVal } : {}) }
+    res.json(plain);
   } catch {
     res.status(500).json({ error: 'failed' });
   }

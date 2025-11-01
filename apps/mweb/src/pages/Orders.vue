@@ -8,7 +8,7 @@
         <a v-for="o in items" :key="o.id" class="card row" :href="`/order/${o.id}`" style="justify-content:space-between;align-items:center;text-decoration:none;color:inherit">
           <div>
             <div class="row" style="gap:8px;align-items:center">
-              <span class="muted">رقم</span><strong>#{{ o.id }}</strong>
+              <span class="muted">رقم</span><strong>#{{ (o as any).code || o.id }}</strong>
               <span class="chip" :class="o.status">{{ t(o.status) }}</span>
             </div>
             <div class="muted">{{ new Date(o.date).toLocaleDateString('ar-SA') }}</div>
@@ -27,7 +27,7 @@ import BottomNav from '@/components/BottomNav.vue'
 import { onMounted, ref } from 'vue'
 import { apiGet } from '@/lib/api'
 
-type Order = { id: string; status: 'pending'|'paid'|'shipped'|'delivered'|'cancelled'; total: number; date: string }
+type Order = { id: string; code?: string; status: 'pending'|'paid'|'shipped'|'delivered'|'cancelled'; total: number; date: string }
 const items = ref<Order[]>([])
 function t(s:Order['status']){
   return ({ pending:'قيد المعالجة', paid:'تم الدفع', shipped:'قيد الشحن', delivered:'مكتمل', cancelled:'ملغي' } as const)[s]
