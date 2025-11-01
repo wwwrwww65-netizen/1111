@@ -607,8 +607,7 @@ onMounted(async ()=>{
   
   
   
-  
-},)
+})
 })
 
 // React to route param change (navigating between tabs)

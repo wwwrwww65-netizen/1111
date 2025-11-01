@@ -2734,6 +2734,8 @@ adminRest.post('/status/change', async (req, res) => {
       }
       else if (act === 'reject') await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
       else if (act === 'complete') await db.order.update({ where: { id }, data: { status: 'DELIVERED' } });
+      else if (act === 'ship') await db.order.update({ where: { id }, data: { status: 'SHIPPED' } });
+      else if (act === 'pending') await db.order.update({ where: { id }, data: { status: 'PENDING' } });
     } else if (ent === 'pickup') {
       // id may be poId; try both id and poId
       const leg = await db.shipmentLeg.findFirst({ where: { OR: [{ id }, { poId: id as any }], legType: 'PICKUP' as any } });

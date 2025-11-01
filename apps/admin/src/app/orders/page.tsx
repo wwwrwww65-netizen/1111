@@ -87,7 +87,7 @@ export default function OrdersPage(): JSX.Element {
   }, [apiBase]);
 
   async function ship(orderId: string) {
-    await fetch(`${apiBase}/api/admin/orders/ship`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ orderId }) });
+    await fetch(`${apiBase}/api/admin/status/change`, { method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id: orderId, action:'ship' }) });
     await load();
   }
   async function refund(orderId: string) {
@@ -111,6 +111,17 @@ export default function OrdersPage(): JSX.Element {
     await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id: orderId, action }) });
     await load();
   }
+  // Map target status to generic action
+  const actionForStatus = React.useCallback((st: string): string => {
+    const s = String(st||'').toUpperCase();
+    if (s==='PAID') return 'approve';
+    if (s==='CANCELLED') return 'reject';
+    if (s==='DELIVERED') return 'complete';
+    if (s==='SHIPPED') return 'ship';
+    if (s==='PENDING') return 'pending';
+    return 'approve';
+  }, []);
+  const [bulkStatus, setBulkStatus] = React.useState<string>('');
 
   function statusClass(s: string): string {
     switch (s) {
@@ -169,6 +180,23 @@ export default function OrdersPage(): JSX.Element {
         <div style={{ display:'flex', gap:8 }}>
           <button className="btn" onClick={async ()=>{ await bulk('ship'); showToast('تم شحن المحدد'); }}>شحن المحدد</button>
           <button className="btn btn-outline" onClick={()=> bulk('cancel')}>إلغاء المحدد</button>
+          <select value={bulkStatus} onChange={(e)=> setBulkStatus(e.target.value)} className="select">
+            <option value="">حالة…</option>
+            <option value="PENDING">قيد الانتظار</option>
+            <option value="PAID">مدفوع/معتمد</option>
+            <option value="SHIPPED">تم الشحن</option>
+            <option value="DELIVERED">تم التسليم</option>
+            <option value="CANCELLED">ملغي</option>
+          </select>
+          <button className="btn" disabled={!Object.keys(selected).some(k=> selected[k]) || !bulkStatus}
+            onClick={async ()=>{
+              const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length || !bulkStatus) return;
+              const action = actionForStatus(bulkStatus) as any;
+              for (const id of ids) {
+                await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id, action }) });
+              }
+              setSelected({}); setAllChecked(false); setBulkStatus(''); await load(); showToast('تم تحديث حالة المحدد');
+            }}>تحديث حالة المحدد</button>
           <button className="btn danger" onClick={async ()=>{
             const ids = Object.keys(selected).filter(k=> selected[k]); if (!ids.length) return;
             const r = await fetch(`/api/admin/orders/bulk-delete`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ ids }) });
@@ -240,10 +268,23 @@ export default function OrdersPage(): JSX.Element {
               </div>
             </td>
             <td>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
                 <a href={`/orders/${o.id}`} className="btn btn-sm">عرض</a>
                 <button onClick={()=>ship(o.id)} className="btn btn-sm">شحن</button>
                 <button onClick={()=>refund(o.id)} className="btn btn-sm">استرداد</button>
+                <select className="select" defaultValue={o.status} onChange={async (e)=>{
+                  const val = e.target.value;
+                  const action = actionForStatus(val) as any;
+                  await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ entity:'order', id: o.id, action }) });
+                  await load();
+                }}>
+                  <option value="PENDING">قيد الانتظار</option>
+                  <option value="PAID">مدفوع/معتمد</option>
+                  <option value="SHIPPED">تم الشحن</option>
+                  <option value="DELIVERED">تم التسليم</option>
+                  <option value="CANCELLED">ملغي</option>
+                </select>
+                <button className="btn btn-sm btn-outline" onClick={async ()=>{ const action = actionForStatus(o.status) as any; await changeOrderStatus(o.id, action as any); }}>تحديث</button>
               </div>
             </td>
           </>;

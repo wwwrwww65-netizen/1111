@@ -35,7 +35,7 @@
           </div>
         </div>
       </div>
-      <div class="card" v-if="order.payment?.status!=='COMPLETED'">
+      <div class="card" v-if="order.payment?.status!=='COMPLETED' && !isCod">
         <div class="row" style="justify-content:space-between;align-items:center">
           <div>
             <div class="muted">الدفع</div>
@@ -56,13 +56,19 @@
 import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import { apiGet, apiPost } from '@/lib/api'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
 const id = String(route.params.id||'')
 const order = ref<any|null>(null)
 const currencySymbol = ref('ر.س')
+const isCod = computed(()=>{
+  try{
+    const pm = String((order.value as any)?.paymentMethod || (order.value as any)?.payment?.method || '').toLowerCase()
+    return pm==='cod' || pm==='cash_on_delivery' || pm==='cash-on-delivery'
+  }catch{ return false }
+})
 
 function resolveItemImage(it: any): string {
   try{
@@ -100,8 +106,24 @@ onMounted(async ()=>{
 })
 
 async function payNow(){
-  const res = await apiPost(`/api/orders/${encodeURIComponent(id)}/pay`, { method:'CASH_ON_DELIVERY' })
-  if (res){ order.value = await apiGet(`/api/orders/${encodeURIComponent(id)}`) }
+  if (!order.value) return
+  const method = String((order.value as any).paymentMethod||'').trim()
+  if (!method || isCod.value) return
+  try{
+    const amount = Number((order.value as any).total||0)
+    const session = await apiPost('/api/payments/session', {
+      amount,
+      currency: (window as any).__CURRENCY_CODE__||'SAR',
+      method,
+      returnUrl: location.origin + '/pay/success',
+      cancelUrl: location.origin + '/pay/failure',
+      ref: (order.value as any).id,
+    })
+    if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
+  } finally {
+    // refresh state regardless
+    try{ order.value = await apiGet(`/api/orders/${encodeURIComponent(id)}`) }catch{}
+  }
 }
 </script>
 

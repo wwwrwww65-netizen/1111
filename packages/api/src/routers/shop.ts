@@ -2161,6 +2161,30 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
         await db.$executeRawUnsafe('UPDATE "Order" SET "paymentMethod"=$1, "shippingMethodId"=$2, "shippingAmount"=$3 WHERE id=$4', String(paymentMethod), shippingMethodId? String(shippingMethodId): null, ship, order.id);
       }
     } catch {}
+    // For COD orders: auto-mark as approved for fulfillment and spawn shipment legs so pickup shows up
+    try {
+      const pm = String(paymentMethod||'').toLowerCase();
+      if (pm === 'cod' || pm === 'cash_on_delivery' || pm === 'cash-on-delivery') {
+        // Mark as approved (PAID state used to indicate fulfillment-ready in current pipeline)
+        try { await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } }); } catch {}
+        // Create shipment legs grouped by vendor
+        try {
+          const items = await db.orderItem.findMany({ where: { orderId: order.id as any }, include: { product: { select: { vendorId: true } } } });
+          const vendorToItems = new Map<string, typeof items>();
+          for (const it of items) {
+            const vid = (it as any).product?.vendorId || 'NOVENDOR';
+            if (!vendorToItems.has(vid)) vendorToItems.set(vid, [] as any);
+            (vendorToItems.get(vid) as any).push(it);
+          }
+          for (const [vendorId] of vendorToItems) {
+            const poId = `${vendorId}:${order.id}`;
+            await db.shipmentLeg.create({ data: { orderId: order.id as any, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+          }
+          await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+          await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+        } catch {}
+      }
+    } catch {}
     // Affiliate ledger (create table if needed)
     if (ref) {
       try {
@@ -2224,6 +2248,15 @@ shop.get('/orders/:id', requireAuth, async (req: any, res) => {
         if (rows && rows[0]) (order as any).address = rows[0]
       }
     }catch{}
+    // Attach payment/shipping method columns if present in DB and include shipping amount
+    try {
+      const rows: any[] = await db.$queryRawUnsafe('SELECT "paymentMethod", "shippingMethodId", "shippingAmount" FROM "Order" WHERE id=$1', id) as any[];
+      if (rows && rows[0]) {
+        (order as any).paymentMethod = rows[0].paymentMethod || null;
+        (order as any).shippingMethodId = rows[0].shippingMethodId || null;
+        (order as any).shippingAmount = Number(rows[0].shippingAmount||0);
+      }
+    } catch {}
     res.json(order);
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -2246,6 +2279,22 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       await db.payment.create({ data: { orderId: order.id, amount, currency: 'SAR', method: method as any, status: 'COMPLETED' } as any });
     }
     await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } });
+    // Spawn shipment legs upon payment (approval)
+    try {
+      const items = await db.orderItem.findMany({ where: { orderId: order.id as any }, include: { product: { select: { vendorId: true } } } });
+      const vendorToItems = new Map<string, typeof items>();
+      for (const it of items) {
+        const vid = (it as any).product?.vendorId || 'NOVENDOR';
+        if (!vendorToItems.has(vid)) vendorToItems.set(vid, [] as any);
+        (vendorToItems.get(vid) as any).push(it);
+      }
+      for (const [vendorId] of vendorToItems) {
+        const poId = `${vendorId}:${order.id}`;
+        await db.shipmentLeg.create({ data: { orderId: order.id as any, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+      }
+      await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+      await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
+    } catch {}
     // Loyalty: accrue points (1 point لكل 10 SAR)
     try {
       await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PointLedger" (id TEXT PRIMARY KEY, "userId" TEXT NOT NULL, points INTEGER NOT NULL, reason TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
