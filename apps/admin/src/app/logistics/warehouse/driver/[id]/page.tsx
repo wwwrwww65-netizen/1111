@@ -37,6 +37,26 @@ export default function DriverInboundPage(): JSX.Element {
   }
   function normalizeImage(u?: string){ try{ const s=String(u||''); if(!s) return ''; if(/^https?:\/\//i.test(s)) return s; const base=(window as any).API_BASE||''; if(s.startsWith('/uploads')) return `${base}${s}`; if(s.startsWith('uploads/')) return `${base}/${s}`; return s; }catch{ return '' } }
 
+  // Listen for receipt-printed message from popup and complete inbound
+  React.useEffect(()=>{
+    function onMsg(ev: MessageEvent){ try{ const data:any = ev?.data||{}; if (data && data.type==='receipt-printed') { (async()=>{ 
+      try {
+        const j = await (await fetch(`${apiBase}/api/admin/logistics/warehouse/driver/${encodeURIComponent(driverId)}/items`, { credentials:'include' })).json();
+        const items: any[] = j.items||[];
+        const allReceived = items.length>0 && items.every((it:any)=> String(it.status||'').toUpperCase()==='RECEIVED');
+        if (allReceived) {
+          try { await fetch(`${apiBase}/api/admin/logistics/warehouse/driver/complete`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ driverId }) }); } catch {}
+          location.assign('/logistics/warehouse?tab=sorting');
+        } else {
+          setRows(items);
+        }
+      } catch {}
+    })(); } }catch{}
+    }
+    window.addEventListener('message', onMsg);
+    return ()=> window.removeEventListener('message', onMsg);
+  }, [apiBase, driverId]);
+
   function toggleAll(e: React.ChangeEvent<HTMLInputElement>): void {
     const checked = e.currentTarget.checked;
     setSelected(() => {
@@ -67,7 +87,8 @@ export default function DriverInboundPage(): JSX.Element {
   }
 
   function renderReceiptHtml(selectedRowIds: string[]): string {
-    const selRows = rows.filter(r=> selectedRowIds.includes(r.orderItemId));
+    // Include only items that are fully received (delivery confirmed + warehouse received)
+    const selRows = rows.filter(r=> selectedRowIds.includes(r.orderItemId) && String(r.status||'').toUpperCase()==='RECEIVED');
     const now = new Date();
     const fmt = now.toLocaleString();
     const rowsHtml = selRows.map(r=> `
@@ -86,7 +107,7 @@ export default function DriverInboundPage(): JSX.Element {
         <meta charset="utf-8" />
         <title>إيصال استلام السائق</title>
         <style>
-          body{font-family:system-ui,Segoe UI,Roboto,Arial; padding:16px;}
+          body{font-family:system-ui,Segoe UI,Roboto,Arial; padding:16px; background:#fff; color:#111}
           h1{font-size:18px; margin:0 0 8px}
           .meta{color:#666; font-size:12px; margin-bottom:12px}
           table{width:100%; border-collapse:collapse}
@@ -103,31 +124,24 @@ export default function DriverInboundPage(): JSX.Element {
           </thead>
           <tbody>${rowsHtml}</tbody>
         </table>
-        <script>window.addEventListener('load', ()=> { setTimeout(()=> window.print(), 50); });</script>
+        <script>
+          window.addEventListener('load', ()=> { setTimeout(()=> { window.print(); setTimeout(()=>{ try{ if (window.opener) window.opener.postMessage({ type:'receipt-printed' }, '*'); }catch(e){} window.close(); }, 150); }, 80); });
+        </script>
       </body>
     </html>`;
   }
 
   async function printSelected(): Promise<void> {
     if (selectedIds.length === 0) return;
+    const eligible = rows.filter(r=> selectedIds.includes(r.orderItemId) && String(r.status||'').toUpperCase()==='RECEIVED');
+    if (eligible.length === 0) { setMsg('لا توجد عناصر مؤكدة (تم الاستلام) للطباعة'); return; }
     const html = renderReceiptHtml(selectedIds);
     const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
     if (!w) return;
     w.document.open();
     w.document.write(html);
     w.document.close();
-    const onAfterPrint = async () => {
-      try {
-        const j = await (await fetch(`${apiBase}/api/admin/logistics/warehouse/driver/${encodeURIComponent(driverId)}/items`, { credentials:'include' })).json();
-        const items: any[] = j.items||[];
-        const allReceived = items.length>0 && items.every((it:any)=> String(it.status||'').toUpperCase()==='RECEIVED');
-        if (allReceived) {
-          location.assign('/logistics/warehouse?tab=sorting');
-        }
-      } catch {}
-      window.removeEventListener('afterprint', onAfterPrint);
-    };
-    window.addEventListener('afterprint', onAfterPrint);
+    // After-print is handled inside popup via postMessage
   }
 
   return (
@@ -156,6 +170,11 @@ export default function DriverInboundPage(): JSX.Element {
       {loading && <div className="panel">جارٍ التحميل…</div>}
       {!loading && (
         <div className="panel">
+          {rows.length>0 && (
+            <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
+              <button className="btn btn-sm" onClick={(e)=>{ e.preventDefault(); const allIds = rows.map((r:any)=> String(r.orderItemId)); setSelected(Object.fromEntries(allIds.map(id=> [id,true]))); setTimeout(()=> printSelected(), 50); }}>طباعة إيصال للجميع</button>
+            </div>
+          )}
           <table className="table">
             <thead><tr><th><input type="checkbox" checked={allChecked} onChange={toggleAll} /></th><th>رقم الطلب</th><th>المنتج</th><th>الصورة</th><th>المقاس</th><th>اللون</th><th>الكمية</th><th>SKU</th><th>الحالة</th><th>إجراءات</th></tr></thead>
             <tbody>
@@ -174,8 +193,12 @@ export default function DriverInboundPage(): JSX.Element {
                     <td>{r.quantity||0}</td>
                     <td>{r.sku||'-'}</td>
                     <td>
-                      <span className={`badge ${deliveredOk? 'ok':'warn'}`} style={{ marginInlineEnd:6 }}>تسليم</span>
-                      <span className={`badge ${receivedOk? 'ok':'warn'}`}>استلام</span>
+                      <span className={`badge ${deliveredOk? 'ok':'warn'}`} style={{ marginInlineEnd:6, background: deliveredOk? 'rgba(37,99,235,0.12)':'rgba(239,68,68,0.12)', color: deliveredOk? '#2563eb':'#ef4444', border: `1px solid ${deliveredOk? '#2563eb':'#ef4444'}`, boxShadow: `0 0 0 1px ${deliveredOk? '#2563eb':'#ef4444'} inset, 0 0 8px ${(deliveredOk? '#2563eb':'#ef4444')}66`, display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}>
+                        <span style={{ width:8, height:8, borderRadius:999, background: deliveredOk? '#2563eb':'#ef4444', boxShadow:`0 0 8px ${(deliveredOk? '#2563eb':'#ef4444')}AA` }} /> تسليم
+                      </span>
+                      <span className={`badge ${receivedOk? 'ok':'warn'}`} style={{ background: receivedOk? 'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)', color: receivedOk? '#10b981':'#ef4444', border: `1px solid ${receivedOk? '#10b981':'#ef4444'}`, boxShadow: `0 0 0 1px ${receivedOk? '#10b981':'#ef4444'} inset, 0 0 8px ${(receivedOk? '#10b981':'#ef4444')}66`, display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}>
+                        <span style={{ width:8, height:8, borderRadius:999, background: receivedOk? '#10b981':'#ef4444', boxShadow:`0 0 8px ${(receivedOk? '#10b981':'#ef4444')}AA` }} /> استلام
+                      </span>
                     </td>
                     <td style={{ display:'flex', gap:6 }}>
                       <button className="btn btn-sm" onClick={()=> deliverOne(r.orderItemId)}>تسليم السائق</button>

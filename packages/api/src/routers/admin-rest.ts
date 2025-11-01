@@ -2757,6 +2757,17 @@ adminRest.post('/logistics/warehouse/driver/item/receive', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'receive_failed' }); }
 });
 
+// Warehouse: complete INBOUND legs for a driver (when all items handled/after receipt printing)
+adminRest.post('/logistics/warehouse/driver/complete', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { driverId } = req.body||{}; if (!driverId) return res.status(400).json({ error:'driverId_required' });
+    // Mark all INBOUND legs assigned to this driver as COMPLETED if still open
+    await db.$executeRawUnsafe(`UPDATE "ShipmentLeg" SET status='COMPLETED', "updatedAt"=NOW() WHERE "legType"::text='INBOUND' AND status::text IN ('SCHEDULED','IN_PROGRESS') AND "driverId"=$1`, String(driverId));
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_complete_inbound_failed' }); }
+});
+
 // Sorting: list orders pending sorting (PROCESSING legs)
 adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
   try {

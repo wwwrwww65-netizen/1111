@@ -39,10 +39,12 @@ export default function SortingOrderPage(): JSX.Element {
     for (const id of selectedIds){ await setResultFor(id, result); }
   }
 
-  function StatusBadge({ status }: { status?: string|null }){
-    const s = String(status||'').toUpperCase();
-    const ok = s==='RECEIVED' || s==='MATCH';
-    return <span className={`badge ${ok? 'ok':'warn'}`}>{ok? 'مطابق/مستلم' : 'لم يتم الاستلام'}</span>;
+  function StatusBadge({ status, receivedAt, result }: { status?: string|null, receivedAt?: any, result?: string|null }){
+    const rec = !!receivedAt;
+    const res = String(result||'').toUpperCase();
+    if (res==='MATCH') return <span className="badge ok" style={{ background:'rgba(16,185,129,0.12)', color:'#10b981', border:'1px solid #10b981', boxShadow:'0 0 0 1px #10b981 inset, 0 0 8px #10b98166', display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}><span style={{ width:8, height:8, borderRadius:999, background:'#10b981', boxShadow:'0 0 8px #10b981AA' }} /> تمت المطابقة</span>;
+    if (rec) return <span className="badge" style={{ background:'rgba(37,99,235,0.12)', color:'#2563eb', border:'1px solid #2563eb', boxShadow:'0 0 0 1px #2563eb inset, 0 0 8px #2563eb66', display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}><span style={{ width:8, height:8, borderRadius:999, background:'#2563eb', boxShadow:'0 0 8px #2563ebAA' }} /> تم الاستلام</span>;
+    return <span className="badge" style={{ background:'rgba(239,68,68,0.12)', color:'#ef4444', border:'1px solid #ef4444', boxShadow:'0 0 0 1px #ef4444 inset, 0 0 8px #ef444466', display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}><span style={{ width:8, height:8, borderRadius:999, background:'#ef4444', boxShadow:'0 0 8px #ef4444AA' }} /> لم يتم الاستلام</span>;
   }
 
   function normalizeImage(u?: string){ try{ const s=String(u||''); if(!s) return ''; if(/^https?:\/\//i.test(s)) return s; const base=(window as any).API_BASE||''; if(s.startsWith('/uploads')) return `${base}${s}`; if(s.startsWith('uploads/')) return `${base}/${s}`; return s; }catch{ return '' } }
@@ -99,8 +101,8 @@ export default function SortingOrderPage(): JSX.Element {
                   <td>{r.color||'-'}</td>
                   <td>{r.sku||'-'}</td>
                   <td>{r.quantity||0}</td>
-                  <td><StatusBadge status={r.status} /></td>
-                  <td style={{ display:'flex', gap:6 }}>{!readOnly && (<>
+                  <td><StatusBadge status={r.status} receivedAt={r.receivedAt} result={r.result} /></td>
+                  <td style={{ display:'flex', gap:6 }}>{!readOnly && r.receivedAt && (<>
                     <button className="btn btn-sm" onClick={()=> setResultFor(r.orderItemId, 'MATCH')}>تأكيد المطابقة</button>
                     <button className="btn btn-sm btn-outline" onClick={()=> setResultFor(r.orderItemId, 'DIFF')}>تسجيل اختلاف</button>
                     <button className="btn btn-sm btn-outline" onClick={()=> setResultFor(r.orderItemId, 'ISSUE')}>توثيق مشكلة</button>

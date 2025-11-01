@@ -70,6 +70,17 @@ export default function WarehousePage(): JSX.Element {
   React.useEffect(()=>{ const t = String((searchParams && (searchParams as any).get? (searchParams as any).get('tab'): '')||''); if (t==='sorting'||t==='ready'||t==='inbound') setTab(t as any); }, [searchParams]);
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
 
+  function colorMeta(hex: string): { bg: string; shadow: string }{
+    switch (hex) {
+      case '#ef4444': return { bg: 'rgba(239,68,68,0.12)', shadow: '0 0 0 1px #ef4444 inset, 0 0 8px #ef444466' };
+      case '#f59e0b': return { bg: 'rgba(245,158,11,0.12)', shadow: '0 0 0 1px #f59e0b inset, 0 0 8px #f59e0b66' };
+      case '#fbbf24': return { bg: 'rgba(251,191,36,0.12)', shadow: '0 0 0 1px #fbbf24 inset, 0 0 8px #fbbf2466' };
+      case '#10b981': return { bg: 'rgba(16,185,129,0.12)', shadow: '0 0 0 1px #10b981 inset, 0 0 8px #10b98166' };
+      case '#2563eb': return { bg: 'rgba(37,99,235,0.12)', shadow: '0 0 0 1px #2563eb inset, 0 0 8px #2563eb66' };
+      default: return { bg: 'rgba(99,102,241,0.12)', shadow: '0 0 0 1px #6366f1 inset, 0 0 8px #6366f166' };
+    }
+  }
+
   async function confirmInbound(shipmentId: string){
     if (!shipmentId) return;
     await fetch(`${apiBase}/api/admin/logistics/warehouse/inbound/confirm`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ shipmentId }) });
@@ -159,7 +170,10 @@ export default function WarehousePage(): JSX.Element {
                       <td><input type="checkbox" checked={!!sortingSelected[String(o.orderId)]} onChange={e=> setSortingSelected(prev=> ({ ...prev, [String(o.orderId)]: e.currentTarget.checked }))} /></td>
                       <td style={{ cursor:'pointer' }} onClick={()=> location.assign(`/logistics/warehouse/sorting/${o.orderId}`)}>{o.orderCode? `#${o.orderCode}`: o.orderId}</td>
                       <td>{o.items||0}</td>
-                      <td><span className="badge" style={{ background: badgeColor, color:'#fff' }}>{statusLabel}</span></td>
+                      <td><span className="badge" style={{ background: colorMeta(badgeColor).bg, color: badgeColor, border:`1px solid ${badgeColor}`, boxShadow: colorMeta(badgeColor).shadow, display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}>
+                        <span style={{ width:8, height:8, borderRadius:999, background: badgeColor, boxShadow:`0 0 8px ${badgeColor}AA` }} />
+                        <span>{statusLabel}</span>
+                      </span></td>
                       <td><button className="btn btn-sm" onClick={async()=>{
                         try{
                           const qq = new URL(`${apiBase}/api/admin/logistics/warehouse/sorting/items`);
@@ -167,9 +181,10 @@ export default function WarehousePage(): JSX.Element {
                           const jj = await (await fetch(qq.toString(), { credentials:'include' })).json();
                           const itemsArr: any[] = jj.items||[];
                           await Promise.all(itemsArr.map((it:any)=> fetch(`${apiBase}/api/admin/logistics/warehouse/sorting/item`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderItemId: it.orderItemId, result: 'MATCH' }) }))); 
-                          setMessage('تم التجهيز وتم الترحيل');
+                          setMessage('تم التجهيز وقم بالترحيل — تم نقل الطلب إلى جاهز للتسليم');
+                          setSortingOrders(prev=> prev.filter((x:any)=> String(x.orderId)!==String(o.orderId)));
                         }catch{}
-                      }}>تم التجهيز</button></td>
+                      }}>تم التجهيز وقم بالترحيل</button></td>
                     </tr>
                   );
                 })}</tbody>
@@ -188,29 +203,38 @@ export default function WarehousePage(): JSX.Element {
           {sortingOrders.filter((o:any)=> (readyMap[String(o.orderId)]||{}).ready).length>0 && (
             <div className="panel">
               <table className="table">
-                <thead><tr><th>رقم الطلب</th><th>كود</th><th>العنوان</th><th>عدد المنتجات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+                <thead><tr><th>رقم الطلب</th><th>اسم المستلم</th><th>الهاتف</th><th>العنوان</th><th>المبلغ</th><th>عدد المنتجات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
                 <tbody>{sortingOrders.filter((o:any)=> (readyMap[String(o.orderId)]||{}).ready).map((o:any)=> {
-                  const meta = orderInfoMap[String(o.orderId)]||{ state:'', city:'', street:'' } as any;
-                  const codeVal = o.orderCode? `#${o.orderCode}` : String(o.orderId).slice(0,8);
+                  const meta = orderInfoMap[String(o.orderId)]||{ recipient:'-', phone:'-', state:'', city:'', street:'' } as any;
                   const addressCompact = [meta.state, meta.city, meta.street].filter(Boolean).join(' ');
                   return (
                   <tr key={o.orderId}>
                     <td style={{ cursor:'pointer' }} onClick={()=> location.assign(`/logistics/warehouse/sorting/${o.orderId}?readonly=1`)}>{o.orderCode? `#${o.orderCode}`: o.orderId}</td>
-                    <td>{codeVal}</td>
+                    <td>{meta.recipient}</td>
+                    <td>{meta.phone}</td>
                     <td style={{ maxWidth:260, whiteSpace:'normal', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2 as any, WebkitBoxOrient:'vertical' as any }}>{addressCompact}</td>
+                    <td>{Number(o.total||0).toFixed(2)}</td>
                     <td>{o.items||0}</td>
-                    <td><span className="badge ok">جاهز</span></td>
+                    <td><span className="badge ok" style={{ background:'rgba(16,185,129,0.12)', color:'#10b981', border:'1px solid #10b981', boxShadow:'0 0 0 1px #10b981 inset, 0 0 8px #10b98166', display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}>
+                      <span style={{ width:8, height:8, borderRadius:999, background:'#10b981', boxShadow:'0 0 8px #10b981AA' }} />
+                      <span>جاهز</span>
+                    </span></td>
                     <td style={{ display:'flex', gap:6 }}>
-                      <button className="btn btn-sm btn-outline" onClick={()=>{
-                        const w = window.open('', '_blank', 'width=900,height=700');
-                        if(!w) return;
-                        const html = `<!doctype html><html dir=\"rtl\" lang=\"ar\"><head><meta charset=\"utf-8\"/><title>فاتورة الطلب ${o.orderCode||o.orderId}</title><style>body{font-family:system-ui,Segoe UI,Roboto,Arial;padding:16px}h1{font-size:18px;margin:0 0 8px}.meta{color:#666;font-size:12px;margin-bottom:12px}</style></head><body><h1>فاتورة الطلب ${o.orderCode?('#'+o.orderCode):o.orderId}</h1><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),50));</script></body></html>`;
-                        w.document.open(); w.document.write(html); w.document.close();
+                      <button className="btn btn-sm btn-outline" onClick={async()=>{
+                        try{
+                          const resp = await fetch(`${apiBase}/api/admin/orders/${encodeURIComponent(String(o.orderId))}/invoice`, { credentials:'include' });
+                          const html = await resp.text();
+                          const w = window.open('', '_blank', 'width=900,height=700');
+                          if(!w) return;
+                          w.document.open();
+                          w.document.write(html.replace('</body>', '<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),100));</script></body>'));
+                          w.document.close();
+                        }catch{}
                       }}>طباعة فاتورة</button>
                       <button className="btn btn-sm btn-outline" onClick={()=>{
                         const w = window.open('', '_blank', 'width=600,height=400');
                         if(!w) return;
-                        const html = `<!doctype html><html dir=\"rtl\" lang=\"ar\"><head><meta charset=\"utf-8\"/><title>لاصق طرد</title><style>@page{size:100mm 150mm;margin:0}body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial} .label{width:100mm;height:150mm;box-sizing:border-box;padding:10mm;display:flex;flex-direction:column;justify-content:space-between} .row{display:flex;justify-content:space-between;align-items:center} .big{font-size:20px;font-weight:700} .barcode{height:32px;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;letter-spacing:2px}</style></head><body><div class=\"label\"><div class=\"row big\">${codeVal}</div><div>${addressCompact.slice(0,120)}</div><div class=\"row\"><div>طلب: ${o.orderCode||o.orderId}</div><div>قطع: ${o.items||0}</div></div><div class=\"barcode\">*${o.orderCode||o.orderId}*</div></div><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),50));</script></body></html>`;
+                        const html = `<!doctype html><html dir=\"rtl\" lang=\"ar\"><head><meta charset=\"utf-8\"/><title>لاصق طرد</title><style>@page{size:100mm 150mm;margin:0}body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial} .label{width:100mm;height:150mm;box-sizing:border-box;padding:10mm;display:flex;flex-direction:column;justify-content:space-between} .row{display:flex;justify-content:space-between;align-items:center} .big{font-size:20px;font-weight:700} .barcode{height:32px;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;letter-spacing:2px}</style></head><body><div class=\"label\"><div class=\"row big\">${meta.recipient||''}</div><div>${addressCompact.slice(0,120)}</div><div class=\"row\"><div>طلب: ${o.orderCode||o.orderId}</div><div>قطع: ${o.items||0}</div></div><div class=\"barcode\">*${o.orderCode||o.orderId}*</div></div><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),50));</script></body></html>`;
                         w.document.open(); w.document.write(html); w.document.close();
                       }}>لاصق طرد</button>
                     </td>
