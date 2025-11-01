@@ -22,9 +22,16 @@ export default function PickupDetailPage(): JSX.Element {
       url.searchParams.set('orderId', orderId);
       const j = await (await fetch(url.toString(), { credentials:'include' })).json();
       setLines(j.lines||[]);
-      // load pickup leg meta (driver name, acceptance) via list (stable on all environments)
+      // load pickup leg meta (driver name, acceptance)
       let legObj: any = null;
-      try { const list = await (await fetch(`${apiBase}/api/admin/logistics/pickup/list`, { credentials:'include' })).json(); legObj = (list?.pickups||[]).find((x:any)=> String(x.poId)===po) || null; } catch {}
+      try{
+        const legRes = await (await fetch(`${apiBase}/api/admin/logistics/pickup/leg?poId=${encodeURIComponent(po)}`, { credentials:'include' })).json();
+        legObj = legRes?.leg||null;
+      }catch{}
+      if (!legObj) {
+        // fallback: fetch list and find by po
+        try { const list = await (await fetch(`${apiBase}/api/admin/logistics/pickup/list`, { credentials:'include' })).json(); legObj = (list?.pickups||[]).find((x:any)=> String(x.poId)===po) || null; } catch {}
+      }
       setLeg(legObj);
     }catch{ setError('تعذر تحميل تفاصيل الطلب'); }
     finally{ setLoading(false); }
@@ -39,9 +46,8 @@ export default function PickupDetailPage(): JSX.Element {
   async function driverDecision(decision: 'accept'|'reject'){
     try{
       await fetch(`${apiBase}/api/admin/logistics/pickup/driver-accept`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ poId: po, decision }) });
-      const list = await (await fetch(`${apiBase}/api/admin/logistics/pickup/list`, { credentials:'include' })).json();
-      const legObj = (list?.pickups||[]).find((x:any)=> String(x.poId)===po) || null;
-      setLeg(legObj);
+      const legRes = await (await fetch(`${apiBase}/api/admin/logistics/pickup/leg?poId=${encodeURIComponent(po)}`, { credentials:'include' })).json();
+      setLeg(legRes?.leg||null);
     }catch{}
   }
 

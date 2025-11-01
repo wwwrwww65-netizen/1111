@@ -2391,30 +2391,22 @@ adminRest.get('/notifications/recent', async (req, res) => {
 adminRest.get('/logistics/pickup/list', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
-    // Ensure optional columns exist for stable SELECTs across environments
-    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptance" TEXT'); } catch {}
-    try { await db.$executeRawUnsafe('ALTER TABLE "ShipmentLeg" ADD COLUMN IF NOT EXISTS "driverAcceptedAt" TIMESTAMP'); } catch {}
     const raw = String(req.query.status||'').toUpperCase();
     let dbStatus: string | null = null;
     if (raw === 'WAITING' || raw === 'SCHEDULED') dbStatus = 'SCHEDULED';
     else if (raw === 'IN_PROGRESS' || raw === 'IN-PROGRESS') dbStatus = 'IN_PROGRESS';
     else if (raw === 'COMPLETED') dbStatus = 'COMPLETED';
     let rows: any[] = [];
-    try {
-      if (dbStatus) {
-        rows = (await db.$queryRawUnsafe(
-          'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"=$1::"ShipmentLegType" AND s.status=$2::"ShipmentLegStatus" ORDER BY s."createdAt" DESC LIMIT 200',
-          'PICKUP', dbStatus
-        )) as any[];
-      } else {
-        rows = (await db.$queryRawUnsafe(
-          'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"=$1::"ShipmentLegType" ORDER BY s."createdAt" DESC LIMIT 200',
-          'PICKUP'
-        )) as any[];
-      }
-    } catch {
-      // If the table or enums are not yet migrated, return empty list gracefully
-      return res.json({ pickups: [] });
+    if (dbStatus) {
+      rows = (await db.$queryRawUnsafe(
+        'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"=$1::"ShipmentLegType" AND s.status=$2::"ShipmentLegStatus" ORDER BY s."createdAt" DESC LIMIT 200',
+        'PICKUP', dbStatus
+      )) as any[];
+    } else {
+      rows = (await db.$queryRawUnsafe(
+        'SELECT s.id, s."orderId", s."poId", s."legType", s.status, s."driverId", d.name as "driverName", s."driverAcceptance", s."driverAcceptedAt", s."createdAt", s."updatedAt" FROM "ShipmentLeg" s LEFT JOIN "Driver" d ON d.id=s."driverId" WHERE s."legType"=$1::"ShipmentLegType" ORDER BY s."createdAt" DESC LIMIT 200',
+        'PICKUP'
+      )) as any[];
     }
     // Enrich with vendor info and counts
     try {
@@ -2589,24 +2581,16 @@ adminRest.get('/logistics/delivery/list', async (req, res) => {
     const tab = String(req.query.tab||'ready').toLowerCase();
     let rows: any[] = [];
     if (tab === 'ready') {
-      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total, d.name as "driverName"
-        FROM "Order" o
-        LEFT JOIN "User" u ON u.id=o."userId"
-        LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
-        WHERE o.status IN ('PAID','SHIPPED')
-        ORDER BY o."createdAt" DESC`);
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, u.email as customer, '' as address, o.total as total
+        FROM "Order" o LEFT JOIN "User" u ON u.id=o."userId" WHERE o.status IN ('PAID','SHIPPED') ORDER BY o."createdAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 24 }));
     } else if (tab === 'in_delivery') {
-      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as "driverName", o.status, o."updatedAt" as updatedAt
+      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as driver, o.status, o."updatedAt" as updatedAt
         FROM "Order" o LEFT JOIN "Driver" d ON d.id=o."assignedDriverId" WHERE o.status IN ('SHIPPED') ORDER BY o."updatedAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 6 }));
     } else if (tab === 'completed') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, d.name as "driverName", o."updatedAt" as deliveredAt, p.status as paymentStatus
-        FROM "Order" o
-        LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
-        LEFT JOIN "Payment" p ON p."orderId"=o.id
-        WHERE o.status='DELIVERED'
-        ORDER BY o."updatedAt" DESC`);
+      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o."updatedAt" as deliveredAt, p.status as paymentStatus
+        FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id WHERE o.status='DELIVERED' ORDER BY o."updatedAt" DESC`);
     } else if (tab === 'returns') {
       rows = await db.$queryRawUnsafe(`SELECT r.id as returnId, r."createdAt" as createdAt, r.reason FROM "ReturnRequest" r ORDER BY r."createdAt" DESC`);
     }
