@@ -14,7 +14,7 @@ export default function WarehousePage(): JSX.Element {
   const [sortingLoading, setSortingLoading] = React.useState(false);
   const [sortingSelected, setSortingSelected] = React.useState<Record<string, boolean>>({});
   const sortingSelectedIds = React.useMemo(()=> Object.keys(sortingSelected).filter(k=> sortingSelected[k]), [sortingSelected]);
-  const [readyMap, setReadyMap] = React.useState<Record<string, { ready: boolean; items: number; received: number }>>({});
+  const [readyMap, setReadyMap] = React.useState<Record<string, { ready: boolean; items: number; received: number; matched: number }>>({});
   const [orderInfoMap, setOrderInfoMap] = React.useState<Record<string, { recipient: string; address: string; phone: string; payment: string; shipping: string; state?: string; city?: string; street?: string }>>({});
   async function load(){
     if (tab === 'sorting' || tab === 'ready') {
@@ -24,38 +24,41 @@ export default function WarehousePage(): JSX.Element {
         const orders = Array.isArray(j.orders)? j.orders : [];
         setSortingOrders(orders);
         setSortingSelected({});
-        // compute readiness in background
-        const chunks = orders.slice(0, 50); // limit for performance
+        // Build info directly from backend rows to avoid extra requests
+        const info: Record<string, any> = {};
+        for (const o of orders) {
+          const id = String(o.orderId);
+          info[id] = {
+            recipient: o.recipient || '-',
+            address: o.address || '-',
+            phone: o.phone || '-',
+            payment: o.paymentDisplay || o.paymentMethod || '-',
+            shipping: o.shippingTitle || String(o.shippingMethodId || '-') ,
+            state: o.state || '',
+            city: o.city || '',
+            street: o.street || '',
+          };
+        }
+        setOrderInfoMap(info);
+        // Readiness aggregation in one call (chunk to avoid long URLs)
+        const ids = orders.map((o:any)=> String(o.orderId));
+        const chunks: string[][] = [];
+        for (let i=0;i<ids.length;i+=40) chunks.push(ids.slice(i,i+40));
         const map: Record<string, { ready: boolean; items: number; received: number; matched: number }> = {};
-        const infoMap: Record<string, { recipient: string; address: string; phone: string; payment: string; shipping: string; state?: string; city?: string; street?: string }> = {};
-        await Promise.all(chunks.map(async (o: any) => {
-          const qq = new URL(`${apiBase}/api/admin/logistics/warehouse/sorting/items`);
-          qq.searchParams.set('orderId', String(o.orderId));
-          const jj = await (await fetch(qq.toString(), { credentials:'include' })).json();
-          const itemsArr: any[] = jj.items||[];
-          const total = itemsArr.length;
-          const received = itemsArr.filter(it=> !!it.receivedAt).length;
-          const matched = itemsArr.filter(it=> String(it.result||'').toUpperCase()==='MATCH').length;
-          map[String(o.orderId)] = { ready: total>0 && matched===total, items: total, received, matched };
-          // fetch order detail for readable labels
-          try {
-            const det = await (await fetch(`${apiBase}/api/admin/orders/${encodeURIComponent(String(o.orderId))}`, { credentials:'include' })).json();
-            const ord = det.order||{};
-            const ab = ord.address || ord.shippingAddress || {};
-            const fullName = ab.fullName || o.recipient || '';
-            const phone = ab.phone || o.phone || '';
-            const addrParts = [ab.country, ab.state, ab.city, ab.street, ab.details].filter(Boolean);
-            const address = addrParts.join(' ');
-            const pmDisp = ord.paymentDisplay || ord.paymentMethod || '';
-            const pm = String(pmDisp||'').toLowerCase();
-            const payment = pm==='cod' ? 'الدفع عند الاستلام' : (pm==='card'||pm==='credit_card'||pm==='visa'||pm==='mastercard' ? 'بطاقة' : (ord.paymentDisplay||ord.paymentMethod||'-'));
-            const ship = (ord.shippingMethod && (ord.shippingMethod.offerTitle || ord.shippingMethod.carrier)) || o.shippingMethodTitle || '';
-            const shipping = ship || (o.shippingMethodId? String(o.shippingMethodId) : '-');
-            infoMap[String(o.orderId)] = { recipient: fullName||'-', address: address||'-', phone: phone||'-', payment, shipping, state: ab.state||'', city: ab.city||'', street: ab.street||'' };
-          } catch {}
-        }));
+        for (const ch of chunks) {
+          const url = new URL(`${apiBase}/api/admin/logistics/warehouse/sorting/readiness`);
+          url.searchParams.set('ids', ch.join(','));
+          const r = await (await fetch(url.toString(), { credentials:'include' })).json();
+          const m = r.map||{};
+          for (const k of Object.keys(m)){
+            const it = m[k]||{};
+            const items = Number(it.items||0);
+            const received = Number(it.received||0);
+            const matched = Number(it.matched||0);
+            map[k] = { items, received, matched, ready: items>0 && matched===items };
+          }
+        }
         setReadyMap(map);
-        setOrderInfoMap(infoMap);
       } finally { setSortingLoading(false); }
     } else {
       setLoading(true);

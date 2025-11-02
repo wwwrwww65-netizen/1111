@@ -2792,6 +2792,9 @@ adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
              COALESCE(ab.phone,'') as phone,
              COALESCE(o."paymentMethod", '') as "paymentMethod",
              COALESCE(o."shippingMethodId", '') as "shippingMethodId",
+             COALESCE(ab.state,'') as state, COALESCE(ab.city,'') as city, COALESCE(ab.street,'') as street,
+             CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod",'') END as "paymentDisplay",
+             (SELECT COALESCE(dr."offerTitle", COALESCE(dr.carrier,'')) FROM "DeliveryRate" dr WHERE dr.id=o."shippingMethodId") as "shippingTitle",
              (SELECT COUNT(*) FROM "OrderItem" oi WHERE oi."orderId"=o.id) as items,
              MAX(s."updatedAt") as updated
       FROM "ShipmentLeg" s JOIN "Order" o ON o.id=s."orderId"
@@ -2816,6 +2819,25 @@ adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
     }
     return res.json({ orders: rows });
   } catch (e:any) { res.status(500).json({ error: e.message||'sorting_orders_failed' }); }
+});
+
+// Sorting: readiness aggregation for list of orderIds
+adminRest.get('/logistics/warehouse/sorting/readiness', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const idsRaw = String((req.query as any).ids||'');
+    const orderIds = Array.from(new Set(idsRaw.split(',').map(s=> s.trim()).filter(Boolean)));
+    if (!orderIds.length) return res.json({ map: {} });
+    const ph = orderIds.map((_,i)=> `$${i+1}`).join(',');
+    const totalRows: any[] = await db.$queryRawUnsafe(`SELECT oi."orderId" as id, COUNT(*)::int as total FROM "OrderItem" oi WHERE oi."orderId" IN (${ph}) GROUP BY oi."orderId"`, ...orderIds) as any[];
+    const recRows: any[] = await db.$queryRawUnsafe(`SELECT oi."orderId" as id, COUNT(*)::int as received FROM "OrderItem" oi JOIN "WarehouseReceipt" wr ON wr."orderItemId"=oi.id AND wr."receivedAt" IS NOT NULL WHERE oi."orderId" IN (${ph}) GROUP BY oi."orderId"`, ...orderIds) as any[];
+    const matchRows: any[] = await db.$queryRawUnsafe(`SELECT oi."orderId" as id, COUNT(*)::int as matched FROM "OrderItem" oi JOIN "SortingResult" sr ON sr."orderItemId"=oi.id AND UPPER(sr.result)='MATCH' WHERE oi."orderId" IN (${ph}) GROUP BY oi."orderId"`, ...orderIds) as any[];
+    const map:any = {};
+    for (const r of totalRows||[]) { map[String((r as any).id)] = { items: Number((r as any).total||0), received: 0, matched: 0 }; }
+    for (const r of recRows||[]) { const id=String((r as any).id); map[id] = map[id]||{ items:0, received:0, matched:0 }; map[id].received = Number((r as any).received||0); }
+    for (const r of matchRows||[]) { const id=String((r as any).id); map[id] = map[id]||{ items:0, received:0, matched:0 }; map[id].matched = Number((r as any).matched||0); }
+    return res.json({ map });
+  } catch (e:any) { res.status(500).json({ error: e.message||'sorting_readiness_failed' }); }
 });
 
 // Sorting: items for an order with receipt status
