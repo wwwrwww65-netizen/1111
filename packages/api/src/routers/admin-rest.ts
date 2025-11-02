@@ -2876,6 +2876,49 @@ adminRest.get('/logistics/warehouse/ready/orders', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'ready_orders_failed' }); }
 });
 
+// Delivery: list orders assigned to a driver (for handover screen)
+adminRest.get('/logistics/delivery/driver/:id/orders', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params; const driverId = String(id||'');
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT o.id as "orderId", o.code as "orderCode", o.total,
+             COALESCE(ab2."fullName", ab."fullName", '') as recipient,
+             COALESCE(ab2.phone, ab.phone,'') as phone,
+             COALESCE(ab2.state, ab.state,'') as state,
+             COALESCE(ab2.city, ab.city,'') as city,
+             COALESCE(ab2.street, ab.street,'') as street,
+             (SELECT COALESCE(dr."offerTitle", COALESCE(dr.carrier,'')) FROM "DeliveryRate" dr WHERE dr.id=o."shippingMethodId") as "shippingTitle",
+             CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod",'') END as "paymentDisplay"
+      FROM "Order" o
+      LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
+      LEFT JOIN "AddressBook" ab2 ON ab2.id=o."shippingAddressId"
+      WHERE o."assignedDriverId"=$1 AND o.status IN ('SHIPPED')
+      ORDER BY o."updatedAt" DESC
+    `, driverId) as any[];
+    // handover status
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DriverHandover" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, "driverId" TEXT NOT NULL, type TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    const ids = rows.map(r=> String((r as any).orderId));
+    let h: any[] = [];
+    if (ids.length){ const ph = ids.map((_,i)=> `$${i+1}`).join(','); h = await db.$queryRawUnsafe(`SELECT "orderId", type, MAX("createdAt") as "createdAt" FROM "DriverHandover" WHERE "orderId" IN (${ph}) GROUP BY "orderId", type`, ...ids) as any[]; }
+    const hx = new Map<string, any>();
+    for (const r of h){ const k = `${String((r as any).orderId)}:${String((r as any).type)}`; hx.set(k, r); }
+    const out = rows.map(r=> ({ ...r, warehouseToDriverAt: (hx.get(`${String((r as any).orderId)}:WAREHOUSE_TO_DRIVER`)||{}).createdAt||null, driverConfirmedAt: (hx.get(`${String((r as any).orderId)}:DRIVER_CONFIRMED`)||{}).createdAt||null }));
+    return res.json({ orders: out });
+  } catch (e:any) { res.status(500).json({ error: e.message||'driver_orders_failed' }); }
+});
+
+// Delivery: record handover events
+adminRest.post('/logistics/delivery/handover', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { orderId, driverId, type } = req.body||{}; if (!orderId || !driverId || !type) return res.status(400).json({ error:'orderId_driverId_type_required' });
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "DriverHandover" (id TEXT PRIMARY KEY, "orderId" TEXT NOT NULL, "driverId" TEXT NOT NULL, type TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    await db.$executeRawUnsafe('INSERT INTO "DriverHandover" (id, "orderId", "driverId", type) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), String(orderId), String(driverId), String(type).toUpperCase());
+    return res.json({ success: true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'handover_failed' }); }
+});
+
 // Sorting: items for an order with receipt status
 adminRest.get('/logistics/warehouse/sorting/items', async (req, res) => {
   try {
