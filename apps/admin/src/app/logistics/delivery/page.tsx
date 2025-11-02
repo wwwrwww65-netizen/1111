@@ -190,7 +190,7 @@ export default function DeliveryPage(): JSX.Element {
           <table className="table">
             <thead><tr><th>رقم الطلب</th><th>السائق</th><th>الحالة</th><th>آخر تحديث</th><th>مؤشر</th></tr></thead>
             <tbody>{items.map((o:any)=> (
-              <tr key={o.orderId}><td>{o.orderCode? `#${o.orderCode}`: o.orderId}</td><td>{o.driver||'-'}</td><td>{o.status}</td><td>{new Date(o.updatedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">في الطريق</span></td></tr>
+              <tr key={o.orderId}><td>{o.orderCode? `#${o.orderCode}`: o.orderId}</td><td>{o.driverName||'-'}</td><td>{o.status}</td><td>{new Date(o.updatedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">في الطريق</span></td></tr>
             ))}</tbody>
           </table>)}
           <div className="panel" style={{ marginTop:12 }}>خريطة حية (placeholder)</div>
@@ -203,9 +203,9 @@ export default function DeliveryPage(): JSX.Element {
           {!loading && items.length===0 && (<div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا عناصر</div>)}
           {items.length>0 && (
           <table className="table">
-            <thead><tr><th>رقم الطلب</th><th>وقت التسليم</th><th>الدفع</th><th>إجراءات</th></tr></thead>
+            <thead><tr><th>رقم الطلب</th><th>السائق</th><th>طريقة الدفع</th><th>وقت التسليم</th><th>إجراءات</th></tr></thead>
             <tbody>{items.map((o:any)=> (
-              <tr key={o.orderId}><td>{o.orderId}</td><td>{new Date(o.deliveredAt||Date.now()).toLocaleString()}</td><td>{o.paymentStatus||'-'}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm btn-outline">عرض التقييم</button><button className="btn btn-sm btn-outline">تفاصيل التسليم</button><button className="btn btn-sm btn-outline">إشعار شكر</button></td></tr>
+              <tr key={o.orderId}><td>{o.orderCode? `#${o.orderCode}`: o.orderId}</td><td>{o.driverName||'-'}</td><td>{o.paymentDisplay||'-'}</td><td>{new Date(o.deliveredAt||Date.now()).toLocaleString()}</td><td style={{ display:'flex', gap:6 }}><button className="btn btn-sm btn-outline">عرض التقييم</button><button className="btn btn-sm btn-outline">تفاصيل التسليم</button><button className="btn btn-sm btn-outline">إشعار شكر</button></td></tr>
             ))}</tbody>
           </table>)}
           <div className="panel" style={{ marginTop:12, display:'grid', gap:8, maxWidth:520 }}>

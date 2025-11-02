@@ -2637,16 +2637,29 @@ adminRest.get('/logistics/delivery/list', async (req, res) => {
     const tab = String(req.query.tab||'ready').toLowerCase();
     let rows: any[] = [];
     if (tab === 'ready') {
+      // Kept only for backward compat; UI now uses /logistics/warehouse/ready/orders
       const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, o.code as "orderCode", u.email as customer, '' as address, o.total as total
         FROM "Order" o LEFT JOIN "User" u ON u.id=o."userId" WHERE o.status IN ('PAID','SHIPPED') ORDER BY o."createdAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 24 }));
     } else if (tab === 'in_delivery') {
-      const base: any[] = await db.$queryRawUnsafe(`SELECT o.id as orderId, o.code as "orderCode", d.name as driver, o.status, o."updatedAt" as updatedAt
-        FROM "Order" o LEFT JOIN "Driver" d ON d.id=o."assignedDriverId" WHERE o.status IN ('SHIPPED') ORDER BY o."updatedAt" DESC`);
+      const base: any[] = await db.$queryRawUnsafe(`
+        SELECT o.id as orderId, o.code as "orderCode", d.name as "driverName", o.status, o."updatedAt" as updatedAt
+        FROM "Order" o
+        LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
+        WHERE o.status IN ('SHIPPED')
+        ORDER BY o."updatedAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 6 }));
     } else if (tab === 'completed') {
-      rows = await db.$queryRawUnsafe(`SELECT o.id as orderId, o.code as "orderCode", o."updatedAt" as deliveredAt, p.status as paymentStatus
-        FROM "Order" o LEFT JOIN "Payment" p ON p."orderId"=o.id WHERE o.status='DELIVERED' ORDER BY o."updatedAt" DESC`);
+      const base: any[] = await db.$queryRawUnsafe(`
+        SELECT o.id as orderId, o.code as "orderCode", o."updatedAt" as deliveredAt,
+               d.name as "driverName",
+               CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod", p.method, '') END as "paymentDisplay"
+        FROM "Order" o
+        LEFT JOIN "Payment" p ON p."orderId"=o.id
+        LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
+        WHERE o.status='DELIVERED'
+        ORDER BY o."updatedAt" DESC`);
+      rows = base;
     } else if (tab === 'returns') {
       rows = await db.$queryRawUnsafe(`SELECT r.id as returnId, r."createdAt" as createdAt, r.reason FROM "ReturnRequest" r ORDER BY r."createdAt" DESC`);
     }
@@ -2787,9 +2800,15 @@ adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
     const rows: any[] = await db.$queryRawUnsafe(`
       SELECT o.id as "orderId", o.code as "orderCode", o.total,
-             COALESCE(ab2."fullName", ab."fullName", '') as recipient,
-             COALESCE(ab2.country, ab.country,'')||' '||COALESCE(ab2.state, ab.state,'')||' '||COALESCE(ab2.city, ab.city,'')||' '||COALESCE(ab2.street, ab.street,'') as address,
-             COALESCE(ab2.phone, ab.phone,'') as phone,
+             COALESCE(ab2."fullName", ab."fullName", u.name, '') as recipient,
+             TRIM(
+               COALESCE(ab2.country, ab.country,'')||' '||
+               COALESCE(ab2.state,   ab.state,'')  ||' '||
+               COALESCE(ab2.city,    ab.city,'')   ||' '||
+               COALESCE(ab2.street,  ab.street,'') ||' '||
+               COALESCE(ab2.details, ab.details,'')
+             ) as address,
+             COALESCE(ab2.phone, ab.phone, u.phone, '') as phone,
              COALESCE(o."paymentMethod", '') as "paymentMethod",
              COALESCE(o."shippingMethodId", '') as "shippingMethodId",
              COALESCE(ab2.state, ab.state,'') as state, COALESCE(ab2.city, ab.city,'') as city, COALESCE(ab2.street, ab.street,'') as street,
@@ -2797,11 +2816,13 @@ adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
              (SELECT COALESCE(dr."offerTitle", COALESCE(dr.carrier,'')) FROM "DeliveryRate" dr WHERE dr.id=o."shippingMethodId") as "shippingTitle",
              (SELECT COUNT(*) FROM "OrderItem" oi WHERE oi."orderId"=o.id) as items,
              MAX(s."updatedAt") as updated
-      FROM "ShipmentLeg" s JOIN "Order" o ON o.id=s."orderId"
+      FROM "ShipmentLeg" s
+      JOIN "Order" o ON o.id=s."orderId"
+      LEFT JOIN "User" u ON u.id=o."userId"
       LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
       LEFT JOIN "AddressBook" ab2 ON ab2.id=o."shippingAddressId"
       WHERE s."legType"::text='PROCESSING' AND s.status::text IN ('SCHEDULED','IN_PROGRESS')
-      GROUP BY o.id, o.code, o.total, ab."fullName", ab.country, ab.state, ab.city, ab.street, ab.phone, ab2."fullName", ab2.country, ab2.state, ab2.city, ab2.street, ab2.phone, o."paymentMethod", o."shippingMethodId"
+      GROUP BY o.id, o.code, o.total, u.name, u.phone, ab."fullName", ab.country, ab.state, ab.city, ab.street, ab.details, ab.phone, ab2."fullName", ab2.country, ab2.state, ab2.city, ab2.street, ab2.details, ab2.phone, o."paymentMethod", o."shippingMethodId"
       ORDER BY updated DESC
     `) as any[];
     // Exclude orders fully matched (all items MATCH)
@@ -2848,15 +2869,22 @@ adminRest.get('/logistics/warehouse/ready/orders', async (req, res) => {
     const rows: any[] = await db.$queryRawUnsafe(`
       WITH base AS (
         SELECT o.id as "orderId", o.code as "orderCode", o.total,
-               COALESCE(ab2."fullName", ab."fullName", '') as recipient,
-               COALESCE(ab2.country, ab.country,'')||' '||COALESCE(ab2.state, ab.state,'')||' '||COALESCE(ab2.city, ab.city,'')||' '||COALESCE(ab2.street, ab.street,'') as address,
+               COALESCE(ab2."fullName", ab."fullName", u.name, '') as recipient,
+               TRIM(
+                 COALESCE(ab2.country, ab.country,'')||' '||
+                 COALESCE(ab2.state,   ab.state,'')  ||' '||
+                 COALESCE(ab2.city,    ab.city,'')   ||' '||
+                 COALESCE(ab2.street,  ab.street,'') ||' '||
+                 COALESCE(ab2.details, ab.details,'')
+               ) as address,
                COALESCE(ab2.state, ab.state,'') as state, COALESCE(ab2.city, ab.city,'') as city, COALESCE(ab2.street, ab.street,'') as street,
-               COALESCE(ab2.phone, ab.phone,'') as phone,
+               COALESCE(ab2.phone, ab.phone, u.phone,'') as phone,
                COALESCE(o."paymentMethod", '') as "paymentMethod",
                COALESCE(o."shippingMethodId", '') as "shippingMethodId",
                (SELECT COALESCE(dr."offerTitle", COALESCE(dr.carrier,'')) FROM "DeliveryRate" dr WHERE dr.id=o."shippingMethodId") as "shippingTitle",
                (SELECT COUNT(*) FROM "OrderItem" oi WHERE oi."orderId"=o.id) as items
         FROM "Order" o
+        LEFT JOIN "User" u ON u.id=o."userId"
         LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
         LEFT JOIN "AddressBook" ab2 ON ab2.id=o."shippingAddressId"
         WHERE EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."orderId"=o.id AND s."legType"::text='PROCESSING')
@@ -2884,14 +2912,15 @@ adminRest.get('/logistics/delivery/driver/:id/orders', async (req, res) => {
     const { id } = req.params; const driverId = String(id||'');
     const rows: any[] = await db.$queryRawUnsafe(`
       SELECT o.id as "orderId", o.code as "orderCode", o.total,
-             COALESCE(ab2."fullName", ab."fullName", '') as recipient,
-             COALESCE(ab2.phone, ab.phone,'') as phone,
+             COALESCE(ab2."fullName", ab."fullName", u.name, '') as recipient,
+             COALESCE(ab2.phone, ab.phone, u.phone,'') as phone,
              COALESCE(ab2.state, ab.state,'') as state,
              COALESCE(ab2.city, ab.city,'') as city,
              COALESCE(ab2.street, ab.street,'') as street,
              (SELECT COALESCE(dr."offerTitle", COALESCE(dr.carrier,'')) FROM "DeliveryRate" dr WHERE dr.id=o."shippingMethodId") as "shippingTitle",
              CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod",'') END as "paymentDisplay"
       FROM "Order" o
+      LEFT JOIN "User" u ON u.id=o."userId"
       LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
       LEFT JOIN "AddressBook" ab2 ON ab2.id=o."shippingAddressId"
       WHERE o."assignedDriverId"=$1 AND o.status IN ('SHIPPED')
