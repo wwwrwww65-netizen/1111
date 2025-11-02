@@ -243,15 +243,15 @@ export default function DeliveryPage(): JSX.Element {
           </div>
           {driverView && (
             <table className="table">
-              <thead><tr><th>اسم العميل</th><th>رقم الطلب</th><th>الهاتف</th><th>المحافظة</th><th>المنطقة</th><th>اسم الشارع</th><th>طريقة الشحن</th><th>طريقة الدفع</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-              <tbody>{driverOrders.map((o:any)=> (
+              <thead><tr><th>اسم المستلم</th><th>رقم الطلب</th><th>الهاتف</th><th>العنوان</th><th>طريقة الشحن</th><th>طريقة الدفع</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+              <tbody>{driverOrders.map((o:any)=> {
+                const address = [o.state, o.city, o.street].filter(Boolean).join(' ');
+                return (
                 <tr key={o.orderId}>
                   <td>{o.recipient||'-'}</td>
                   <td>{o.orderCode? `#${o.orderCode}`: o.orderId}</td>
                   <td>{o.phone||'-'}</td>
-                  <td>{o.state||'-'}</td>
-                  <td>{o.city||'-'}</td>
-                  <td>{o.street||'-'}</td>
+                  <td>{address||'-'}</td>
                   <td>{o.shippingTitle||'-'}</td>
                   <td>{o.paymentDisplay||'-'}</td>
                   <td>
@@ -264,7 +264,7 @@ export default function DeliveryPage(): JSX.Element {
                     <button className="btn btn-sm btn-outline" onClick={async()=>{ try{ await fetch(`${apiBase}/api/admin/logistics/delivery/proof`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: o.orderId }) }); setMessage('تم التسليم للعميل'); await load(); }catch{} }}>تم التسليم للعميل</button>
                   </td>
                 </tr>
-              ))}</tbody>
+              )})}</tbody>
             </table>
           )}
           {driverView && driverOrders.length>0 && (
