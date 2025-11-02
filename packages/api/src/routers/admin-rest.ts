@@ -2840,6 +2840,42 @@ adminRest.get('/logistics/warehouse/sorting/readiness', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'sorting_readiness_failed' }); }
 });
 
+// Ready: list orders where all items are MATCH
+adminRest.get('/logistics/warehouse/ready/orders', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
+    const rows: any[] = await db.$queryRawUnsafe(`
+      WITH base AS (
+        SELECT o.id as "orderId", o.code as "orderCode", o.total,
+               COALESCE(ab2."fullName", ab."fullName", '') as recipient,
+               COALESCE(ab2.country, ab.country,'')||' '||COALESCE(ab2.state, ab.state,'')||' '||COALESCE(ab2.city, ab.city,'')||' '||COALESCE(ab2.street, ab.street,'') as address,
+               COALESCE(ab2.state, ab.state,'') as state, COALESCE(ab2.city, ab.city,'') as city, COALESCE(ab2.street, ab.street,'') as street,
+               COALESCE(ab2.phone, ab.phone,'') as phone,
+               COALESCE(o."paymentMethod", '') as "paymentMethod",
+               COALESCE(o."shippingMethodId", '') as "shippingMethodId",
+               (SELECT COALESCE(dr."offerTitle", COALESCE(dr.carrier,'')) FROM "DeliveryRate" dr WHERE dr.id=o."shippingMethodId") as "shippingTitle",
+               (SELECT COUNT(*) FROM "OrderItem" oi WHERE oi."orderId"=o.id) as items
+        FROM "Order" o
+        LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
+        LEFT JOIN "AddressBook" ab2 ON ab2.id=o."shippingAddressId"
+        WHERE EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."orderId"=o.id AND s."legType"::text='PROCESSING')
+      ), matched AS (
+        SELECT oi."orderId" as "orderId", COUNT(*)::int as matched
+        FROM "SortingResult" sr JOIN "OrderItem" oi ON oi.id=sr."orderItemId"
+        WHERE UPPER(sr.result)='MATCH'
+        GROUP BY oi."orderId"
+      )
+      SELECT b.*, COALESCE(m.matched,0) as matched
+      FROM base b LEFT JOIN matched m ON m."orderId"=b."orderId"
+      WHERE b.items = COALESCE(m.matched,0)
+      ORDER BY b."orderId" DESC
+    `) as any[];
+    // map payment display
+    for (const r of rows){ const pm=String((r as any).paymentMethod||'').toLowerCase(); (r as any).paymentDisplay = pm==='cod'? 'الدفع عند الاستلام' : (r as any).paymentMethod; }
+    return res.json({ orders: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'ready_orders_failed' }); }
+});
+
 // Sorting: items for an order with receipt status
 adminRest.get('/logistics/warehouse/sorting/items', async (req, res) => {
   try {

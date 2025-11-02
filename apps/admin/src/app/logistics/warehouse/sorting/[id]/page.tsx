@@ -32,6 +32,8 @@ export default function SortingOrderPage(): JSX.Element {
 
   async function setResultFor(id: string, result: 'MATCH'|'DIFF'|'ISSUE', note?: string){
     await fetch(`${apiBase}/api/admin/logistics/warehouse/sorting/item`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderItemId: id, result, note }) });
+    // حدّث العنصر محلياً ليظهر فوراً
+    setItems(prev=> prev.map(it=> it.orderItemId===id? { ...it, result } : it));
     setMsg('تم الحفظ');
   }
 

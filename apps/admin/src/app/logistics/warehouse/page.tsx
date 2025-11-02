@@ -15,6 +15,7 @@ export default function WarehousePage(): JSX.Element {
   const [sortingSelected, setSortingSelected] = React.useState<Record<string, boolean>>({});
   const sortingSelectedIds = React.useMemo(()=> Object.keys(sortingSelected).filter(k=> sortingSelected[k]), [sortingSelected]);
   const [readyMap, setReadyMap] = React.useState<Record<string, { ready: boolean; items: number; received: number; matched: number }>>({});
+  const [readyOrders, setReadyOrders] = React.useState<any[]>([]);
   const [orderInfoMap, setOrderInfoMap] = React.useState<Record<string, { recipient: string; address: string; phone: string; payment: string; shipping: string; state?: string; city?: string; street?: string }>>({});
   async function load(){
     if (tab === 'sorting' || tab === 'ready') {
@@ -59,6 +60,12 @@ export default function WarehousePage(): JSX.Element {
           }
         }
         setReadyMap(map);
+        if (tab==='ready'){
+          const rj = await (await fetch(`${apiBase}/api/admin/logistics/warehouse/ready/orders`, { credentials:'include' })).json();
+          setReadyOrders(Array.isArray(rj.orders)? rj.orders: []);
+        } else {
+          setReadyOrders([]);
+        }
       } finally { setSortingLoading(false); }
     } else {
       setLoading(true);
@@ -156,6 +163,7 @@ export default function WarehousePage(): JSX.Element {
                       }catch{}
                     }
                     setMessage('تم الترحيل');
+                    setTimeout(()=> { try{ location.assign('/logistics/warehouse?tab=ready'); }catch{} }, 400);
                   }}>تم التجهيز وقم بالترحيل (للمحدد)</button>
                 </div>
               </div>
@@ -186,6 +194,7 @@ export default function WarehousePage(): JSX.Element {
                           await Promise.all(itemsArr.map((it:any)=> fetch(`${apiBase}/api/admin/logistics/warehouse/sorting/item`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderItemId: it.orderItemId, result: 'MATCH' }) }))); 
                           setMessage('تم الترحيل');
                           setSortingOrders(prev=> prev.filter((x:any)=> String(x.orderId)!==String(o.orderId)));
+                          setTimeout(()=> { try{ location.assign('/logistics/warehouse?tab=ready'); }catch{} }, 400);
                         }catch{}
                       }}>تم الترحيل</button></td>
                     </tr>
@@ -200,15 +209,15 @@ export default function WarehousePage(): JSX.Element {
       {tab==='ready' && (
         <div className="mt-4">
           {sortingLoading && (<div className="panel"><div style={{ height:48, background:'var(--muted2)', borderRadius:8, marginBottom:8 }} /><div style={{ height:48, background:'var(--muted2)', borderRadius:8 }} /></div>)}
-          {!sortingLoading && sortingOrders.filter((o:any)=> (readyMap[String(o.orderId)]||{}).ready).length===0 && (
+          {!sortingLoading && readyOrders.length===0 && (
             <div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>لا توجد طلبات جاهزة</div>
           )}
-          {sortingOrders.filter((o:any)=> (readyMap[String(o.orderId)]||{}).ready).length>0 && (
+          {readyOrders.length>0 && (
             <div className="panel">
               <table className="table">
                 <thead><tr><th>رقم الطلب</th><th>اسم المستلم</th><th>الهاتف</th><th>العنوان</th><th>المبلغ</th><th>عدد المنتجات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-                <tbody>{sortingOrders.filter((o:any)=> (readyMap[String(o.orderId)]||{}).ready).map((o:any)=> {
-                  const meta = orderInfoMap[String(o.orderId)]||{ recipient:'-', phone:'-', state:'', city:'', street:'' } as any;
+                <tbody>{readyOrders.map((o:any)=> {
+                  const meta = orderInfoMap[String(o.orderId)] || { recipient:o.recipient||'-', phone:o.phone||'-', state:o.state||'', city:o.city||'', street:o.street||'' } as any;
                   const addressCompact = [meta.state, meta.city, meta.street].filter(Boolean).join(' ');
                   return (
                   <tr key={o.orderId}>
@@ -217,7 +226,7 @@ export default function WarehousePage(): JSX.Element {
                     <td>{meta.phone}</td>
                     <td style={{ maxWidth:260, whiteSpace:'normal', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2 as any, WebkitBoxOrient:'vertical' as any }}>{addressCompact}</td>
                     <td>{Number(o.total||0).toFixed(2)}</td>
-                    <td>{o.items||0}</td>
+                    <td>{o.items||o.totalItems||0}</td>
                     <td><span className="badge ok" style={{ background:'rgba(16,185,129,0.12)', color:'#10b981', border:'1px solid #10b981', boxShadow:'0 0 0 1px #10b981 inset, 0 0 8px #10b98166', display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}>
                       <span style={{ width:8, height:8, borderRadius:999, background:'#10b981', boxShadow:'0 0 8px #10b981AA' }} />
                       <span>جاهز</span>
