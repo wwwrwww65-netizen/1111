@@ -173,10 +173,10 @@ export default function NewCouponPage(): JSX.Element {
             <label style={{ display:'flex', alignItems:'center', gap:8 }}>
               <input type="checkbox" checked={!!rules.enabled} onChange={(e)=> setRules(r=> ({ ...r, enabled: e.target.checked }))} /> مفعل
             </label>
-            <label>matchMode
+            <label>وضع المطابقة
               <select className="input" value={rules.matchMode||'all'} onChange={(e)=> setRules(r=> ({ ...r, matchMode: (e.target.value as any) }))}>
-                <option value="all">all</option>
-                <option value="any">any</option>
+                <option value="all">كل الشروط</option>
+                <option value="any">أي شرط</option>
               </select>
             </label>
             <label>حد أدنى للطلب
@@ -196,18 +196,24 @@ export default function NewCouponPage(): JSX.Element {
             <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
               <b>يشمل</b>
               <select value={includeType} onChange={(e)=> setIncludeType(e.target.value)} className="input" style={{ width:150 }}>
-                <option value="category">category</option>
-                <option value="brand">brand</option>
-                <option value="product">product</option>
-                <option value="sku">sku</option>
-                <option value="vendor">vendor</option>
-                <option value="user">user</option>
-                <option value="email">email</option>
+                <option value="category">فئة</option>
+                <option value="brand">علامة تجارية</option>
+                <option value="product">منتج</option>
+                <option value="sku">رمز SKU</option>
+                <option value="vendor">بائع</option>
+                <option value="user">مستخدم</option>
+                <option value="email">بريد إلكتروني</option>
               </select>
             {includeType==='category' ? (
               <button className="btn btn-sm" onClick={()=> setShowIncludeCat(true)}>اختيار الفئات…</button>
             ) : (
-              <AsyncPicker kind={includeType} apiBase={apiBase} onPick={(vals)=> setRules(r=> ({ ...r, includes: [ ...(r.includes||[]), ...vals.map(v=> `${includeType}:${v}`) ] }))} />
+              <AsyncPicker 
+                kind={includeType}
+                apiBase={apiBase}
+                existingTokens={rules.includes||[]}
+                preselectCategoryIds={(rules.includes||[]).filter(s=> s.startsWith('category:')).map(s=> s.split(':')[1])}
+                onPick={(vals)=> setRules(r=> ({ ...r, includes: [ ...(r.includes||[]), ...vals.map(v=> `${includeType}:${v}`) ] }))}
+              />
             )}
             </div>
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -224,18 +230,24 @@ export default function NewCouponPage(): JSX.Element {
             <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
               <b>يستثني</b>
               <select value={excludeType} onChange={(e)=> setExcludeType(e.target.value)} className="input" style={{ width:150 }}>
-                <option value="category">category</option>
-                <option value="brand">brand</option>
-                <option value="product">product</option>
-                <option value="sku">sku</option>
-                <option value="vendor">vendor</option>
-                <option value="user">user</option>
-                <option value="email">email</option>
+                <option value="category">فئة</option>
+                <option value="brand">علامة تجارية</option>
+                <option value="product">منتج</option>
+                <option value="sku">رمز SKU</option>
+                <option value="vendor">بائع</option>
+                <option value="user">مستخدم</option>
+                <option value="email">بريد إلكتروني</option>
               </select>
             {excludeType==='category' ? (
               <button className="btn btn-sm" onClick={()=> setShowExcludeCat(true)}>اختيار الفئات…</button>
             ) : (
-              <AsyncPicker kind={excludeType} apiBase={apiBase} onPick={(vals)=> setRules(r=> ({ ...r, excludes: [ ...(r.excludes||[]), ...vals.map(v=> `${excludeType}:${v}`) ] }))} />
+              <AsyncPicker 
+                kind={excludeType}
+                apiBase={apiBase}
+                existingTokens={rules.excludes||[]}
+                preselectCategoryIds={(rules.excludes||[]).filter(s=> s.startsWith('category:')).map(s=> s.split(':')[1])}
+                onPick={(vals)=> setRules(r=> ({ ...r, excludes: [ ...(r.excludes||[]), ...vals.map(v=> `${excludeType}:${v}`) ] }))}
+              />
             )}
             </div>
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -388,39 +400,156 @@ function CategoryCascadePicker({ apiBase, title, onClose, onConfirm }: { apiBase
   );
 }
 
-function AsyncPicker({ kind, apiBase, onPick }: { kind: string; apiBase: string; onPick: (ids: string[])=> void }): JSX.Element {
+function AsyncPicker({ kind, apiBase, onPick, existingTokens, preselectCategoryIds }: { kind: string; apiBase: string; onPick: (ids: string[])=> void; existingTokens?: string[]; preselectCategoryIds?: string[] }): JSX.Element {
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
   const [items, setItems] = React.useState<Array<{ id:string; label:string; image?:string|null }>>([]);
   const [sel, setSel] = React.useState<Record<string, boolean>>({});
   const [loading, setLoading] = React.useState(false);
 
-  React.useEffect(()=>{ if (!open) return; const t = setTimeout(async()=>{ try{ setLoading(true); const url = new URL(`${apiBase}/api/admin/search/${kind}`); if (q.trim()) url.searchParams.set('q', q.trim()); const r = await fetch(url.toString(), { credentials:'include' }); const j = await r.json(); setItems(Array.isArray(j?.items)? j.items: []); } finally { setLoading(false); } }, 250); return ()=> clearTimeout(t); }, [q, open, kind, apiBase]);
+  async function fetchItems() {
+    setLoading(true);
+    try {
+      const query = q.trim();
+      const selectedTokens = (existingTokens||[]);
+      const selectedSet = new Set(selectedTokens);
+      const preCat = new Set(preselectCategoryIds||[]);
+      const defaultSel: Record<string, boolean> = {};
+      // Preferred dedicated search endpoint if available
+      try {
+        const url = new URL(`${apiBase}/api/admin/search/${kind}`);
+        if (query) url.searchParams.set('q', query);
+        const r = await fetch(url.toString(), { credentials:'include' });
+        if (r.ok) {
+          const j = await r.json();
+          const arr = Array.isArray(j?.items) ? j.items : [];
+          if (arr.length) {
+            // Preselect by existing tokens if ids match
+            for (const it of arr) {
+              const token = `${kind}:${it.id}`;
+              if (selectedSet.has(token)) defaultSel[it.id] = true;
+            }
+            setItems(arr);
+            setSel(defaultSel);
+            return;
+          }
+        }
+      } catch {}
+
+      // Fallbacks per kind using existing endpoints
+      if (kind === 'product' || kind === 'sku' || kind === 'brand') {
+        const url = new URL(`${apiBase}/api/admin/products`);
+        if (query) url.searchParams.set('search', query);
+        url.searchParams.set('limit', '100');
+        const r = await fetch(url.toString(), { credentials:'include' });
+        const j = await r.json().catch(()=>({}));
+        const products = Array.isArray(j?.products) ? j.products : (Array.isArray(j?.items)? j.items: []);
+        if (kind === 'product') {
+          const mapped = products.map((p:any)=> ({ id: String(p.id), label: String(p.name||p.id), image: Array.isArray(p.images)&&p.images[0]? String(p.images[0]) : null, _cat: String(p.categoryId||'') })) as any[];
+          for (const p of mapped) {
+            if (selectedSet.has(`product:${p.id}`)) defaultSel[p.id] = true;
+            if (p._cat && preCat.has(p._cat)) defaultSel[p.id] = true;
+          }
+          setItems(mapped.map(({id,label,image})=>({id,label,image})));
+          setSel(defaultSel);
+        } else if (kind === 'sku') {
+          const filtered = products.filter((p:any)=> String(p.sku||'').toLowerCase().includes(query.toLowerCase()));
+          const mapped = filtered.map((p:any)=> ({ id: String(p.sku||p.id), label: `${p.sku||''} — ${p.name||p.id}`, image: Array.isArray(p.images)&&p.images[0]? String(p.images[0]) : null, _cat: String(p.categoryId||'') })) as any[];
+          for (const p of mapped) {
+            if (selectedSet.has(`sku:${p.id}`)) defaultSel[p.id] = true;
+            if (p._cat && preCat.has(p._cat)) defaultSel[p.id] = true;
+          }
+          setItems(mapped.map(({id,label,image})=>({id,label,image})));
+          setSel(defaultSel);
+        } else {
+          // brand
+          const uniq: Record<string, true> = {};
+          const out: Array<{ id:string; label:string }> = [];
+          for (const p of products) {
+            const b = String(p.brand||'').trim();
+            if (!b) continue;
+            if (query && !b.toLowerCase().includes(query.toLowerCase())) continue;
+            if (!uniq[b]) { uniq[b]=true; out.push({ id:b, label:b }); }
+          }
+          for (const it of out) {
+            if (selectedSet.has(`brand:${it.id}`)) defaultSel[it.id] = true;
+          }
+          setItems(out);
+          setSel(defaultSel);
+        }
+        return;
+      }
+
+      if (kind === 'vendor') {
+        const url = new URL(`${apiBase}/api/admin/vendors/list`);
+        if (query) url.searchParams.set('search', query);
+        const r = await fetch(url.toString(), { credentials:'include' });
+        const j = await r.json().catch(()=>({}));
+        const vendors = Array.isArray(j?.vendors)? j.vendors : (Array.isArray(j?.items)? j.items: []);
+        const mapped = vendors.map((v:any)=> ({ id: String(v.id||v._id||v.slug||v.name), label: String(v.name||v.title||v.id) }));
+        for (const it of mapped) {
+          if (selectedSet.has(`vendor:${it.id}`)) defaultSel[it.id] = true;
+        }
+        setItems(mapped);
+        setSel(defaultSel);
+        return;
+      }
+
+      if (kind === 'user' || kind === 'email') {
+        const url = new URL(`${apiBase}/api/admin/users/list`);
+        if (query) url.searchParams.set('search', query);
+        const r = await fetch(url.toString(), { credentials:'include' });
+        const j = await r.json().catch(()=>({}));
+        const users = Array.isArray(j?.users)? j.users : (Array.isArray(j?.items)? j.items: []);
+        if (kind === 'user') {
+          const mapped = users.map((u:any)=> ({ id: String(u.id||u._id||u.email), label: String(u.email || u.name || u.id) }));
+          for (const it of mapped) if (selectedSet.has(`user:${it.id}`)) defaultSel[it.id] = true;
+          setItems(mapped);
+          setSel(defaultSel);
+        } else {
+          // email
+          const mapped = users.map((u:any)=> ({ id: String(u.email||u.id), label: String(u.email || u.name || u.id) }));
+          for (const it of mapped) if (selectedSet.has(`email:${it.id}`)) defaultSel[it.id] = true;
+          setItems(mapped);
+          setSel(defaultSel);
+        }
+        return;
+      }
+    } finally { setLoading(false); }
+  }
+
+  React.useEffect(()=>{ if (!open) return; const t = setTimeout(fetchItems, 250); return ()=> clearTimeout(t); }, [q, open, kind, apiBase]);
 
   return (
-    <div style={{ position:'relative' }}>
-      <button className="btn btn-sm" onClick={()=> setOpen(o=> !o)}>اختيار…</button>
+    <div>
+      <button className="btn btn-sm" onClick={()=> setOpen(true)}>اختيار…</button>
       {open && (
-        <div className="panel" style={{ position:'absolute', zIndex:50, insetInlineStart:0, marginTop:6, width:380, background:'#0b0e14', border:'1px solid #1c2333', borderRadius:8, padding:8 }}>
-          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-            <input className="input" placeholder="بحث" value={q} onChange={(e)=> setQ(e.target.value)} />
-            <button className="btn btn-sm btn-outline" onClick={()=> setQ("")}>مسح</button>
-          </div>
-          {loading? (<div style={{ color:'#94a3b8' }}>جارٍ التحميل…</div>) : (
-            <div style={{ display:'grid', gap:6, maxHeight:260, overflow:'auto' }}>
-              {items.map(it=> (
-                <div key={it.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 8px', border:'1px solid #1c2333', borderRadius:8 }}>
-                  <input type="checkbox" checked={!!sel[it.id]} onChange={(e)=> setSel(s=> ({ ...s, [it.id]: e.target.checked }))} />
-                  {it.image? (<img src={it.image} style={{ width:28, height:28, objectFit:'cover', borderRadius:6 }} />): (<div style={{ width:28, height:28, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333' }} />)}
-                  <div style={{ color:'#e2e8f0' }}>{it.label}</div>
-                </div>
-              ))}
-              {!items.length && <div style={{ color:'#94a3b8' }}>لا نتائج</div>}
+        <div role="dialog" aria-modal="true" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'grid', placeItems:'center', zIndex:1000 }}>
+          <div className="panel" style={{ width:'min(720px, 96vw)', maxHeight:'90vh', overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:12 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+              <h3 style={{ margin:0 }}>اختيار {kind}</h3>
+              <button className="btn btn-sm btn-outline" onClick={()=> setOpen(false)}>إغلاق</button>
             </div>
-          )}
-          <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:8 }}>
-            <button className="btn btn-sm btn-outline" onClick={()=> setSel({})}>مسح</button>
-            <button className="btn btn-sm" onClick={()=> { const ids = Object.keys(sel).filter(k=> sel[k]); if (ids.length) onPick(ids); setOpen(false); }}>اختيار</button>
+            <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+              <input className="input" placeholder="بحث" value={q} onChange={(e)=> setQ(e.target.value)} />
+              <button className="btn btn-sm btn-outline" onClick={()=> setQ("")}>مسح</button>
+            </div>
+            {loading? (<div style={{ color:'#94a3b8' }}>جارٍ التحميل…</div>) : (
+              <div style={{ display:'grid', gap:6, maxHeight:360, overflow:'auto' }}>
+                {items.map(it=> (
+                  <div key={it.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 8px', border:'1px solid #1c2333', borderRadius:8 }}>
+                    <input type="checkbox" checked={!!sel[it.id]} onChange={(e)=> setSel(s=> ({ ...s, [it.id]: e.target.checked }))} />
+                    {it.image? (<img src={it.image} style={{ width:28, height:28, objectFit:'cover', borderRadius:6 }} />): (<div style={{ width:28, height:28, borderRadius:6, background:'#0b0e14', border:'1px solid #1c2333' }} />)}
+                    <div style={{ color:'#e2e8f0' }}>{it.label}</div>
+                  </div>
+                ))}
+                {!items.length && <div style={{ color:'#94a3b8' }}>لا نتائج</div>}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:8 }}>
+              <button className="btn btn-sm btn-outline" onClick={()=> setSel({})}>مسح</button>
+              <button className="btn btn-sm" onClick={()=> { const ids = Object.keys(sel).filter(k=> sel[k]); if (ids.length) onPick(ids); setOpen(false); }}>اختيار</button>
+            </div>
           </div>
         </div>
       )}
