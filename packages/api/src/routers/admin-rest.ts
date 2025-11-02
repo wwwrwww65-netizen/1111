@@ -1393,6 +1393,185 @@ adminRest.get('/marketing/coupons/:code/report', async (req, res) => {
 // =====================
 // Image CDN & CWV: optimized media URLs
 // =====================
+
+// ===== JEEEY CLUB membership (Role-based) =====
+async function ensureJeeyClubRole(){
+  try{
+    const r:any[] = await db.$queryRawUnsafe('SELECT id FROM "Role" WHERE name=$1 LIMIT 1', 'JEEEY_CLUB');
+    if (!r || !r[0]){
+      const id = (require('crypto').randomUUID as ()=>string)();
+      await db.$executeRawUnsafe('INSERT INTO "Role" (id, name, description) VALUES ($1,$2,$3)', id, 'JEEEY_CLUB', 'Membership role for JEEEY CLUB');
+    }
+  }catch{}
+}
+adminRest.get('/me/club', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!u?.userId) return res.status(401).json({ error:'unauthorized' });
+    await ensureJeeyClubRole();
+    const r:any[] = await db.$queryRawUnsafe('SELECT 1 FROM "UserRoleLink" url JOIN "Role" r ON r.id=url."roleId" WHERE url."userId"=$1 AND r.name=$2 LIMIT 1', String(u.userId), 'JEEEY_CLUB');
+    return res.json({ member: !!(r&&r[0]) });
+  }catch(e:any){ return res.status(500).json({ error: e?.message||'club_status_failed' }); }
+});
+adminRest.post('/me/club/join', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!u?.userId) return res.status(401).json({ error:'unauthorized' });
+    await ensureJeeyClubRole();
+    const role:any[] = await db.$queryRawUnsafe('SELECT id FROM "Role" WHERE name=$1 LIMIT 1', 'JEEEY_CLUB');
+    const roleId = String(role?.[0]?.id||''); if (!roleId) return res.status(500).json({ error:'role_missing' });
+    // upsert link
+    const existing:any[] = await db.$queryRawUnsafe('SELECT id FROM "UserRoleLink" WHERE "userId"=$1 AND "roleId"=$2 LIMIT 1', String(u.userId), roleId);
+    if (!existing || !existing[0]){
+      await db.$executeRawUnsafe('INSERT INTO "UserRoleLink" (id, "userId", "roleId") VALUES ($1,$2,$3)', (require('crypto').randomUUID as ()=>string)(), String(u.userId), roleId);
+    }
+    return res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e?.message||'club_join_failed' }); }
+});
+
+// Public: user-eligible coupons (includes static coupons + computed auto coupons)
+adminRest.get('/me/coupons', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!u?.userId) return res.status(401).json({ error:'unauthorized' });
+    await ensureCouponSchema();
+    const userId = String(u.userId);
+    // Load user and usage context
+    const user = await db.user.findUnique({ where: { id: userId } } as any);
+    const now = new Date();
+    const couponsRows: any[] = await db.$queryRawUnsafe('SELECT id, code, type, value, "usageLimit", "usedCount", "isActive", "startsAt", "endsAt" FROM "Coupon" WHERE "isActive"=true ORDER BY "createdAt" DESC');
+    // Orders used by this user with coupons
+    const usedOrders: any[] = await db.$queryRawUnsafe('SELECT "couponId" FROM "Order" WHERE "userId"=$1 AND "couponId" IS NOT NULL', userId);
+    const usedCouponIds = new Set<string>((usedOrders||[]).map((r:any)=> String(r.couponId)));
+    // Determine JEEEY CLUB membership via Role
+    let isClub = false;
+    try {
+      const r: any[] = await db.$queryRawUnsafe('SELECT 1 FROM "UserRoleLink" url JOIN "Role" r ON r.id=url."roleId" WHERE url."userId"=$1 AND r.name=$2 LIMIT 1', userId, 'JEEEY_CLUB');
+      isClub = !!(r && r[0]);
+    } catch {}
+    // Determine new user (first 7 days, no orders)
+    let isNew = false;
+    try {
+      const createdAt = (user as any)?.createdAt ? new Date((user as any).createdAt) : null;
+      const ordersCount: any[] = await db.$queryRawUnsafe('SELECT COUNT(1) as c FROM "Order" WHERE "userId"=$1', userId);
+      const cnt = Number(((ordersCount||[])[0]?.c)||0);
+      isNew = !!(createdAt && ((now.getTime()-createdAt.getTime()) < 7*86400000) && cnt===0);
+    } catch {}
+
+    // Read rules map (for title/audience)
+    const rulesByCode = new Map<string, any>();
+    try {
+      const codes = (couponsRows||[]).map((r:any)=> String(r.code||''));
+      for (const code of codes){
+        const setting = await db.setting.findUnique({ where: { key: `coupon_rules:${String(code).toUpperCase()}` } });
+        if (setting && setting.value) rulesByCode.set(String(code).toUpperCase(), setting.value as any);
+      }
+    } catch {}
+
+    const normalize = (row:any) => {
+      const startsAt = row.startsAt ? new Date(row.startsAt) : null;
+      const endsAt = row.endsAt ? new Date(row.endsAt) : null;
+      const expired = !!(endsAt && endsAt.getTime() < now.getTime());
+      const used = usedCouponIds.has(String(row.id));
+      const status = used ? 'used' : (expired ? 'expired' : 'unused');
+      const discount = Math.round(Number(row.value||0));
+      const expiryText = endsAt ? `تنتهي الصلاحية في ${endsAt.toISOString().slice(0,16).replace('T',' ')}` : 'غير محدد انتهاء';
+      const expiryDate = endsAt ? `${endsAt.getFullYear()}/${String(endsAt.getMonth()+1).padStart(2,'0')}/${String(endsAt.getDate()).padStart(2,'0')} ${String(endsAt.getHours()).padStart(2,'0')}:${String(endsAt.getMinutes()).padStart(2,'0')}` : '';
+      const cats = ['all','discount'];
+      if (status==='unused') cats.push('unused');
+      if (status==='used') cats.push('used');
+      if (status==='expired') cats.push('expired');
+      const rule = rulesByCode.get(String(row.code||'').toUpperCase());
+      const title = (rule && rule.title) ? String(rule.title) : `كوبون ${String(row.code)}`;
+      const kind = (rule && rule.kind) ? String(rule.kind) : 'sitewide';
+      return {
+        id: String(row.id),
+        code: String(row.code),
+        title,
+        category: 'عروض',
+        discount,
+        minOrder: null,
+        minOrderText: '',
+        expiryDate,
+        expiryText,
+        status,
+        categories: cats,
+        conditions: [],
+        kind,
+      };
+    };
+
+    let out: any[] = (couponsRows||[]).map(normalize);
+    // Audience filtering
+    const filtered: any[] = [];
+    for (const c of out){
+      const rule = rulesByCode.get(String(c.code||'').toUpperCase());
+      const audience = rule?.audience?.target || 'everyone';
+      let ok = true;
+      if (audience==='new_user') ok = isNew;
+      if (audience==='club') ok = isClub;
+      // audience 'users' => any authenticated user ok
+      // audience 'guest' not shown here
+      if (ok) filtered.push(c);
+    }
+    out = filtered;
+    // Synthetic auto coupons
+    if (isNew) {
+      out.push({
+        id: 'auto:WELCOME10',
+        code: 'WELCOME10',
+        title: 'خصم ترحيبي للمستخدمين الجدد',
+        category: 'مستخدم جديد',
+        discount: 10,
+        minOrder: 100,
+        minOrderText: 'طلبات أكثر من 100ريال',
+        expiryDate: '',
+        expiryText: 'ينتهي خلال 7 أيام من التسجيل',
+        status: 'unused',
+        categories: ['all','new','unused','discount'],
+        conditions: ['صالح لمرة واحدة خلال 7 أيام من إنشاء الحساب'],
+      });
+    }
+    if (isClub) {
+      out.push({
+        id: 'auto:JEEEY_CLUB',
+        code: 'CLUB30',
+        title: 'كوبون أعضاء JEEEY CLUB',
+        category: 'للأعضاء فقط',
+        discount: 30,
+        minOrder: 250,
+        minOrderText: 'طلبات أكثر من 250ريال',
+        expiryDate: '',
+        expiryText: 'ساري للأعضاء الحاليين',
+        status: 'unused',
+        categories: ['all','club','unused'],
+        conditions: ['صالح لأعضاء JEEEY CLUB فقط'],
+        kind: 'club',
+      });
+    }
+    return res.json({ coupons: out });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message||'me_coupons_failed' });
+  }
+});
+
+// Public coupons for guests (no auth)
+adminRest.get('/coupons/public', async (_req, res) => {
+  try{
+    await ensureCouponSchema();
+    const now = new Date();
+    const rows:any[] = await db.$queryRawUnsafe('SELECT id, code, type, value, "usageLimit", "usedCount", "isActive", "startsAt", "endsAt" FROM "Coupon" WHERE "isActive"=true ORDER BY "createdAt" DESC');
+    const out: any[] = [];
+    for (const r of rows){
+      const code = String(r.code||'');
+      const setting = await db.setting.findUnique({ where: { key: `coupon_rules:${code.toUpperCase()}` } });
+      const rule:any = setting?.value || {};
+      const audience = rule?.audience?.target || 'everyone';
+      if (!(audience==='guest' || audience==='everyone')) continue;
+      const endsAt = r.endsAt? new Date(r.endsAt) : null; const expired = !!(endsAt && endsAt.getTime() < now.getTime());
+      const title = rule?.title || `كوبون ${code}`;
+      out.push({ id:String(r.id), code, title, discount: Math.round(Number(r.value||0)), status: expired? 'expired':'unused', categories: ['all','discount','unused'], expiryText: endsAt? `تنتهي الصلاحية في ${endsAt.toISOString().slice(0,16).replace('T',' ')}` : 'غير محدد انتهاء' });
+    }
+    return res.json({ coupons: out });
+  }catch(e:any){ return res.status(500).json({ error: e?.message||'public_coupons_failed' }); }
+});
 adminRest.get('/media/optimize', async (req, res) => {
   try {
     const src = String(req.query.src||'');
@@ -2650,15 +2829,35 @@ adminRest.get('/logistics/delivery/list', async (req, res) => {
         ORDER BY o."updatedAt" DESC`);
       rows = base.map(r=> ({ ...r, etaHours: 6 }));
     } else if (tab === 'completed') {
+      // Show orders marked DELIVERED, and also retain those with driver handover confirmation even if status changes later
       const base: any[] = await db.$queryRawUnsafe(`
-        SELECT o.id as orderId, o.code as "orderCode", o."updatedAt" as deliveredAt,
-               d.name as "driverName",
-               CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod", p.method, '') END as "paymentDisplay"
-        FROM "Order" o
-        LEFT JOIN "Payment" p ON p."orderId"=o.id
-        LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
-        WHERE o.status='DELIVERED'
-        ORDER BY o."updatedAt" DESC`);
+        WITH delivered AS (
+          SELECT o.id as orderId, o.code as "orderCode", o."updatedAt" as deliveredAt,
+                 d.name as "driverName",
+                 CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod", p.method, '') END as "paymentDisplay",
+                 o."updatedAt" as ts
+          FROM "Order" o
+          LEFT JOIN "Payment" p ON p."orderId"=o.id
+          LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
+          WHERE o.status='DELIVERED'
+        ), handover AS (
+          SELECT o.id as orderId, o.code as "orderCode",
+                 COALESCE(MAX(h."createdAt"), o."updatedAt") as deliveredAt,
+                 d.name as "driverName",
+                 CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod", p.method, '') END as "paymentDisplay",
+                 COALESCE(MAX(h."createdAt"), o."updatedAt") as ts
+          FROM "Order" o
+          LEFT JOIN "Payment" p ON p."orderId"=o.id
+          LEFT JOIN "Driver" d ON d.id=o."assignedDriverId"
+          JOIN "DriverHandover" h ON h."orderId"=o.id AND h.type='DRIVER_CONFIRMED'
+          GROUP BY o.id, o.code, d.name, p.method, o."paymentMethod", o."updatedAt"
+        )
+        SELECT * FROM (
+          SELECT * FROM delivered
+          UNION
+          SELECT * FROM handover
+        ) x
+        ORDER BY x.ts DESC`);
       rows = base;
     } else if (tab === 'returns') {
       rows = await db.$queryRawUnsafe(`SELECT r.id as returnId, r."createdAt" as createdAt, r.reason FROM "ReturnRequest" r ORDER BY r."createdAt" DESC`);
@@ -2734,12 +2933,15 @@ adminRest.get('/logistics/warehouse/driver/:id/items', async (req, res) => {
       };
     });
     // Merge warehouse receipt status
-    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "printedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "WarehouseReceipt" ADD COLUMN IF NOT EXISTS "printedAt" TIMESTAMP NULL'); } catch {}
     let recs: any[] = [];
-    try { const ids = out.map(i=> i.orderItemId); const ph = ids.map((_,i)=> `$${i+1}`).join(','); recs = await db.$queryRawUnsafe(`SELECT "orderItemId", status, "deliveredAt", "receivedAt" FROM "WarehouseReceipt" WHERE "orderItemId" IN (${ph})`, ...ids) as any[]; } catch {}
+    try { const ids = out.map(i=> i.orderItemId); if (ids.length){ const ph = ids.map((_,i)=> `$${i+1}`).join(','); recs = await db.$queryRawUnsafe(`SELECT "orderItemId", status, "deliveredAt", "receivedAt", "printedAt" FROM "WarehouseReceipt" WHERE "orderItemId" IN (${ph})`, ...ids) as any[]; } } catch {}
     const recMap = new Map<string, any>(); for (const r of (recs||[])) recMap.set(String((r as any).orderItemId), r);
-    for (const r of out){ const s = recMap.get(r.orderItemId); if (s) { (r as any).status = s.status||null; (r as any).deliveredAt = s.deliveredAt||null; (r as any).receivedAt = s.receivedAt||null; } }
-    return res.json({ items: out });
+    const enriched = out.map(r=> { const s = recMap.get(r.orderItemId); if (s) { (r as any).status = s.status||null; (r as any).deliveredAt = s.deliveredAt||null; (r as any).receivedAt = s.receivedAt||null; (r as any).printedAt = s.printedAt||null; } return r; });
+    // Hide already-printed items from this list
+    const filtered = enriched.filter((r: any)=> !r.printedAt);
+    return res.json({ items: filtered });
   } catch (e:any) { res.status(500).json({ error: e.message||'driver_items_failed' }); }
 });
 
@@ -2748,7 +2950,8 @@ adminRest.post('/logistics/warehouse/driver/item/deliver', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
     const { orderItemId, driverId } = req.body||{}; if (!orderItemId) return res.status(400).json({ error:'orderItemId_required' });
-    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "printedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "WarehouseReceipt" ADD COLUMN IF NOT EXISTS "printedAt" TIMESTAMP NULL'); } catch {}
     const id = (require('crypto').randomUUID as ()=>string)();
     await db.$executeRawUnsafe('DELETE FROM "WarehouseReceipt" WHERE "orderItemId"=$1', String(orderItemId));
     await db.$executeRawUnsafe('INSERT INTO "WarehouseReceipt" (id, "orderItemId", "driverId", status, "deliveredAt") VALUES ($1,$2,$3,$4,NOW())', id, String(orderItemId), String(driverId||''), 'DELIVERED');
@@ -2761,13 +2964,35 @@ adminRest.post('/logistics/warehouse/driver/item/receive', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
     const { orderItemId } = req.body||{}; if (!orderItemId) return res.status(400).json({ error:'orderItemId_required' });
-    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "printedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "WarehouseReceipt" ADD COLUMN IF NOT EXISTS "printedAt" TIMESTAMP NULL'); } catch {}
     const id = (require('crypto').randomUUID as ()=>string)();
     const prev: any[] = await db.$queryRawUnsafe('SELECT id FROM "WarehouseReceipt" WHERE "orderItemId"=$1 LIMIT 1', String(orderItemId)) as any[];
     if (prev && prev[0]) await db.$executeRawUnsafe('UPDATE "WarehouseReceipt" SET status=$1, "receivedAt"=NOW() WHERE id=$2', 'RECEIVED', String((prev[0] as any).id));
     else await db.$executeRawUnsafe('INSERT INTO "WarehouseReceipt" (id, "orderItemId", "driverId", status, "receivedAt") VALUES ($1,$2,$3,$4,NOW())', id, String(orderItemId), '', 'RECEIVED');
     return res.json({ success: true });
   } catch (e:any) { res.status(500).json({ error: e.message||'receive_failed' }); }
+});
+
+// Warehouse: mark receipt printed for a set of order items (idempotent)
+adminRest.post('/logistics/warehouse/driver/receipt-printed', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'logistics.update'))) return res.status(403).json({ error:'forbidden' });
+    const { driverId, orderItemIds } = req.body||{};
+    const ids: string[] = Array.isArray(orderItemIds) ? orderItemIds.map((x:any)=> String(x)).filter(Boolean) : [];
+    if (!driverId || !ids.length) return res.status(400).json({ error:'driverId_and_orderItemIds_required' });
+    try { await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "WarehouseReceipt" (id TEXT PRIMARY KEY, "orderItemId" TEXT NOT NULL, "driverId" TEXT NOT NULL, status TEXT, "deliveredAt" TIMESTAMP NULL, "receivedAt" TIMESTAMP NULL, "printedAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "WarehouseReceipt" ADD COLUMN IF NOT EXISTS "printedAt" TIMESTAMP NULL'); } catch {}
+    for (const oid of ids){
+      const prev: any[] = await db.$queryRawUnsafe('SELECT id FROM "WarehouseReceipt" WHERE "orderItemId"=$1 LIMIT 1', String(oid)) as any[];
+      if (prev && prev[0]) await db.$executeRawUnsafe('UPDATE "WarehouseReceipt" SET "printedAt"=NOW() WHERE id=$1', String((prev[0] as any).id));
+      else {
+        const id = (require('crypto').randomUUID as ()=>string)();
+        await db.$executeRawUnsafe('INSERT INTO "WarehouseReceipt" (id, "orderItemId", "driverId", status, "printedAt") VALUES ($1,$2,$3,$4,NOW())', id, String(oid), String(driverId), 'RECEIVED');
+      }
+    }
+    return res.json({ ok:true, count: ids.length });
+  } catch (e:any) { res.status(500).json({ error: e.message||'mark_printed_failed' }); }
 });
 
 // Warehouse: complete INBOUND legs for a driver (when all items handled/after receipt printing)
@@ -2888,6 +3113,8 @@ adminRest.get('/logistics/warehouse/ready/orders', async (req, res) => {
         LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
         LEFT JOIN "AddressBook" ab2 ON ab2.id=o."shippingAddressId"
         WHERE EXISTS (SELECT 1 FROM "ShipmentLeg" s WHERE s."orderId"=o.id AND s."legType"::text='PROCESSING')
+          AND o."assignedDriverId" IS NULL
+          AND (o.status::text IS NULL OR o.status::text NOT IN ('SHIPPED','DELIVERED','CANCELLED'))
       ), matched AS (
         SELECT oi."orderId" as "orderId", COUNT(*)::int as matched
         FROM "SortingResult" sr JOIN "OrderItem" oi ON oi.id=sr."orderItemId"
@@ -3771,10 +3998,16 @@ adminRest.get('/coupons/list', async (req, res) => {
     if (!(await can(user.userId, 'coupons.manage'))) return res.status(403).json({ error: 'forbidden' });
     const page = Number(req.query.page ?? 1);
     const limit = Math.min(Number(req.query.limit ?? 20), 100);
+    const q = String((req.query.q ?? '') as string).trim();
+    const active = (req.query.active ?? '').toString().toLowerCase(); // 'true' | 'false' | ''
     const skip = (page - 1) * limit;
+    const where:any = {};
+    if (q) where.code = { contains: q, mode: 'insensitive' } as any;
+    if (active === 'true') where.isActive = true;
+    if (active === 'false') where.isActive = false;
     const [coupons, total] = await Promise.all([
-      db.coupon.findMany({ orderBy: { createdAt: 'desc' }, skip, take: limit }),
-      db.coupon.count(),
+      db.coupon.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      db.coupon.count({ where }),
     ]);
     await audit(req, 'coupons', 'list', { page, limit });
     res.json({ coupons, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
@@ -3794,6 +4027,17 @@ adminRest.post('/coupons', async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'coupon_create_failed' });
   }
+});
+
+adminRest.patch('/coupons/:id/activate', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.update'))) return res.status(403).json({ error:'forbidden' });
+    const id = String(req.params.id||''); if (!id) return res.status(400).json({ error:'id_required' });
+    const isActive = Boolean((req.body?.isActive) ?? false);
+    const coupon = await db.coupon.update({ where: { id }, data: { isActive } });
+    await audit(req, 'coupons', 'activate', { id, isActive });
+    return res.json({ coupon });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'coupon_activate_failed' }); }
 });
 
 // Advanced coupon rules stored in settings to avoid schema migrations
@@ -3830,6 +4074,134 @@ adminRest.put('/coupons/:code/rules', async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'coupon_rules_put_failed' });
   }
+});
+
+// Rules inline tester
+adminRest.post('/coupons/:code/test', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const code = String(req.params.code||'').toUpperCase(); if (!code) return res.status(400).json({ error:'code_required' });
+    const key = `coupon_rules:${code}`;
+    const setting = await db.setting.findUnique({ where: { key } });
+    const rules: any = (setting?.value as any) || {};
+    const ctx = req.body || {};
+    const reasons: string[] = [];
+    let ok = true;
+    const total = Number(ctx.cartTotal||0);
+    if (rules.enabled===false) { ok=false; reasons.push('disabled'); }
+    if (rules.min!=null && total < Number(rules.min)) { ok=false; reasons.push('below_min'); }
+    if (rules.max!=null && total > Number(rules.max)) { ok=false; reasons.push('above_max'); }
+    const now = new Date();
+    const from = rules?.schedule?.from ? new Date(rules.schedule.from) : null;
+    const to = rules?.schedule?.to ? new Date(rules.schedule.to) : null;
+    if (from && now < from) { ok=false; reasons.push('before_start'); }
+    if (to && now > to) { ok=false; reasons.push('after_end'); }
+    const method = (ctx.paymentMethod||'').toString().toUpperCase();
+    if (Array.isArray(rules.paymentMethods) && rules.paymentMethods.length>0) {
+      const allowed = rules.paymentMethods.map((x:any)=> String(x).toUpperCase());
+      if (!allowed.includes(method)) { ok=false; reasons.push('payment_not_allowed'); }
+    }
+    function parsePairs(arr:any[]): Array<{k:string;v:string}> {
+      const out: Array<{k:string;v:string}> = [];
+      for (const s of (arr||[])){
+        const str = String(s||''); const i = str.indexOf(':');
+        if (i>0) out.push({ k: str.slice(0,i).toLowerCase(), v: str.slice(i+1).toLowerCase() });
+      }
+      return out;
+    }
+    const includes = parsePairs(rules.includes||[]);
+    const excludes = parsePairs(rules.excludes||[]);
+    const fields: Record<string,string> = {
+      category: (ctx.category||'').toString().toLowerCase(),
+      brand: (ctx.brand||'').toString().toLowerCase(),
+      product: (ctx.productId||'').toString().toLowerCase(),
+      sku: (ctx.sku||'').toString().toLowerCase(),
+      vendor: (ctx.vendor||'').toString().toLowerCase(),
+      user: (ctx.userId||'').toString().toLowerCase(),
+      email: (ctx.email||'').toString().toLowerCase(),
+    };
+    if (includes.length){
+      const mode = String(rules.matchMode||'all').toLowerCase();
+      const matchedCount = includes.filter(p=> fields[p.k] && fields[p.k]===p.v).length;
+      const cond = mode==='any' ? (matchedCount>=1) : (matchedCount===includes.length);
+      if (!cond){ ok=false; reasons.push(mode==='any'?'includes_any_failed':'includes_all_failed'); }
+    }
+    if (excludes.length){
+      const anyBlocked = excludes.some(p=> fields[p.k] && fields[p.k]===p.v);
+      if (anyBlocked){ ok=false; reasons.push('excludes_blocked'); }
+    }
+    return res.json({ ok, reasons });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'rules_test_failed' }); }
+});
+
+// Coupons analytics (simple time-series)
+adminRest.get('/coupons/analytics', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    await ensureCouponSchema();
+    const code = String((req.query.code||'') as string).trim().toUpperCase();
+    const days = Math.max(1, Math.min(180, Number(req.query.days||30)));
+    const since = new Date(Date.now() - days*86400000);
+    const rows:any[] = code
+      ? await db.$queryRawUnsafe(
+          'SELECT date_trunc(\'day\', o."createdAt") as day, COUNT(1)::int as count, SUM(o.total)::float as revenue FROM "Order" o WHERE o."couponId" IN (SELECT id FROM "Coupon" WHERE code=$1) AND o."createdAt">=$2 GROUP BY 1 ORDER BY 1', code, since)
+      : await db.$queryRawUnsafe(
+          'SELECT date_trunc(\'day\', o."createdAt") as day, COUNT(1)::int as count, SUM(o.total)::float as revenue FROM "Order" o WHERE o."couponId" IS NOT NULL AND o."createdAt">=$1 GROUP BY 1 ORDER BY 1', since);
+    const summary = rows.reduce((a:any,r:any)=>{ a.count+=Number(r.count||0); a.revenue+=Number(r.revenue||0); return a; }, { count:0, revenue:0 });
+    return res.json({ code: code||null, days, series: rows, summary });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'coupons_analytics_failed' }); }
+});
+
+// ===== Generic search helpers for pickers =====
+adminRest.get('/search/brands', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const q = String((req.query.q||'') as string).trim();
+    const rows:any[] = q
+      ? await db.$queryRawUnsafe('SELECT DISTINCT COALESCE(brand, \'\') as brand FROM "Product" WHERE brand ILIKE $1 ORDER BY brand LIMIT 50', `%${q}%`)
+      : await db.$queryRawUnsafe('SELECT DISTINCT COALESCE(brand, \'\') as brand FROM "Product" WHERE brand IS NOT NULL AND LENGTH(brand)>0 ORDER BY brand LIMIT 50');
+    const items = rows.map((r:any)=> ({ id: String(r.brand), label: String(r.brand), image: null }));
+    return res.json({ items });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'brands_search_failed' }); }
+});
+adminRest.get('/search/vendors', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const q = String((req.query.q||'') as string).trim();
+    const rows = await db.vendor.findMany({ where: q? { name: { contains: q, mode: 'insensitive' } } as any : undefined, orderBy: { name: 'asc' }, take: 50 } as any);
+    const items = rows.map((r:any)=> ({ id: String(r.id), label: String(r.name||r.id), image: null }));
+    return res.json({ items });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'vendors_search_failed' }); }
+});
+adminRest.get('/search/products', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const q = String((req.query.q||'') as string).trim();
+    if (!q) return res.json({ items: [] });
+    const rows:any[] = await db.$queryRawUnsafe('SELECT id, name, images FROM "Product" WHERE name ILIKE $1 OR sku ILIKE $1 ORDER BY "updatedAt" DESC LIMIT 50', `%${q}%`);
+    const items = rows.map((r:any)=> ({ id: String(r.id), label: String(r.name||r.id), image: Array.isArray(r.images)&&r.images[0]? r.images[0] : null }));
+    return res.json({ items });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'products_search_failed' }); }
+});
+adminRest.get('/search/skus', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const q = String((req.query.q||'') as string).trim();
+    if (!q) return res.json({ items: [] });
+    const rows:any[] = await db.$queryRawUnsafe('SELECT sku, name, images FROM "Product" WHERE sku ILIKE $1 ORDER BY "updatedAt" DESC LIMIT 50', `%${q}%`);
+    const items = rows.filter((r:any)=> r.sku).map((r:any)=> ({ id: String(r.sku), label: String(r.sku), image: Array.isArray(r.images)&&r.images[0]? r.images[0] : null }));
+    return res.json({ items });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'skus_search_failed' }); }
+});
+adminRest.get('/search/users', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const q = String((req.query.q||'') as string).trim();
+    if (!q) return res.json({ items: [] });
+    const rows = await db.user.findMany({ where: { OR: [ { email: { contains: q, mode:'insensitive' } } as any, { name: { contains: q, mode:'insensitive' } } as any ] }, select: { id:true, email:true, name:true }, take: 50 } as any);
+    const items = rows.map((r:any)=> ({ id: String(r.id), label: String(r.email||r.name||r.id), image: null }));
+    return res.json({ items });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'users_search_failed' }); }
 });
 adminRest.get('/analytics', async (req, res) => {
   try {

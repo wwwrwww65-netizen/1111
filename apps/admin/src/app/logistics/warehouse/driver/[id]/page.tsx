@@ -13,6 +13,7 @@ export default function DriverInboundPage(): JSX.Element {
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const selectedIds = React.useMemo(()=> Object.keys(selected).filter(k=> selected[k]), [selected]);
   const allChecked = React.useMemo(()=> rows.length>0 && rows.every(r=> selected[r.orderItemId]), [rows, selected]);
+  const lastPrintedIdsRef = React.useRef<string[]>([]);
 
   React.useEffect(()=>{ (async()=>{
     setLoading(true);
@@ -37,14 +38,16 @@ export default function DriverInboundPage(): JSX.Element {
   }
   function normalizeImage(u?: string){ try{ const s=String(u||''); if(!s) return ''; if(/^https?:\/\//i.test(s)) return s; const base=(window as any).API_BASE||''; if(s.startsWith('/uploads')) return `${base}${s}`; if(s.startsWith('uploads/')) return `${base}/${s}`; return s; }catch{ return '' } }
 
-  // Listen for receipt-printed message from popup and complete inbound
+  // Listen for receipt-printed message from popup: mark printed and reload, then complete inbound if done
   React.useEffect(()=>{
     function onMsg(ev: MessageEvent){ try{ const data:any = ev?.data||{}; if (data && data.type==='receipt-printed') { (async()=>{ 
       try {
+        const ids = Array.isArray(lastPrintedIdsRef.current) ? lastPrintedIdsRef.current : [];
+        if (ids.length){ try{ await fetch(`${apiBase}/api/admin/logistics/warehouse/driver/receipt-printed`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ driverId, orderItemIds: ids }) }); }catch{} }
         const j = await (await fetch(`${apiBase}/api/admin/logistics/warehouse/driver/${encodeURIComponent(driverId)}/items`, { credentials:'include' })).json();
         const items: any[] = j.items||[];
-        const allReceived = items.length>0 && items.every((it:any)=> String(it.status||'').toUpperCase()==='RECEIVED');
-        if (allReceived) {
+        const allReceivedOrEmpty = items.length===0 || items.every((it:any)=> String(it.status||'').toUpperCase()==='RECEIVED');
+        if (allReceivedOrEmpty) {
           try { await fetch(`${apiBase}/api/admin/logistics/warehouse/driver/complete`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ driverId }) }); } catch {}
           location.assign('/logistics/warehouse?tab=sorting');
         } else {
@@ -133,6 +136,7 @@ export default function DriverInboundPage(): JSX.Element {
   function printByIds(ids: string[]): void {
     const eligible = rows.filter(r=> ids.includes(r.orderItemId) && String(r.status||'').toUpperCase()==='RECEIVED');
     if (eligible.length === 0) { setMsg('لا توجد عناصر مؤكدة (تم الاستلام) للطباعة'); return; }
+    lastPrintedIdsRef.current = eligible.map(e=> String(e.orderItemId));
     const html = renderReceiptHtmlFromRows(eligible);
     const w = window.open('', '_blank');
     if (!w) return;

@@ -15,10 +15,10 @@
       <div class="w-6 h-6"></div>
     </div>
 
-    <!-- SHEIN Club Card -->
+    <!-- JEEEY Club Card -->
     <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
       <div class="flex items-center justify-between mb-3">
-        <div class="bg-orange-500 text-white px-2 py-1 rounded text-xs font-bold">SHEIN CLUB</div>
+        <div class="bg-orange-500 text-white px-2 py-1 rounded text-xs font-bold">JEEEY CLUB</div>
       </div>
       <div class="text-sm text-gray-600 mb-4">انضم للحصول على المزايا 3+</div>
 
@@ -45,6 +45,14 @@
           <span class="text-orange-500 font-bold text-lg mr-2">₪22.99</span>
           <button class="text-orange-500 text-sm underline" @click="joinClub">انضم الآن</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Coupons shortcut next to points -->
+    <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
+      <div class="grid grid-cols-2 gap-3">
+        <a href="/coupons" class="block text-center py-2 rounded bg-gray-100 hover:bg-gray-200">نقاطي</a>
+        <a href="/coupons" class="block text-center py-2 rounded bg-gray-100 hover:bg-gray-200">كوبوناتي</a>
       </div>
     </div>
 

@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Icon from '@/components/Icon.vue'
-const title = 'لباس علوي قصير من SHEIN Privé'
+const title = 'لباس علوي قصير من JEEEY Privé'
 const base = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop'
 const img = base + '&w=400&fm=jpg'
 const imgSet = base + '&w=400&fm=webp 1x, ' + base + '&w=800&fm=webp 2x'
