@@ -1431,15 +1431,15 @@ adminRest.post('/me/club/join', async (req, res) => {
 adminRest.get('/me/coupons', async (req, res) => {
   try {
     const u = (req as any).user; if (!u?.userId) return res.status(401).json({ error:'unauthorized' });
-    await ensureCouponSchema();
     const userId = String(u.userId);
     // Load user and usage context
     const user = await db.user.findUnique({ where: { id: userId } } as any);
     const now = new Date();
-    const couponsRows: any[] = await db.$queryRawUnsafe('SELECT id, code, type, value, "usageLimit", "usedCount", "isActive", "startsAt", "endsAt" FROM "Coupon" WHERE "isActive"=true ORDER BY "createdAt" DESC');
-    // Orders used by this user with coupons
-    const usedOrders: any[] = await db.$queryRawUnsafe('SELECT "couponId" FROM "Order" WHERE "userId"=$1 AND "couponId" IS NOT NULL', userId);
-    const usedCouponIds = new Set<string>((usedOrders||[]).map((r:any)=> String(r.couponId)));
+    // Active coupons (Prisma model)
+    const couponsRows: any[] = await db.coupon.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } } as any);
+    // Usage by this user
+    const usages: any[] = await db.$queryRawUnsafe('SELECT DISTINCT "couponId" FROM "CouponUsage" WHERE "userId"=$1', userId);
+    const usedCouponIds = new Set<string>((usages||[]).map((r:any)=> String(r.couponId)));
     // Determine JEEEY CLUB membership via Role
     let isClub = false;
     try {
@@ -1466,12 +1466,12 @@ adminRest.get('/me/coupons', async (req, res) => {
     } catch {}
 
     const normalize = (row:any) => {
-      const startsAt = row.startsAt ? new Date(row.startsAt) : null;
-      const endsAt = row.endsAt ? new Date(row.endsAt) : null;
+      const startsAt = row.validFrom ? new Date(row.validFrom) : null;
+      const endsAt = row.validUntil ? new Date(row.validUntil) : null;
       const expired = !!(endsAt && endsAt.getTime() < now.getTime());
       const used = usedCouponIds.has(String(row.id));
       const status = used ? 'used' : (expired ? 'expired' : 'unused');
-      const discount = Math.round(Number(row.value||0));
+      const discount = Math.round(Number(row.discountValue||0));
       const expiryText = endsAt ? `تنتهي الصلاحية في ${endsAt.toISOString().slice(0,16).replace('T',' ')}` : 'غير محدد انتهاء';
       const expiryDate = endsAt ? `${endsAt.getFullYear()}/${String(endsAt.getMonth()+1).padStart(2,'0')}/${String(endsAt.getDate()).padStart(2,'0')} ${String(endsAt.getHours()).padStart(2,'0')}:${String(endsAt.getMinutes()).padStart(2,'0')}` : '';
       const cats = ['all','discount'];
@@ -1555,9 +1555,8 @@ adminRest.get('/me/coupons', async (req, res) => {
 // Public coupons for guests (no auth)
 adminRest.get('/coupons/public', async (_req, res) => {
   try{
-    await ensureCouponSchema();
     const now = new Date();
-    const rows:any[] = await db.$queryRawUnsafe('SELECT id, code, type, value, "usageLimit", "usedCount", "isActive", "startsAt", "endsAt" FROM "Coupon" WHERE "isActive"=true ORDER BY "createdAt" DESC');
+    const rows:any[] = await db.coupon.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } } as any);
     const out: any[] = [];
     for (const r of rows){
       const code = String(r.code||'');
@@ -1565,9 +1564,9 @@ adminRest.get('/coupons/public', async (_req, res) => {
       const rule:any = setting?.value || {};
       const audience = rule?.audience?.target || 'everyone';
       if (!(audience==='guest' || audience==='everyone')) continue;
-      const endsAt = r.endsAt? new Date(r.endsAt) : null; const expired = !!(endsAt && endsAt.getTime() < now.getTime());
+      const endsAt = r.validUntil? new Date(r.validUntil) : null; const expired = !!(endsAt && endsAt.getTime() < now.getTime());
       const title = rule?.title || `كوبون ${code}`;
-      out.push({ id:String(r.id), code, title, discount: Math.round(Number(r.value||0)), status: expired? 'expired':'unused', categories: ['all','discount','unused'], expiryText: endsAt? `تنتهي الصلاحية في ${endsAt.toISOString().slice(0,16).replace('T',' ')}` : 'غير محدد انتهاء' });
+      out.push({ id:String(r.id), code, title, discount: Math.round(Number(r.discountValue||0)), status: expired? 'expired':'unused', categories: ['all','discount','unused'], expiryText: endsAt? `تنتهي الصلاحية في ${endsAt.toISOString().slice(0,16).replace('T',' ')}` : 'غير محدد انتهاء' });
     }
     return res.json({ coupons: out });
   }catch(e:any){ return res.status(500).json({ error: e?.message||'public_coupons_failed' }); }

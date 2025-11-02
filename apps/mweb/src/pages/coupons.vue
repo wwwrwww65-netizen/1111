@@ -34,8 +34,8 @@
       </div>
     </header>
 
-    <!-- Filter Section -->
-    <div class="filter-section">
+    <!-- Filter Section (only for unused tab) -->
+    <div class="filter-section" v-if="activeTab==='unused'">
       <div class="filter-container">
         <div 
           v-for="filter in filters" 
@@ -140,6 +140,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { API_BASE } from '@/lib/api'
 
 // Reactive state
 const isScrolled = ref(false)
@@ -178,22 +180,15 @@ const pageTitle = computed(() => {
 })
 
 const filteredCoupons = computed(() => {
-  let filtered = coupons.value
-
-  // Filter by tab
-  if (activeTab.value !== 'all') {
-    filtered = filtered.filter(coupon => coupon.status === activeTab.value)
+  let arr = coupons.value
+  if (activeTab.value !== 'all') arr = arr.filter(c => c.status === activeTab.value)
+  if (activeTab.value === 'unused' && activeFilter.value !== 'all') {
+    arr = arr.filter(c => Array.isArray(c.categories) && c.categories.includes(activeFilter.value))
   }
-
-  // Filter by chip
-  if (activeFilter.value !== 'all') {
-    filtered = filtered.filter(coupon => 
-      coupon.categories.includes(activeFilter.value)
-    )
-  }
-
-  return filtered
+  return arr
 })
+
+const router = useRouter()
 
 // Methods
 const handleScroll = () => {
@@ -293,14 +288,11 @@ const handleShopClick = async (coupon) => {
 }
 
 const handleBack = () => {
-  showToast('الرجوع إلى الصفحة السابقة', 'info')
-  // In a real app: router.back()
+  try { if (window.history.length > 1) { router.back(); return } } catch {}
+  router.push('/')
 }
 
-const handleTCClick = () => {
-  showToast('الانتقال إلى صفحة سياسات الكوبون', 'info')
-  // In a real app: router.push('/terms')
-}
+const handleTCClick = () => { router.push('/legal/terms') }
 
 // Lifecycle hooks
 onMounted(() => {
@@ -328,12 +320,16 @@ watch(activeTab, () => {
 // Fetch coupons from API
 async function fetchCoupons(){
   try{
-    const base = (window as any).API_BASE || ''
-    const res = await fetch(`${base}/api/admin/me/coupons`, { credentials:'include' })
-    const j = await res.json()
-    if (Array.isArray(j?.coupons)) coupons.value = j.coupons
+    // Try authenticated coupons first
+    let res = await fetch(`${API_BASE}/api/admin/me/coupons`, { credentials:'include' })
+    if (res.status === 401) {
+      // Fallback to public coupons for الزوار
+      res = await fetch(`${API_BASE}/api/admin/coupons/public`, { credentials:'omit' })
+    }
+    const j = await res.json().catch(()=>null)
+    if (j && Array.isArray(j.coupons)) coupons.value = j.coupons
   } catch (e) {
-    // keep silent; stays on current list
+    // silently ignore; UI سيعرض النص الافتراضي
   }
 }
 </script>

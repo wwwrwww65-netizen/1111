@@ -51,6 +51,7 @@ const manualRoutes = [
   ,{ path: '/tabs/preview', component: () => import('./pages/tabs/preview.vue') }
   ,{ path: '/__preview/tabs', component: () => import('./pages/__preview/tabs.vue') }
   ,{ path: '/__admin_preview', component: () => import('./pages/__admin_preview.vue') }
+  ,{ path: '/coupons', component: () => import('./pages/coupons.vue') }
   ,{ path: '/auth/google/callback', component: () => import('./pages/auth/google/callback.vue') }
   ,{ path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }
 ];
