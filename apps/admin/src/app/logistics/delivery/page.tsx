@@ -152,25 +152,28 @@ export default function DeliveryPage(): JSX.Element {
               setMessage('');
               if (!assignDriver) { setMessage('اختر سائق'); return; }
               for (const oid of readySelectedIds){ try { await fetch(`${apiBase}/api/admin/logistics/delivery/assign`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: oid, driverId: assignDriver }) }); } catch{} }
-              setMessage('تم الإسناد'); setReadySelected({}); await load();
+              setItems(prev=> prev.filter((o:any)=> !readySelectedIds.includes(String(o.orderId))));
+              setMessage('تم الإسناد'); setReadySelected({});
             }}>إسناد</button>
             {message && <div className="text-sm" style={{ color:'#9ae6b4' }}>{message}</div>}
           </div>
           {items.length>0 && (
           <table className="table">
-            <thead><tr><th><input type="checkbox" checked={items.length>0 && items.every((o:any)=> readySelected[String(o.orderId)])} onChange={e=>{ const c=e.currentTarget.checked; const next:Record<string,boolean>={}; for(const o of items) next[String(o.orderId)]=c; setReadySelected(next); }} /></th><th>رقم الطلب</th><th>اسم المستلم</th><th>الهاتف</th><th>المحافظة</th><th>المنطقة</th><th>اسم الشارع</th><th>القيمة</th></tr></thead>
-            <tbody>{items.map((o:any)=> (
+            <thead><tr><th><input type="checkbox" checked={items.length>0 && items.every((o:any)=> readySelected[String(o.orderId)])} onChange={e=>{ const c=e.currentTarget.checked; const next:Record<string,boolean>={}; for(const o of items) next[String(o.orderId)]=c; setReadySelected(next); }} /></th><th>رقم الطلب</th><th>اسم المستلم</th><th>الهاتف</th><th>العنوان</th><th>طريقة الشحن</th><th>طريقة الدفع</th><th>القيمة</th></tr></thead>
+            <tbody>{items.map((o:any)=> {
+              const address = [o.state, o.city, o.street].filter(Boolean).join(' ');
+              return (
               <tr key={o.orderId}>
                 <td><input type="checkbox" checked={!!readySelected[String(o.orderId)]} onChange={e=>{ const c=e.currentTarget.checked; setReadySelected(prev=> ({ ...prev, [String(o.orderId)]: c })); }} /></td>
                 <td>{o.orderCode? `#${o.orderCode}`: o.orderId}</td>
                 <td>{o.recipient||'-'}</td>
                 <td>{o.phone||'-'}</td>
-                <td>{o.state||'-'}</td>
-                <td>{o.city||'-'}</td>
-                <td>{o.street||'-'}</td>
+                <td>{address||'-'}</td>
+                <td>{o.shippingTitle||'-'}</td>
+                <td>{o.paymentDisplay||'-'}</td>
                 <td>{Number(o.total||0).toFixed(2)}</td>
               </tr>
-            ))}</tbody>
+            )})}</tbody>
           </table>)}
           <div className="panel" style={{ marginTop:12 }}>
             <div style={{ marginBottom:8 }}>الخريطة الحية — السائقون: {driversLive.length}</div>
@@ -187,7 +190,7 @@ export default function DeliveryPage(): JSX.Element {
           <table className="table">
             <thead><tr><th>رقم الطلب</th><th>السائق</th><th>الحالة</th><th>آخر تحديث</th><th>مؤشر</th></tr></thead>
             <tbody>{items.map((o:any)=> (
-              <tr key={o.orderId}><td>{o.orderId}</td><td>{o.driver||'-'}</td><td>{o.status}</td><td>{new Date(o.updatedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">في الطريق</span></td></tr>
+              <tr key={o.orderId}><td>{o.orderCode? `#${o.orderCode}`: o.orderId}</td><td>{o.driver||'-'}</td><td>{o.status}</td><td>{new Date(o.updatedAt||Date.now()).toLocaleString()}</td><td><span className="badge warn">في الطريق</span></td></tr>
             ))}</tbody>
           </table>)}
           <div className="panel" style={{ marginTop:12 }}>خريطة حية (placeholder)</div>
@@ -258,6 +261,7 @@ export default function DeliveryPage(): JSX.Element {
                   <td style={{ display:'flex', gap:6 }}>
                     <button className="btn btn-sm" onClick={async()=>{ try{ await fetch(`${apiBase}/api/admin/logistics/delivery/handover`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: o.orderId, driverId: driverView, type:'WAREHOUSE_TO_DRIVER' }) }); setMessage('تم تسجيل تسليم للسائق'); await load(); }catch{} }}>استلام السائق من المستودع</button>
                     <button className="btn btn-sm btn-outline" onClick={async()=>{ try{ await fetch(`${apiBase}/api/admin/logistics/delivery/handover`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: o.orderId, driverId: driverView, type:'DRIVER_CONFIRMED' }) }); setMessage('تم تأكيد السائق'); await load(); }catch{} }}>تسليم للسائق</button>
+                    <button className="btn btn-sm btn-outline" onClick={async()=>{ try{ await fetch(`${apiBase}/api/admin/logistics/delivery/proof`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ orderId: o.orderId }) }); setMessage('تم التسليم للعميل'); await load(); }catch{} }}>تم التسليم للعميل</button>
                   </td>
                 </tr>
               ))}</tbody>

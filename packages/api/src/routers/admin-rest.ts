@@ -2787,20 +2787,21 @@ adminRest.get('/logistics/warehouse/sorting/orders', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.read'))) return res.status(403).json({ error:'forbidden' });
     const rows: any[] = await db.$queryRawUnsafe(`
       SELECT o.id as "orderId", o.code as "orderCode", o.total,
-             COALESCE(ab."fullName", '') as recipient,
-             COALESCE(ab.country,'')||' '||COALESCE(ab.state,'')||' '||COALESCE(ab.city,'')||' '||COALESCE(ab.street,'') as address,
-             COALESCE(ab.phone,'') as phone,
+             COALESCE(ab2."fullName", ab."fullName", '') as recipient,
+             COALESCE(ab2.country, ab.country,'')||' '||COALESCE(ab2.state, ab.state,'')||' '||COALESCE(ab2.city, ab.city,'')||' '||COALESCE(ab2.street, ab.street,'') as address,
+             COALESCE(ab2.phone, ab.phone,'') as phone,
              COALESCE(o."paymentMethod", '') as "paymentMethod",
              COALESCE(o."shippingMethodId", '') as "shippingMethodId",
-             COALESCE(ab.state,'') as state, COALESCE(ab.city,'') as city, COALESCE(ab.street,'') as street,
+             COALESCE(ab2.state, ab.state,'') as state, COALESCE(ab2.city, ab.city,'') as city, COALESCE(ab2.street, ab.street,'') as street,
              CASE WHEN LOWER(COALESCE(o."paymentMethod",''))='cod' THEN 'الدفع عند الاستلام' ELSE COALESCE(o."paymentMethod",'') END as "paymentDisplay",
              (SELECT COALESCE(dr."offerTitle", COALESCE(dr.carrier,'')) FROM "DeliveryRate" dr WHERE dr.id=o."shippingMethodId") as "shippingTitle",
              (SELECT COUNT(*) FROM "OrderItem" oi WHERE oi."orderId"=o.id) as items,
              MAX(s."updatedAt") as updated
       FROM "ShipmentLeg" s JOIN "Order" o ON o.id=s."orderId"
       LEFT JOIN "AddressBook" ab ON ab."userId"=o."userId" AND ab."isDefault"=true
+      LEFT JOIN "AddressBook" ab2 ON ab2.id=o."shippingAddressId"
       WHERE s."legType"::text='PROCESSING' AND s.status::text IN ('SCHEDULED','IN_PROGRESS')
-      GROUP BY o.id, o.code, o.total, ab."fullName", ab.country, ab.state, ab.city, ab.street, ab.phone, o."paymentMethod", o."shippingMethodId"
+      GROUP BY o.id, o.code, o.total, ab."fullName", ab.country, ab.state, ab.city, ab.street, ab.phone, ab2."fullName", ab2.country, ab2.state, ab2.city, ab2.street, ab2.phone, o."paymentMethod", o."shippingMethodId"
       ORDER BY updated DESC
     `) as any[];
     // Exclude orders fully matched (all items MATCH)

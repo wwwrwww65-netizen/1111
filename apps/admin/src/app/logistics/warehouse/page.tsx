@@ -168,9 +168,11 @@ export default function WarehousePage(): JSX.Element {
                 </div>
               </div>
               <table className="table">
-                <thead><tr><th></th><th>رقم الطلب</th><th>عدد المنتجات</th><th>الحالة</th><th>إجراء</th></tr></thead>
+                <thead><tr><th></th><th>رقم الطلب</th><th>اسم المستلم</th><th>الهاتف</th><th>العنوان</th><th>عدد المنتجات</th><th>الحالة</th><th>إجراء</th></tr></thead>
                 <tbody>{sortingOrders.map((o:any)=> {
                   const state = readyMap[String(o.orderId)]||{ ready:false, items:o.items||0, received:0, matched:0 };
+                  const meta = orderInfoMap[String(o.orderId)]||{ recipient:o.recipient||'-', phone:o.phone||'-', state:o.state||'', city:o.city||'', street:o.street||'', address:o.address||'' } as any;
+                  const addressCompact = meta.address || [meta.state, meta.city, meta.street].filter(Boolean).join(' ');
                   let statusLabel = '' as string; let badgeColor = '#f59e0b';
                   if ((state as any).received === 0) { statusLabel = 'لم يتم الاستلام بعد'; badgeColor = '#ef4444'; }
                   else if ((state as any).received < (state as any).items) { statusLabel = `تم استلام ${(state as any).received} تبقى ${(state as any).items - (state as any).received}`; badgeColor = '#f59e0b'; }
@@ -180,6 +182,9 @@ export default function WarehousePage(): JSX.Element {
                     <tr key={o.orderId}>
                       <td><input type="checkbox" checked={!!sortingSelected[String(o.orderId)]} onChange={e=> { const c=e.currentTarget.checked; setSortingSelected(prev=> ({ ...prev, [String(o.orderId)]: c })); }} /></td>
                       <td style={{ cursor:'pointer' }} onClick={()=> location.assign(`/logistics/warehouse/sorting/${o.orderId}`)}>{o.orderCode? `#${o.orderCode}`: o.orderId}</td>
+                      <td>{meta.recipient}</td>
+                      <td>{meta.phone}</td>
+                      <td>{addressCompact}</td>
                       <td>{o.items||0}</td>
                       <td><span className="badge" style={{ background: colorMeta(badgeColor).bg, color: badgeColor, border:`1px solid ${badgeColor}`, boxShadow: colorMeta(badgeColor).shadow, display:'inline-flex', alignItems:'center', gap:6, paddingInline:10 }}>
                         <span style={{ width:8, height:8, borderRadius:999, background: badgeColor, boxShadow:`0 0 8px ${badgeColor}AA` }} />
