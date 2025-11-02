@@ -2,7 +2,7 @@
 
 Monorepo for a full‑stack e‑commerce platform (Web, Admin, API, Mobile) using Next.js 14, tRPC, Prisma, PostgreSQL, and Turborepo.
 
-## 🏗️ Architecture شلبي
+## 🏗️ Architecture
 
 This monorepo contains a complete e‑commerce solution with: 
 

@@ -1481,14 +1481,16 @@ adminRest.get('/me/coupons', async (req, res) => {
       const rule = rulesByCode.get(String(row.code||'').toUpperCase());
       const title = (rule && rule.title) ? String(rule.title) : `كوبون ${String(row.code)}`;
       const kind = (rule && rule.kind) ? String(rule.kind) : 'sitewide';
+      const minAmt = (rule && rule.min!=null) ? Number(rule.min) : (row.minOrderAmount!=null ? Number(row.minOrderAmount) : null);
+      const minOrderText = (minAmt!=null && isFinite(minAmt) && minAmt>0) ? `طلبات أكثر من ${minAmt}ريال` : '';
       return {
         id: String(row.id),
         code: String(row.code),
         title,
         category: 'عروض',
         discount,
-        minOrder: null,
-        minOrderText: '',
+        minOrder: minAmt,
+        minOrderText,
         expiryDate,
         expiryText,
         status,
@@ -1566,7 +1568,9 @@ adminRest.get('/coupons/public', async (_req, res) => {
       if (!(audience==='guest' || audience==='everyone')) continue;
       const endsAt = r.validUntil? new Date(r.validUntil) : null; const expired = !!(endsAt && endsAt.getTime() < now.getTime());
       const title = rule?.title || `كوبون ${code}`;
-      out.push({ id:String(r.id), code, title, discount: Math.round(Number(r.discountValue||0)), status: expired? 'expired':'unused', categories: ['all','discount','unused'], expiryText: endsAt? `تنتهي الصلاحية في ${endsAt.toISOString().slice(0,16).replace('T',' ')}` : 'غير محدد انتهاء' });
+      const minAmt = (rule && rule.min!=null) ? Number(rule.min) : (r.minOrderAmount!=null ? Number(r.minOrderAmount) : null);
+      const minOrderText = (minAmt!=null && isFinite(minAmt) && minAmt>0) ? `طلبات أكثر من ${minAmt}ريال` : '';
+      out.push({ id:String(r.id), code, title, discount: Math.round(Number(r.discountValue||0)), status: expired? 'expired':'unused', categories: ['all','discount','unused'], expiryText: endsAt? `تنتهي الصلاحية في ${endsAt.toISOString().slice(0,16).replace('T',' ')}` : 'غير محدد انتهاء', minOrder: minAmt, minOrderText });
     }
     return res.json({ coupons: out });
   }catch(e:any){ return res.status(500).json({ error: e?.message||'public_coupons_failed' }); }
@@ -4026,6 +4030,37 @@ adminRest.post('/coupons', async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'coupon_create_failed' });
   }
+});
+
+// Fetch coupon by code (details + rules)
+adminRest.get('/coupons/:code', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
+    const code = String(req.params.code||'').toUpperCase(); if (!code) return res.status(400).json({ error:'code_required' });
+    const c = await db.coupon.findUnique({ where: { code } } as any);
+    if (!c) return res.status(404).json({ error:'not_found' });
+    const setting = await db.setting.findUnique({ where: { key: `coupon_rules:${code}` } });
+    return res.json({ coupon: c, rules: setting?.value || null });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'coupon_get_failed' }); }
+});
+
+// Update coupon basic fields by code
+adminRest.patch('/coupons/:code', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'coupons.update'))) return res.status(403).json({ error:'forbidden' });
+    const code = String(req.params.code||'').toUpperCase(); if (!code) return res.status(400).json({ error:'code_required' });
+    const { discountType, discountValue, validFrom, validUntil, isActive, minOrderAmount } = req.body||{};
+    const data:any = {};
+    if (discountType) data.discountType = discountType;
+    if (discountValue!=null) data.discountValue = Number(discountValue);
+    if (minOrderAmount!=null) data.minOrderAmount = Number(minOrderAmount);
+    if (validFrom) data.validFrom = new Date(String(validFrom)) as any;
+    if (validUntil) data.validUntil = new Date(String(validUntil)) as any;
+    if (typeof isActive === 'boolean') data.isActive = isActive;
+    const c = await db.coupon.update({ where: { code }, data } as any);
+    await audit(req, 'coupons', 'update', { code });
+    return res.json({ coupon: c });
+  } catch (e:any) { return res.status(500).json({ error: e?.message||'coupon_patch_failed' }); }
 });
 
 adminRest.patch('/coupons/:id/activate', async (req, res) => {

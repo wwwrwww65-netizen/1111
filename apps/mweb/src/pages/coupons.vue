@@ -70,6 +70,7 @@
             
             <div class="card-left">
               <button 
+                v-if="showShopButton"
                 class="shop-btn" 
                 :disabled="coupon.status !== 'unused'"
                 @click="handleShopClick(coupon)"
@@ -95,6 +96,9 @@
                   v-show="expandedCoupons.includes(coupon.id)"
                   class="expiry-details"
                 >
+                  <p v-if="getExpiryTs(coupon)">
+                    ينتهي في: <strong>{{ expiryDateText(coupon) }}</strong>
+                  </p>
                   <p>شروط الاستخدام:</p>
                   <ul>
                     <li v-for="condition in coupon.conditions" :key="condition">
@@ -109,7 +113,15 @@
 
             <div class="card-right">
               <div class="percent">{{ coupon.discount }}%</div>
-              <div class="discount-note">{{ coupon.minOrderText }}</div>
+              <div class="discount-note">{{ coupon.minOrderText || minOrderTextOf(coupon) }}</div>
+              <div 
+                class="timer" 
+                :class="{ warning: isExpiringWithinDay(coupon) }"
+                v-if="getExpiryTs(coupon) && coupon.status === 'unused'"
+                aria-label="الوقت المتبقي"
+              >
+                {{ countdownText(coupon) }}
+              </div>
             </div>
           </article>
         </TransitionGroup>
@@ -168,6 +180,9 @@ const filters = [
 ]
 
 const coupons = ref([])
+const nowTs = ref(Date.now())
+let countdownInterval = null
+const showShopButton = false
 
 // Computed properties
 const pageTitle = computed(() => {
@@ -306,10 +321,16 @@ onMounted(() => {
     }
   })
   fetchCoupons()
+
+  // Live countdown (HH:MM:SS)
+  countdownInterval = setInterval(() => {
+    nowTs.value = Date.now()
+  }, 1000)
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  if (countdownInterval) clearInterval(countdownInterval)
 })
 
 // Watch for tab changes to reset filter
@@ -330,6 +351,62 @@ async function fetchCoupons(){
     if (j && Array.isArray(j.coupons)) coupons.value = j.coupons
   } catch (e) {
     // silently ignore; UI سيعرض النص الافتراضي
+  }
+}
+
+// Helpers: expiry timestamp and countdown formatter
+function getExpiryTs(coupon){
+  const raw = coupon?.validUntil || coupon?.valid_to || coupon?.expiresAt || (coupon?.schedule && coupon.schedule.to)
+  if (!raw) return null
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts) ? ts : null
+}
+
+function countdownText(coupon){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return ''
+  const diff = ts - nowTs.value
+  if (diff <= 0) return '00:00:00'
+  const totalSeconds = Math.floor(diff / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const dd = String(days).padStart(2, '0')
+  const hh = String(hours).padStart(2, '0')
+  const mm = String(minutes).padStart(2, '0')
+  const ss = String(seconds).padStart(2, '0')
+  return days > 0 ? `${dd}:${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`
+}
+
+function isExpiringWithinDay(coupon){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return false
+  const diff = ts - nowTs.value
+  return diff > 0 && diff <= 24 * 60 * 60 * 1000
+}
+
+function expiryDateText(coupon){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return ''
+  try {
+    return new Date(ts).toLocaleString('ar', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return new Date(ts).toISOString()
+  }
+}
+
+function minOrderTextOf(coupon){
+  const min = coupon?.minOrderAmount ?? coupon?.min ?? (coupon?.rules && coupon.rules.min)
+  if (!min || isNaN(min)) return ''
+  return `طلبات أكثر من ${formatAmount(min)}`
+}
+
+function formatAmount(value){
+  try {
+    return new Intl.NumberFormat('ar', { maximumFractionDigits: 2 }).format(value)
+  } catch {
+    return String(value)
   }
 }
 </script>
@@ -620,6 +697,24 @@ body {
   color: var(--muted);
   text-align: center;
   margin-top: 6px;
+}
+
+.timer {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: #ffffff;
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+}
+
+.timer.warning {
+  background: #fff4f0;
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Left Side (Content) */

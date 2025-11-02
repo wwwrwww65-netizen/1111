@@ -111,17 +111,7 @@ export default function CouponsPage(): JSX.Element {
                 )}
               </td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
-                <button onClick={async ()=>{
-                  setRulesModal({ open:true, code:c.code, text:'', loading:true, visual:true, obj:{} });
-                  try {
-                    const r = await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(c.code)}/rules`, { credentials:'include' });
-                    const j = await r.json();
-                    const obj = (j.rules || {}) as CouponRules;
-                    setRulesModal({ open:true, code:c.code, text: JSON.stringify(obj ?? {}, null, 2), loading:false, visual:true, obj });
-                  } catch {
-                    setRulesModal({ open:true, code:c.code, text: '{}', loading:false, visual:true, obj:{} });
-                  }
-                }} style={{ padding:'6px 10px', background:'#1f2937', color:'#e5e7eb', borderRadius:6 }}>تحرير القواعد</button>
+                <a className="btn btn-sm" href={`/coupons/new?code=${encodeURIComponent(c.code)}`}>تحرير</a>
               </td>
               <td style={{ padding:8, borderBottom:'1px solid #1c2333' }}>
                 <button onClick={async ()=>{

@@ -16,6 +16,7 @@ type CouponRules = {
 
 export default function NewCouponPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
+  const [editingCode, setEditingCode] = React.useState<string>("");
   const [code, setCode] = React.useState("");
   const [title, setTitle] = React.useState("");
   const [kind, setKind] = React.useState("sitewide");
@@ -36,6 +37,38 @@ export default function NewCouponPage(): JSX.Element {
   const [showIncludeCat, setShowIncludeCat] = React.useState(false);
   const [showExcludeCat, setShowExcludeCat] = React.useState(false);
 
+  React.useEffect(()=>{
+    // Prefill when code is provided in query (?code=...)
+    try{
+      const u = new URL(location.href);
+      const codeParam = (u.searchParams.get('code')||'').toUpperCase();
+      if (!codeParam) return;
+      (async()=>{
+        try{
+          const r = await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(codeParam)}`, { credentials:'include' });
+          if (!r.ok) return;
+          const j = await r.json();
+          if (j?.coupon){
+            setEditingCode(codeParam);
+            setCode(codeParam);
+            setDiscountType(j.coupon.discountType||'PERCENTAGE');
+            setDiscountValue(String(j.coupon.discountValue||'10'));
+            setIsActive(Boolean(j.coupon.isActive));
+            setFrom(j.coupon.validFrom? String(j.coupon.validFrom).slice(0,10): '');
+            setTo(j.coupon.validUntil? String(j.coupon.validUntil).slice(0,10): '');
+          }
+          const rulesObj = j?.rules||{};
+          if (rulesObj){
+            setTitle(String(rulesObj.title||''));
+            setKind(String(rulesObj.kind||'sitewide'));
+            setAudience((rulesObj.audience?.target||'everyone'));
+            setRules({ ...rules, ...rulesObj });
+          }
+        } catch {}
+      })();
+    }catch{}
+  }, [apiBase]);
+
   function addInclude(){ if (!includeValue.trim()) return; setRules(r=> ({ ...r, includes: [ ...(r.includes||[]), `${includeType}:${includeValue.trim()}` ] })); setIncludeValue(""); }
   function addExclude(){ if (!excludeValue.trim()) return; setRules(r=> ({ ...r, excludes: [ ...(r.excludes||[]), `${excludeType}:${excludeValue.trim()}` ] })); setExcludeValue(""); }
 
@@ -48,9 +81,15 @@ export default function NewCouponPage(): JSX.Element {
     try{
       const validFrom = from? new Date(from).toISOString() : new Date().toISOString();
       const validUntil = to? new Date(to).toISOString() : new Date(Date.now()+7*86400000).toISOString();
-      // إنشاء الكوبون
-      const r = await fetch(`${apiBase}/api/admin/coupons`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ code: finalCode, discountType, discountValue: Number(discountValue), validFrom, validUntil }) });
-      if (!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j?.error||'failed'); }
+      if (editingCode){
+        // تحديث
+        const r = await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(finalCode)}`, { method:'PATCH', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ discountType, discountValue: Number(discountValue), validFrom, validUntil, isActive }) });
+        if (!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j?.error||'failed'); }
+      } else {
+        // إنشاء
+        const r = await fetch(`${apiBase}/api/admin/coupons`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ code: finalCode, discountType, discountValue: Number(discountValue), validFrom, validUntil }) });
+        if (!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j?.error||'failed'); }
+      }
       // حفظ القواعد
       const normalized: CouponRules = normalizeRulesObject({ ...rules, title: title.trim()||undefined, kind, audience: { target: audience }, schedule: { from: from? new Date(from).toISOString() : null, to: to? new Date(to).toISOString() : null } } as any);
       await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(finalCode)}/rules`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ rules: normalized }) }).catch(()=>{});
