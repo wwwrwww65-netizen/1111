@@ -2768,11 +2768,11 @@ adminRest.post('/logistics/warehouse/driver/complete', async (req, res) => {
     ) as any;
     const orderIds = Array.from(new Set((orders||[]).map(o=> String((o as any).orderId||'')).filter(Boolean)));
     if (orderIds.length) {
-      const ph = orderIds.map((_,i)=> `$${i+2}`).join(',');
+      const ph = orderIds.map((_,i)=> `$${i+1}`).join(',');
       // Complete INBOUND legs for those orders regardless of driverId on INBOUND rows
       await db.$executeRawUnsafe(
         `UPDATE "ShipmentLeg" SET status='COMPLETED', "updatedAt"=NOW() WHERE "legType"::text='INBOUND' AND status::text IN ('SCHEDULED','IN_PROGRESS') AND "orderId" IN (${ph})`,
-        null as any, ...orderIds
+        ...orderIds
       );
     }
     // Also, as a fallback, complete any INBOUND legs that explicitly carry this driverId
