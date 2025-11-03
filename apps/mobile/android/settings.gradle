@@ -1,54 +1,12 @@
-pluginManagement {
-  repositories {
-    gradlePluginPortal()
-    google()
-    mavenCentral()
-    // مسارات محلية لحالة monorepo / node_modules
-    // احتفظ بالمسار المناسب لبنية مشروعك — استخدم واحد أو اثنين كحد أقصى
-    maven { url = uri("$rootDir/../node_modules/react-native/android") }
-    maven { url = uri("$rootDir/../../node_modules/react-native/android") }
-    // (اختياري) مسار إضافي إذا كان monorepo أعمق
-    maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
-  }
-
-  // Resolve RN settings plugin from published module to avoid composite build issues
-  resolutionStrategy {
-    eachPlugin { details ->
-      def req = details.requested
-      if (req.id.id == "com.facebook.react.settings" || req.id.id == "com.facebook.react") {
-        // تأكد أن هذا الرقم مطابق للـ classpath في build.gradle أعلاه
-        details.useModule("com.facebook.react:react-native-gradle-plugin:0.74.5")
-      }
-    }
-  }
-
-  // Keep Expo autolinking plugin via included build for monorepo/node_modules
-  def includeIfExists = { File dir -> if (dir != null && dir.exists()) { includeBuild(dir.absolutePath) } }
-  def expoCandidates = [
-    new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
-    new File(rootDir, "../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
-    new File(rootDir, "../../../node_modules/expo-modules-autolinking/android/expo-gradle-plugin"),
-  ]
-  expoCandidates.each { includeIfExists(it) }
-}
-
-plugins {
-  // اجعل هنا نسخة plugin مطابقة للنسخة في resolutionStrategy و build.gradle
-  id("com.facebook.react.settings") version "0.74.5"
-  id("expo-autolinking-settings")
-}
-
-extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
-  if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
-    ex.autolinkLibrariesFromCommand()
-  } else {
-    ex.autolinkLibrariesFromCommand(expoAutolinking.rnConfigCommand)
-  }
-}
-expoAutolinking.useExpoModules()
+// settings.gradle — minimal for pnpm monorepo, no Expo plugins
 
 rootProject.name = 'E-commerce Mobile App'
 
-expoAutolinking.useExpoVersionCatalog()
-
+// Include the app module
 include ':app'
+
+// If you have local RN modules you need as composite builds, يمكنك إضافتها هنا:
+// includeBuild("../some-local-rn-module")
+
+// IMPORTANT: تأكد أنه لا يوجد أي `plugins { id("com.facebook.react.settings") ... }`
+// في أي مكان آخر من ملفات settings، لأننا نعتمد على classpath approach في build.gradle.
