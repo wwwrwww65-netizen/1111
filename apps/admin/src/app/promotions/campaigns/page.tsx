@@ -29,7 +29,7 @@ export default function CampaignsPage(): JSX.Element {
 
   async function load(){
     setLoading(true);
-    const res = await fetch(`${apiBase}/api/admin/promotions/campaigns`, { credentials:'include' });
+    const res = await fetch(`${apiBase}/api/admin/promotions/campaigns`, { credentials:'include', headers: { ...authHeaders() } });
     const j = await res.json();
     let list: Campaign[] = Array.isArray(j?.campaigns) ? j.campaigns : [];
     if (activeOnly) list = list.filter(r=> r.status==='LIVE' || r.status==='PAUSED');
@@ -64,14 +64,14 @@ export default function CampaignsPage(): JSX.Element {
     const isNew = !body.id;
     const url = isNew ? `${apiBase}/api/admin/promotions/campaigns` : `${apiBase}/api/admin/promotions/campaigns/${encodeURIComponent(body.id)}`;
     const method = isNew ? 'POST' : 'PUT';
-    const res = await fetch(url, { method, credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method, credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) });
     if (res.ok){ closeModal(); await load(); }
     setModal(m=> ({ ...m, saving:false }));
   }
 
   async function remove(id: string){
     if (!confirm('حذف الحملة؟')) return;
-    await fetch(`${apiBase}/api/admin/promotions/campaigns/${encodeURIComponent(id)}`, { method:'DELETE', credentials:'include' });
+    await fetch(`${apiBase}/api/admin/promotions/campaigns/${encodeURIComponent(id)}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } });
     await load();
   }
 
@@ -86,6 +86,14 @@ export default function CampaignsPage(): JSX.Element {
       case 'ENDED': return 'منتهية';
       default: return String(s||'');
     }
+  }
+
+  function authHeaders(): Record<string,string> {
+    if (typeof document === 'undefined') return {} as Record<string,string>;
+    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+    let token = m ? m[1] : '';
+    try { token = decodeURIComponent(token); } catch {}
+    return token ? { Authorization: `Bearer ${token}` } : {} as Record<string,string>;
   }
 
   return (

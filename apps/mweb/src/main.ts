@@ -12,6 +12,18 @@ import { initCurrency } from './lib/currency'
 // Track affiliate ref
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
+// Fallback: if misconfigured Facebook redirect hits m.jeeey.com /api/admin/auth/sso/callback,
+// push it to the correct API callback to complete login seamlessly
+try{
+  const p = location.pathname
+  if (p.startsWith('/api/admin/auth/sso/callback')){
+    const qs = location.search || ''
+    const apiBase = (import.meta as any)?.env?.VITE_API_BASE || (location.protocol + '//' + location.host.replace(/^m\./,'api.'))
+    const dest = `${apiBase}/api/auth/facebook/callback${qs}`
+    location.replace(dest)
+  }
+}catch{}
+
 const manualRoutes = [
   { path: '/mis', component: () => import('./pages/Mis.vue') },
   { path: '/categories', component: () => import('./pages/Categories.vue') },
