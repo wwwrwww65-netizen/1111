@@ -75,7 +75,7 @@
           </svg>
           التسجيل عبر جوجل
         </button>
-        <button class="w-full h-11 rounded-[4px] border border-gray-200 bg-white text-[13px] font-semibold text-gray-900 flex items-center justify-center gap-2 transition-transform duration-200 hover:scale-[1.02]" aria-label="التسجيل عبر فيسبوك">
+        <button class="w-full h-11 rounded-[4px] border border-gray-200 bg-white text-[13px] font-semibold text-gray-900 flex items-center justify-center gap-2 transition-transform duration-200 hover:scale-[1.02]" aria-label="التسجيل عبر فيسبوك" @click="loginWithFacebook">
           <Facebook class="w-4 h-4 text-[#1877F2]" />
           التسجيل عبر فيسبوك
         </button>
@@ -92,6 +92,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Gift, Star, Globe, ChevronDown, AlertCircle, Facebook, ArrowRight } from 'lucide-vue-next'
 import { apiPost } from '@/lib/api'
+import { facebookLoginUrl } from '@/lib/api'
 import { googleLoginUrl } from '@/lib/api'
 
 type Country = { code: string; name: string; dial: string }
@@ -131,6 +132,12 @@ async function requestOtp(){
 function loginWithGoogle(){
   const ret = typeof window !== 'undefined' ? (new URLSearchParams(location.search).get('return') || '/account') : '/account'
   const url = googleLoginUrl(ret)
+  window.location.href = url
+}
+
+function loginWithFacebook(){
+  const ret = typeof window !== 'undefined' ? (new URLSearchParams(location.search).get('return') || '/account') : '/account'
+  const url = facebookLoginUrl(ret)
   window.location.href = url
 }
 

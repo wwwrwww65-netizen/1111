@@ -768,6 +768,19 @@ async function getGoogleOAuthConfig(): Promise<{ clientId: string; clientSecret?
   }catch{ return null }
 }
 
+async function getFacebookOAuthConfig(): Promise<{ appId: string; appSecret?: string; redirectUri: string } | null> {
+  try{
+    const row = await db.integration.findFirst({ where: { provider: 'facebook_oauth' }, orderBy: { createdAt: 'desc' } } as any);
+    const cfg: any = row ? ((row as any).config || {}) : {};
+    const appId = cfg.appId || process.env.FACEBOOK_APP_ID || process.env.META_APP_ID || '';
+    const appSecret = cfg.appSecret || process.env.FACEBOOK_APP_SECRET || process.env.META_APP_SECRET || '';
+    const publicApi = process.env.PUBLIC_API_BASE || process.env.API_BASE_URL || 'https://api.jeeey.com';
+    const redirectUri = cfg.redirectUri || process.env.FACEBOOK_REDIRECT_URI || `${publicApi}/api/auth/facebook/callback`;
+    if (!appId || !redirectUri) return null;
+    return { appId, appSecret, redirectUri };
+  }catch{ return null }
+}
+
 async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('whatsapp');
   if (!cfg || cfg.enabled === false) return false; // treat missing enabled as true
@@ -1725,7 +1738,7 @@ shop.get('/popups', async (req: any, res) => {
 
     // Ensure anonymous id for AB bucketing / frequency if needed
     let anonId = String(req.cookies?.anon_id||'');
-    if (!anonId){ try{ anonId = require('crypto').randomUUID(); res.cookie('anon_id', anonId, { httpOnly: false, sameSite: 'Lax', maxAge: 365*24*3600*1000 }); }catch{} }
+    if (!anonId){ try{ anonId = require('crypto').randomUUID(); res.cookie('anon_id', anonId, { httpOnly: false, sameSite: 'lax', maxAge: 365*24*3600*1000 }); }catch{} }
     function pickVariant(c:any): { key:'A'|'B'; payload:any }{
       const weights = (c.abWeights||{}) as any; const wA = Number(weights?.A||100); const wB = Number(weights?.B||0);
       const total = Math.max(0, wA) + Math.max(0, wB) || 100;
@@ -1982,6 +1995,64 @@ shop.get('/auth/google/callback', async (req, res) => {
     }catch{}
     return res.redirect(dest);
   }catch(e:any){ return res.status(500).json({ error: e.message||'google_callback_failed' }) }
+});
+
+// Facebook OAuth login (Meta)
+shop.get('/auth/facebook/login', async (req, res) => {
+  try{
+    const cfg = await getFacebookOAuthConfig();
+    if (!cfg) return res.status(400).json({ error:'facebook_not_configured' });
+    const { appId, redirectUri } = cfg;
+    const state = Buffer.from(JSON.stringify({ next: String(req.query.next||'/account') })).toString('base64url');
+    const scope = encodeURIComponent('public_profile,email');
+    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?response_type=code&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${scope}`;
+    return res.redirect(authUrl);
+  }catch(e:any){ return res.status(500).json({ error: e.message||'facebook_login_failed' }) }
+});
+
+shop.get('/auth/facebook/callback', async (req, res) => {
+  try{
+    const cfg = await getFacebookOAuthConfig();
+    if (!cfg) return res.status(400).json({ error:'facebook_not_configured' });
+    const { appId, appSecret, redirectUri } = cfg;
+    const code = String(req.query.code||'');
+    const stateRaw = String(req.query.state||'');
+    const state = (()=>{ try{ return JSON.parse(Buffer.from(stateRaw, 'base64url').toString('utf8')) }catch{ return { next:'/account' } } })();
+    if (!code) return res.status(400).json({ error:'missing_code' });
+    // Exchange code for access token
+    const tokUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${encodeURIComponent(appSecret||'')}&code=${encodeURIComponent(code)}`;
+    const tokenRes = await fetch(tokUrl, { method:'GET' });
+    const tok = await tokenRes.json().catch(()=>({}));
+    const accessToken = tok.access_token as string|undefined;
+    if (!accessToken) return res.status(400).json({ error:'invalid_token' });
+    // Load user profile
+    const meUrl = `https://graph.facebook.com/v18.0/me?fields=id,name,email&access_token=${encodeURIComponent(accessToken)}`;
+    const meRes = await fetch(meUrl, { method:'GET' });
+    const me: any = await meRes.json().catch(()=>({}));
+    const email = String(me?.email||'').toLowerCase();
+    const name = String(me?.name||'') || 'User';
+    if (!email) return res.status(400).json({ error:'email_required_from_facebook' });
+    const user = await db.user.upsert({ where: { email }, update: { name }, create: { email, name, phone: '', password: '' } } as any);
+    const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
+    const isProd = (process.env.NODE_ENV || 'production') === 'production';
+    try { res.cookie('shop_auth_token', token, { httpOnly:true, domain: cookieDomain, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
+    try{
+      const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain;
+      if (root) {
+        res.cookie('shop_auth_token', token, { httpOnly:true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' });
+      }
+    }catch{}
+    try { res.cookie('shop_auth_token', token, { httpOnly:true, sameSite: 'lax', secure: isProd, maxAge: 3600*24*30*1000, path:'/' }); } catch {}
+    // Redirect back to mweb with SPA fallback token param
+    let mwebBase = process.env.MWEB_BASE_URL || '';
+    try { if (!mwebBase && req.headers.referer) { const u = new URL(String(req.headers.referer)); mwebBase = `${u.protocol}//${u.host.replace('api.','m.')}`; } } catch {}
+    if (!mwebBase) mwebBase = 'https://m.jeeey.com';
+    const next = String(state?.next||'/account');
+    let dest = `${mwebBase}${next.startsWith('/')?next:'/'+next}`;
+    try{ const u = new URL(dest); u.searchParams.set('t', token); dest = u.toString(); }catch{}
+    return res.redirect(dest);
+  }catch(e:any){ return res.status(500).json({ error: e.message||'facebook_callback_failed' }) }
 });
 
 // Cart endpoints (auth-required)

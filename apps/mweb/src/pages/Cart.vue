@@ -380,6 +380,8 @@ async function goToCheckout() {
     showToast('يرجى تحديد المنتجات المطلوبة')
     return
   }
+  // في حال لم يسجل المستخدم الدخول، نوجّهه لتسجيل الدخول ثم نعود للسلة
+  if (!isLoggedIn.value) { router.push({ path:'/login', query: { return: '/cart' } }); return }
   const { apiGet } = await import('@/lib/api')
   try{
     const list = await apiGet<any[]>('/api/addresses')
@@ -765,7 +767,7 @@ onMounted(async () => {
   }catch{}
 })
 
-function goLogin(){ router.push('/login?next=/cart') }
+function goLogin(){ router.push({ path:'/login', query: { return: '/cart' } }) }
 function openProduct(p:any){ const id = typeof p==='string'? p : (p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(String(id))}`) }
 function addSugToCart(p:any){
   cart.add({ id: String(p.id), title: String(p.title), price: Number(p.price||0), img: String(p.image||'') }, 1)

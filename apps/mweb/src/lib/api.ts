@@ -36,6 +36,12 @@ export function googleLoginUrl(next: string = '/account'): string {
 	return `${API_BASE}/api/auth/google/login?${qs}`
 }
 
+export function facebookLoginUrl(next: string = '/account'): string {
+	const dest = next && next.startsWith('/') ? next : '/account'
+	const qs = new URLSearchParams({ next: dest }).toString()
+	return `${API_BASE}/api/auth/facebook/login?${qs}`
+}
+
 export async function apiGet<T = any>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const url = path.startsWith('http') ? path : `${API_BASE}${path}`
