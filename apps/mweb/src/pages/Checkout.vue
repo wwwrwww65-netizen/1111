@@ -420,6 +420,11 @@ onMounted(async ()=>{
   try{ const c = await apiGet<any>('/api/currency'); if (c && c.symbol) { currencySymbol.value = c.symbol; (window as any).__CURRENCY_CODE__ = c.code; (window as any).__CURRENCY_SYMBOL__ = c.symbol } }catch{}
 })
 
+// Track AddPaymentInfo when user selects payment method
+watch(selectedPayment, (v)=>{
+  try{ const fbq = (window as any).fbq; if (typeof fbq==='function' && v){ fbq('track','AddPaymentInfo',{ value: Number(totalAll.value||0), currency: 'YER' }) } }catch{}
+})
+
 // خصومات ومحفظة/نقاط
 const couponCode = ref('')
 const giftCode = ref('')

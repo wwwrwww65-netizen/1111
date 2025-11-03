@@ -2091,6 +2091,20 @@ shop.post('/cart/add', requireAuth, async (req: any, res) => {
     const existing = await db.cartItem.findUnique({ where: { cartId_productId: { cartId: cart.id, productId } } });
     if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(quantity || 1) } });
     else await db.cartItem.create({ data: { cartId: cart.id, productId, quantity: Number(quantity || 1) } });
+    // Fire FB CAPI AddToCart (best-effort)
+    try {
+      const { fbSendEvents, hashEmail } = await import('../services/fb');
+      const user = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
+      const prod = await db.product.findUnique({ where: { id: productId }, select: { price: true } });
+      await fbSendEvents([
+        {
+          event_name: 'AddToCart',
+          user_data: { em: hashEmail(user?.email) },
+          custom_data: { value: Number(prod?.price||0), currency: 'YER', contents: [{ id: productId, quantity: Number(quantity||1) }], content_type: 'product' },
+          action_source: 'website',
+        },
+      ]);
+    } catch {}
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -2910,7 +2924,7 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
         xml.push(`<g:id>${p.id}</g:id>`);
         xml.push(`<title>${escapeXml(p.name)}</title>`);
         xml.push(`<link>https://jeeey.com/p?id=${p.id}</link>`);
-        xml.push(`<g:price>${(p.price||0).toFixed(2)} SAR</g:price>`);
+        xml.push(`<g:price>${(p.price||0).toFixed(2)} YER</g:price>`);
         xml.push(`<g:image_link>${escapeXml(img)}</g:image_link>`);
         xml.push(`<g:availability>${p.isActive ? 'in stock' : 'out of stock'}</g:availability>`);
         if (p.brand) xml.push(`<g:brand>${escapeXml(p.brand)}</g:brand>`);

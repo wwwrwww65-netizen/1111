@@ -380,6 +380,7 @@ async function goToCheckout() {
     showToast('يرجى تحديد المنتجات المطلوبة')
     return
   }
+  try{ const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','InitiateCheckout',{ value: Number(effectiveTotal.value||0), currency: 'YER' }) }catch{}
   // في حال لم يسجل المستخدم الدخول، نوجّهه لتسجيل الدخول ثم نعود للسلة
   if (!isLoggedIn.value) { router.push({ path:'/login', query: { return: '/cart' } }); return }
   const { apiGet } = await import('@/lib/api')

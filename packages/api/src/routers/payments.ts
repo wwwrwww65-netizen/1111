@@ -223,7 +223,7 @@ export const paymentsRouter = router({
               {
                 event_name: 'Purchase',
                 user_data: { em: hashEmail(ord?.user?.email) },
-                custom_data: { value: ord?.total || 0, currency: 'USD', num_items: ord?.items?.length || 0 },
+                custom_data: { value: ord?.total || 0, currency: 'YER', num_items: ord?.items?.length || 0 },
                 action_source: 'website',
               },
             ]);
