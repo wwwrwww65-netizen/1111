@@ -46,7 +46,7 @@
               <span v-if="item.variantSize" class="mr-2">{{ item.variantSize }}</span>
             </div>
             <div class="flex justify-between items-center mt-2">
-              <span class="text-[#8a1538] font-semibold">{{ Math.round(Number(item.price)) }} {{ currencySymbol }}</span>
+              <span class="text-[#8a1538] font-semibold">{{ Math.round(Number(afterOf(item) ?? item.price)) }} {{ currencySymbol }}</span>
               <!-- عداد -->
               <div class="flex items-center border rounded">
                 <button class="px-2" @click="decreaseQty(idx)">-</button>
@@ -116,7 +116,7 @@
       <!-- الخصومات -->
       <section class="bg-white px-4 py-3 mb-2">
         <div class="divide-y divide-gray-300 text-sm">
-          <button class="w-full text-right py-3 flex justify-between" @click="openCouponDrawer"><span>رمز القسيمة</span><span class="text-lg">›</span></button>
+          <button class="w-full text-right py-3 flex justify-between" @click="openCouponDrawer"><span>رمز القسيمة</span><span class="text-lg flex items-center gap-2"><span v-if="discountFromCoupon>0" class="text-red-500 text-[14px]">-{{ discountFromCoupon.toFixed(2) }} {{ currencySymbol }}</span> ›</span></button>
           <button class="w-full text-right py-3 flex justify-between" @click="openGiftDrawer"><span>بطاقة هدية</span><span class="text-lg">›</span></button>
           <button class="w-full text-right py-3 flex justify-between" @click="openWalletSheet"><span>المحفظة</span><span class="text-lg">›</span></button>
           <button class="w-full text-right py-3 flex justify-between" @click="openPointsSheet">
@@ -128,7 +128,7 @@
       
     <!-- الأسعار -->
       <section class="bg-white px-4 py-3 space-y-2">
-        <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotal.toFixed(2) }} {{ currencySymbol }}</span></div>
+        <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotalOriginal.toFixed(2) }} {{ currencySymbol }}</span></div>
         <div class="flex justify-between text-sm"><span>الشحن</span><span>{{ shippingPrice.toFixed(2) }} {{ currencySymbol }}</span></div>
 
         <!-- الخصم -->
@@ -297,7 +297,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, apiPost } from '@/lib/api'
 
@@ -345,14 +345,17 @@ const shippingPrice = computed(()=> {
   const m = (shippingOptions.value||[]).find(x=> x.id===selectedShipping.value)
   return m ? Number(m.price||0) : 0
 })
-const subtotal = computed(()=> items.value.reduce((s,i)=> s + Number(i.price||0)*Number(i.qty||1), 0))
+const subtotalOriginal = computed(()=> items.value.reduce((s,i)=> s + Number(i.price||0)*Number(i.qty||1), 0))
+const subtotalAfterCoupons = computed(()=> items.value.reduce((s,i)=> s + Number((afterById.value[String(i.id)] ?? i.price)||0)*Number(i.qty||1), 0))
+const couponAutoDiscount = computed(()=> Math.max(0, subtotalOriginal.value - subtotalAfterCoupons.value))
 const discountFromPromo = ref(0)
 const discountFromCoupon = ref(0)
 const walletApplied = ref(0)
 const pointsApplied = ref(0)
 const promoTotal = computed(()=> discountFromPromo.value + walletApplied.value + pointsApplied.value)
-const savingAll = computed(()=> (promoTotal.value + discountFromCoupon.value))
-const totalAll = computed(()=> Math.max(0, subtotal.value + shippingPrice.value - savingAll.value))
+watch([subtotalOriginal, subtotalAfterCoupons], ()=>{ try{ discountFromCoupon.value = couponAutoDiscount.value }catch{} })
+const savingAll = computed(()=> (promoTotal.value + (discountFromCoupon.value || 0)))
+const totalAll = computed(()=> Math.max(0, subtotalOriginal.value + shippingPrice.value - savingAll.value))
 
 async function loadCart(){
   try{
@@ -430,6 +433,33 @@ const pointsOpen = ref(false)
 const walletAmount = ref(0)
 const pointsAmount = ref(0)
 
+// ===== كوبونات لعناصر صفحة الدفع =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCache = ref<SimpleCoupon[]>([])
+const afterById = ref<Record<string, number>>({})
+
+async function fetchCouponsList(): Promise<SimpleCoupon[]> {
+  const { API_BASE } = await import('@/lib/api')
+  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  let data: any = await tryFetch('/api/admin/me/coupons')
+  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  data = await tryFetch('/api/admin/coupons/public')
+  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  data = await tryFetch('/api/admin/coupons/list')
+  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  return []
+}
+function normalizeCoupons(list:any[]): SimpleCoupon[] { return (list||[]).map((c:any)=> ({ code:c.code, discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED'?'FIXED':'PERCENTAGE'), discountValue:Number(c.discountValue||c.discount||0), audience:c.audience?.target||c.audience||undefined, kind:c.kind||undefined, rules:c.rules||undefined })) }
+function priceAfterCoupon(base:number, cup: SimpleCoupon): number { if(!Number.isFinite(base)||base<=0) return base; const v=Number(cup.discountValue||0); return cup.discountType==='FIXED'? Math.max(0, base-v) : Math.max(0, base*(1-v/100)) }
+function isCouponSitewide(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+function eligibleByTokens(prod:any, c: SimpleCoupon): boolean { const inc=Array.isArray(c?.rules?.includes)?c.rules!.includes!:[]; const exc=Array.isArray(c?.rules?.excludes)?c.rules!.excludes!:[]; const tokens:string[]=[]; if(prod?.categoryId) tokens.push(`category:${prod.categoryId}`); if(prod?.id) tokens.push(`product:${prod.id}`); if(prod?.brand) tokens.push(`brand:${prod.brand}`); if(prod?.sku) tokens.push(`sku:${prod.sku}`); const hasInc=!inc.length||inc.some(t=>tokens.includes(t)); const hasExc=exc.length&&exc.some(t=>tokens.includes(t)); return hasInc&&!hasExc }
+async function ensureProductMeta(id:string, item:any){ try{ const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
+}
+async function hydrateAfterCoupons(){ try{ if(!couponsCache.value.length) couponsCache.value = await fetchCouponsList(); const cups=couponsCache.value||[]; if(!cups.length) return; const ids = Array.from(new Set(items.value.map(i=> String(i.id)))) ; for (const pid of ids){ const it = items.value.find(i=> String(i.id)===String(pid)); const base=Number(it?.price||0); if(!base) continue; const site = cups.find(isCouponSitewide); if(site){ afterById.value[pid]=priceAfterCoupon(base, site); continue } const meta=await ensureProductMeta(pid, it); const match=cups.find(c=> eligibleByTokens(meta,c)); if(match){ afterById.value[pid]=priceAfterCoupon(base, match) } } }catch{} }
+onMounted(()=>{ hydrateAfterCoupons().catch(()=>{}) })
+watch(items, ()=>{ hydrateAfterCoupons().catch(()=>{}) }, { deep:true })
+function afterOf(it:any): number | null { const v = afterById.value[String(it.id)]; return (typeof v==='number')? v : null }
+
 function openCouponDrawer(){ couponOpen.value = true }
 function openGiftDrawer(){ giftOpen.value = true }
 function openWalletSheet(){ walletOpen.value = true }
@@ -455,12 +485,12 @@ async function loadBalances(){
   }catch{ showRewards.value = false }
 }
 function applyWallet(){
-  const amt = Math.max(0, Math.min(walletAmount.value||0, walletBalance.value, subtotal.value))
+  const amt = Math.max(0, Math.min(walletAmount.value||0, walletBalance.value, subtotalOriginal.value))
   walletApplied.value = amt
   walletOpen.value = false
 }
 function applyPoints(){
-  const amt = Math.max(0, Math.min(pointsAmount.value||0, points.value, subtotal.value))
+  const amt = Math.max(0, Math.min(pointsAmount.value||0, points.value, subtotalOriginal.value))
   pointsApplied.value = amt
   pointsOpen.value = false
 }

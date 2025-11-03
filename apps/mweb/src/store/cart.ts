@@ -53,6 +53,7 @@ export const useCart = defineStore('cart', {
       // fire and forget server sync
       apiPost('/api/cart/add', { productId: item.id, quantity: qty }).catch(()=>{})
       this.saveLocal()
+      try{ window.dispatchEvent(new CustomEvent('cart:add', { detail:{ productId: item.id, qty } })) }catch{}
     },
     upsertVariantMeta(uid: string, meta: { color?: string; size?: string; img?: string }){
       const it = this.items.find(i=> i.uid===uid)

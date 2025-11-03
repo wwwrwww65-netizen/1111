@@ -1707,18 +1707,106 @@ shop.get('/categories/page', async (req, res) => {
   } catch (e:any) { return res.status(500).json({ error: e?.message||'categories_page_failed' }); }
 });
 
-// Promotions: return best-matching active popup campaign (MVP)
-shop.get('/popups', async (req, res) => {
+// Promotions: return matching active popup campaigns with AB variant selection and basic targeting
+shop.get('/popups', async (req: any, res) => {
   try{
-    const nowIso = new Date().toISOString();
-    const rows = await db.campaign.findMany({ where: { status: 'LIVE' as any }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }] } as any);
-    // naive pick first LIVE campaign; targeting evaluation can be added later
-    const c = rows[0];
-    if (!c) return res.json({ items: [] });
-    const variant = (c as any).variantA || null; const rewardId = (c as any).rewardId||null;
-    res.set('Cache-Control','public, max-age=30');
-    return res.json({ items: [ { id: c.id, name: c.name, priority: c.priority, variant, rewardId, status: c.status, schedule: c.schedule, targeting: c.targeting, now: nowIso } ] });
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const ua = String(req.headers['user-agent']||'');
+    const q = req.query||{};
+    const path = String(q.path||req.originalUrl||'/');
+    const ref = String(q.ref||req.get('referer')||'');
+    const lang = String(q.lang||'');
+    const device = /mobile|android|iphone|ipad/i.test(ua) ? 'mobile' : 'desktop';
+
+    // Fetch all LIVE campaigns ordered by priority
+    const rows:any[] = await db.campaign.findMany({ where: { status: 'LIVE' as any }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }] } as any);
+    if (!rows || !rows.length) { res.set('Cache-Control','public, max-age=15'); return res.json({ items: [] }); }
+
+    // Ensure anonymous id for AB bucketing / frequency if needed
+    let anonId = String(req.cookies?.anon_id||'');
+    if (!anonId){ try{ anonId = require('crypto').randomUUID(); res.cookie('anon_id', anonId, { httpOnly: false, sameSite: 'Lax', maxAge: 365*24*3600*1000 }); }catch{} }
+    function pickVariant(c:any): { key:'A'|'B'; payload:any }{
+      const weights = (c.abWeights||{}) as any; const wA = Number(weights?.A||100); const wB = Number(weights?.B||0);
+      const total = Math.max(0, wA) + Math.max(0, wB) || 100;
+      // stable bucket by anonId hash
+      const h = require('crypto').createHash('sha1').update(String(anonId||'')+String(c.id)).digest('hex');
+      const n = parseInt(h.slice(0,8),16) % total;
+      const chosen = n < Math.max(0,wA) ? 'A' : 'B';
+      const payload = chosen==='A' ? (c.variantA||null) : (c.variantB||null);
+      // fallback to A if B missing
+      if (!payload) return { key:'A', payload: c.variantA||null };
+      return { key: chosen as 'A'|'B', payload };
+    }
+    function matchesSchedule(c:any): boolean{
+      try{
+        const sch = c.schedule||{}; const start = sch.start? new Date(sch.start) : null; const end = sch.end? new Date(sch.end) : null;
+        if (start && now.getTime() < start.getTime()) return false;
+        if (end && now.getTime() > end.getTime()) return false;
+        return true;
+      }catch{ return true }
+    }
+    function matchesTargeting(c:any): boolean{
+      try{
+        const t = c.targeting||{};
+        // audience: all|guest|logged_in (JWT cookie heuristic)
+        const aud = String(t.audience||'all');
+        const jwt = (req?.cookies?.shop_auth_token as string|undefined)||'';
+        const isLoggedIn = !!jwt;
+        if (aud==='guest' && isLoggedIn) return false;
+        if (aud==='logged_in' && !isLoggedIn) return false;
+        // devices
+        const devices: string[] = Array.isArray(t.devices)? t.devices : [];
+        if (devices.length && !devices.includes(device)) return false;
+        // languages/locales
+        const langs: string[] = Array.isArray(t.languages)? t.languages : [];
+        if (langs.length && lang && !langs.includes(lang)) return false;
+        // path include/exclude
+        const includes: string[] = Array.isArray(t.includePaths)? t.includePaths : [];
+        const excludes: string[] = Array.isArray(t.excludePaths)? t.excludePaths : [];
+        if (includes.length && !includes.some((p)=> path.startsWith(p))) return false;
+        if (excludes.length && excludes.some((p)=> path.startsWith(p))) return false;
+        // source/referrer
+        const sources: string[] = Array.isArray(t.sources)? t.sources : [];
+        if (sources.length && ref){
+          const ok = sources.some((s)=> ref.includes(s));
+          if (!ok) return false;
+        }
+        return true;
+      }catch{ return true }
+    }
+
+    const items:any[] = [];
+    for (const c of rows){
+      if (!matchesSchedule(c)) continue;
+      if (!matchesTargeting(c)) continue;
+      const sel = pickVariant(c);
+      items.push({ id: c.id, name: c.name, priority: c.priority, status: c.status, variantKey: sel.key, variant: sel.payload, rewardId: c.rewardId||null, schedule: c.schedule, targeting: c.targeting, freq: c.frequency, now: nowIso });
+      // cap items to reasonable count
+      if (items.length>=5) break;
+    }
+    res.set('Cache-Control','public, max-age=15');
+    return res.json({ items });
   }catch(e:any){ return res.status(500).json({ error: e?.message||'popups_failed' }); }
+});
+
+// Promotions analytics events (impression, view, click, close, etc.)
+shop.post('/promotions/events', async (req: any, res) => {
+  try{
+    const body = req.body||{};
+    const { campaignId, variantKey, type, meta } = body;
+    if (!campaignId || !type) return res.status(400).json({ error:'missing_fields' });
+    // identify user if present
+    const header = (req?.headers?.authorization as string|undefined)||'';
+    let tokenAuth = '';
+    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    const jwt = require('jsonwebtoken');
+    let userId: string|undefined;
+    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+    await db.event.create({ data: { userId: userId||null, name: 'promo_'+String(type), properties: { campaignId, variantKey, meta: meta||{} } } } as any);
+    res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e?.message||'promo_event_failed' }); }
 });
 
 // Promotions claim (shop user)

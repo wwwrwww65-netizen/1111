@@ -156,9 +156,26 @@
 
     <!-- Price Section -->
     <div ref="priceRef" class="px-4">
-      <div class="font-extrabold text-black" :class="isLoadingPdp || price==null ? '' : 'text-[20px]'">
-        <template v-if="!isLoadingPdp && price!=null">{{ displayPrice }}</template>
-        <div v-else class="h-6 w-28 bg-gray-200 animate-pulse rounded" />
+      <div class="flex items-center gap-2">
+        <div class="font-extrabold text-black" :class="isLoadingPdp || price==null ? '' : 'text-[20px]'">
+          <template v-if="!isLoadingPdp && price!=null">{{ displayPrice }}</template>
+          <div v-else class="h-6 w-28 bg-gray-200 animate-pulse rounded" />
+        </div>
+        <div v-if="afterCouponPriceText" class="inline-flex items-center gap-1 cursor-pointer" @click="couponsSheetOpen = true">
+          <div class="h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
+            <span class="text-[13px] font-extrabold text-orange-500">{{ afterCouponPriceText }}</span>
+            <span class="text-[11px] text-orange-500">/بعد الكوبون</span>
+          </div>
+          <span class="text-[16px] leading-none" :style="{ color: themeCouponColor }">›</span>
+        </div>
+      </div>
+      <div v-if="pdpCouponsLimited.length" class="mt-2 flex items-center gap-2 flex-wrap cursor-pointer" @click="couponsSheetOpen = true">
+        <div v-for="(c,idx) in pdpCouponsLimited" :key="c.code||idx" class="inline-flex items-center gap-2 rounded px-2 py-1" :style="{ border: '1px solid '+themeCouponColor, background: 'transparent' }">
+          <div class="text-[12px] font-semibold truncate" :style="{ color: themeCouponColor }">
+            خصم {{ c.discountLabel }} {{ c.minLabel }}
+          </div>
+        </div>
+        <span class="text-[16px] leading-none" :style="{ color: themeCouponColor }">›</span>
       </div>
     </div>
 
@@ -695,6 +712,70 @@
       </div>
     </div>
   </div>
+
+  <!-- ورقة القسائم السفلية -->
+  <div v-if="couponsSheetOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" @click="couponsSheetOpen=false"></div>
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 max-h-[80vh] overflow-y-auto" dir="rtl">
+      <div class="flex items-center justify-between mb-3">
+        <button class="text-[20px]" @click="couponsSheetOpen=false" aria-label="إغلاق">×</button>
+        <div class="text-[14px] font-bold">تفاصيل العروض الترويجية</div>
+        <div style="width:24px"></div>
+      </div>
+      <!-- صندوق رمادي يتضمن الأسعار والخصم -->
+      <div class="bg-gray-50 rounded-lg p-3 mb-3">
+        <div class="text-center mb-3">
+          <div class="inline-flex items-center gap-1 px-3 h-8 rounded" :style="{ background:'rgba(250,99,56,.10)' }">
+            <span class="text-[14px] font-extrabold" :style="{ color: themeCouponColor }">{{ afterCouponPriceText || displayPrice }}</span>
+            <span class="text-[11px]" :style="{ color: themeCouponColor }">/بعد الكوبون</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 items-center py-1">
+          <div class="text-xs text-gray-500">السعر الأصلي</div>
+          <div class="text-sm font-bold text-gray-900 text-left">{{ displayPrice }}</div>
+        </div>
+        <div class="grid grid-cols-2 items-center py-1">
+          <div class="text-xs text-gray-500">الخصم</div>
+          <div class="text-sm font-bold text-red-500 text-left">-{{ fmtPrice(bestDiscountAmount||0) }}</div>
+        </div>
+        <div class="border-t my-2"></div>
+        <div class="grid grid-cols-2 items-center py-1">
+          <div class="text-xs text-gray-500">السعر بعد الكوبون</div>
+          <div class="text-sm font-extrabold" :style="{ color: themeCouponColor }">{{ afterCouponPriceText || displayPrice }}</div>
+        </div>
+      </div>
+      <button class="w-full h-10 rounded-md text-white font-semibold mb-3" style="background:#8a1538" @click="(async()=>{ if(!isOptionsComplete()){ openOptionsModal(); return } await addToCartInternal(); couponsSheetOpen=false })()">أضف إلى عربة التسوق بنجاح</button>
+      <div class="text-[11px] text-gray-500 mb-3">الخصومات المعروضة تقديرية وتخضع لقواعد الكوبونات. قد يختلف السعر النهائي.</div>
+
+      <div class="text-sm font-bold mb-2">القسيمة</div>
+      <div class="grid gap-3">
+        <article v-for="(coupon,idx) in pdpCouponsCards" :key="coupon.id" class="coupon-card" :class="{ expired: coupon.status==='expired', used: coupon.status==='used' }" :data-category="(coupon.categories||[]).join(' ')">
+          <div v-if="idx===0" class="badge" style="left:16px; right:auto; background:#fa6338">الموصى بها</div>
+          <div class="card-left">
+            <h3 class="coupon-title">{{ coupon.title }}</h3>
+            <p class="coupon-sub">{{ coupon.category }}</p>
+            <div class="expiry-row" @click="toggleSheetCoupon(idx)">
+              <span class="expiry">{{ coupon.expiryText }}</span>
+              <button class="exp-toggle" :class="{ open: sheetExpanded.includes(idx) }" :aria-expanded="sheetExpanded.includes(idx)">▾</button>
+            </div>
+            <div v-show="sheetExpanded.includes(idx)" class="expiry-details">
+              <p v-if="getExpiryTs(coupon)">ينتهي في: <strong>{{ expiryDateText(coupon) }}</strong></p>
+              <ul>
+                <li>خصم {{ coupon.discount }}%</li>
+                <li>{{ coupon.minOrderText }}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="card-right">
+            <div class="percent">{{ coupon.discount }}%</div>
+            <div class="discount-note">{{ coupon.minOrderText }}</div>
+            <div class="timer" :class="{ warning: isExpiringWithinDay(coupon) }" v-if="getExpiryTs(coupon) && coupon.status==='unused'" aria-label="الوقت المتبقي">{{ countdownText(coupon) }}</div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
   <!-- إشعار: يرجى تحديد الخيارات (يظهر فوق النافذة) -->
   <Transition name="fade">
     <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
@@ -906,6 +987,101 @@ const allImages = ref<string[]>([])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> price.value==null ? '' : fmtPrice(Number(price.value)||0))
+const afterCouponPriceText = ref('')
+const themeCouponColor = '#fa6338'
+const pdpCoupons = ref<Array<{ code?:string; title?:string; priceAfter?:number; priceAfterText?:string; discountText?:string; discountLabel?:string; minLabel?:string }>>([])
+const pdpCouponsLimited = computed(()=> pdpCoupons.value.slice(0,2))
+
+// Bottom sheet for coupons details
+const couponsSheetOpen = ref(false)
+const bestDiscountAmount = computed(()=>{
+  try{
+    const base = Number(price.value||0)
+    const best = pdpCoupons.value[0]
+    const after = Number(best?.priceAfter||0)
+    if (!base || !after) return 0
+    return Math.max(0, base - after)
+  }catch{ return 0 }
+})
+
+const sheetExpanded = ref<number[]>([])
+function toggleSheetCoupon(i:number){
+  const k = sheetExpanded.value.indexOf(i)
+  if (k>-1) sheetExpanded.value.splice(k,1); else sheetExpanded.value.push(i)
+}
+
+function pdpGetExpiryTs(c:any){
+  const raw = c?.validUntil || c?.expiresAt || (c?.schedule && c.schedule.to)
+  if (!raw) return null
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts)? ts: null
+}
+function pdpExpiryDateText(c:any){
+  const ts = pdpGetExpiryTs(c)
+  if (!ts) return ''
+  try{ return new Date(ts).toLocaleString('ar', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) }catch{ return new Date(ts).toISOString() }
+}
+
+// Map to coupons.vue card shape
+const pdpCouponsCards = computed(()=>{
+  return (pdpCoupons.value||[]).map((c, i)=>{
+    const discountPct = Number(String(c.percentLabel||c.discountLabel||'').toString().replace(/[^0-9.]/g,''))||0
+    const expiryText = pdpExpiryDateText(c)
+    return {
+      id: c.code || 'c'+i,
+      status: 'unused',
+      categories: [],
+      title: c.title || 'كوبون',
+      category: c.kindLabel || 'خصم',
+      discount: discountPct,
+      minOrderText: c.minLabel || '',
+      validUntil: c.validUntil || null,
+      schedule: c.schedule || null,
+      expiresAt: c.expiresAt || null,
+      expiryText,
+      conditions: [c.kindLabel || 'عروض']
+    }
+  })
+})
+
+// Helpers copied to match coupons.vue behavior
+const nowTs = ref(Date.now())
+let countdownInterval2: any = null
+onMounted(()=>{ countdownInterval2 = setInterval(()=> nowTs.value = Date.now(), 1000) })
+onBeforeUnmount(()=>{ if (countdownInterval2) clearInterval(countdownInterval2) })
+function getExpiryTs(coupon:any){
+  const raw = coupon?.validUntil || coupon?.valid_to || coupon?.expiresAt || (coupon?.schedule && coupon.schedule.to)
+  if (!raw) return null
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts) ? ts : null
+}
+function countdownText(coupon:any){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return ''
+  const diff = ts - nowTs.value
+  if (diff <= 0) return '00:00:00'
+  const totalSeconds = Math.floor(diff / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const dd = String(days).padStart(2, '0')
+  const hh = String(hours).padStart(2, '0')
+  const mm = String(minutes).padStart(2, '0')
+  const ss = String(seconds).padStart(2, '0')
+  return days > 0 ? `${dd}:${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`
+}
+function isExpiringWithinDay(coupon:any){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return false
+  const diff = ts - nowTs.value
+  return diff > 0 && diff <= 24 * 60 * 60 * 1000
+}
+function expiryDateText(coupon:any){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return ''
+  try{ return new Date(ts).toLocaleString('ar', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) }catch{ return new Date(ts).toISOString() }
+}
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
 const categoryName = ref<string>('')
@@ -1247,7 +1423,7 @@ function loadMoreRecommended() {
   isLoadingRecommended.value = true
   
   // Simulate loading from API
-  setTimeout(() => {
+  setTimeout(async () => {
     const baseIdx = recommendedProducts.value.length
     const newProducts: RecItem[] = [
       {
@@ -1266,6 +1442,7 @@ function loadMoreRecommended() {
       }
     ]
     recommendedProducts.value.push(...newProducts)
+    try{ await hydrateCouponsForRecommended() }catch{}
     isLoadingRecommended.value = false
   }, 1500)
 }
@@ -1555,6 +1732,8 @@ async function computeGalleryHeight(){
 }
 // Recompute when images array updates
 watch(images, async ()=>{ try{ await nextTick(); await computeGalleryHeight() }catch{} }, { deep: true })
+// Recalculate after-coupon price whenever base price changes
+watch(price, ()=>{ try{ hydrateCouponsForPdp() }catch{} })
 
 function getImgFitClass(idx: number): string {
   try{
@@ -1779,6 +1958,7 @@ async function loadProductData() {
       try { injectProductJsonLd() } catch {}
       try { injectHeadMeta() } catch {}
       isLoadingPdp.value = false
+      try { await hydrateCouponsForPdp() } catch {}
     }
   }catch{}
   // Fallback (local preview/dev): synthesize minimal product and variants so UI renders swatches/sizes without API
@@ -2048,10 +2228,11 @@ async function fetchRecommendations(){
     // Default: similar by current product's category, then recent
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`)
     const list = Array.isArray(sim?.items) ? sim!.items : []
-    if (list.length) { recommendedProducts.value = list.map((it:any)=> toRecItem(it)); return }
+    if (list.length) { recommendedProducts.value = list.map((it:any)=> toRecItem(it)); try{ await hydrateCouponsForRecommended() }catch{}; return }
     const rec = await apiGet<any>('/api/recommendations/recent')
     const items = Array.isArray(rec?.items) ? rec!.items : []
     recommendedProducts.value = items.map((it:any)=> toRecItem(it))
+    try{ await hydrateCouponsForRecommended() }catch{}
   }catch{} finally { isLoadingRecommended.value = false }
 }
 
@@ -2072,6 +2253,126 @@ function toRecItem(it:any): RecItem{
     bestRank: undefined,
     thumbs: undefined,
     href: `/p?id=${encodeURIComponent(String(it?.id||''))}`
+  }
+}
+
+// ===== كوبونات للتوصيات في صفحة المنتج =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCacheRec = ref<SimpleCoupon[]>([])
+
+async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
+  const { API_BASE } = await import('@/lib/api')
+  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  let data: any = await tryFetch('/api/admin/me/coupons')
+  if (data && Array.isArray(data.coupons)) return normalizeCouponsRec(data.coupons)
+  data = await tryFetch('/api/admin/coupons/public')
+  if (data && Array.isArray(data.coupons)) return normalizeCouponsRec(data.coupons)
+  data = await tryFetch('/api/admin/coupons/list')
+  if (data && Array.isArray(data.coupons)) return normalizeCouponsRec(data.coupons)
+  return []
+}
+
+// ===== كوبونات للمنتج الحالي (سعر بعد الكوبون + عرض كوبونين) =====
+async function hydrateCouponsForPdp(){
+  try{
+    if (!couponsCacheRec.value.length){ couponsCacheRec.value = await fetchCouponsListRec() }
+    const cups = couponsCacheRec.value||[]
+    const base = Number(price.value||0)
+    if (!base || !cups.length){ afterCouponPriceText.value = ''; pdpCoupons.value = []; return }
+    // build product token object
+    const prod = { id, categoryId: (product.value?.categoryId||product.value?.category?.id||product.value?.category||null), brand: product.value?.brand, sku: product.value?.sku }
+    // collect matches with resulting prices
+    const items: Array<{ code?:string; title?:string; kindLabel?:string; priceAfter?:number; discountText?:string; discountLabel?:string; percentLabel?:string; minLabel?:string; validUntil?:string|number|null; schedule?:any; expiresAt?:any }>=[]
+    const site = cups.find(isCouponSitewideRec)
+    if (site){
+      const min = (site as any).rules?.min
+      const minLabel = !min || Number(min)<=0 ? 'بدون حد أدنى للشراء' : `للطلبات أكثر من ${fmtPrice(Number(min))}`
+      const isPct = String(site.discountType).toUpperCase()==='FIXED' ? false : true
+      const discountLabel = isPct ? `${Number(site.discountValue||0)}%` : fmtPrice(Number(site.discountValue||0))
+      const percentLabel = isPct ? discountLabel : undefined
+      const title = (site as any).title || (site as any).rules?.title || site.code
+      items.push({ code: site.code, title, kindLabel: (site as any).kind, validUntil: (site as any).validUntil, schedule:(site as any).schedule, expiresAt:(site as any).expiresAt, priceAfter: priceAfterCouponRec(base, site), discountText: site.discountType==='FIXED'? `-${site.discountValue}` : `-${site.discountValue}%`, discountLabel, percentLabel, minLabel })
+    }
+    // token-based matches
+    for (const c of cups){
+      if (site && c.code===site.code) continue
+      if (eligibleByTokensRec(prod, c)){
+        const min = (c as any).rules?.min
+        const minLabel = !min || Number(min)<=0 ? 'بدون حد أدنى للشراء' : `للطلبات أكثر من ${fmtPrice(Number(min))}`
+        const isPct = String(c.discountType).toUpperCase()==='FIXED' ? false : true
+        const discountLabel = isPct ? `${Number(c.discountValue||0)}%` : fmtPrice(Number(c.discountValue||0))
+        const percentLabel = isPct ? discountLabel : undefined
+        const title = (c as any).title || (c as any).rules?.title || c.code
+        items.push({ code: c.code, title, kindLabel:(c as any).kind, validUntil:(c as any).validUntil, schedule:(c as any).schedule, expiresAt:(c as any).expiresAt, priceAfter: priceAfterCouponRec(base, c), discountText: c.discountType==='FIXED'? `-${c.discountValue}` : `-${c.discountValue}%`, discountLabel, percentLabel, minLabel })
+      }
+    }
+    // sort by best (lowest) priceAfter
+    items.sort((a,b)=> (Number(a.priceAfter||base) - Number(b.priceAfter||base)))
+    // update afterCoupon (best one) and map display fields
+    const best = items[0]
+    afterCouponPriceText.value = best && typeof best.priceAfter==='number' ? fmtPrice(best.priceAfter) : ''
+    pdpCoupons.value = items.map(it=> ({ ...it, priceAfterText: typeof it.priceAfter==='number'? fmtPrice(it.priceAfter): undefined }))
+  }catch{ afterCouponPriceText.value = ''; pdpCoupons.value = [] }
+}
+
+function normalizeCouponsRec(list:any[]): SimpleCoupon[] {
+  return (list||[]).map((c:any)=> ({
+    code: c.code,
+    discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED' ? 'FIXED' : 'PERCENTAGE'),
+    discountValue: Number(c.discountValue||c.discount||0),
+    audience: c.audience?.target || c.audience || undefined,
+    kind: c.kind || undefined,
+    rules: c.rules || undefined
+  }))
+}
+
+function priceAfterCouponRec(base:number, cup: SimpleCoupon): number {
+  if (!Number.isFinite(base) || base<=0) return base
+  const v = Number(cup.discountValue||0)
+  if (cup.discountType==='FIXED') return Math.max(0, base - v)
+  return Math.max(0, base * (1 - v/100))
+}
+
+function isCouponSitewideRec(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+
+function eligibleByTokensRec(prod: any, c: SimpleCoupon): boolean {
+  const inc = Array.isArray(c?.rules?.includes) ? c.rules!.includes! : []
+  const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
+  const tokens: string[] = []
+  if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (prod?.id) tokens.push(`product:${prod.id}`)
+  if (prod?.brand) tokens.push(`brand:${prod.brand}`)
+  if (prod?.sku) tokens.push(`sku:${prod.sku}`)
+  const hasInc = !inc.length || inc.some(t=> tokens.includes(t))
+  const hasExc = exc.length && exc.some(t=> tokens.includes(t))
+  return hasInc && !hasExc
+}
+
+async function ensureProductMetaRec(p:any): Promise<any> {
+  if (p.categoryId!=null) return p
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
+    if (d){ p.categoryId = d.categoryId || d.category?.id || d.category || null; p.brand = p.brand || d.brand; p.sku = p.sku || d.sku }
+  }catch{}
+  return p
+}
+
+async function hydrateCouponsForRecommended(){
+  if (!couponsCacheRec.value.length){ couponsCacheRec.value = await fetchCouponsListRec() }
+  await computeCouponPricesForRecommended(recommendedProducts.value)
+}
+
+async function computeCouponPricesForRecommended(list:any[]){
+  const cups = couponsCacheRec.value||[]
+  if (!cups.length) return
+  for (const p of list){
+    const base = Number(String((p as any).priceText||'0').replace(/[^0-9.]/g,''))||0
+    if (!base) { (p as any).afterCoupon = undefined; continue }
+    const site = cups.find(isCouponSitewideRec)
+    if (site){ (p as any).afterCoupon = fmtPrice(priceAfterCouponRec(base, site)); continue }
+    await ensureProductMetaRec(p)
+    const match = cups.find(c=> eligibleByTokensRec(p, c))
+    if (match){ (p as any).afterCoupon = fmtPrice(priceAfterCouponRec(base, match)) }
   }
 }
 
@@ -2528,5 +2829,43 @@ async function updateImagesForColor(){
 .kv-row { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
 .kv-row .desc-k { color:#4b5563; font-weight:500; }
 .kv-row .desc-v { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; word-break: break-all; }
+
+/* Coupons sheet mini-cards (consistent with coupons.vue) */
+.sheet-coupon-card{ display:flex; align-items:stretch; gap:12px; background:#fff6f4; border:1px solid #f3d2c8; border-radius:14px; padding:12px; position:relative }
+.sheet-badge{ position:absolute; top:-8px; background:#fa6338; color:#fff; font-size:12px; padding:2px 8px; border-radius:4px; font-weight:600 }
+.sheet-badge-left{ left:16px }
+.sheet-card-left{ flex:1; display:flex; flex-direction:column; gap:6px }
+.sheet-coupon-title{ font-size:14px; font-weight:700; color:#111; margin:0 }
+.sheet-divider{ width:1px; position:relative }
+.sheet-divider:before{ content:""; position:absolute; inset:0 auto 0 auto; left:50%; transform:translateX(-50%); height:100%; border-left:1px dashed rgba(200,120,100,.4) }
+.sheet-divider:after{ content:""; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; left:calc(50% - 7px); top:-7px; box-shadow:0 0 0 1px #f3d2c8 inset }
+.sheet-card-right{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 12px; width:120px; min-width:96px }
+.sheet-percent{ font-size:28px; font-weight:800; color:#fa6338; line-height:1 }
+.sheet-discount-note{ font-size:12px; color:#666; text-align:center; margin-top:6px }
+
+/* Coupons.vue card styles (scoped clone) */
+.coupon-card { display:flex; align-items:stretch; gap:12px; background:#fff6f4; border:1px solid #f3d2c8; border-radius:14px; padding:16px; position:relative; transition:transform .2s, box-shadow .2s }
+.coupon-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08) }
+.coupon-card.expired { opacity:.7 }
+.coupon-card.used { opacity:.7; background:#f5f5f5 }
+.coupon-card .badge { position:absolute; top:-8px; right:16px; background:#fa6338; color:#fff; font-size:12px; padding:2px 8px; border-radius:4px; font-weight:600 }
+.divider { width:1px; background:transparent; position:relative }
+.divider:before { content:""; position:absolute; inset:0 auto 0 auto; left:50%; transform:translateX(-50%); height:100%; border-left:1px dashed rgba(200,120,100,.4) }
+.divider:after { content:""; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; left:calc(50% - 7px); top:-7px; box-shadow:0 0 0 1px #f3d2c8 inset }
+.card-right { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 12px; width:120px; min-width:96px }
+.percent { font-size:32px; font-weight:800; color:#fa6338; line-height:1 }
+.discount-note { font-size:13px; color:#666; text-align:center; margin-top:6px }
+.card-left { flex:1; display:flex; flex-direction:column; gap:8px }
+.coupon-title { font-size:20px; font-weight:700; color:#111; margin:4px 0 }
+.coupon-sub { font-size:13px; color:#8a8a8a; margin:0 }
+.expiry-row { display:flex; align-items:center; gap:8px; margin-top:6px; cursor:pointer }
+.expiry { font-size:13px; color:#8a8a8a }
+.exp-toggle { background:transparent; border:0; cursor:pointer; font-size:14px; color:#8a8a8a; transition: transform .3s }
+.exp-toggle.open { transform: rotate(180deg) }
+.expiry-details { margin-top:8px; padding-top:8px; border-top:1px dashed #f3d2c8; font-size:12px; color:#666 }
+.expiry-details ul { margin-right:20px; margin-top:4px }
+.expiry-details li { margin-bottom:4px }
+.timer { margin-top:8px; font-size:14px; font-weight:700; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#ffffff; color:#111; padding:4px 8px; border-radius:6px; border:1px solid #f3d2c8 }
+.timer.warning { background:#fff4f0; color:#fa6338; border-color:#fa6338 }
 </style>
 

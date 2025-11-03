@@ -9,6 +9,8 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+onMounted(()=>{ try{ window.dispatchEvent(new CustomEvent('order:purchase')) }catch{} })
 </script>
 
 <style scoped>

@@ -129,8 +129,12 @@
 
             <!-- Price & qty (qty on left) -->
             <div class="flex items-center justify-between">
-              <div class="text-[13px] text-[#8a1538] font-bold">
-                {{ fmtPrice(item.price) }}
+              <div>
+                <div class="text-[13px] text-[#8a1538] font-bold">{{ fmtPrice(item.price) }}</div>
+                <div v-if="afterOf(item) != null" class="mt-1 inline-flex items-center gap-1 px-2 h-6 rounded" style="background: rgba(250,99,56,.10)">
+                  <span class="text-[12px] font-extrabold" style="color:#fa6338">{{ fmtPrice(afterOf(item) || 0) }}</span>
+                  <span class="text-[10px]" style="color:#fa6338">/بعد الكوبون</span>
+                </div>
               </div>
               <div class="flex items-center gap-1.5">
                 <button v-if="item.qty > 1"
@@ -221,7 +225,7 @@
     <!-- شريط الدفع السفلي - يظهر فقط عندما تكون السلة ممتلئة -->
     <footer v-if="validItems.length" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex items-center justify-between z-50">
       <div class="text-[12px] text-gray-500" v-if="effectiveDiscount>0">خصم مفعّل: -{{ fmtPrice(effectiveDiscount) }}</div>
-      <div class="text-[14px] font-semibold text-gray-900">{{ fmtPrice(effectiveTotal) }}</div>
+      <div class="text-[14px] font-semibold" style="color:#fa6338">كوبونات · {{ fmtPrice(totalAfterCoupons) }}</div>
       <button
         class="flex items-center justify-center px-3 h-9 rounded-[6px] text-[12px] font-semibold text-white bg-[#8a1538]"
         aria-label="الانتقال إلى الدفع"
@@ -687,6 +691,8 @@ onMounted(async () => {
       selectAll.value = true
     }
   }catch{}
+  // حساب أسعار بعد الكوبون لعناصر السلة
+  try{ await hydrateCartAfterCoupons() }catch{}
 })
 
 
@@ -755,6 +761,7 @@ onMounted(async () => {
       couponPrice: x.couponPrice||undefined,
       options: { colors: (x.variants||[]).map((v:any)=>v.color).filter((c:any)=>!!c), sizes: (x.variants||[]).map((v:any)=>v.size).filter((s:any)=>!!s) }
     }))
+    try{ await hydrateCouponsAndPricesForSuggested() }catch{}
   }catch{}
 })
 
@@ -802,6 +809,128 @@ async function openSuggestOptions(id: string){
 function goShippingAddresses(){
   if (hasAnyAddress.value) router.push('/address?return=/cart')
   else router.push('/address?return=/cart&open=1')
+}
+
+// ===== كوبونات لعناصر السلة =====
+type CartCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCacheCart = ref<CartCoupon[]>([])
+const afterById = ref<Record<string, number>>({})
+
+async function fetchCouponsListCart(): Promise<CartCoupon[]> {
+  const { API_BASE } = await import('@/lib/api')
+  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  let data: any = await tryFetch('/api/admin/me/coupons')
+  if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
+  data = await tryFetch('/api/admin/coupons/public')
+  if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
+  data = await tryFetch('/api/admin/coupons/list')
+  if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
+  return []
+}
+function normalizeCouponsCart(list:any[]): CartCoupon[] {
+  return (list||[]).map((c:any)=> ({ code:c.code, discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED'?'FIXED':'PERCENTAGE'), discountValue:Number(c.discountValue||c.discount||0), audience:c.audience?.target||c.audience||undefined, kind:c.kind||undefined, rules:c.rules||undefined }))
+}
+function priceAfterCouponCart(base:number, cup: CartCoupon): number { if(!Number.isFinite(base)||base<=0) return base; const v=Number(cup.discountValue||0); return cup.discountType==='FIXED'? Math.max(0, base-v) : Math.max(0, base*(1-v/100)) }
+function isCouponSitewideCart(c: CartCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+function eligibleByTokensCart(prod:any, c: CartCoupon): boolean { const inc=Array.isArray(c?.rules?.includes)?c.rules!.includes!:[]; const exc=Array.isArray(c?.rules?.excludes)?c.rules!.excludes!:[]; const tokens:string[]=[]; if(prod?.categoryId) tokens.push(`category:${prod.categoryId}`); if(prod?.id) tokens.push(`product:${prod.id}`); if(prod?.brand) tokens.push(`brand:${prod.brand}`); if(prod?.sku) tokens.push(`sku:${prod.sku}`); const hasInc=!inc.length||inc.some(t=>tokens.includes(t)); const hasExc=exc.length&&exc.some(t=>tokens.includes(t)); return hasInc&&!hasExc }
+async function ensureProductMetaCart(id:string, item:any){ try{ const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
+}
+async function hydrateCartAfterCoupons(){
+  try{
+    if (!couponsCacheCart.value.length) couponsCacheCart.value = await fetchCouponsListCart()
+    const cups = couponsCacheCart.value||[]
+    if (!cups.length) return
+    const ids = Array.from(new Set(items.value.map(i=> String(i.id))))
+    for (const pid of ids){
+      const baseItem = items.value.find(i=> String(i.id)===String(pid))
+      const basePrice = Number(baseItem?.price||0)
+      if (!basePrice){ continue }
+      const site = cups.find(isCouponSitewideCart)
+      if (site){ afterById.value[pid] = priceAfterCouponCart(basePrice, site); continue }
+      const meta = await ensureProductMetaCart(pid, baseItem)
+      const match = cups.find(c=> eligibleByTokensCart(meta, c))
+      if (match){ afterById.value[pid] = priceAfterCouponCart(basePrice, match) }
+    }
+  }catch{}
+}
+watch(items, ()=>{ hydrateCartAfterCoupons().catch(()=>{}) }, { deep:true })
+function afterOf(item:any): number | null { const v = afterById.value[String(item.id)]; return (typeof v==='number')? v : null }
+const totalAfterCoupons = computed(()=> items.value.reduce((s,it)=> s + Number((afterById.value[String(it.id)]??it.price)||0)*Number(it.qty||1), 0))
+// ===== كوبونات للمنتجات المقترحة في السلة =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCache = ref<SimpleCoupon[]>([])
+
+async function fetchCouponsList(): Promise<SimpleCoupon[]> {
+  const { API_BASE } = await import('@/lib/api')
+  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  let data: any = await tryFetch('/api/admin/me/coupons')
+  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  data = await tryFetch('/api/admin/coupons/public')
+  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  data = await tryFetch('/api/admin/coupons/list')
+  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  return []
+}
+
+function normalizeCoupons(list:any[]): SimpleCoupon[] {
+  return (list||[]).map((c:any)=> ({
+    code: c.code,
+    discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED' ? 'FIXED' : 'PERCENTAGE'),
+    discountValue: Number(c.discountValue||c.discount||0),
+    audience: c.audience?.target || c.audience || undefined,
+    kind: c.kind || undefined,
+    rules: c.rules || undefined
+  }))
+}
+
+function priceAfterCoupon(base:number, cup: SimpleCoupon): number {
+  if (!Number.isFinite(base) || base<=0) return base
+  const v = Number(cup.discountValue||0)
+  if (cup.discountType==='FIXED') return Math.max(0, base - v)
+  return Math.max(0, base * (1 - v/100))
+}
+
+function isCouponSitewide(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+
+function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
+  const inc = Array.isArray(c?.rules?.includes) ? c.rules!.includes! : []
+  const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
+  const tokens: string[] = []
+  if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (prod?.id) tokens.push(`product:${prod.id}`)
+  if (prod?.brand) tokens.push(`brand:${prod.brand}`)
+  if (prod?.sku) tokens.push(`sku:${prod.sku}`)
+  const hasInc = !inc.length || inc.some(t=> tokens.includes(t))
+  const hasExc = exc.length && exc.some(t=> tokens.includes(t))
+  return hasInc && !hasExc
+}
+
+async function ensureProductMeta(p:any): Promise<any> {
+  if (p.categoryId!=null) return p
+  try{
+    const d = await (await import('@/lib/api')).apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
+    if (d){ p.categoryId = d.categoryId || d.category?.id || d.category || null; p.brand = p.brand || d.brand; p.sku = p.sku || d.sku }
+  }catch{}
+  return p
+}
+
+async function hydrateCouponsAndPricesForSuggested(){
+  if (!couponsCache.value.length){ couponsCache.value = await fetchCouponsList() }
+  await computeCouponPricesForSuggested(suggested.value)
+}
+
+async function computeCouponPricesForSuggested(list:any[]){
+  const cups = couponsCache.value||[]
+  if (!cups.length) return
+  for (const p of list){
+    const base = Number(String(p.price||'0').replace(/[^0-9.]/g,''))||0
+    if (!base) { p.couponPrice = undefined; continue }
+    const site = cups.find(isCouponSitewide)
+    if (site){ p.couponPrice = priceAfterCoupon(base, site).toFixed(2); continue }
+    await ensureProductMeta(p)
+    const match = cups.find(c=> eligibleByTokens(p, c))
+    if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
+  }
 }
 </script>
 
