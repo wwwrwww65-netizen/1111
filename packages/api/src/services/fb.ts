@@ -1,6 +1,8 @@
 // Facebook Pixel Conversions API (server-side events)
 // Sends minimal Purchase/AddToCart/PageView events with optional user data
 
+import { db } from '@repo/db'
+
 type FbUserData = {
   em?: string
   ph?: string
@@ -19,9 +21,25 @@ type FbEvent = {
   event_id?: string
 }
 
+async function loadMetaPixelConfig(): Promise<{ pixelId?: string; token?: string; testCode?: string }>{
+  try{
+    const sM = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:mweb' } })
+    const sW = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:web' } })
+    const v:any = (sM?.value as any) || (sW?.value as any) || {}
+    return { pixelId: v.pixelId, token: v.conversionsToken, testCode: v.testEventCode }
+  }catch{ return {} }
+}
+
 export async function fbSendEvents(events: FbEvent[]): Promise<{ ok: boolean; status: number; body?: any }> {
-  const pixelId = process.env.FB_PIXEL_ID
-  const token = process.env.FB_CAPI_TOKEN
+  let pixelId = process.env.FB_PIXEL_ID
+  let token = process.env.FB_CAPI_TOKEN
+  let testCode: string | undefined = process.env.FB_TEST_EVENT_CODE
+  if ((!pixelId || !token)){
+    const cfg = await loadMetaPixelConfig()
+    pixelId = pixelId || cfg.pixelId
+    token = token || cfg.token
+    testCode = testCode || cfg.testCode
+  }
   if (!pixelId || !token || !Array.isArray(events) || events.length === 0) {
     return { ok: false, status: 0 }
   }
@@ -35,10 +53,10 @@ export async function fbSendEvents(events: FbEvent[]): Promise<{ ok: boolean; st
       user_data: e.user_data,
       custom_data: e.custom_data,
     })),
-    test_event_code: process.env.FB_TEST_EVENT_CODE || undefined,
+    test_event_code: testCode || undefined,
   }
   try {
-    const res = await fetch(`https://graph.facebook.com/v17.0/${pixelId}/events?access_token=${token}`, {
+    const res = await fetch(`https://graph.facebook.com/v18.0/${pixelId}/events?access_token=${token}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),

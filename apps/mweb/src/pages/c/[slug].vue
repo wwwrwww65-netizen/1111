@@ -82,8 +82,8 @@
         </div>
       </Transition>
 
-      <!-- نسخة الفلاتر في الهيدر -->
-      <div v-if="showHeaderFilters" class="bg-white border-t border-gray-100 px-2 py-2">
+      <!-- نسخة الفلاتر في الهيدر: تظهر دائمًا إذا لا توجد فئات فرعية -->
+      <div v-if="showHeaderFilters || categories.length===0" class="bg-white border-t border-gray-100 px-2 py-2">
         <div class="flex items-center justify-between mb-2">
           <button @click="setFilter('recommend')" :class="['text-[12px]', activeFilter === 'recommend' ? 'text-black font-semibold' : 'text-gray-600']">التوصية</button>
           <button @click="setFilter('popular')" :class="['text-[12px]', activeFilter === 'popular' ? 'text-black font-semibold' : 'text-gray-600']">الأوسع انتشاراً</button>
@@ -123,9 +123,9 @@
     <!-- مساحة للهيدر الثابت -->
     <div :style="{ height: headerHeight + 'px' }"></div>
     
-    <!-- الفلاتر السفلية -->
-    <div v-if="!showHeaderFilters" class="h-3"></div>
-    <section v-if="!showHeaderFilters" class="bg-white border-b border-gray-200 px-2 py-2">
+    <!-- الفلاتر السفلية (تظهر فقط عند وجود فئات فرعية وإخفاء نسخة الهيدر) -->
+    <div v-if="!showHeaderFilters && categories.length>0" class="h-3"></div>
+    <section v-if="!showHeaderFilters && categories.length>0" class="bg-white border-b border-gray-200 px-2 py-2">
       <div class="flex items-center justify-between mb-2">
         <button 
           @click="setFilter('recommend')" 
@@ -291,17 +291,14 @@ const isLoadingMore = ref(false);
 // حساب ارتفاع الهيدر ديناميكيًا
 const headerHeight = computed(() => {
   let height = 48; // الهيدر الأساسي (h-12 = 3rem = 48px)
-  
-  if (!compact.value) {
-    height += 100; // الفئات العادية
-  } else {
-    height += 60; // الفئات المضغوطة
+  const hasCats = (categories.value||[]).length>0
+  if (hasCats){
+    height += (!compact.value ? 100 : 60); // مساحة الفئات فقط عند توفرها
   }
-  
-  if (showHeaderFilters.value) {
-    height += 80; // الفلاتر في الهيدر
+  // أضف مساحة الفلاتر في الهيدر عندما تكون مفعلة أو عند عدم توفر الفئات الفرعية
+  if (showHeaderFilters.value || !hasCats) {
+    height += 80;
   }
-  
   return height;
 });
 
