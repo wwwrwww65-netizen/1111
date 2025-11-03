@@ -7,13 +7,13 @@ buildscript {
     mavenLocal()
     // PNPM monorepo: node_modules موجودة في جذر الريبو => من android نرجع 3 مستويات إلى root
     maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
-    // احتياطي مباشر لمطبخ Maven المركزي
+    // fallback to Maven Central direct URL
     maven { url = uri("https://repo1.maven.org/maven2/") }
   }
   dependencies {
     classpath('com.android.tools.build:gradle:8.4.2')
-    // حدد إصدار الـ plugin هنا (اجعله مطابقًا للـ settings أو لحزمة الـ RN إن تطلب)
-    classpath('com.facebook.react:react-native-gradle-plugin:0.74.5')
+    // نسخه مطابقة لما كان الـ runner يحاول إيجاده (0.74.4)
+    classpath('com.facebook.react:react-native-gradle-plugin:0.74.4')
     classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22')
   }
 }
@@ -24,7 +24,7 @@ allprojects {
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
     mavenLocal()
-    // مسار محلي يساعد في حالات pnpm/monorepo
+    // مسار محلي يساعد Gradle في العثور على أرتيفاكت RN داخل node_modules
     maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
   }
 }
@@ -38,6 +38,6 @@ ext {
   ndkVersion = findProperty('android.ndkVersion') ?: '26.1.10909125'
 }
 
-// إذا لا تريد أي ربط خاص بإكسبو، لا تضف أي apply لـ expo.
-// إذا تحتاج com.facebook.react.rootproject فابقها، وإذا لا فاحذف السطر التالي:
+// If you don't need the react rootproject wrapper, you can remove the next line.
+// Kept here in case your app modules expect it.
 apply plugin: "com.facebook.react.rootproject"
