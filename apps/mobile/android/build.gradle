@@ -4,10 +4,14 @@ buildscript {
   repositories {
     google()
     mavenCentral()
+    // (اختياري) مسارات محلية لحالة monorepo — ستُستخدم إذا كانت النسخة موجودة داخل node_modules
+    maven { url = uri("$rootDir/../node_modules/react-native/android") }
+    maven { url = uri("$rootDir/../../node_modules/react-native/android") }
   }
   dependencies {
     classpath('com.android.tools.build:gradle:8.4.2')
-    classpath('com.facebook.react:react-native-gradle-plugin')
+    // ضع إصدار الـ plugin موحداً (تأكد أنه يطابق settings.gradle)
+    classpath('com.facebook.react:react-native-gradle-plugin:0.74.5')
     classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22')
   }
 }
@@ -17,6 +21,8 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
+    // (اختياري) إضافة مسارات محلية أيضاً هنا قد يساعد في حالات معينة
+    maven { url = uri("$rootDir/../node_modules/react-native/android") }
   }
 }
 
