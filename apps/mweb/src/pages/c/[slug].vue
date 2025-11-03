@@ -16,18 +16,11 @@
         <!-- الوسط: شريط البحث -->
         <div class="flex-1 px-1">
           <div class="flex items-center bg-gray-100 rounded-full h-9 px-2">
-            <div class="flex-1 flex items-center justify-start">
-              <span class="text-[12px] text-gray-400 truncate">
-                {{ promoWords[promoIndex] }}
-              </span>
-            </div>
+            <input v-model="searchQ" @keydown.enter.prevent="applySearch" placeholder="ابحث في هذه الفئة" class="flex-1 bg-transparent text-[12px] text-gray-800 outline-none" />
             <div class="flex items-center gap-1">
-              <button aria-label="كاميرا" class="w-7 h-7 flex items-center justify-center opacity-60">
-                <Camera class="w-4 h-4 text-gray-500" />
+              <button aria-label="بحث" class="w-7 h-7 flex items-center justify-center" @click="applySearch">
+                <Search class="w-4 h-4 text-gray-700" />
               </button>
-              <div class="h-7 px-3 rounded-full flex items-center justify-center shadow-sm" style="background-color:#8a1538">
-                <Search class="w-4 h-4 text-white" />
-              </div>
             </div>
           </div>
         </div>
@@ -49,7 +42,7 @@
       <!-- منطقة الفئات -->
       <Transition name="category-switch" mode="out-in">
         <!-- الوضع العادي -->
-        <div v-if="!compact" key="normal" class="bg-white border-t border-gray-100">
+        <div v-if="!compact && categories.length>0" key="normal" class="bg-white border-t border-gray-100">
           <div class="flex gap-2 overflow-x-auto no-scrollbar px-2 py-2 items-start">
             <button
               v-for="c in visibleCategories"
@@ -68,7 +61,7 @@
         </div>
 
         <!-- الوضع المضغوط -->
-        <div v-else key="compact" class="bg-white border-t border-gray-100">
+        <div v-else-if="compact && categories.length>0" key="compact" class="bg-white border-t border-gray-100">
           <div class="flex gap-2 overflow-x-auto no-scrollbar px-2 py-1 items-center">
             <button
               v-for="c in compactCategories"
@@ -108,8 +101,20 @@
           </button>
         </div>
         <div class="flex gap-2 overflow-x-auto no-scrollbar py-1">
-          <button v-for="f in ['الفئات','المقاس','اللون','المواد','الأسلوب']" :key="f" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
-            {{ f }} <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
+          <button @click="openFilter('category')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
+            الفئات <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
+          </button>
+          <button @click="openFilter('size')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
+            المقاس <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
+          </button>
+          <button @click="openFilter('color')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
+            اللون <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
+          </button>
+          <button @click="openFilter('material')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
+            المواد <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
+          </button>
+          <button @click="openFilter('style')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
+            الأسلوب <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
           </button>
         </div>
       </div>
@@ -160,13 +165,11 @@
     </div>
 
       <div class="flex gap-2 overflow-x-auto no-scrollbar py-1">
-        <button 
-          v-for="f in ['الفئات','المقاس','اللون','المواد','الأسلوب']" 
-          :key="f" 
-          class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">
-          {{ f }}
-          <ArrowDown class="w-3.5 h-3.5 text-gray-500" />
-        </button>
+        <button @click="openFilter('category')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">الفئات<ArrowDown class="w-3.5 h-3.5 text-gray-500" /></button>
+        <button @click="openFilter('size')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">المقاس<ArrowDown class="w-3.5 h-3.5 text-gray-500" /></button>
+        <button @click="openFilter('color')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">اللون<ArrowDown class="w-3.5 h-3.5 text-gray-500" /></button>
+        <button @click="openFilter('material')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">المواد<ArrowDown class="w-3.5 h-3.5 text-gray-500" /></button>
+        <button @click="openFilter('style')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">الأسلوب<ArrowDown class="w-3.5 h-3.5 text-gray-500" /></button>
       </div>
     </section>
     
@@ -206,6 +209,34 @@
       <div class="flex flex-col items-center gap-2">
         <div class="w-8 h-8 border-4 border-gray-300 border-t-[#8a1538] rounded-full animate-spin"></div>
         <span class="text-[12px] text-gray-500">جاري التحميل...</span>
+      </div>
+    </div>
+
+    <!-- Bottom filter sheet -->
+    <div v-if="filterSheet.open" class="fixed inset-0 z-50">
+      <div class="absolute inset-0 bg-black/40" @click="closeFilter" />
+      <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-3 max-h-[70vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold text-[16px]">تصفية حسب {{ filterSheet.type==='size'?'المقاس': filterSheet.type==='color'?'اللون': filterSheet.type==='material'?'المواد': filterSheet.type==='style'?'الأسلوب':'الفئة' }}</h3>
+          <button class="text-[20px]" @click="closeFilter">×</button>
+        </div>
+        <div v-if="filterSheet.type==='size'" class="grid grid-cols-4 gap-2">
+          <button v-for="s in ['XS','S','M','L','XL','2XL','3XL']" :key="s" @click="selSizes.value = selSizes.value.includes(s)? selSizes.value.filter(x=>x!==s) : [...selSizes.value, s]" :class="['px-2 py-1 rounded border text-[12px]', selSizes.value.includes(s)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ s }}</button>
+        </div>
+        <div v-else-if="filterSheet.type==='color'" class="grid grid-cols-8 gap-2">
+          <button v-for="c in ['black','white','red','blue','green','yellow','pink','beige']" :key="c" @click="selColors.value = selColors.value.includes(c)? selColors.value.filter(x=>x!==c) : [...selColors.value, c]" :class="['w-7 h-7 rounded-full border', selColors.value.includes(c)? 'ring-2 ring-black':'']" :style="{ background: c }" />
+        </div>
+        <div v-else-if="filterSheet.type==='material'" class="grid grid-cols-3 gap-2">
+          <button v-for="m in ['cotton','polyester','wool','denim','silk']" :key="m" @click="selMaterials.value = selMaterials.value.includes(m)? selMaterials.value.filter(x=>x!==m) : [...selMaterials.value, m]" :class="['px-2 py-1 rounded border text-[12px]', selMaterials.value.includes(m)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ m }}</button>
+        </div>
+        <div v-else-if="filterSheet.type==='style'" class="grid grid-cols-3 gap-2">
+          <button v-for="st in ['casual','elegant','sport','classic','boho']" :key="st" @click="selStyles.value = selStyles.value.includes(st)? selStyles.value.filter(x=>x!==st) : [...selStyles.value, st]" :class="['px-2 py-1 rounded border text-[12px]', selStyles.value.includes(st)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ st }}</button>
+        </div>
+        <div v-else class="text-[13px] text-gray-600">اختر من الشريط العلوي فئة فرعية.</div>
+        <div class="mt-3 flex justify-end gap-2">
+          <button class="btn btn-outline" @click="closeFilter">إلغاء</button>
+          <button class="btn" style="background:#8a1538;color:#fff" @click="applyFilters">تطبيق</button>
+        </div>
       </div>
     </div>
   </div>
@@ -250,6 +281,7 @@ const activeFilter = ref<'recommend'|'popular'|'price'|'rating'>('recommend');
 const priceSort = ref<'asc'|'desc'|null>(null);
 const compact = ref(false);
 const page = ref<HTMLElement | null>(null);
+const searchQ = ref('')
 
 const isScrollingUp = ref(false);
 const atTop = ref(true);
@@ -339,6 +371,17 @@ function onCategoryClick(c: {id:string;label:string;img:string}) {
   router.push({ path: `/c/${encodeURIComponent(slugOrId)}` })
 }
 
+// فلاتر متقدمة
+const filterSheet = ref<{ open:boolean; type:'category'|'size'|'color'|'material'|'style'|null }>({ open:false, type:null })
+const selSizes = ref<string[]>([])
+const selColors = ref<string[]>([])
+const selMaterials = ref<string[]>([])
+const selStyles = ref<string[]>([])
+function openFilter(t:'category'|'size'|'color'|'material'|'style'){ filterSheet.value = { open:true, type:t } }
+function closeFilter(){ filterSheet.value.open=false; filterSheet.value.type=null }
+function applyFilters(){ closeFilter(); void loadProducts() }
+function applySearch(){ void loadProducts() }
+
 // وظائف التنقل
 function goBack() {
   router.back();
@@ -394,7 +437,7 @@ async function loadCategories(){
     currentCategory.value = cur ? { id: cur.id, slug: cur.slug||undefined, name: cur.name } : null
     // Build child categories list
     const children = cur ? allCategories.value.filter(c=> String(c.parentId||'')===cur.id) : []
-    categories.value = (children.length? children : allCategories.value.slice(0,8)).map(c=> ({ id:c.slug||c.id, label:c.name, img: c.image || '/images/placeholder-product.jpg' }))
+    categories.value = children.map(c=> ({ id:c.slug||c.id, label:c.name, img: c.image || '/images/placeholder-product.jpg' }))
   }catch{ allCategories.value = []; currentCategory.value = null; categories.value = [] }
 }
 
@@ -411,6 +454,11 @@ async function loadProducts(limit: number = 24){
     const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
     url.searchParams.set('limit', String(limit))
     if (sort) url.searchParams.set('sort', sort)
+    const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+    if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+    if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+    if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+    if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
     const data = await fetch(url.toString(), { headers:{ 'Accept':'application/json' } }).then(r=> r.json()).catch(()=> null)
     const items = Array.isArray(data?.items)? data.items : []
     products.value = items.map((it:any)=> ({

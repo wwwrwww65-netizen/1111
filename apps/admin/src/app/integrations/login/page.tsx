@@ -207,7 +207,7 @@ export default function LoginIntegrationsPage(): JSX.Element {
             <div style={{ display:'grid', gap:10, gridTemplateColumns:'1fr 1fr' }}>
               <Field label="Client ID" value={gcfg.clientId||''} onChange={(v)=> setCfg<GoogleConfig>(setGoogle, 'clientId', v)} placeholder="xxxxxxxx.apps.googleusercontent.com" />
               <Field label="Client Secret" value={gcfg.clientSecret||''} onChange={(v)=> setCfg<GoogleConfig>(setGoogle, 'clientSecret', v)} placeholder="••••••••" />
-              <Field label="Redirect URI" value={gcfg.redirectUri||''} onChange={(v)=> setCfg<GoogleConfig>(setGoogle, 'redirectUri', v)} placeholder="https://admin.example.com/api/admin/auth/sso/callback" />
+              <Field label="Redirect URI" value={gcfg.redirectUri||''} onChange={(v)=> setCfg<GoogleConfig>(setGoogle, 'redirectUri', v)} placeholder="https://api.example.com/api/auth/google/callback" />
             </div>
           </Section>
 
@@ -224,7 +224,7 @@ export default function LoginIntegrationsPage(): JSX.Element {
             <div style={{ display:'grid', gap:10, gridTemplateColumns:'1fr 1fr' }}>
               <Field label="App ID" value={fcfg.appId||''} onChange={(v)=> setCfg<FacebookConfig>(setFacebook, 'appId', v)} placeholder="1234567890" />
               <Field label="App Secret" value={fcfg.appSecret||''} onChange={(v)=> setCfg<FacebookConfig>(setFacebook, 'appSecret', v)} placeholder="••••••••" />
-              <Field label="Redirect URI" value={fcfg.redirectUri||''} onChange={(v)=> setCfg<FacebookConfig>(setFacebook, 'redirectUri', v)} placeholder="https://admin.example.com/api/admin/auth/sso/callback" />
+              <Field label="Redirect URI" value={fcfg.redirectUri||''} onChange={(v)=> setCfg<FacebookConfig>(setFacebook, 'redirectUri', v)} placeholder="https://api.example.com/api/auth/facebook/callback" />
             </div>
           </Section>
 

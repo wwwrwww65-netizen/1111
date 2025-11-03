@@ -1905,10 +1905,25 @@ shop.get('/catalog/:slug', async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit||24)));
     const sort = String(req.query.sort||'reco');
     const orderBy: any = sort === 'price_asc' ? { price: 'asc' } : sort === 'price_desc' ? { price: 'desc' } : { createdAt: 'desc' };
-    const items = await db.product.findMany({ where: { categoryId: cat.id }, select: { id:true, name:true, price:true, images:true }, orderBy, take: limit });
+    const q = String(req.query.q||'').trim();
+    const brand = String(req.query.brand||'').trim();
+    const min = req.query.min!=null ? Number(req.query.min) : null;
+    const max = req.query.max!=null ? Number(req.query.max) : null;
+    function parseCsv(name: string): string[]{ const v = String((req.query as any)[name]||'').trim(); if(!v) return []; return v.split(',').map(s=> s.trim()).filter(Boolean) }
+    const sizes = parseCsv('sizes');
+    const colors = parseCsv('colors');
+    const materials = parseCsv('materials');
+    const styles = parseCsv('styles');
+    const tagsAny = [...sizes, ...colors, ...materials, ...styles];
+    const where:any = { categoryId: cat.id } as any;
+    if (q) where.name = { contains: q, mode: 'insensitive' };
+    if (brand) where.brand = { contains: brand, mode: 'insensitive' } as any;
+    if (min!=null || max!=null) where.price = { gte: (min!=null && isFinite(min))? Number(min): undefined, lte: (max!=null && isFinite(max))? Number(max): undefined } as any;
+    if (tagsAny.length) where.tags = { hasSome: tagsAny } as any;
+    const items = await db.product.findMany({ where, select: { id:true, name:true, price:true, images:true, brand:true, tags:true }, orderBy, take: limit });
     res.json({ items });
-  } catch {
-    res.status(500).json({ error: 'failed' });
+  } catch (e:any) {
+    res.status(500).json({ error: e?.message||'failed' });
   }
 });
 
