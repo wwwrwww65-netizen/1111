@@ -3,6 +3,12 @@ pluginManagement {
     gradlePluginPortal()
     google()
     mavenCentral()
+    // مسارات محلية لحالة monorepo / node_modules
+    // احتفظ بالمسار المناسب لبنية مشروعك — استخدم واحد أو اثنين كحد أقصى
+    maven { url = uri("$rootDir/../node_modules/react-native/android") }
+    maven { url = uri("$rootDir/../../node_modules/react-native/android") }
+    // (اختياري) مسار إضافي إذا كان monorepo أعمق
+    maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
   }
 
   // Resolve RN settings plugin from published module to avoid composite build issues
@@ -10,7 +16,8 @@ pluginManagement {
     eachPlugin { details ->
       def req = details.requested
       if (req.id.id == "com.facebook.react.settings" || req.id.id == "com.facebook.react") {
-        details.useModule("com.facebook.react:react-native-gradle-plugin:0.74.4")
+        // تأكد أن هذا الرقم مطابق للـ classpath في build.gradle أعلاه
+        details.useModule("com.facebook.react:react-native-gradle-plugin:0.74.5")
       }
     }
   }
@@ -26,7 +33,8 @@ pluginManagement {
 }
 
 plugins {
-  id("com.facebook.react.settings") version "0.74.4"
+  // اجعل هنا نسخة plugin مطابقة للنسخة في resolutionStrategy و build.gradle
+  id("com.facebook.react.settings") version "0.74.5"
   id("expo-autolinking-settings")
 }
 
