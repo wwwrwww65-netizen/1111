@@ -1,12 +1,7 @@
-// settings.gradle — minimal for pnpm monorepo, no Expo plugins
-
+// settings.gradle — minimal (no Expo, no plugins block)
 rootProject.name = 'E-commerce Mobile App'
-
-// Include the app module
 include ':app'
 
-// If you have local RN modules you need as composite builds, يمكنك إضافتها هنا:
-// includeBuild("../some-local-rn-module")
-
-// IMPORTANT: تأكد أنه لا يوجد أي `plugins { id("com.facebook.react.settings") ... }`
-// في أي مكان آخر من ملفات settings، لأننا نعتمد على classpath approach في build.gradle.
+// IMPORTANT:
+// - لا تضع هنا أي `plugins { id("com.facebook.react.settings") ... }`
+// - هذا الملف مقصود لتفادي محاولات Gradle لحل plugin عبر pluginManagement
