@@ -4,11 +4,17 @@ buildscript {
   repositories {
     google()
     mavenCentral()
+    mavenLocal()
+    // PNPM monorepo: node_modules موجودة في جذر الريبو => من android نرجع 3 مستويات إلى root
+    maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
+    // fallback to Maven Central direct URL
+    maven { url = uri("https://repo1.maven.org/maven2/") }
   }
   dependencies {
-    classpath('com.android.tools.build:gradle')
-    classpath('com.facebook.react:react-native-gradle-plugin')
-    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    classpath('com.android.tools.build:gradle:8.4.2')
+    // نسخه مطابقة لما كان الـ runner يحاول إيجاده (0.74.4)
+    classpath('com.facebook.react:react-native-gradle-plugin:0.74.4')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22')
   }
 }
 
@@ -17,8 +23,21 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
+    mavenLocal()
+    // مسار محلي يساعد Gradle في العثور على أرتيفاكت RN داخل node_modules
+    maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
   }
 }
 
-apply plugin: "expo-root-project"
+// Provide default Android SDK values for app module when version catalogs are unavailable
+ext {
+  buildToolsVersion = findProperty('android.buildToolsVersion') ?: '34.0.0'
+  minSdkVersion = (findProperty('android.minSdkVersion') ?: 23) as Integer
+  compileSdkVersion = (findProperty('android.compileSdkVersion') ?: 34) as Integer
+  targetSdkVersion = (findProperty('android.targetSdkVersion') ?: 34) as Integer
+  ndkVersion = findProperty('android.ndkVersion') ?: '26.1.10909125'
+}
+
+// If you don't need the react rootproject wrapper, you can remove the next line.
+// Kept here in case your app modules expect it.
 apply plugin: "com.facebook.react.rootproject"
