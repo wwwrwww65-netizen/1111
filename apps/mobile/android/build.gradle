@@ -4,13 +4,15 @@ buildscript {
   repositories {
     google()
     mavenCentral()
-    // (اختياري) مسارات محلية لحالة monorepo — ستُستخدم إذا كانت النسخة موجودة داخل node_modules
-    maven { url = uri("$rootDir/../node_modules/react-native/android") }
-    maven { url = uri("$rootDir/../../node_modules/react-native/android") }
+    mavenLocal()
+    // PNPM monorepo: node_modules موجودة في جذر الريبو => من android نرجع 3 مستويات إلى root
+    maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
+    // احتياطي مباشر لمطبخ Maven المركزي
+    maven { url = uri("https://repo1.maven.org/maven2/") }
   }
   dependencies {
     classpath('com.android.tools.build:gradle:8.4.2')
-    // ضع إصدار الـ plugin موحداً (تأكد أنه يطابق settings.gradle)
+    // حدد إصدار الـ plugin هنا (اجعله مطابقًا للـ settings أو لحزمة الـ RN إن تطلب)
     classpath('com.facebook.react:react-native-gradle-plugin:0.74.5')
     classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22')
   }
@@ -21,8 +23,9 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
-    // (اختياري) إضافة مسارات محلية أيضاً هنا قد يساعد في حالات معينة
-    maven { url = uri("$rootDir/../node_modules/react-native/android") }
+    mavenLocal()
+    // مسار محلي يساعد في حالات pnpm/monorepo
+    maven { url = uri("$rootDir/../../../node_modules/react-native/android") }
   }
 }
 
@@ -35,5 +38,6 @@ ext {
   ndkVersion = findProperty('android.ndkVersion') ?: '26.1.10909125'
 }
 
-apply plugin: "expo-root-project"
+// إذا لا تريد أي ربط خاص بإكسبو، لا تضف أي apply لـ expo.
+// إذا تحتاج com.facebook.react.rootproject فابقها، وإذا لا فاحذف السطر التالي:
 apply plugin: "com.facebook.react.rootproject"
