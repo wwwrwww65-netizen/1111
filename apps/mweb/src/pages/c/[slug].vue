@@ -212,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCart } from '../../store/cart';
 import { storeToRefs } from 'pinia';
@@ -232,94 +232,16 @@ const router = useRouter();
 const cart = useCart();
 const { items } = storeToRefs(cart);
 
-const categories = [
-  { id: 1, label: "ملابس بحر نسائية", img: "/cat1.png" },
-  { id: 2, label: "ملابس منسوجة أنيقة", img: "/cat2.png" },
-  { id: 3, label: "فساتين نسائية", img: "/cat3.png" },
-  { id: 4, label: "ملابس علوية & بلايز", img: "/cat4.png" },
-  { id: 5, label: "ملابس علوية مزخرفة طويلة", img: "/cat5.png" },
-  { id: 6, label: "تيشيرتات كاجوال", img: "/cat6.png" },
-  { id: 7, label: "بلايز وقطع علوية", img: "/cat7.png" },
-];
+import { useRoute } from 'vue-router'
+import { apiGet, API_BASE } from '../../lib/api'
+const route = useRoute()
+const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
+const currentCategory = ref<{ id:string; slug?:string|null; name:string }|null>(null)
+const categories = ref<Array<{ id:string; label:string; img:string }>>([])
 
-// بيانات المنتجات
-const products = ref([
-  {
-    id: '1',
-    title: 'تيشيرت نسائي بياقة مستديرة وقماش مريح',
-    image: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=200&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=200&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=200&auto=format&fit=crop'
-    ],
-    basePrice: '34.00',
-    brand: 'JEEEY',
-    discountPercent: 20,
-    colors: ['#ffffff', '#ff6b6b', '#4ecdc4'],
-    colorCount: 5,
-    soldPlus: 'باع 1000+',
-    bestRank: 1,
-    bestRankCategory: 'التيشيرتات'
-  },
-  {
-    id: '2',
-    title: 'فستان نسائي أنيق للصيف',
-    image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=200&auto=format&fit=crop',
-    basePrice: '89.00',
-    brand: 'JEEEY',
-    discountPercent: 15,
-    colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-    colorCount: 3,
-    soldPlus: 'باع 500+',
-    couponPrice: '75.00'
-  },
-  {
-    id: '3',
-    title: 'جاكيت نسائي شتوي دافئ',
-    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=200&auto=format&fit=crop',
-    basePrice: '120.00',
-    brand: 'JEEEY',
-    discountPercent: 25,
-    colors: ['#2c3e50', '#34495e', '#7f8c8d'],
-    colorCount: 4,
-    soldPlus: 'باع 200+'
-  },
-  {
-    id: '4',
-    title: 'بنطلون جينز نسائي كاجوال',
-    image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=200&auto=format&fit=crop',
-    basePrice: '65.00',
-    brand: 'JEEEY',
-    discountPercent: 10,
-    colors: ['#2c3e50', '#34495e'],
-    colorCount: 2,
-    soldPlus: 'باع 800+',
-    bestRank: 2,
-    bestRankCategory: 'البناطيل'
-  },
-  {
-    id: '5',
-    title: 'بلوزة نسائية أنيقة للعمل',
-    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=200&auto=format&fit=crop',
-    basePrice: '45.00',
-    brand: 'JEEEY',
-    discountPercent: 30,
-    colors: ['#ffffff', '#f8f9fa', '#e9ecef'],
-    colorCount: 3,
-    soldPlus: 'باع 300+'
-  },
-  {
-    id: '6',
-    title: 'تنورة نسائية قصيرة صيفية',
-    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=200&auto=format&fit=crop',
-    basePrice: '55.00',
-    brand: 'JEEEY',
-    discountPercent: 20,
-    colors: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'],
-    colorCount: 6,
-    soldPlus: 'باع 600+'
-  }
-]);
+// بيانات المنتجات (حقيقية من API)
+const products = ref<any[]>([])
+const hasMore = ref(false)
 
 const cartBadge = computed(() => items.value.length);
 const promoWords = ["فساتين","هودي","بلايز","تيشيرت","جواكت"];
@@ -360,7 +282,7 @@ onMounted(() => {
   atTop.value = lastScrollY <= 0;
   isScrollingUp.value = false;
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
-  try{ hydrateCouponsAndPrices() }catch{}
+  void bootstrap()
 });
 
 onBeforeUnmount(() => {
@@ -398,6 +320,7 @@ function onScroll(e: Event) {
 function setFilter(filter: 'recommend'|'popular'|'rating') {
   activeFilter.value = filter;
   priceSort.value = null;
+  void loadProducts()
 }
 
 function togglePriceSort() {
@@ -407,10 +330,13 @@ function togglePriceSort() {
   } else {
     priceSort.value = 'desc';
   }
+  void loadProducts()
 }
 
-function onCategoryClick(c: {id:number,label:string,img:string}) {
-  console.log('category', c);
+function onCategoryClick(c: {id:string;label:string;img:string}) {
+  if (!c?.id) return
+  const slugOrId = c.id
+  router.push({ path: `/c/${encodeURIComponent(slugOrId)}` })
 }
 
 // وظائف التنقل
@@ -444,44 +370,65 @@ function addToCart(product: any) {
 // تحميل المزيد من المنتجات
 function loadMoreProducts() {
   if (isLoadingMore.value) return;
-  
+  if (!hasMore.value) return;
   isLoadingMore.value = true;
-  
-  // محاكاة تحميل المنتجات من API
-  setTimeout(() => {
-    const newProducts = [
-      {
-        id: `${products.value.length + 1}`,
-        title: 'منتج جديد ' + (products.value.length + 1),
-        image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=200&auto=format&fit=crop',
-        basePrice: '75.00',
-        brand: 'JEEEY',
-        discountPercent: 18,
-        colors: ['#ff6b6b', '#4ecdc4'],
-        colorCount: 2,
-        soldPlus: 'باع 400+'
-      },
-      {
-        id: `${products.value.length + 2}`,
-        title: 'منتج جديد ' + (products.value.length + 2),
-        image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=200&auto=format&fit=crop',
-        basePrice: '95.00',
-        brand: 'JEEEY',
-        discountPercent: 22,
-        colors: ['#2c3e50', '#34495e'],
-        colorCount: 3,
-        soldPlus: 'باع 350+'
-      }
-    ];
-    
-    products.value.push(...newProducts);
-    try{ computeCouponPrices(products.value) }catch{}
-    isLoadingMore.value = false;
-  }, 1500);
+  // TODO: دعم ترقيم حقيقي عند توفره في الـ API
+  // حاليا نستدعي بنفس التصنيف مع limit أعلى ونوقف التحميل عند عدم تغير العدد
+  const prev = products.value.length
+  void loadProducts(prev + 24).finally(()=>{ isLoadingMore.value = false; hasMore.value = products.value.length > prev })
 }
 
-const visibleCategories = categories.slice(0,5);
-const compactCategories = categories.slice(0,4);
+const visibleCategories = computed(()=> categories.value.slice(0,5))
+const compactCategories = computed(()=> categories.value.slice(0,4))
+
+// ===== تحميل بيانات الفئة والمنتجات =====
+function currentSlug(): string { try{ return String(route.params.slug||'') }catch{ return '' } }
+
+async function loadCategories(){
+  try{
+    const data = await apiGet<any>('/api/categories?limit=200')
+    const list = Array.isArray(data?.categories)? data.categories : []
+    allCategories.value = list.map((c:any)=> ({ id:String(c.id), slug:c.slug||null, name:String(c.name||''), parentId: c.parentId? String(c.parentId) : null, image: c.image||null }))
+    const slug = currentSlug()
+    const cur = allCategories.value.find(c=> c.id===slug || (c.slug && c.slug===slug)) || null
+    currentCategory.value = cur ? { id: cur.id, slug: cur.slug||undefined, name: cur.name } : null
+    // Build child categories list
+    const children = cur ? allCategories.value.filter(c=> String(c.parentId||'')===cur.id) : []
+    categories.value = (children.length? children : allCategories.value.slice(0,8)).map(c=> ({ id:c.slug||c.id, label:c.name, img: c.image || '/images/placeholder-product.jpg' }))
+  }catch{ allCategories.value = []; currentCategory.value = null; categories.value = [] }
+}
+
+function mapSort(): string {
+  if (activeFilter.value==='price') return priceSort.value==='asc' ? 'price_asc' : 'price_desc'
+  // popular/recommend fall back to backend default
+  return 'reco'
+}
+
+async function loadProducts(limit: number = 24){
+  try{
+    const slug = currentSlug()
+    const sort = mapSort()
+    const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
+    url.searchParams.set('limit', String(limit))
+    if (sort) url.searchParams.set('sort', sort)
+    const data = await fetch(url.toString(), { headers:{ 'Accept':'application/json' } }).then(r=> r.json()).catch(()=> null)
+    const items = Array.isArray(data?.items)? data.items : []
+    products.value = items.map((it:any)=> ({
+      id: String(it.id),
+      title: String(it.name||''),
+      image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
+      images: Array.isArray(it.images)? it.images : [],
+      basePrice: Number(it.price||0).toFixed(2),
+      brand: it.brand||'',
+    }))
+    hasMore.value = items.length >= limit
+    try{ await hydrateCouponsAndPrices() }catch{}
+  }catch{ products.value = []; hasMore.value = false }
+}
+
+async function bootstrap(){ await loadCategories(); await loadProducts() }
+
+watch(()=> route.params.slug, ()=>{ void bootstrap() })
 
 // ===== كوبونات وتطبيق السعر بعد الخصم على البطاقات =====
 type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
