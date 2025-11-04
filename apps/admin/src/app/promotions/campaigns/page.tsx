@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
+import { MediaPicker } from "../promotions/components/MediaPicker";
 
 type Campaign = {
   id: string;
@@ -26,6 +27,8 @@ export default function CampaignsPage(): JSX.Element {
   const [modal, setModal] = React.useState<{ open:boolean; item: Partial<Campaign>|null; tab: 'basic'|'content'|'design'|'triggers'|'targeting'|'frequency'|'ab'; saving:boolean }>(
     { open:false, item:null, tab:'basic', saving:false }
   );
+  const [mediaOpen, setMediaOpen] = React.useState(false);
+  const [coupons, setCoupons] = React.useState<Array<{ code:string }>>([]);
 
   async function load(){
     setLoading(true);
@@ -38,6 +41,7 @@ export default function CampaignsPage(): JSX.Element {
     setLoading(false);
   }
   React.useEffect(()=>{ load(); }, [apiBase]);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/coupons/list`, { credentials:'include' })).json(); const list = Array.isArray(j?.coupons)? j.coupons : []; setCoupons(list.map((c:any)=> ({ code: c.code })))}catch{} })(); }, [apiBase]);
 
   function newItem(): Partial<Campaign> {
     return {
@@ -180,13 +184,28 @@ export default function CampaignsPage(): JSX.Element {
                 <label>العنوان<input className="input" value={modal.item.variantA?.content?.title||''} onChange={(e)=> setNested('variantA.content.title', e.target.value)} /></label>
                 <label>نص قصير<input className="input" value={modal.item.variantA?.content?.subtitle||''} onChange={(e)=> setNested('variantA.content.subtitle', e.target.value)} /></label>
                 <label>الوصف<textarea className="input" value={modal.item.variantA?.content?.description||''} onChange={(e)=> setNested('variantA.content.description', e.target.value)} /></label>
-                <label>صورة/فيديو URL<input className="input" value={modal.item.variantA?.content?.media?.src||''} onChange={(e)=> setNested('variantA.content.media.src', e.target.value)} placeholder="https://..." /></label>
+                <label>الوسائط
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input className="input" value={modal.item.variantA?.content?.media?.src||''} onChange={(e)=> setNested('variantA.content.media.src', e.target.value)} placeholder="https://..." />
+                    <button className="btn" type="button" onClick={()=> setMediaOpen(true)}>اختر من الوسائط</button>
+                  </div>
+                </label>
                 <label>نوع الوسائط<select className="input" value={modal.item.variantA?.content?.media?.type||'image'} onChange={(e)=> setNested('variantA.content.media.type', e.target.value)}>
                   <option value="image">صورة</option><option value="video">فيديو</option>
                 </select></label>
-                <label>كود الكوبون<input className="input" value={modal.item.variantA?.content?.couponCode||''} onChange={(e)=> setNested('variantA.content.couponCode', e.target.value)} /></label>
+                <label>كود الكوبون
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input className="input" value={modal.item.variantA?.content?.couponCode||''} onChange={(e)=> setNested('variantA.content.couponCode', e.target.value)} placeholder="NEW10" />
+                    <select className="input" onChange={(e)=> setNested('variantA.content.couponCode', e.target.value)} value={modal.item.variantA?.content?.couponCode||''}>
+                      <option value="">— اختر من القائمة —</option>
+                      {coupons.map(c=> (<option key={c.code} value={c.code}>{c.code}</option>))}
+                    </select>
+                  </div>
+                </label>
                 <label>النقاط<input className="input" type="number" value={modal.item.variantA?.content?.points||0} onChange={(e)=> setNested('variantA.content.points', Number(e.target.value))} /></label>
-                <label>أزرار CTA (سطر لكل زر: Label|href)<textarea className="input" value={(modal.item.variantA?.content?.ctas||[]).map((c:any)=> `${c.label||''}|${c.href||''}`).join('\n')} onChange={(e)=> setNested('variantA.content.ctas', e.target.value.split('\n').map(l=>{ const [label,href] = l.split('|'); return { label: (label||'').trim(), href: (href||'').trim() }; }))} /></label>
+                <label>أزرار CTA (سطر: النص|الرابط)
+                  <textarea className="input" placeholder="مثال: اجمع الآن|/coupons" value={(modal.item.variantA?.content?.ctas||[]).map((c:any)=> `${c.label||''}|${c.href||''}`).join('\n')} onChange={(e)=> setNested('variantA.content.ctas', e.target.value.split('\n').map(l=>{ const [label,href] = l.split('|'); return { label: (label||'').trim(), href: (href||'').trim() }; }))} />
+                </label>
               </div>
             )}
 
@@ -239,6 +258,16 @@ export default function CampaignsPage(): JSX.Element {
                   <option value="guest">زائر</option>
                   <option value="logged_in">مستخدم مسجل</option>
                 </select></label>
+                <label>الموقع<select className="input" value={(modal.item.targeting?.sites||[])[0]||''} onChange={(e)=> setNested('targeting.sites', e.target.value? [e.target.value] : [])}>
+                  <option value="">كلاهما</option>
+                  <option value="web">ويب</option>
+                  <option value="mweb">موبايل</option>
+                </select></label>
+                <label>الأجهزة<select className="input" value={(modal.item.targeting?.devices||[])[0]||''} onChange={(e)=> setNested('targeting.devices', e.target.value? [e.target.value] : [])}>
+                  <option value="">كل الأجهزة</option>
+                  <option value="mobile">جوال</option>
+                  <option value="desktop">سطح المكتب</option>
+                </select></label>
                 <label>اللغة (قائمة مفصولة بفواصل)<input className="input" value={(modal.item.targeting?.languages||[]).join(',')} onChange={(e)=> setNested('targeting.languages', e.target.value.split(',').map(s=> s.trim()).filter(Boolean))} /></label>
                 <label>المسارات المسموحة (سطر لكل مسار، بادئة مطابقة)<textarea className="input" value={(modal.item.targeting?.includePaths||[]).join('\n')} onChange={(e)=> setNested('targeting.includePaths', e.target.value.split('\n').map(s=> s.trim()).filter(Boolean))} /></label>
                 <label>المسارات المستبعدة (سطر لكل مسار)<textarea className="input" value={(modal.item.targeting?.excludePaths||[]).join('\n')} onChange={(e)=> setNested('targeting.excludePaths', e.target.value.split('\n').map(s=> s.trim()).filter(Boolean))} /></label>
@@ -270,13 +299,20 @@ export default function CampaignsPage(): JSX.Element {
             )}
 
             <div style={{ display:'flex', justifyContent:'space-between', marginTop:16 }}>
-              <small style={{ opacity:.7 }}>تلميح: يمكنك تعديل JSON الكامل للنسخة A من خلال أدوات المطور إذا لزم.</small>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                <button className="btn btn-outline btn-sm" onClick={()=>{ const id=(modal.item as any)?.id||''; const url=new URL(window.location.origin); url.hostname = url.hostname.replace(/^admin\./,'m.'); url.pathname='/'; url.searchParams.set('previewCampaignId', id); window.open(url.toString(),'_blank'); }} disabled={!modal.item?.id}>معاينة على الموبايل</button>
+                <button className="btn btn-outline btn-sm" onClick={()=>{ const id=(modal.item as any)?.id||''; const url=new URL(window.location.origin.replace('admin.','www.')); url.pathname='/'; url.searchParams.set('previewCampaignId', id); url.searchParams.set('site','web'); window.open(url.toString(),'_blank'); }} disabled={!modal.item?.id}>معاينة على الويب</button>
+                <small style={{ opacity:.7 }}>تلميح: اختر موقع/أجهزة من تبويب الاستهداف.</small>
+              </div>
               <div style={{ display:'flex', gap:8 }}>
                 <button className="btn btn-outline" onClick={closeModal} disabled={modal.saving}>إلغاء</button>
                 <button className="btn" onClick={save} disabled={modal.saving}>{modal.saving? 'حفظ...' : 'حفظ'}</button>
               </div>
             </div>
           </div>
+          {mediaOpen && (
+            <MediaPicker apiBase={apiBase} value={modal.item?.variantA?.content?.media?.src||''} onChange={(url)=> setNested('variantA.content.media.src', url)} onClose={()=> setMediaOpen(false)} />
+          )}
         </div>
       )}
     </main>

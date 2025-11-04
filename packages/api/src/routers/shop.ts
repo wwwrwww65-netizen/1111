@@ -1781,6 +1781,11 @@ shop.get('/popups', async (req: any, res) => {
     const ref = String(q.ref||req.get('referer')||'');
     const lang = String(q.lang||'');
     const device = /mobile|android|iphone|ipad/i.test(ua) ? 'mobile' : 'desktop';
+    // derive site (web/mweb) from query or referer host
+    let site = String(q.site||'');
+    if (!site) {
+      try{ const h = new URL(ref).host; site = h.startsWith('m.')? 'mweb' : 'web'; }catch{ site = 'web'; }
+    }
 
     // Fetch all LIVE campaigns ordered by priority
     const rows:any[] = await db.campaign.findMany({ where: { status: 'LIVE' as any }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }] } as any);
@@ -1829,6 +1834,9 @@ shop.get('/popups', async (req: any, res) => {
         const excludes: string[] = Array.isArray(t.excludePaths)? t.excludePaths : [];
         if (includes.length && !includes.some((p)=> path.startsWith(p))) return false;
         if (excludes.length && excludes.some((p)=> path.startsWith(p))) return false;
+        // site targeting
+        const sites: string[] = Array.isArray(t.sites)? t.sites : [];
+        if (sites.length && !sites.includes(site)) return false;
         // source/referrer
         const sources: string[] = Array.isArray(t.sources)? t.sources : [];
         if (sources.length && ref){
@@ -1837,6 +1845,16 @@ shop.get('/popups', async (req: any, res) => {
         }
         return true;
       }catch{ return true }
+    }
+
+    // Preview override (force specific campaign id)
+    const previewId = String(q.previewCampaignId||'').trim();
+    if (previewId) {
+      const c = rows.find(r=> String(r.id)===previewId);
+      if (c) {
+        const sel = pickVariant(c);
+        return res.json({ items: [{ id: c.id, name: c.name, priority: c.priority, status: c.status, variantKey: sel.key, variant: sel.payload, rewardId: c.rewardId||null, schedule: c.schedule, targeting: c.targeting, freq: c.frequency, now: nowIso }], preview: true });
+      }
     }
 
     const items:any[] = [];

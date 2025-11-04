@@ -96,6 +96,7 @@ function Card({ label, value }: { label: string; value: any }): JSX.Element {
 function Spark({ label, color }: { label:string; color:string }): JSX.Element {
   const ref = React.useRef<HTMLDivElement|null>(null);
   const [data, setData] = React.useState<number[]>([]);
+  const chartRef = React.useRef<any>(null);
   React.useEffect(()=>{
     // simple synthetic sparkline for now (can be replaced with real endpoint)
     const arr = Array.from({ length: 20 }, ()=> Math.round(Math.random()*100));
@@ -105,11 +106,13 @@ function Spark({ label, color }: { label:string; color:string }): JSX.Element {
     let disposed = false; async function ensure(){
       if (!ref.current) return;
       if (!(window as any).echarts){ await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); }); }
-      if (disposed) return; const echarts=(window as any).echarts; const chart = echarts.init(ref.current);
+      if (disposed) return;
+      const echarts=(window as any).echarts; const chart = echarts.init(ref.current);
+      chartRef.current = chart;
       chart.setOption({ backgroundColor:'transparent', grid:{ left:0, right:0, top:10, bottom:0 }, xAxis:{ type:'category', show:false, data: data.map((_,i)=> i) }, yAxis:{ type:'value', show:false }, series:[ { type:'line', data, smooth:true, symbol:'none', lineStyle:{ color }, areaStyle:{ color, opacity:0.12 } } ] });
-      return ()=> { try{ chart.dispose(); }catch{} };
     }
-    const clean = ensure(); return ()=> { (clean as any)?.(); disposed = true; };
+    ensure();
+    return ()=> { disposed = true; try { chartRef.current && chartRef.current.dispose(); } catch {} };
   },[data, color]);
   return (
     <div>
