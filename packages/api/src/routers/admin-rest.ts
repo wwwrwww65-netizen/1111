@@ -1703,13 +1703,205 @@ adminRest.post('/points/redeem', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error:'forbidden' });
     await ensureP2Schemas();
-    const { userId, points, reason } = req.body || {};
+    const { userId, points, reason, toCoupon } = req.body || {};
     if (!userId || !Number.isFinite(Number(points))) return res.status(400).json({ error:'userId_points_required' });
+    const pts = Math.trunc(Math.abs(Number(points)));
+    if (toCoupon) {
+      // Generate single-use coupon and record negative ledger using Prisma model
+      const s = await db.setting.findUnique({ where: { key: 'points:settings' } });
+      const v: any = (s?.value as any) || {};
+      const pointValue = Number(v.pointValue||0.01);
+      const amount = Math.max(0, Math.round((pts * pointValue) * 100) / 100);
+      const now = new Date();
+      const ends = new Date(Date.now() + (Number(v.couponValidityDays||30) * 864e5));
+      const code = `PTS-${Math.random().toString(36).slice(2,8).toUpperCase()}-${String(userId).slice(0,4).toUpperCase()}`;
+      await db.coupon.create({ data: { code, discountType: 'FIXED' as any, discountValue: amount, minOrderAmount: null as any, maxUses: 1 as any, currentUses: 0, validFrom: now as any, validUntil: ends as any, isActive: true } as any });
+      await db.pointsLedger.create({ data: { userId: String(userId), points: -pts, status: 'CONFIRMED' as any, reason: 'REDEEM_TO_COUPON', meta: { code } } as any });
+      await audit(req,'points','redeem',{ userId, points: pts, coupon: code });
+      return res.json({ success:true, coupon: { code, type:'FIXED', value: amount } });
+    }
+    // Legacy: raw table insert if not coupon path
     const id = (require('crypto').randomUUID as ()=>string)();
-    await db.$executeRawUnsafe('INSERT INTO "PointLedger" (id, "userId", points, reason) VALUES ($1,$2,$3,$4)', id, userId, -Math.abs(Number(points)), reason||null);
-    await audit(req,'points','redeem',{ userId, points });
+    await db.$executeRawUnsafe('INSERT INTO "PointLedger" (id, "userId", points, reason) VALUES ($1,$2,$3,$4)', id, userId, -pts, reason||null);
+    await audit(req,'points','redeem',{ userId, points: pts });
     res.json({ success:true });
   } catch (e:any) { res.status(500).json({ error: e.message||'points_redeem_failed' }); }
+});
+
+// Points: accounts aggregation (admin)
+adminRest.get('/points/accounts', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const q = String((req.query as any).q||'').trim();
+    // Prefer new PointsLedger
+    try {
+      const whereUser: any = q ? { id: q } : {};
+      const users = await db.user.findMany({ where: whereUser, select: { id:true, email:true, name:true }, take: q? 50: 500 });
+      const ids = users.map(u=> u.id);
+      const rows: any[] = ids.length ? await db.$queryRawUnsafe(`SELECT "userId" as user, COALESCE(SUM(points),0) as balance, MAX("createdAt") as "updatedAt" FROM "PointsLedger" WHERE "userId" = ANY($1) AND status='CONFIRMED' GROUP BY "userId" ORDER BY "updatedAt" DESC`, ids) as any[] : [];
+      const map = new Map<string, any>();
+      for (const r of rows) map.set(String((r as any).user), { user: String((r as any).user), balance: Number((r as any).balance||0), updatedAt: (r as any).updatedAt });
+      const accounts = users.map(u=> ({ user: u.email||u.name||u.id, balance: (map.get(u.id)?.balance)||0, updatedAt: map.get(u.id)?.updatedAt||new Date(0) }));
+      return res.json({ accounts });
+    } catch {}
+    // Legacy fallback: raw PointLedger sum
+    const rows2: any[] = await db.$queryRawUnsafe(`SELECT "userId" as user, COALESCE(SUM(points),0) as balance, MAX("createdAt") as "updatedAt" FROM "PointLedger" GROUP BY "userId" ORDER BY "updatedAt" DESC LIMIT 500`);
+    return res.json({ accounts: rows2 });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_accounts_failed' }); }
+});
+
+// Points: settings (point value, expiry)
+adminRest.post('/points/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { pointValue, expiryDays } = req.body||{};
+    const v = { pointValue: Number(pointValue||0), expiryDays: Number(expiryDays||0) };
+    await db.setting.upsert({ where: { key: 'points:settings' }, update: { value: v }, create: { key: 'points:settings', value: v } });
+    await audit(req,'points','settings_save', v as any);
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_settings_failed' }); }
+});
+
+// Points: triggers config (enable/disable and awards settings)
+adminRest.get('/points/triggers', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const s = await db.setting.findUnique({ where: { key: 'points:triggers' } });
+    const def = {
+      enabled: true,
+      purchase: { pointsPerCurrency: 0.1, confirmOn: 'paid' },
+      registration: { points: 100 },
+      dailyCheckIn: { points: 10, limitPerDay: 1 },
+      review: { base: 10, withPhotoBonus: 20, likeThreshold: { count: 5, bonus: 10 } },
+      share: { view: 2, withPurchase: 50 },
+      referral: { signUp: { referrer: 100, referred: 50 }, purchase: { referrerPercent: 0.02, minSubtotal: 0 } },
+      caps: { perOrderMax: 1000, perDay: 2000, perMonth: 20000, totalMax: 100000 },
+      conditions: { minCartValue: 0, include: { products: [], categories: [], vendors: [] }, exclude: { products: [], categories: [], vendors: [] } },
+      confirmDelays: { purchase: 'paid', review: 'approved' }
+    };
+    return res.json({ config: (s?.value as any) || def });
+  } catch (e:any) { res.status(500).json({ error: e.message||'triggers_get_failed' }); }
+});
+adminRest.post('/points/triggers', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const config = req.body || {};
+    const s = await db.setting.upsert({ where: { key: 'points:triggers' }, update: { value: config }, create: { key: 'points:triggers', value: config } });
+    await audit(req,'points','triggers_save',{});
+    res.json({ ok:true, config: s.value });
+  } catch (e:any) { res.status(500).json({ error: e.message||'triggers_save_failed' }); }
+});
+
+// Points: redemption tiers config
+adminRest.get('/points/redemption', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const s = await db.setting.findUnique({ where: { key: 'points:redemption' } });
+    const def = {
+      enabled: true,
+      tiers: [
+        { points: 1000, percentOff: 10 },
+        { points: 2000, amountOff: 20 }
+      ],
+      minOrderAmount: 0,
+      exclude: { products: [], categories: [], vendors: [] }
+    };
+    return res.json({ config: (s?.value as any) || def });
+  } catch (e:any) { res.status(500).json({ error: e.message||'redemption_get_failed' }); }
+});
+adminRest.post('/points/redemption', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const config = req.body || {};
+    const s = await db.setting.upsert({ where: { key: 'points:redemption' }, update: { value: config }, create: { key: 'points:redemption', value: config } });
+    await audit(req,'points','redemption_save',{});
+    res.json({ ok:true, config: s.value });
+  } catch (e:any) { res.status(500).json({ error: e.message||'redemption_save_failed' }); }
+});
+// Points: adjust balance (admin)
+adminRest.post('/points/adjust', async (req, res) => {
+  try {
+    const u = (req as any).user; const allowed = (await can(u.userId, 'users.manage')) || (await can(u.userId, 'settings.manage'));
+    if (!allowed) return res.status(403).json({ error:'forbidden' });
+    const { userId, delta, reason } = req.body||{};
+    if (!userId || !Number.isFinite(Number(delta))) return res.status(400).json({ error:'userId_delta_required' });
+    const pts = Math.trunc(Number(delta));
+    await db.pointsLedger.create({ data: { userId: String(userId), points: pts, status: 'CONFIRMED' as any, reason: String(reason||'ADMIN_ADJUST') } as any });
+    await audit(req,'points','adjust',{ userId, delta: pts });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_adjust_failed' }); }
+});
+
+// Points: summary reports (admin)
+adminRest.get('/points/summary', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const fromRaw = String((req.query as any).from||'');
+    const toRaw = String((req.query as any).to||'');
+    const from = fromRaw ? new Date(fromRaw) : new Date(Date.now() - 30*864e5);
+    const to = toRaw ? new Date(toRaw) : new Date();
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT date_trunc('day', "createdAt") AS d,
+             SUM(CASE WHEN points>0 THEN points ELSE 0 END) AS earned,
+             SUM(CASE WHEN points<0 THEN -points ELSE 0 END) AS redeemed
+      FROM "PointsLedger"
+      WHERE "createdAt" BETWEEN $1 AND $2 AND status='CONFIRMED'
+      GROUP BY 1 ORDER BY 1 ASC
+    `, from, to) as any[];
+    const topReasons: any[] = await db.$queryRawUnsafe(`
+      SELECT reason, SUM(CASE WHEN points>0 THEN points ELSE 0 END) AS earned,
+             SUM(CASE WHEN points<0 THEN -points ELSE 0 END) AS redeemed
+      FROM "PointsLedger" WHERE status='CONFIRMED' AND "createdAt" BETWEEN $1 AND $2
+      GROUP BY reason ORDER BY earned DESC NULLS LAST LIMIT 10
+    `, from, to) as any[];
+    return res.json({ series: rows, topReasons });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_summary_failed' }); }
+});
+
+// Points: ledger by user (admin/self)
+adminRest.get('/points/log', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    const targetUserId = String((req.query as any).userId||u.userId||'');
+    const canRead = await can(u.userId, 'analytics.read');
+    if (!canRead && targetUserId !== u.userId) return res.status(403).json({ error:'forbidden' });
+    try {
+      const rows = await db.pointsLedger.findMany({ where: { userId: targetUserId }, orderBy: { createdAt: 'desc' }, take: 200 });
+      return res.json({ rows });
+    } catch {}
+    const rows2: any[] = await db.$queryRawUnsafe('SELECT id, "userId", points, reason, "createdAt" FROM "PointLedger" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT 200', targetUserId) as any[];
+    res.json({ rows: rows2 });
+  } catch (e:any) { res.status(500).json({ error: e.message||'points_log_failed' }); }
+});
+
+// Points: campaigns CRUD (admin)
+adminRest.get('/points/campaigns', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const rows = await db.pointsCampaign.findMany({ orderBy: { updatedAt: 'desc' } } as any);
+    res.json({ campaigns: rows });
+  } catch (e:any) { res.status(500).json({ error: e.message||'campaigns_list_failed' }); }
+});
+adminRest.post('/points/campaigns', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { id, name, multiplier, startsAt, endsAt, enabled, conditions } = req.body||{};
+    const data: any = { name: String(name||'حملة'), multiplier: Number(multiplier||1), enabled: enabled!==false, conditions: conditions||null };
+    if (startsAt) data.startsAt = new Date(startsAt);
+    if (endsAt) data.endsAt = new Date(endsAt);
+    const row = id ? await db.pointsCampaign.update({ where: { id: String(id) }, data } as any) : await db.pointsCampaign.create({ data } as any);
+    await audit(req,'points','campaign_save', { id: row.id });
+    res.json({ ok:true, campaign: row });
+  } catch (e:any) { res.status(500).json({ error: e.message||'campaigns_save_failed' }); }
+});
+adminRest.post('/points/campaigns/delete', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.body||{}; if (!id) return res.status(400).json({ error:'id_required' });
+    await db.pointsCampaign.delete({ where: { id: String(id) } } as any);
+    await audit(req,'points','campaign_delete', { id });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message||'campaigns_delete_failed' }); }
 });
 // Badges
 adminRest.post('/badges', async (req, res) => {
@@ -2086,6 +2278,16 @@ adminRest.post('/orders/:id/refund', async (req, res) => {
     if (mock) {
       await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
       await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
+      // Loyalty: revoke/refund points for this order
+      try {
+        const o = await db.order.findUnique({ where: { id }, select: { total: true, userId: true } });
+        const pts = Math.floor(Number(o?.total||0) / 10);
+        if (pts > 0 && o?.userId) {
+          const pending = await db.pointsLedger.findFirst({ where: { orderId: id as any, userId: o.userId, status: 'PENDING' as any } });
+          if (pending) await db.pointsLedger.update({ where: { id: pending.id }, data: { status: 'REVOKED' as any } });
+          else await db.pointsLedger.create({ data: { userId: o.userId, points: -Math.abs(pts), status: 'CONFIRMED' as any, orderId: id as any, reason: 'ORDER_REFUND' } as any });
+        }
+      } catch {}
       // Post journal (mock)
       try {
         const eid = (require('crypto').randomUUID as ()=>string)();
@@ -2105,6 +2307,16 @@ adminRest.post('/orders/:id/refund', async (req, res) => {
     await stripe.refunds.create({ charge: ch });
     await db.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
     await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
+    // Loyalty: revoke/refund points for this order (Stripe)
+    try {
+      const o = await db.order.findUnique({ where: { id }, select: { total: true, userId: true } });
+      const pts = Math.floor(Number(o?.total||0) / 10);
+      if (pts > 0 && o?.userId) {
+        const pending = await db.pointsLedger.findFirst({ where: { orderId: id as any, userId: o.userId, status: 'PENDING' as any } });
+        if (pending) await db.pointsLedger.update({ where: { id: pending.id }, data: { status: 'REVOKED' as any } });
+        else await db.pointsLedger.create({ data: { userId: o.userId, points: -Math.abs(pts), status: 'CONFIRMED' as any, orderId: id as any, reason: 'ORDER_REFUND' } as any });
+      }
+    } catch {}
     // Post journal (stripe)
     try {
       const eid = (require('crypto').randomUUID as ()=>string)();
@@ -8676,13 +8888,13 @@ adminRest.get('/products/:id', async (req, res) => {
 });
 adminRest.post('/products', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.create'))) return res.status(403).json({ error:'forbidden' });
-  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId, colors } = req.body || {};
+  const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId, colors, pointsFixed, pointsPercent, loyaltyMultiplier, excludeFromPoints } = req.body || {};
   // Fallback: if categoryId missing, pick any existing category to satisfy FK
   let nextCategoryId = categoryId;
   if (!nextCategoryId) {
     try { const any = await db.category.findFirst({ select: { id: true } }); nextCategoryId = any?.id || undefined; } catch {}
   }
-  const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId: nextCategoryId as any, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true } });
+  const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId: nextCategoryId as any, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true, pointsFixed: pointsFixed!=null? Number(pointsFixed): null as any, pointsPercent: pointsPercent!=null? Number(pointsPercent): null as any, loyaltyMultiplier: loyaltyMultiplier!=null? Number(loyaltyMultiplier): null as any, excludeFromPoints: !!excludeFromPoints } });
   // Optionally persist colors (primary + gallery) for the new product
   try {
     const colorsIn: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = Array.isArray(colors) ? colors : [];
@@ -8996,7 +9208,7 @@ adminRest.patch('/products/:id', async (req, res) => {
     // Allow only known Product fields to avoid Prisma unknown arg errors (e.g., passing colors/variants to update())
     const allowed: any = {};
     const copy = (k: string) => { if (data[k] !== undefined) allowed[k] = data[k]; };
-    ['name','description','price','images','categoryId','vendorId','stockQuantity','sku','brand','tags','isActive'].forEach(copy);
+    ['name','description','price','images','categoryId','vendorId','stockQuantity','sku','brand','tags','isActive','pointsFixed','pointsPercent','loyaltyMultiplier','excludeFromPoints'].forEach(copy);
     const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true, sku: true } });
     const p = await db.product.update({ where: { id }, data: allowed });
     await audit(req, 'products', 'update', { id });

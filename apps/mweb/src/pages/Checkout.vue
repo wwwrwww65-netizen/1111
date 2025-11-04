@@ -489,14 +489,19 @@ async function loadBalances(){
     showRewards.value = !!settings?.enabled
   }catch{ showRewards.value = false }
 }
-function applyWallet(){
-  const amt = Math.max(0, Math.min(walletAmount.value||0, walletBalance.value, subtotalOriginal.value))
-  walletApplied.value = amt
+async function applyWallet(){
+  try{
+    const r:any = await apiPost('/api/checkout/apply-wallet', { amount: Number(walletAmount.value||0), subtotal: Number(subtotalOriginal.value||0) })
+    walletApplied.value = Number(r?.allowed||0)
+  }catch{}
   walletOpen.value = false
 }
-function applyPoints(){
-  const amt = Math.max(0, Math.min(pointsAmount.value||0, points.value, subtotalOriginal.value))
-  pointsApplied.value = amt
+async function applyPoints(){
+  try{
+    const r:any = await apiPost('/api/checkout/apply-points', { points: Number(pointsAmount.value||0), subtotal: Number(subtotalOriginal.value||0) })
+    const amt = Number(r?.amount||0)
+    pointsApplied.value = amt
+  }catch{}
   pointsOpen.value = false
 }
 </script>

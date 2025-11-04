@@ -166,6 +166,22 @@ async function ensureSchema(): Promise<void> {
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_sku_idx" ON "Product"(sku)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_created_idx" ON "Product"("createdAt")'); } catch {}
 
+    // Ensure PointsCampaign exists (Prisma model) to avoid runtime errors before migrations
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "PointsCampaign" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      '"name" TEXT NOT NULL,'+
+      '"multiplier" DOUBLE PRECISION NOT NULL DEFAULT 1,'+
+      '"startsAt" TIMESTAMP NULL,'+
+      '"endsAt" TIMESTAMP NULL,'+
+      '"enabled" BOOLEAN NOT NULL DEFAULT TRUE,'+
+      '"conditions" JSONB NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+      ')'
+    );
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "PointsCampaign_enabled_idx" ON "PointsCampaign"("enabled","startsAt","endsAt")');
+
     // Tab Page Builder tables (idempotent)
     // Ensure Postgres ENUM types expected by Prisma exist
     await db.$executeRawUnsafe(`
@@ -512,6 +528,13 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
         io.emit('driver:locations', { drivers });
       } catch {}
     }, 10000);
+
+    // Expire loyalty points periodically (hourly)
+    setInterval(async () => {
+      try {
+        await db.$executeRawUnsafe("UPDATE \"PointsLedger\" SET status='EXPIRED' WHERE status='CONFIRMED' AND \"expiresAt\" IS NOT NULL AND \"expiresAt\" < NOW()");
+      } catch {}
+    }, 3600 * 1000);
 
     server.listen(port, () => {
       console.log(`🚀 API server listening on port ${port}`);

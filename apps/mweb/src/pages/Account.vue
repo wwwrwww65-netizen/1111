@@ -51,7 +51,7 @@
     <!-- Coupons shortcut next to points -->
     <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
       <div class="grid grid-cols-2 gap-3">
-        <a href="/coupons" class="block text-center py-2 rounded bg-gray-100 hover:bg-gray-200">نقاطي</a>
+        <a href="/points" class="block text-center py-2 rounded bg-gray-100 hover:bg-gray-200">نقاطي</a>
         <a href="/coupons" class="block text-center py-2 rounded bg-gray-100 hover:bg-gray-200">كوبوناتي</a>
       </div>
     </div>

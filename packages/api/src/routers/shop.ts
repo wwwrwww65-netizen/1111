@@ -1148,6 +1148,31 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
         });
       }
     } catch {}
+    // Loyalty: award registration + referral (sign-up) points when new account
+    try{
+      const isNew = !existing;
+      if (isNew){
+        const trig = await loadTriggers();
+        const regPts = Math.trunc(Number(trig?.registration?.points||0));
+        if (regPts > 0){ await db.pointsLedger.create({ data: { userId: user.id, points: regPts, status: 'CONFIRMED' as any, trigger: 'registration', reason: 'REGISTRATION' } as any }); }
+        // Referral sign-up: referrer/referred
+        const ref = String(req.body?.ref || req.query?.ref || '').toUpperCase();
+        if (ref){
+          try{
+            const row: any[] = await db.$queryRawUnsafe('SELECT "userId" FROM "Affiliate" WHERE code=$1 LIMIT 1', ref) as any[];
+            const refUserId = String(row?.[0]?.userId||'');
+            if (refUserId && refUserId !== user.id){
+              const conf: any = trig?.referral || {};
+              const referrerPts = Math.trunc(Number(conf?.signUp?.referrer||0));
+              const referredPts = Math.trunc(Number(conf?.signUp?.referred||0));
+              if (referrerPts>0) await db.pointsLedger.create({ data: { userId: refUserId, points: referrerPts, status: 'CONFIRMED' as any, trigger: 'ref_signup', reason: 'REFERRAL_SIGNUP', meta: { referred: user.id } } as any });
+              if (referredPts>0) await db.pointsLedger.create({ data: { userId: user.id, points: referredPts, status: 'CONFIRMED' as any, trigger: 'ref_signup', reason: 'REFERRED_SIGNUP', meta: { referrer: refUserId } } as any });
+            }
+          }
+          catch{}
+        }
+      }
+    }catch{}
     return res.json({ ok:true, token, newUser: !existing });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_verify_failed' }); }
 });
@@ -1503,6 +1528,156 @@ shop.get('/product/:id', async (req, res) => {
     res.status(500).json({ error: 'failed' });
   }
 });
+
+// ===================== Loyalty (helpers) =====================
+type PurchaseTriggerConfig = {
+  pointsPerCurrency?: number;
+  confirmOn?: 'placed'|'paid'|'shipped'|'delivered';
+}
+type ConditionsConfig = {
+  minCartValue?: number;
+  include?: { products?: string[]; categories?: string[]; vendors?: string[] };
+  exclude?: { products?: string[]; categories?: string[]; vendors?: string[] };
+}
+type TriggersConfig = {
+  enabled?: boolean;
+  purchase?: PurchaseTriggerConfig;
+  registration?: { points?: number };
+  dailyCheckIn?: { points?: number };
+  referral?: any;
+  review?: any;
+  share?: any;
+  caps?: { perOrderMax?: number; perDay?: number; perMonth?: number; totalMax?: number; minPerOp?: number; maxPerOp?: number };
+  conditions?: ConditionsConfig;
+  confirmDelays?: { purchase?: 'paid'|'shipped'|'delivered'|'placed' };
+}
+
+async function loadTriggers(): Promise<TriggersConfig> {
+  try {
+    const t = await db.setting.findUnique({ where: { key: 'points:triggers' } });
+    return ((t?.value as any) || {}) as TriggersConfig;
+  } catch { return {}; }
+}
+
+async function loadPointValue(): Promise<number> {
+  try {
+    const s = await db.setting.findUnique({ where: { key: 'points:settings' } });
+    return Number(((s?.value as any)?.pointValue) || 0.01);
+  } catch { return 0.01; }
+}
+
+type Campaign = { id:string; multiplier:number; startsAt?: string; endsAt?: string; enabled?: boolean; conditions?: any };
+async function loadActiveCampaigns(): Promise<Campaign[]> {
+  try {
+    // @ts-ignore
+    const rows: any[] = await db.$queryRawUnsafe('SELECT id, multiplier, "startsAt", "endsAt", enabled, conditions FROM "PointsCampaign" WHERE enabled = TRUE AND ("startsAt" IS NULL OR "startsAt" <= NOW()) AND ("endsAt" IS NULL OR "endsAt" >= NOW()) ORDER BY "updatedAt" DESC LIMIT 50');
+    return (rows||[]).map(r=> ({ id: String(r.id), multiplier: Number(r.multiplier||1), startsAt: r.startsAt, endsAt: r.endsAt, enabled: true, conditions: r.conditions||null }));
+  } catch { return []; }
+}
+
+function entityMatches(item: any, cond: any): boolean {
+  if (!cond) return true;
+  const prodId = String(item?.product?.id || item?.productId || item?.id || '');
+  const catId = String(item?.product?.categoryId || item?.categoryId || '');
+  const venId = String(item?.product?.vendorId || item?.vendorId || '');
+  const inList = (arr?: any[], id?: string) => Array.isArray(arr) && id ? (arr as any[]).map(String).includes(String(id)) : false;
+  if (cond.include) {
+    const anyInclude = ['products','categories','vendors'].some(k=> Array.isArray((cond.include as any)[k]));
+    if (anyInclude) {
+      let ok = false;
+      if (inList((cond.include as any).products, prodId)) ok = true;
+      if (inList((cond.include as any).categories, catId)) ok = true;
+      if (inList((cond.include as any).vendors, venId)) ok = true;
+      if (!ok) return false;
+    }
+  }
+  if (cond.exclude) {
+    if (inList((cond.exclude as any).products, prodId)) return false;
+    if (inList((cond.exclude as any).categories, catId)) return false;
+    if (inList((cond.exclude as any).vendors, venId)) return false;
+  }
+  return true;
+}
+
+async function getUserPointsSince(userId: string, since: Date): Promise<number> {
+  try {
+    const agg: any = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any, createdAt: { gte: since as any } } });
+    return Number(agg?._sum?.points || 0);
+  } catch { return 0; }
+}
+
+async function applyCaps(userId: string, proposedPoints: number, triggers: TriggersConfig): Promise<number> {
+  const caps = triggers?.caps || {} as any;
+  let pts = Math.max(0, Math.trunc(proposedPoints));
+  if (caps.maxPerOp && caps.maxPerOp > 0) pts = Math.min(pts, Math.trunc(caps.maxPerOp));
+  if (caps.minPerOp && caps.minPerOp > 0) pts = Math.max(pts, Math.trunc(caps.minPerOp));
+  if (caps.perOrderMax && caps.perOrderMax > 0) pts = Math.min(pts, Math.trunc(caps.perOrderMax));
+  const now = new Date();
+  if (caps.perDay && caps.perDay > 0) {
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0,0,0));
+    const soFar = await getUserPointsSince(userId, start);
+    pts = Math.max(0, Math.min(pts, Math.trunc(caps.perDay - Math.max(0, soFar))));
+  }
+  if (caps.perMonth && caps.perMonth > 0) {
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0,0,0));
+    const soFar = await getUserPointsSince(userId, start);
+    pts = Math.max(0, Math.min(pts, Math.trunc(caps.perMonth - Math.max(0, soFar))));
+  }
+  if (caps.totalMax && caps.totalMax > 0) {
+    try {
+      const agg: any = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } });
+      const soFar = Number(agg?._sum?.points || 0);
+      pts = Math.max(0, Math.min(pts, Math.trunc(caps.totalMax - Math.max(0, soFar))));
+    } catch {}
+  }
+  return Math.max(0, Math.trunc(pts));
+}
+
+async function computeCartPoints(userId: string, cartItems: any[], subtotal: number): Promise<{ points: number; confirmOn: 'placed'|'paid'|'shipped'|'delivered' }>{
+  const triggers = await loadTriggers();
+  const purchase = (triggers?.purchase || {}) as PurchaseTriggerConfig;
+  const conditions = (triggers?.conditions || {}) as ConditionsConfig;
+  const confirmOn = (triggers?.confirmDelays?.purchase || purchase?.confirmOn || 'paid') as any;
+  if (typeof (conditions as any).minCartValue === 'number' && subtotal < Number((conditions as any).minCartValue)) {
+    return { points: 0, confirmOn };
+  }
+  const pointValue = await loadPointValue();
+  const campaigns = await loadActiveCampaigns();
+  let totalPts = 0;
+  for (const it of (cartItems||[])){
+    if (!entityMatches(it, conditions)) continue;
+    const p = it.product || {};
+    if (p.excludeFromPoints) continue;
+    const qty = Math.max(1, Number(it.quantity||1));
+    const price = Number(p.price||0);
+    const baseFixed = Number(p.pointsFixed||0);
+    const basePercent = Number(p.pointsPercent||0);
+    let itemPts = 0;
+    if (baseFixed > 0) itemPts += baseFixed * qty;
+    if (basePercent > 0) {
+      const money = price * qty * basePercent;
+      const ptsApprox = Math.floor(money / Math.max(0.0001, pointValue));
+      itemPts += ptsApprox;
+    }
+    if (itemPts === 0) {
+      const ppc = Number(purchase.pointsPerCurrency||0);
+      if (ppc > 0) itemPts += Math.floor(price * qty * ppc);
+      else itemPts += Math.floor((price * qty) / 10);
+    }
+    const mults: number[] = [];
+    if (p.loyaltyMultiplier) mults.push(Number(p.loyaltyMultiplier));
+    if (p.category?.loyaltyMultiplier) mults.push(Number(p.category.loyaltyMultiplier));
+    if (p.vendor?.loyaltyMultiplier) mults.push(Number(p.vendor.loyaltyMultiplier));
+    for (const c of campaigns){
+      try { if (entityMatches(it, (c as any).conditions)) mults.push(Number(c.multiplier||1)); } catch {}
+    }
+    const multiplier = mults.length? mults.reduce((a,b)=> a*b, 1): 1;
+    itemPts = Math.floor(itemPts * Math.max(0, multiplier));
+    totalPts += Math.max(0, itemPts);
+  }
+  totalPts = await applyCaps(userId, totalPts, triggers);
+  return { points: Math.max(0, Math.trunc(totalPts)), confirmOn };
+}
 
 // Public: product variants (normalized)
 shop.get('/product/:id/variants', async (req, res) => {
@@ -2376,8 +2551,8 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, paymentMethod, shippingMethodId } = req.body || {};
-    const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: true } } } });
+    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, paymentMethod, shippingMethodId, walletUse, pointsUse } = req.body || {};
+    const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: { include: { category: { select: { loyaltyMultiplier: true } }, vendor: { select: { loyaltyMultiplier: true } } } } } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
     const selectedProductIds = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
     const selectedUidsList: string[] = Array.isArray(selectedUids) && selectedUids.length ? selectedUids.map(String) : [];
@@ -2495,7 +2670,26 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
     const subtotal = cartItems.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
     const ship = Number(shippingPrice || 0);
     const disc = Number(discount || 0);
-    const total = Math.max(0, subtotal + ship - disc);
+    // Apply wallet/points usage (server-side validation)
+    let walletApplied = 0; let pointsApplied = 0; let pointsAppliedAmount = 0;
+    // Load settings
+    let pointValue = 0.01; try { const s = await db.setting.findUnique({ where: { key: 'points:settings' } }); pointValue = Number(((s?.value as any)?.pointValue)||0.01) }catch{}
+    // Wallet
+    try {
+      const bal = await db.walletLedger.aggregate({ _sum: { amount: true }, where: { userId, status: 'CONFIRMED' as any } }) as any;
+      const balance = Number(bal?._sum?.amount || 0);
+      const reqAmt = Math.max(0, Number(walletUse||0));
+      walletApplied = Math.min(reqAmt, Math.max(0, balance));
+    } catch {}
+    // Points (pointsUse interpreted as points count)
+    try {
+      const bal = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } }) as any;
+      const pbal = Number(bal?._sum?.points || 0);
+      const reqPts = Math.max(0, Math.floor(Number(pointsUse||0)));
+      pointsApplied = Math.min(reqPts, Math.max(0, pbal));
+      pointsAppliedAmount = Math.max(0, Math.round((pointsApplied * pointValue) * 100) / 100);
+    } catch {}
+    const total = Math.max(0, subtotal + ship - disc - walletApplied - pointsAppliedAmount);
     // Validate shipping address against Address table only; fall back to null
     let shippingAddressIdResolved: string | null = null
     try {
@@ -2580,6 +2774,38 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
     try {
       const delIds = cartItems.map((ci:any)=> ci?.id).filter((x:any)=> !!x)
       if (delIds.length) await db.cartItem.deleteMany({ where: { id: { in: delIds } } });
+    } catch {}
+    // Record wallet/points redemptions against this order
+    try { if (walletApplied > 0) await db.walletLedger.create({ data: { userId, amount: -Math.abs(walletApplied), status: 'CONFIRMED' as any, orderId: order.id as any, reason: 'ORDER_REDEEM' } as any }) } catch {}
+    try { if (pointsApplied > 0) await db.pointsLedger.create({ data: { userId, points: -Math.abs(pointsApplied), status: 'CONFIRMED' as any, orderId: order.id as any, reason: 'ORDER_REDEEM' } as any }) } catch {}
+    // Loyalty: compute points based on product/category/vendor and campaigns
+    try {
+      const { points: computedPts, confirmOn } = await computeCartPoints(userId, cartItems, subtotal)
+      if (computedPts > 0){
+        const status = (confirmOn === 'placed') ? 'CONFIRMED' : 'PENDING'
+        await db.pointsLedger.create({ data: { userId, points: computedPts, status: status as any, trigger: 'order_placed', orderId: order.id as any, reason: 'ORDER_PLACED' } as any })
+      }
+    } catch {}
+    // Referral: pending points for referrer if code provided and configured
+    try {
+      const cfg = await db.setting.findUnique({ where: { key: 'points:triggers' } });
+      const conf: any = (cfg?.value as any) || {};
+      if (ref && conf?.referral?.purchase) {
+        const aff = await db.$queryRawUnsafe('SELECT "userId" FROM "Affiliate" WHERE code=$1 LIMIT 1', String(ref).toUpperCase()) as any[];
+        const refUserId = String(aff?.[0]?.userId||'');
+        if (refUserId && refUserId !== userId) {
+          const percent = Number(conf.referral.purchase.referrerPercent||0);
+          const minSubtotal = Number(conf.referral.purchase.minSubtotal||0);
+          const base = subtotal >= minSubtotal ? subtotal : 0;
+          const pts = Math.floor((base * percent) / Math.max(0.0001, pointValue * 100)); // convert money->points approx
+          if (pts > 0) await db.pointsLedger.create({ data: { userId: refUserId, points: pts, status: 'PENDING' as any, trigger: 'ref_purchase', orderId: order.id as any, reason: 'REFERRAL_PURCHASE' } as any });
+          // Fixed points for share→purchase, if configured
+          const shareBonus = Math.trunc(Number(conf?.share?.withPurchase||0));
+          if (shareBonus > 0) {
+            await db.pointsLedger.create({ data: { userId: refUserId, points: shareBonus, status: 'PENDING' as any, trigger: 'share_purchase', orderId: order.id as any, reason: 'SHARE_PURCHASE' } as any });
+          }
+        }
+      }
     } catch {}
     res.json({ order });
   } catch {
@@ -2693,12 +2919,26 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
       await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
     } catch {}
-    // Loyalty: accrue points (1 point لكل 10 SAR)
+    // Loyalty: confirm or create points according to confirmOn
     try {
-      await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PointLedger" (id TEXT PRIMARY KEY, "userId" TEXT NOT NULL, points INTEGER NOT NULL, reason TEXT NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
-      const idp = Math.random().toString(36).slice(2);
-      const pts = Math.floor(Number(amount) / 10);
-      if (pts > 0) await db.$executeRawUnsafe('INSERT INTO "PointLedger" (id, "userId", points, reason) VALUES ($1,$2,$3,$4)', idp, userId, pts, 'ORDER_PAID');
+      const triggers = await loadTriggers();
+      const confirmOn = (triggers?.confirmDelays?.purchase || triggers?.purchase?.confirmOn || 'paid');
+      if (confirmOn === 'paid'){
+        const pending = await db.pointsLedger.findFirst({ where: { userId, orderId: order.id as any, status: 'PENDING' as any }, orderBy: { createdAt: 'desc' } })
+        if (pending) await db.pointsLedger.update({ where: { id: pending.id }, data: { status: 'CONFIRMED' as any, updatedAt: new Date() as any, reason: 'ORDER_PAID' } })
+        else {
+          // Compute points now (fallback) if none was created at placement
+          const items = await db.orderItem.findMany({ where: { orderId: order.id as any }, include: { product: { include: { category: true, vendor: true } } } })
+          const subtotal = items.reduce((s,it)=> s + Number(it.price||0) * Number(it.quantity||1), 0)
+          const { points } = await computeCartPoints(userId, items.map(it=> ({ product: it.product, quantity: it.quantity })), subtotal)
+          if (points > 0) await db.pointsLedger.create({ data: { userId, points, status: 'CONFIRMED' as any, trigger: 'order_paid', orderId: order.id as any, reason: 'ORDER_PAID' } as any })
+        }
+      }
+    } catch {}
+    // Referral/Share: confirm pending points
+    try {
+      const pend = await db.pointsLedger.findMany({ where: { orderId: order.id as any, trigger: { in: ['ref_purchase','share_purchase'] } as any, status: 'PENDING' as any } })
+      for (const p of pend) { await db.pointsLedger.update({ where: { id: p.id }, data: { status: 'CONFIRMED' as any } }) }
     } catch {}
     // Affiliate: approve commission
     try {
@@ -3338,21 +3578,265 @@ shop.get('/currency', async (_req: any, res) => {
 shop.get('/points/balance', requireAuth, async (req: any, res) => {
   try{
     const userId = req.user.userId
-    // Prefer PointLedger if exists
-    let pts = 0
+    // Prefer new PointsLedger (CONFIRMED only)
+    try {
+      const rows = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } }) as any
+      const sum = Number(rows?._sum?.points || 0)
+      if (!Number.isNaN(sum)) return res.json({ points: sum })
+    } catch {}
+    // Legacy: PointLedger (raw table)
     try {
       const rows: any[] = await db.$queryRawUnsafe('SELECT COALESCE(SUM(points),0) as s FROM "PointLedger" WHERE "userId"=$1', userId) as any
-      pts = Number(rows?.[0]?.s || 0)
+      const sum = Number(rows?.[0]?.s || 0)
+      if (!Number.isNaN(sum)) return res.json({ points: sum })
     } catch {}
     // Fallback to LoyaltyPoint sum
-    if (pts===0){ try{ const rows2: any[] = await db.$queryRawUnsafe('SELECT COALESCE(SUM(points),0) as s FROM "LoyaltyPoint" WHERE "userId"=$1', userId) as any; pts = Number(rows2?.[0]?.s||0) }catch{} }
-    res.json({ points: pts })
+    try{ const rows2: any[] = await db.$queryRawUnsafe('SELECT COALESCE(SUM(points),0) as s FROM "LoyaltyPoint" WHERE "userId"=$1', userId) as any; const sum = Number(rows2?.[0]?.s||0); return res.json({ points: sum }) }catch{}
+    res.json({ points: 0 })
   }catch{ res.status(500).json({ error:'failed' }) }
 })
 
-// Wallet balance (placeholder)
-shop.get('/wallet/balance', requireAuth, async (_req: any, res) => {
-  try{ res.json({ balance: 0 }) }catch{ res.status(500).json({ error:'failed' }) }
+// Wallet balance (ledger-based)
+shop.get('/wallet/balance', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    try {
+      const rows = await db.walletLedger.aggregate({ _sum: { amount: true }, where: { userId, status: 'CONFIRMED' as any } }) as any
+      const sum = Number(rows?._sum?.amount || 0)
+      return res.json({ balance: Number.isNaN(sum) ? 0 : sum })
+    } catch {}
+    // Legacy placeholder fallback
+    return res.json({ balance: 0 })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Checkout: apply wallet amount (server validation)
+shop.post('/checkout/apply-wallet', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    const subtotal = Math.max(0, Number(req.body?.subtotal||0))
+    const requested = Math.max(0, Number(req.body?.amount||0))
+    const agg: any = await db.walletLedger.aggregate({ _sum: { amount: true }, where: { userId, status: 'CONFIRMED' as any } })
+    const balance = Number(agg?._sum?.amount || 0)
+    const allowed = Math.max(0, Math.min(requested, balance, subtotal))
+    res.json({ allowed })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Checkout: apply points (server validation and conversion)
+shop.post('/checkout/apply-points', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    const subtotal = Math.max(0, Number(req.body?.subtotal||0))
+    const requestedPts = Math.max(0, Math.floor(Number(req.body?.points||0)))
+    let pointValue = 0.01; try { const s = await db.setting.findUnique({ where: { key: 'points:settings' } }); pointValue = Number(((s?.value as any)?.pointValue)||0.01) }catch{}
+    const agg: any = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } })
+    const balancePts = Number(agg?._sum?.points || 0)
+    const allowedPts = Math.max(0, Math.min(requestedPts, balancePts))
+    const amount = Math.max(0, Math.round((allowedPts * pointValue) * 100) / 100)
+    const cappedAmount = Math.min(amount, subtotal)
+    const finalPts = amount > 0 ? Math.min(allowedPts, Math.floor(cappedAmount / Math.max(0.0001, pointValue))) : 0
+    res.json({ allowedPoints: finalPts, amount: cappedAmount })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Points ledger (self)
+shop.get('/points/ledger', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    const rows = await db.pointsLedger.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 200 })
+    res.json({ rows })
+  }catch{ try{ return res.json({ rows: [] }) }catch{ return res.json({ rows: [] }) } }
+})
+
+// Rewards settings (public for mweb toggles)
+shop.get('/policies/rewards/settings', async (_req: any, res) => {
+  try{
+    const s = await db.setting.findUnique({ where: { key: 'points:settings' } })
+    const v: any = (s?.value as any) || {}
+    res.json({ enabled: v.enabled !== false, pointValue: Number(v.pointValue||0.01), expiryDays: Number(v.expiryDays||0) })
+  }catch{ res.json({ enabled: true, pointValue: 0.01, expiryDays: 0 }) }
+})
+
+// Points meta (public): point value + public triggers/redemption
+shop.get('/points/meta', async (_req: any, res) => {
+  try{
+    const s = await db.setting.findUnique({ where: { key: 'points:settings' } })
+    const t = await db.setting.findUnique({ where: { key: 'points:triggers' } })
+    const r = await db.setting.findUnique({ where: { key: 'points:redemption' } })
+    const settings: any = (s?.value as any) || {}
+    const triggers: any = (t?.value as any) || {}
+    const redemption: any = (r?.value as any) || {}
+    const pubTriggers = {
+      purchase: triggers?.purchase || null,
+      registration: triggers?.registration || null,
+      dailyCheckIn: triggers?.dailyCheckIn || null,
+      review: triggers?.review || null,
+      share: triggers?.share || null,
+      referral: triggers?.referral || null,
+    }
+    const pubRedemption = {
+      tiers: Array.isArray(redemption?.tiers)? redemption.tiers: [],
+      minOrderAmount: Number(redemption?.minOrderAmount||0)
+    }
+    res.json({ pointValue: Number(settings?.pointValue||0.01), enabled: settings?.enabled !== false, triggers: pubTriggers, redemption: pubRedemption })
+  }catch{ res.status(200).json({ pointValue: 0.01, enabled: true, triggers: {}, redemption: { tiers:[], minOrderAmount:0 } }) }
+})
+
+// Redeem points to wallet balance
+shop.post('/points/redeem-to-wallet', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    const pts = Math.floor(Number(req.body?.points||0))
+    if (!pts || pts <= 0) return res.status(400).json({ error:'points_required' })
+    // Anti-fraud: rate-limit redemptions per user (max 3/minute)
+    try{
+      const since = new Date(Date.now()-60_000)
+      const count = await db.pointsLedger.count({ where: { userId, reason: 'REDEEM_TO_WALLET' as any, createdAt: { gte: since as any } } })
+      if (count >= 3) return res.status(429).json({ error:'rate_limited' })
+    }catch{}
+    const s = await db.setting.findUnique({ where: { key: 'points:settings' } })
+    const v: any = (s?.value as any) || {}
+    const pointValue = Number(v.pointValue||0.01)
+    const amount = Math.max(0, Math.round((pts * pointValue) * 100) / 100)
+    if (amount <= 0) return res.status(400).json({ error:'point_value_zero' })
+    // Ensure sufficient points
+    const balAgg = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } }) as any
+    const balance = Number(balAgg?._sum?.points || 0)
+    if (balance < pts) return res.status(400).json({ error:'insufficient_points' })
+    // Post ledgers
+    await db.pointsLedger.create({ data: { userId, points: -Math.abs(pts), status: 'CONFIRMED' as any, reason: 'REDEEM_TO_WALLET' } as any })
+    await db.walletLedger.create({ data: { userId, amount: amount, status: 'CONFIRMED' as any, reason: 'POINTS_REDEEM' } as any })
+    res.json({ ok:true, credited: amount })
+  }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
+})
+
+// Daily check-in: award once per day per user
+shop.post('/points/checkin', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    // Load config
+    let pointsPerCheckin = 0
+    try{
+      const t = await db.setting.findUnique({ where: { key: 'points:triggers' } })
+      pointsPerCheckin = Number(((t?.value as any)?.dailyCheckIn?.points)||0)
+    }catch{}
+    if (!pointsPerCheckin || pointsPerCheckin <= 0) return res.status(400).json({ error:'disabled' })
+    // Enforce once per day
+    const now = new Date()
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0,0,0))
+    const existing = await db.pointsLedger.findFirst({ where: { userId, reason: 'DAILY_CHECKIN' as any, createdAt: { gte: start } }, orderBy: { createdAt: 'desc' } })
+    if (existing) return res.status(400).json({ error:'already_checked_in' })
+    await db.pointsLedger.create({ data: { userId, points: Math.trunc(pointsPerCheckin), status: 'CONFIRMED' as any, trigger: 'daily_checkin', reason: 'DAILY_CHECKIN' } as any })
+    const agg = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } }) as any
+    const balance = Number(agg?._sum?.points || 0)
+    res.json({ ok:true, balance })
+  }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
+})
+
+// Generic points events (review/share/like milestones)
+shop.post('/points/event', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    const { type, eventId, meta } = req.body || {}
+    if (!type) return res.status(400).json({ error:'type_required' })
+    // Anti-fraud: require verified contact (email or phone) for earning via events
+    try{
+      const u = await db.user.findUnique({ where: { id: userId }, select: { email: true, phone: true } })
+      if (!u || (!u.email && !u.phone)) return res.status(403).json({ error:'verification_required' })
+    }catch{}
+    // Prevent duplicates via eventId when provided
+    if (eventId) {
+      try { const exists = await db.pointsLedger.findUnique({ where: { eventId: String(eventId) } }); if (exists) return res.json({ ok:true, duplicate:true }); } catch {}
+    }
+    const trig = await loadTriggers()
+    if (trig?.enabled === false) return res.status(400).json({ error:'disabled' })
+    let pts = 0; let reason = 'EVENT'; let status: any = 'CONFIRMED'
+    if (type === 'review'){
+      const base = Math.trunc(Number((trig as any)?.review?.base||0))
+      const bonus = (meta?.hasPhoto && Number((trig as any)?.review?.withPhotoBonus||0)) ? Math.trunc(Number((trig as any)?.review?.withPhotoBonus||0)) : 0
+      pts = Math.max(0, base + bonus)
+      reason = 'REVIEW'
+      const delay = (trig as any)?.confirmDelays?.review
+      if (delay === 'approved' && !meta?.approved) status = 'PENDING'
+    } else if (type === 'like_milestone'){
+      const th = Number((trig as any)?.review?.likeThreshold?.count||0)
+      const bonus = Number((trig as any)?.review?.likeThreshold?.bonus||0)
+      if (th>0 && Number(meta?.likes||0) >= th) { pts = Math.trunc(Math.max(0, bonus)); reason='REVIEW_LIKES' }
+    } else if (type === 'share'){
+      const viewPts = Math.trunc(Number((trig as any)?.share?.view||0))
+      pts = Math.max(0, viewPts)
+      reason='SHARE'
+    } else {
+      return res.status(400).json({ error:'unsupported_type' })
+    }
+    pts = await applyCaps(userId, pts, trig)
+    if (!pts) return res.json({ ok:true, points:0 })
+    await db.pointsLedger.create({ data: { userId, points: Math.trunc(pts), status: status as any, trigger: String(type), reason, eventId: eventId? String(eventId): null as any, meta: meta||null } as any })
+    const agg = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } }) as any
+    return res.json({ ok:true, balance: Number(agg?._sum?.points||0) })
+  }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
+})
+
+// Wallet top-up (mock)
+shop.post('/wallet/topup', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    const amount = Math.max(0, Number(req.body?.amount||0))
+    if (!amount) return res.status(400).json({ error:'amount_required' })
+    await db.walletLedger.create({ data: { userId, amount, status: 'CONFIRMED' as any, reason: 'TOPUP' } as any })
+    res.json({ ok:true })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Referral: my code and link
+shop.get('/referral/code', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    // Ensure Affiliate row with deterministic code
+    const code = String(userId).slice(0, 8).toUpperCase()
+    try { await db.$executeRawUnsafe('INSERT INTO "Affiliate" (id, code, "userId") VALUES ($1,$2,$3) ON CONFLICT (code) DO NOTHING', (require('crypto').randomUUID as ()=>string)(), code, userId) }catch{}
+    const base = `${req.protocol}://${req.get('host')}`
+    const link = `${base}/?ref=${encodeURIComponent(code)}`
+    res.json({ code, link })
+  }catch{ res.status(500).json({ error:'failed' }) }
+})
+
+// Referral: track click (public)
+shop.post('/referral/click', async (req: any, res) => {
+  try{
+    const code = String(req.body?.code||'').toUpperCase()
+    if (!code) return res.status(400).json({ error:'code_required' })
+    await db.$executeRawUnsafe('INSERT INTO "AffiliateClick" (id, code, ip, ua) VALUES ($1,$2,$3,$4)', (require('crypto').randomUUID as ()=>string)(), code, (req.ip||'').toString(), (req.headers['user-agent']||'').toString());
+    res.json({ success:true })
+  }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
+})
+
+// Redeem points to a single-use coupon (self)
+shop.post('/points/redeem', requireAuth, async (req: any, res) => {
+  try{
+    const userId = req.user.userId
+    const pts = Math.floor(Number(req.body?.points||0))
+    if (!pts || pts <= 0) return res.status(400).json({ error:'points_required' })
+    // Load settings
+    const s = await db.setting.findUnique({ where: { key: 'points:settings' } })
+    const v: any = (s?.value as any) || {}
+    const pointValue = Number(v.pointValue||0.01)
+    const amount = Math.max(0, Math.round((pts * pointValue) * 100) / 100)
+    if (amount <= 0) return res.status(400).json({ error:'point_value_zero' })
+    // Ensure sufficient balance
+    const balAgg = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } }) as any
+    const balance = Number(balAgg?._sum?.points || 0)
+    if (balance < pts) return res.status(400).json({ error:'insufficient_points' })
+    // Create single-use coupon
+    const now = new Date()
+    const ends = new Date(Date.now() + (Number(v.couponValidityDays||30) * 864e5))
+    const code = `PTS-${Math.random().toString(36).slice(2,8).toUpperCase()}-${String(userId).slice(0,4).toUpperCase()}`
+    await db.coupon.create({ data: { code, discountType: 'FIXED' as any, discountValue: amount, minOrderAmount: null as any, maxUses: 1 as any, currentUses: 0, validFrom: now as any, validUntil: ends as any, isActive: true } as any })
+    // Post negative ledger
+    await db.pointsLedger.create({ data: { userId, points: -Math.abs(pts), status: 'CONFIRMED' as any, reason: 'REDEEM_TO_COUPON', meta: { code } } as any })
+    return res.json({ ok:true, coupon: { code, type:'FIXED', value: amount } })
+  }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
 })
 
 // Search suggestions

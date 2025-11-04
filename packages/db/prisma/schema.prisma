@@ -97,6 +97,9 @@ model User {
   // Promotions relations
   userRewards       UserReward[]
   claims            Claim[]
+  // Loyalty back-relations
+  pointsLedgers     PointsLedger[]
+  walletLedgers     WalletLedger[]
 }
 
 model Category {
@@ -111,6 +114,10 @@ model Category {
   seoKeywords String[]
   translations Json?
   sortOrder   Int      @default(0)
+  // Loyalty configuration (category-level)
+  loyaltyMultiplier Float?    // optional multiplier applied to points accrual
+  pointsPercent     Float?    // optional percent of product price → points
+  pointsFixed       Int?      // optional fixed points per item
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -137,6 +144,11 @@ model Product {
   dimensions    String?
   brand         String?
   tags          String[]
+  // Loyalty configuration (product-level)
+  pointsFixed       Int?      // fixed points per purchase (per item)
+  pointsPercent     Float?    // percent of price converted to points
+  loyaltyMultiplier Float?    // product-specific multiplier
+  excludeFromPoints Boolean   @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -647,6 +659,55 @@ model LoyaltyPoint {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// Ledger statuses for points and wallet entries
+enum LedgerStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+  REVOKED
+}
+
+// Detailed points ledger with statuses, trigger, expiry, and idempotency eventId
+model PointsLedger {
+  id         String        @id @default(cuid())
+  userId     String
+  points     Int
+  status     LedgerStatus  @default(CONFIRMED)
+  trigger    String?
+  orderId    String?
+  campaignId String?
+  eventId    String?       @unique
+  reason     String?
+  expiresAt  DateTime?
+  meta       Json?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+}
+
+// Wallet ledger to support monetary credit with statuses and expiry
+model WalletLedger {
+  id         String        @id @default(cuid())
+  userId     String
+  amount     Float
+  status     LedgerStatus  @default(CONFIRMED)
+  orderId    String?
+  eventId    String?       @unique
+  reason     String?
+  expiresAt  DateTime?
+  currency   String?
+  meta       Json?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+}
+
 // CMS
 model CMSPage {
   id        String   @id @default(cuid())
@@ -733,10 +794,27 @@ model Vendor {
   storeNumber  String?
   vendorCode   String?  @unique
   isActive     Boolean  @default(true)
+  // Loyalty configuration (vendor-level)
+  loyaltyMultiplier Float?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   products     Product[]
   users        User[]
+}
+
+// Campaigns for promotional multipliers and conditional earning rules
+model PointsCampaign {
+  id          String   @id @default(cuid())
+  name        String
+  multiplier  Float    @default(1)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  enabled     Boolean  @default(true)
+  conditions  Json?    // include/exclude: products/categories/vendors, user segments, utm, geo
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled, startsAt, endsAt])
 }
 
 // Logistics: Drivers

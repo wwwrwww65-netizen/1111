@@ -74,6 +74,13 @@ export default function AdminProductCreate(): JSX.Element {
           setSeoTitle(String(p.seoTitle||''));
           setSeoDescription(String(p.seoDescription||''));
           setDraft(!Boolean(p.isActive));
+          // Loyalty fields
+          try{
+            setPointsFixed(p.pointsFixed!=null ? String(p.pointsFixed) : '');
+            setPointsPercent(p.pointsPercent!=null ? String(p.pointsPercent) : '');
+            setLoyaltyMultiplier(p.loyaltyMultiplier!=null ? String(p.loyaltyMultiplier) : '');
+            setExcludeFromPoints(!!p.excludeFromPoints);
+          }catch{}
           // Restore purchase price from tags or variants if available
           try {
             const tag = (Array.isArray(p.tags)? p.tags: []).find((t:any)=> String(t||'').startsWith('purchase:'));
@@ -1621,6 +1628,11 @@ export default function AdminProductCreate(): JSX.Element {
   const [sku, setSku] = React.useState('');
   const [supplier, setSupplier] = React.useState('');
   const [brand, setBrand] = React.useState('');
+  // Loyalty fields
+  const [pointsFixed, setPointsFixed] = React.useState<string>('');
+  const [pointsPercent, setPointsPercent] = React.useState<string>('');
+  const [loyaltyMultiplier, setLoyaltyMultiplier] = React.useState<string>('');
+  const [excludeFromPoints, setExcludeFromPoints] = React.useState<boolean>(false);
   const [categoryId, setCategoryId] = React.useState('');
   const [vendorId, setVendorId] = React.useState('');
   const [categoryOptions, setCategoryOptions] = React.useState<Array<{id:string;name:string}>>([]);
@@ -2234,6 +2246,10 @@ export default function AdminProductCreate(): JSX.Element {
       stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
       brand: brand || undefined,
+      pointsFixed: pointsFixed===''? undefined : Number(pointsFixed||0),
+      pointsPercent: pointsPercent===''? undefined : Number(pointsPercent||0),
+      loyaltyMultiplier: loyaltyMultiplier===''? undefined : Number(loyaltyMultiplier||0),
+      excludeFromPoints: excludeFromPoints || undefined,
       tags: (()=>{
         const base = [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean) as string[];
         const colorTags = buildColorTagsFromState(baseImages);
@@ -2595,6 +2611,23 @@ export default function AdminProductCreate(): JSX.Element {
               const v = parseLocalizedNumber(e.target.value);
               setSalePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (salePrice||'')));
             }} required className="input" />
+          </label>
+          {/* Loyalty configuration */}
+          <label>
+            نقاط ثابتة (لكل قطعة)
+            <input className="input" placeholder="مثلاً 10" value={pointsFixed} onChange={(e)=> setPointsFixed(e.target.value.replace(/[^0-9]/g,''))} />
+          </label>
+          <label>
+            نسبة من السعر ← نقاط
+            <input className="input" placeholder="مثلاً 0.05" value={pointsPercent} onChange={(e)=> setPointsPercent(e.target.value)} />
+          </label>
+          <label>
+            مضاعف النقاط (للمنتج)
+            <input className="input" placeholder="مثلاً 1.5" value={loyaltyMultiplier} onChange={(e)=> setLoyaltyMultiplier(e.target.value)} />
+          </label>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+            <input type="checkbox" checked={excludeFromPoints} onChange={(e)=> setExcludeFromPoints(e.target.checked)} />
+            <span>استثناء هذا المنتج من النقاط</span>
           </label>
           {type === 'variable' && (
             <>

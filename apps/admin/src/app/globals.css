@@ -249,6 +249,15 @@ select.select option, select.input option { background:#0f1420; color:#e2e8f0; }
 .toast.ok{ border-color:#14532d; background:#052e16 }
 .toast.err{ border-color:#7f1d1d; background:#2a0f0f }
 
+/* modal overlay (match coupons popover feel) */
+.modal{ position:fixed; inset:0; background: rgba(0,0,0,0.45); display:grid; place-items:center; z-index: 120; animation: modalFade var(--dur) var(--ease); }
+.modal .modal-content{ background: var(--panel); color: var(--text); border:1px solid rgba(255,255,255,0.06); border-radius: 14px; width: min(720px, 96vw); max-height: 82vh; overflow:auto; padding: 14px; box-shadow: var(--shadow-lg); }
+@keyframes modalFade{ from{ opacity:0 } to{ opacity:1 } }
+
+/* chips list (selected items) */
+.chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius: 999px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: var(--text); font-size: 12px; }
+
 .nav-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid transparent; border-radius:10px; color:var(--text); text-decoration:none; background:transparent; }
 .nav-item:hover{ background:#101828; border-color:#1f2937; }
 .nav-item.active{ background:linear-gradient(180deg,#0c1220,#0a0f1a); border-color:#233046; }
