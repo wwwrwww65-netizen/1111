@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
-import { MediaPicker } from "../promotions/components/MediaPicker";
+import { MediaPicker } from "../components/MediaPicker";
 
 type Campaign = {
   id: string;
