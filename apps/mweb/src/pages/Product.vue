@@ -2535,12 +2535,15 @@ function injectProductJsonLd(){
     const data: any = {
       '@context': 'https://schema.org/',
       '@type': 'Product',
+      '@id': (typeof window!=='undefined'? window.location.href.split('#')[0]+'#product' : ('/p?id='+id+'#product')),
       name: title.value,
       image: images.value && images.value.length ? images.value : undefined,
       brand: brand.value ? { '@type':'Brand', name: brand.value } : undefined,
+      sku: (product.value as any)?.sku || undefined,
+      description: (safeDescription.value||'').replace(/\s+/g,' ').trim() || undefined,
       offers: {
         '@type': 'Offer',
-        priceCurrency: 'SAR',
+        priceCurrency: 'YER',
         price: Number(price.value||0),
         availability: 'https://schema.org/InStock',
       }
@@ -2575,7 +2578,9 @@ function injectHeadMeta(){
     if (images.value[0]) setMeta('og:image', images.value[0])
     setMeta('og:url', url.href)
     setMeta('product:price:amount', String(Number(price.value||0)))
-    setMeta('product:price:currency', getCurrency())
+    setMeta('product:price:currency', 'YER')
+    setMeta('og:description', (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300))
+    setMeta('product:retailer_item_id', String(id))
   }catch{}
 }
 // ==================== CLUB THEME HELPERS ====================

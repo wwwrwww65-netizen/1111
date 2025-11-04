@@ -3017,24 +3017,52 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
 
         // If we have variants → emit each as an item with item_group_id
         if (Array.isArray(p.variants) && p.variants.length){
-          for (const v of p.variants){
-            const vid = `${p.id}-${v.id}`
-            const vTitle = `${baseTitle} ${v.value? '('+escapeXml(String(v.value))+')':''}`
-            const vPrice = Number(v.price!=null ? v.price : p.price||0)
-            const extra: string[] = [`<g:item_group_id>${p.id}</g:item_group_id>`]
-            const nameLc = String(v.name||'').toLowerCase()
-            let overrideMain:string|undefined; let extraImgs:string[]|undefined
-            if (nameLc.includes('size') || nameLc.includes('مقاس')) extra.push(`<g:size>${escapeXml(String(v.value||''))}</g:size>`)
-            if (nameLc.includes('color') || nameLc.includes('لون')){
-              const ckey = norm(v.value)
-              extra.push(`<g:color>${escapeXml(String(v.value||''))}</g:color>`)
-              if (colorMap.has(ckey)){
-                const arr = colorMap.get(ckey)!
-                overrideMain = arr[0]
-                extraImgs = arr.slice(1,10)
+          const sizeVars = p.variants.filter((vv:any)=>{ const n=norm(vv.name); return /size|مقاس/.test(n) })
+          const colorVars = p.variants.filter((vv:any)=>{ const n=norm(vv.name); return /color|لون/.test(n) })
+          // If we have sizes and colorMap images → generate matrix: size x colors
+          if (sizeVars.length && colorMap.size){
+            for (const sv of sizeVars){
+              const vPrice = Number(sv.price!=null ? sv.price : p.price||0)
+              const sizeVal = String(sv.value||'')
+              for (const [ckey, imgsArr] of colorMap.entries()){
+                const vid = `${p.id}-${sv.id}-${ckey}`
+                const vTitle = `${baseTitle} (${escapeXml(sizeVal)} / ${escapeXml(ckey)})`
+                const extra: string[] = [`<g:item_group_id>${p.id}</g:item_group_id>`, `<g:size>${escapeXml(sizeVal)}</g:size>`, `<g:color>${escapeXml(ckey)}</g:color>`]
+                pushCommon(vid, vTitle, vPrice, extra, imgsArr[0], imgsArr.slice(1,10))
               }
             }
-            pushCommon(vid, vTitle, vPrice, extra, overrideMain, extraImgs)
+          } else if (colorVars.length && p.variants.length){
+            // Colors as variants; if we also have non-color variants (e.g., sizes) fall back to individual color items
+            for (const cv of colorVars){
+              const ckey = norm(cv.value)
+              const vPrice = Number(cv.price!=null ? cv.price : p.price||0)
+              const extra: string[] = [`<g:item_group_id>${p.id}</g:item_group_id>`, `<g:color>${escapeXml(String(cv.value||''))}</g:color>`]
+              const imgsArr = colorMap.get(ckey) || []
+              const vid = `${p.id}-${cv.id}`
+              const vTitle = `${baseTitle} (${escapeXml(String(cv.value||''))})`
+              pushCommon(vid, vTitle, vPrice, extra, imgsArr[0], imgsArr.slice(1,10))
+            }
+          } else {
+            // Fallback: one item per variant as-is
+            for (const v of p.variants){
+              const vid = `${p.id}-${v.id}`
+              const vTitle = `${baseTitle} ${v.value? '('+escapeXml(String(v.value))+')':''}`
+              const vPrice = Number(v.price!=null ? v.price : p.price||0)
+              const extra: string[] = [`<g:item_group_id>${p.id}</g:item_group_id>`]
+              const nameLc = norm(v.name)
+              let overrideMain:string|undefined; let extraImgs:string[]|undefined
+              if (/size|مقاس/.test(nameLc)) extra.push(`<g:size>${escapeXml(String(v.value||''))}</g:size>`)
+              if (/color|لون/.test(nameLc)){
+                const ckey = norm(v.value)
+                extra.push(`<g:color>${escapeXml(String(v.value||''))}</g:color>`)
+                if (colorMap.has(ckey)){
+                  const arr = colorMap.get(ckey)!
+                  overrideMain = arr[0]
+                  extraImgs = arr.slice(1,10)
+                }
+              }
+              pushCommon(vid, vTitle, vPrice, extra, overrideMain, extraImgs)
+            }
           }
         } else {
           // Single-item product
