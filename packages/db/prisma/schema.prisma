@@ -92,6 +92,7 @@ model User {
   loyaltyPoints     LoyaltyPoint[]
   events            Event[]
   sessions          Session[]
+  visitorSessions   VisitorSession[]
   vendor            Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   // Promotions relations
   userRewards       UserReward[]
@@ -152,6 +153,7 @@ model Product {
   inventoryLevels InventoryLevel[] @relation("ProductInventoryLevels")
   guestCartItems GuestCartItem[]
   colors       ProductColor[]
+  analytics    ProductAnalytics[]
 }
 
 model ProductVariant {
