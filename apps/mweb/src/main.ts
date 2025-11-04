@@ -24,6 +24,23 @@ try{
   }
 }catch{}
 
+// Ensure fbp/fbc cookies exist for better CAPI matching
+try{
+  const params = new URLSearchParams(location.search)
+  const fbclid = params.get('fbclid')
+  const now = Math.floor(Date.now()/1000)
+  const setCookie = (k:string,v:string,days=180)=>{ try{ const d = new Date(Date.now()+days*864e5).toUTCString(); document.cookie = `${k}=${encodeURIComponent(v)}; path=/; expires=${d}` }catch{} }
+  if (fbclid){
+    const fbcVal = `fb.1.${now}.${fbclid}`
+    setCookie('_fbc', fbcVal)
+  }
+  if (!document.cookie.includes('_fbp=')){
+    const rand = Math.floor(Math.random()*1e10)
+    const fbpVal = `fb.1.${now}.${rand}`
+    setCookie('_fbp', fbpVal)
+  }
+}catch{}
+
 const manualRoutes = [
   { path: '/mis', component: () => import('./pages/Mis.vue') },
   { path: '/categories', component: () => import('./pages/Categories.vue') },

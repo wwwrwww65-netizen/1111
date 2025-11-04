@@ -132,7 +132,7 @@ export const paymentsRouter = router({
   // Confirm payment
   confirmPayment: protectedProcedure
     .input(confirmPaymentSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { paymentIntentId, paymentMethodId } = input;
       if (isMockPayments) {
         await db.payment.update({ where: { stripeId: paymentIntentId }, data: { status: 'COMPLETED' } });
@@ -226,7 +226,7 @@ export const paymentsRouter = router({
                 custom_data: { value: ord?.total || 0, currency: 'YER', num_items: ord?.items?.length || 0 },
                 action_source: 'website',
               },
-            ]);
+            ], ctx?.req as any);
           } catch {}
         }
       }

@@ -2508,6 +2508,14 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       await db.payment.create({ data: { orderId: order.id, amount, currency: 'SAR', method: method as any, status: 'COMPLETED' } as any });
     }
     await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } });
+    // Fire FB CAPI Purchase (best-effort) with fbp/fbc from cookies
+    try{
+      const { fbSendEvents, hashEmail } = await import('../services/fb');
+      const u = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
+      let fbp: string|undefined; let fbc: string|undefined;
+      try{ const raw = String(req.headers.cookie||''); const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]); const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]); }catch{}
+      await fbSendEvents([{ event_name:'Purchase', user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined }, action_source:'website' }])
+    }catch{}
     // Spawn shipment legs upon payment (approval)
     try {
       const items = await db.orderItem.findMany({ where: { orderId: order.id as any }, include: { product: { select: { vendorId: true } } } });
