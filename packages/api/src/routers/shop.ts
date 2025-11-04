@@ -2096,10 +2096,17 @@ shop.post('/cart/add', requireAuth, async (req: any, res) => {
       const { fbSendEvents, hashEmail } = await import('../services/fb');
       const user = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
       const prod = await db.product.findUnique({ where: { id: productId }, select: { price: true } });
+      // Extract fbp/fbc from cookies if present for better match
+      let fbp: string|undefined; let fbc: string|undefined;
+      try{
+        const raw = String(req.headers.cookie||'');
+        const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]);
+        const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]);
+      }catch{}
       await fbSendEvents([
         {
           event_name: 'AddToCart',
-          user_data: { em: hashEmail(user?.email) },
+          user_data: { em: hashEmail(user?.email), fbp, fbc },
           custom_data: { value: Number(prod?.price||0), currency: 'YER', contents: [{ id: productId, quantity: Number(quantity||1) }], content_type: 'product' },
           action_source: 'website',
         },
@@ -2911,25 +2918,138 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
     const s = await db.setting.findUnique({ where: { key } });
     const expected = (s?.value as any)?.feedToken || '';
     if (!expected || token !== expected) return res.status(403).send('forbidden');
+    // Optional: category -> GPC mapping from settings
+    let gpcMap: Record<string, number> = {};
+    try{ const sm = await db.setting.findUnique({ where: { key: `marketing:facebook:gpcMap:${site}` } }); if (sm?.value) gpcMap = sm.value as any }catch{}
     res.setHeader('Content-Type','application/xml');
     const xml = ['<?xml version="1.0" encoding="UTF-8"?>','<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">','<channel>','<title>JEEEY Catalog</title>','<link>https://jeeey.com</link>','<description>Product feed</description>'];
     const perPage = 1000;
     let lastId: string | null = null;
     for(;;){
-      const page = await db.product.findMany({ where: { isActive: true }, orderBy: { id: 'asc' }, take: perPage, skip: lastId ? 1 : 0, ...(lastId ? { cursor: { id: lastId } } : {}) });
+      const page = await db.product.findMany({ where: { isActive: true }, orderBy: { id: 'asc' }, take: perPage, skip: lastId ? 1 : 0, ...(lastId ? { cursor: { id: lastId } } : {}), include: { variants: true, category: { select: { name: true } }, colors: { include: { images: true } } } } as any);
       if (!page.length) break;
       for (const p of page){
         const img = (p.images||[])[0]||'';
-        xml.push('<item>');
-        xml.push(`<g:id>${p.id}</g:id>`);
-        xml.push(`<title>${escapeXml(p.name)}</title>`);
-        xml.push(`<link>https://jeeey.com/p?id=${p.id}</link>`);
-        xml.push(`<g:price>${(p.price||0).toFixed(2)} YER</g:price>`);
-        xml.push(`<g:image_link>${escapeXml(img)}</g:image_link>`);
-        xml.push(`<g:availability>${p.isActive ? 'in stock' : 'out of stock'}</g:availability>`);
-        if (p.brand) xml.push(`<g:brand>${escapeXml(p.brand)}</g:brand>`);
-        xml.push(`<g:condition>new</g:condition>`);
-        xml.push('</item>');
+        const baseTitle = escapeXml(p.name)
+        const baseLink = `https://jeeey.com/p?id=${p.id}`
+        const baseDesc = escapeXml(String(p.description||'').slice(0,5000))
+        const catName = p.category?.name ? escapeXml(String(p.category.name)) : ''
+        const norm = (s:any)=> String(s||'').trim().toLowerCase()
+        const guessGender = (): string|undefined => {
+          const hay = `${p.name} ${(p.tags||[]).join(' ')}`.toLowerCase()
+          if (/نساء|حريمي|ladies|women|female/.test(hay)) return 'female'
+          if (/رجال|رجالي|men|male/.test(hay)) return 'male'
+          if (/أطفال|اولاد|بنات|kids|children|boys|girls/.test(hay)) return 'kids'
+          if (/مولود|رضع|بيبي|infant|newborn|toddler/.test(hay)) return 'newborn'
+          return undefined
+        }
+        const guessAge = (): string|undefined => {
+          const hay = `${p.name} ${(p.tags||[]).join(' ')}`.toLowerCase()
+          if (/infant|newborn|مولود|رضع/.test(hay)) return 'newborn'
+          if (/toddler|baby|بيبي/.test(hay)) return 'toddler'
+          if (/kids|children|أطفال/.test(hay)) return 'kids'
+          return 'adult'
+        }
+        const guessMaterial = (): string|undefined => {
+          const t = (p.tags||[]).map(norm)
+          const hay = `${norm(p.name)} ${t.join(' ')}`
+          if (/(قطن|cotton)/.test(hay)) return 'cotton'
+          if (/(بوليستر|polyester)/.test(hay)) return 'polyester'
+          if (/(صوف|wool)/.test(hay)) return 'wool'
+          if (/(دينم|denim)/.test(hay)) return 'denim'
+          if (/(جلد|leather)/.test(hay)) return 'leather'
+          if (/(حرير|silk)/.test(hay)) return 'silk'
+          if (/(كتان|linen)/.test(hay)) return 'linen'
+          return undefined
+        }
+        const guessGpc = (): number|undefined => {
+          // 1) exact mapping by category name/id if provided in settings
+          try{
+            if (p.category?.name && gpcMap[p.category.name]) return Number(gpcMap[p.category.name])
+            if (gpcMap[p.id]) return Number(gpcMap[p.id])
+          }catch{}
+          const hay = `${norm(p.name)} ${norm(catName)} ${(p.tags||[]).map(norm).join(' ')}`
+          if (/(shoe|حذاء|جزمة|نعال|صندل)/.test(hay)) return 187 // Shoes
+          if (/(حقيبة|شنطة|bag|handbag|backpack)/.test(hay)) return 118 // Handbags
+          if (/(اكسسوار|accessor)/.test(hay)) return 4179 // Fashion Accessories
+          if (/(ملابس|feminin|tee|t-shirt|قميص|فستان|بنطال|بنطلون|عباية|hood|هودي|بلوزة|تنورة|جاكيت|سروال|تيشيرت|تي شيرت)/.test(hay)) return 1604 // Apparel & Accessories > Clothing
+          return 1604
+        }
+        const colorMap = new Map<string,string[]>();
+        try{
+          const cols:any[] = Array.isArray((p as any).colors) ? (p as any).colors : []
+          for (const c of cols){
+            const key = norm(c.name)
+            const arr:string[] = []
+            if (c.primaryImageUrl) arr.push(String(c.primaryImageUrl))
+            if (Array.isArray(c.images)){
+              for (const im of c.images){ if (im?.url) arr.push(String(im.url)) }
+            }
+            if (arr.length) colorMap.set(key, arr)
+          }
+        }catch{}
+        const pushCommon = (id:string, title:string, price:number, extra: string[] = [], mainImage?: string, extraImages?: string[])=>{
+          xml.push('<item>')
+          xml.push(`<id>${id}</id>`) // non-namespaced id
+          xml.push(`<g:id>${id}</g:id>`)
+          xml.push(`<title>${title}</title>`)
+          xml.push(`<g:title>${title}</g:title>`)
+          xml.push(`<link>${baseLink}</link>`)
+          xml.push(`<g:link>${baseLink}</g:link>`)
+          xml.push(`<g:price>${(price||0).toFixed(2)} YER</g:price>`)
+          const mainImg = mainImage || img
+          xml.push(`<g:image_link>${escapeXml(mainImg)}</g:image_link>`)
+          const allExtra = Array.from(new Set([...(extraImages||[]), ...((p.images||[]).slice(1,10))]))
+          for (const im of allExtra.slice(0,9)){ xml.push(`<g:additional_image_link>${escapeXml(im)}</g:additional_image_link>`) }
+          xml.push(`<g:availability>${p.isActive ? 'in stock' : 'out of stock'}</g:availability>`)
+          if (p.brand) xml.push(`<g:brand>${escapeXml(p.brand)}</g:brand>`)
+          if (p.sku) xml.push(`<g:mpn>${escapeXml(p.sku)}</g:mpn>`)
+          if (baseDesc) xml.push(`<g:description>${baseDesc}</g:description>`)
+          if (catName) xml.push(`<g:product_type>${catName}</g:product_type>`)
+          const gpc = guessGpc(); if (gpc) xml.push(`<g:google_product_category>${gpc}</g:google_product_category>`)
+          const mat = guessMaterial(); if (mat) xml.push(`<g:material>${mat}</g:material>`)
+          const gen = guessGender(); if (gen) xml.push(`<g:gender>${gen}</g:gender>`)
+          const age = guessAge(); if (age) xml.push(`<g:age_group>${age}</g:age_group>`)
+          xml.push(`<g:condition>new</g:condition>`)
+          for (const ex of extra) xml.push(ex)
+          xml.push('</item>')
+        }
+
+        // If we have variants → emit each as an item with item_group_id
+        if (Array.isArray(p.variants) && p.variants.length){
+          for (const v of p.variants){
+            const vid = `${p.id}-${v.id}`
+            const vTitle = `${baseTitle} ${v.value? '('+escapeXml(String(v.value))+')':''}`
+            const vPrice = Number(v.price!=null ? v.price : p.price||0)
+            const extra: string[] = [`<g:item_group_id>${p.id}</g:item_group_id>`]
+            const nameLc = String(v.name||'').toLowerCase()
+            let overrideMain:string|undefined; let extraImgs:string[]|undefined
+            if (nameLc.includes('size') || nameLc.includes('مقاس')) extra.push(`<g:size>${escapeXml(String(v.value||''))}</g:size>`)
+            if (nameLc.includes('color') || nameLc.includes('لون')){
+              const ckey = norm(v.value)
+              extra.push(`<g:color>${escapeXml(String(v.value||''))}</g:color>`)
+              if (colorMap.has(ckey)){
+                const arr = colorMap.get(ckey)!
+                overrideMain = arr[0]
+                extraImgs = arr.slice(1,10)
+              }
+            }
+            pushCommon(vid, vTitle, vPrice, extra, overrideMain, extraImgs)
+          }
+        } else {
+          // Single-item product
+          // Try attach first color name/images if any
+          let overrideMain:string|undefined; let extraImgs:string[]|undefined; let extra:string[] = []
+          try{
+            const key = colorMap.size ? Array.from(colorMap.keys())[0] : ''
+            if (key){
+              const arr = colorMap.get(key)!
+              overrideMain = arr[0]; extraImgs = arr.slice(1,10)
+              extra.push(`<g:color>${escapeXml(key)}</g:color>`)
+            }
+          }catch{}
+          pushCommon(String(p.id), baseTitle, Number(p.price||0), extra, overrideMain, extraImgs)
+        }
       }
       lastId = page[page.length - 1]?.id || null;
       if (page.length < perPage) break;

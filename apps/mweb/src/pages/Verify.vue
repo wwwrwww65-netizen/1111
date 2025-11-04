@@ -245,6 +245,7 @@ async function onSubmit(){
         }
         const rawName = String(me.user.name||'').trim()
         const incomplete = !rawName || rawName.length < 2 || /^\d+$/.test(rawName)
+        try{ const fbq = (window as any).fbq; if (typeof fbq==='function'){ if (r.newUser || incomplete) fbq('track','CompleteRegistration') } }catch{}
         if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
         else router.push(ret)
       } else {

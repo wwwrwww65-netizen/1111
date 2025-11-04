@@ -9,6 +9,8 @@ type FbUserData = {
   fn?: string
   ln?: string
   external_id?: string
+  fbp?: string
+  fbc?: string
 }
 
 type FbEvent = {
