@@ -1028,12 +1028,89 @@ model DeliveryRate {
 
 // Events for Recommendations & Trends
 model Event {
+  id           String   @id @default(cuid())
+  userId       String?
+  anonymousId  String?
+  sessionId    String?
+  name         String
+  pageUrl      String?
+  referrer     String?
+  productId    String?
+  orderId      String?
+  device       String?
+  os           String?
+  browser      String?
+  country      String?
+  city         String?
+  ipHash       String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmContent   String?
+  utmTerm      String?
+  channel      String?
+  properties   Json?
+  createdAt    DateTime @default(now())
+
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([name, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([productId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([utmSource, utmMedium, utmCampaign])
+}
+
+// Visitor sessions for analytics (distinct from auth Session)
+model VisitorSession {
+  id           String   @id @default(cuid())
+  userId       String?
+  anonymousId  String?
+  device       String?
+  os           String?
+  browser      String?
+  country      String?
+  city         String?
+  ipHash       String?
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([anonymousId])
+  @@index([userId])
+  @@index([lastSeenAt])
+}
+
+// Generic daily pre-aggregations for fast KPIs and charts
+model DailyMetric {
+  id         String   @id @default(cuid())
+  date       DateTime
+  metric     String
+  value      Float    @default(0)
+  dimensions Json?
+  updatedAt  DateTime @default(now())
+
+  @@unique([date, metric])
+  @@index([metric, date])
+}
+
+// Per-product analytics rollups (OLAP-friendly)
+model ProductAnalytics {
   id        String   @id @default(cuid())
-  userId    String?
-  name      String
-  properties Json?
-  createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  productId String
+  date      DateTime
+  views     Int      @default(0)
+  addToCart Int      @default(0)
+  purchases Int      @default(0)
+  revenue   Float    @default(0)
+  returns   Int      @default(0)
+  updatedAt DateTime @default(now())
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, date])
+  @@index([date])
 }
 
 // Backups

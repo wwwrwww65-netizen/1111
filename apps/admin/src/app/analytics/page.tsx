@@ -1,6 +1,8 @@
 "use client";
 import React from "react";
 import { resolveApiBase } from "../lib/apiBase";
+import { FilterBar, type AnalyticsFilters } from "./components/FilterBar";
+import { AnalyticsNav } from "./components/AnalyticsNav";
 
 export default function AnalyticsPage(): JSX.Element {
   const [kpis, setKpis] = React.useState<any>({});
@@ -10,9 +12,17 @@ export default function AnalyticsPage(): JSX.Element {
   const [reports, setReports] = React.useState<Array<{name:string;updatedAt:string;config:any}>>([]);
   const [reportName, setReportName] = React.useState<string>("");
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
-  React.useEffect(()=>{ fetch(`${apiBase}/api/admin/analytics`, { credentials:'include' }).then(r=>r.json()).then(j=>setKpis(j.kpis||{})); },[apiBase]);
+  const [filters, setFilters] = React.useState<AnalyticsFilters>({ granularity:'day' });
+  async function loadKpis(cur?: { from?: string; to?: string }){
+    const url = new URL(`${apiBase}/api/admin/analytics`);
+    if (cur?.from) url.searchParams.set('from', cur.from);
+    if (cur?.to) url.searchParams.set('to', cur.to);
+    const j = await (await fetch(url.toString(), { credentials:'include' })).json();
+    setKpis(j.kpis||{});
+  }
+  React.useEffect(()=>{ loadKpis({ from: filters.from, to: filters.to }).catch(()=>{}); },[apiBase]);
   async function loadUtm(){
-    const url = new URL(`${apiBase}/api/admin/analytics/utm/summary`);
+    const url = new URL(`${apiBase}/api/admin/analytics/utm`);
     if (from) url.searchParams.set('from', from);
     if (to) url.searchParams.set('to', to);
     const j = await (await fetch(url.toString(), { credentials:'include' })).json();
@@ -20,11 +30,13 @@ export default function AnalyticsPage(): JSX.Element {
   }
   async function loadReports(){ const j = await (await fetch(`${apiBase}/api/admin/analytics/reports`, { credentials:'include' })).json(); setReports(j.reports||[]); }
   React.useEffect(()=>{ loadUtm().catch(()=>{}); loadReports().catch(()=>{}); },[apiBase]);
-  async function saveReport(){ const cfg = { from, to }; const r = await fetch(`${apiBase}/api/admin/analytics/reports`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name: reportName||`r_${Date.now()}`, config: cfg }) }); if (r.ok) { setReportName(""); await loadReports(); } }
-  async function applyReport(r:any){ const cfg = r?.config||{}; if (cfg.from) setFrom(String(cfg.from).slice(0,10)); if (cfg.to) setTo(String(cfg.to).slice(0,10)); await loadUtm(); }
+  async function saveReport(){ const cfg = { from, to, filters }; const r = await fetch(`${apiBase}/api/admin/analytics/reports`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ name: reportName||`r_${Date.now()}`, config: cfg }) }); if (r.ok) { setReportName(""); await loadReports(); } }
+  async function applyReport(r:any){ const cfg = r?.config||{}; if (cfg.from) setFrom(String(cfg.from).slice(0,10)); if (cfg.to) setTo(String(cfg.to).slice(0,10)); if (cfg.filters) setFilters(cfg.filters); await Promise.all([loadKpis({ from: cfg.from, to: cfg.to }), loadUtm()]); }
   return (
     <main>
-      <h1 style={{ marginBottom: 16 }}>الإحصاءات</h1>
+      <h1 style={{ marginBottom: 16 }}>التحليلات</h1>
+      <AnalyticsNav />
+      <FilterBar value={filters} onChange={setFilters} onApply={()=>{ loadKpis({ from: filters.from, to: filters.to }); loadUtm(); }} />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
         <Card label="المستخدمون" value={kpis.users ?? '-'} />
         <Card label="الطلبات" value={kpis.orders ?? '-'} />
@@ -39,12 +51,20 @@ export default function AnalyticsPage(): JSX.Element {
           <button className="btn" onClick={saveReport}>حفظ كتقرير</button>
         </div>
         <div className="panel" style={{ padding:12 }}>
-          <h3 style={{ marginTop:0 }}>UTM Summary</h3>
+          <h3 style={{ marginTop:0 }}>ملخص UTM</h3>
           <div style={{ overflowX:'auto' }}>
-            <table className="table"><thead><tr><th>source</th><th>medium</th><th>campaign</th><th>count</th></tr></thead><tbody>
+            <table className="table"><thead><tr><th>المصدر</th><th>الوسيط</th><th>الحملة</th><th>العدد</th></tr></thead><tbody>
               {utm.map((u,idx)=> (<tr key={idx}><td>{u.source||'-'}</td><td>{u.medium||'-'}</td><td>{u.campaign||'-'}</td><td>{u.count}</td></tr>))}
               {!utm.length && (<tr><td colSpan={4}>لا بيانات</td></tr>)}
             </tbody></table>
+          </div>
+        </div>
+        <div className="panel" style={{ padding:12 }}>
+          <h3 style={{ marginTop:0 }}>إشارات سريعة</h3>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+            <Spark label="اتجاه الطلبات" color="#22c55e" />
+            <Spark label="اتجاه الإيراد" color="#0ea5e9" />
+            <Spark label="مشاهدات الصفحات" color="#f59e0b" />
           </div>
         </div>
         <div className="panel" style={{ padding:12 }}>
@@ -73,5 +93,29 @@ function Card({ label, value }: { label: string; value: any }): JSX.Element {
   );
 }
 
-// legacy placeholder removed
+function Spark({ label, color }: { label:string; color:string }): JSX.Element {
+  const ref = React.useRef<HTMLDivElement|null>(null);
+  const [data, setData] = React.useState<number[]>([]);
+  React.useEffect(()=>{
+    // simple synthetic sparkline for now (can be replaced with real endpoint)
+    const arr = Array.from({ length: 20 }, ()=> Math.round(Math.random()*100));
+    setData(arr);
+  },[]);
+  React.useEffect(()=>{
+    let disposed = false; async function ensure(){
+      if (!ref.current) return;
+      if (!(window as any).echarts){ await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); }); }
+      if (disposed) return; const echarts=(window as any).echarts; const chart = echarts.init(ref.current);
+      chart.setOption({ backgroundColor:'transparent', grid:{ left:0, right:0, top:10, bottom:0 }, xAxis:{ type:'category', show:false, data: data.map((_,i)=> i) }, yAxis:{ type:'value', show:false }, series:[ { type:'line', data, smooth:true, symbol:'none', lineStyle:{ color }, areaStyle:{ color, opacity:0.12 } } ] });
+      return ()=> { try{ chart.dispose(); }catch{} };
+    }
+    const clean = ensure(); return ()=> { (clean as any)?.(); disposed = true; };
+  },[data, color]);
+  return (
+    <div>
+      <div style={{ color:'var(--sub)', marginBottom:6 }}>{label}</div>
+      <div ref={ref} style={{ width:'100%', height: 60 }} />
+    </div>
+  );
+}
 

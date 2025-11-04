@@ -7632,6 +7632,75 @@ adminRest.get('/analytics/top-products', async (req, res) => {
   }catch(e:any){ return res.status(200).json({ ok:true, items: [] }); }
 });
 
+// Products analytics table
+adminRest.get('/analytics/products/table', async (req, res) => {
+  try{
+    const limit = Math.min(Number(req.query.limit||50), 200);
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const device = (req.query.device as string|undefined)||undefined;
+    const country = (req.query.country as string|undefined)||undefined;
+    const channel = (req.query.channel as string|undefined)||undefined;
+    const utmSource = (req.query.utmSource as string|undefined)||undefined;
+    const utmMedium = (req.query.utmMedium as string|undefined)||undefined;
+    const utmCampaign = (req.query.utmCampaign as string|undefined)||undefined;
+    // aggregate purchases by product
+    const purchases:any[] = await db.$queryRawUnsafe(`
+      SELECT oi."productId" as "productId", SUM(oi.quantity) as purchases
+      FROM "OrderItem" oi
+      GROUP BY oi."productId"
+      ORDER BY purchases DESC
+      LIMIT ${limit}
+    `);
+    const ids = purchases.map(r=> String(r.productId));
+    // Build WHERE for events
+    const evConds: string[] = [ '"productId" IS NOT NULL', '"productId" = ANY($1)' ];
+    const evArgs: any[] = [ ids ];
+    let argIdx = 2;
+    if (from && to){ evConds.push(`"createdAt" BETWEEN $${argIdx} AND $${argIdx+1}`); evArgs.push(from, to); argIdx+=2; }
+    if (device){ evConds.push(`device = $${argIdx}`); evArgs.push(device); argIdx++; }
+    if (country){ evConds.push(`country = $${argIdx}`); evArgs.push(country); argIdx++; }
+    if (channel){ evConds.push(`channel = $${argIdx}`); evArgs.push(channel); argIdx++; }
+    if (utmSource){ evConds.push(`"utmSource" = $${argIdx}`); evArgs.push(utmSource); argIdx++; }
+    if (utmMedium){ evConds.push(`"utmMedium" = $${argIdx}`); evArgs.push(utmMedium); argIdx++; }
+    if (utmCampaign){ evConds.push(`"utmCampaign" = $${argIdx}`); evArgs.push(utmCampaign); argIdx++; }
+    const whereSql = evConds.join(' AND ');
+    const views:any[] = await db.$queryRawUnsafe(`
+      SELECT "productId" as "productId", COUNT(1) as views
+      FROM "Event"
+      WHERE name='product_view' AND ${whereSql}
+      GROUP BY 1
+    `, ...evArgs);
+    const atc:any[] = await db.$queryRawUnsafe(`
+      SELECT "productId" as "productId", COUNT(1) as add_to_cart
+      FROM "Event"
+      WHERE name='add_to_cart' AND ${whereSql}
+      GROUP BY 1
+    `, ...evArgs);
+    const vmap = new Map(views.map((r:any)=> [String(r.productId), Number(r.views||0)]));
+    const amap = new Map(atc.map((r:any)=> [String(r.productId), Number(r.add_to_cart||0)]));
+    const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id:true, name:true, images:true, price:true } });
+    const pmap = new Map(prods.map(p=> [p.id, p]));
+    const rows = purchases.map((r:any)=> {
+      const productId = String(r.productId);
+      const p = pmap.get(productId);
+      const pv = vmap.get(productId)||0;
+      const ac = amap.get(productId)||0;
+      const pur = Number(r.purchases||0);
+      const conv = pv>0 ? (pur/pv) : 0;
+      return { productId, product: p||null, views: pv, addToCart: ac, purchases: pur, conversion: conv };
+    });
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="products_analytics.csv"`);
+      const head = 'productId,name,views,addToCart,purchases,conversion\n';
+      const body = rows.map(r=> `${r.productId},"${(r.product?.name||'').replace(/"/g,'""')}",${r.views},${r.addToCart},${r.purchases},${(r.conversion*100).toFixed(2)}%`).join('\n');
+      return res.send(head+body);
+    }
+    res.json({ ok:true, rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'products_table_failed' }); }
+});
+
 adminRest.get('/analytics/funnels', async (req, res) => {
   try{
     const from = req.query.from ? new Date(String(req.query.from)) : undefined;
@@ -7655,17 +7724,101 @@ adminRest.get('/analytics/segments', async (req, res) => {
   }catch(e:any){ return res.status(200).json({ ok:true, segments: { totalUsers:0, newUsers30d:0, guestCarts:0, userCarts:0 } }); }
 });
 
-adminRest.get('/analytics/realtime', async (_req, res) => {
+adminRest.get('/analytics/realtime', async (req, res) => {
   try{
-    const since = new Date(Date.now() - 5*60*1000);
+    const windowMin = Math.min(Math.max(Number(req.query.windowMin||5), 1), 60);
+    const since = new Date(Date.now() - windowMin*60*1000);
+    const device = (req.query.device as string|undefined)||undefined;
+    const country = (req.query.country as string|undefined)||undefined;
+    const channel = (req.query.channel as string|undefined)||undefined;
+    const base: any = { createdAt: { gte: since } };
+    if (device) base.device = device;
+    if (country) base.country = country;
+    if (channel) base.channel = channel;
     const names = ['page_view','add_to_cart','checkout','purchase'];
     const out: Record<string, number> = {} as any;
     for (const n of names) {
-      const c = await db.event.count({ where: { name: n, createdAt: { gte: since } } as any });
+      const c = await db.event.count({ where: { name: n, ...(base as any) } as any });
       out[n] = c;
     }
-    res.json({ ok:true, windowMin: 5, metrics: out });
+    res.json({ ok:true, windowMin, metrics: out });
   }catch(e:any){ res.status(200).json({ ok:true, windowMin:5, metrics: { page_view:0, add_to_cart:0, checkout:0, purchase:0 } }); }
+});
+
+// Orders & Revenue time-series (daily)
+adminRest.get('/analytics/orders-series', async (req, res) => {
+  try{
+    const g = String(req.query.g||'day');
+    const days = Math.min(Math.max(Number(req.query.days||30), 1), 365);
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const since = from || new Date(Date.now() - days*24*3600*1000);
+    const till = to || new Date();
+    const bucket = ['minute','hour','day','week','month'].includes(g)? g : 'day';
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT to_char(date_trunc('${bucket}', "createdAt"), 'YYYY-MM-DD') as day,
+             COUNT(*) as orders,
+             COALESCE(SUM(total),0) as revenue
+      FROM "Order"
+      WHERE "createdAt" BETWEEN $1 AND $2
+      GROUP BY 1
+      ORDER BY 1
+    `, since, till);
+    const series = rows.map(r=> ({ day: r.day, orders: Number(r.orders||0), revenue: Number(r.revenue||0) }));
+    if (String(req.query.compare||'')==='1' && (since && till)){
+      const span = till.getTime() - since.getTime();
+      const prevFrom = new Date(since.getTime() - span);
+      const prevTo = new Date(since.getTime());
+      const prev:any[] = await db.$queryRawUnsafe(`
+        SELECT to_char(date_trunc('${bucket}', "createdAt"), 'YYYY-MM-DD') as day,
+               COUNT(*) as orders,
+               COALESCE(SUM(total),0) as revenue
+        FROM "Order"
+        WHERE "createdAt" BETWEEN $1 AND $2
+        GROUP BY 1 ORDER BY 1
+      `, prevFrom, prevTo);
+      const prevSeries = prev.map(r=> ({ day: r.day, orders: Number(r.orders||0), revenue: Number(r.revenue||0) }));
+      // include previous for clients that want it
+      (series as any).previous = prevSeries;
+    }
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="orders_series.csv"`);
+      const head = 'day,orders,revenue\n';
+      const body = series.map(r=> `${r.day},${r.orders},${r.revenue}`).join('\n');
+      return res.send(head+body);
+    }
+    res.json({ ok:true, series });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'orders_series_failed' }); }
+});
+
+// Revenue by channel (utm/channel)
+adminRest.get('/analytics/revenue-by-channel', async (_req, res) => {
+  try{
+    // naive: use Event channel/utmSource counts as attribution proxy and Order totals per utm
+    const events:any[] = await db.$queryRawUnsafe(`
+      SELECT COALESCE(channel, COALESCE(utmSource,'')) as channel, COUNT(*) as cnt
+      FROM "Event"
+      GROUP BY 1
+      ORDER BY cnt DESC
+      LIMIT 20
+    `);
+    res.json({ ok:true, channels: events.map(r=> ({ channel: r.channel||'unknown', count: Number(r.cnt||0) })) });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'revenue_by_channel_failed' }); }
+});
+
+// Recent events stream (for realtime/user explorer)
+adminRest.get('/analytics/events/recent', async (req, res) => {
+  try{
+    const limit = Math.min(Math.max(Number(req.query.limit||100), 1), 500);
+    const userId = (req.query.userId as string|undefined) || undefined;
+    const sessionId = (req.query.sessionId as string|undefined) || undefined;
+    const where:any = {};
+    if (userId) where.userId = String(userId);
+    if (sessionId) where.sessionId = String(sessionId);
+    const rows = await db.event.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit } as any);
+    res.json({ ok:true, events: rows });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'events_recent_failed' }); }
 });
 
 adminRest.get('/analytics/cohorts', async (_req, res) => {
@@ -7694,8 +7847,12 @@ adminRest.get('/analytics/cohorts', async (_req, res) => {
   }catch(e:any){ res.status(200).json({ ok:true, cohorts: [] }); }
 });
 
-adminRest.get('/analytics/utm', async (_req, res) => {
+adminRest.get('/analytics/utm', async (req, res) => {
   try{
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const where = from && to ? 'WHERE properties IS NOT NULL AND "createdAt" BETWEEN $1 AND $2' : 'WHERE properties IS NOT NULL';
+    const args = from && to ? [from, to] : [];
     const items = await db.$queryRawUnsafe(`
       SELECT
         COALESCE((properties->>'utm_source'),'') as source,
@@ -7703,13 +7860,221 @@ adminRest.get('/analytics/utm', async (_req, res) => {
         COALESCE((properties->>'utm_campaign'),'') as campaign,
         COUNT(*) as cnt
       FROM "Event"
-      WHERE properties IS NOT NULL
+      ${where}
       GROUP BY 1,2,3
       ORDER BY cnt DESC
       LIMIT 100
-    `);
+    `, ...args);
     res.json({ ok:true, items });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'utm_failed' }); }
+});
+
+// Alerts config stored in settings (key: analytics.alerts)
+adminRest.get('/analytics/alerts', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const row = await db.setting.findUnique({ where: { key: 'analytics.alerts' } });
+    res.json({ ok:true, rules: (row?.value as any) || [] });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'alerts_get_failed' }); }
+});
+
+// Sales summary with profit estimation
+adminRest.get('/analytics/sales/summary', async (req, res) => {
+  try{
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    // Aggregates
+    const [ordersAgg, ordersCount, cancelsCount, refundsAgg] = await Promise.all([
+      db.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: from, lte: to }, status: { in: ['PAID','SHIPPED','DELIVERED'] } } }),
+      db.order.count({ where: { createdAt: { gte: from, lte: to } } }),
+      db.order.count({ where: { createdAt: { gte: from, lte: to }, status: 'CANCELLED' as any } }),
+      db.returnRequest.aggregate({ _sum: { refundAmount: true }, where: { createdAt: { gte: from, lte: to } } } as any)
+    ]);
+    const revenue = Number(ordersAgg._sum.total||0);
+    const refunds = Number((refundsAgg as any)?._sum?.refundAmount||0);
+    // Approximate profit using avg variant cost per product
+    const items:any[] = await db.$queryRawUnsafe(`
+      SELECT oi."productId" as pid, SUM(oi.quantity) as qty, SUM(oi.price*oi.quantity) as rev
+      FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      GROUP BY 1
+    `, from, to);
+    const productIds = (items||[]).map(r=> String(r.pid));
+    const costs:any[] = productIds.length? await db.$queryRawUnsafe(`
+      SELECT pv."productId" as pid, AVG(COALESCE(pv."purchasePrice",0)) as avg_cost
+      FROM "ProductVariant" pv
+      WHERE pv."productId" = ANY($1)
+      GROUP BY 1
+    `, productIds) : [];
+    const costMap = new Map<string, number>((costs||[]).map((r:any)=> [String(r.pid), Number(r.avg_cost||0)]));
+    let cogs = 0;
+    for (const r of (items||[])){
+      const avg = costMap.get(String(r.pid))||0; cogs += avg * Number(r.qty||0);
+    }
+    const profit = Math.max(0, revenue - cogs - refunds);
+    const aov = ordersCount? revenue / ordersCount : 0;
+    res.json({ ok:true, summary: { revenue, orders: ordersCount, cancellations: cancelsCount, refunds, cogs, profit, aov } });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'sales_summary_failed' }); }
+});
+
+// Top sellers by qty/revenue and profit per product
+adminRest.get('/analytics/top-sellers', async (req, res) => {
+  try{
+    const limit = Math.min(Number(req.query.limit||20), 200);
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT oi."productId" as pid, SUM(oi.quantity) as qty, SUM(oi.price*oi.quantity) as revenue
+      FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      GROUP BY 1 ORDER BY revenue DESC LIMIT ${limit}
+    `, from, to);
+    const pids = rows.map(r=> String(r.pid));
+    const prods = await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true, vendorId:true } });
+    const costRows:any[] = pids.length? await db.$queryRawUnsafe(`
+      SELECT pv."productId" as pid, AVG(COALESCE(pv."purchasePrice",0)) as avg_cost
+      FROM "ProductVariant" pv
+      WHERE pv."productId" = ANY($1)
+      GROUP BY 1
+    `, pids) : [];
+    const costMap = new Map<string, number>(costRows.map((r:any)=> [String(r.pid), Number(r.avg_cost||0)]));
+    const pmap = new Map(prods.map(p=> [p.id, p]));
+    const out = rows.map(r=> {
+      const productId = String(r.pid);
+      const revenue = Number(r.revenue||0);
+      const qty = Number(r.qty||0);
+      const avgCost = costMap.get(productId)||0;
+      const cogs = avgCost * qty;
+      const profit = Math.max(0, revenue - cogs);
+      return { productId, product: pmap.get(productId)||null, qty, revenue, avgCost, profit, margin: revenue? profit/revenue : 0 };
+    });
+    res.json({ ok:true, items: out });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'top_sellers_failed' }); }
+});
+
+// Vendors: top by visits and sales
+adminRest.get('/analytics/vendors/top', async (req, res) => {
+  try{
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const visits:any[] = await db.$queryRawUnsafe(`
+      SELECT p."vendorId" as vid, COUNT(*) as visits
+      FROM "Event" e JOIN "Product" p ON p.id = e."productId"
+      WHERE e.name='product_view' AND e."createdAt" BETWEEN $1 AND $2 AND p."vendorId" IS NOT NULL
+      GROUP BY 1 ORDER BY visits DESC LIMIT 50
+    `, from, to);
+    const sales:any[] = await db.$queryRawUnsafe(`
+      SELECT p."vendorId" as vid, SUM(oi.quantity) as qty, SUM(oi.price*oi.quantity) as revenue
+      FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" p ON p.id=oi."productId"
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND p."vendorId" IS NOT NULL AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      GROUP BY 1 ORDER BY revenue DESC LIMIT 50
+    `, from, to);
+    const vids = Array.from(new Set([ ...visits.map(v=> String(v.vid)), ...sales.map(s=> String(s.vid)) ]));
+    const vendors = await db.vendor.findMany({ where: { id: { in: vids } }, select: { id:true, name:true } });
+    const vmap = new Map(vendors.map(v=> [v.id, v]));
+    res.json({ ok:true, vendors: vids.map(id=> ({ vendor: vmap.get(id)||{ id, name: id }, visits: Number((visits.find(v=> String(v.vid)===id)?.visits)||0), revenue: Number((sales.find(s=> String(s.vid)===id)?.revenue)||0), qty: Number((sales.find(s=> String(s.vid)===id)?.qty)||0) })) });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'vendors_top_failed' }); }
+});
+
+// Potential-to-buy recommendations (products)
+adminRest.get('/analytics/recommendations/potential', async (req, res) => {
+  try{
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-14*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const base:any = [from, to];
+    const views:any[] = await db.$queryRawUnsafe(`
+      SELECT "productId" as pid, COUNT(1) as views
+      FROM "Event" WHERE name='product_view' AND "createdAt" BETWEEN $1 AND $2 AND "productId" IS NOT NULL
+      GROUP BY 1
+    `, ...base);
+    const atc:any[] = await db.$queryRawUnsafe(`
+      SELECT "productId" as pid, COUNT(1) as atc
+      FROM "Event" WHERE name='add_to_cart' AND "createdAt" BETWEEN $1 AND $2 AND "productId" IS NOT NULL
+      GROUP BY 1
+    `, ...base);
+    const buys:any[] = await db.$queryRawUnsafe(`
+      SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+      FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      GROUP BY 1
+    `, ...base);
+    const vmap = new Map(views.map((r:any)=> [String(r.pid), Number(r.views||0)]));
+    const amap = new Map(atc.map((r:any)=> [String(r.pid), Number(r.atc||0)]));
+    const bmap = new Map(buys.map((r:any)=> [String(r.pid), Number(r.qty||0)]));
+    const pids = Array.from(new Set([ ...vmap.keys(), ...amap.keys(), ...bmap.keys() ]));
+    const prods = await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true } });
+    const pmap = new Map(prods.map(p=> [p.id, p]));
+    // simple score: 0.5*views_norm + 0.8*atc_norm - 0.6*buys_norm
+    const maxV = Math.max(1, ...Array.from(vmap.values()));
+    const maxA = Math.max(1, ...Array.from(amap.values()));
+    const maxB = Math.max(1, ...Array.from(bmap.values()));
+    const items = pids.map(id=>{
+      const v = vmap.get(id)||0, a = amap.get(id)||0, b = bmap.get(id)||0;
+      const score = 0.5*(v/maxV) + 0.8*(a/maxA) - 0.6*(b/maxB);
+      return { productId: id, product: pmap.get(id)||null, views: v, addToCart: a, purchases: b, score };
+    }).sort((x,y)=> y.score - x.score).slice(0, 50);
+    res.json({ ok:true, items });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'potential_failed' }); }
+});
+adminRest.put('/analytics/alerts', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.write'))) return res.status(403).json({ error:'forbidden' });
+    const rules = Array.isArray(req.body?.rules)? req.body.rules : [];
+    const row = await db.setting.upsert({ where: { key: 'analytics.alerts' }, update: { value: rules }, create: { key:'analytics.alerts', value: rules } });
+    await audit(req, 'analytics', 'alerts_save', { count: rules.length });
+    res.json({ ok:true, rules: row.value });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'alerts_save_failed' }); }
+});
+adminRest.post('/analytics/alerts/test', async (req, res) => {
+  try{
+    const rule = req.body?.rule||{}; // { type:'threshold', metric:'orders', op:'>', value:100, window:'7d' }
+    const type = String(rule.type||'threshold');
+    if (type==='threshold'){
+      const metric = String(rule.metric||'orders');
+      const op = String(rule.op||'>');
+      const value = Number(rule.value||0);
+      const window = String(rule.window||'1d');
+      const ms = window.endsWith('d')? Number(window.slice(0,-1))*24*3600*1000 : 24*3600*1000;
+      const since = new Date(Date.now()-ms);
+      let current = 0;
+      if (metric==='orders'){
+        current = await db.order.count({ where: { createdAt: { gte: since } } });
+      } else if (metric==='revenue'){
+        const agg = await db.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: since } } });
+        current = Number(agg._sum.total||0);
+      } else if (metric==='page_view'){
+        current = await db.event.count({ where: { name:'page_view', createdAt: { gte: since } } as any });
+      }
+      const ok = (op==='>'? current>value : op==='<'? current<value : current===value);
+      return res.json({ ok:true, current, triggered: ok });
+    }
+    return res.json({ ok:true, current:0, triggered:false, unsupported:true });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'alerts_test_failed' }); }
+});
+
+// Privacy & retention settings for analytics
+adminRest.get('/analytics/privacy', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const [ret, ip] = await Promise.all([
+      db.setting.findUnique({ where: { key:'analytics.retentionDays' } }),
+      db.setting.findUnique({ where: { key:'analytics.ipAnonymize' } })
+    ]);
+    res.json({ ok:true, retentionDays: Number((ret?.value as any)?? 365), ipAnonymize: Boolean((ip?.value as any)?? true) });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'privacy_get_failed' }); }
+});
+adminRest.put('/analytics/privacy', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const retentionDays = Math.min(Math.max(Number(req.body?.retentionDays||365), 7), 1825);
+    const ipAnonymize = !!req.body?.ipAnonymize;
+    await Promise.all([
+      db.setting.upsert({ where: { key:'analytics.retentionDays' }, update: { value: retentionDays }, create: { key:'analytics.retentionDays', value: retentionDays } }),
+      db.setting.upsert({ where: { key:'analytics.ipAnonymize' }, update: { value: ipAnonymize }, create: { key:'analytics.ipAnonymize', value: ipAnonymize } })
+    ]);
+    await audit(req, 'analytics', 'privacy_save', { retentionDays, ipAnonymize });
+    res.json({ ok:true, retentionDays, ipAnonymize });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'privacy_save_failed' }); }
 });
 adminRest.post('/reviews/:id/approve', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'reviews.moderate'))) return res.status(403).json({ error:'forbidden' });

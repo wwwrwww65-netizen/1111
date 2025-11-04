@@ -1365,6 +1365,18 @@ shop.get('/products', async (req, res) => {
       orderBy,
       take: limit,
     });
+    // annotate global top-sellers rank and sold counts
+    try{
+      const ranks:any[] = await db.$queryRawUnsafe(`
+        SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+        FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+        GROUP BY 1 ORDER BY qty DESC LIMIT 200
+      `);
+      const rankMap = new Map<string, { rank:number; qty:number }>();
+      let r=1; for (const row of ranks){ rankMap.set(String(row.pid), { rank: r, qty: Number(row.qty||0) }); r++; }
+      (items as any[]).forEach((it:any)=>{ const m = rankMap.get(String(it.id)); if (m){ it.bestRank = m.rank; it.soldPlus = `${m.qty}`; } });
+    }catch{}
     res.json({ items });
   } catch (e) {
     res.status(500).json({ error: 'failed' });
@@ -1383,6 +1395,21 @@ shop.get('/product/:id', async (req, res) => {
       },
     });
     if (!p) return res.status(404).json({ error: 'not_found' });
+    // compute best seller rank within category
+    try{
+      if (p.categoryId){
+        const rows:any[] = await db.$queryRawUnsafe(`
+          SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+          FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
+          WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
+          GROUP BY 1 ORDER BY qty DESC LIMIT 100
+        `, p.categoryId);
+        let rank = 1; let found: { rank:number; qty:number }|null = null;
+        for (const row of rows){ if (String(row.pid)===p.id){ found = { rank, qty: Number(row.qty||0) }; break; } rank++; }
+        (p as any).bestRank = found?.rank; (p as any).bestRankCategory = p.category?.name || '';
+        (p as any).soldPlus = found? String(found.qty) : undefined;
+      }
+    }catch{}
     // Load color galleries (ProductColor + ProductColorImage)
     let colorGalleries: Array<{ name: string; primaryImageUrl?: string|null; isPrimary: boolean; order: number; images: string[] }> = [];
     try {
@@ -1600,6 +1627,18 @@ shop.get('/recommendations/recent', async (_req, res) => {
       orderBy: { updatedAt: 'desc' },
       take: 12,
     });
+    // annotate sold counts and rank (global)
+    try{
+      const ranks:any[] = await db.$queryRawUnsafe(`
+        SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+        FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+        GROUP BY 1 ORDER BY qty DESC LIMIT 200
+      `);
+      const rankMap = new Map<string, { rank:number; qty:number }>(); let r=1;
+      for (const row of ranks){ rankMap.set(String(row.pid), { rank:r, qty: Number(row.qty||0) }); r++; }
+      (items as any[]).forEach((it:any)=>{ const m = rankMap.get(String(it.id)); if (m){ it.bestRank = m.rank; it.soldCount = m.qty; } });
+    }catch{}
     return res.json({ items });
   } catch {
     return res.status(500).json({ error: 'recommend_recent_failed' });
@@ -1618,6 +1657,17 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
       orderBy: { updatedAt: 'desc' },
       take: 12,
     });
+    try{
+      const rows:any[] = await db.$queryRawUnsafe(`
+        SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+        FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
+        WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
+        GROUP BY 1 ORDER BY qty DESC LIMIT 200
+      `, p.categoryId);
+      const rankMap = new Map<string, { rank:number; qty:number }>(); let r=1;
+      for (const row of rows){ rankMap.set(String(row.pid), { rank:r, qty: Number(row.qty||0) }); r++; }
+      (items as any[]).forEach((it:any)=>{ const m = rankMap.get(String(it.id)); if (m){ it.bestRank = m.rank; it.soldCount = m.qty; } });
+    }catch{}
     return res.json({ items });
   } catch {
     return res.status(500).json({ error: 'recommend_similar_failed' });
@@ -1822,6 +1872,87 @@ shop.post('/promotions/events', async (req: any, res) => {
   }catch(e:any){ return res.status(500).json({ error: e?.message||'promo_event_failed' }); }
 });
 
+// General analytics events ingestion (public)
+shop.post('/events', async (req: any, res) => {
+  try{
+    const b = req.body||{};
+    const now = new Date();
+    const name = String(b.name||'').trim();
+    if (!name) return res.status(400).json({ error:'name_required' });
+    // read anonymization setting (defaults true)
+    let anonymize = true;
+    try{ const s = await db.setting.findUnique({ where: { key:'analytics.ipAnonymize' } }); anonymize = s? !!(s.value as any) : true; }catch{}
+    const ip = (req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '') as string;
+    const crypto = require('crypto');
+    const ipHash = anonymize && ip ? crypto.createHash('sha256').update(String(process.env.IP_HASH_SALT||'')+ip).digest('hex').slice(0,32) : null;
+    // identify shop user if cookie/jwt present
+    const header = (req?.headers?.authorization as string|undefined)||'';
+    let tokenAuth = '';
+    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    const jwt = require('jsonwebtoken');
+    let userId: string|undefined;
+    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+
+    // parse user agent (best-effort)
+    const ua = (req.headers['user-agent'] as string||'');
+    function parseUa(s:string){
+      const low = s.toLowerCase();
+      const isMobile = /android|iphone|ipad|mobile/.test(low);
+      const deviceType = isMobile? 'mobile' : 'desktop';
+      let os = /android/.test(low)? 'Android' : /iphone|ipad|ios/.test(low)? 'iOS' : /windows/.test(low)? 'Windows' : /mac os x|macintosh/.test(low)? 'macOS' : /linux/.test(low)? 'Linux' : '';
+      let browser = /chrome\//.test(low)? 'Chrome' : /safari\//.test(low) && !/chrome\//.test(low)? 'Safari' : /firefox\//.test(low)? 'Firefox' : /edg\//.test(low)? 'Edge' : '';
+      let brand = '';
+      if (/samsung|sm-/.test(low)) brand = 'Samsung';
+      else if (/iphone|ipad|macintosh|apple/.test(low)) brand = 'Apple';
+      else if (/huawei|honor/.test(low)) brand = 'Huawei';
+      else if (/xiaomi|mi\s|redmi/.test(low)) brand = 'Xiaomi';
+      else if (/oppo/.test(low)) brand = 'OPPO';
+      else if (/vivo/.test(low)) brand = 'vivo';
+      return { deviceType, os, browser, brand };
+    }
+    const uaInfo = parseUa(ua);
+    const payload:any = {
+      userId: userId||null,
+      anonymousId: b.anonymousId? String(b.anonymousId) : null,
+      sessionId: b.sessionId? String(b.sessionId) : null,
+      name,
+      pageUrl: b.pageUrl? String(b.pageUrl) : null,
+      referrer: b.referrer? String(b.referrer) : null,
+      productId: b.productId? String(b.productId) : null,
+      orderId: b.orderId? String(b.orderId) : null,
+      device: b.device? String(b.device) : (req.headers['x-device'] as string||uaInfo.deviceType||null),
+      os: b.os? String(b.os) : (uaInfo.os||null),
+      browser: b.browser? String(b.browser) : (uaInfo.browser||null),
+      country: b.country? String(b.country) : null,
+      city: b.city? String(b.city) : null,
+      ipHash,
+      utmSource: b.utmSource? String(b.utmSource) : (b.utm_source? String(b.utm_source): null),
+      utmMedium: b.utmMedium? String(b.utmMedium) : (b.utm_medium? String(b.utm_medium): null),
+      utmCampaign: b.utmCampaign? String(b.utmCampaign) : (b.utm_campaign? String(b.utm_campaign): null),
+      utmContent: b.utmContent? String(b.utmContent) : (b.utm_content? String(b.utm_content): null),
+      utmTerm: b.utmTerm? String(b.utmTerm) : (b.utm_term? String(b.utm_term): null),
+      channel: b.channel? String(b.channel) : null,
+      properties: { ...(b.properties||{}), uaBrand: uaInfo.brand||undefined },
+      createdAt: now,
+    };
+
+    // Upsert/update visitor session (best-effort)
+    try{
+      if (payload.sessionId) {
+        await db.visitorSession.upsert({
+          where: { id: String(payload.sessionId) },
+          update: { userId: payload.userId||undefined, lastSeenAt: now, device: payload.device||undefined, os: payload.os||undefined, browser: payload.browser||undefined, country: payload.country||undefined, city: payload.city||undefined, ipHash: payload.ipHash||undefined },
+          create: { id: String(payload.sessionId), userId: payload.userId||undefined, anonymousId: payload.anonymousId||undefined, device: payload.device||undefined, os: payload.os||undefined, browser: payload.browser||undefined, country: payload.country||undefined, city: payload.city||undefined, ipHash: payload.ipHash||undefined, firstSeenAt: now, lastSeenAt: now },
+        } as any);
+      }
+    }catch{}
+
+    await db.event.create({ data: payload } as any);
+    res.json({ ok:true });
+  }catch(e:any){ return res.status(500).json({ error: e?.message||'event_ingest_failed' }); }
+});
+
 // Promotions claim (shop user)
 shop.post('/promotions/claim/start', async (req: any, res) => {
   try{
@@ -1920,7 +2051,19 @@ shop.get('/catalog/:slug', async (req, res) => {
     if (brand) where.brand = { contains: brand, mode: 'insensitive' } as any;
     if (min!=null || max!=null) where.price = { gte: (min!=null && isFinite(min))? Number(min): undefined, lte: (max!=null && isFinite(max))? Number(max): undefined } as any;
     if (tagsAny.length) where.tags = { hasSome: tagsAny } as any;
-    const items = await db.product.findMany({ where, select: { id:true, name:true, price:true, images:true, brand:true, tags:true }, orderBy, take: limit });
+    const items:any[] = await db.product.findMany({ where, select: { id:true, name:true, price:true, images:true, brand:true, tags:true }, orderBy, take: limit });
+    // annotate category best sellers rank and sold counts
+    try{
+      const rows:any[] = await db.$queryRawUnsafe(`
+        SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+        FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" p ON p.id=oi."productId"
+        WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND p."categoryId"=$1
+        GROUP BY 1 ORDER BY qty DESC LIMIT 200
+      `, cat.id);
+      const rankMap = new Map<string, { rank:number; qty:number }>(); let r=1;
+      for (const row of rows){ rankMap.set(String(row.pid), { rank:r, qty: Number(row.qty||0) }); r++; }
+      for (const it of items){ const m = rankMap.get(String(it.id)); if (m){ (it as any).bestRank = m.rank; (it as any).bestRankCategory = 'الفئة'; (it as any).soldPlus = `${m.qty}`; } }
+    }catch{}
     res.json({ items });
   } catch (e:any) {
     res.status(500).json({ error: e?.message||'failed' });
@@ -2498,7 +2641,7 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
     const userId = req.user.userId;
     const id = String(req.params.id);
     const method = String(req.body?.method || 'CASH_ON_DELIVERY');
-    const order = await db.order.findFirst({ where: { id, userId }, include: { payment: true } });
+    const order = await db.order.findFirst({ where: { id, userId }, include: { payment: true, items: true } });
     if (!order) return res.status(404).json({ error: 'not_found' });
     // Upsert payment
     const amount = Number(order.total || 0);

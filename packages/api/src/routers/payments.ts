@@ -226,7 +226,7 @@ export const paymentsRouter = router({
                 custom_data: { value: ord?.total || 0, currency: 'YER', num_items: ord?.items?.length || 0 },
                 action_source: 'website',
               },
-            ], ctx?.req as any);
+            ]);
           } catch {}
         }
       }
