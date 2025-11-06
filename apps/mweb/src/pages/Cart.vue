@@ -123,7 +123,7 @@
               class="inline-flex items-center gap-1 px-3 h-7 rounded-full bg-gray-100 text-[11px] text-gray-700 border border-gray-200"
               aria-label="تعديل اللون والمقاس"
             >
-              <span>{{ item.variantColor || '—' }} / {{ formatSizeForChip(item.variantSize) }}</span>
+              <span>{{ variantLabel(item.variantColor, item.variantSize) }}</span>
               <ChevronDown class="w-3.5 h-3.5 text-gray-500" />
             </button>
 
@@ -181,7 +181,7 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 opacity-60">
                   <span class="text-[13px] font-bold text-[#8a1538]">{{ fmtPrice(item.price) }}</span>
-                  <span v-if="item.variantColor || item.variantSize" class="text-[11px] text-gray-500">{{ item.variantColor || '—' }} / {{ formatSizeForChip(item.variantSize) }}</span>
+                  <span v-if="item.variantColor || item.variantSize" class="text-[11px] text-gray-500">{{ variantLabel(item.variantColor, item.variantSize) }}</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="حذف" @click="cart.remove(item.uid)">
@@ -424,6 +424,15 @@ function formatSizeForChip(s?: string){
   const values = parts.map(p=> p.includes(':')? p.split(':',2)[1]?.trim()||'' : p)
   const cleaned = values.filter(Boolean)
   return cleaned.length ? cleaned.join(' | ') : '—'
+}
+
+function variantLabel(color?: string, size?: string){
+  const c = String(color||'').trim()
+  const s = formatSizeForChip(size)
+  if (c && s !== '—') return `${c} / ${s}`
+  if (c) return c
+  if (s !== '—') return s
+  return ''
 }
 
 function parseSizeComposite(s?: string): Record<string,string> {
@@ -675,7 +684,7 @@ onMounted(async () => {
         const res = await fetch(`${base}/api/product/${encodeURIComponent(it.id)}`, { headers:{ 'Accept':'application/json' } })
         if (!res.ok) return { uid: it.uid, status: 'invalid' as const }
         const d = await res.json()
-        const stock = typeof d.stock === 'number' ? d.stock : (Array.isArray(d.variants)? d.variants.reduce((n:any,v:any)=> n + (Number(v.stockQuantity||0)), 0) : 0)
+    const stock = (typeof d.stock === 'number' ? d.stock : (typeof d.stockQuantity === 'number' ? d.stockQuantity : (Array.isArray(d.variants)? d.variants.reduce((n:any,v:any)=> n + (Number(v.stockQuantity||0)), 0) : 0)))
         const isActive = d?.isActive !== false
         const available = isActive && stock > 0
         return { uid: it.uid, status: available ? null : ('oos' as const) }

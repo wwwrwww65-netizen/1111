@@ -101,6 +101,12 @@ const router = createRouter({
 app.use(router);
 app.mount('#app');
 injectTracking();
-try{ const cart = useCart(); cart.loadLocal() }catch{}
+try{ const cart = useCart(); cart.loadLocal();
+  // If logged in (token cookie present) and local cart is empty, hydrate from server
+  try{
+    const hasTok = document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')
+    if (hasTok) cart.syncFromServer().catch(()=>{})
+  }catch{}
+}catch{}
 try{ initCurrency() }catch{}
 

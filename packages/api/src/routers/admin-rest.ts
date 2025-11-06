@@ -9577,6 +9577,53 @@ async function upsertCategoryMeta(id: string, patch: Record<string, any>): Promi
     );
   } catch {}
 }
+
+// Robust helper: ensure an "uncategorized" category exists and return its id, even if slug column is missing
+async function ensureUncategorizedId(client: any): Promise<string> {
+  // Detect if slug column exists
+  let hasSlug = false;
+  try {
+    const chk: Array<{ exists: boolean }> = await client.$queryRawUnsafe(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_schema='public' AND lower(table_name)='category' AND lower(column_name)='slug'
+       ) AS exists`
+    );
+    hasSlug = !!(chk && chk[0] && (chk[0] as any).exists);
+  } catch {}
+  // Try find by slug if available
+  if (hasSlug) {
+    try {
+      const rows: Array<{ id: string }> = await client.$queryRawUnsafe(
+        `SELECT id FROM "Category" WHERE slug=$1 LIMIT 1`, 'uncategorized'
+      );
+      if (rows && rows[0]?.id) return String(rows[0].id);
+    } catch {}
+  }
+  // Try find by Arabic name fallback
+  try {
+    const rows: Array<{ id: string }> = await client.$queryRawUnsafe(
+      `SELECT id FROM "Category" WHERE name=$1 LIMIT 1`, 'غير مصنف'
+    );
+    if (rows && rows[0]?.id) return String(rows[0].id);
+  } catch {}
+  // Create minimal record
+  const id = (require('crypto').randomUUID as () => string)();
+  try {
+    if (hasSlug) {
+      await client.$executeRawUnsafe(
+        `INSERT INTO "Category" (id, name, slug, "updatedAt") VALUES ($1,$2,$3,NOW()) ON CONFLICT DO NOTHING`,
+        id, 'غير مصنف', 'uncategorized'
+      );
+    } else {
+      await client.$executeRawUnsafe(
+        `INSERT INTO "Category" (id, name, "updatedAt") VALUES ($1,$2,NOW()) ON CONFLICT DO NOTHING`,
+        id, 'غير مصنف'
+      );
+    }
+  } catch {}
+  return id;
+}
 adminRest.get('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) { await audit(req,'categories','forbidden_list',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
@@ -9932,11 +9979,7 @@ adminRest.delete('/categories/:id', async (req, res) => {
 
       // Ensure replacement
       let replacementCategoryId: string | null = cat.parentId || null;
-      if (!replacementCategoryId) {
-        let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-        if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
-        replacementCategoryId = unc.id;
-      }
+      if (!replacementCategoryId) replacementCategoryId = await ensureUncategorizedId(tx);
 
       // Re-parent children and move products
       await tx.category.updateMany({ where: { parentId: id }, data: { parentId: cat.parentId || null } });
@@ -9950,10 +9993,9 @@ adminRest.delete('/categories/:id', async (req, res) => {
     try {
       const cat: { parentId: string|null }[] = await db.$queryRaw`SELECT "parentId" FROM "Category" WHERE id=${id} LIMIT 1`;
       const parentId = cat?.[0]?.parentId ?? null;
-      let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
+      const uncId = await ensureUncategorizedId(db);
       await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentId} WHERE "parentId"=${id}`;
-      await db.$executeRaw`UPDATE "Product" SET "categoryId"=${unc.id} WHERE "categoryId"=${id}`;
+      await db.$executeRaw`UPDATE "Product" SET "categoryId"=${uncId} WHERE "categoryId"=${id}`;
       await db.$executeRaw`DELETE FROM "Category" WHERE id=${id}`;
     } catch (ee:any) {
       return res.status(400).json({ ok:false, code:'category_delete_failed', error: ee.message||e.message||'category_delete_failed' });
@@ -9970,30 +10012,23 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   let deleted = 0;
   try {
     await db.$transaction(async (tx) => {
-      // Ensure replacement category once per batch
-      let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
-      const uncId = unc.id;
-
+      const uncId = await ensureUncategorizedId(tx);
       // Reparent all children away from any target id
-      await tx.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY(${ids}::text[])`;
+      await tx.$executeRawUnsafe(`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY($1::text[])`, ids);
       // Move products from any target id to uncategorized
-      await tx.$executeRaw`UPDATE "Product" SET "categoryId"=${uncId} WHERE "categoryId" = ANY(${ids}::text[])`;
+      await tx.$executeRawUnsafe(`UPDATE "Product" SET "categoryId"=$1 WHERE "categoryId" = ANY($2::text[])`, uncId, ids);
       // Delete all target categories
-      const res: any = await tx.$executeRaw`DELETE FROM "Category" WHERE id = ANY(${ids}::text[])`;
-      // Some drivers return rowCount, some return number
-      deleted = Number((res?.count ?? res?.rowCount ?? res) || 0);
+      const resDel: any = await tx.$executeRawUnsafe(`DELETE FROM "Category" WHERE id = ANY($1::text[])`, ids);
+      deleted = Number((resDel?.count ?? resDel?.rowCount ?? resDel) || 0);
     });
   } catch (e:any) {
     // Fallback raw pass
     try {
-      let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
-      if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
-      const uncId = unc.id;
-      await db.$executeRaw`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY(${ids}::text[])`;
-      await db.$executeRaw`UPDATE "Product" SET "categoryId"=${uncId} WHERE "categoryId" = ANY(${ids}::text[])`;
-      const res: any = await db.$executeRaw`DELETE FROM "Category" WHERE id = ANY(${ids}::text[])`;
-      deleted = Number((res?.count ?? res?.rowCount ?? res) || 0);
+      const uncId = await ensureUncategorizedId(db);
+      await db.$executeRawUnsafe(`UPDATE "Category" SET "parentId"=NULL WHERE "parentId" = ANY($1::text[])`, ids);
+      await db.$executeRawUnsafe(`UPDATE "Product" SET "categoryId"=$1 WHERE "categoryId" = ANY($2::text[])`, uncId, ids);
+      const resDel: any = await db.$executeRawUnsafe(`DELETE FROM "Category" WHERE id = ANY($1::text[])`, ids);
+      deleted = Number((resDel?.count ?? resDel?.rowCount ?? resDel) || 0);
     } catch (ee:any) {
       return res.status(400).json({ ok:false, code:'category_bulk_delete_failed', error: ee.message||e.message||'category_bulk_delete_failed' });
     }

@@ -2580,20 +2580,12 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       if (selectedFromUids) selectedFromUids.forEach(x => s.add(String(x)));
       return s.size ? s : null;
     })();
-    let cartItems = unionSelectedPids ? cart.items.filter(ci => unionSelectedPids.has(String(ci.productId))) : cart.items;
-    if (!cartItems.length) {
-      // Fallback #1: proceed with all server cart items
-      if (cart.items.length) {
-        cartItems = cart.items;
-      } else {
-        // Fallback #2: synthesize lines from selectedFromUids when server cart is empty
-        if (selectedFromUids && selectedFromUids.size) {
-          const ids = Array.from(selectedFromUids);
-          const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, price: true } })
-          cartItems = prods.map((p:any)=> ({ productId: p.id, quantity: 1, product: { price: Number(p.price||0) } } as any))
-        }
-        if (!cartItems.length) return res.status(400).json({ error:'No items selected' });
-      }
+    const cartItems = unionSelectedPids
+      ? cart.items.filter(ci => unionSelectedPids.has(String(ci.productId)))
+      : cart.items;
+    // إذا تم تمرير اختيار (selectedIds أو selectedUids) ولم ينتج أي عناصر، لا نستعمل أي fallback حتى لا نكرر أو نمزج عناصر قديمة
+    if ((selectedProductIds || selectedFromUids) && (!cartItems.length)) {
+      return res.status(400).json({ error: 'No items selected' });
     }
     // Build variant meta map from selectedUids (best-effort): pid -> { color, size, uid, attributes }
     const variantMetaByPid: Record<string, { color?: string; size?: string; uid?: string; attributes?: any }> = {}
@@ -2826,6 +2818,193 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
   } catch {
     res.status(500).json({ error: 'failed' });
   }
+});
+
+// ===== Cart APIs (support both logged-in users and guests with a cookie-bound session) =====
+function parseCookies(req: any): Record<string,string> {
+  const raw = String(req.headers?.cookie||'');
+  const out: Record<string,string> = {};
+  for (const part of raw.split(';')){
+    const [k,...rest] = part.split('=');
+    if (!k) continue;
+    const key = k.trim();
+    const val = rest.join('=');
+    if (!key) continue;
+    out[key] = decodeURIComponent((val||'').trim());
+  }
+  return out;
+}
+async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: string; cartId: string }>{
+  const cookies = parseCookies(req);
+  let sid = cookies['guest_sid'];
+  const uuid = (require('crypto').randomUUID as ()=>string)();
+  if (!sid) {
+    sid = (require('crypto').randomUUID as ()=>string)();
+    try { res.setHeader('Set-Cookie', `guest_sid=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`); } catch {}
+  }
+  // Ensure DB row exists
+  let row: any[] = [];
+  try { row = await db.$queryRawUnsafe('SELECT id FROM "GuestCart" WHERE "sessionId"=$1 LIMIT 1', sid); } catch {}
+  let cartId = row?.[0]?.id as string | undefined;
+  if (!cartId){
+    cartId = uuid;
+    try { await db.$executeRawUnsafe('INSERT INTO "GuestCart" (id, "sessionId") VALUES ($1,$2) ON CONFLICT ("sessionId") DO NOTHING', cartId, sid); } catch {}
+    if (!row?.length){
+      try { const r2:any[] = await db.$queryRawUnsafe('SELECT id FROM "GuestCart" WHERE "sessionId"=$1 LIMIT 1', sid); cartId = r2?.[0]?.id || cartId; } catch {}
+    }
+  }
+  return { sessionId: sid, cartId: String(cartId) };
+}
+
+shop.get('/cart', async (req: any, res) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    if (userId) {
+      const cart = await db.cart.findUnique({ where: { userId }, include: { items: true } });
+      if (!cart) return res.json({ cart: { items: [] } });
+      const productIds = Array.from(new Set(cart.items.map((it: any) => it.productId)));
+      const prods = await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, price: true, images: true } });
+      const byId = new Map(prods.map((p:any)=> [String(p.id), p]));
+      const items = cart.items.map((ci:any)=> ({ productId: ci.productId, quantity: ci.quantity, product: byId.get(String(ci.productId)) || { id: ci.productId, name: ci.productId, price: 0, images: [] } }));
+      return res.json({ cart: { items } });
+    }
+    // Guest
+    const { cartId } = await getOrCreateGuestCartId(req, res);
+    const rows: any[] = await db.$queryRawUnsafe('SELECT "productId", "quantity" FROM "GuestCartItem" WHERE "guestCartId"=$1', cartId);
+    const productIds = Array.from(new Set((rows||[]).map(r=> String(r.productId))));
+    const prods = productIds.length ? await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, price: true, images: true } }) : [];
+    const byId = new Map(prods.map((p:any)=> [String(p.id), p]));
+    const items = (rows||[]).map(r=> ({ productId: String(r.productId), quantity: Number(r.quantity||0), product: byId.get(String(r.productId)) || { id: r.productId, name: r.productId, price: 0, images: [] } }));
+    return res.json({ cart: { items } });
+  } catch { return res.json({ cart: { items: [] } }); }
+});
+
+shop.post('/cart/merge', async (req: any, res) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'unauthorized' });
+    const items: Array<{ productId: string; quantity: number }> = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) return res.json({ ok: true });
+    // Ensure cart exists
+    let cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
+    if (!cart) cart = await db.cart.create({ data: { userId } });
+    const cartId = cart.id;
+    // Aggregate quantities per product
+    const agg = new Map<string, number>();
+    for (const it of items) {
+      const pid = String(it.productId);
+      const q = Math.max(1, Number(it.quantity||1));
+      agg.set(pid, (agg.get(pid)||0) + q);
+    }
+    // Also merge any existing guest cart by session cookie if present
+    try {
+      const { cartId: guestCartId } = await getOrCreateGuestCartId(req, res);
+      const rows: any[] = await db.$queryRawUnsafe('SELECT "productId", "quantity" FROM "GuestCartItem" WHERE "guestCartId"=$1', guestCartId);
+      for (const r of (rows||[])) {
+        const pid = String(r.productId);
+        const q = Math.max(1, Number(r.quantity||1));
+        agg.set(pid, (agg.get(pid)||0) + q);
+      }
+      // Clear guest cart after merging
+      try { await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1', guestCartId); } catch {}
+      try { await db.$executeRawUnsafe('DELETE FROM "GuestCart" WHERE id=$1', guestCartId); } catch {}
+    } catch {}
+    for (const [pid, qty] of agg.entries()) {
+      // Upsert by unique (cartId, productId) if exists; else create
+      try {
+        const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
+        if (existing) {
+          await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty } });
+        } else {
+          await db.cartItem.create({ data: { cartId, productId: pid, quantity: qty } });
+        }
+      } catch {}
+    }
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'merge_failed' }); }
+});
+
+shop.post('/cart/add', async (req: any, res) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    const { productId, quantity } = req.body || {};
+    if (!productId) return res.status(400).json({ error: 'productId_required' });
+    const q = Math.max(1, Number(quantity||1));
+    if (userId) {
+      let cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
+      if (!cart) cart = await db.cart.create({ data: { userId } });
+      const cartId = cart.id;
+      const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } });
+      if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } });
+      else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q } });
+    } else {
+      const { cartId } = await getOrCreateGuestCartId(req, res);
+      const id = (require('crypto').randomUUID as ()=>string)();
+      await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "guestCartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("guestCartId","productId") DO UPDATE SET "quantity" = "GuestCartItem"."quantity" + EXCLUDED."quantity"', id, cartId, String(productId), q);
+    }
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'add_failed' }); }
+});
+
+shop.post('/cart/update', async (req: any, res) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    const { productId, quantity } = req.body || {};
+    if (!productId) return res.status(400).json({ error: 'productId_required' });
+    const q = Math.max(0, Number(quantity||0));
+    if (userId) {
+      const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
+      if (!cart) return res.json({ ok: true });
+      const cartId = cart.id;
+      const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } });
+      if (!existing) return res.json({ ok: true });
+      if (q === 0) await db.cartItem.delete({ where: { id: existing.id } });
+      else await db.cartItem.update({ where: { id: existing.id }, data: { quantity: q } });
+    } else {
+      const { cartId } = await getOrCreateGuestCartId(req, res);
+      if (q === 0) {
+        await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1 AND "productId"=$2', cartId, String(productId));
+      } else {
+        // Ensure row exists or update
+        const id = (require('crypto').randomUUID as ()=>string)();
+        await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "guestCartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("guestCartId","productId") DO UPDATE SET "quantity"=$4', id, cartId, String(productId), q);
+      }
+    }
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'update_failed' }); }
+});
+
+shop.post('/cart/remove', async (req: any, res) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    const { productId } = req.body || {};
+    if (!productId) return res.status(400).json({ error: 'productId_required' });
+    if (userId) {
+      const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
+      if (!cart) return res.json({ ok: true });
+      const existing = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) }, select: { id: true } });
+      if (existing) await db.cartItem.delete({ where: { id: existing.id } });
+    } else {
+      const { cartId } = await getOrCreateGuestCartId(req, res);
+      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1 AND "productId"=$2', cartId, String(productId));
+    }
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'remove_failed' }); }
+});
+
+shop.post('/cart/clear', async (req: any, res) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    if (userId) {
+      const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
+      if (!cart) return res.json({ ok: true });
+      await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+    } else {
+      const { cartId } = await getOrCreateGuestCartId(req, res);
+      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1', cartId);
+    }
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: 'clear_failed' }); }
 });
 
 // Order detail

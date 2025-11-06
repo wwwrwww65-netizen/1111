@@ -246,6 +246,15 @@ async function onSubmit(){
         const rawName = String(me.user.name||'').trim()
         const incomplete = !rawName || rawName.length < 2 || /^\d+$/.test(rawName)
         try{ const fbq = (window as any).fbq; if (typeof fbq==='function'){ if (r.newUser || incomplete) fbq('track','CompleteRegistration') } }catch{}
+        // Merge local cart into server, then hydrate cart from server so items persist across devices
+        try{
+          const { useCart } = await import('@/store/cart')
+          const cart = useCart()
+          const items = Array.isArray(cart.items) ? cart.items.map(i=>({ productId: i.id, quantity: i.qty })) : []
+          if (items.length) await apiPost('/api/cart/merge', { items })
+          await cart.syncFromServer()
+          cart.saveLocal()
+        }catch{}
         if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
         else router.push(ret)
       } else {

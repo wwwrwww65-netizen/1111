@@ -71,7 +71,7 @@
       </div>
 
       <!-- الألوان -->
-      <div class="mb-4">
+      <div class="mb-4" v-if="productColors.length">
         <div class="text-[12px] text-gray-700 mb-2 text-right">اللون: {{ selectedColor || '—' }}</div>
         <div class="flex items-center gap-2 overflow-x-auto no-scrollbar justify-start">
           <template v-if="!loading">
@@ -99,7 +99,7 @@
       </div>
 
       <!-- المقاسات -->
-      <div class="mb-3">
+      <div class="mb-3" v-if="productGroups.length || productSizes.length">
         <!-- Render groups in separate rows when available -->
         <template v-if="productGroups.length">
           <div class="space-y-3">
@@ -183,7 +183,7 @@ const props = defineProps<{
   wishlistActive?: boolean
 }>()
 
-const selectedColor = ref(props.selectedColor || 'أبيض')
+const selectedColor = ref(props.selectedColor || '')
 const selectedSize = ref('')
 const groupValues = ref<Record<string,string>>({})
 const notice = ref(false)
