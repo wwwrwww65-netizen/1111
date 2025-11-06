@@ -2552,7 +2552,22 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, paymentMethod, shippingMethodId, walletUse, pointsUse } = req.body || {};
-    const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: { include: { category: { select: { loyaltyMultiplier: true } }, vendor: { select: { loyaltyMultiplier: true } } } } } } } });
+    // Build include dynamically to avoid querying missing columns on legacy DBs
+    const hasCatLoyalty: boolean = (() => { return false; })();
+    let _hasCatLoyalty = hasCatLoyalty;
+    try {
+      const chk: Array<{ exists: boolean } & Record<string, unknown>> = await db.$queryRawUnsafe(
+        `SELECT EXISTS (
+           SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'Category' AND column_name = 'loyaltyMultiplier'
+         ) AS exists`
+      );
+      _hasCatLoyalty = !!(chk && chk[0] && (chk[0] as any).exists);
+    } catch {}
+    const productInclude = _hasCatLoyalty
+      ? { include: { category: { select: { loyaltyMultiplier: true } }, vendor: { select: { loyaltyMultiplier: true } } } }
+      : { include: { vendor: { select: { loyaltyMultiplier: true } } } };
+    const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: productInclude } } } });
     if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
     const selectedProductIds = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
     const selectedUidsList: string[] = Array.isArray(selectedUids) && selectedUids.length ? selectedUids.map(String) : [];

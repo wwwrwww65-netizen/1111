@@ -117,8 +117,23 @@ async function ensureSchema(): Promise<void> {
     try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "pointsPercent" DOUBLE PRECISION'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "loyaltyMultiplier" DOUBLE PRECISION'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "excludeFromPoints" BOOLEAN DEFAULT FALSE'); } catch {}
-    // Minimal Category compatibility: avoid broad DDL, but add loyaltyMultiplier to prevent Prisma SELECT errors
-    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "loyaltyMultiplier" DOUBLE PRECISION'); } catch {}
+    // Minimal Category compatibility: avoid broad DDL; guard against 1600 columns limit
+    try {
+      await db.$executeRawUnsafe(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'Category' AND column_name = 'loyaltyMultiplier'
+          ) AND (
+            SELECT COALESCE(MAX(attnum),0)
+            FROM pg_attribute
+            WHERE attrelid = '"Category"'::regclass AND attnum > 0 AND NOT attisdropped
+          ) < 1600 THEN
+            ALTER TABLE "Category" ADD COLUMN "loyaltyMultiplier" DOUBLE PRECISION;
+          END IF;
+        END$$;`);
+    } catch {}
     // Ensure FK from Product.vendorId -> Vendor.id
     await db.$executeRawUnsafe(
       "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Product_vendorId_fkey') THEN ALTER TABLE \"Product\" ADD CONSTRAINT \"Product_vendorId_fkey\" FOREIGN KEY (\"vendorId\") REFERENCES \"Vendor\"(\"id\") ON DELETE SET NULL; END IF; END $$;"
@@ -190,6 +205,17 @@ async function ensureSchema(): Promise<void> {
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "PointsCampaign_enabled_idx" ON "PointsCampaign"("enabled","startsAt","endsAt")');
+
+    // Ensure Postgres enum for LedgerStatus exists (align with Prisma enum)
+    try {
+      await db.$executeRawUnsafe(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LedgerStatus') THEN
+            CREATE TYPE "LedgerStatus" AS ENUM ('PENDING','CONFIRMED','EXPIRED','REVOKED');
+          END IF;
+        END$$;`);
+    } catch {}
 
     // Tab Page Builder tables (idempotent)
     // Ensure Postgres ENUM types expected by Prisma exist
@@ -419,6 +445,16 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
         ')'
       );
     } catch {}
+    // Ensure Postgres enum for LedgerStatus exists in production as well
+    try {
+      await db.$executeRawUnsafe(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LedgerStatus') THEN
+            CREATE TYPE "LedgerStatus" AS ENUM ('PENDING','CONFIRMED','EXPIRED','REVOKED');
+          END IF;
+        END$$;`);
+    } catch {}
     // Ensure Prisma PointsLedger and WalletLedger exist for loyalty/wallet features
     try {
       await db.$executeRawUnsafe(
@@ -439,6 +475,21 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       );
       await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "PointsLedger_eventId_key" ON "PointsLedger"("eventId") WHERE "eventId" IS NOT NULL');
       await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "PointsLedger_user_status_created_idx" ON "PointsLedger"("userId","status","createdAt")');
+      // Coerce legacy TEXT status to Postgres enum LedgerStatus if needed
+      try {
+        await db.$executeRawUnsafe(`
+          DO $$
+          BEGIN
+            IF EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'PointsLedger' AND column_name = 'status' AND data_type = 'text'
+            ) THEN
+              ALTER TABLE "PointsLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
+              USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
+              ALTER TABLE "PointsLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";
+            END IF;
+          END$$;`);
+      } catch {}
     } catch {}
     try {
       await db.$executeRawUnsafe(
@@ -459,6 +510,21 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       );
       await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "WalletLedger_eventId_key" ON "WalletLedger"("eventId") WHERE "eventId" IS NOT NULL');
       await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "WalletLedger_user_status_created_idx" ON "WalletLedger"("userId","status","createdAt")');
+      // Coerce legacy TEXT status to Postgres enum LedgerStatus if needed
+      try {
+        await db.$executeRawUnsafe(`
+          DO $$
+          BEGIN
+            IF EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'WalletLedger' AND column_name = 'status' AND data_type = 'text'
+            ) THEN
+              ALTER TABLE "WalletLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
+              USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
+              ALTER TABLE "WalletLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";
+            END IF;
+          END$$;`);
+      } catch {}
     } catch {}
   // CategoryMeta fallback storage for legacy DBs lacking SEO columns on Category
   try {
