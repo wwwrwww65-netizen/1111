@@ -104,12 +104,19 @@ async function ensureSchema(): Promise<void> {
     );
     // Ensure vendorCode column exists before creating its index
     try { await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "vendorCode" TEXT'); } catch {}
+    // Ensure loyaltyMultiplier exists for vendor-level loyalty config
+    try { await db.$executeRawUnsafe('ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "loyaltyMultiplier" DOUBLE PRECISION'); } catch {}
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "Vendor_name_key" ON "Vendor"("name")');
     try {
       await db.$executeRawUnsafe(`DO $$ BEGIN IF to_regclass('public."Vendor_vendorCode_key"') IS NULL THEN CREATE UNIQUE INDEX "Vendor_vendorCode_key" ON "Vendor"("vendorCode"); END IF; END $$;`);
     } catch {}
     await db.$executeRawUnsafe('ALTER TABLE "ProductVariant" ADD COLUMN IF NOT EXISTS "purchasePrice" DOUBLE PRECISION');
     await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "vendorId" TEXT');
+    // Ensure product-level loyalty columns exist to match Prisma schema
+    try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "pointsFixed" INTEGER'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "pointsPercent" DOUBLE PRECISION'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "loyaltyMultiplier" DOUBLE PRECISION'); } catch {}
+    try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "excludeFromPoints" BOOLEAN DEFAULT FALSE'); } catch {}
     // Ensure FK from Product.vendorId -> Vendor.id
     await db.$executeRawUnsafe(
       "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Product_vendorId_fkey') THEN ALTER TABLE \"Product\" ADD CONSTRAINT \"Product_vendorId_fkey\" FOREIGN KEY (\"vendorId\") REFERENCES \"Vendor\"(\"id\") ON DELETE SET NULL; END IF; END $$;"

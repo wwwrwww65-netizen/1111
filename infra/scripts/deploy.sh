@@ -104,8 +104,12 @@ rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
  (cd "$ROOT_DIR/apps/admin" && pnpm install --no-frozen-lockfile --prod=false) || true
 pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && ./node_modules/.bin/next build)
 pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && ./node_modules/.bin/next build)
-# Ensure Category SEO columns after DB/API are compiled and Prisma client exists
-(cd "$ROOT_DIR/packages/api" && node scripts/ensure-category-seo.js) || true
+# Ensure Category SEO columns (opt-in). Disabled by default to avoid 54011 on legacy wide tables.
+if [ "${DEPLOY_ENABLE_CATEGORY_SEO:-0}" = "1" ]; then
+  (cd "$ROOT_DIR/packages/api" && node scripts/ensure-category-seo.js) || true
+else
+  echo "[deploy] Skipping ensure-category-seo (DEPLOY_ENABLE_CATEGORY_SEO!=1)"
+fi
 # Build mobile web (m.jeeey.com) if present (Vite) - REQUIRED
 if [ -d "$ROOT_DIR/apps/mweb" ]; then
   rm -rf "$ROOT_DIR/apps/mweb/dist" || true
