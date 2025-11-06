@@ -3608,6 +3608,33 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
             if (arr.length) colorMap.set(key, arr)
           }
         }catch{}
+        // Helpers to sanitize variant value coming from attributes_map (may contain JSON/labels)
+        const parseVariantValue = (raw:any): { valueText:string; color?:string; size?:string } => {
+          try{
+            if (raw && typeof raw==='object'){
+              const lbl = (raw as any).label || ''
+              const color = (raw as any).color || undefined
+              const size = (raw as any).size || undefined
+              return { valueText: String(lbl||size||color||'').trim(), color: color? String(color).trim(): undefined, size: size? String(size).trim(): undefined }
+            }
+            const s = String(raw||'').trim()
+            if (!s) return { valueText: '' }
+            if (s.startsWith('{') && s.endsWith('}')){
+              try{ const j = JSON.parse(s); return parseVariantValue(j) }catch{}
+            }
+            // e.g. "مقاسات بالأحرف:L|مقاسات بالأرقام:100" or "مقاسات بالأحرف:L"
+            if (/مقاسات\s*بال/.test(s) || /size/i.test(s)){
+              const parts = s.split('|').map(x=> x.trim())
+              const sizes: string[] = []
+              for (const p of parts){
+                const m = p.split(':',2); const val = (m[1]||m[0]||'').trim(); if (val) sizes.push(val)
+              }
+              return { valueText: sizes.join(' / '), size: sizes.join(' / ') }
+            }
+            // otherwise treat as plain token (color or size)
+            return { valueText: s }
+          }catch{ return { valueText: String(raw||'') } }
+        }
         const pushCommon = (id:string, title:string, price:number, extra: string[] = [], mainImage?: string, extraImages?: string[])=>{
           xml.push('<item>')
           xml.push(`<id>${id}</id>`) // non-namespaced id
@@ -3663,26 +3690,36 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
               pushCommon(vid, vTitle, vPrice, extra, imgsArr[0], imgsArr.slice(1,10))
             }
           } else {
-            // Fallback: one item per variant as-is
-            for (const v of p.variants){
-              const vid = `${p.id}-${v.id}`
-              const vTitle = `${baseTitle} ${v.value? '('+escapeXml(String(v.value))+')':''}`
-              const vPrice = Number(v.price!=null ? v.price : p.price||0)
-              const extra: string[] = [`<g:item_group_id>${p.id}</g:item_group_id>`]
-              const nameLc = norm(v.name)
-              let overrideMain:string|undefined; let extraImgs:string[]|undefined
-              if (/size|مقاس/.test(nameLc)) extra.push(`<g:size>${escapeXml(String(v.value||''))}</g:size>`)
-              if (/color|لون/.test(nameLc)){
-                const ckey = norm(v.value)
-                extra.push(`<g:color>${escapeXml(String(v.value||''))}</g:color>`)
-                if (colorMap.has(ckey)){
-                  const arr = colorMap.get(ckey)!
-                  overrideMain = arr[0]
-                  extraImgs = arr.slice(1,10)
-                }
+          // Fallback: one item per variant as-is, but sanitize JSON-like values into plain color/size tokens
+          for (const v of p.variants){
+            const vid = `${p.id}-${v.id}`
+            const nameLc = norm(v.name)
+            const parsed = parseVariantValue((v as any).value)
+            let sizeLabel: string | undefined
+            let colorLabel: string | undefined
+            if (/size|مقاس/.test(nameLc)) sizeLabel = parsed.size || parsed.valueText
+            if (/color|لون/.test(nameLc)) colorLabel = parsed.color || parsed.valueText
+            // Title suffix "(size / color)" if present
+            const suffixParts: string[] = []
+            if (sizeLabel) suffixParts.push(sizeLabel)
+            if (colorLabel) suffixParts.push(colorLabel)
+            const suffix = suffixParts.length ? ` (${escapeXml(suffixParts.join(' / '))})` : ''
+            const vTitle = `${baseTitle}${suffix}`
+            const vPrice = Number(v.price!=null ? v.price : p.price||0)
+            const extra: string[] = [`<g:item_group_id>${p.id}</g:item_group_id>`]
+            let overrideMain:string|undefined; let extraImgs:string[]|undefined
+            if (sizeLabel) extra.push(`<g:size>${escapeXml(sizeLabel)}</g:size>`)
+            if (colorLabel){
+              extra.push(`<g:color>${escapeXml(colorLabel)}</g:color>`)
+              const ckey = norm(colorLabel)
+              if (colorMap.has(ckey)){
+                const arr = colorMap.get(ckey)!
+                overrideMain = arr[0]
+                extraImgs = arr.slice(1,10)
               }
-              pushCommon(vid, vTitle, vPrice, extra, overrideMain, extraImgs)
             }
+            pushCommon(vid, vTitle, vPrice, extra, overrideMain, extraImgs)
+          }
           }
         } else {
           // Single-item product
