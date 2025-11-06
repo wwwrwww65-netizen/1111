@@ -484,6 +484,11 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
               SELECT 1 FROM information_schema.columns
               WHERE table_schema = 'public' AND table_name = 'PointsLedger' AND column_name = 'status' AND data_type = 'text'
             ) THEN
+              -- Drop default before changing type to avoid 42804
+              BEGIN
+                ALTER TABLE "PointsLedger" ALTER COLUMN "status" DROP DEFAULT;
+              EXCEPTION WHEN others THEN NULL;
+              END;
               ALTER TABLE "PointsLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
               USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
               ALTER TABLE "PointsLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";
@@ -519,6 +524,11 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
               SELECT 1 FROM information_schema.columns
               WHERE table_schema = 'public' AND table_name = 'WalletLedger' AND column_name = 'status' AND data_type = 'text'
             ) THEN
+              -- Drop default before changing type to avoid 42804
+              BEGIN
+                ALTER TABLE "WalletLedger" ALTER COLUMN "status" DROP DEFAULT;
+              EXCEPTION WHEN others THEN NULL;
+              END;
               ALTER TABLE "WalletLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
               USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
               ALTER TABLE "WalletLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";

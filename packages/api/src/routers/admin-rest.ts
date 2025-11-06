@@ -9879,7 +9879,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
     if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
     if (translations !== undefined && cols.translations) data.translations = translations;
     if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
-    const c = await db.category.update({ where: { id }, data });
+    const c = await db.category.update({ where: { id }, data, select: { id: true, name: true } as any });
     // Fallback meta update for missing columns
     const metaPatch: Record<string, any> = {};
     if (!cols.description && description !== undefined) metaPatch.description = description;
@@ -9912,7 +9912,7 @@ adminRest.patch('/categories/:id', async (req, res) => {
         if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
         if (translations !== undefined && cols.translations) data.translations = translations;
         if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
-        const c = await db.category.update({ where: { id }, data });
+        const c = await db.category.update({ where: { id }, data, select: { id: true, name: true } as any });
         await audit(req, 'categories', 'update', { id });
         return res.json({ category: c });
       } catch (e2:any) {
