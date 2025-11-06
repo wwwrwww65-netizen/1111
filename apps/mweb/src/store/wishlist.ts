@@ -30,12 +30,16 @@ export const useWishlist = defineStore('wishlist', {
         this.items.push(item)
         save(this.items)
         apiPost('/api/wishlist/toggle', { productId: item.id }).catch(()=>{})
+        // Track AddToWishlist
+        try{ import('@/lib/track').then(m=> m.trackEvent('AddToWishlist', { content_ids:[String(item.id)], content_type:'product', contents:[{ id:String(item.id), quantity:1, item_price: Number((item as any).price||0) }], value: Number((item as any).price||0), currency: (window as any).__CURRENCY_CODE__||'YER' })) }catch{}
       }
     },
     remove(id: string) {
       this.items = this.items.filter(i => i.id !== id)
       save(this.items)
       apiPost('/api/wishlist/toggle', { productId: id }).catch(()=>{})
+      // Track RemoveFromWishlist
+      try{ import('@/lib/track').then(m=> m.trackEvent('RemoveFromWishlist', { content_ids:[String(id)], content_type:'product' })) }catch{}
     },
     toggle(item: WishItem) {
       if (this.items.some(i => i.id === item.id)) this.remove(item.id)

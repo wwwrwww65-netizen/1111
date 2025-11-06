@@ -2280,6 +2280,56 @@ shop.get('/tracking/keys', async (_req, res) => {
   }
 });
 
+// Unified Meta Conversions API endpoint for client events (deduplicated with event_id)
+shop.post('/events/track', async (req: any, res) => {
+  try{
+    const name = String(req.body?.event_name||'').trim();
+    if (!name) return res.status(400).json({ error:'event_name_required' });
+    const event_id = typeof req.body?.event_id==='string' ? String(req.body.event_id) : undefined;
+    const event_time = Number(req.body?.event_time||0) || Math.floor(Date.now()/1000);
+    const custom = (req.body?.custom_data && typeof req.body.custom_data==='object') ? req.body.custom_data : {};
+    // User data enrichment
+    let em: string|undefined; let ph: string|undefined;
+    try{
+      const uid = (req as any).user?.userId as string|undefined;
+      if (uid){
+        const u = await db.user.findUnique({ where: { id: uid }, select: { email: true, phone: true } });
+        if (u?.email){ const { hashEmail } = await import('../services/fb'); em = hashEmail(u.email) }
+        if (u?.phone){ try{ const digits = String(u.phone).replace(/\\D/g,''); ph = require('crypto').createHash('sha256').update(digits).digest('hex') }catch{} }
+      }
+    }catch{}
+    // If client passed raw email/phone, hash them
+    try{ const raw = String(req.body?.email||'').trim().toLowerCase(); if (raw && !em){ const { hashEmail } = await import('../services/fb'); em = hashEmail(raw) } }catch{}
+    try{ const raw = String(req.body?.phone||'').replace(/\\D/g,''); if (raw && !ph){ ph = require('crypto').createHash('sha256').update(raw).digest('hex') } }catch{}
+    // fbp/fbc cookies
+    let fbp: string|undefined; let fbc: string|undefined;
+    try{
+      const raw = String(req.headers.cookie||'');
+      const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]);
+      const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]);
+    }catch{}
+    // Client info
+    let client_ip_address: string|undefined; let client_user_agent: string|undefined;
+    try{ client_user_agent = String(req.headers['user-agent']||'') }catch{}
+    try{
+      const xf = String(req.headers['x-forwarded-for']||'').split(',')[0].trim();
+      client_ip_address = xf || (req.ip as any) || undefined;
+    }catch{}
+    const { fbSendEvents } = await import('../services/fb');
+    const ev = {
+      event_name: name,
+      event_id,
+      event_time,
+      user_data: { em, ph, fbp, fbc, client_ip_address, client_user_agent },
+      custom_data: custom,
+      action_source: 'website',
+      event_source_url: String(req.headers.referer||'')
+    };
+    const r = await fbSendEvents([ev as any]);
+    return res.json({ ok: r.ok, status: r.status });
+  }catch{ return res.status(500).json({ error:'track_failed' }) }
+});
+
 // Google OAuth login
 shop.get('/auth/google/login', async (req, res) => {
   try{
@@ -2744,6 +2794,16 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
       await db.shipmentLeg.create({ data: { orderId: order.id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
     } catch {}
+    // Fire FB CAPI OrderCreated (intent for COD and funnel step)
+    try{
+      const { fbSendEvents, hashEmail } = await import('../services/fb');
+      const u = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
+      let fbp: string|undefined; let fbc: string|undefined;
+      try{ const raw = String(req.headers.cookie||''); const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]); const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]); }catch{}
+      const contents = cartItems.map(ci=> ({ id: String(ci.productId), quantity: Number(ci.quantity||1), item_price: Number(ci.product?.price||0) }))
+      const evId = `OrderCreated_${order.id}_${Math.floor(Date.now()/1000)}`
+      await fbSendEvents([{ event_name:'OrderCreated', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id) }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
+    }catch{}
     // Persist per-line variant meta without schema migration (side table)
     try {
       await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderItemMeta" (id TEXT PRIMARY KEY, "orderId" TEXT, "orderItemId" TEXT, "productId" TEXT, color TEXT, size TEXT, uid TEXT, attributes JSONB, "createdAt" TIMESTAMP DEFAULT NOW())')
@@ -3112,7 +3172,9 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       const u = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
       let fbp: string|undefined; let fbc: string|undefined;
       try{ const raw = String(req.headers.cookie||''); const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]); const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]); }catch{}
-      await fbSendEvents([{ event_name:'Purchase', user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined }, action_source:'website' }])
+    const evId = `Purchase_${order.id}_${Math.floor(Date.now()/1000)}`
+    const contents = (order.items||[]).map((it:any)=> ({ id: String(it.productId), quantity: Number(it.quantity||1), item_price: Number(it.price||0) }))
+    await fbSendEvents([{ event_name:'Purchase', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined, content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id) }, action_source:'website' }])
     }catch{}
     // Spawn shipment legs upon payment (approval)
     try {

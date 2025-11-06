@@ -378,7 +378,12 @@ function openFilter(t:'category'|'size'|'color'|'material'|'style'){ filterSheet
 function closeFilter(){ filterSheet.value.open=false; filterSheet.value.type=null }
 function applyFilters(){ closeFilter(); void loadProducts() }
 function applySearch(){
-  try{ const fbq = (window as any).fbq; if (typeof fbq==='function'){ const q = String(searchQ.value||''); if(q) fbq('track','Search',{ search_string: q }) } }catch{}
+  try{
+    const q = String(searchQ.value||'').trim()
+    if (q){
+      import('@/lib/track').then(m=> m.trackEvent('Search', { search_string: q }))
+    }
+  }catch{}
   void loadProducts()
 }
 

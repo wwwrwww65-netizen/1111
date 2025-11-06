@@ -245,7 +245,8 @@ async function onSubmit(){
         }
         const rawName = String(me.user.name||'').trim()
         const incomplete = !rawName || rawName.length < 2 || /^\d+$/.test(rawName)
-        try{ const fbq = (window as any).fbq; if (typeof fbq==='function'){ if (r.newUser || incomplete) fbq('track','CompleteRegistration') } }catch{}
+        try{ const { trackEvent } = await import('@/lib/track'); if (r.newUser || incomplete) await trackEvent('CompleteRegistration', {}) }catch{}
+        try{ const { trackEvent } = await import('@/lib/track'); if (circleChecked.value) await trackEvent('Subscribe', { email: me?.user?.email, phone: me?.user?.phone }) }catch{}
         // Merge local cart into server, then hydrate cart from server so items persist across devices
         try{
           const { useCart } = await import('@/store/cart')

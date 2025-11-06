@@ -2520,12 +2520,17 @@ function trackViewItem(){
     ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0), currency:'YER' }] } })
   }catch{}
   try{
-    const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','ViewContent',{ content_ids:[id], content_type:'product', value:Number(price.value||0), currency:'YER' })
+    const { trackEvent } = await import('@/lib/track')
+    trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[id], content_type:'product', contents:[{ id, item_price: Number(price.value||0), quantity: 1 }] })
   }catch{}
 }
 function trackAddToCart(){
   try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1, currency:'YER' }] } }) }catch{}
-  try{ const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','AddToCart',{ content_ids:[selectedVariantId.value||id], content_type:'product', value:Number(price.value||0), currency:'YER' }) }catch{}
+  try{
+    const { trackEvent } = await import('@/lib/track')
+    const pid = selectedVariantId.value||id
+    trackEvent('AddToCart', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[pid], content_type:'product', contents:[{ id: pid, item_price: Number(price.value||0), quantity: 1 }] })
+  }catch{}
 }
 
 // ==================== SEO: JSON-LD ====================

@@ -52,19 +52,17 @@ export const useCart = defineStore('cart', {
       else this.items.push({ ...item, uid, qty })
       // fire and forget server sync
       apiPost('/api/cart/add', { productId: item.id, quantity: qty }).catch(()=>{})
-      // Client-side Meta Pixel AddToCart (centralized to avoid misses across entry points)
+      // Track AddToCart via Pixel + CAPI with dedupe-ready event_id
       try{
-        const fbq = (window as any).fbq
-        if (typeof fbq==='function') {
-          const priceNum = Number(item.price||0)
-          fbq('track','AddToCart', {
-            content_ids: [String(item.id)],
-            content_type: 'product',
-            value: priceNum,
-            currency: (window as any).__CURRENCY_CODE__ || 'YER',
-            contents: [{ id: String(item.id), quantity: Number(qty||1), item_price: priceNum }]
-          })
-        }
+        const { trackEvent } = await import('@/lib/track')
+        const priceNum = Number(item.price||0)
+        await trackEvent('AddToCart', {
+          value: priceNum,
+          currency: (window as any).__CURRENCY_CODE__ || 'YER',
+          content_ids: [String(item.id)],
+          content_type: 'product',
+          contents: [{ id: String(item.id), quantity: Number(qty||1), item_price: priceNum }]
+        })
       }catch{}
       this.saveLocal()
       try{ window.dispatchEvent(new CustomEvent('cart:add', { detail:{ productId: item.id, qty } })) }catch{}
@@ -89,6 +87,17 @@ export const useCart = defineStore('cart', {
       if (!it) return
       this.items = this.items.filter(i => i.uid !== uid)
       apiPost('/api/cart/remove', { productId: it.id }).catch(()=>{})
+      try{
+        const { trackEvent } = await import('@/lib/track')
+        const priceNum = Number(it.price||0)
+        await trackEvent('RemoveFromCart', {
+          value: priceNum,
+          currency: (window as any).__CURRENCY_CODE__ || 'YER',
+          content_ids: [String(it.id)],
+          content_type: 'product',
+          contents: [{ id: String(it.id), quantity: Number(it.qty||1), item_price: priceNum }]
+        })
+      }catch{}
       this.saveLocal()
     },
     clear() { this.items = []; apiPost('/api/cart/clear', {}).catch(()=>{}); this.saveLocal() },
