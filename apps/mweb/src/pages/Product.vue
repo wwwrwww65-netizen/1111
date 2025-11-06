@@ -2531,20 +2531,27 @@ function trackAddToCart(){
 // ==================== SEO: JSON-LD ====================
 function injectProductJsonLd(){
   try{
+    // Build a plain-text description (strip HTML tags)
+    let descText = ''
+    try{ const d=document.createElement('div'); d.innerHTML = safeDescription.value; descText = (d.textContent||'').replace(/\s+/g,' ').trim() }catch{}
+    // Sanitize URL (drop fbclid/utm params)
+    const href = (()=>{ try{ const u=new URL(window.location.href); ['fbclid','gclid','_fbp','_fbc'].forEach(k=> u.searchParams.delete(k)); Array.from(u.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) u.searchParams.delete(k) }); return u.href }catch{ return window.location.href } })()
     const data: any = {
       '@context': 'https://schema.org/',
       '@type': 'Product',
-      '@id': (typeof window!=='undefined'? window.location.href.split('#')[0]+'#product' : ('/p?id='+id+'#product')),
+      '@id': (typeof window!=='undefined'? href.split('#')[0]+'#product' : ('/p?id='+id+'#product')),
       name: title.value,
       image: images.value && images.value.length ? images.value : undefined,
       brand: brand.value ? { '@type':'Brand', name: brand.value } : undefined,
       sku: (product.value as any)?.sku || undefined,
-      description: (safeDescription.value||'').replace(/\s+/g,' ').trim() || undefined,
+      description: descText || undefined,
       offers: {
         '@type': 'Offer',
+        url: href,
         priceCurrency: 'YER',
         price: Number(price.value||0),
         availability: 'https://schema.org/InStock',
+        itemCondition: 'https://schema.org/NewCondition'
       }
     }
     if (reviews.value && reviews.value.length){
@@ -2569,6 +2576,8 @@ function injectProductJsonLd(){
 function injectHeadMeta(){
   try{
     const url = new URL(window.location.href)
+    ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> url.searchParams.delete(k))
+    Array.from(url.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) url.searchParams.delete(k) })
     const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
     ;(canonical as HTMLLinkElement).href = url.href
     const setMeta = (p:string,c:string)=>{ let m = document.querySelector(`meta[property="${p}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', p); document.head.appendChild(m) } m.content = c }
@@ -2580,6 +2589,11 @@ function injectHeadMeta(){
     setMeta('product:price:currency', 'YER')
     setMeta('og:description', (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300))
     setMeta('product:retailer_item_id', String(id))
+    setMeta('product:availability', 'in stock')
+    if (brand.value) setMeta('product:brand', brand.value)
+    setMeta('product:condition', 'new')
+    // Optional site name
+    setMeta('og:site_name', 'jeeey')
   }catch{}
 }
 // ==================== CLUB THEME HELPERS ====================
