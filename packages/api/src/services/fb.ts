@@ -58,12 +58,14 @@ export async function fbSendEvents(events: FbEvent[]): Promise<{ ok: boolean; st
     test_event_code: testCode || undefined,
   }
   try {
+    try{ console.log('[FB CAPI] outgoing payload', JSON.stringify(payload)) }catch{}
     const res = await fetch(`https://graph.facebook.com/v18.0/${pixelId}/events?access_token=${token}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     })
     const body = await res.json().catch(() => ({}))
+    try{ console.log('[FB CAPI] response', res.status, JSON.stringify(body)) }catch{}
     return { ok: res.ok, status: res.status, body }
   } catch {
     return { ok: false, status: 0 }

@@ -36,6 +36,7 @@ export async function trackEvent(name: string, payload: MetaEventPayload = {}, e
   const sid = ensureSessionId()
   const eid = explicitEventId || `${name}_${payload.order_id || sid}_${ts}`
   const cur = payload.currency || currency()
+  try{ console.log('trackEvent fired', { name, event_id: eid, custom_data: payload }) }catch{}
   const pixelParams: any = {
     ...(payload.value!=null? { value: Number(payload.value)||0 }: {}),
     currency: cur,
