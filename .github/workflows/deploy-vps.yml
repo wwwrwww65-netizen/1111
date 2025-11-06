@@ -312,8 +312,10 @@ jobs:
               . "$PATH_ON_HOST/.env.api"
               set +a
             fi
-            if [ -n "${DATABASE_URL:-}" ] && [ -n "${DIRECT_URL:-}" ]; then
-              echo "Running prisma migrate deploy with DATABASE_URL=$DATABASE_URL"
+            if [ -n "${DATABASE_URL:-}" ] || [ -n "${DIRECT_URL:-}" ]; then
+              # Fallback: if DIRECT_URL is empty, reuse DATABASE_URL to avoid schema validation issues
+              if [ -z "${DIRECT_URL:-}" ] && [ -n "${DATABASE_URL:-}" ]; then export DIRECT_URL="$DATABASE_URL"; fi
+              echo "Running prisma migrate deploy with DATABASE_URL=${DATABASE_URL:-$DIRECT_URL}"
               cd "$PATH_ON_HOST/packages/db"
               pnpm install --prod --ignore-scripts || true
               npx prisma migrate deploy || pnpm prisma migrate deploy || true

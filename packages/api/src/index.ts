@@ -398,6 +398,18 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     } catch {}
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_created_idx" ON "NotificationLog"("createdAt")');
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "NotificationLog_messageId_idx" ON "NotificationLog"("messageId")'); } catch {}
+    // Legacy loyalty table compatibility: ensure raw PointLedger exists for old reports/APIs
+    try {
+      await db.$executeRawUnsafe(
+        'CREATE TABLE IF NOT EXISTS "PointLedger" ('+
+        '"id" TEXT PRIMARY KEY,'+
+        '"userId" TEXT NOT NULL,'+
+        'points INTEGER NOT NULL,'+
+        'reason TEXT NULL,'+
+        '"createdAt" TIMESTAMP DEFAULT NOW()'+
+        ')'
+      );
+    } catch {}
     // Ensure MediaAsset checksum unique (idempotent)
     try { await db.$executeRawUnsafe('ALTER TABLE "MediaAsset" ADD COLUMN IF NOT EXISTS checksum TEXT'); } catch {}
     try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "MediaAsset_checksum_key" ON "MediaAsset"(checksum) WHERE checksum IS NOT NULL'); } catch {}
