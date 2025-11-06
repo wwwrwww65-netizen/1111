@@ -117,6 +117,8 @@ async function ensureSchema(): Promise<void> {
     try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "pointsPercent" DOUBLE PRECISION'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "loyaltyMultiplier" DOUBLE PRECISION'); } catch {}
     try { await db.$executeRawUnsafe('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "excludeFromPoints" BOOLEAN DEFAULT FALSE'); } catch {}
+    // Minimal Category compatibility: avoid broad DDL, but add loyaltyMultiplier to prevent Prisma SELECT errors
+    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "loyaltyMultiplier" DOUBLE PRECISION'); } catch {}
     // Ensure FK from Product.vendorId -> Vendor.id
     await db.$executeRawUnsafe(
       "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Product_vendorId_fkey') THEN ALTER TABLE \"Product\" ADD CONSTRAINT \"Product_vendorId_fkey\" FOREIGN KEY (\"vendorId\") REFERENCES \"Vendor\"(\"id\") ON DELETE SET NULL; END IF; END $$;"
