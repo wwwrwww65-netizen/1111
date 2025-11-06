@@ -36,18 +36,23 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
     };
   },[]);
   React.useEffect(()=>{ try { localStorage.setItem('admin_force_desktop', forceDesktop ? '1' : ''); } catch {} }, [forceDesktop]);
-  // Client-side auth fallback: redirect to /login if no auth_token (in case middleware is bypassed by proxy)
+  // Client-side auth fallback: probe whoami via same-origin proxy; redirect only if unauthorized
   React.useEffect(()=>{
-    try{
-      if (typeof document === 'undefined') return;
-      const isAuthPage = pathname === '/login' || pathname.startsWith('/(auth)') || pathname.startsWith('/mobile');
-      if (isAuthPage) return;
-      const hasToken = document.cookie.split(';').some(c=> c.trim().startsWith('auth_token='));
-      if (!hasToken) {
-        const next = encodeURIComponent(pathname || '/');
-        window.location.replace(`/login?next=${next}`);
-      }
-    }catch{}
+    (async ()=>{
+      try{
+        if (typeof window === 'undefined') return;
+        const isAuthPage = pathname === '/login' || pathname.startsWith('/(auth)') || pathname.startsWith('/mobile');
+        if (isAuthPage) return;
+        const ac = new AbortController();
+        const t = setTimeout(()=> ac.abort(), 5000);
+        const r = await fetch('/api/admin/auth/whoami', { credentials:'include', cache:'no-store', signal: ac.signal });
+        clearTimeout(t);
+        if (r.status === 401) {
+          const next = encodeURIComponent(pathname || '/');
+          window.location.replace(`/login?next=${next}`);
+        }
+      }catch{}
+    })();
   }, [pathname]);
   // Redirect to lock screen if locked
   React.useEffect(()=>{
