@@ -2514,7 +2514,7 @@ async function loadAddresses(){
 }
 
 // ==================== ANALYTICS EVENTS ====================
-function trackViewItem(){
+async function trackViewItem(){
   try{
     ;(window as any).dataLayer = (window as any).dataLayer || []
     ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0), currency:'YER' }] } })
@@ -2524,7 +2524,7 @@ function trackViewItem(){
     trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[id], content_type:'product', contents:[{ id, item_price: Number(price.value||0), quantity: 1 }] })
   }catch{}
 }
-function trackAddToCart(){
+async function trackAddToCart(){
   try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1, currency:'YER' }] } }) }catch{}
   try{
     const { trackEvent } = await import('@/lib/track')

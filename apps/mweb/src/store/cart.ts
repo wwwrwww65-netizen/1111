@@ -45,7 +45,7 @@ export const useCart = defineStore('cart', {
       }
       this.loaded = true
     },
-    add(item: Omit<CartItem, 'qty'|'uid'>, qty = 1) {
+    async add(item: Omit<CartItem, 'qty'|'uid'>, qty = 1) {
       const uid = this.computeUid(item.id, item.variantColor, item.variantSize)
       const ex = this.items.find(i => i.uid === uid)
       if (ex) ex.qty += qty
@@ -56,7 +56,7 @@ export const useCart = defineStore('cart', {
       try{
         const { trackEvent } = await import('@/lib/track')
         const priceNum = Number(item.price||0)
-        await trackEvent('AddToCart', {
+        trackEvent('AddToCart', {
           value: priceNum,
           currency: (window as any).__CURRENCY_CODE__ || 'YER',
           content_ids: [String(item.id)],
@@ -82,7 +82,7 @@ export const useCart = defineStore('cart', {
       }
       this.saveLocal()
     },
-    remove(uid: string) {
+    async remove(uid: string) {
       const it = this.items.find(i=> i.uid===uid)
       if (!it) return
       this.items = this.items.filter(i => i.uid !== uid)
@@ -90,7 +90,7 @@ export const useCart = defineStore('cart', {
       try{
         const { trackEvent } = await import('@/lib/track')
         const priceNum = Number(it.price||0)
-        await trackEvent('RemoveFromCart', {
+        trackEvent('RemoveFromCart', {
           value: priceNum,
           currency: (window as any).__CURRENCY_CODE__ || 'YER',
           content_ids: [String(it.id)],
