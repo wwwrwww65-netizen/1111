@@ -9571,7 +9571,7 @@ async function upsertCategoryMeta(id: string, patch: Record<string, any>): Promi
   try {
     await db.$executeRawUnsafe(
       'INSERT INTO "CategoryMeta" (id, meta) VALUES ($1, $2::jsonb)\n'+
-      'ON CONFLICT (id) DO UPDATE SET meta = COALESCE("CategoryMeta".meta, '{}'::jsonb) || EXCLUDED.meta',
+      'ON CONFLICT (id) DO UPDATE SET meta = COALESCE("CategoryMeta".meta, \'{}\'::jsonb) || EXCLUDED.meta',
       id,
       JSON.stringify(patch)
     );
