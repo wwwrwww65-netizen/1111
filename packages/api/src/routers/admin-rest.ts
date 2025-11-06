@@ -9556,6 +9556,27 @@ async function getCategoryColumnFlags(): Promise<Record<string, boolean>> {
     return {} as any;
   }
 }
+
+// Fallback meta helpers for legacy DBs without Category SEO columns
+async function readCategoryMetaMap(ids: string[]): Promise<Map<string, any>> {
+  const map = new Map<string, any>();
+  if (!ids.length) return map;
+  try {
+    const rows: Array<{ id: string; meta: any }>= await db.$queryRawUnsafe('SELECT id, meta FROM "CategoryMeta" WHERE id = ANY($1::text[])', ids);
+    for (const r of (rows||[])) map.set(String(r.id), r.meta || {});
+  } catch {}
+  return map;
+}
+async function upsertCategoryMeta(id: string, patch: Record<string, any>): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(
+      'INSERT INTO "CategoryMeta" (id, meta) VALUES ($1, $2::jsonb)\n'+
+      'ON CONFLICT (id) DO UPDATE SET meta = COALESCE("CategoryMeta".meta, '{}'::jsonb) || EXCLUDED.meta',
+      id,
+      JSON.stringify(patch)
+    );
+  } catch {}
+}
 adminRest.get('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.read'))) { await audit(req,'categories','forbidden_list',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
@@ -9582,7 +9603,7 @@ adminRest.get('/categories', async (req, res) => {
       );
       return res.json({ categories: cats });
     }
-    const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null; image?: string | null }> = await db.$queryRawUnsafe(
+    const cats: Array<{ id: string; name: string; slug?: string | null; parentId?: string | null; image?: string | null; sortOrder?: number|null }> = await db.$queryRawUnsafe(
       `SELECT id, name,
          CASE WHEN EXISTS (
            SELECT 1 FROM information_schema.columns c
@@ -9595,12 +9616,29 @@ adminRest.get('/categories', async (req, res) => {
          CASE WHEN EXISTS (
            SELECT 1 FROM information_schema.columns c
            WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='image'
-         ) THEN image ELSE NULL END AS image
+         ) THEN image ELSE NULL END AS image,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM information_schema.columns c
+           WHERE c.table_schema='public' AND lower(c.table_name)='category' AND lower(c.column_name)='sortorder'
+         ) THEN "sortOrder" ELSE NULL END AS "sortOrder"
        FROM "Category"
        ORDER BY "createdAt" DESC
        LIMIT 200`
     );
-    return res.json({ categories: cats });
+    // Merge fallback meta where columns are missing
+    const ids = cats.map(c=> c.id);
+    const metaById = await readCategoryMetaMap(ids);
+    const withMeta = cats.map(c=> {
+      const m = metaById.get(c.id) || {};
+      return {
+        ...c,
+        slug: c.slug ?? m.slug ?? null,
+        parentId: c.parentId ?? m.parentId ?? null,
+        image: c.image ?? m.image ?? null,
+        sortOrder: c.sortOrder ?? m.sortOrder ?? null,
+      };
+    });
+    return res.json({ categories: withMeta });
   } catch (e:any) {
     return res.status(500).json({ error: e?.message || 'categories_list_failed' });
   }
@@ -9680,7 +9718,22 @@ adminRest.get('/categories/:id', async (req, res) => {
     const sql = `SELECT ${fields.join(', ')} FROM "Category" WHERE id = $1 LIMIT 1`;
     const rows: any[] = await db.$queryRawUnsafe(sql, id);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'not_found' });
-    return res.json({ category: rows[0] });
+    let cat = rows[0];
+    if (!cols.slug || !cols.image || !cols.seotitle || !cols.seodescription || !cols.seokeywords || !cols.translations || !cols.sortorder || !cols.parentid) {
+      const meta = (await readCategoryMetaMap([id])).get(id) || {};
+      cat = {
+        ...cat,
+        slug: cols.slug ? cat.slug : (meta.slug ?? null),
+        image: cols.image ? cat.image : (meta.image ?? null),
+        seoTitle: cols.seotitle ? cat.seoTitle : (meta.seoTitle ?? null),
+        seoDescription: cols.seodescription ? cat.seoDescription : (meta.seoDescription ?? null),
+        seoKeywords: cols.seokeywords ? cat.seoKeywords : (meta.seoKeywords ?? null),
+        translations: cols.translations ? cat.translations : (meta.translations ?? null),
+        sortOrder: cols.sortorder ? cat.sortOrder : (meta.sortOrder ?? null),
+        parentId: cols.parentid ? cat.parentId : (meta.parentId ?? null),
+      } as any;
+    }
+    return res.json({ category: cat });
   } catch (e:any) {
     return res.status(500).json({ error: e?.message || 'category_get_failed' });
   }
@@ -9688,16 +9741,16 @@ adminRest.get('/categories/:id', async (req, res) => {
 adminRest.post('/categories/reorder', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req,'categories','forbidden_reorder',{ path:req.path }); return res.status(403).json({ error:'forbidden' }); }
-    try { await db.$executeRawUnsafe('ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER DEFAULT 0'); } catch {}
+    const cols = await getCategoryColumnFlags();
     const items: Array<{ id:string; parentId?:string|null; sortOrder?:number }>= Array.isArray(req.body?.items)? req.body.items: [];
     for (const it of items) {
       const parentVal = (it.parentId===undefined? undefined : (it.parentId||null));
       const sortVal = (typeof it.sortOrder==='number'? it.sortOrder : undefined);
-      if (parentVal!==undefined && sortVal!==undefined) {
+      if (parentVal!==undefined && sortVal!==undefined && cols.sortorder) {
         await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentVal}, "sortOrder"=${sortVal}, "updatedAt"=NOW() WHERE id=${it.id}`;
       } else if (parentVal!==undefined) {
         await db.$executeRaw`UPDATE "Category" SET "parentId"=${parentVal}, "updatedAt"=NOW() WHERE id=${it.id}`;
-      } else if (sortVal!==undefined) {
+      } else if (sortVal!==undefined && cols.sortorder) {
         await db.$executeRaw`UPDATE "Category" SET "sortOrder"=${sortVal}, "updatedAt"=NOW() WHERE id=${it.id}`;
       }
     }
@@ -9741,6 +9794,18 @@ adminRest.post('/categories', async (req, res) => {
       if (sets.length) {
         await db.$executeRawUnsafe(`UPDATE "Category" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$1`, id, ...vals);
       }
+      // Fallback meta for missing columns
+      const cols = await getCategoryColumnFlags();
+      const metaPatch: Record<string, any> = {};
+      if (!cols.slug && typeof slug === 'string') metaPatch.slug = String(slug).trim();
+      if (!cols.description && typeof description === 'string') metaPatch.description = description;
+      if (!cols.image && typeof image === 'string') metaPatch.image = image;
+      if (!cols.parentid && (typeof parentId === 'string' || parentId === null)) metaPatch.parentId = parentId||null;
+      if (!cols.seotitle && typeof seoTitle === 'string') metaPatch.seoTitle = seoTitle;
+      if (!cols.seodescription && typeof seoDescription === 'string') metaPatch.seoDescription = seoDescription;
+      if (!cols.seokeywords && Array.isArray(seoKeywords)) metaPatch.seoKeywords = seoKeywords;
+      if (!cols.translations && translations && typeof translations === 'object') metaPatch.translations = translations;
+      if (Object.keys(metaPatch).length) await upsertCategoryMeta(id, metaPatch);
     } catch {}
     const c = rows[0];
     await audit(req, 'categories', 'create', { id: c.id });
@@ -9815,6 +9880,18 @@ adminRest.patch('/categories/:id', async (req, res) => {
     if (translations !== undefined && cols.translations) data.translations = translations;
     if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
     const c = await db.category.update({ where: { id }, data });
+    // Fallback meta update for missing columns
+    const metaPatch: Record<string, any> = {};
+    if (!cols.description && description !== undefined) metaPatch.description = description;
+    if (!cols.image && image !== undefined) metaPatch.image = image;
+    if (!cols.parentid && parentId !== undefined) metaPatch.parentId = parentId;
+    if (!cols.slug && slug !== undefined) metaPatch.slug = slug;
+    if (!cols.seotitle && seoTitle !== undefined) metaPatch.seoTitle = seoTitle;
+    if (!cols.seodescription && seoDescription !== undefined) metaPatch.seoDescription = seoDescription;
+    if (!cols.seokeywords && seoKeywords !== undefined) metaPatch.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
+    if (!cols.translations && translations !== undefined) metaPatch.translations = translations;
+    if (typeof sortOrder === 'number' && !cols.sortorder) metaPatch.sortOrder = sortOrder;
+    if (Object.keys(metaPatch).length) await upsertCategoryMeta(id, metaPatch);
     await audit(req, 'categories', 'update', { id });
     return res.json({ category: c });
   } catch (e:any) {
@@ -9850,9 +9927,6 @@ adminRest.delete('/categories/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req,'categories','forbidden_delete',{ path:req.path, id }); return res.status(403).json({ error:'forbidden' }); }
   try {
     await db.$transaction(async (tx) => {
-      // Ensure optional columns exist in legacy DBs
-      const colsTx = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
-      for (const col of colsTx){ try { await tx.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       const cat = await tx.category.findUnique({ where: { id }, select: { id:true, parentId:true } });
       if (!cat) return; // Already gone
 
@@ -9874,8 +9948,6 @@ adminRest.delete('/categories/:id', async (req, res) => {
   } catch(e:any){
     // Second-chance forced cleanup using raw SQL
     try {
-      const colsDb = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
-      for (const col of colsDb) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       const cat: { parentId: string|null }[] = await db.$queryRaw`SELECT "parentId" FROM "Category" WHERE id=${id} LIMIT 1`;
       const parentId = cat?.[0]?.parentId ?? null;
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
@@ -9898,9 +9970,6 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   let deleted = 0;
   try {
     await db.$transaction(async (tx) => {
-      // Ensure optional columns exist in legacy DBs
-      const colsTx2 = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
-      for (const col of colsTx2){ try { await tx.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       // Ensure replacement category once per batch
       let unc = await tx.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
       if (!unc) { unc = await tx.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
@@ -9918,8 +9987,6 @@ adminRest.post('/categories/bulk-delete', async (req, res) => {
   } catch (e:any) {
     // Fallback raw pass
     try {
-      const colsDb2 = ['slug TEXT','seoTitle TEXT','seoDescription TEXT','seoKeywords TEXT[]','translations JSONB','image TEXT','parentId TEXT','sortOrder INTEGER DEFAULT 0'];
-      for (const col of colsDb2) { try { await db.$executeRawUnsafe(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS ${col}`); } catch {} }
       let unc = await db.category.findFirst({ where: { slug: 'uncategorized' }, select: { id:true } });
       if (!unc) { unc = await db.category.create({ data: { name: 'غير مصنف', slug: 'uncategorized' } }); }
       const uncId = unc.id;

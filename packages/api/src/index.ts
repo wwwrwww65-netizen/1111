@@ -417,6 +417,57 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
         ')'
       );
     } catch {}
+    // Ensure Prisma PointsLedger and WalletLedger exist for loyalty/wallet features
+    try {
+      await db.$executeRawUnsafe(
+        'CREATE TABLE IF NOT EXISTS "PointsLedger" ('+
+        '"id" TEXT PRIMARY KEY,'+
+        '"userId" TEXT NOT NULL,'+
+        'points INTEGER NOT NULL,'+
+        'status TEXT NOT NULL DEFAULT \''+"CONFIRMED"+'\','+
+        '"orderId" TEXT NULL,'+
+        '"campaignId" TEXT NULL,'+
+        '"eventId" TEXT NULL,'+
+        'reason TEXT NULL,'+
+        '"expiresAt" TIMESTAMP NULL,'+
+        'meta JSONB NULL,'+
+        '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+        '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+        ')'
+      );
+      await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "PointsLedger_eventId_key" ON "PointsLedger"("eventId") WHERE "eventId" IS NOT NULL');
+      await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "PointsLedger_user_status_created_idx" ON "PointsLedger"("userId","status","createdAt")');
+    } catch {}
+    try {
+      await db.$executeRawUnsafe(
+        'CREATE TABLE IF NOT EXISTS "WalletLedger" ('+
+        '"id" TEXT PRIMARY KEY,'+
+        '"userId" TEXT NOT NULL,'+
+        'amount DOUBLE PRECISION NOT NULL,'+
+        'status TEXT NOT NULL DEFAULT \''+"CONFIRMED"+'\','+
+        '"orderId" TEXT NULL,'+
+        '"eventId" TEXT NULL,'+
+        'reason TEXT NULL,'+
+        '"expiresAt" TIMESTAMP NULL,'+
+        'currency TEXT NULL,'+
+        'meta JSONB NULL,'+
+        '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+        '"updatedAt" TIMESTAMP DEFAULT NOW()'+
+        ')'
+      );
+      await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "WalletLedger_eventId_key" ON "WalletLedger"("eventId") WHERE "eventId" IS NOT NULL');
+      await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "WalletLedger_user_status_created_idx" ON "WalletLedger"("userId","status","createdAt")');
+    } catch {}
+  // CategoryMeta fallback storage for legacy DBs lacking SEO columns on Category
+  try {
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "CategoryMeta" ('+
+      '"id" TEXT PRIMARY KEY,'+
+      'meta JSONB NULL,'+
+      'CONSTRAINT "CategoryMeta_id_fkey" FOREIGN KEY ("id") REFERENCES "Category"("id") ON DELETE CASCADE'+
+      ')'
+    );
+  } catch {}
     // Ensure MediaAsset checksum unique (idempotent)
     try { await db.$executeRawUnsafe('ALTER TABLE "MediaAsset" ADD COLUMN IF NOT EXISTS checksum TEXT'); } catch {}
     try { await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "MediaAsset_checksum_key" ON "MediaAsset"(checksum) WHERE checksum IS NOT NULL'); } catch {}
