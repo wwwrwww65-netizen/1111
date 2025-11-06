@@ -564,19 +564,41 @@ async function fetchProductDetails(id: string){
     const imgs = Array.isArray(d.images)? d.images : []
     const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
     const variants = Array.isArray(d.variants)? d.variants : []
-    let sizes = Array.isArray(d.sizes)? d.sizes.filter((s:any)=> typeof s==='string' && s.trim()) : []
-    // Normalize and sort sizes in logical ascending order: S, M, L, XL, then others
-    const order = ['xs','s','m','l','xl','xxl','xxxl']
-    const lower = sizes.map((s:string)=> s.trim())
-    sizes = lower.sort((a:string,b:string)=>{
-      const ai = order.indexOf(a.toLowerCase())
-      const bi = order.indexOf(b.toLowerCase())
+    // ==== Helpers (align with PDP sanitation) ====
+    const looksSizeToken = (s:string): boolean => {
+      const v = String(s||'').trim()
+      if (!v) return false
+      if (/^(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|XXS)$/i.test(v)) return true
+      if (/^\d{1,3}$/.test(v)) return true
+      return false
+    }
+    const COLOR_WORDS = new Set([
+      'احمر','أحمر','red','ازرق','أزرق','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+    ])
+    const isColorWord = (s:string): boolean => COLOR_WORDS.has(String(s||'').trim().toLowerCase())
+
+    // ==== Sizes: only accept real size tokens, never color words ====
+    let sizes = Array.isArray(d.sizes)? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && looksSizeToken(String(s).trim()) && !isColorWord(String(s).trim())) : []
+    if (!sizes.length && variants.length){
+      const set = new Set<string>()
+      for (const v of variants){
+        const sv = String((v as any).size||'').trim()
+        if (sv && looksSizeToken(sv) && !isColorWord(sv)) set.add(sv)
+      }
+      sizes = Array.from(set)
+    }
+    // Normalize and sort sizes in logical ascending order: letters then numbers
+    const order = ['XS','S','M','L','XL','XXL','XXXL','XXXXL','XXXXXL']
+    sizes = sizes.sort((a:string,b:string)=>{
+      const ai = order.indexOf(a.toUpperCase())
+      const bi = order.indexOf(b.toUpperCase())
       if (ai!==-1 || bi!==-1) return (ai===-1? 999:ai) - (bi===-1? 999:bi)
       const an = parseFloat(a); const bn = parseFloat(b)
       if (!isNaN(an) && !isNaN(bn)) return an - bn
       return a.localeCompare(b, 'ar')
     })
-    // Prefer distinct colors from colorGalleries → then product.colors → then variants
+
+    // ==== Colors: prefer attributes.color → colorGalleries; never derive from generic name/value ====
     const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
     let colors: Array<{ label: string; img: string }> = []
     const normalizeImage = (u: any): string => {
@@ -596,38 +618,34 @@ async function fetchProductDetails(id: string){
       }
       return filteredImgs[0] || '/images/placeholder-product.jpg'
     }
-    if (galleries.length){
+    // Prefer attributes.color
+    try{
+      const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray((d as any).attributes)? (d as any).attributes : []
+      const col = attrs.find(a=> a.key==='color')
+      const colVals: string[] = Array.isArray(col?.values)? col!.values : []
+      if (colVals.length){
+        colors = colVals.map((label:string)=>{
+          const g = galleries.find((x:any)=> String(x?.name||'').trim().toLowerCase() === String(label||'').trim().toLowerCase())
+          const chosen = g?.primaryImageUrl || (Array.isArray(g?.images)&&g!.images![0]) || pickFallbackByLabel(label)
+          return { label, img: normalizeImage(chosen) }
+        })
+      }
+    }catch{}
+    // Fallback: colorGalleries by names
+    if (!colors.length && galleries.length){
       colors = galleries.map((g:any)=> {
         const label = String(g.name||'').trim()
         const chosen = g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || pickFallbackByLabel(label)
         return { label, img: normalizeImage(chosen) }
       }).filter(c=> !!c.label)
-    } else if (Array.isArray((d as any).colors) && (d as any).colors.length){
-      const raw = (d as any).colors as Array<any>
-      const seen = new Set<string>()
-      for (const c of raw){
-        const label = typeof c === 'string' ? String(c).trim() : String((c?.name)||'').trim()
-        if (!label || seen.has(label)) continue
-        seen.add(label)
-        const first = Array.isArray(c?.images)
-          ? (typeof c.images[0] === 'string' ? c.images[0] : (c.images[0]?.url || ''))
-          : ''
-        const img = typeof c === 'object' && c ? (c.primaryImageUrl || first || pickFallbackByLabel(label)) : pickFallbackByLabel(label)
-        colors.push({ label, img: normalizeImage(img) })
-      }
-    } else {
-      const labelSet = new Set<string>()
-      for (const v of variants){
-        const lbl = String((v as any).color || (v as any).name || (v as any).value || '').trim()
-        if (lbl) labelSet.add(lbl)
-      }
-      colors = Array.from(labelSet).map((label:string)=> ({ label, img: '/images/placeholder-product.jpg' }))
     }
+    // If still single color or none, hide colors by emptying the list
+    if (colors.length <= 1) colors = []
     // Build simple two-row size groups: letters and numbers
     const isNumber = (x:string)=> /^\d{1,3}$/.test(String(x).trim())
     const letters = new Set<string>()
     const numbers = new Set<string>()
-    for (const s of sizes){ if (isNumber(s)) numbers.add(s); else letters.add(s) }
+    for (const s of sizes){ if (isNumber(s)) numbers.add(s); else if (looksSizeToken(s)) letters.add(s) }
     const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
     const orderLetters = (vals:string[])=> Array.from(vals).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
     const orderNumbers = (vals:string[])=> Array.from(vals).sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0))

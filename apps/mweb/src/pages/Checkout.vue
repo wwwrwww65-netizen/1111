@@ -386,6 +386,14 @@ async function placeOrder(){
     const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids, paymentMethod: selectedPayment.value, shippingMethodId: selectedShipping.value, shippingAddressId: addr.value?.id }
     const ord = await apiPost('/api/orders', payload)
     if (ord && (ord as any).order?.id){
+      // Prepare client-side Purchase payload for Pixel (store then fire at success/COD)
+      try{
+        const currency = (window as any).__CURRENCY_CODE__||'YER'
+        const contents = (items.value||[]).map((it:any)=> ({ id: String(it.id), quantity: Number(it.qty||1), item_price: Number(it.price||0) }))
+        const value = Number(totalAll.value||0)
+        const data = { value, currency, contents, content_ids: Array.from(new Set(contents.map((c:any)=> String(c.id)))) }
+        sessionStorage.setItem('last_purchase', JSON.stringify(data))
+      }catch{}
       // بعد نجاح إنشاء الطلب: نظّف عناصر السلة المحددة محلياً وعلى الخادم
       try{
         const { useCart } = await import('@/store/cart')

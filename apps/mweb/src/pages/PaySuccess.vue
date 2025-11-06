@@ -10,7 +10,27 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-onMounted(()=>{ try{ window.dispatchEvent(new CustomEvent('order:purchase')) }catch{} })
+onMounted(()=>{
+  try{ window.dispatchEvent(new CustomEvent('order:purchase')) }catch{}
+  // Fire Meta Pixel Purchase using stored payload (deduped by browser if sent twice)
+  try{
+    const raw = sessionStorage.getItem('last_purchase')
+    if (raw){
+      const data = JSON.parse(raw)
+      const fbq = (window as any).fbq
+      if (typeof fbq==='function'){
+        fbq('track','Purchase', {
+          value: Number(data?.value||0),
+          currency: String(data?.currency||'YER'),
+          contents: Array.isArray(data?.contents)? data.contents: [],
+          content_ids: Array.isArray(data?.content_ids)? data.content_ids: [],
+          content_type: 'product'
+        })
+      }
+      sessionStorage.removeItem('last_purchase')
+    }
+  }catch{}
+})
 </script>
 
 <style scoped>

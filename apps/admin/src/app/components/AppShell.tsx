@@ -36,6 +36,19 @@ export function AppShell({ children }: { children: React.ReactNode }): JSX.Eleme
     };
   },[]);
   React.useEffect(()=>{ try { localStorage.setItem('admin_force_desktop', forceDesktop ? '1' : ''); } catch {} }, [forceDesktop]);
+  // Client-side auth fallback: redirect to /login if no auth_token (in case middleware is bypassed by proxy)
+  React.useEffect(()=>{
+    try{
+      if (typeof document === 'undefined') return;
+      const isAuthPage = pathname === '/login' || pathname.startsWith('/(auth)') || pathname.startsWith('/mobile');
+      if (isAuthPage) return;
+      const hasToken = document.cookie.split(';').some(c=> c.trim().startsWith('auth_token='));
+      if (!hasToken) {
+        const next = encodeURIComponent(pathname || '/');
+        window.location.replace(`/login?next=${next}`);
+      }
+    }catch{}
+  }, [pathname]);
   // Redirect to lock screen if locked
   React.useEffect(()=>{
     try {

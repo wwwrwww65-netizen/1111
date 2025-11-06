@@ -1571,7 +1571,6 @@ async function addToCartInternal(){
   const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
   cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
   try { await apiPost('/api/cart/add', { productId: id, variantId: selectedVariantId.value, quantity: 1 }) } catch {}
-  try { trackAddToCart() } catch {}
   toast.value = true
   setTimeout(()=> toast.value=false, 1200)
 }

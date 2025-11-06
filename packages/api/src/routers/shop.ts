@@ -2836,11 +2836,17 @@ function parseCookies(req: any): Record<string,string> {
 }
 async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: string; cartId: string }>{
   const cookies = parseCookies(req);
-  let sid = cookies['guest_sid'];
+  let sid = cookies['guest_session'] || cookies['guest_sid'];
   const uuid = (require('crypto').randomUUID as ()=>string)();
   if (!sid) {
     sid = (require('crypto').randomUUID as ()=>string)();
-    try { res.setHeader('Set-Cookie', `guest_sid=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`); } catch {}
+    try {
+      // Write both names for backward compatibility; primary is guest_session
+      res.setHeader('Set-Cookie', [
+        `guest_session=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`,
+        `guest_sid=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`
+      ]);
+    } catch {}
   }
   // Ensure DB row exists
   let row: any[] = [];
@@ -2870,7 +2876,7 @@ shop.get('/cart', async (req: any, res) => {
     }
     // Guest
     const { cartId } = await getOrCreateGuestCartId(req, res);
-    const rows: any[] = await db.$queryRawUnsafe('SELECT "productId", "quantity" FROM "GuestCartItem" WHERE "guestCartId"=$1', cartId);
+    const rows: any[] = await db.$queryRawUnsafe('SELECT "productId", "quantity" FROM "GuestCartItem" WHERE "cartId"=$1', cartId);
     const productIds = Array.from(new Set((rows||[]).map(r=> String(r.productId))));
     const prods = productIds.length ? await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, price: true, images: true } }) : [];
     const byId = new Map(prods.map((p:any)=> [String(p.id), p]));
@@ -2899,14 +2905,14 @@ shop.post('/cart/merge', async (req: any, res) => {
     // Also merge any existing guest cart by session cookie if present
     try {
       const { cartId: guestCartId } = await getOrCreateGuestCartId(req, res);
-      const rows: any[] = await db.$queryRawUnsafe('SELECT "productId", "quantity" FROM "GuestCartItem" WHERE "guestCartId"=$1', guestCartId);
+      const rows: any[] = await db.$queryRawUnsafe('SELECT "productId", "quantity" FROM "GuestCartItem" WHERE "cartId"=$1', guestCartId);
       for (const r of (rows||[])) {
         const pid = String(r.productId);
         const q = Math.max(1, Number(r.quantity||1));
         agg.set(pid, (agg.get(pid)||0) + q);
       }
       // Clear guest cart after merging
-      try { await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1', guestCartId); } catch {}
+      try { await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', guestCartId); } catch {}
       try { await db.$executeRawUnsafe('DELETE FROM "GuestCart" WHERE id=$1', guestCartId); } catch {}
     } catch {}
     for (const [pid, qty] of agg.entries()) {
@@ -2940,7 +2946,18 @@ shop.post('/cart/add', async (req: any, res) => {
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
       const id = (require('crypto').randomUUID as ()=>string)();
-      await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "guestCartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("guestCartId","productId") DO UPDATE SET "quantity" = "GuestCartItem"."quantity" + EXCLUDED."quantity"', id, cartId, String(productId), q);
+      await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "cartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("cartId","productId") DO UPDATE SET "quantity" = "GuestCartItem"."quantity" + EXCLUDED."quantity"', id, cartId, String(productId), q);
+      // Fire FB CAPI AddToCart for guest using fbp/fbc only
+      try {
+        const { fbSendEvents } = await import('../services/fb');
+        let fbp: string|undefined; let fbc: string|undefined;
+        try{
+          const raw = String(req.headers.cookie||'');
+          const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]);
+          const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]);
+        }catch{}
+        await fbSendEvents([{ event_name:'AddToCart', user_data:{ fbp, fbc }, custom_data:{ value: 0, currency:'YER', contents:[{ id: String(productId), quantity: q }], content_type:'product' }, action_source:'website' }])
+      } catch {}
     }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'add_failed' }); }
@@ -2963,11 +2980,11 @@ shop.post('/cart/update', async (req: any, res) => {
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
       if (q === 0) {
-        await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1 AND "productId"=$2', cartId, String(productId));
+        await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', cartId, String(productId));
       } else {
         // Ensure row exists or update
         const id = (require('crypto').randomUUID as ()=>string)();
-        await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "guestCartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("guestCartId","productId") DO UPDATE SET "quantity"=$4', id, cartId, String(productId), q);
+        await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "cartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("cartId","productId") DO UPDATE SET "quantity"=$4', id, cartId, String(productId), q);
       }
     }
     return res.json({ ok: true });
@@ -2986,7 +3003,7 @@ shop.post('/cart/remove', async (req: any, res) => {
       if (existing) await db.cartItem.delete({ where: { id: existing.id } });
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
-      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1 AND "productId"=$2', cartId, String(productId));
+      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', cartId, String(productId));
     }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'remove_failed' }); }
@@ -3001,7 +3018,7 @@ shop.post('/cart/clear', async (req: any, res) => {
       await db.cartItem.deleteMany({ where: { cartId: cart.id } });
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
-      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "guestCartId"=$1', cartId);
+      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', cartId);
     }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'clear_failed' }); }
