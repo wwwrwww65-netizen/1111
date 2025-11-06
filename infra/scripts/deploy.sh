@@ -90,6 +90,44 @@ if [ -n "${DIRECT_URL:-}" ] || [ -n "${DATABASE_URL:-}" ]; then
   fi
 fi
 set -e
+# Enforce enum and casts for LedgerStatus (idempotent) to avoid 42883 at runtime
+if [ -n "${DIRECT_URL:-}" ] || [ -n "${DATABASE_URL:-}" ]; then
+  echo "[deploy] Ensuring LedgerStatus enum and casting status columns"
+  npx -y prisma@5.14.0 db execute --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" --stdin <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='LedgerStatus') THEN
+    CREATE TYPE "LedgerStatus" AS ENUM ('PENDING','CONFIRMED','EXPIRED','REVOKED');
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='PointsLedger' AND column_name='status' AND data_type='text'
+  ) THEN
+    BEGIN ALTER TABLE "PointsLedger" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN others THEN NULL; END;
+    ALTER TABLE "PointsLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
+      USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
+    ALTER TABLE "PointsLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='WalletLedger' AND column_name='status' AND data_type='text'
+  ) THEN
+    BEGIN ALTER TABLE "WalletLedger" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN others THEN NULL; END;
+    ALTER TABLE "WalletLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
+      USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
+    ALTER TABLE "WalletLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";
+  END IF;
+END$$;
+SQL
+fi
 # Force fresh builds (clean previous outputs)
 rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
@@ -325,6 +363,8 @@ if [ -d "$ROOT_DIR/packages/api" ]; then
 EnvironmentFile=$ROOT_DIR/.env.api
 WorkingDirectory=$ROOT_DIR
 Environment=NLP_CONFIG_DIR=$ROOT_DIR/config/nlp
+Environment=API_RUN_ENSURE_SCHEMA=0
+Environment=NODE_ENV=production
 EOF
       systemctl daemon-reload || true
     fi
