@@ -12,7 +12,23 @@
 import { onMounted } from 'vue'
 onMounted(async ()=>{
   try{ window.dispatchEvent(new CustomEvent('order:purchase')) }catch{}
-  // نكتفي بإرسال Purchase عبر CAPI من الخادم لتفادي الازدواج؛ لا نرسل نسخة Pixel هنا
+  // إرسال Purchase عبر Pixel باستخدام البيانات المخزنة من مرحلة Checkout
+  try{
+    const raw = sessionStorage.getItem('last_purchase')
+    if (raw){
+      const data = JSON.parse(raw||'{}')
+      const fbq = (window as any).fbq
+      if (typeof fbq === 'function'){
+        fbq('track','Purchase', {
+          value: Number(data?.value||0),
+          currency: String(data?.currency||'YER'),
+          contents: Array.isArray(data?.contents)? data.contents : [],
+          content_ids: Array.isArray(data?.content_ids)? data.content_ids : [],
+          content_type: 'product'
+        })
+      }
+    }
+  }catch{}
   try{ sessionStorage.removeItem('last_purchase') }catch{}
 })
 </script>

@@ -440,7 +440,7 @@ watch(selectedPayment, async (v)=>{
   try{
     if (!v) return
     const { trackEvent } = await import('@/lib/track')
-    await trackEvent('AddPaymentInfo', { value: Number(totalAll.value||0), currency: (window as any).__CURRENCY_CODE__||'YER' })
+    await trackEvent('AddPaymentInfo', { value: Number(totalAll.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', payment_method: String(v) })
   }catch{}
 })
 

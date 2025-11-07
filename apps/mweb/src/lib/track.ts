@@ -47,7 +47,7 @@ export async function trackEvent(name: string, payload: MetaEventPayload = {}, e
   }
   try{
     const fbq = (window as any).fbq
-    if (typeof fbq === 'function'){
+    if (typeof fbq === 'function' && name !== 'PageView'){
       fbq('track', name, pixelParams, { eventID: eid })
     }
   }catch{}

@@ -2283,6 +2283,9 @@ shop.get('/tracking/keys', async (_req, res) => {
 // Unified Meta Conversions API endpoint for client events (deduplicated with event_id)
 shop.post('/events/track', async (req: any, res) => {
   try{
+    // In-memory error-rate monitor for this endpoint
+    ;(global as any).__track_metrics__ = (global as any).__track_metrics__ || { window: [] as Array<{ t:number; ok:boolean }>, lastAlert: 0 }
+    const met = (global as any).__track_metrics__
     const name = String(req.body?.event_name||'').trim();
     if (!name) return res.status(400).json({ error:'event_name_required' });
     const event_id = typeof req.body?.event_id==='string' ? String(req.body.event_id) : undefined;
@@ -2326,6 +2329,23 @@ shop.post('/events/track', async (req: any, res) => {
       event_source_url: String(req.headers.referer||'')
     };
     const r = await fbSendEvents([ev as any]);
+    try{
+      const now = Date.now()
+      met.window.push({ t: now, ok: r.ok })
+      const cutoff = now - 5*60*1000
+      met.window = met.window.filter((e:any)=> e.t >= cutoff)
+      const total = met.window.length
+      const failures = met.window.filter((e:any)=> !e.ok).length
+      const rate = total>0 ? (failures/total) : 0
+      const threshold = Number(process.env.TRACK_ALERT_ERROR_RATE||0.4)
+      const minEvents = Number(process.env.TRACK_ALERT_MIN_EVENTS||30)
+      if (total >= minEvents && rate >= threshold && (now - met.lastAlert > 5*60*1000)){
+        met.lastAlert = now
+        console.warn(`[TRACK ALERT] /events/track high error rate ${(rate*100).toFixed(1)}% over ${total} events in 5m`)
+        const hook = process.env.ALERT_WEBHOOK_URL
+        if (hook) { try{ await fetch(hook, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ text: `TRACK ALERT: ${(rate*100).toFixed(1)}% errors (${failures}/${total})` }) }) }catch{} }
+      }
+    }catch{}
     return res.json({ ok: r.ok, status: r.status });
   }catch{ return res.status(500).json({ error:'track_failed' }) }
 });
@@ -2477,24 +2497,29 @@ shop.post('/cart/add', requireAuth, async (req: any, res) => {
     const existing = await db.cartItem.findUnique({ where: { cartId_productId: { cartId: cart.id, productId } } });
     if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(quantity || 1) } });
     else await db.cartItem.create({ data: { cartId: cart.id, productId, quantity: Number(quantity || 1) } });
-    // Fire FB CAPI AddToCart (best-effort)
+    // Fire FB CAPI AddToCart (best-effort) with dedupe + client hints
     try {
       const { fbSendEvents, hashEmail } = await import('../services/fb');
       const user = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
       const prod = await db.product.findUnique({ where: { id: productId }, select: { price: true } });
       // Extract fbp/fbc from cookies if present for better match
-      let fbp: string|undefined; let fbc: string|undefined;
+      let fbp: string|undefined; let fbc: string|undefined; let client_ip_address: string|undefined; let client_user_agent: string|undefined;
       try{
         const raw = String(req.headers.cookie||'');
         const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]);
         const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]);
       }catch{}
+      try{ client_user_agent = String(req.headers['user-agent']||'') }catch{}
+      try{ const xf = String(req.headers['x-forwarded-for']||'').split(',')[0].trim(); client_ip_address = xf || (req.ip as any) || undefined }catch{}
+      const evId = `AddToCart_${String(productId)}_${Math.floor(Date.now()/1000)}`
       await fbSendEvents([
         {
           event_name: 'AddToCart',
-          user_data: { em: hashEmail(user?.email), fbp, fbc },
+          event_id: evId,
+          user_data: { em: hashEmail(user?.email), fbp, fbc, client_ip_address, client_user_agent },
           custom_data: { value: Number(prod?.price||0), currency: 'YER', contents: [{ id: productId, quantity: Number(quantity||1) }], content_type: 'product' },
           action_source: 'website',
+          event_source_url: String(req.headers.referer||'')
         },
       ]);
     } catch {}
@@ -2802,7 +2827,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       try{ const raw = String(req.headers.cookie||''); const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]); const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]); }catch{}
       const contents = cartItems.map(ci=> ({ id: String(ci.productId), quantity: Number(ci.quantity||1), item_price: Number(ci.product?.price||0) }))
       const evId = `OrderCreated_${order.id}_${Math.floor(Date.now()/1000)}`
-      await fbSendEvents([{ event_name:'OrderCreated', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id) }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
+      await fbSendEvents([{ event_name:'OrderCreated', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id), num_items: contents.length, payment_method: String(paymentMethod||''), shipping: Number(ship||0) }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
     }catch{}
     // Persist per-line variant meta without schema migration (side table)
     try {
@@ -3174,7 +3199,15 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       try{ const raw = String(req.headers.cookie||''); const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]); const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]); }catch{}
     const evId = `Purchase_${order.id}_${Math.floor(Date.now()/1000)}`
     const contents = (order.items||[]).map((it:any)=> ({ id: String(it.productId), quantity: Number(it.quantity||1), item_price: Number(it.price||0) }))
-    await fbSendEvents([{ event_name:'Purchase', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined, content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id) }, action_source:'website' }])
+    let client_ip_address: string|undefined; let client_user_agent: string|undefined;
+    try{ client_user_agent = String(req.headers['user-agent']||'') }catch{}
+    try{ const xf = String(req.headers['x-forwarded-for']||'').split(',')[0].trim(); client_ip_address = xf || (req.ip as any) || undefined }catch{}
+    let shippingAmount: number|undefined
+    try{
+      const rows: any[] = await db.$queryRaw`SELECT "shippingAmount" FROM "Order" WHERE id=${id}` as any[]
+      if (rows && rows[0]) shippingAmount = Number(rows[0].shippingAmount||0)
+    }catch{}
+    await fbSendEvents([{ event_name:'Purchase', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc, client_ip_address, client_user_agent }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined, content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id), payment_method: String(method||''), shipping: shippingAmount }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
     }catch{}
     // Spawn shipment legs upon payment (approval)
     try {

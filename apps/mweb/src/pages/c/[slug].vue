@@ -287,6 +287,7 @@ const isScrollingUp = ref(false);
 const atTop = ref(true);
 const showHeaderFilters = computed(() => isScrollingUp.value && !atTop.value);
 const isLoadingMore = ref(false);
+const pageNumber = ref(1);
 
 // حساب ارتفاع الهيدر ديناميكيًا
 const headerHeight = computed(() => {
@@ -423,7 +424,15 @@ function loadMoreProducts() {
   // TODO: دعم ترقيم حقيقي عند توفره في الـ API
   // حاليا نستدعي بنفس التصنيف مع limit أعلى ونوقف التحميل عند عدم تغير العدد
   const prev = products.value.length
-  void loadProducts(prev + 24).finally(()=>{ isLoadingMore.value = false; hasMore.value = products.value.length > prev })
+  void loadProducts(prev + 24).finally(async ()=>{
+    isLoadingMore.value = false; hasMore.value = products.value.length > prev;
+    try{
+      // تقدير الصفحة التالية بناءً على حجم الصفحة 24
+      const nextPage = Math.floor(prev / 24) + 1;
+      pageNumber.value = nextPage;
+      await fireListView(products.value.slice(prev), nextPage);
+    }catch{}
+  })
 }
 
 const visibleCategories = computed(()=> categories.value.slice(0,5))
@@ -476,6 +485,10 @@ async function loadProducts(limit: number = 24){
     }))
     hasMore.value = items.length >= limit
     try{ await hydrateCouponsAndPrices() }catch{}
+    try{
+      pageNumber.value = 1;
+      await fireListView(products.value.slice(0, Math.min(24, products.value.length)), 1)
+    }catch{}
   }catch{ products.value = []; hasMore.value = false }
 }
 
@@ -558,6 +571,31 @@ async function computeCouponPrices(list:any[]){
     const match = cups.find(c=> eligibleByTokens(p, c))
     if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
   }
+}
+
+// ===== Tracking helper: ViewCategory / ProductListView =====
+async function fireListView(list:any[], page:number){
+  try{
+    if (!Array.isArray(list) || !list.length) return
+    const { trackEvent } = await import('../../lib/track')
+    const categoryName = String(currentCategory.value?.name || currentSlug() || '').trim()
+    const contents = list.map((p:any, i:number)=> ({
+      id: String(p.id),
+      item_price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0,
+      quantity: 1,
+      position: i + 1,
+      page_number: page
+    }))
+    const ids = contents.map(c=> c.id)
+    await trackEvent('ViewCategory', {
+      content_ids: ids,
+      content_type: 'product',
+      contents,
+      currency: (window as any).__CURRENCY_CODE__||'YER',
+      content_category: categoryName,
+      list_name: 'Category'
+    })
+  }catch{}
 }
 </script>
 

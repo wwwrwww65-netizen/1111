@@ -51,8 +51,31 @@ export async function injectTracking(): Promise<void> {
       const s = document.createElement('script'); s.id='fb-pixel'; s.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init','${fb}'); fbq('track','PageView');`;
       document.head.appendChild(s);
     }
-    // Also send PageView via CAPI for dedupe-ready tracking
-    try{ const { trackEvent } = await import('./lib/track'); trackEvent('PageView', { currency: (window as any).__CURRENCY_CODE__||'YER' }) }catch{}
+    // Advanced Matching: set user em/ph hashed when available
+    try{
+      const subtle = (window.crypto && (window.crypto as any).subtle) as SubtleCrypto | undefined;
+      const sha = async (s:string) => {
+        try{
+          if (!subtle) return '';
+          const enc = new TextEncoder().encode(s);
+          const buf = await subtle.digest('SHA-256', enc);
+          return Array.from(new Uint8Array(buf)).map(b=> b.toString(16).padStart(2,'0')).join('');
+        }catch{ return '' }
+      };
+      const me = await fetch('/api/me', { credentials:'include' }).then(r=> r.ok? r.json(): null).catch(()=>null);
+      const emRaw = (me && me.user && me.user.email) ? String(me.user.email).trim().toLowerCase() : '';
+      const phRaw = (me && me.user && me.user.phone) ? String(me.user.phone).replace(/\\D/g,'') : '';
+      const em = emRaw ? await sha(emRaw) : '';
+      const ph = phRaw ? await sha(phRaw) : '';
+      if ((window as any).fbq && (em || ph)){
+        try{ (window as any).fbq('set','user', { em: em || undefined, ph: ph || undefined }) }catch{}
+      }
+    }catch{}
+    // Also send PageView via CAPI فقط (تجنّب بعث Pixel مرتين)
+    try{
+      const { trackEvent } = await import('./lib/track');
+      trackEvent('PageView', { currency: (window as any).__CURRENCY_CODE__||'YER' });
+    }catch{}
     if (ga && !document.getElementById('ga-gtag')){
       const s1 = document.createElement('script'); s1.async=true; s1.src=`https://www.googletagmanager.com/gtag/js?id=${ga}`; document.head.appendChild(s1);
       const s2 = document.createElement('script'); s2.id='ga-gtag'; s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','${ga}', { 'transport_type': 'beacon' });`;
