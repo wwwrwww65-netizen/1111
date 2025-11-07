@@ -2273,7 +2273,10 @@ shop.get('/tracking/keys', async (_req, res) => {
       for (const it of latest) {
         const cfg: any = (it as any).config || {};
         for (const [k, v] of Object.entries(cfg)) {
-          if (typeof v === 'string' && !(k in merged)) merged[k] = v as string;
+          if (typeof v === 'string') {
+            const sv = (v as string).trim();
+            if (sv && !(k in merged)) merged[k] = sv;
+          }
         }
       }
     }catch{}
@@ -2294,6 +2297,17 @@ shop.get('/tracking/keys', async (_req, res) => {
         pick(v,'conversionsToken','FB_CAPI_TOKEN');
         pick(v,'testEventCode','FB_TEST_EVENT_CODE');
       }
+    }catch{}
+    // 3) Environment fallbacks for critical keys (ensure production works even if admin misconfigured)
+    try{
+      const put = (k: string, v?: string)=>{ if (v && v.trim() && !(k in merged)) merged[k] = v.trim() };
+      put('FB_PIXEL_ID', process.env.FB_PIXEL_ID);
+      put('FB_CAPI_TOKEN', process.env.FB_CAPI_TOKEN);
+      put('FB_TEST_EVENT_CODE', process.env.FB_TEST_EVENT_CODE);
+      put('GA_MEASUREMENT_ID', process.env.GA_MEASUREMENT_ID);
+      put('GOOGLE_TAG_MANAGER_ID', process.env.GOOGLE_TAG_MANAGER_ID);
+      put('TIKTOK_PIXEL_ID', process.env.TIKTOK_PIXEL_ID);
+      put('SENTRY_DSN', process.env.SENTRY_DSN);
     }catch{}
     res.json({ keys: merged });
   } catch (e: any) {
