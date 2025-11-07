@@ -175,7 +175,7 @@
       <div class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'product-'+i" class="mb-1 break-inside-avoid">
           <ProductGridCard 
-            :product="{ id: p.id, title: p.title, images: (p.images && p.images.length ? p.images : [p.image]), overlayBannerSrc: (p as any).overlayBannerSrc, overlayBannerAlt: (p as any).overlayBannerAlt, brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.basePrice, soldPlus: p.soldPlus, couponPrice: p.couponPrice }"
+            :product="{ id: p.id, title: p.title, images: (p.images && p.images.length ? p.images : [p.image]), overlayBannerSrc: (p as any).overlayBannerSrc, overlayBannerAlt: (p as any).overlayBannerAlt, brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.basePrice, soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
             @add="onCardAdd(p)"
           />
         </div>
@@ -189,6 +189,15 @@
         <div class="w-8 h-8 border-4 border-gray-300 border-t-[#8a1538] rounded-full animate-spin"></div>
         <span class="text-[12px] text-gray-500">جاري التحميل...</span>
       </div>
+    </div>
+
+    <!-- Toast notification (مطابق لصفحة المنتج) -->
+    <div 
+      v-if="toast" 
+      class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2"
+    >
+      <Check class="w-4 h-4 text-green-400" />
+      <span>{{ toastText }}</span>
     </div>
 
     <!-- Modal for options from cards -->
@@ -227,6 +236,8 @@ import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { apiGet } from '@/lib/api'
 import { trackEvent } from '@/lib/track'
+import { markTrending } from '@/lib/trending'
+import { Check } from 'lucide-vue-next'
 
 const router = useRouter();
 const cart = useCart();
@@ -320,6 +331,8 @@ const products = ref([
     soldPlus: 'باع 600+'
   }
 ]);
+// annotate trending ids from Admin as they load
+markTrending(products.value)
 
 const cartBadge = computed(() => items.value.length);
 const promoWords = ["فساتين","هودي","بلايز","تيشيرت","جواكت"];
@@ -461,6 +474,13 @@ const modalProduct = ref<any|null>(null)
 const modalColor = ref('')
 const modalSize = ref('')
 const modalGroups = ref<Array<{ label:string; values:string[] }>>([])
+const toast = ref(false)
+const toastText = ref('تمت الإضافة إلى السلة')
+function showToast(msg?: string){
+  try{ if (msg) toastText.value = msg }catch{}
+  toast.value = true
+  setTimeout(()=>{ toast.value = false; try{ toastText.value = 'تمت الإضافة إلى السلة' }catch{} }, 1200)
+}
 async function openOptions(pid: string){
   try{
     modalOpen.value = true
@@ -488,6 +508,7 @@ function onModalSave(payload: { color: string; size: string }){
     const size = payload?.size || ''
     if (!modalProduct.value) return
     cart.add({ id: modalProduct.value.id, title: modalProduct.value.title, price: Number(modalProduct.value.price||0), img: (modalProduct.value.images?.[0]||''), variantColor: color||undefined, variantSize: size||undefined }, 1)
+    showToast()
   }finally{ modalOpen.value = false }
 }
 
@@ -505,12 +526,14 @@ async function onCardAdd(p: any){
     const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
     if (!hasColors && !hasSizes){
       cart.add({ id, title: p.title, price: parseFloat(p.basePrice), img: (p.images&&p.images[0])||p.image }, 1)
+      showToast()
       return
     }
     await openOptions(id)
   }catch{
     // fallback: add directly
     cart.add({ id: p.id, title: p.title, price: parseFloat(p.basePrice), img: (p.images&&p.images[0])||p.image }, 1)
+    showToast()
   }
 }
 
@@ -548,6 +571,7 @@ function loadMoreProducts() {
     ];
     
     products.value.push(...newProducts);
+    try{ markTrending(newProducts) }catch{}
     try{ computeCouponPrices(products.value) }catch{}
     isLoadingMore.value = false;
     try{ pageNumber.value = pageNumber.value + 1; fireListView(newProducts, pageNumber.value) }catch{}

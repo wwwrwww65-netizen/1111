@@ -213,7 +213,7 @@
           <div class="columns-2 gap-1 [column-fill:_balance]">
             <div v-for="(p,i) in suggested" :key="'sug-'+i" class="mb-1 break-inside-avoid">
               <ProductGridCard 
-                :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice }"
+                :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
                 @add="openSuggestOptions"
               />
             </div>
@@ -296,6 +296,7 @@ import {
 import ProductOptionsModal from '../components/ProductOptionsModal.vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductCard from '@/components/ProductCard.vue'
+import { markTrending } from '@/lib/trending'
 
 const cart = useCart()
 const router = useRouter()
@@ -798,6 +799,7 @@ onMounted(async () => {
       couponPrice: x.couponPrice||undefined,
       options: { colors: (x.variants||[]).map((v:any)=>v.color).filter((c:any)=>!!c), sizes: (x.variants||[]).map((v:any)=>v.size).filter((s:any)=>!!s) }
     }))
+    try{ markTrending(suggested.value as any[]) }catch{}
     try{ await hydrateCouponsAndPricesForSuggested() }catch{}
   }catch{}
 })

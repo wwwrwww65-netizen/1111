@@ -640,7 +640,7 @@
       <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
         <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="mb-1 break-inside-avoid">
           <ProductGridCard 
-            :product="{ id: p.id, title: p.title, images: p.img? [p.img] : [], brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, basePrice: p.priceText, soldPlus: (p.soldCount? ('باع '+p.soldCount+'+') : ''), couponPrice: p.afterCoupon }"
+            :product="{ id: p.id, title: p.title, images: p.img? [p.img] : [], brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, basePrice: p.priceText, soldPlus: (p.soldCount? ('باع '+p.soldCount+'+') : ''), couponPrice: p.afterCoupon, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
             @add="onRecoAdd"
           />
         </div>
@@ -969,6 +969,7 @@ import {
 import { consumePrefetchPayload } from '@/lib/nav'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import { fmtPrice, getCurrency } from '@/lib/currency'
+import { getTrendingIdSet } from '@/lib/trending'
 
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
@@ -1417,34 +1418,29 @@ async function buildRecTabsFromCategory(){
 }
 
 // Load More Recommended Products (Infinite Scroll)
-function loadMoreRecommended() {
+async function loadMoreRecommended() {
   if (isLoadingRecommended.value) return
-  
   isLoadingRecommended.value = true
-  
-  // Simulate loading from API
-  setTimeout(async () => {
-    const baseIdx = recommendedProducts.value.length
-    const newProducts: RecItem[] = [
-      {
-        id: 'sim-'+(baseIdx+1),
-        title: 'منتج جديد ' + (baseIdx + 1),
-        img: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400',
-        priceText: fmtPrice(85),
-        discountPercent: 18,
-      },
-      {
-        id: 'sim-'+(baseIdx+2),
-        title: 'منتج جديد ' + (baseIdx + 2),
-        img: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-        priceText: fmtPrice(105),
-        discountPercent: 22,
-      }
-    ]
-    recommendedProducts.value.push(...newProducts)
-    try{ await hydrateCouponsForRecommended() }catch{}
+  try{
+    const offset = recommendedProducts.value.length
+    // Prefer similar; if backend supports offset/limit they'll be used, else we slice locally
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}?limit=24&offset=${offset}`).catch(()=>null)
+    let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
+    if (!list.length){
+      const rec = await apiGet<any>(`/api/products?limit=24&sort=new&offset=${offset}`).catch(()=>null)
+      list = Array.isArray(rec?.items) ? rec!.items : []
+    }
+    // Map and de-dup by id
+    const existing = new Set(recommendedProducts.value.map(p=> String(p.id)))
+    const mapped = list.map((it:any)=> toRecItem(it)).filter((p:any)=> !existing.has(String(p.id)))
+    if (mapped.length){
+      recommendedProducts.value.push(...mapped)
+      try{ const set = await getTrendingIdSet(); mapped.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
+      try{ await hydrateCouponsForRecommended() }catch{}
+    }
+  }catch{} finally {
     isLoadingRecommended.value = false
-  }, 1500)
+  }
 }
 
 // Navigate to recommended product
@@ -2222,15 +2218,22 @@ async function fetchRecommendations(){
       const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=24`)
       const items = Array.isArray(j?.items)? j.items : []
       recommendedProducts.value = items.map((it:any)=> toRecItem(it))
+      try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       return
     }
     // Default: similar by current product's category, then recent
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`)
     const list = Array.isArray(sim?.items) ? sim!.items : []
-    if (list.length) { recommendedProducts.value = list.map((it:any)=> toRecItem(it)); try{ await hydrateCouponsForRecommended() }catch{}; return }
+    if (list.length) {
+      recommendedProducts.value = list.map((it:any)=> toRecItem(it))
+      try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
+      try{ await hydrateCouponsForRecommended() }catch{}
+      return
+    }
     const rec = await apiGet<any>('/api/recommendations/recent')
     const items = Array.isArray(rec?.items) ? rec!.items : []
     recommendedProducts.value = items.map((it:any)=> toRecItem(it))
+    try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
     try{ await hydrateCouponsForRecommended() }catch{}
   }catch{} finally { isLoadingRecommended.value = false }
 }
@@ -2427,6 +2430,7 @@ function onRecModalSave(payload: { color: string; size: string }){
     const size = payload?.size || ''
     if (!recModalProduct.value) return
     cart.add({ id: recModalProduct.value.id, title: recModalProduct.value.title, price: Number(recModalProduct.value.price||0), img: (recModalProduct.value.images?.[0]||''), variantColor: color||undefined, variantSize: size||undefined }, 1)
+    try{ toast.value = true }catch{}
   }finally{ recOptionsOpen.value = false }
 }
 

@@ -22,7 +22,8 @@
       <img :src="overlayBannerSrc" :alt="overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
     </div>
     <div class="relative p-2 pb-4">
-      <div v-if="brand" class="inline-flex items-center border border-gray-200 rounded overflow-hidden">
+      <!-- شارة ترندات: تظهر فقط إذا كان المنتج موسوم كترند من لوحة التحكم -->
+      <div v-if="isTrending" class="inline-flex items-center border border-gray-200 rounded overflow-hidden">
         <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span>
         <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700">
           <Store :size="14" color="#6D28D9" :stroke-width="2" />
@@ -75,6 +76,7 @@ type P = {
   basePrice?: string
   soldPlus?: string
   couponPrice?: string
+  isTrending?: boolean
 }
 
 const props = defineProps<{ product: P }>()
@@ -87,6 +89,7 @@ const title = computed(()=> String(props.product?.title||''))
 const overlayBannerSrc = computed(()=> props.product?.overlayBannerSrc||'')
 const overlayBannerAlt = computed(()=> props.product?.overlayBannerAlt||'')
 const brand = computed(()=> props.product?.brand||'')
+const isTrending = computed(()=> !!(props.product as any)?.isTrending)
 const discountPercent = computed(()=> props.product?.discountPercent as number|undefined)
 const bestRank = computed(()=> props.product?.bestRank as number|undefined)
 const bestRankCategory = computed(()=> props.product?.bestRankCategory||'')

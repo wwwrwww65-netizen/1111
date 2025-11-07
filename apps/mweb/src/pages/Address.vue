@@ -493,7 +493,16 @@ function selectArea(name: string){
 
 async function loadGovernorates(){
   const r = await apiGet<{ items: Array<{ id?: string; name: string }> }>('/api/geo/governorates?country=YE')
-  governorates.value = Array.isArray(r?.items) ? r!.items : []
+  let list = Array.isArray(r?.items) ? r!.items : []
+  // Fallback to Admin locations if geo list is empty
+  if (!list.length){
+    try{
+      const a = await apiGet<any>('/api/admin/locations/provinces')
+      const arr = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.provinces) ? a!.provinces : []))
+      list = arr.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
+    }catch{}
+  }
+  governorates.value = list
 }
 
 async function loadCities(){
@@ -510,7 +519,16 @@ async function loadAreas(){
   if (!selectedGovernorate.value) return
   const url = `/api/geo/areas?governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
   const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(url)
-  areas.value = Array.isArray(r?.items) ? r!.items : []
+  let list = Array.isArray(r?.items) ? r!.items : []
+  if (!list.length){
+    // Fallback: admin areas by province name
+    try{
+      const a = await apiGet<any>(`/api/admin/locations/areas?province=${encodeURIComponent(String(selectedGovernorate.value))}`)
+      const arr = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
+      list = arr.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
+    }catch{}
+  }
+  areas.value = list
 }
 
 function openGovernorates(){ openGovPicker.value = true; if (!governorates.value.length) loadGovernorates() }
