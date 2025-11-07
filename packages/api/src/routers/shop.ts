@@ -3355,20 +3355,20 @@ shop.get('/geo/governorates', async (req, res) => {
     let country: any = null;
     try { country = await db.country.findFirst({ where: { OR: [{ code }, { name: code }] } }); } catch {}
     const where: any = country ? { countryId: country.id } : {};
-    const cities = await db.city.findMany({ where, select: { id: true, name: true, region: true } });
-    // Map displayName -> a representative cityId (if any) and emit unique list
-    const map = new Map<string,{ id?: string; name: string }>();
-    const put = (name: string, id?: string) => {
+    const cities = await db.city.findMany({ where, select: { id: true, name: true, region: true, createdAt: true }, orderBy: { createdAt: 'asc' } });
+    // Map displayName -> first-seen createdAt and a representative cityId; preserve first input order
+    const map = new Map<string,{ id?: string; name: string; firstAt: number }>();
+    const put = (name: string, id?: string, createdAt?: Date) => {
       const key = String(name||'').trim(); if (!key) return;
-      if (!map.has(key)) map.set(key, { id, name: key });
+      if (!map.has(key)) map.set(key, { id, name: key, firstAt: createdAt? new Date(createdAt).getTime(): Date.now() });
     }
     for (const c of (cities||[])) {
       const r = String((c as any).region||'').trim();
       const n = String((c as any).name||'').trim();
-      if (r) put(r, (c as any).id);
-      if (n) put(n, (c as any).id);
+      if (r) put(r, (c as any).id, (c as any).createdAt);
+      if (n) put(n, (c as any).id, (c as any).createdAt);
     }
-    const items = Array.from(map.values()).sort((a,b)=> a.name.localeCompare(b.name,'ar'));
+    const items = Array.from(map.values()).sort((a,b)=> a.firstAt - b.firstAt).map(({ firstAt, ...rest })=> rest);
     res.json({ items });
   } catch { res.status(500).json({ error: 'failed' }); }
 });
@@ -3383,10 +3383,10 @@ shop.get('/geo/cities', async (req, res) => {
     try { country = await db.country.findFirst({ where: { OR: [{ code }, { name: code }] } }); } catch {}
     const whereBase: any = country ? { countryId: country.id } : {};
     // Try matching by region first
-    let rows = await db.city.findMany({ where: { ...whereBase, region: governorate }, select: { id: true, name: true } });
+    let rows = await db.city.findMany({ where: { ...whereBase, region: governorate }, select: { id: true, name: true }, orderBy: { createdAt: 'asc' } });
     if (!rows.length) {
       // Fallback: treat governorate as a parent city; return same as one item
-      rows = await db.city.findMany({ where: { ...whereBase, name: governorate }, select: { id: true, name: true } });
+      rows = await db.city.findMany({ where: { ...whereBase, name: governorate }, select: { id: true, name: true }, orderBy: { createdAt: 'asc' } });
     }
     res.json({ items: rows.map((c: any) => ({ id: c.id, name: c.name })) });
   } catch { res.status(500).json({ error: 'failed' }); }
@@ -3407,9 +3407,11 @@ shop.get('/geo/areas', async (req, res) => {
       const cities = await db.city.findMany({ where: whereCity, select: { id: true } });
       if (!cities.length) return res.json({ items: [] });
       const ids = cities.map(c => c.id);
-      const rows = await db.area.findMany({ where: { cityId: { in: ids } }, select: { id: true, name: true } });
-      // Deduplicate by name
-      const uniq = Array.from(new Map(rows.map(r => [r.name, r])).values());
+      const rows = await db.area.findMany({ where: { cityId: { in: ids } }, select: { id: true, name: true, createdAt: true }, orderBy: { createdAt: 'asc' } });
+      // Deduplicate by name, preserving first input order
+      const seen = new Set<string>();
+      const uniq: Array<{ id: string; name: string }> = [];
+      for (const r of rows){ const key = String(r.name||''); if (!seen.has(key)){ seen.add(key); uniq.push({ id: r.id, name: r.name }); } }
       return res.json({ items: uniq });
     }
     if (!byId && !byName) return res.json({ items: [] });
@@ -3421,7 +3423,7 @@ shop.get('/geo/areas', async (req, res) => {
       city = await db.city.findFirst({ where: { name: byName } });
     }
     if (!city) return res.json({ items: [] });
-    const areas = await db.area.findMany({ where: { cityId: city.id }, select: { id: true, name: true } });
+    const areas = await db.area.findMany({ where: { cityId: city.id }, select: { id: true, name: true }, orderBy: { createdAt: 'asc' } });
     res.json({ items: areas });
   } catch { res.status(500).json({ error: 'failed' }); }
 });
