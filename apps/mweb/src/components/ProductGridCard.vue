@@ -6,6 +6,17 @@
       <div class="flex">
         <img v-for="(img,idx) in gallery" :key="'img-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
       </div>
+      <!-- عمود الألوان: نقاط ألوان عند توفر قائمة ألوان، وإلا تعرض مصغرات صور الألوان -->
+      <div v-if="colorsHex.length || colorThumbs.length" class="absolute top-1 left-1 flex gap-1">
+        <template v-if="colorsHex.length">
+          <span v-for="(c,i) in colorsHex.slice(0,5)" :key="'cx-'+i" class="w-4 h-4 rounded-full border border-white shadow" :style="{ backgroundColor: c }" />
+          <span v-if="colorsHex.length>5" class="text-[10px] bg-white/90 rounded px-1 border">+{{ colorsHex.length-5 }}</span>
+        </template>
+        <template v-else>
+          <img v-for="(u,i) in colorThumbs.slice(0,5)" :key="'c-'+i" :src="u" alt="لون" class="w-4 h-4 rounded-full border border-white shadow" loading="lazy" />
+          <span v-if="colorThumbs.length>5" class="text-[10px] bg-white/90 rounded px-1 border">+{{ colorThumbs.length-5 }}</span>
+        </template>
+      </div>
     </div>
     <div v-if="overlayBannerSrc" class="w-full h-7 relative">
       <img :src="overlayBannerSrc" :alt="overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
@@ -23,13 +34,13 @@
         <div v-if="typeof discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ discountPercent }}</div>
         <div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ title }}</div>
       </div>
-      <div v-if="(typeof bestRank==='number') || bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden">
+      <div v-if="(typeof bestRank==='number') || bestRankCategoryDisplay" class="mt-1 inline-flex items-stretch rounded overflow-hidden">
         <div v-if="typeof bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ bestRank }} الأفضل مبيعاً</div>
-        <button v-if="bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ bestRankCategory }}</span><span>&gt;</span></button>
+        <button v-if="bestRankCategoryDisplay" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ bestRankCategoryDisplay }}</span><span>&gt;</span></button>
       </div>
       <div class="mt-1 flex items-center gap-1">
         <span v-if="displayPrice" class="text-red-600 font-bold text-[13px]">{{ displayPrice }}</span>
-        <span v-if="soldPlus" class="text-[11px] text-gray-700">{{ soldPlus }}</span>
+        <span v-if="soldDisplay" class="text-[11px] text-gray-700">{{ soldDisplay }}</span>
       </div>
       <button class="absolute left-2 bottom-3 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="add()">
         <ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span>
@@ -46,6 +57,7 @@ import { useRouter } from 'vue-router'
 import { useCart } from '@/store/cart'
 import { setPrefetchPayload } from '@/lib/nav'
 import { ShoppingCart, Store } from 'lucide-vue-next'
+import { apiGet, API_BASE } from '@/lib/api'
 
 type P = {
   id: string
@@ -78,12 +90,19 @@ const brand = computed(()=> props.product?.brand||'')
 const discountPercent = computed(()=> props.product?.discountPercent as number|undefined)
 const bestRank = computed(()=> props.product?.bestRank as number|undefined)
 const bestRankCategory = computed(()=> props.product?.bestRankCategory||'')
+const bestRankCategoryDisplay = computed(()=> bestRankCategory.value || bestRankCategoryLocal.value)
 const basePrice = computed(()=> props.product?.basePrice||'')
 const displayPrice = computed(()=>{
   const n = Number((basePrice.value||'0').toString().replace(/[^\d.]/g,''))||0
   return fmtPrice(n)
 })
 const soldPlus = computed(()=> props.product?.soldPlus||'')
+const soldDisplay = computed(()=>{
+  const raw = String(soldPlus.value||'').replace(/[^0-9]/g,'')
+  const qty = Number(raw||0)
+  if (qty>=10) return `تم بيع +${qty}`
+  return ''
+})
 const couponPrice = computed(()=> props.product?.couponPrice||'')
 const displayCoupon = computed(()=>{
   if (!couponPrice.value) return ''
@@ -96,7 +115,42 @@ const gallery = computed(()=> {
   return [props.product?.image || '/images/placeholder-product.jpg']
 })
 
-function open(ev?: MouseEvent){
+// Lazy enrichment: colors + category label if missing
+import { ref, onMounted } from 'vue'
+const colorThumbs = ref<string[]>([])
+const bestRankCategoryLocal = ref<string>('')
+const colorsHex = computed(()=>{
+  try{
+    const arr = Array.isArray((props.product as any)?.colors) ? ((props.product as any).colors as any[]) : []
+    const valid = arr.map((s:any)=> String(s||'').trim()).filter((v:string)=> /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v))
+    return valid
+  }catch{ return [] as string[] }
+})
+onMounted(async ()=>{
+  try{
+    if (!id.value) return
+    if (bestRankCategory.value && colorThumbs.value.length) return
+    const d:any = await apiGet(`/api/product/${encodeURIComponent(id.value)}`)
+    if (d){
+      try{
+        const g = Array.isArray(d.colorGalleries)? d.colorGalleries as any[] : []
+        const imgs = g.map(x=> x.primaryImageUrl || (Array.isArray(x.images)&&x.images[0]) || '').filter(Boolean)
+        // normalize to absolute URLs
+        colorThumbs.value = imgs.map((u:any)=>{
+          const s = String(u||'').trim()
+          if (!s) return ''
+          if (/^https?:\/\//i.test(s)) return s
+          if (s.startsWith('/uploads')) return `${API_BASE}${s}`
+          if (s.startsWith('uploads/')) return `${API_BASE}/${s}`
+          return s
+        }).filter(Boolean)
+      }catch{}
+      try{ if (!bestRankCategory.value && d.category?.name) bestRankCategoryLocal.value = String(d.category.name) }catch{}
+    }
+  }catch{}
+})
+
+function open(ev?: Event){
   if (!id.value) return
   const go = ()=> {
     try{
