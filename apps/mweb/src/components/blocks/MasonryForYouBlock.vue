@@ -76,7 +76,12 @@ function toGridP(p:any, i:number): GridP{
     basePrice: typeof p.basePrice==='string'? p.basePrice : (p.price!=null? String(p.price) : undefined),
     soldPlus: p.soldPlus,
     couponPrice: p.couponPrice,
-    isTrending: !!(p.isTrending===true || p.trending===true || (Array.isArray(p.badges) && p.badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) || (Array.isArray(p.tags) && p.tags.some((t:any)=> /trending|trend|ترند/i.test(String(t||''))))
+    isTrending: !!(
+      p.isTrending===true ||
+      p.trending===true ||
+      (Array.isArray(p.badges) && p.badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) ||
+      (Array.isArray(p.tags) && p.tags.some((t:any)=> /trending|trend|ترند/i.test(String(t||''))))
+    )
   }
 }
 
