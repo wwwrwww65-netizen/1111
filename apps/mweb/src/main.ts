@@ -101,6 +101,12 @@ const router = createRouter({
 app.use(router);
 app.mount('#app');
 injectTracking();
+// Ensure PageView fires on initial load and subsequent SPA navigations
+try{
+  const firePV = ()=>{ try{ const fbq = (window as any).fbq; if (typeof fbq==='function'){ const now=Date.now(); const last=(window as any).__LAST_PV_TS__||0; if (now-last>800){ fbq('track','PageView'); (window as any).__LAST_PV_TS__=now; } } }catch{} }
+  firePV();
+  router.afterEach(()=>{ firePV(); })
+}catch{}
 try{ const cart = useCart(); cart.loadLocal();
   // If logged in (token cookie present) and local cart is empty, hydrate from server
   try{
