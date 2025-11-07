@@ -2862,7 +2862,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       try{ const raw = String(req.headers.cookie||''); const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]); const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]); }catch{}
       const contents = cartItems.map(ci=> ({ id: String(ci.productId), quantity: Number(ci.quantity||1), item_price: Number(ci.product?.price||0) }))
       const evId = `OrderCreated_${order.id}_${Math.floor(Date.now()/1000)}`
-      await fbSendEvents([{ event_name:'OrderCreated', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id), num_items: contents.length, payment_method: String(paymentMethod||''), shipping: Number(ship||0) }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
+      await fbSendEvents([{ event_name:'OrderCreated', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc }, custom_data:{ value: Number(order.total||0), currency:'YER', content_ids: contents.map(c=> c.id), content_type:'product_group', contents, order_id: String(order.id), num_items: contents.length, payment_method: String(paymentMethod||''), shipping: Number(ship||0) }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
     }catch{}
     // Persist per-line variant meta without schema migration (side table)
     try {
@@ -3249,7 +3249,7 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       const rows: any[] = await db.$queryRaw`SELECT "shippingAmount" FROM "Order" WHERE id=${id}` as any[]
       if (rows && rows[0]) shippingAmount = Number(rows[0].shippingAmount||0)
     }catch{}
-    await fbSendEvents([{ event_name:'Purchase', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc, client_ip_address, client_user_agent }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined, content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id), payment_method: String(method||''), shipping: shippingAmount }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
+    await fbSendEvents([{ event_name:'Purchase', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc, client_ip_address, client_user_agent }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined, content_ids: contents.map(c=> c.id), content_type:'product_group', contents, order_id: String(order.id), payment_method: String(method||''), shipping: shippingAmount }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
     // Persist event_id for client dedupe
     try{
       await db.setting.upsert({ where: { key: `order:${order.id}:purchase_event_id` }, update: { value: evId }, create: { key: `order:${order.id}:purchase_event_id`, value: evId } } as any)

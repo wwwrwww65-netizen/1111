@@ -123,7 +123,7 @@ onMounted(async ()=>{
           currency: String(data?.currency||'YER'),
           contents: Array.isArray(data?.contents)? data.contents: [],
           content_ids: Array.isArray(data?.content_ids)? data.content_ids: [],
-          content_type: 'product'
+          content_type: 'product_group'
         }
         const ev = (order.value as any)?.eventIds?.purchase
         if (ev){ fbq('track','Purchase', params, { eventID: ev }) } else { fbq('track','Purchase', params) }

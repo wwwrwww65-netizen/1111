@@ -383,7 +383,7 @@ async function goToCheckout() {
   try{
     const { trackEvent } = await import('@/lib/track')
     const contents = (validItems.value||[]).filter(it=> selectedItems.value.includes(it.uid)).map(it=> ({ id: String(it.id), quantity: Number(it.qty||1), item_price: Number(it.price||0) }))
-    await trackEvent('InitiateCheckout', { value: Number(effectiveTotal.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids: contents.map(c=> c.id), content_type:'product', contents, num_items: contents.length })
+    await trackEvent('InitiateCheckout', { value: Number(effectiveTotal.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids: contents.map(c=> c.id), content_type:'product_group', contents, num_items: contents.length })
   }catch{}
   // في حال لم يسجل المستخدم الدخول، نوجّهه لتسجيل الدخول ثم نعود للسلة
   if (!isLoggedIn.value) { router.push({ path:'/login', query: { return: '/cart' } }); return }

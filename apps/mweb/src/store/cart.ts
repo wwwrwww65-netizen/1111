@@ -60,7 +60,7 @@ export const useCart = defineStore('cart', {
           value: priceNum,
           currency: (window as any).__CURRENCY_CODE__ || 'YER',
           content_ids: [String(item.id)],
-          content_type: 'product',
+          content_type: 'product_group',
           contents: [{ id: String(item.id), quantity: Number(qty||1), item_price: priceNum }]
         })
       }catch{}
@@ -94,7 +94,7 @@ export const useCart = defineStore('cart', {
           value: priceNum,
           currency: (window as any).__CURRENCY_CODE__ || 'YER',
           content_ids: [String(it.id)],
-          content_type: 'product',
+          content_type: 'product_group',
           contents: [{ id: String(it.id), quantity: Number(it.qty||1), item_price: priceNum }]
         })
       }catch{}

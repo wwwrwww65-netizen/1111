@@ -391,7 +391,7 @@ async function placeOrder(){
         const { trackEvent } = await import('@/lib/track')
         const currency = (window as any).__CURRENCY_CODE__||'YER'
         const contents = (items.value||[]).map((it:any)=> ({ id: String(it.id), quantity: Number(it.qty||1), item_price: Number(it.price||0) }))
-        await trackEvent('OrderCreated', { order_id: String((ord as any).order.id), value: Number(totalAll.value||0), currency, content_ids: contents.map(c=> c.id), content_type:'product', contents })
+        await trackEvent('OrderCreated', { order_id: String((ord as any).order.id), value: Number(totalAll.value||0), currency, content_ids: contents.map(c=> c.id), content_type:'product_group', contents })
       }catch{}
       // Prepare payload for possible client-side Purchase if needed later (we currently rely on CAPI for Purchase)
       try{

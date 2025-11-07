@@ -589,7 +589,7 @@ async function fireListView(list:any[], page:number){
     const ids = contents.map(c=> c.id)
     await trackEvent('ViewCategory', {
       content_ids: ids,
-      content_type: 'product',
+      content_type: 'product_group',
       contents,
       currency: (window as any).__CURRENCY_CODE__||'YER',
       content_category: categoryName,
