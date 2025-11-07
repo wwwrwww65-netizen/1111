@@ -108,10 +108,11 @@ try{
   router.afterEach(()=>{ firePV(); })
 }catch{}
 try{ const cart = useCart(); cart.loadLocal();
-  // If logged in (token cookie present) and local cart is empty, hydrate from server
+  // If logged in (token cookie present) hydrate from server; else for guests hydrate if local is empty (guest cart via cookie)
   try{
     const hasTok = document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')
-    if (hasTok) cart.syncFromServer().catch(()=>{})
+    if (hasTok) { cart.syncFromServer().catch(()=>{}) }
+    else if (!Array.isArray(cart.items) || cart.items.length===0) { cart.syncFromServer().catch(()=>{}) }
   }catch{}
 }catch{}
 try{ initCurrency() }catch{}

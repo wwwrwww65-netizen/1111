@@ -150,13 +150,19 @@
                 <p v-if="errors.governorate" class="mt-1 text-xs text-red-600">{{ errors.governorate }}</p>
               </div>
 
-              <!-- المدينة/المديرية: مخفية حسب طلب العميل -->
-              <div class="mt-3" style="display:none">
+              <!-- المدينة/المديرية -->
+              <div class="mt-3">
                 <label>المدينة/المديرية</label>
                 <div class="relative">
-                  <button class="w-full text-right border px-2 py-2 bg-white" disabled>
-                    <span class="text-gray-400">تم الإخفاء</span>
+                  <button class="w-full text-right border px-2 py-2 bg-white"
+                          :disabled="!selectedGovernorate" @click="openCities()">
+                    <span :class="!selectedGovernorate ? 'text-gray-400' : 'text-gray-700'">
+                      {{ selectedCityName || (selectedGovernorate ? 'اختر المدينة/المديرية (اختياري)' : 'اختر المحافظة أولاً') }}
+                    </span>
                   </button>
+                  <svg v-if="selectedGovernorate" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
+                  </svg>
                 </div>
               </div>
 
@@ -286,8 +292,25 @@
           </div>
         </transition>
 
-        <!-- منبثق اختيار المدينة/المديرية: مخفي -->
-        <transition name="drawer-left"></transition>
+        <!-- منبثق اختيار المدينة/المديرية -->
+        <transition name="drawer-left">
+          <div v-if="openCityPicker" class="fixed inset-0 z-[60]">
+            <div class="absolute inset-0 bg-black/40" @click="openCityPicker=false"></div>
+            <div class="absolute inset-0 bg-white flex flex-col">
+              <div class="h-12 border-b flex items-center justify-center relative">
+                <h3 class="text-base font-semibold">اختر المدينة/المديرية</h3>
+                <button class="absolute left-3 text-gray-700" @click="openCityPicker=false">✕</button>
+              </div>
+              <div class="flex-1 overflow-y-auto">
+                <ul class="divide-y">
+                  <li v-for="c in cities" :key="c.id" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectCity(c)">
+                    {{ c.name }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </transition>
 
         <!-- منبثق اختيار الحي/المنطقة -->
         <transition name="drawer-left">

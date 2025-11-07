@@ -563,11 +563,6 @@ shop.get('/geo/areas', async (req: any, res) => {
     }
     if (!city) return res.json({ items: [] });
     const areas = await db.area.findMany({ where: { cityId: city.id }, orderBy: { name: 'asc' }, select: { id: true, name: true } });
-    if (!areas.length) {
-      // Provide minimal fallback areas to prevent empty UI
-      const samples = ['المركز','الشمالي','الجنوبي','الغربي','الشرقي']
-      return res.json({ items: samples.map((n,i)=> ({ id: `${city.id}-${i}`, name: n })) })
-    }
     return res.json({ items: areas });
   } catch (e: any) {
     return res.status(500).json({ items: [], error: e?.message || 'failed' });

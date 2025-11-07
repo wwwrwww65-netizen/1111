@@ -32,9 +32,9 @@ export const useCart = defineStore('cart', {
       }) } }catch{}
     },
     saveLocal(){ try{ localStorage.setItem('cart_v1', JSON.stringify(this.items)) }catch{} },
-    async syncFromServer(){
-      // Preserve local variant metadata; only sync if cart is empty locally
-      if (this.items.length > 0) { this.loaded = true; return }
+    async syncFromServer(force = false){
+      // When force=true, always hydrate from server (used after login/merge)
+      if (!force && this.items.length > 0) { this.loaded = true; return }
       const data = await apiGet<any>('/api/cart')
       if (data && data.cart){
         this.items = (data.cart.items||[]).map((ci:any)=>{

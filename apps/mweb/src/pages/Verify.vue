@@ -253,7 +253,8 @@ async function onSubmit(){
           const cart = useCart()
           const items = Array.isArray(cart.items) ? cart.items.map(i=>({ productId: i.id, quantity: i.qty })) : []
           if (items.length) await apiPost('/api/cart/merge', { items })
-          await cart.syncFromServer()
+          // Force hydration from server so cart persists across devices and after login
+          await cart.syncFromServer(true)
           cart.saveLocal()
         }catch{}
         if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
