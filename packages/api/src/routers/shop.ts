@@ -2266,14 +2266,33 @@ shop.get('/catalog/:slug', async (req, res) => {
 // Public: tracking keys for client injection (merged from latest integrations)
 shop.get('/tracking/keys', async (_req, res) => {
   try {
-    const latest = await db.integration.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
     const merged: Record<string, string> = {};
-    for (const it of latest) {
-      const cfg: any = (it as any).config || {};
-      for (const [k, v] of Object.entries(cfg)) {
-        if (typeof v === 'string' && !(k in merged)) merged[k] = v as string;
+    // 1) Pull from integrations table (generic key/value)
+    try{
+      const latest = await db.integration.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
+      for (const it of latest) {
+        const cfg: any = (it as any).config || {};
+        for (const [k, v] of Object.entries(cfg)) {
+          if (typeof v === 'string' && !(k in merged)) merged[k] = v as string;
+        }
       }
-    }
+    }catch{}
+    // 2) Pull from admin settings used لميتا (لوحة التحكم)
+    try{
+      const mweb = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:mweb' } } as any);
+      const web  = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:web' } } as any);
+      const a: any = (mweb?.value as any) || {};
+      const b: any = (web?.value as any)  || {};
+      const pick = (src: any, srcKey: string, outKey: string)=>{
+        const val = src && typeof src[srcKey]==='string' ? String(src[srcKey]) : '';
+        if (val && !(outKey in merged)) merged[outKey] = val;
+      };
+      // Map known fields → public keys expected في الواجهة
+      pick(a,'pixelId','FB_PIXEL_ID'); pick(b,'pixelId','FB_PIXEL_ID');
+      pick(a,'googleTagManagerId','GOOGLE_TAG_MANAGER_ID'); pick(b,'googleTagManagerId','GOOGLE_TAG_MANAGER_ID');
+      pick(a,'gaMeasurementId','GA_MEASUREMENT_ID');    pick(b,'gaMeasurementId','GA_MEASUREMENT_ID');
+      pick(a,'tiktokPixelId','TIKTOK_PIXEL_ID');        pick(b,'tiktokPixelId','TIKTOK_PIXEL_ID');
+    }catch{}
     res.json({ keys: merged });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'tracking_keys_failed' });
