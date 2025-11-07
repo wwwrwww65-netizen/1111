@@ -226,6 +226,7 @@ import {
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { apiGet } from '@/lib/api'
+import { trackEvent } from '@/lib/track'
 
 const router = useRouter();
 const cart = useCart();
@@ -332,6 +333,9 @@ const isScrollingUp = ref(false);
 const atTop = ref(true);
 const showHeaderFilters = computed(() => isScrollingUp.value && !atTop.value);
 const isLoadingMore = ref(false);
+const pageNumber = ref(1);
+const currentListName = ref<string>('Products');
+const currentCategoryName = ref<string>('');
 
 // حساب ارتفاع الهيدر ديناميكيًا
 const headerHeight = computed(() => {
@@ -361,6 +365,7 @@ onMounted(() => {
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
   // حساب أسعار بعد الكوبون إن وُجدت كوبونات مناسبة
   try{ hydrateCouponsAndPrices() }catch{}
+  try{ fireListView(products.value, 1) }catch{}
 });
 
 onBeforeUnmount(() => {
@@ -411,6 +416,15 @@ function togglePriceSort() {
 
 function onCategoryClick(c: {id:number,label:string,img:string}) {
   console.log('category', c);
+  try{
+    currentCategoryName.value = c.label || '';
+    currentListName.value = 'Category';
+    pageNumber.value = 1;
+    // إرسال ViewCategory
+    const ids = (products.value||[]).slice(0, 20).map((p:any)=> String(p.id));
+    const contents = (products.value||[]).slice(0, 20).map((p:any, i:number)=> ({ id:String(p.id), item_price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, quantity:1, position: i+1 }));
+    trackEvent('ViewCategory', { content_ids: ids, content_type:'product', contents, currency: (window as any).__CURRENCY_CODE__||'YER' });
+  }catch{}
 }
 
 // وظائف التنقل
@@ -536,6 +550,7 @@ function loadMoreProducts() {
     products.value.push(...newProducts);
     try{ computeCouponPrices(products.value) }catch{}
     isLoadingMore.value = false;
+    try{ pageNumber.value = pageNumber.value + 1; fireListView(newProducts, pageNumber.value) }catch{}
   }, 1500);
 }
 
@@ -617,6 +632,20 @@ async function computeCouponPrices(list:any[]){
     const match = cups.find(c=> eligibleByTokens(p, c))
     if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
   }
+}
+
+// ===== Tracking helper: ProductListView / ViewCategory =====
+function fireListView(list:any[], page:number){
+  try{
+    const contents = (list||[]).map((p:any, i:number)=> ({ id:String(p.id), item_price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, quantity:1, position: i+1, page_number: page }))
+    const ids = contents.map(c=> c.id)
+    trackEvent(currentCategoryName.value ? 'ViewCategory' : 'ProductListView', {
+      content_ids: ids,
+      content_type: 'product',
+      contents,
+      currency: (window as any).__CURRENCY_CODE__||'YER'
+    })
+  }catch{}
 }
 </script>
 
