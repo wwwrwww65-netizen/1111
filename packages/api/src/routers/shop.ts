@@ -3197,13 +3197,14 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       await db.payment.create({ data: { orderId: order.id, amount, currency: 'SAR', method: method as any, status: 'COMPLETED' } as any });
     }
     await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } });
+    // Prepare unified event_id for dedupe
+    const evId = `Purchase_${order.id}_${Math.floor(Date.now()/1000)}`
     // Fire FB CAPI Purchase (best-effort) with fbp/fbc from cookies
     try{
       const { fbSendEvents, hashEmail } = await import('../services/fb');
       const u = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
       let fbp: string|undefined; let fbc: string|undefined;
       try{ const raw = String(req.headers.cookie||''); const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]); const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]); }catch{}
-    const evId = `Purchase_${order.id}_${Math.floor(Date.now()/1000)}`
     const contents = (order.items||[]).map((it:any)=> ({ id: String(it.productId), quantity: Number(it.quantity||1), item_price: Number(it.price||0) }))
     let client_ip_address: string|undefined; let client_user_agent: string|undefined;
     try{ client_user_agent = String(req.headers['user-agent']||'') }catch{}
