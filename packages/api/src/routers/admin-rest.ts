@@ -10348,19 +10348,7 @@ adminRest.get('/marketing/facebook/settings', async (req, res) => {
     const site = String(req.query.site||'web');
     const key = `marketing:facebook:settings:${site}`;
     const s = await db.setting.findUnique({ where: { key } });
-    const settings:any = (s?.value as any)||{};
-    // Build absolute feed URL if token available; prefer PUBLIC_API_BASE_URL else derive from request
-    let feedUrl: string | undefined;
-    try{
-      const token = String(settings.feedToken||'').trim();
-      if (token){
-        const base = (process.env.PUBLIC_API_BASE_URL && process.env.PUBLIC_API_BASE_URL.trim())
-          ? process.env.PUBLIC_API_BASE_URL.trim()
-          : `${(req.protocol||'https')}://${req.get('host')}`;
-        feedUrl = `${base}/api/marketing/facebook/catalog.xml?site=${encodeURIComponent(site)}&token=${encodeURIComponent(token)}`;
-      }
-    }catch{}
-    res.json({ settings, feedUrl });
+    res.json({ settings: (s?.value as any)||{} });
   }catch(e:any){ res.status(500).json({ error: e.message||'fb_settings_get_failed' }); }
 });
 adminRest.put('/marketing/facebook/settings', async (req, res) => {
