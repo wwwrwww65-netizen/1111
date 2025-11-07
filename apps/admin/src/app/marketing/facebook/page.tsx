@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../../lib/apiBase";
 
 export default function FacebookMarketingPage(): JSX.Element {
   const [msg, setMsg] = React.useState<string>("");
@@ -12,13 +13,15 @@ export default function FacebookMarketingPage(): JSX.Element {
 
   async function load(){
     try{
-      const s = await (await fetch(`/api/admin/marketing/facebook/settings?site=${site}`, { credentials:'include' })).json();
+      const apiBase = resolveApiBase();
+      const s = await (await fetch(`${apiBase}/api/admin/marketing/facebook/settings?site=${site}`, { credentials:'include' })).json();
       if (s?.settings) setSettings(s.settings);
-      const a = await (await fetch(`/api/admin/marketing/facebook/analytics?site=${site}`, { credentials:'include' })).json();
+      const a = await (await fetch(`${apiBase}/api/admin/marketing/facebook/analytics?site=${site}`, { credentials:'include' })).json();
       setAnalytics(a?.analytics||{});
-      const r = await (await fetch(`/api/admin/marketing/facebook/recommendations?site=${site}`, { credentials:'include' })).json();
+      const r = await (await fetch(`${apiBase}/api/admin/marketing/facebook/recommendations?site=${site}`, { credentials:'include' })).json();
       setRecs(r?.items||[]);
-      setFeedUrl(`${location.origin}/api/marketing/facebook/catalog.xml?site=${site}&token=${encodeURIComponent(s?.settings?.feedToken||'')}`);
+      const suggested = (s && s.feedUrl) ? String(s.feedUrl) : `${apiBase}/api/marketing/facebook/catalog.xml?site=${site}&token=${encodeURIComponent(s?.settings?.feedToken||'')}`;
+      setFeedUrl(suggested);
     }catch{}
   }
   React.useEffect(()=>{ load(); }, [site]);
