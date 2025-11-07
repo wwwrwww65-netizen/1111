@@ -383,7 +383,13 @@ async function placeOrder(){
   if (placing.value || !selectedPayment.value || !selectedShipping.value || items.value.length===0) return
   placing.value = true
   try{
-    const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids, paymentMethod: selectedPayment.value, shippingMethodId: selectedShipping.value, shippingAddressId: addr.value?.id }
+    // Build explicit lines to avoid server-side ambiguity when multiple variants share the same productId
+    const lines = (items.value||[]).map((it:any)=> ({
+      productId: String(it.id),
+      quantity: Number(it.qty||1),
+      meta: { uid: String(it.uid||''), color: it.variantColor||undefined, size: it.variantSize||undefined }
+    }))
+    const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids, paymentMethod: selectedPayment.value, shippingMethodId: selectedShipping.value, shippingAddressId: addr.value?.id, lines }
     const ord = await apiPost('/api/orders', payload)
     if (ord && (ord as any).order?.id){
       // Track OrderCreated (COD policy: intent only; Purchase يُرسل عند الدفع/التأكيد)

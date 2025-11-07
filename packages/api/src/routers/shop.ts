@@ -2662,6 +2662,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, paymentMethod, shippingMethodId, walletUse, pointsUse } = req.body || {};
+    const linesInput: Array<{ productId: string; quantity: number; meta?: { uid?: string; color?: string; size?: string; attributes?: any } }> | null = Array.isArray((req.body||{}).lines) ? (req.body as any).lines : null
     // Build include dynamically to avoid querying missing columns on legacy DBs
     const hasCatLoyalty: boolean = (() => { return false; })();
     let _hasCatLoyalty = hasCatLoyalty;
@@ -2678,7 +2679,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       ? { include: { category: { select: { loyaltyMultiplier: true } }, vendor: { select: { loyaltyMultiplier: true } } } }
       : { include: { vendor: { select: { loyaltyMultiplier: true } } } };
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: productInclude } } } });
-    if (!cart || cart.items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
+    if (!linesInput && (!cart || cart.items.length === 0)) return res.status(400).json({ error: 'Cart is empty' });
     const selectedProductIds = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
     const selectedUidsList: string[] = Array.isArray(selectedUids) && selectedUids.length ? selectedUids.map(String) : [];
     const selectedCartUids = selectedUidsList.length ? new Set(selectedUidsList) : null;
@@ -2690,19 +2691,44 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       if (selectedFromUids) selectedFromUids.forEach(x => s.add(String(x)));
       return s.size ? s : null;
     })();
-    const cartItems = unionSelectedPids
-      ? cart.items.filter(ci => unionSelectedPids.has(String(ci.productId)))
-      : cart.items;
-    // إذا تم تمرير اختيار (selectedIds أو selectedUids) ولم ينتج أي عناصر، لا نستعمل أي fallback حتى لا نكرر أو نمزج عناصر قديمة
-    if ((selectedProductIds || selectedFromUids) && (!cartItems.length)) {
-      return res.status(400).json({ error: 'No items selected' });
+    // Prefer explicit lines from client when provided to avoid variant-level ambiguity
+    let cartItems: Array<{ productId: string; quantity: number; product?: any; id?: string }> = []
+    if (linesInput && linesInput.length){
+      const pids = Array.from(new Set(linesInput.map(l=> String(l.productId)).filter(Boolean)))
+      const prods = pids.length ? await db.product.findMany({ where: { id: { in: pids } } }) : []
+      const byId = new Map<string, any>()
+      for (const p of prods){ byId.set(String((p as any).id), p) }
+      for (const l of linesInput){
+        const pid = String(l.productId)
+        const qty = Math.max(1, Number(l.quantity||1))
+        cartItems.push({ productId: pid, quantity: qty, product: byId.get(pid) })
+      }
+    } else if (cart) {
+      cartItems = (unionSelectedPids
+        ? cart.items.filter(ci => unionSelectedPids.has(String(ci.productId)))
+        : cart.items) as any
+      // إذا تم تمرير اختيار (selectedIds أو selectedUids) ولم ينتج أي عناصر، لا نستعمل أي fallback حتى لا نكرر أو نمزج عناصر قديمة
+      if ((selectedProductIds || selectedFromUids) && (!cartItems.length)) {
+        return res.status(400).json({ error: 'No items selected' });
+      }
     }
     // Build variant meta map from selectedUids (best-effort): pid -> { color, size, uid, attributes }
     const variantMetaByPid: Record<string, { color?: string; size?: string; uid?: string; attributes?: any }> = {}
     const variantMetaByUid: Record<string, { color?: string; size?: string; uid?: string; attributes?: any }> = {}
     const metaQueueByPid: Record<string, Array<{ uid?: string; meta: { color?: string; size?: string; uid?: string; attributes?: any } }>> = {}
     try {
-      if (selectedUidsList.length) {
+      // Prefer meta from explicit lines when provided
+      if (linesInput && linesInput.length){
+        for (const l of linesInput){
+          const pid = String(l.productId||'')
+          if (!pid) continue
+          const meta = { color: l.meta?.color, size: l.meta?.size, uid: l.meta?.uid, attributes: l.meta?.attributes }
+          variantMetaByUid[String(l.meta?.uid||'')] = meta
+          if (!variantMetaByPid[pid]) variantMetaByPid[pid] = meta
+          metaQueueByPid[pid] = metaQueueByPid[pid] || []
+          metaQueueByPid[pid].push({ uid: l.meta?.uid, meta })
+        }
+      } else if (selectedUidsList.length) {
         for (const u of selectedUidsList) {
           const parts = String(u).split('|')
           const pid = parts[0]
@@ -2784,7 +2810,7 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
         }catch{}
       }
     } catch {}
-    const subtotal = cartItems.reduce((s, it) => s + it.quantity * Number(it.product?.price || 0), 0);
+    const subtotal = cartItems.reduce((s, it) => s + Number(it.quantity||0) * Number(it.product?.price || 0), 0);
     const ship = Number(shippingPrice || 0);
     const disc = Number(discount || 0);
     // Apply wallet/points usage (server-side validation)
@@ -2899,8 +2925,14 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       } catch {}
     }
     try {
-      const delIds = cartItems.map((ci:any)=> ci?.id).filter((x:any)=> !!x)
-      if (delIds.length) await db.cartItem.deleteMany({ where: { id: { in: delIds } } });
+      if (linesInput && linesInput.length){
+        const pids = Array.from(new Set(linesInput.map(l=> String(l.productId)).filter(Boolean)))
+        const cartRow = await db.cart.findUnique({ where: { userId }, select: { id: true } })
+        if (cartRow && pids.length){ await db.cartItem.deleteMany({ where: { cartId: cartRow.id, productId: { in: pids } } }) }
+      } else {
+        const delIds = (cartItems as any[]).map((ci:any)=> ci?.id).filter((x:any)=> !!x)
+        if (delIds.length) await db.cartItem.deleteMany({ where: { id: { in: delIds } } });
+      }
     } catch {}
     // Record wallet/points redemptions against this order
     try { if (walletApplied > 0) await db.walletLedger.create({ data: { userId, amount: -Math.abs(walletApplied), status: 'CONFIRMED' as any, orderId: order.id as any, reason: 'ORDER_REDEEM' } as any }) } catch {}

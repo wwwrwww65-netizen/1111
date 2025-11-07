@@ -572,7 +572,9 @@ async function fetchProductDetails(id: string){
     const looksSizeToken = (s:string): boolean => {
       const v = String(s||'').trim()
       if (!v) return false
-      if (/^(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|XXS)$/i.test(v)) return true
+      // Support common alpha sizes and extended forms (2XL..5XL), case-insensitive
+      if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|2xl|3xl|4xl|5xl)$/i.test(v)) return true
+      // Numeric sizes (e.g., shoes 36-46, jeans 28-42)
       if (/^\d{1,3}$/.test(v)) return true
       return false
     }
@@ -663,7 +665,8 @@ async function fetchProductDetails(id: string){
       price: Number(d.price || (items.value.find(i=>i.id===id)?.price) || 0),
       images: filteredImgs.length ? filteredImgs : [items.value.find(i=>i.id===id)?.img || '/images/placeholder-product.jpg'],
       colors,
-      sizes: sizes.length ? sizes : Array.from(new Set(variants.map((v:any)=> String(v.size||v.value||v.name||'').trim()).filter(Boolean))),
+      // Only expose validated sizes; never fall back to variant value/name tokens
+      sizes: sizes,
       sizeGroups,
       colorGalleries: galleries
     }
