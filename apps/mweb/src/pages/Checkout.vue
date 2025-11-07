@@ -371,7 +371,12 @@ async function loadAddress(){
   const list = await apiGet<any[]>('/api/addresses')
   addr.value = Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null
 }
-async function loadShipping(){ const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?city=${encodeURIComponent(addr.value?.city||'')}`); shippingOptions.value = r?.items||[]; if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id }
+async function loadShipping(){
+  const cityOrGov = String(addr.value?.city || addr.value?.state || addr.value?.province || '').trim()
+  const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?city=${encodeURIComponent(cityOrGov)}`)
+  shippingOptions.value = r?.items||[]
+  if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id
+}
 async function loadPayments(){
   const r = await apiGet<{ items:any[] }>(`/api/payments/methods`)
   paymentOptions.value = r?.items?.filter((x:any)=> x && x.isActive !== false).sort((a:any,b:any)=> Number(a.sortOrder||0)-Number(b.sortOrder||0)).map((x:any)=>({ id:String(x.id), name:String(x.name) }))||[]
