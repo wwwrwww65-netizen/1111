@@ -517,15 +517,31 @@ async function loadCities(){
 async function loadAreas(){
   areas.value = []
   if (!selectedGovernorate.value) return
+  // Primary: public geo endpoint by governorate
   const url = `/api/geo/areas?governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
   const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(url)
   let list = Array.isArray(r?.items) ? r!.items : []
   if (!list.length){
-    // Fallback: admin areas by province name
+    // Fallback: derive via Admin geo structure (areas by cityId)
     try{
-      const a = await apiGet<any>(`/api/admin/locations/areas?province=${encodeURIComponent(String(selectedGovernorate.value))}`)
-      const arr = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
-      list = arr.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
+      // 1) get cities for this governorate from public API
+      const cr = await apiGet<{ items: Array<{ id: string; name: string }> }>(`/api/geo/cities?country=YE&governorate=${encodeURIComponent(String(selectedGovernorate.value))}`)
+      const citiesList = Array.isArray(cr?.items) ? cr!.items : []
+      // 2) aggregate areas from admin endpoint per cityId
+      const aggregated: Array<{ id:string; name:string }> = []
+      for (const c of citiesList){
+        try{
+          const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(c.id))}`)
+          const arr = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
+          for (const it of arr){
+            const id = String(it.id||it._id||'').trim(); const name = String(it.name||it.title||'').trim()
+            if (name) aggregated.push({ id: id || `${c.id}:${name}`, name })
+          }
+        }catch{}
+      }
+      // de-dup by name
+      const seen = new Set<string>()
+      list = aggregated.filter(x=>{ const k = x.name; if(seen.has(k)) return false; seen.add(k); return true })
     }catch{}
   }
   areas.value = list
