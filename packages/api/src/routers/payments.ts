@@ -369,12 +369,12 @@ export const paymentsRouter = router({
       });
       // Fire FB CAPI PurchaseRefund
       try{
-        const pay = await db.payment.findUnique({ where: { stripeId: paymentIntentId }, include: { order: { include: { items: true, user: true } } } as any });
-        if (pay?.order){
+        const pay: any = await db.payment.findUnique({ where: { stripeId: paymentIntentId }, include: { order: { include: { items: true, user: true } } } as any } as any);
+        if (pay && pay.order){
           const { fbSendEvents, hashEmail } = await import('../services/fb' as any);
-          const contents = (pay.order.items||[]).map((it:any)=> ({ id: String(it.productId), quantity: Number(it.quantity||1), item_price: Number(it.price||0) }));
-          const evId = `PurchaseRefund_${pay.order.id}_${Math.floor(Date.now()/1000)}`;
-          await fbSendEvents([{ event_name:'PurchaseRefund', event_id: evId, user_data:{ em: hashEmail((pay.order as any).user?.email) }, custom_data:{ value: Number(pay.amount||0), currency: (pay as any).currency || 'YER', content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(pay.order.id), transaction_id: String(paymentIntentId) }, action_source:'website' } as any]);
+          const contents = ((pay.order && pay.order.items) ? pay.order.items : []).map((it:any)=> ({ id: String(it.productId), quantity: Number(it.quantity||1), item_price: Number(it.price||0) }));
+          const evId = `PurchaseRefund_${String(pay.order.id)}_${Math.floor(Date.now()/1000)}`;
+          await fbSendEvents([{ event_name:'PurchaseRefund', event_id: evId, user_data:{ em: hashEmail(pay.order?.user?.email) }, custom_data:{ value: Number(pay.amount||0), currency: String(pay.currency||'YER'), content_ids: contents.map((c:any)=> c.id), content_type:'product', contents, order_id: String(pay.order.id), transaction_id: String(paymentIntentId) }, action_source:'website' } as any]);
         }
       }catch{}
       return { refund };
