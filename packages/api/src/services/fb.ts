@@ -11,6 +11,8 @@ type FbUserData = {
   external_id?: string
   fbp?: string
   fbc?: string
+  client_ip_address?: string
+  client_user_agent?: string
 }
 
 type FbEvent = {
