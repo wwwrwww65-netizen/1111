@@ -2279,19 +2279,21 @@ shop.get('/tracking/keys', async (_req, res) => {
     }catch{}
     // 2) Pull from admin settings used لميتا (لوحة التحكم)
     try{
-      const mweb = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:mweb' } } as any);
-      const web  = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:web' } } as any);
-      const a: any = (mweb?.value as any) || {};
-      const b: any = (web?.value as any)  || {};
+      // اقرأ كل مفاتيح الإعدادات الخاصة بميتا لأي نطاق (mweb/web/دومين)
+      const settings = await db.setting.findMany({ where: { key: { startsWith: 'integrations:meta:settings' } } } as any);
       const pick = (src: any, srcKey: string, outKey: string)=>{
         const val = src && typeof src[srcKey]==='string' ? String(src[srcKey]) : '';
         if (val && !(outKey in merged)) merged[outKey] = val;
       };
-      // Map known fields → public keys expected في الواجهة
-      pick(a,'pixelId','FB_PIXEL_ID'); pick(b,'pixelId','FB_PIXEL_ID');
-      pick(a,'googleTagManagerId','GOOGLE_TAG_MANAGER_ID'); pick(b,'googleTagManagerId','GOOGLE_TAG_MANAGER_ID');
-      pick(a,'gaMeasurementId','GA_MEASUREMENT_ID');    pick(b,'gaMeasurementId','GA_MEASUREMENT_ID');
-      pick(a,'tiktokPixelId','TIKTOK_PIXEL_ID');        pick(b,'tiktokPixelId','TIKTOK_PIXEL_ID');
+      for (const row of settings){
+        const v: any = (row as any).value || {};
+        pick(v,'pixelId','FB_PIXEL_ID');
+        pick(v,'googleTagManagerId','GOOGLE_TAG_MANAGER_ID');
+        pick(v,'gaMeasurementId','GA_MEASUREMENT_ID');
+        pick(v,'tiktokPixelId','TIKTOK_PIXEL_ID');
+        pick(v,'conversionsToken','FB_CAPI_TOKEN');
+        pick(v,'testEventCode','FB_TEST_EVENT_CODE');
+      }
     }catch{}
     res.json({ keys: merged });
   } catch (e: any) {
