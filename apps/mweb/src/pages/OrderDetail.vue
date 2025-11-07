@@ -118,13 +118,15 @@ onMounted(async ()=>{
       const data = JSON.parse(raw)
       const fbq = (window as any).fbq
       if (typeof fbq==='function'){
-        fbq('track','Purchase', {
+        const params:any = {
           value: Number(data?.value||0),
           currency: String(data?.currency||'YER'),
           contents: Array.isArray(data?.contents)? data.contents: [],
           content_ids: Array.isArray(data?.content_ids)? data.content_ids: [],
           content_type: 'product'
-        })
+        }
+        const ev = (order.value as any)?.eventIds?.purchase
+        if (ev){ fbq('track','Purchase', params, { eventID: ev }) } else { fbq('track','Purchase', params) }
       }
       sessionStorage.removeItem('last_purchase')
     }

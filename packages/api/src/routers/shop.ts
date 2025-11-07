@@ -3168,7 +3168,13 @@ shop.get('/orders/:id', requireAuth, async (req: any, res) => {
         (order as any).shippingAmount = Number(rows[0].shippingAmount||0);
       }
     } catch {}
-    const plain = { ...order, ...(codeVal? { code: codeVal } : {}) }
+    // Attach purchase event_id if present (for dedupe with Pixel)
+    let purchaseEventId: string | null = null
+    try{
+      const row = await db.setting.findUnique({ where: { key: `order:${id}:purchase_event_id` } } as any)
+      if (row && (row as any).value) purchaseEventId = String((row as any).value)
+    }catch{}
+    const plain = { ...order, ...(codeVal? { code: codeVal } : {}), eventIds: { purchase: purchaseEventId } }
     res.json(plain);
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -3208,6 +3214,10 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
       if (rows && rows[0]) shippingAmount = Number(rows[0].shippingAmount||0)
     }catch{}
     await fbSendEvents([{ event_name:'Purchase', event_id: evId, user_data:{ em: hashEmail(u?.email), fbp, fbc, client_ip_address, client_user_agent }, custom_data:{ value: Number(order.total||0), currency:'YER', num_items: Array.isArray(order.items)? order.items.length: undefined, content_ids: contents.map(c=> c.id), content_type:'product', contents, order_id: String(order.id), payment_method: String(method||''), shipping: shippingAmount }, action_source:'website', event_source_url: String(req.headers.referer||'') }])
+    // Persist event_id for client dedupe
+    try{
+      await db.setting.upsert({ where: { key: `order:${order.id}:purchase_event_id` }, update: { value: evId }, create: { key: `order:${order.id}:purchase_event_id`, value: evId } } as any)
+    }catch{}
     }catch{}
     // Spawn shipment legs upon payment (approval)
     try {
@@ -3250,7 +3260,7 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
     try {
       await db.$executeRawUnsafe('UPDATE "AffiliateLedger" SET status=\'APPROVED\' WHERE "orderId"=$1 AND status=\'PENDING\'', order.id);
     } catch {}
-    res.json({ success: true });
+    res.json({ success: true, order_id: order.id, event_id: evId });
   } catch {
     res.status(500).json({ error: 'failed' });
   }
