@@ -49,8 +49,8 @@ export default function CategoriesTabBuilder(): JSX.Element {
 
   async function init(){
     try{
-      // find page by slug
-      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      // ابحث فقط ضمن تبويبات الفئات لتجنّب الخلط مع تبويبات الرئيسية
+      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200&includeCategories=1`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
       const j = await r.json();
       let list: Array<any> = Array.isArray(j?.pages)? j.pages: [];
       let p = list.find((x:any)=> String(x.slug||'')===slug || String(x.label||'')===slug || String(x.slug||'')===`cat-${slug}`);
@@ -63,18 +63,10 @@ export default function CategoriesTabBuilder(): JSX.Element {
             const cj = await cr.json();
             p = cj?.page || null;
           } else if (cr.status === 409) {
-            // Slug exists (maybe under a different device). Search without device filter
-            const rAny = await fetch(`/api/admin/tabs/pages?limit=200`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
-            const jAny = await rAny.json();
-            const anyList: Array<any> = Array.isArray(jAny?.pages)? jAny.pages: [];
-            p = anyList.find((x:any)=> String(x.slug||'')===slug || String(x.label||'')===slug || String(x.slug||'')===`cat-${slug}`) || null;
-            // If found under different device, switch it to MOBILE for mweb
-            if (p && String(p.device||'')!=='MOBILE'){
-              try{
-                const up = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ id: p.id, slug: p.slug, label: p.label, device:'MOBILE' }) });
-                if (up.ok){ const uj = await up.json(); p = uj?.page || p; }
-              }catch{}
-            }
+            // Slug محجوز ربما لغير الفئات: أنشئ نسخة بإضافة cat- لتجنّب خلط المحتوى
+            const altSlug = `cat-${slug}`;
+            const cr2 = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ slug: altSlug, label: slug, device:'MOBILE' }) });
+            if (cr2.ok){ const cj2 = await cr2.json(); p = cj2?.page || null; setEffectiveSlug(altSlug); }
           }
         }catch{}
       }
@@ -174,7 +166,7 @@ export default function CategoriesTabBuilder(): JSX.Element {
       const j = await r.json();
       if (!j?.token){ showToast('فشل إنشاء المعاينة'); return; }
       const origin = process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'http://localhost:5173';
-      const url = `${origin}/categories/${encodeURIComponent(slug)}?previewToken=${encodeURIComponent(j.token)}`;
+      const url = `${origin}/c/${encodeURIComponent(slug)}?previewToken=${encodeURIComponent(j.token)}`;
       window.open(url, '_blank');
     }catch{ showToast('فشل المعاينة'); }
   }
@@ -306,7 +298,7 @@ export default function CategoriesTabBuilder(): JSX.Element {
           <div style={{ marginTop:12 }}>
             <div style={{ color:'#94a3b8', marginBottom:6 }}>معاينة مباشرة</div>
             <div style={{ border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
-              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'http://localhost:5173'}/categories/${encodeURIComponent(effectiveSlug)}`} style={{ width:'100%', height:700, background:'#fff' }} />
+              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'http://localhost:5173'}/c/${encodeURIComponent(effectiveSlug)}`} style={{ width:'100%', height:700, background:'#fff' }} />
             </div>
           </div>
         </div>

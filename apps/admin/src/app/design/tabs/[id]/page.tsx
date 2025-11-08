@@ -228,6 +228,14 @@ export default function TabPageBuilder(): JSX.Element {
       setTimeout(()=>{ try{ if (externalWinRef.current) externalWinRef.current.postMessage({ __tabs_preview: true, device: previewDevice, content }, 'https://m.jeeey.com'); }catch{} }, 600);
     }catch{}
   }
+  // Push live updates to external preview window when content/device changes
+  React.useEffect(()=>{
+    try{
+      if (externalWinRef.current){
+        externalWinRef.current.postMessage({ __tabs_preview: true, device: previewDevice, content }, 'https://m.jeeey.com');
+      }
+    }catch{}
+  }, [content, previewDevice]);
   async function copyExternalPreview(){
     try{
       const url = await buildPreviewUrl();

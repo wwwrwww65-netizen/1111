@@ -20,10 +20,10 @@ export default function CategoriesTabsIndex(): JSX.Element {
   async function load(){
     try{
       setLoading(true);
-      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=100`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=100&includeCategories=1`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
       const j = await r.json();
       const list = Array.isArray(j?.pages)? j.pages: [];
-      // أعرض جميع تبويبات الموبايل (سيتم ضبط النوع من داخل المحرر عند الحفظ)
+      // أعرض فقط تبويبات الفئات (التي تحمل content.type === 'categories-v1')
       setRows(list);
     }catch{ setRows([]) }
     finally{ setLoading(false) }

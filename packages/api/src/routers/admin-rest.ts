@@ -4880,6 +4880,7 @@ adminRest.get('/tabs/pages', async (req, res) => {
   const status = (req.query.status as string|undefined) || undefined;
   const device = (req.query.device as string|undefined) || undefined;
   const excludeCategories = String(req.query.excludeCategories||'').toLowerCase() === 'true' || req.query.excludeCategories === '1';
+  const includeCategories = String(req.query.includeCategories||'').toLowerCase() === 'true' || req.query.includeCategories === '1';
   const where:any = {};
   if (status) where.status = status;
   if (device) where.device = device;
@@ -4887,6 +4888,19 @@ adminRest.get('/tabs/pages', async (req, res) => {
     db.tabPage.findMany({ where, orderBy: { updatedAt: 'desc' }, skip, take: limit }),
     db.tabPage.count({ where })
   ]);
+  if (includeCategories) {
+    try{
+      const versionIds = items.map((p:any)=> p.currentVersionId).filter(Boolean);
+      const versions:any[] = versionIds.length ? await db.tabPageVersion.findMany({ where: { id: { in: versionIds } }, select:{ id:true, content:true } } as any) : [];
+      const byId = new Map<string, any>(versions.map(v=> [v.id, v]));
+      const filtered = items.filter((p:any)=> {
+        const v = p.currentVersionId? byId.get(p.currentVersionId): null;
+        const t = v?.content?.type;
+        return t === 'categories-v1';
+      });
+      return res.json({ pages: filtered, pagination: { page, limit, total: filtered.length, totalPages: Math.ceil(Math.max(1, filtered.length)/limit) } });
+    }catch(e:any){ return res.json({ pages: [], pagination: { page, limit, total: 0, totalPages: 1 } }); }
+  }
   if (excludeCategories) {
     try{
       const versionIds = items.map((p:any)=> p.currentVersionId).filter(Boolean);
