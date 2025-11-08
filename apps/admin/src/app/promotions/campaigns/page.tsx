@@ -206,7 +206,7 @@ export default function CampaignsPage(): JSX.Element {
     <main>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom: 16 }}>
         <h1 style={{ margin:0 }}>الحملات الترويجية (Popups/Modals)</h1>
-        <button className="btn" onClick={()=> { window.location.assign('/promotions/campaigns/new'); }}>إنشاء حملة</button>
+        <button className="btn" onClick={()=> { const u=new URL(window.location.href); u.searchParams.set('mode','wizard'); u.searchParams.set('create','1'); window.location.assign(u.toString()); }}>إنشاء حملة</button>
       </div>
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
         <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder="بحث بالاسم" className="input" style={{ minWidth:220 }} />
@@ -239,7 +239,7 @@ export default function CampaignsPage(): JSX.Element {
               <td style={{ padding:'8px 6px' }}>{(r.schedule?.start||'') + (r.schedule?.end? ' → '+r.schedule.end : '')}</td>
               <td style={{ padding:'8px 6px' }}>{(r.abWeights?.A??100)+'/'+(r.abWeights?.B??0)}</td>
               <td style={{ padding:'8px 6px', textAlign:'end' }}>
-                 <button className="btn btn-sm" onClick={()=> { window.location.assign(`/promotions/campaigns/${encodeURIComponent(r.id)}`); }}>تعديل</button>
+                <button className="btn btn-sm" onClick={()=> { const u=new URL(window.location.href); u.searchParams.set('mode','wizard'); u.searchParams.set('id', r.id); window.location.assign(u.toString()); }}>تعديل</button>
                 <button className="btn btn-sm btn-outline" style={{ marginInlineStart:8 }} onClick={()=> remove(r.id)}>حذف</button>
               </td>
             </tr>

@@ -63,10 +63,25 @@ async function fetchCampaigns(){
     params.set('path', location.pathname + location.search)
     const lang = document.documentElement.lang || ''
     if (lang) params.set('lang', lang)
+    // explicit site and preview passthrough
+    params.set('site','mweb')
+    try{
+      const sp = new URLSearchParams(location.search)
+      const previewId = sp.get('previewCampaignId')||''
+      if (previewId) params.set('previewCampaignId', previewId)
+    }catch{}
     const r = await fetch(`/api/popups?${params.toString()}`, { credentials:'include', cache:'no-store' })
     const j = await r.json()
     const items: CampaignItem[] = Array.isArray(j?.items)? j.items : []
-    // Filter by frequency cap and user opt-out
+    // If preview mode, bypass filters and open immediately
+    const isPreview = !!(typeof location!=='undefined' && location.search.includes('previewCampaignId='))
+    if (isPreview){
+      queue.value = items
+      const n = queue.value.shift()
+      if (n){ current.value = n; markSeen(n); track('impression', n) }
+      return
+    }
+    // Filter by frequency cap and user opt-out (normal mode)
     const eligible = items.filter(it=> {
       try{ if (localStorage.getItem(`promo_dontshow:${it.id}`)==='1') return false }catch{}
       return !isCapped(it) && it?.variant
