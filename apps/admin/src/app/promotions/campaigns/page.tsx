@@ -23,7 +23,7 @@ export default function CampaignsPage(): JSX.Element {
   const [rows, setRows] = React.useState<Campaign[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [q, setQ] = React.useState("");
-  const [activeOnly, setActiveOnly] = React.useState(true);
+  const [activeOnly, setActiveOnly] = React.useState(false);
   const [modal, setModal] = React.useState<{
     open: boolean;
     item: Partial<Campaign>|null;
@@ -40,6 +40,29 @@ export default function CampaignsPage(): JSX.Element {
   const [publishConfirmOpen, setPublishConfirmOpen] = React.useState(false);
   const [sandboxLogs, setSandboxLogs] = React.useState<Array<{ t:string; type:string; meta?:any }>>([]);
   const [sandboxRunning, setSandboxRunning] = React.useState(false);
+  const [fullscreenWizard, setFullscreenWizard] = React.useState(false);
+
+  // Deep-linking to wizard mode
+  React.useEffect(()=>{
+    try{
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get('mode')==='wizard'){
+        setFullscreenWizard(true);
+        const id = sp.get('id')||'';
+        const create = sp.get('create')||'';
+        if (create==='1'){ openCreate(); return; }
+        if (id){
+          (async()=>{
+            await load();
+            const found = (rows||[]).find(r=> String(r.id)===id);
+            if (found) openEdit(found);
+            else setFullscreenWizard(false);
+          })();
+        }
+      }
+    }catch{}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function load(){
     setLoading(true);
@@ -183,7 +206,7 @@ export default function CampaignsPage(): JSX.Element {
     <main>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom: 16 }}>
         <h1 style={{ margin:0 }}>الحملات الترويجية (Popups/Modals)</h1>
-        <button className="btn" onClick={openCreate}>إنشاء حملة</button>
+        <button className="btn" onClick={()=> { window.location.assign('/promotions/campaigns/new'); }}>إنشاء حملة</button>
       </div>
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
         <input value={q} onChange={(e)=> setQ(e.target.value)} placeholder="بحث بالاسم" className="input" style={{ minWidth:220 }} />
@@ -192,6 +215,7 @@ export default function CampaignsPage(): JSX.Element {
         </label>
         <button onClick={load} className="btn">تحديث</button>
       </div>
+      {!fullscreenWizard && (
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead>
           <tr>
@@ -215,17 +239,18 @@ export default function CampaignsPage(): JSX.Element {
               <td style={{ padding:'8px 6px' }}>{(r.schedule?.start||'') + (r.schedule?.end? ' → '+r.schedule.end : '')}</td>
               <td style={{ padding:'8px 6px' }}>{(r.abWeights?.A??100)+'/'+(r.abWeights?.B??0)}</td>
               <td style={{ padding:'8px 6px', textAlign:'end' }}>
-                <button className="btn btn-sm" onClick={()=> openEdit(r)}>تعديل</button>
+                 <button className="btn btn-sm" onClick={()=> { window.location.assign(`/promotions/campaigns/${encodeURIComponent(r.id)}`); }}>تعديل</button>
                 <button className="btn btn-sm btn-outline" style={{ marginInlineStart:8 }} onClick={()=> remove(r.id)}>حذف</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      )}
 
       {modal.open && modal.item && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', display:'grid', placeItems:'center', zIndex:1000 }} onClick={closeModal}>
-          <div style={{ background:'var(--panel,#fff)', color:'var(--fg,#111)', width:'min(1200px, 98vw)', maxHeight:'92vh', overflow:'hidden', borderRadius:12, padding:0, display:'grid', gridTemplateColumns:'minmax(0,1fr) 380px' }} onClick={(e)=> e.stopPropagation()}>
+        <div style={{ position: fullscreenWizard? 'static':'fixed', inset: fullscreenWizard? 'auto' : 0, background: fullscreenWizard? 'transparent' : 'rgba(0,0,0,.4)', display: fullscreenWizard? 'block' : 'grid', placeItems: fullscreenWizard? undefined : 'center', zIndex:1000 }} onClick={fullscreenWizard? undefined : closeModal}>
+          <div style={{ background:'var(--panel,#fff)', color:'var(--fg,#111)', width: fullscreenWizard? '100%' : 'min(1200px, 98vw)', maxHeight: fullscreenWizard? 'none' : '92vh', overflow: fullscreenWizard? 'visible' : 'hidden', borderRadius:12, padding:0, display:'grid', gridTemplateColumns:'minmax(0,1fr) 380px' }} onClick={(e)=> e.stopPropagation()}>
             <div style={{ padding:16, overflow:'auto' }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -852,6 +877,7 @@ function AdminPromoPreview({ campaign }: { campaign: any }){
   const bg = design?.colors?.background || '#fff';
   const color = design?.colors?.text || '#111827';
   const shadow = design?.shadow||'lg';
+  const primary = design?.colors?.primary || '#0B5FFF';
   const style: React.CSSProperties = {
     width:'100%',
     maxWidth: maxW,
@@ -878,16 +904,35 @@ function AdminPromoPreview({ campaign }: { campaign: any }){
       {!!coupons.length && (
         <div style={{ display:'grid', gap:8, marginTop:8 }}>
           {coupons.map((code)=> (
-            <div key={code} style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <code style={{ background:'#f3f4f6', borderRadius:8, padding:'8px 10px' }}>{code}</code>
-              <button className="btn btn-sm">جمع</button>
-            </div>
+            <article key={code} style={{ display:'flex', alignItems:'stretch', gap:12, background:'#fff6f4', border:'1px solid #f3d2c8', borderRadius:14, padding:12 }}>
+              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:6 }}>
+                <div style={{ fontWeight:800, fontSize:16 }}>{code}</div>
+                <div style={{ fontSize:12, color:'#8a8a8a' }}>كوبون خصم</div>
+                <div style={{ fontSize:12, color:'#8a8a8a' }}>ينتهي قريباً</div>
+              </div>
+              <div style={{ width:1, position:'relative' }}>
+                <div style={{ position:'absolute', inset:0, borderLeft:'1px dashed rgba(200,120,100,0.4)' }} />
+              </div>
+              <div style={{ width:110, minWidth:96, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6 }}>
+                <div style={{ fontSize:28, fontWeight:800, color:'#ff5a3c', lineHeight:1 }}>%</div>
+                <div style={{ fontSize:12, color:'#666', textAlign:'center' }}>خصم</div>
+              </div>
+            </article>
           ))}
         </div>
       )}
       {!!ctas.length && (
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12 }}>
-          {ctas.map((b, i)=> (<a key={i} className="btn btn-cta" href={b.href||'#'}>{b.label||'CTA'}</a>))}
+        <div style={{ marginTop:12 }}>
+          {ctas.map((b, i)=> (
+            <a
+              key={i}
+              className="btn btn-cta"
+              href={b.href||'#'}
+              style={{ display:'block', width:'100%', textAlign:'center', background:primary, color:'#fff', borderRadius:10, padding:'12px 16px', textDecoration:'none', marginTop: i===0? 0 : 8 }}
+            >
+              {b.label||'CTA'}
+            </a>
+          ))}
         </div>
       )}
     </div>
