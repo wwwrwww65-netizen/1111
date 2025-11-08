@@ -53,10 +53,16 @@ export default function CampaignsPage(): JSX.Element {
         if (create==='1'){ openCreate(); return; }
         if (id){
           (async()=>{
-            await load();
-            const found = (rows||[]).find(r=> String(r.id)===id);
-            if (found) openEdit(found);
-            else setFullscreenWizard(false);
+            try{
+              const api = resolveApiBase();
+              const res = await fetch(`${api}/api/admin/promotions/campaigns`, { credentials:'include', headers: { ...authHeaders() } });
+              const j = await res.json();
+              const list: Campaign[] = Array.isArray(j?.campaigns)? j.campaigns : [];
+              const found = list.find(r=> String(r.id)===id);
+              if (found) openEdit(found); else setFullscreenWizard(false);
+            }catch{
+              setFullscreenWizard(false);
+            }
           })();
         }
       }
@@ -146,6 +152,8 @@ export default function CampaignsPage(): JSX.Element {
       }
       closeModal();
       await load();
+      // Redirect back to listing when in fullscreen wizard mode
+      try{ if (fullscreenWizard) window.location.assign('/promotions/campaigns'); }catch{}
     }catch(e:any){
       setModal(m=> ({ ...m, error: e?.message||'failed' }));
     }finally{
@@ -754,6 +762,7 @@ export default function CampaignsPage(): JSX.Element {
                     url.hostname = url.hostname.replace(/^admin\./,'m.');
                     url.pathname='/';
                     url.searchParams.set('previewCampaignId', id);
+                    url.searchParams.set('site','mweb');
                     window.open(url.toString(),'_blank');
                   }} disabled={!modal.item?.id}>معاينة على الموبايل</button>
                   <button className="btn btn-outline btn-sm" onClick={()=>{

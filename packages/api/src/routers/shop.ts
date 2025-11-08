@@ -1957,6 +1957,33 @@ shop.get('/popups', async (req: any, res) => {
       try{ const h = new URL(ref).host; site = h.startsWith('m.')? 'mweb' : 'web'; }catch{ site = 'web'; }
     }
 
+    // Preview override (force specific campaign id) — ignore status/schedule/targeting in preview
+    const previewId = String(q.previewCampaignId||'').trim();
+    if (previewId) {
+      try{
+        const c:any = await db.campaign.findUnique({ where: { id: previewId } } as any);
+        if (c) {
+          // AB selection for preview keeps bucketing behavior
+          let anonId = String(req.cookies?.anon_id||'');
+          if (!anonId){ try{ anonId = require('crypto').randomUUID(); res.cookie('anon_id', anonId, { httpOnly: false, sameSite: 'lax', maxAge: 365*24*3600*1000 }); }catch{} }
+          function pickVariantPrev(c2:any): { key:'A'|'B'; payload:any }{
+            const weights = (c2.abWeights||{}) as any; const wA = Number(weights?.A||100); const wB = Number(weights?.B||0);
+            const total = Math.max(0, wA) + Math.max(0, wB) || 100;
+            const h = require('crypto').createHash('sha1').update(String(anonId||'')+String(c2.id)).digest('hex');
+            const n = parseInt(h.slice(0,8),16) % total;
+            const chosen = n < Math.max(0,wA) ? 'A' : 'B';
+            const payload = chosen==='A' ? (c2.variantA||null) : (c2.variantB||null);
+            if (!payload) return { key:'A', payload: c2.variantA||null };
+            return { key: chosen as 'A'|'B', payload };
+          }
+          const sel = pickVariantPrev(c);
+          res.set('Cache-Control','no-store');
+          return res.json({ items: [{ id: c.id, name: c.name, priority: c.priority, status: c.status, variantKey: sel.key, variant: sel.payload, rewardId: c.rewardId||null, schedule: c.schedule, targeting: c.targeting, freq: c.frequency, now: nowIso }], preview: true });
+        }
+      }catch{}
+      // fall-through: if not found, continue with normal flow
+    }
+
     // Fetch all LIVE campaigns ordered by priority
     const rows:any[] = await db.campaign.findMany({ where: { status: 'LIVE' as any }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }] } as any);
     if (!rows || !rows.length) { res.set('Cache-Control','public, max-age=15'); return res.json({ items: [] }); }
@@ -2017,15 +2044,7 @@ shop.get('/popups', async (req: any, res) => {
       }catch{ return true }
     }
 
-    // Preview override (force specific campaign id)
-    const previewId = String(q.previewCampaignId||'').trim();
-    if (previewId) {
-      const c = rows.find(r=> String(r.id)===previewId);
-      if (c) {
-        const sel = pickVariant(c);
-        return res.json({ items: [{ id: c.id, name: c.name, priority: c.priority, status: c.status, variantKey: sel.key, variant: sel.payload, rewardId: c.rewardId||null, schedule: c.schedule, targeting: c.targeting, freq: c.frequency, now: nowIso }], preview: true });
-      }
-    }
+    // (Preview already handled above)
 
     const items:any[] = [];
     for (const c of rows){
