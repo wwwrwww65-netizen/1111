@@ -94,12 +94,30 @@ export default function CategoriesTabBuilder(): JSX.Element {
     try { const obj = JSON.parse(json); setParsed(obj); } catch { /* ignore */ }
   }, [json]);
 
-  // Live postMessage to preview iframe
+  // Live postMessage to preview iframe (wrap single tab content to Categories page config)
+  function toCategoriesPageConfig(obj:any): any {
+    try{
+      const d = (obj && obj.data) ? obj.data : obj;
+      const getArr = (v:any)=> Array.isArray(v)? v : [];
+      const sidebar = getArr(d?.sidebarItems)?.map((s:any)=> ({ label: String(s?.label||''), icon: s?.icon||undefined, href: s?.href||undefined }));
+      const page:any = {
+        layout: { showHeader: true, showTabs: false, showSidebar: true },
+        promoBanner: d?.promoBanner || { enabled:false, image:'', title:'', href:'' },
+        sidebar: sidebar,
+        featured: getArr(d?.featured),
+        grid: d?.grid || { mode:'filter', limit: 36, sortBy:'name_asc' },
+        suggestions: d?.suggestions || { enabled: true, items: [] },
+        seo: d?.seo || { title:'', description:'' }
+      };
+      return page;
+    }catch{ return {}; }
+  }
   React.useEffect(()=>{
     try{
       const win = iframeRef.current?.contentWindow; if (!win) return;
       const obj = JSON.parse(json);
-      win.postMessage({ __categories_preview: true, content: obj }, '*');
+      const wrapped = toCategoriesPageConfig(obj);
+      win.postMessage({ __categories_preview: true, content: wrapped }, '*');
     }catch{}
   }, [json]);
 
@@ -162,11 +180,9 @@ export default function CategoriesTabBuilder(): JSX.Element {
     let content:any = null;
     try{ content = JSON.parse(json); }catch{ showToast('JSON غير صالح'); return; }
     try{
-      const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ content, device:'MOBILE' }) });
-      const j = await r.json();
-      if (!j?.token){ showToast('فشل إنشاء المعاينة'); return; }
       const origin = process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com';
-      const url = `${origin}/c/${encodeURIComponent(slug)}?previewToken=${encodeURIComponent(j.token)}`;
+      const payload = encodeURIComponent(JSON.stringify(toCategoriesPageConfig(content)));
+      const url = `${origin}/categories?payload=${payload}`;
       window.open(url, '_blank');
     }catch{ showToast('فشل المعاينة'); }
   }
@@ -298,7 +314,7 @@ export default function CategoriesTabBuilder(): JSX.Element {
           <div style={{ marginTop:12 }}>
             <div style={{ color:'#94a3b8', marginBottom:6 }}>معاينة مباشرة</div>
             <div style={{ border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
-              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com'}/c/${encodeURIComponent(effectiveSlug)}`} style={{ width:'100%', height:700, background:'#fff' }} />
+              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com'}/categories`} style={{ width:'100%', height:700, background:'#fff' }} />
             </div>
           </div>
         </div>

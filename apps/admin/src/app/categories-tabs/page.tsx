@@ -33,7 +33,8 @@ export default function CategoriesTabsIndex(): JSX.Element {
   async function create(){
     if (!slug.trim() || !label.trim()) { showToast('Slug والاسم مطلوبان'); return; }
     try{
-      const body = { slug, label, device:'MOBILE' };
+      const safeSlug = slug.startsWith('cat-') ? slug : `cat-${slug}`;
+      const body = { slug: safeSlug, label, device:'MOBILE' };
       const r = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) });
       if (!r.ok){
         if (r.status === 409){
@@ -42,7 +43,7 @@ export default function CategoriesTabsIndex(): JSX.Element {
             const rl = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
             const jl = await rl.json();
             const list: any[] = Array.isArray(jl?.pages)? jl.pages: [];
-            const existing = list.find((p:any)=> String(p.slug||'')===slug) || list.find((p:any)=> String(p.label||'')===label);
+            const existing = list.find((p:any)=> String(p.slug||'')===safeSlug) || list.find((p:any)=> String(p.label||'')===label);
             if (existing){ location.href = `/categories-tabs/${encodeURIComponent(existing.slug)}`; return; }
           }catch{}
           showToast('الاسم مستخدم. اختر Slug مختلف');
