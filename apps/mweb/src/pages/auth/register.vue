@@ -11,10 +11,10 @@ onMounted(()=> {
   try{
     const sp = new URLSearchParams(location.search||'')
     const next = sp.get('next') || '/coupons?claim=1'
-    const dest = `/signup?next=${encodeURIComponent(next)}`
+    const dest = `/login?return=${encodeURIComponent(next)}`
     window.location.replace(dest)
   }catch{
-    window.location.href = '/signup'
+    window.location.href = '/login'
   }
 })
 </script>

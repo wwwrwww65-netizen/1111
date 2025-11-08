@@ -148,7 +148,8 @@ async function ctaClick(b:any){
       sessionStorage.setItem('pending_coupons', JSON.stringify(couponsList.value||[]))
     }catch{}
     const next = '/coupons?claim=1'
-    location.assign(`/auth/register?next=${encodeURIComponent(next)}`)
+    // اعتمد صفحة /login لتسجيل الدخول وإنشاء الحساب، مع تمرير return للرجوع بعد النجاح
+    location.assign(`/login?return=${encodeURIComponent(next)}`)
     return
   }
   if (b.href) location.assign(b.href)

@@ -35,7 +35,13 @@ export default function TabPagesList(): JSX.Element {
     if (device) qs.set('device', device);
     fetch(`${apiBase}/api/admin/tabs/pages?`+qs.toString(), { credentials:'include' })
       .then(r=> r.ok ? r.json() : r.json().then(j=> Promise.reject(j)))
-      .then(j=>{ setItems(j.pages||[]); setTotalPages(j.pagination?.totalPages||1); })
+      .then(j=>{
+        let list = Array.isArray(j.pages)? j.pages: [];
+        // إخفاء الصفحات التي بدون نسخة منشورة/مسودة وتبدأ بـ cat- حتى لا تختلط مع تبويبات الفئات
+        list = list.filter((p:any)=> !(String(p.slug||'').startsWith('cat-')) );
+        setItems(list);
+        setTotalPages(j.pagination?.totalPages||1);
+      })
       .catch(e=> setError(e?.error||'failed'))
       .finally(()=> setLoading(false));
   },[apiBase,page,status,device]);

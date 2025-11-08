@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
-import { MediaPicker } from "../../../components/MediaPicker";
-import { CategoriesPicker, Mini as CatMini } from "../../../components/CategoriesPicker";
+import { MediaPicker } from "../../components/MediaPicker";
+import { CategoriesPicker, Mini as CatMini } from "../../components/CategoriesPicker";
 import { useParams } from "next/navigation";
 
 type Grid = { mode: 'explicit'; categories: CatMini[] } | { mode: 'filter'; categoryIds?: string[]; limit?: number; sortBy?: 'name_asc'|'name_desc'|'created_desc' };
@@ -165,7 +165,7 @@ export default function CategoriesTabBuilder(): JSX.Element {
       const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ content, device:'MOBILE' }) });
       const j = await r.json();
       if (!j?.token){ showToast('فشل إنشاء المعاينة'); return; }
-      const origin = process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'http://localhost:5173';
+      const origin = process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com';
       const url = `${origin}/c/${encodeURIComponent(slug)}?previewToken=${encodeURIComponent(j.token)}`;
       window.open(url, '_blank');
     }catch{ showToast('فشل المعاينة'); }
@@ -298,7 +298,7 @@ export default function CategoriesTabBuilder(): JSX.Element {
           <div style={{ marginTop:12 }}>
             <div style={{ color:'#94a3b8', marginBottom:6 }}>معاينة مباشرة</div>
             <div style={{ border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
-              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'http://localhost:5173'}/c/${encodeURIComponent(effectiveSlug)}`} style={{ width:'100%', height:700, background:'#fff' }} />
+              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com'}/c/${encodeURIComponent(effectiveSlug)}`} style={{ width:'100%', height:700, background:'#fff' }} />
             </div>
           </div>
         </div>

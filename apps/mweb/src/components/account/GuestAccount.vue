@@ -10,13 +10,13 @@
         <div class="text-[12px] text-gray-500 mt-1">انضم للاستفادة من جميع المزايا</div>
         <div class="flex gap-2 justify-center mt-3">
           <button class="h-9 px-3 rounded-lg bg-gray-100 text-gray-900 font-bold text-[13px]" @click="loginNow">تسجيل الدخول</button>
-          <button class="h-9 px-3 rounded-lg bg-orange-500 text-white font-bold text-[13px]" @click="go('/register')">إنشاء حساب</button>
+          <button class="h-9 px-3 rounded-lg bg-orange-500 text-white font-bold text-[13px]" @click="loginNow">إنشاء حساب</button>
         </div>
       </div>
     </section>
 
     <!-- Club Join Card -->
-    <section class="bg-white rounded-xl shadow-sm p-4 m-3 cursor-pointer text-center" role="button" @click="go('/register')">
+    <section class="bg-white rounded-xl shadow-sm p-4 m-3 cursor-pointer text-center" role="button" @click="loginNow">
       <div class="text-[16px] font-extrabold mb-2">JEEEY CLUB</div>
       <div class="flex justify-around my-2">
         <div class="flex flex-col items-center gap-1">

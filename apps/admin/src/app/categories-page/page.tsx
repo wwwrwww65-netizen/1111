@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
-import { MediaPicker } from "../../components/MediaPicker";
-import { CategoriesPicker, Mini as CatMini } from "../../components/CategoriesPicker";
+import { MediaPicker } from "../components/MediaPicker";
+import { CategoriesPicker, Mini as CatMini } from "../components/CategoriesPicker";
 
 export const dynamic = 'force-dynamic';
 
