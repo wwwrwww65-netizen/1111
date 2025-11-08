@@ -296,20 +296,42 @@ async function ensureCountry(code?: string | null, name?: string | null) {
   return country;
 }
 
-// List governorates (distinct city.region) for a country
+// List governorates for a country (admin-managed): use City names as provinces; no static fallback
 shop.get('/geo/governorates', async (req: any, res) => {
   try {
-    const countryCode = String(req.query.country || 'YE').toUpperCase();
-    const country = await ensureCountry(countryCode, countryCode);
-    const cities = await db.city.findMany({ where: { countryId: country.id }, select: { region: true }, orderBy: { region: 'asc' } });
-    let uniq = Array.from(new Set((cities.map(c => (c.region || '').trim()).filter(Boolean))));
-    if (!uniq.length) {
-      // Fallback static list for Yemen to unblock UI if DB empty
-      uniq = ['صنعاء','إب','تعز','ذمار','الحديدة','حجة','المحويت','ريمة','صعدة','البيضاء','مأرب','الجوف','عمران','لحج','أبين','عدن','الضالع','شبوة','حضرموت','المهرة','سقطرى']
+    const countryQ = String(req.query.country || 'YE').trim().toUpperCase();
+    // Resolve country by code or name (ar/en)
+    let country: any = null;
+    try{
+      country = await db.country.findFirst({
+        where: {
+          OR: [
+            { code: countryQ },
+            { name: { contains: countryQ, mode: 'insensitive' } },
+            { name: { contains: 'اليمن', mode: 'insensitive' } }
+          ]
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+    }catch{}
+    const whereCity: any = country ? { countryId: country.id } : {};
+    const list = await db.city.findMany({
+      where: whereCity,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, createdAt: true }
+    });
+    // Deduplicate by name; preserve first inserted
+    const seen = new Set<string>();
+    const items = [] as Array<{ id:string; name:string }>;
+    for (const c of list){
+      const n = String(c?.name||'').trim();
+      if (!n || seen.has(n)) continue;
+      seen.add(n);
+      items.push({ id: String(c.id), name: n });
     }
-    return res.json({ items: uniq.map(name => ({ name })) });
+    return res.json({ items });
   } catch (e: any) {
-    return res.status(500).json({ items: [], error: e?.message || 'failed' });
+    return res.status(500).json({ items: [], error: e?.message || 'geo_governorates_failed' });
   }
 });
 
