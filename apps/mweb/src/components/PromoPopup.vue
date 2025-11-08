@@ -22,7 +22,23 @@
         <p class="desc" v-if="contentDesc">{{ contentDesc }}</p>
         <div class="coupon" v-if="variant?.type==='coupon' && couponCode">
           <code>{{ couponCode }}</code>
-          <button class="btn btn-copy" @click="copyCoupon">نسخ</button>
+        </div>
+        <div class="coupons-stack" v-if="couponsList.length > 1">
+          <article v-for="(code,i) in couponsList" :key="code+'-'+i" class="coupon-card">
+            <div class="coupon-left">
+              <div class="coupon-title">{{ getC(code)?.title || code }}</div>
+              <div class="coupon-sub">{{ getC(code)?.category || 'كوبون خصم' }}</div>
+              <div class="expiry-row">
+                <span class="expiry" v-if="getC(code) && (getC(code).validUntil || getC(code).valid_to || getC(code).expiresAt)">ينتهي في: <strong>{{ expiryDateText(getC(code)) }}</strong></span>
+              </div>
+              <div class="coupon-sub" v-if="minOrderTextOf(getC(code))">{{ minOrderTextOf(getC(code)) }}</div>
+            </div>
+            <div class="coupon-divider"></div>
+            <div class="coupon-right">
+              <div class="coupon-percent">{{ (getC(code)?.discount || getC(code)?.percent) ? (getC(code).discount||getC(code).percent) : '' }}<span v-if="(getC(code)?.discount || getC(code)?.percent)">%</span></div>
+              <div class="coupon-note">{{ (getC(code)?.discount || getC(code)?.percent) ? 'خصم' : '' }}</div>
+            </div>
+          </article>
         </div>
         <form class="form" v-if="variant?.type==='subscribe' || variant?.type==='form'" @submit.prevent="submitForm">
           <input class="input" v-model="email" type="email" required placeholder="بريدك الإلكتروني" aria-label="البريد" />
@@ -31,7 +47,14 @@
         </form>
         <div class="points" v-if="variant?.type==='points' && points>0">اكسب {{ points }} نقطة</div>
         <div class="actions" v-if="ctas && ctas.length">
-          <a v-for="(b,i) in ctas" :key="i" class="btn btn-cta" :href="b.href||'#'" @click.prevent="ctaClick(b)">{{ b.label }}</a>
+          <a
+            v-for="(b,i) in ctas"
+            :key="i"
+            class="btn-cta"
+            :href="b.href||'#'"
+            :style="{ background: primaryColor, color: '#fff' }"
+            @click.prevent="ctaClick(b)"
+          >{{ b.label }}</a>
         </div>
         <div class="secondary-actions">
           <button class="lnk" @click="emitClose('not_now')">لا الآن</button>
@@ -49,6 +72,7 @@ const props = defineProps<{ campaign: any; onClose: (reason:string)=> void; onEv
 const dialogRef = ref<HTMLElement|null>(null)
 const closeBtn = ref<HTMLButtonElement|null>(null)
 const email = ref<string>('')
+const couponMap = ref<Record<string, any>>({})
 
 const variant = computed(()=> props.campaign?.variant || null)
 const design = computed(()=> variant.value?.design || {})
@@ -62,10 +86,16 @@ const contentDesc = computed(()=> content.value?.description||'')
 const mediaType = computed(()=> content.value?.media?.type || 'image')
 const mediaSrc = computed(()=> content.value?.media?.src || '')
 const couponCode = computed(()=> content.value?.couponCode || '')
+const couponsList = computed<string[]>(()=> {
+  const arr = Array.isArray(content.value?.coupons)? content.value.coupons : []
+  if (arr.length) return arr
+  return couponCode.value? [couponCode.value] : []
+})
 const points = computed(()=> Number(content.value?.points||0))
 const ctas = computed(()=> Array.isArray(content.value?.ctas)? content.value.ctas : [])
 const textAlign = computed(()=> design.value?.textAlign||'start')
 const showConsent = computed(()=> (variant.value?.type==='subscribe' || variant.value?.type==='form'))
+const primaryColor = computed(()=> design.value?.colors?.primary || '#0B5FFF')
 
 const popupStyle = computed(()=>{
   const maxW = Number(design.value?.maxWidth||480)
@@ -78,13 +108,66 @@ const popupStyle = computed(()=>{
 
 function emitClose(reason:string){ props.onClose(reason) }
 function dontShow(){ try{ localStorage.setItem(`promo_dontshow:${props.campaign?.id}`,'1') }catch{}; emitClose('dont_show_again') }
-async function copyCoupon(){
-  try{ await navigator.clipboard.writeText(String(couponCode.value||'')); props.onEvent('coupon_copied') }catch{}
-}
 async function submitForm(){ props.onEvent('signup_submitted', { email: email.value }); emitClose('form_submit') }
 function ctaClick(b:any){ props.onEvent('click', { href:b.href, label:b.label }); if (b.href) location.assign(b.href) }
 
-onMounted(async()=>{ await nextTick(); try{ dialogRef.value?.focus(); props.onEvent('view') }catch{} })
+function buildApiUrl(path:string){
+  try{
+    const host = location.hostname||''
+    const parts = host.split('.')
+    if (parts.length>=2){
+      const base = parts.slice(-2).join('.')
+      const proto = location.protocol||'https:'
+      return `${proto}//api.${base}${path}`
+    }
+  }catch{}
+  return path
+}
+
+function getExpiryTs(c:any){
+  const raw = c?.validUntil || c?.valid_to || c?.expiresAt || (c?.schedule && c.schedule.to)
+  if (!raw) return null
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts) ? ts : null
+}
+function expiryDateText(c:any){
+  const ts = getExpiryTs(c)
+  if (!ts) return ''
+  try {
+    return new Date(ts).toLocaleString('ar', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return new Date(ts).toISOString()
+  }
+}
+function minOrderTextOf(c:any){
+  const min = c?.minOrderAmount ?? c?.min ?? (c?.rules && c.rules.min)
+  if (!min || isNaN(min)) return 'بدون حد أدنى للشراء'
+  try {
+    const formatted = new Intl.NumberFormat('ar', { maximumFractionDigits: 2 }).format(min)
+    return `طلبات أكثر من ${formatted}`
+  } catch {
+    return `طلبات أكثر من ${min}`
+  }
+}
+function getC(code:string){ return couponMap.value[code] || {} }
+
+async function fetchCouponDetails(){
+  try{
+    if (!couponsList.value.length) return
+    const r = await fetch(buildApiUrl('/api/admin/coupons/public'), { credentials:'omit', cache:'no-store' })
+    const j = await r.json().catch(()=>null)
+    const list:any[] = (j && Array.isArray(j.coupons))? j.coupons : []
+    const map: Record<string, any> = {}
+    for (const c of list){ if (c?.code) map[String(c.code)] = c }
+    couponMap.value = map
+  }catch{}
+}
+
+onMounted(async()=>{
+  await nextTick()
+  try{ dialogRef.value?.focus(); props.onEvent('view') }catch{}
+  fetchCouponDetails()
+})
 </script>
 <style scoped>
 .popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:grid;place-items:center;z-index:10000}
@@ -100,11 +183,24 @@ onMounted(async()=>{ await nextTick(); try{ dialogRef.value?.focus(); props.onEv
 .form{display:flex;gap:8px;align-items:center;margin:8px 0}
 .input{flex:1 1 auto;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}
 .btn{background:#0B5FFF;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
-.btn-copy{background:#111827}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.btn-cta{display:inline-block;text-decoration:none}
+.actions{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.btn-cta{display:block;width:100%;text-align:center;text-decoration:none;border-radius:10px;padding:12px 16px}
 .secondary-actions{display:flex;gap:12px;justify-content:center;margin-top:10px}
 .lnk{background:transparent;border:0;color:#6b7280;cursor:pointer;text-decoration:underline}
+
+/* Coupons stack (similar to Couponati style) */
+.coupons-stack{display:grid;gap:8px;margin-top:8px}
+.coupon-card{display:flex;align-items:stretch;gap:12px;background:#fff6f4;border:1px solid #f3d2c8;border-radius:14px;padding:12px}
+.coupon-left{flex:1;display:flex;flex-direction:column;gap:6px}
+.coupon-title{font-weight:800;font-size:16px}
+.coupon-sub{font-size:12px;color:#8a8a8a}
+.coupon-divider{width:1px;position:relative}
+.coupon-divider::after{content:"";position:absolute;inset:0;border-left:1px dashed rgba(200,120,100,.4)}
+.coupon-right{width:110px;min-width:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.coupon-percent{font-size:28px;font-weight:800;color:#ff5a3c;line-height:1}
+.coupon-note{font-size:12px;color:#666;text-align:center}
+.expiry-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.expiry{font-size:12px;color:#8a8a8a}
 
 @media (max-width: 640px){
   .popup{width:100vw;max-width:none;height:auto;margin:0;border-radius:0;border-top-left-radius:16px;border-top-right-radius:16px}

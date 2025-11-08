@@ -398,7 +398,7 @@ function expiryDateText(coupon){
 
 function minOrderTextOf(coupon){
   const min = coupon?.minOrderAmount ?? coupon?.min ?? (coupon?.rules && coupon.rules.min)
-  if (!min || isNaN(min)) return ''
+  if (!min || isNaN(min)) return 'بدون حد أدنى للشراء'
   return `طلبات أكثر من ${formatAmount(min)}`
 }
 
