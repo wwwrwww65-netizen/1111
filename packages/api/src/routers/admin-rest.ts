@@ -8052,9 +8052,9 @@ adminRest.get('/analytics/events/recent', async (req, res) => {
   args.push(limit);
   const rows:any[] = await db.$queryRawUnsafe(`
     SELECT id, "createdAt", name,
-           COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
-           COALESCE("userId", properties->>'userId') AS "userId",
-           COALESCE("pageUrl", properties->>'pageUrl') AS "pageUrl",
+           (properties->>'sessionId') AS "sessionId",
+           (properties->>'userId') AS "userId",
+           (properties->>'pageUrl') AS "pageUrl",
            properties
     FROM "Event"
     ${whereSql}
