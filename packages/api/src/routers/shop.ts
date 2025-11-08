@@ -3640,8 +3640,9 @@ shop.get('/geo/governorates', async (req: any, res) => {
 // GET /api/geo/areas?governorate=<name>&country=YE
 shop.get('/geo/areas', async (req: any, res) => {
   try{
+    const byCityId = String(req.query.cityId||'').trim();
     const gov = String(req.query.governorate||'').trim();
-    if (!gov) return res.json({ items: [] });
+    if (!byCityId && !gov) return res.json({ items: [] });
     const countryQ = String(req.query.country||'YE').trim().toUpperCase();
     // Resolve country
     let country: any = null;
@@ -3657,18 +3658,33 @@ shop.get('/geo/areas', async (req: any, res) => {
         orderBy: { createdAt: 'asc' }
       });
     }catch{}
-    // Pick first city whose name matches governorate within country (if provided)
-    const city = await db.city.findFirst({
-      where: Object.assign(
-        { name: { equals: gov } },
-        country ? { countryId: country.id } : {}
-      ),
-      orderBy: { createdAt: 'asc' },
-      select: { id: true }
-    });
-    if (!city) return res.json({ items: [] });
+    // Resolve city
+    let cityId: string | null = null;
+    if (byCityId) {
+      cityId = byCityId;
+      // Optionally validate city belongs to country if provided
+      try{
+        const c = await db.city.findUnique({ where: { id: byCityId }, select: { id:true, countryId:true } });
+        if (!c) return res.json({ items: [] });
+        if (country && c.countryId !== country.id) {
+          return res.json({ items: [] });
+        }
+      }catch{}
+    } else if (gov) {
+      const city = await db.city.findFirst({
+        where: Object.assign(
+          { name: { equals: gov } },
+          country ? { countryId: country.id } : {}
+        ),
+        orderBy: { createdAt: 'asc' },
+        select: { id: true }
+      });
+      if (!city) return res.json({ items: [] });
+      cityId = city.id;
+    }
+    if (!cityId) return res.json({ items: [] });
     const areas = await db.area.findMany({
-      where: { cityId: city.id },
+      where: { cityId: cityId },
       orderBy: { createdAt: 'asc' },
       select: { id: true, name: true }
     });

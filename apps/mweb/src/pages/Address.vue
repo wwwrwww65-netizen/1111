@@ -541,7 +541,9 @@ async function loadAreas(){
   areas.value = []
   if (!selectedGovernorate.value) return
   try{
-    const url = `/api/geo/areas?country=YE&governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
+    const url = selectedCityId.value
+      ? `/api/geo/areas?country=YE&cityId=${encodeURIComponent(String(selectedCityId.value))}`
+      : `/api/geo/areas?country=YE&governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
     const r:any = await apiGet<any>(url)
     const items = Array.isArray(r?.items) ? r.items : []
     areas.value = items.map((x:any)=> ({ id: String(x.id||''), name: String(x.name||'').trim() })).filter((x:any)=> x.name)
