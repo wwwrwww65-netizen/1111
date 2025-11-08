@@ -57,7 +57,7 @@
               <span class="text-[12px] text-gray-900">{{ addr.isDefault ? 'رئيسي' : 'أجعله افتراضيًا' }}</span>
             </button>
             <div class="flex items-center gap-3">
-              <button v-if="returnTo" class="px-3 py-1 text-[12px] border border-[#8a1538] text-[#8a1538]" @click.stop="selectAndReturn()">اختيار</button>
+              <button v-if="returnTo" class="px-3 py-1 text-[12px] border border-[#8a1538] text-[#8a1538]" @click.stop="selectAndReturn(idx)">اختيار</button>
               <button class="text-gray-700" @click.stop="removeAddress(idx)" aria-label="حذف">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M6 7h12v2H6zM9 10h2v7H9zM13 10h2v7h-2zM10 4h4v2h5v2H5V6h5z"/>
@@ -365,6 +365,25 @@ const cities = ref<Array<{ id: string; name: string }>>([])
 const areas = ref<Array<{ id: string; name: string }>>([])
 const adminCountryId = ref<string|null>(null)
 
+// ترتيب بحسب أول إدخال: createdAt (أقدم أولاً)، ثم id تصاعدياً كبديل
+function sortByInserted(items: any[]): any[] {
+  try{
+    return [...items].sort((a:any, b:any)=>{
+      const ta = Date.parse(String(a?.createdAt||a?.created_at||'')) || NaN
+      const tb = Date.parse(String(b?.createdAt||b?.created_at||'')) || NaN
+      const hasTa = Number.isFinite(ta); const hasTb = Number.isFinite(tb)
+      if (hasTa && hasTb) return ta - tb
+      if (hasTa && !hasTb) return -1
+      if (!hasTa && hasTb) return 1
+      const ia = parseInt(String(a?.id||a?._id||''), 10)
+      const ib = parseInt(String(b?.id||b?._id||''), 10)
+      const hasIa = !Number.isNaN(ia); const hasIb = !Number.isNaN(ib)
+      if (hasIa && hasIb) return ia - ib
+      return 0
+    })
+  }catch{ return items }
+}
+
 function closeDrawer(){ openDrawer.value = false }
 
 function inputClass(err?: string){ return err ? 'border-red-500' : 'border-gray-300' }
@@ -497,24 +516,26 @@ function selectArea(name: string){
 }
 
 async function loadGovernorates(){
-  // حاول استخدام ADMIN كأولوية: المدن تمثل المحافظات
+  // Public first (يعمل لكل المستخدمين)
+  try{
+    const r = await apiGet<{ items: Array<{ id?: string; name: string }> }>('/api/geo/governorates?country=YE')
+    const list = Array.isArray(r?.items) ? r!.items : []
+    if (list.length){ governorates.value = list; return }
+  }catch{}
+  // ADMIN fallback (قد يتطلب جلسة Admin)
   try{
     const countries = await apiGet<any>('/api/admin/geo/countries')
     const cc = Array.isArray(countries?.countries) ? countries.countries : (Array.isArray(countries?.items) ? countries.items : [])
     const ye = (cc||[]).find((x:any)=> String(x.code||'').toUpperCase()==='YE' || /اليمن|yemen/i.test(String(x.name||'')))
     adminCountryId.value = ye?.id ? String(ye.id) : null
     const citiesResp = await apiGet<any>(adminCountryId.value? `/api/admin/geo/cities?countryId=${encodeURIComponent(String(adminCountryId.value))}` : '/api/admin/geo/cities')
-    const arr = (Array.isArray(citiesResp?.cities)? citiesResp.cities : (Array.isArray(citiesResp?.items)? citiesResp.items : [])).map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() }))
-    // أسماء فريدة مع الاحتفاظ بأول id يظهر
+    const raw = (Array.isArray(citiesResp?.cities)? citiesResp.cities : (Array.isArray(citiesResp?.items)? citiesResp.items : []))
+    const ordered = sortByInserted(raw)
+    const arr = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() }))
     const seen = new Set<string>()
     const uniq: Array<{id?:string; name:string}> = []
     for (const it of arr){ const n = it.name; if (!n) continue; if (seen.has(n)) continue; seen.add(n); uniq.push({ id: it.id, name: n }) }
-    if (uniq.length){ governorates.value = uniq; return }
-  }catch{}
-  // Public fallback
-  try{
-    const r = await apiGet<{ items: Array<{ id?: string; name: string }> }>('/api/geo/governorates?country=YE')
-    governorates.value = Array.isArray(r?.items) ? r!.items : []
+    governorates.value = uniq
   }catch{ governorates.value = [] }
 }
 
@@ -530,21 +551,23 @@ async function loadCities(){
 async function loadAreas(){
   areas.value = []
   if (!selectedGovernorate.value) return
-  // Primary: ADMIN areas by selected admin city id (governorate)
-  if (selectedCityId.value){
-    try{
-      const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(selectedCityId.value))}`)
-      const arr = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
-      const list1 = arr.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
-      if (list1.length){ areas.value = list1; return }
-    }catch{}
-  }
-  // Fallback: public geo endpoint by governorate
+  // Public first: by governorate
   try{
     const url = `/api/geo/areas?governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
     const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(url)
-    areas.value = Array.isArray(r?.items) ? r!.items : []
+    const list = Array.isArray(r?.items) ? r!.items : []
+    if (list.length){ areas.value = list; return }
   }catch{ areas.value = [] }
+  // ADMIN fallback: by selected admin city id
+  if (selectedCityId.value){
+    try{
+      const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(selectedCityId.value))}`)
+      const arrRaw = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
+      const ordered = sortByInserted(arrRaw)
+      const list1 = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
+      if (list1.length){ areas.value = list1; return }
+    }catch{}
+  }
 }
 
 function openGovernorates(){ openGovPicker.value = true; if (!governorates.value.length) loadGovernorates() }
@@ -602,10 +625,9 @@ onMounted(()=>{
   if (open === '1') openDrawer.value = true
 })
 
-function selectAndReturn(){
-  // اضبط العنوان المحدد كافتراضي قبل العودة
+function selectAndReturn(idx?: number){
   try{
-    const a = addresses.value.find(x=> x.isDefault) || addresses.value[0]
+    const a = (typeof idx==='number' ? addresses.value[idx] : null) || addresses.value.find(x=> x.isDefault) || addresses.value[0]
     if (a?.id) apiPost('/api/addresses/default', { id: a.id }).catch(()=>{})
   }catch{}
   if (returnTo.value) router.push(returnTo.value)
