@@ -20,10 +20,7 @@
         <h3 class="t" v-if="contentTitle">{{ contentTitle }}</h3>
         <p class="sub" v-if="contentSubtitle">{{ contentSubtitle }}</p>
         <p class="desc" v-if="contentDesc">{{ contentDesc }}</p>
-        <div class="coupon" v-if="variant?.type==='coupon' && couponCode">
-          <code>{{ couponCode }}</code>
-        </div>
-        <div class="coupons-stack" v-if="couponsList.length > 1" :style="{ textAlign: 'start' }">
+        <div class="coupons-stack" v-if="couponsList.length >= 1" :style="{ textAlign: 'start' }">
           <article
             v-for="(code,i) in couponsList"
             :key="code+'-'+i"
@@ -77,9 +74,8 @@
             @click.prevent="ctaClick(b)"
           >{{ b.label }}</a>
         </div>
-        <div class="secondary-actions">
-          <button class="lnk" @click="emitClose('not_now')">لا الآن</button>
-          <button class="lnk" v-if="dontShowAgain" @click="dontShow">لا تظهر مرة أخرى</button>
+        <div class="secondary-actions" v-if="dontShowAgain">
+          <button class="lnk" @click="dontShow">لا تظهر مرة أخرى</button>
         </div>
       </div>
     </div>
