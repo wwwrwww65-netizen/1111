@@ -59,6 +59,18 @@ function isCapped(c:CampaignItem){
 
 async function fetchCampaigns(){
   try{
+    function buildApiUrl(path:string){
+      try{
+        const host = location.hostname||''
+        const parts = host.split('.')
+        if (parts.length>=2){
+          const base = parts.slice(-2).join('.')
+          const proto = location.protocol||'https:'
+          return `${proto}//api.${base}${path}`
+        }
+      }catch{}
+      return path
+    }
     const params = new URLSearchParams()
     params.set('path', location.pathname + location.search)
     const lang = document.documentElement.lang || ''
@@ -70,7 +82,7 @@ async function fetchCampaigns(){
       const previewId = sp.get('previewCampaignId')||''
       if (previewId) params.set('previewCampaignId', previewId)
     }catch{}
-    const r = await fetch(`/api/popups?${params.toString()}`, { credentials:'include', cache:'no-store' })
+    const r = await fetch(buildApiUrl(`/api/popups?${params.toString()}`), { credentials:'include', cache:'no-store' })
     const j = await r.json()
     const items: CampaignItem[] = Array.isArray(j?.items)? j.items : []
     // If preview mode, bypass filters and open immediately

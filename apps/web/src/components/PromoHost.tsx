@@ -42,6 +42,18 @@ export function PromoHost(): JSX.Element {
 
   async function fetchCampaigns(){
     try{
+      const buildApiUrl = (path:string)=>{
+        try{
+          const host = window.location.hostname||'';
+          const parts = host.split('.');
+          if (parts.length>=2){
+            const base = parts.slice(-2).join('.');
+            const proto = window.location.protocol||'https:';
+            return `${proto}//api.${base}${path}`;
+          }
+        }catch{}
+        return path;
+      };
       const params = new URLSearchParams();
       params.set("path", location.pathname + location.search);
       const lang = document.documentElement.lang || "";
@@ -52,7 +64,7 @@ export function PromoHost(): JSX.Element {
         const previewId = sp.get("previewCampaignId")||"";
         if (previewId) params.set("previewCampaignId", previewId);
       }catch{}
-      const r = await fetch(`/api/popups?${params.toString()}`, { credentials:'include', cache:'no-store' });
+      const r = await fetch(buildApiUrl(`/api/popups?${params.toString()}`), { credentials:'include', cache:'no-store' });
       const j = await r.json();
       const items: CampaignItem[] = Array.isArray(j?.items)? j.items : [];
       const isPreview = !!(typeof location!=='undefined' && location.search.includes('previewCampaignId='));
