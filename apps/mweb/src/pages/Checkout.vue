@@ -399,7 +399,31 @@ async function placeOrder(){
       quantity: Number(it.qty||1),
       meta: { uid: String(it.uid||''), color: it.variantColor||undefined, size: it.variantSize||undefined }
     }))
-    const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedUids, paymentMethod: selectedPayment.value, shippingMethodId: selectedShipping.value, shippingAddressId: addr.value?.id, lines }
+    const addrSnap = addr.value ? {
+      id: addr.value.id,
+      fullName: addr.value.fullName||addr.value.name||'',
+      phone: addr.value.phone||'',
+      altPhone: addr.value.altPhone||'',
+      country: addr.value.country||'اليمن',
+      state: addr.value.state||addr.value.province||'',
+      city: addr.value.city||'',
+      area: addr.value.area||'',
+      street: addr.value.street||'',
+      details: addr.value.landmarks||addr.value.details||'',
+      postalCode: addr.value.postal||'',
+      lat: addr.value.lat||null,
+      lng: addr.value.lng||null
+    } : null
+    const payload = {
+      shippingPrice: shippingPrice.value,
+      discount: savingAll.value,
+      selectedUids,
+      paymentMethod: selectedPayment.value,
+      shippingMethodId: selectedShipping.value,
+      shippingAddressId: addr.value?.id,
+      shippingAddressSnapshot: addrSnap,
+      lines
+    }
     const ord = await apiPost('/api/orders', payload)
     if (ord && (ord as any).order?.id){
       // Track OrderCreated (COD policy: intent only; Purchase يُرسل عند الدفع/التأكيد)

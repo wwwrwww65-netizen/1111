@@ -517,27 +517,25 @@ function selectArea(name: string){
 }
 
 async function loadGovernorates(){
-  // Public first (يعمل لكل المستخدمين)
-  try{
-    const r = await apiGet<{ items: Array<{ id?: string; name: string }> }>('/api/geo/governorates?country=YE')
-    const list = Array.isArray(r?.items) ? r!.items : []
-    if (list.length){ governorates.value = list; return }
-  }catch{}
-  // ADMIN fallback (قد يتطلب جلسة Admin)
+  // ADMIN ONLY: المحافظات = المدن
   try{
     const countries = await apiGet<any>('/api/admin/geo/countries')
     const cc = Array.isArray(countries?.countries) ? countries.countries : (Array.isArray(countries?.items) ? countries.items : [])
     const ye = (cc||[]).find((x:any)=> String(x.code||'').toUpperCase()==='YE' || /اليمن|yemen/i.test(String(x.name||'')))
     adminCountryId.value = ye?.id ? String(ye.id) : null
-    const citiesResp = await apiGet<any>(adminCountryId.value? `/api/admin/geo/cities?countryId=${encodeURIComponent(String(adminCountryId.value))}` : '/api/admin/geo/cities')
-    const raw = (Array.isArray(citiesResp?.cities)? citiesResp.cities : (Array.isArray(citiesResp?.items)? citiesResp.items : []))
+    const resp = await apiGet<any>(adminCountryId.value? `/api/admin/geo/cities?countryId=${encodeURIComponent(String(adminCountryId.value))}` : '/api/admin/geo/cities')
+    const raw = (Array.isArray(resp?.cities)? resp.cities : (Array.isArray(resp?.items)? resp.items : [])) || []
     const ordered = sortByInserted(raw)
-    const arr = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() }))
+    // خزن المدن كاملة لاستخدامها لاحقاً
+    cities.value = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() }))
     const seen = new Set<string>()
     const uniq: Array<{id?:string; name:string}> = []
-    for (const it of arr){ const n = it.name; if (!n) continue; if (seen.has(n)) continue; seen.add(n); uniq.push({ id: it.id, name: n }) }
+    for (const it of cities.value){ const n = it.name; if (!n) continue; if (seen.has(n)) continue; seen.add(n); uniq.push({ id: it.id, name: n }) }
     governorates.value = uniq
-  }catch{ governorates.value = [] }
+  }catch{
+    governorates.value = []
+    cities.value = []
+  }
 }
 
 async function loadCities(){
@@ -552,48 +550,17 @@ async function loadCities(){
 async function loadAreas(){
   areas.value = []
   if (!selectedGovernorate.value) return
-  // Public first: by governorate
   try{
-    const url = `/api/geo/areas?governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
-    const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(url)
-    const list = Array.isArray(r?.items) ? r!.items : []
-    if (list.length){ areas.value = list; return }
-  }catch{ areas.value = [] }
-  // ADMIN fallback: by selected admin city id
-  if (selectedCityId.value){
-    try{
-      const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(selectedCityId.value))}`)
-      const arrRaw = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
-      const ordered = sortByInserted(arrRaw)
-      const list1 = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
-      if (list1.length){ areas.value = list1; return }
-    }catch{}
-  }
-  // ADMIN fallback 2: by matching admin cities region to governorate (عند غياب selectedCityId)
-  try{
-    const countries = await apiGet<any>('/api/admin/geo/countries')
-    const cc = Array.isArray(countries?.countries) ? countries.countries : (Array.isArray(countries?.items) ? countries.items : [])
-    const ye = (cc||[]).find((x:any)=> String(x.code||'').toUpperCase()==='YE' || /اليمن|yemen/i.test(String(x.name||'')))
-    const yeId = ye?.id ? String(ye.id) : ''
-    const citiesResp = await apiGet<any>(yeId? `/api/admin/geo/cities?countryId=${encodeURIComponent(yeId)}` : '/api/admin/geo/cities')
-    const adminCities: Array<{ id:string; name:string; region?:string }>= (Array.isArray(citiesResp?.cities)? citiesResp.cities : (Array.isArray(citiesResp?.items)? citiesResp.items : [])).map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim(), region: (x.region? String(x.region).trim(): undefined) }))
-    const eq = (a:string,b:string)=> String(a||'').replace(/\s+/g,'').toLowerCase() === String(b||'').replace(/\s+/g,'').toLowerCase()
-    const related = adminCities.filter(c=> eq(c.region||'', String(selectedGovernorate.value)))
-    const aggregated: Array<{ id:string; name:string }> = []
-    for (const c of related){
-      try{
-        const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(c.id))}`)
-        const arr = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
-        for (const it of arr){
-          const id = String(it.id||it._id||'').trim(); const name = String(it.name||it.title||'').trim()
-          if (name) aggregated.push({ id: id || `${c.id}:${name}`, name })
-        }
-      }catch{}
+    if (!selectedCityId.value){
+      const found = (cities.value||[]).find(c=> String(c.name).trim() === String(selectedGovernorate.value).trim())
+      if (found?.id) selectedCityId.value = String(found.id)
     }
-    const seen = new Set<string>()
-    const uniq = aggregated.filter(x=>{ const k = x.name; if(seen.has(k)) return false; seen.add(k); return true })
-    if (uniq.length){ areas.value = uniq; return }
-  }catch{}
+    if (!selectedCityId.value) { areas.value = []; return }
+    const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(selectedCityId.value))}`)
+    const arrRaw = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
+    const ordered = sortByInserted(arrRaw)
+    areas.value = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
+  }catch{ areas.value = [] }
 }
 
 function openGovernorates(){ openGovPicker.value = true; if (!governorates.value.length) loadGovernorates() }
