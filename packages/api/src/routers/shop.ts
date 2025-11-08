@@ -3599,7 +3599,7 @@ shop.post('/wishlist/toggle', requireAuth, async (req: any, res) => {
 
 // ===== Public GEO (Cities/Areas from Admin DB, read-only) =====
 // GET /api/geo/governorates?country=YE
-shop.get('/api/geo/governorates', async (req: any, res) => {
+shop.get('/geo/governorates', async (req: any, res) => {
   try{
     const countryQ = String(req.query.country||'YE').trim().toUpperCase();
     // Resolve country by code or name
@@ -3638,7 +3638,7 @@ shop.get('/api/geo/governorates', async (req: any, res) => {
 });
 
 // GET /api/geo/areas?governorate=<name>&country=YE
-shop.get('/api/geo/areas', async (req: any, res) => {
+shop.get('/geo/areas', async (req: any, res) => {
   try{
     const gov = String(req.query.governorate||'').trim();
     if (!gov) return res.json({ items: [] });
