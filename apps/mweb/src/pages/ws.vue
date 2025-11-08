@@ -1,5 +1,5 @@
 <template>
-  <main class="ws-page" dir="rtl">
+  <main v-if="!AUTO_REDIRECT" class="ws-page" dir="rtl">
     <section class="card">
       <h1 class="title">عروض الشتاء جي jeeey</h1>
       <p class="subtitle">خصومات وتخفيضات خاصة — تواصل معنا عبر واتساب الآن.</p>
@@ -28,6 +28,11 @@ const waUrl = 'https://wa.me/967781436625?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9
 // لتفعيل التحويل المباشر إلى واتساب دون فتح الصفحة: اجعل القيمة true
 const AUTO_REDIRECT = true
 
+// التحويل الفوري قبل الرسم لمنع أي وميض في الواجهة
+if (AUTO_REDIRECT) {
+  try { window.location.replace(waUrl) } catch { window.location.href = waUrl }
+}
+
 onMounted(() => {
   // تحسين SEO بسيط للعربية
   document.title = 'عروض الشتاء جي jeeey — تواصل عبر واتساب'
@@ -39,10 +44,7 @@ onMounted(() => {
   })()
   meta.setAttribute('content', 'عروض الشتاء من جي jeeey — تواصل معنا عبر واتساب للحصول على التفاصيل والطلبات.')
 
-  // التحويل المباشر (فعّل عبر AUTO_REDIRECT = true)
-  if (AUTO_REDIRECT) {
-    try { window.location.replace(waUrl) } catch { window.location.href = waUrl }
-  }
+  // لا حاجة لعمل شيء هنا عند التفعيل؛ التحويل تمّ قبل الرسم
 })
 </script>
 

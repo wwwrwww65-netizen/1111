@@ -4,6 +4,7 @@ export const routes = [
   { path: '/products', component: () => import('./pages/Products.vue') },
   { path: '/cart', component: () => import('./pages/Cart.vue') },
   { path: '/login', component: () => import('./pages/Login.vue') },
+  { path: '/auth/register', component: () => import('./pages/auth/register.vue') },
   { path: '/ws', component: () => import('./pages/ws.vue') },
   { path: '/big-sale-banner', component: () => import('./pages/BigSaleBanner.vue') },
   { path: '/image', component: () => import('./pages/Image.vue') },
