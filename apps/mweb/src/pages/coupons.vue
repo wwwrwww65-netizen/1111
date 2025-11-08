@@ -322,6 +322,25 @@ onMounted(() => {
   })
   fetchCoupons()
 
+  // Complete claim flow after signup
+  try{
+    const sp = new URLSearchParams(location.search||'')
+    if (sp.get('claim')==='1'){
+      const token = sessionStorage.getItem('claim_token')||''
+      if (token){
+        fetch(`${API_BASE}/api/promotions/claim/complete`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ token }) })
+          .then(()=>{
+            showToast('تم جمع الكوبون', 'success')
+            sessionStorage.removeItem('claim_token')
+            sessionStorage.removeItem('pending_campaignId')
+            sessionStorage.removeItem('pending_coupons')
+            // refresh coupons to show granted ones
+            fetchCoupons()
+          }).catch(()=>{})
+      }
+    }
+  }catch{}
+
   // Live countdown (HH:MM:SS)
   countdownInterval = setInterval(() => {
     nowTs.value = Date.now()

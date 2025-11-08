@@ -127,7 +127,32 @@ const popupStyle = computed(()=>{
 function emitClose(reason:string){ props.onClose(reason) }
 function dontShow(){ try{ localStorage.setItem(`promo_dontshow:${props.campaign?.id}`,'1') }catch{}; emitClose('dont_show_again') }
 async function submitForm(){ props.onEvent('signup_submitted', { email: email.value }); emitClose('form_submit') }
-function ctaClick(b:any){ props.onEvent('click', { href:b.href, label:b.label }); if (b.href) location.assign(b.href) }
+function isGuest(): boolean {
+  try{
+    const m = document.cookie.match(/(?:^|; )shop_auth_token=([^;]+)/)
+    return !m
+  }catch{ return true }
+}
+async function ctaClick(b:any){
+  props.onEvent('click', { href:b.href, label:b.label })
+  const behavior = b?.behavior||{}
+  if (isGuest() && behavior?.guest === 'signup_redirect'){
+    try{
+      // start claim for this campaign (optional best-effort)
+      const tokenRes = await fetch(buildApiUrl('/api/promotions/claim/start'), { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ campaignId: props.campaign?.id }) })
+      const tJ = await tokenRes.json().catch(()=>null)
+      if (tJ?.token) sessionStorage.setItem('claim_token', String(tJ.token))
+    }catch{}
+    try{
+      sessionStorage.setItem('pending_campaignId', String(props.campaign?.id||''))
+      sessionStorage.setItem('pending_coupons', JSON.stringify(couponsList.value||[]))
+    }catch{}
+    const next = '/coupons?claim=1'
+    location.assign(`/auth/register?next=${encodeURIComponent(next)}`)
+    return
+  }
+  if (b.href) location.assign(b.href)
+}
 
 function buildApiUrl(path:string){
   try{
@@ -184,10 +209,22 @@ function toggleExpiry(code:string){
 
 async function fetchCouponDetails(){
   try{
-    if (!couponsList.value.length) return
-    const r = await fetch(buildApiUrl('/api/admin/coupons/public'), { credentials:'omit', cache:'no-store' })
-    const j = await r.json().catch(()=>null)
-    const list:any[] = (j && Array.isArray(j.coupons))? j.coupons : []
+    const codes = couponsList.value
+    if (!codes.length) return
+    // try precise shop endpoint by codes
+    let list:any[] = []
+    try{
+      const url = buildApiUrl(`/api/coupons/by-codes?codes=${encodeURIComponent(codes.join(','))}`)
+      const r1 = await fetch(url, { credentials:'omit', cache:'no-store' })
+      const j1 = await r1.json().catch(()=>null)
+      if (j1 && Array.isArray(j1.coupons)) list = j1.coupons
+    }catch{}
+    // fallback to public coupons
+    if (!list.length){
+      const r2 = await fetch(buildApiUrl('/api/admin/coupons/public'), { credentials:'omit', cache:'no-store' })
+      const j2 = await r2.json().catch(()=>null)
+      list = (j2 && Array.isArray(j2.coupons))? j2.coupons : []
+    }
     const map: Record<string, any> = {}
     for (const c of list){ if (c?.code) map[String(c.code)] = c }
     couponMap.value = map

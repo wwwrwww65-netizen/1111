@@ -2060,6 +2060,32 @@ shop.get('/popups', async (req: any, res) => {
   }catch(e:any){ return res.status(500).json({ error: e?.message||'popups_failed' }); }
 });
 
+// Public: fetch coupon details by codes (comma-separated) for popup rendering
+shop.get('/coupons/by-codes', async (req: any, res) => {
+  try{
+    const raw = String(req.query?.codes||'').trim();
+    if (!raw) return res.json({ coupons: [] });
+    const codes = Array.from(new Set(raw.split(',').map((s:string)=> s.trim()).filter(Boolean)));
+    if (!codes.length) return res.json({ coupons: [] });
+    const rows:any[] = await db.coupon.findMany({ where: { code: { in: codes } } } as any);
+    const mapped = rows.map(r=> ({
+      code: r.code,
+      title: r.code, // placeholder; UI may override with marketing title if present elsewhere
+      discount: r.discountType === 'PERCENTAGE' ? r.discountValue : undefined,
+      percent: r.discountType === 'PERCENTAGE' ? r.discountValue : undefined,
+      minOrderAmount: r.minOrderAmount || null,
+      validUntil: r.validUntil || null,
+      status: r.isActive ? 'unused' : 'expired',
+      categories: ['discount','unused'],
+      conditions: []
+    }));
+    res.set('Cache-Control','public, max-age=30');
+    return res.json({ coupons: mapped });
+  }catch(e:any){
+    return res.status(500).json({ error: e?.message||'coupons_lookup_failed' });
+  }
+});
+
 // Promotions analytics events (impression, view, click, close, etc.)
 shop.post('/promotions/events', async (req: any, res) => {
   try{
