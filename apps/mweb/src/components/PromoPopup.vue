@@ -23,20 +23,41 @@
         <div class="coupon" v-if="variant?.type==='coupon' && couponCode">
           <code>{{ couponCode }}</code>
         </div>
-        <div class="coupons-stack" v-if="couponsList.length > 1">
-          <article v-for="(code,i) in couponsList" :key="code+'-'+i" class="coupon-card">
+        <div class="coupons-stack" v-if="couponsList.length > 1" :style="{ textAlign: 'start' }">
+          <article
+            v-for="(code,i) in couponsList"
+            :key="code+'-'+i"
+            class="coupon-card"
+            :data-category="(getC(code)?.categories && getC(code).categories.join(' ')) || 'all discount unused'"
+          >
             <div class="coupon-left">
-              <div class="coupon-title">{{ getC(code)?.title || code }}</div>
-              <div class="coupon-sub">{{ getC(code)?.category || 'كوبون خصم' }}</div>
-              <div class="expiry-row">
-                <span class="expiry" v-if="getC(code) && (getC(code).validUntil || getC(code).valid_to || getC(code).expiresAt)">ينتهي في: <strong>{{ expiryDateText(getC(code)) }}</strong></span>
+              <div class="coupon-title">{{ getC(code)?.title || ('كوبون ' + code) }}</div>
+              <div class="coupon-sub">عروض</div>
+              <div class="expiry-row" @click="toggleExpiry(code)">
+                <span class="expiry">
+                  تنتهي الصلاحية في {{ expiryDateText(getC(code)) || '—' }}
+                </span>
+                <button
+                  class="exp-toggle"
+                  :class="{ open: isExpanded(code) }"
+                  :aria-expanded="isExpanded(code)"
+                >▾</button>
               </div>
-              <div class="coupon-sub" v-if="minOrderTextOf(getC(code))">{{ minOrderTextOf(getC(code)) }}</div>
+              <transition name="accordion">
+                <div v-show="isExpanded(code)" class="expiry-details">
+                  <p>شروط الاستخدام:</p>
+                  <ul>
+                    <li v-for="cond in getConditions(getC(code))" :key="String(cond)">{{ cond }}</li>
+                  </ul>
+                </div>
+              </transition>
             </div>
             <div class="coupon-divider"></div>
             <div class="coupon-right">
-              <div class="coupon-percent">{{ (getC(code)?.discount || getC(code)?.percent) ? (getC(code).discount||getC(code).percent) : '' }}<span v-if="(getC(code)?.discount || getC(code)?.percent)">%</span></div>
-              <div class="coupon-note">{{ (getC(code)?.discount || getC(code)?.percent) ? 'خصم' : '' }}</div>
+              <div class="coupon-percent">
+                {{ percentOf(getC(code)) ? percentOf(getC(code)) : '' }}<span v-if="percentOf(getC(code))">%</span>
+              </div>
+              <div class="discount-note">{{ minOrderTextOf(getC(code)) }}</div>
             </div>
           </article>
         </div>
@@ -96,6 +117,7 @@ const ctas = computed(()=> Array.isArray(content.value?.ctas)? content.value.cta
 const textAlign = computed(()=> design.value?.textAlign||'start')
 const showConsent = computed(()=> (variant.value?.type==='subscribe' || variant.value?.type==='form'))
 const primaryColor = computed(()=> design.value?.colors?.primary || '#0B5FFF')
+const expanded = ref<Set<string>>(new Set())
 
 const popupStyle = computed(()=>{
   const maxW = Number(design.value?.maxWidth||480)
@@ -150,6 +172,19 @@ function minOrderTextOf(c:any){
   }
 }
 function getC(code:string){ return couponMap.value[code] || {} }
+function percentOf(c:any): number {
+  const v = c?.discount ?? c?.percent ?? 0
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+function getConditions(c:any): string[] {
+  const arr = (c?.conditions && Array.isArray(c.conditions)) ? c.conditions : (c?.rules?.conditions && Array.isArray(c.rules.conditions) ? c.rules.conditions : [])
+  return arr
+}
+function isExpanded(code:string){ return expanded.value.has(code) }
+function toggleExpiry(code:string){
+  if (expanded.value.has(code)) expanded.value.delete(code); else expanded.value.add(code)
+}
 
 async function fetchCouponDetails(){
   try{
@@ -201,6 +236,15 @@ onMounted(async()=>{
 .coupon-note{font-size:12px;color:#666;text-align:center}
 .expiry-row{display:flex;align-items:center;gap:8px;margin-top:6px}
 .expiry{font-size:12px;color:#8a8a8a}
+.exp-toggle{background:transparent;border:0;cursor:pointer;font-size:14px;color:#8a8a8a;transition:transform .3s}
+.exp-toggle.open{transform:rotate(180deg)}
+.expiry-details{margin-top:8px;padding-top:8px;border-top:1px dashed var(--card-border,#f3d2c8);font-size:12px;color:#666}
+.expiry-details ul{margin-right:20px;margin-top:4px}
+
+/* Accordion transitions */
+.accordion-enter-active,.accordion-leave-active{transition:all .3s ease;overflow:hidden}
+.accordion-enter-from,.accordion-leave-to{max-height:0;opacity:0}
+.accordion-enter-to,.accordion-leave-from{max-height:200px;opacity:1}
 
 @media (max-width: 640px){
   .popup{width:100vw;max-width:none;height:auto;margin:0;border-radius:0;border-top-left-radius:16px;border-top-right-radius:16px}
