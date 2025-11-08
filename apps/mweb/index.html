@@ -26,19 +26,42 @@
     <script>
       (function(){
         try{
-          // Synchronously read keys so fbq is ready before app runs
+          // Always define a safe fbq stub to avoid ReferenceError even without Pixel ID
+          if (!window.fbq){
+            var n = function(){ n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments) };
+            n.queue = [];
+            n.loaded = false;
+            n.version = '2.0';
+            n.push = n;
+            n.callMethod = null;
+            n.getState = function(){ return { loaded: !!n.loaded, queueLength: (n.queue||[]).length, pixelId: undefined } };
+            n.set = function(){ /* no-op until pixel loads */ };
+            window.fbq = n;
+            window._fbq = n;
+          }
+          // Read Pixel ID synchronously so we can load fbevents.js early
           var xhr = new XMLHttpRequest();
           xhr.open('GET','/api/tracking/keys', false);
-          xhr.send(null);
+          try{ xhr.send(null) }catch(_){}
           var fb = '';
-          try{ var j = JSON.parse(xhr.responseText||'{}'); fb = (j.keys && j.keys.FB_PIXEL_ID) || ''; }catch(e){}
-          if(!fb) return;
-          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-          fbq('init', fb);
-          fbq('track','PageView');
-          // Mark that initial PageView fired to avoid duplicate client PageView from app bootstrap
-          try{ window.__FB_PV_BOOT_INIT = true; window.__LAST_PV_TS__ = Date.now(); }catch(e){}
-        }catch(e){}
+          try{ var j = JSON.parse(xhr.responseText||'{}'); fb = (j.keys && j.keys.FB_PIXEL_ID) || '' }catch(_){}
+          if (!fb) return; // keep stub only
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://connect.facebook.net/en_US/fbevents.js';
+          s.onload = function(){
+            try{
+              if (window.fbq){
+                window.fbq('init', fb);
+                window.fbq('track','PageView');
+                window.fbq.loaded = true;
+                window.__FB_PV_BOOT_INIT = true; window.__LAST_PV_TS__ = Date.now();
+              }
+            }catch(e){ console.error('[FB Pixel] early init error', e) }
+          };
+          s.onerror = function(e){ try{ console.error('[FB Pixel] load failed (early)', e) }catch(_){} };
+          document.head.appendChild(s);
+        }catch(e){ /* swallow */ }
       })();
     </script>
   </head>

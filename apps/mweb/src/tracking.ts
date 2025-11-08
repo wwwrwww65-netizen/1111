@@ -1,5 +1,16 @@
 export async function injectTracking(): Promise<void> {
   try {
+    // Ensure a global safe fbq stub exists to avoid ReferenceError anywhere
+    try{
+      const w = window as any
+      if (!w.fbq){
+        const n:any = function(){ n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments) }
+        n.queue = []; n.loaded = false; n.version = '2.0'; n.push = n; n.callMethod = null
+        n.getState = function(){ return { loaded: !!n.loaded, queueLength: (n.queue||[]).length } }
+        n.set = function(){ /* no-op until script loads */ }
+        w.fbq = n; w._fbq = n
+      }
+    }catch{}
     // Sentry init if DSN provided
     let sentryDsn = (import.meta as any)?.env?.SENTRY_DSN;
     if (!sentryDsn){
@@ -50,11 +61,7 @@ export async function injectTracking(): Promise<void> {
     // Facebook Pixel: load async, init only after script loads, guard fbq usage
     if (fb && !document.getElementById('fb-pixel-loader')){
       try{
-        // Bootstrap fbq queue safely
-        if (!(window as any).fbq){
-          // eslint-disable-next-line @typescript-eslint/no-implied-eval
-          (function(f:any,b:any,e:any,v:any,n:any,t:any,s:any){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];})(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
-        }
+        // fbq stub is ensured above; load script
         const scr = document.createElement('script');
         scr.id = 'fb-pixel-loader';
         scr.async = true;
@@ -64,6 +71,7 @@ export async function injectTracking(): Promise<void> {
             if ((window as any).fbq){
               (window as any).fbq('init', fb);
               (window as any).fbq('track', 'PageView');
+              try{ (window as any).fbq.loaded = true }catch{}
             }
           }catch(err){ console.error('[FB Pixel] init error:', err); }
         };
