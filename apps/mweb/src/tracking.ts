@@ -47,9 +47,29 @@ export async function injectTracking(): Promise<void> {
         tiktok = tiktok || keys.TIKTOK_PIXEL_ID;
       }
     } catch {}
-    if (fb && !document.getElementById('fb-pixel')){
-      const s = document.createElement('script'); s.id='fb-pixel'; s.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init','${fb}'); fbq('track','PageView');`;
-      document.head.appendChild(s);
+    // Facebook Pixel: load async, init only after script loads, guard fbq usage
+    if (fb && !document.getElementById('fb-pixel-loader')){
+      try{
+        // Bootstrap fbq queue safely
+        if (!(window as any).fbq){
+          // eslint-disable-next-line @typescript-eslint/no-implied-eval
+          (function(f:any,b:any,e:any,v:any,n:any,t:any,s:any){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];})(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+        }
+        const scr = document.createElement('script');
+        scr.id = 'fb-pixel-loader';
+        scr.async = true;
+        scr.src = 'https://connect.facebook.net/en_US/fbevents.js';
+        scr.onload = ()=> {
+          try{
+            if ((window as any).fbq){
+              (window as any).fbq('init', fb);
+              (window as any).fbq('track', 'PageView');
+            }
+          }catch(err){ console.error('[FB Pixel] init error:', err); }
+        };
+        scr.onerror = (e)=> { console.error('[FB Pixel] script load failed', e); };
+        document.head.appendChild(scr);
+      }catch(err){ console.error('[FB Pixel] setup error:', err); }
     }
     // Advanced Matching: set user em/ph hashed when available
     try{
@@ -68,7 +88,7 @@ export async function injectTracking(): Promise<void> {
       const em = emRaw ? await sha(emRaw) : '';
       const ph = phRaw ? await sha(phRaw) : '';
       if ((window as any).fbq && (em || ph)){
-        try{ (window as any).fbq('set','user', { em: em || undefined, ph: ph || undefined }) }catch{}
+        try{ (window as any).fbq('set','user', { em: em || undefined, ph: ph || undefined }) }catch(err){ console.warn('[FB Pixel] set user failed', err) }
       }
     }catch{}
     // Also send PageView via CAPI فقط (تجنّب بعث Pixel مرتين)
