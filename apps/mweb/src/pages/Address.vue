@@ -517,24 +517,14 @@ function selectArea(name: string){
 }
 
 async function loadGovernorates(){
-  // ADMIN ONLY: المحافظات = المدن
+  // Public: يعكس Cities من لوحة التحكم عبر API المتجر
   try{
-    const countries = await apiGet<any>('/api/admin/geo/countries')
-    const cc = Array.isArray(countries?.countries) ? countries.countries : (Array.isArray(countries?.items) ? countries.items : [])
-    const ye = (cc||[]).find((x:any)=> String(x.code||'').toUpperCase()==='YE' || /اليمن|yemen/i.test(String(x.name||'')))
-    adminCountryId.value = ye?.id ? String(ye.id) : null
-    const resp = await apiGet<any>(adminCountryId.value? `/api/admin/geo/cities?countryId=${encodeURIComponent(String(adminCountryId.value))}` : '/api/admin/geo/cities')
-    const raw = (Array.isArray(resp?.cities)? resp.cities : (Array.isArray(resp?.items)? resp.items : [])) || []
-    const ordered = sortByInserted(raw)
-    // خزن المدن كاملة لاستخدامها لاحقاً
-    cities.value = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() }))
-    const seen = new Set<string>()
-    const uniq: Array<{id?:string; name:string}> = []
-    for (const it of cities.value){ const n = it.name; if (!n) continue; if (seen.has(n)) continue; seen.add(n); uniq.push({ id: it.id, name: n }) }
-    governorates.value = uniq
+    const r:any = await apiGet<any>('/api/geo/governorates?country=YE')
+    const items = Array.isArray(r?.items) ? r.items : []
+    // العناصر مرتبة من الباك-إند حسب أول إدخال؛ نطبعها مباشرة
+    governorates.value = items.map((x:any)=> ({ id: String(x.id||''), name: String(x.name||'').trim() })).filter((x:any)=> x.name)
   }catch{
     governorates.value = []
-    cities.value = []
   }
 }
 
@@ -551,15 +541,10 @@ async function loadAreas(){
   areas.value = []
   if (!selectedGovernorate.value) return
   try{
-    if (!selectedCityId.value){
-      const found = (cities.value||[]).find(c=> String(c.name).trim() === String(selectedGovernorate.value).trim())
-      if (found?.id) selectedCityId.value = String(found.id)
-    }
-    if (!selectedCityId.value) { areas.value = []; return }
-    const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(selectedCityId.value))}`)
-    const arrRaw = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
-    const ordered = sortByInserted(arrRaw)
-    areas.value = ordered.map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim() })).filter((x:any)=> x.name)
+    const url = `/api/geo/areas?country=YE&governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
+    const r:any = await apiGet<any>(url)
+    const items = Array.isArray(r?.items) ? r.items : []
+    areas.value = items.map((x:any)=> ({ id: String(x.id||''), name: String(x.name||'').trim() })).filter((x:any)=> x.name)
   }catch{ areas.value = [] }
 }
 

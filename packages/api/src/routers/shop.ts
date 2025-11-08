@@ -3597,6 +3597,88 @@ shop.post('/wishlist/toggle', requireAuth, async (req: any, res) => {
   }
 });
 
+// ===== Public GEO (Cities/Areas from Admin DB, read-only) =====
+// GET /api/geo/governorates?country=YE
+shop.get('/api/geo/governorates', async (req: any, res) => {
+  try{
+    const countryQ = String(req.query.country||'YE').trim().toUpperCase();
+    // Resolve country by code or name
+    let country: any = null;
+    try{
+      country = await db.country.findFirst({
+        where: {
+          OR: [
+            { code: countryQ },
+            { name: { contains: countryQ, mode: 'insensitive' } },
+            { name: { contains: 'اليمن', mode: 'insensitive' } }
+          ]
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+    }catch{}
+    const whereCity: any = country ? { countryId: country.id } : {};
+    const cities = await db.city.findMany({
+      where: whereCity,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, createdAt: true }
+    });
+    // Deduplicate by name; keep first (oldest)
+    const seen = new Set<string>();
+    const items = [] as Array<{ id:string; name:string }>;
+    for (const c of cities){
+      const n = String(c?.name||'').trim();
+      if (!n || seen.has(n)) continue;
+      seen.add(n);
+      items.push({ id: String(c.id), name: n });
+    }
+    return res.json({ items });
+  }catch(e:any){
+    return res.status(500).json({ error: e?.message || 'geo_governorates_failed' });
+  }
+});
+
+// GET /api/geo/areas?governorate=<name>&country=YE
+shop.get('/api/geo/areas', async (req: any, res) => {
+  try{
+    const gov = String(req.query.governorate||'').trim();
+    if (!gov) return res.json({ items: [] });
+    const countryQ = String(req.query.country||'YE').trim().toUpperCase();
+    // Resolve country
+    let country: any = null;
+    try{
+      country = await db.country.findFirst({
+        where: {
+          OR: [
+            { code: countryQ },
+            { name: { contains: countryQ, mode: 'insensitive' } },
+            { name: { contains: 'اليمن', mode: 'insensitive' } }
+          ]
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+    }catch{}
+    // Pick first city whose name matches governorate within country (if provided)
+    const city = await db.city.findFirst({
+      where: Object.assign(
+        { name: { equals: gov } },
+        country ? { countryId: country.id } : {}
+      ),
+      orderBy: { createdAt: 'asc' },
+      select: { id: true }
+    });
+    if (!city) return res.json({ items: [] });
+    const areas = await db.area.findMany({
+      where: { cityId: city.id },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true }
+    });
+    const items = areas.map(a=> ({ id: String(a.id), name: String(a.name||'').trim() })).filter(a=> a.name);
+    return res.json({ items });
+  }catch(e:any){
+    return res.status(500).json({ error: e?.message || 'geo_areas_failed' });
+  }
+});
+
 export default shop;
 
 // Payments session (Stripe/HyperPay via integrations)
