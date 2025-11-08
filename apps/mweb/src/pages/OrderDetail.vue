@@ -116,17 +116,31 @@ onMounted(async ()=>{
     const raw = sessionStorage.getItem('last_purchase')
     if (raw){
       const data = JSON.parse(raw)
-      const fbq = (window as any).fbq
-      if (typeof fbq==='function'){
-        const params:any = {
-          value: Number(data?.value||0),
-          currency: String(data?.currency||'YER'),
-          contents: Array.isArray(data?.contents)? data.contents: [],
-          content_ids: Array.isArray(data?.content_ids)? data.content_ids: [],
-          content_type: 'product_group'
-        }
+      const params:any = {
+        value: Number(data?.value||0),
+        currency: String(data?.currency||'YER'),
+        contents: Array.isArray(data?.contents)? data.contents: [],
+        content_ids: Array.isArray(data?.content_ids)? data.content_ids: [],
+        content_type: 'product_group'
+      }
+      try {
+        const { trackEvent } = await import('@/lib/track')
         const ev = (order.value as any)?.eventIds?.purchase
-        if (ev){ fbq('track','Purchase', params, { eventID: ev }) } else { fbq('track','Purchase', params) }
+        if (ev){ await trackEvent('Purchase', params, ev) }
+        else {
+          // Generate event id via CAPI then reuse for Pixel
+          const eid = await trackEvent('Purchase', params)
+          try{
+            const fbq = (window as any).fbq
+            if (typeof fbq==='function'){ fbq('track','Purchase', params, { eventID: eid }) }
+          }catch{}
+        }
+      }catch{
+        // fallback: Pixel only
+        try{
+          const fbq = (window as any).fbq
+          if (typeof fbq==='function'){ fbq('track','Purchase', params) }
+        }catch{}
       }
       sessionStorage.removeItem('last_purchase')
     }

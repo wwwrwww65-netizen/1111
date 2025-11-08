@@ -27,18 +27,30 @@ onMounted(async ()=>{
           eventId = ord?.eventIds?.purchase || undefined
         }
       }catch{}
-      const fbq = (window as any).fbq
-      if (typeof fbq === 'function'){
-        const params = {
-          value: Number(data?.value||0),
-          currency: String(data?.currency||'YER'),
-          contents: Array.isArray(data?.contents)? data.contents : [],
-          content_ids: Array.isArray(data?.content_ids)? data.content_ids : [],
-          content_type: 'product_group'
-        }
-        if (eventId){ fbq('track','Purchase', params as any, { eventID: eventId }) }
-        else { fbq('track','Purchase', params as any) }
+      const params = {
+        value: Number(data?.value||0),
+        currency: String(data?.currency||'YER'),
+        contents: Array.isArray(data?.contents)? data.contents : [],
+        content_ids: Array.isArray(data?.content_ids)? data.content_ids : [],
+        content_type: 'product_group'
       }
+      // أرسل CAPI أولاً للحصول على event_id في حال عدم توفره من الخادم، ثم أرسل Pixel بنفس event_id للتطابق
+      try{
+        const { trackEvent } = await import('@/lib/track')
+        if (!eventId){
+          const eid = await trackEvent('Purchase', params as any)
+          eventId = eid
+        } else {
+          await trackEvent('Purchase', params as any, eventId)
+        }
+      }catch{}
+      try{
+        const fbq = (window as any).fbq
+        if (typeof fbq === 'function'){
+          if (eventId){ fbq('track','Purchase', params as any, { eventID: eventId }) }
+          else { fbq('track','Purchase', params as any) }
+        }
+      }catch{}
     }
   }catch{}
   try{ sessionStorage.removeItem('last_purchase') }catch{}

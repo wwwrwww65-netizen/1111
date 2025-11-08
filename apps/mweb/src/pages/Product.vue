@@ -2532,8 +2532,9 @@ async function trackAddToCart(){
   try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1, currency:'YER' }] } }) }catch{}
   try{
     const { trackEvent } = await import('@/lib/track')
-    const pid = selectedVariantId.value||id
-    trackEvent('AddToCart', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[pid], content_type:'product', contents:[{ id: pid, item_price: Number(price.value||0), quantity: 1 }] })
+    // مهم: نستخدم معرف المنتج الأساسي المطابق للكاتالوج (g:id) وليس معرف المتغير
+    const pid = id
+    trackEvent('AddToCart', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[pid], content_type:'product_group', contents:[{ id: pid, item_price: Number(price.value||0), quantity: 1 }] })
   }catch{}
 }
 
