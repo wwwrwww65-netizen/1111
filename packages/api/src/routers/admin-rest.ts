@@ -7871,7 +7871,7 @@ adminRest.get('/analytics/products/table', async (req, res) => {
     const utmMedium = (req.query.utmMedium as string|undefined)||undefined;
     const utmCampaign = (req.query.utmCampaign as string|undefined)||undefined;
     // aggregate purchases by product
-    const purchases:any[] = await db.$queryRawUnsafe(`
+  const purchases:any[] = await db.$queryRawUnsafe(`
       SELECT oi."productId" as "productId", SUM(oi.quantity) as purchases
       FROM "OrderItem" oi
       GROUP BY oi."productId"
@@ -7880,7 +7880,7 @@ adminRest.get('/analytics/products/table', async (req, res) => {
     `);
     const ids = purchases.map(r=> String(r.productId));
     // Build WHERE for events
-    const evConds: string[] = [ '"productId" IS NOT NULL', '"productId" = ANY($1)' ];
+    const evConds: string[] = [ `(properties->>'productId') IS NOT NULL`, `(properties->>'productId') = ANY($1)` ];
     const evArgs: any[] = [ ids ];
     let argIdx = 2;
     if (from && to){ evConds.push(`"createdAt" BETWEEN $${argIdx} AND $${argIdx+1}`); evArgs.push(from, to); argIdx+=2; }
@@ -7892,13 +7892,13 @@ adminRest.get('/analytics/products/table', async (req, res) => {
     if (utmCampaign){ evConds.push(`"utmCampaign" = $${argIdx}`); evArgs.push(utmCampaign); argIdx++; }
     const whereSql = evConds.join(' AND ');
     const views:any[] = await db.$queryRawUnsafe(`
-      SELECT "productId" as "productId", COUNT(1) as views
+      SELECT (properties->>'productId') as "productId", COUNT(1) as views
       FROM "Event"
       WHERE name='product_view' AND ${whereSql}
       GROUP BY 1
     `, ...evArgs);
     const atc:any[] = await db.$queryRawUnsafe(`
-      SELECT "productId" as "productId", COUNT(1) as add_to_cart
+      SELECT (properties->>'productId') as "productId", COUNT(1) as add_to_cart
       FROM "Event"
       WHERE name='add_to_cart' AND ${whereSql}
       GROUP BY 1
@@ -8042,8 +8042,27 @@ adminRest.get('/analytics/events/recent', async (req, res) => {
     const where:any = {};
     if (userId) where.userId = String(userId);
     if (sessionId) where.sessionId = String(sessionId);
-    const rows = await db.event.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit } as any);
-    res.json({ ok:true, events: rows });
+  // Use raw query selecting a safe subset to avoid missing columns on older schemas
+  const conds: string[] = [];
+  const args: any[] = [];
+  let idx = 1;
+  if (userId){ conds.push(`"userId" = $${idx++}`); args.push(String(userId)); }
+  if (sessionId){ conds.push(`"sessionId" = $${idx++}`); args.push(String(sessionId)); }
+  const whereSql = conds.length? `WHERE ${conds.join(' AND ')}` : '';
+  args.push(limit);
+  const rows:any[] = await db.$queryRawUnsafe(`
+    SELECT id, "createdAt", name, "sessionId", "userId",
+           COALESCE("pageUrl", properties->>'pageUrl') AS "pageUrl",
+           COALESCE(os, properties->>'os') AS os,
+           COALESCE(browser, properties->>'browser') AS browser,
+           COALESCE(country, properties->>'country') AS country,
+           properties
+    FROM "Event"
+    ${whereSql}
+    ORDER BY "createdAt" DESC
+    LIMIT $${idx}
+  `, ...args);
+  res.json({ ok:true, events: rows });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'events_recent_failed' }); }
 });
 
@@ -8183,9 +8202,9 @@ adminRest.get('/analytics/vendors/top', async (req, res) => {
   try{
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
-    const visits:any[] = await db.$queryRawUnsafe(`
+  const visits:any[] = await db.$queryRawUnsafe(`
       SELECT p."vendorId" as vid, COUNT(*) as visits
-      FROM "Event" e JOIN "Product" p ON p.id = e."productId"
+      FROM "Event" e JOIN "Product" p ON p.id = (e.properties->>'productId')
       WHERE e.name='product_view' AND e."createdAt" BETWEEN $1 AND $2 AND p."vendorId" IS NOT NULL
       GROUP BY 1 ORDER BY visits DESC LIMIT 50
     `, from, to);
@@ -8208,14 +8227,14 @@ adminRest.get('/analytics/recommendations/potential', async (req, res) => {
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-14*24*3600*1000);
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
     const base:any = [from, to];
-    const views:any[] = await db.$queryRawUnsafe(`
-      SELECT "productId" as pid, COUNT(1) as views
-      FROM "Event" WHERE name='product_view' AND "createdAt" BETWEEN $1 AND $2 AND "productId" IS NOT NULL
+  const views:any[] = await db.$queryRawUnsafe(`
+      SELECT (properties->>'productId') as pid, COUNT(1) as views
+      FROM "Event" WHERE name='product_view' AND "createdAt" BETWEEN $1 AND $2 AND (properties->>'productId') IS NOT NULL
       GROUP BY 1
     `, ...base);
     const atc:any[] = await db.$queryRawUnsafe(`
-      SELECT "productId" as pid, COUNT(1) as atc
-      FROM "Event" WHERE name='add_to_cart' AND "createdAt" BETWEEN $1 AND $2 AND "productId" IS NOT NULL
+      SELECT (properties->>'productId') as pid, COUNT(1) as atc
+      FROM "Event" WHERE name='add_to_cart' AND "createdAt" BETWEEN $1 AND $2 AND (properties->>'productId') IS NOT NULL
       GROUP BY 1
     `, ...base);
     const buys:any[] = await db.$queryRawUnsafe(`
