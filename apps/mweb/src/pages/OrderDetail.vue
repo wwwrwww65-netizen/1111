@@ -35,6 +35,13 @@
           </div>
         </div>
       </div>
+      <!-- عنوان الشحن المختار -->
+      <div class="card" v-if="ship">
+        <div class="muted">عنوان الشحن</div>
+        <div style="font-weight:600">{{ shipName }}</div>
+        <div class="muted">{{ shipPhone }}</div>
+        <div class="muted">{{ shipLine }}</div>
+      </div>
       <div class="card" v-if="order.payment?.status==='COMPLETED'">
         <div>✅ مدفوع</div>
       </div>
@@ -81,7 +88,8 @@ const isCod = computed(()=>{
 function resolveItemImage(it: any): string {
   try{
     const attrs = (it && (it as any).attributes) || {}
-    const raw = attrs.image || (it?.product?.images?.[0]) || ''
+    // دعم مفاتيح متعددة للصورة القادمة من المتغير/السطر المخزن في الطلب
+    const raw = attrs.image || attrs.img || attrs.imageUrl || attrs.variantImage || attrs.picture || attrs.photo || attrs.thumbnail || attrs.variantImageUrl || (it?.product?.images?.[0]) || ''
     const s = String(raw||'').trim()
     if (!s) return ''
     if (/^https?:\/\//i.test(s)) return s
@@ -107,6 +115,25 @@ function t(s:string){
   const m: any = { PENDING:'قيد المراجعة', PAID:'تم الدفع', SHIPPED:'قيد الشحن', DELIVERED:'مكتمل', CANCELLED:'ملغي' }
   return m[s] || s
 }
+
+// عنوان الشحن الملتقط من الطلب (السنبشوت المختار أثناء الدفع إن وُجد)
+const ship = computed<any>(()=>{
+  const o:any = order.value||null
+  return o?.shippingAddressSnapshot || o?.shippingAddress || o?.address || null
+})
+const shipName = computed(()=>{
+  try{ return ship.value?.fullName || ship.value?.name || '—' }catch{ return '—' }
+})
+const shipPhone = computed(()=>{
+  try{ return ship.value?.phone || ship.value?.altPhone || '—' }catch{ return '—' }
+})
+const shipLine = computed(()=>{
+  try{
+    const a = ship.value||{}
+    const parts = [a.country, a.state||a.province, a.city, a.area, a.street, a.details||a.landmarks].filter((x:any)=> !!x && String(x).trim())
+    return parts.join('، ')
+  }catch{ return '' }
+})
 
 onMounted(async ()=>{
   order.value = await apiGet(`/api/orders/${encodeURIComponent(id)}`)
