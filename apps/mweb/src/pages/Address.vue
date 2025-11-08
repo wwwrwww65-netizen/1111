@@ -118,16 +118,17 @@
                         <!-- الحاوية الثانية -->
             <section class="mt-2 bg-white border-t border-b px-4 py-3">
               <!-- زر تحديد الموقع -->
-              <button class="w-full flex items-center justify-between bg-white border px-3 py-2 text-[13px]"
-                      style="border-radius:0; border-color:#ccc" @click="openMapClick">
-                <span class="text-gray-900">حدد موقعك عبر الخريطة</span>
-                <!-- أيقونة حديثة -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 110 10 5 5 0 010-10z"/>
-                </svg>
-              </button>
-              <p class="mt-1 text-[11px] text-gray-600">اضغط لتحديد موقعك على الخريطة.</p>
+              <div style="display:none">
+                <button class="w-full flex items-center justify-between bg-white border px-3 py-2 text-[13px]"
+                        style="border-radius:0; border-color:#ccc" @click="openMapClick">
+                  <span class="text-gray-900">حدد موقعك عبر الخريطة</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 110 10 5 5 0 010-10z"/>
+                  </svg>
+                </button>
+                <p class="mt-1 text-[11px] text-gray-600">اضغط لتحديد موقعك على الخريطة.</p>
+              </div>
 
               <!-- الدولة -->
               <div class="mt-3">
@@ -568,6 +569,31 @@ async function loadAreas(){
       if (list1.length){ areas.value = list1; return }
     }catch{}
   }
+  // ADMIN fallback 2: by matching admin cities region to governorate (عند غياب selectedCityId)
+  try{
+    const countries = await apiGet<any>('/api/admin/geo/countries')
+    const cc = Array.isArray(countries?.countries) ? countries.countries : (Array.isArray(countries?.items) ? countries.items : [])
+    const ye = (cc||[]).find((x:any)=> String(x.code||'').toUpperCase()==='YE' || /اليمن|yemen/i.test(String(x.name||'')))
+    const yeId = ye?.id ? String(ye.id) : ''
+    const citiesResp = await apiGet<any>(yeId? `/api/admin/geo/cities?countryId=${encodeURIComponent(yeId)}` : '/api/admin/geo/cities')
+    const adminCities: Array<{ id:string; name:string; region?:string }>= (Array.isArray(citiesResp?.cities)? citiesResp.cities : (Array.isArray(citiesResp?.items)? citiesResp.items : [])).map((x:any)=> ({ id: String(x.id||x._id||''), name: String(x.name||x.title||'').trim(), region: (x.region? String(x.region).trim(): undefined) }))
+    const eq = (a:string,b:string)=> String(a||'').replace(/\s+/g,'').toLowerCase() === String(b||'').replace(/\s+/g,'').toLowerCase()
+    const related = adminCities.filter(c=> eq(c.region||'', String(selectedGovernorate.value)))
+    const aggregated: Array<{ id:string; name:string }> = []
+    for (const c of related){
+      try{
+        const a = await apiGet<any>(`/api/admin/geo/areas?cityId=${encodeURIComponent(String(c.id))}`)
+        const arr = Array.isArray(a) ? a : (Array.isArray(a?.items) ? a!.items : (Array.isArray(a?.areas) ? a!.areas : []))
+        for (const it of arr){
+          const id = String(it.id||it._id||'').trim(); const name = String(it.name||it.title||'').trim()
+          if (name) aggregated.push({ id: id || `${c.id}:${name}`, name })
+        }
+      }catch{}
+    }
+    const seen = new Set<string>()
+    const uniq = aggregated.filter(x=>{ const k = x.name; if(seen.has(k)) return false; seen.add(k); return true })
+    if (uniq.length){ areas.value = uniq; return }
+  }catch{}
 }
 
 function openGovernorates(){ openGovPicker.value = true; if (!governorates.value.length) loadGovernorates() }
@@ -625,10 +651,12 @@ onMounted(()=>{
   if (open === '1') openDrawer.value = true
 })
 
-function selectAndReturn(idx?: number){
+async function selectAndReturn(idx?: number){
   try{
     const a = (typeof idx==='number' ? addresses.value[idx] : null) || addresses.value.find(x=> x.isDefault) || addresses.value[0]
-    if (a?.id) apiPost('/api/addresses/default', { id: a.id }).catch(()=>{})
+    if (a?.id){
+      try{ sessionStorage.setItem('checkout_selected_address_id', String(a.id)) }catch{}
+    }
   }catch{}
   if (returnTo.value) router.push(returnTo.value)
 }

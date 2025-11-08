@@ -369,7 +369,12 @@ async function loadCart(){
 }
 async function loadAddress(){
   const list = await apiGet<any[]>('/api/addresses')
-  addr.value = Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null
+  let chosen: any = null
+  try{
+    const sel = sessionStorage.getItem('checkout_selected_address_id')
+    if (sel && Array.isArray(list)) chosen = list.find((x:any)=> String(x.id)===String(sel)) || null
+  }catch{}
+  addr.value = chosen || (Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null)
 }
 async function loadShipping(){
   const cityOrGov = String(addr.value?.city || addr.value?.state || addr.value?.province || '').trim()
