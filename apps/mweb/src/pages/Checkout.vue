@@ -399,6 +399,15 @@ async function placeOrder(){
       quantity: Number(it.qty||1),
       meta: { uid: String(it.uid||''), color: it.variantColor||undefined, size: it.variantSize||undefined }
     }))
+    // احتفاظ محلي لمعاينة تفاصيل الطلب (لعرض العنوان والصور المختارة في صفحة التفاصيل مباشرة بعد الشراء)
+    try{
+      const linesPreview = (items.value||[]).map((it:any)=> ({
+        productId: String(it.id),
+        quantity: Number(it.qty||1),
+        attributes: { color: it.variantColor||undefined, size: it.variantSize||undefined, image: it.img||undefined }
+      }))
+      sessionStorage.setItem('last_checkout_lines', JSON.stringify(linesPreview))
+    }catch{}
     const addrSnap = addr.value ? {
       id: addr.value.id,
       fullName: addr.value.fullName||addr.value.name||'',
@@ -414,6 +423,7 @@ async function placeOrder(){
       lat: addr.value.lat||null,
       lng: addr.value.lng||null
     } : null
+    try{ sessionStorage.setItem('last_checkout_address', JSON.stringify(addrSnap||{})) }catch{}
     const payload = {
       shippingPrice: shippingPrice.value,
       discount: savingAll.value,

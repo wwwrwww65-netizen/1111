@@ -332,15 +332,15 @@ export default function CategoriesTabBuilder(): JSX.Element {
       </section>
 
       {/* Pickers */}
-      <MediaPicker open={mediaOpen} onClose={()=>{ setMediaOpen(false); setMediaPath([]); }} onSelect={(url)=>{
-        if (!mediaPath.length) return;
-        setAtPath(mediaPath, url);
-      }} />
-      <CategoriesPicker open={catsOpen} onClose={()=>{ setCatsOpen(false); setCatsPath([]); }} onSelectMany={(items: CatMini[])=>{
+      {catsOpen && (<CategoriesPicker open={catsOpen} onClose={()=>{ setCatsOpen(false); setCatsPath([]); }} onSelectMany={(items: CatMini[])=>{
         if (!catsPath.length) return;
         // If at grid.categories -> array of Mini; if suggestions.items -> Mini[]; if featured -> Mini[]
         setAtPath(catsPath, items);
-      }} />
+      }} />)}
+      {mediaOpen && (<MediaPicker apiBase="" value={''} onChange={(url)=>{
+        if (!mediaPath.length) return;
+        setAtPath(mediaPath, url);
+      }} onClose={()=>{ setMediaOpen(false); setMediaPath([]); }} />)}
     </main>
   );
 }

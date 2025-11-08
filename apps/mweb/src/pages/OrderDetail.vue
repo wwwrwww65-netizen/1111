@@ -78,6 +78,9 @@ const route = useRoute()
 const id = String(route.params.id||'')
 const order = ref<any|null>(null)
 const currencySymbol = ref('ر.س')
+// احتفاظ محلي من صفحة الدفع لعرض العنوان والصور المختارة عند غيابها من الخادم
+const lastCheckoutAddr = ref<any>(null)
+const lastCheckoutLines = ref<Array<{ productId:string; quantity:number; attributes?:{ color?:string; size?:string; image?:string } }>>([])
 const isCod = computed(()=>{
   try{
     const pm = String((order.value as any)?.paymentMethod || (order.value as any)?.payment?.method || '').toLowerCase()
@@ -89,7 +92,15 @@ function resolveItemImage(it: any): string {
   try{
     const attrs = (it && (it as any).attributes) || {}
     // دعم مفاتيح متعددة للصورة القادمة من المتغير/السطر المخزن في الطلب
-    const raw = attrs.image || attrs.img || attrs.imageUrl || attrs.variantImage || attrs.picture || attrs.photo || attrs.thumbnail || attrs.variantImageUrl || (it?.product?.images?.[0]) || ''
+    let raw = attrs.image || attrs.img || attrs.imageUrl || attrs.variantImage || attrs.picture || attrs.photo || attrs.thumbnail || attrs.variantImageUrl || (it?.product?.images?.[0]) || ''
+    // في حال غياب الصورة من الخادم، جرّب استخدام بيانات السطور المخزنة محلياً من آخر عملية دفع
+    if (!raw) {
+      try{
+        const pid = String((it as any).productId || it?.product?.id || it?.product?.productId || it?.id || '')
+        const match = (lastCheckoutLines.value||[]).find((x:any)=> String(x.productId)===pid)
+        if (match?.attributes?.image) raw = match.attributes.image
+      }catch{}
+    }
     const s = String(raw||'').trim()
     if (!s) return ''
     if (/^https?:\/\//i.test(s)) return s
@@ -119,7 +130,7 @@ function t(s:string){
 // عنوان الشحن الملتقط من الطلب (السنبشوت المختار أثناء الدفع إن وُجد)
 const ship = computed<any>(()=>{
   const o:any = order.value||null
-  return o?.shippingAddressSnapshot || o?.shippingAddress || o?.address || null
+  return o?.shippingAddressSnapshot || o?.shippingAddress || o?.address || lastCheckoutAddr.value || null
 })
 const shipName = computed(()=>{
   try{ return ship.value?.fullName || ship.value?.name || '—' }catch{ return '—' }
@@ -136,6 +147,9 @@ const shipLine = computed(()=>{
 })
 
 onMounted(async ()=>{
+  // تحميل بيانات الاحتفاظ المحلي كحل بديل فوري لعرض العنوان والصور المختارة
+  try{ const a = sessionStorage.getItem('last_checkout_address'); if (a) lastCheckoutAddr.value = JSON.parse(a||'{}') }catch{}
+  try{ const l = sessionStorage.getItem('last_checkout_lines'); if (l) lastCheckoutLines.value = JSON.parse(l||'[]') }catch{}
   order.value = await apiGet(`/api/orders/${encodeURIComponent(id)}`)
   try{ const c = await apiGet<any>('/api/currency'); if (c && c.symbol) currencySymbol.value = c.symbol }catch{}
   // Fire Purchase for COD immediately using stored payload (if present)

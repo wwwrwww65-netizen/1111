@@ -8046,16 +8046,15 @@ adminRest.get('/analytics/events/recent', async (req, res) => {
   const conds: string[] = [];
   const args: any[] = [];
   let idx = 1;
-  if (userId){ conds.push(`"userId" = $${idx++}`); args.push(String(userId)); }
-  if (sessionId){ conds.push(`"sessionId" = $${idx++}`); args.push(String(sessionId)); }
+  if (userId){ conds.push(`(properties->>'userId') = $${idx++}`); args.push(String(userId)); }
+  if (sessionId){ conds.push(`(properties->>'sessionId') = $${idx++}`); args.push(String(sessionId)); }
   const whereSql = conds.length? `WHERE ${conds.join(' AND ')}` : '';
   args.push(limit);
   const rows:any[] = await db.$queryRawUnsafe(`
-    SELECT id, "createdAt", name, "sessionId", "userId",
+    SELECT id, "createdAt", name,
+           COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
+           COALESCE("userId", properties->>'userId') AS "userId",
            COALESCE("pageUrl", properties->>'pageUrl') AS "pageUrl",
-           COALESCE(os, properties->>'os') AS os,
-           COALESCE(browser, properties->>'browser') AS browser,
-           COALESCE(country, properties->>'country') AS country,
            properties
     FROM "Event"
     ${whereSql}

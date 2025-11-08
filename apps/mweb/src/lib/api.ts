@@ -32,13 +32,18 @@ function getAuthHeader(): Record<string,string> {
 
 export function googleLoginUrl(next: string = '/account'): string {
 	const dest = next && next.startsWith('/') ? next : '/account'
-	const qs = new URLSearchParams({ next: dest }).toString()
+  // ru: URL مطلق للعودة لنفس الأصل (المجال الفرعي الحالي) لتجنب الرجوع إلى نطاق غير صحيح
+  let ru = ''
+  try { if (typeof window!=='undefined') ru = `${window.location.origin}${dest}` } catch {}
+	const qs = new URLSearchParams({ next: dest, ...(ru? { ru }: {}) }).toString()
 	return `${API_BASE}/api/auth/google/login?${qs}`
 }
 
 export function facebookLoginUrl(next: string = '/account'): string {
 	const dest = next && next.startsWith('/') ? next : '/account'
-	const qs = new URLSearchParams({ next: dest }).toString()
+  let ru = ''
+  try { if (typeof window!=='undefined') ru = `${window.location.origin}${dest}` } catch {}
+	const qs = new URLSearchParams({ next: dest, ...(ru? { ru }: {}) }).toString()
 	return `${API_BASE}/api/auth/facebook/login?${qs}`
 }
 

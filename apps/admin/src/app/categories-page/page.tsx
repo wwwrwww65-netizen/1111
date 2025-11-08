@@ -346,8 +346,8 @@ export default function CategoriesPageBuilder(): JSX.Element {
       </section>
 
       {/* Pickers */}
-      <MediaPicker open={mediaOpen} onClose={()=>{ setMediaOpen(false); setMediaPath([]); }} onSelect={(url)=>{ if (!mediaPath.length) return; setAtPath(mediaPath, url); }} />
-      <CategoriesPicker open={catsOpen} onClose={()=>{ 
+      {mediaOpen && (<MediaPicker apiBase="" value={''} onChange={(url)=>{ if (!mediaPath.length) return; setAtPath(mediaPath, url); }} onClose={()=>{ setMediaOpen(false); setMediaPath([]); }} />)}
+      {catsOpen && (<CategoriesPicker open={catsOpen} onClose={()=>{ 
         setCatsOpen(false);
         if (catsPath[0]==='__badges_add') { setCatsPath([]); return; }
         setCatsPath([]);
@@ -361,7 +361,7 @@ export default function CategoriesPageBuilder(): JSX.Element {
           return;
         }
         setAtPath(catsPath, items); 
-      }} />
+      }} />)}
     </main>
   );
 }
