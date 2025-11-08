@@ -3,6 +3,7 @@ import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
 import { FilterBar, type AnalyticsFilters } from "../components/FilterBar";
 import { AnalyticsNav } from "../components/AnalyticsNav";
+import { buildUrl, safeFetchJson, errorView } from "../../lib/http";
 
 export default function SalesReportsPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
@@ -10,21 +11,18 @@ export default function SalesReportsPage(): JSX.Element {
   const [kpis, setKpis] = React.useState<{ revenue:number; orders:number; cancellations:number; refunds:number; cogs:number; profit:number; aov:number }|null>(null);
   const [series, setSeries] = React.useState<Array<{ day:string; orders:number; revenue:number }>>([]);
   const [busy, setBusy] = React.useState(true);
+  const [err, setErr] = React.useState('');
 
   async function load(){
-    setBusy(true);
+    setBusy(true); setErr('');
     try{
-      const sUrl = new URL(`${apiBase}/api/admin/analytics/sales/summary`);
-      const oUrl = new URL(`${apiBase}/api/admin/analytics/orders-series`);
-      if (filters.from) { sUrl.searchParams.set('from', filters.from); oUrl.searchParams.set('from', filters.from); }
-      if (filters.to) { sUrl.searchParams.set('to', filters.to); oUrl.searchParams.set('to', filters.to); }
-      if (filters.granularity) oUrl.searchParams.set('g', filters.granularity);
-      const [sj, oj] = await Promise.all([
-        fetch(sUrl.toString(), { credentials:'include' }).then(r=> r.json()),
-        fetch(oUrl.toString(), { credentials:'include' }).then(r=> r.json())
-      ]);
-      setKpis(sj.summary||null);
-      setSeries(oj.series||[]);
+      const sUrl = buildUrl(`${apiBase}/api/admin/analytics/sales/summary`, { from: filters.from, to: filters.to });
+      const oUrl = buildUrl(`${apiBase}/api/admin/analytics/orders-series`, { from: filters.from, to: filters.to, g: filters.granularity });
+      const [sj, oj] = await Promise.all([ safeFetchJson<{ summary:any }>(sUrl), safeFetchJson<{ series:any[] }>(oUrl) ]);
+      if (!sj.ok) setErr(sj.message||'failed');
+      if (!oj.ok) setErr(oj.message||'failed');
+      setKpis(sj.ok? (sj.data?.summary||null) : null);
+      setSeries(oj.ok? (oj.data?.series||[]) : []);
     } finally { setBusy(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase]);
@@ -34,7 +32,11 @@ export default function SalesReportsPage(): JSX.Element {
       <div className="panel" style={{ padding:16 }}>
         <AnalyticsNav />
         <h1 style={{ marginTop:0 }}>تقارير المبيعات</h1>
-        <FilterBar value={filters} onChange={setFilters} onApply={load} />
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+          <FilterBar value={filters} onChange={setFilters} onApply={load} />
+          <a className="btn btn-outline" href={buildUrl(`${apiBase}/api/admin/analytics/orders-series`, { csv:1, from: filters.from, to: filters.to, g: filters.granularity })} target="_blank" rel="noreferrer">تصدير CSV</a>
+        </div>
+        {err && errorView(err, load)}
         {kpis && (
           <div style={{ marginTop:12, display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:12 }}>
             <Card label="الإيرادات" value={fmt(kpis.revenue)} />

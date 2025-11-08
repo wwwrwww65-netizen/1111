@@ -3,21 +3,21 @@ import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
 import { FilterBar, type AnalyticsFilters } from "../components/FilterBar";
 import { AnalyticsNav } from "../components/AnalyticsNav";
+import { buildUrl, safeFetchJson, errorView } from "../../lib/http";
 
 export default function VendorsAnalyticsPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [filters, setFilters] = React.useState<AnalyticsFilters>({});
   const [rows, setRows] = React.useState<Array<{ vendor:{id:string;name:string}; visits:number; qty:number; revenue:number }>>([]);
   const [busy, setBusy] = React.useState(true);
+  const [err, setErr] = React.useState('');
 
   async function load(){
-    setBusy(true);
+    setBusy(true); setErr('');
     try{
-      const url = new URL(`${apiBase}/api/admin/analytics/vendors/top`);
-      if (filters.from) url.searchParams.set('from', filters.from);
-      if (filters.to) url.searchParams.set('to', filters.to);
-      const j = await (await fetch(url.toString(), { credentials:'include' })).json();
-      setRows(j.vendors||[]);
+      const url = buildUrl(`${apiBase}/api/admin/analytics/vendors/top`, { from: filters.from, to: filters.to });
+      const r = await safeFetchJson<{ vendors:any[] }>(url);
+      if (r.ok) setRows(r.data?.vendors||[]); else { setRows([]); setErr(r.message||'failed'); }
     } finally { setBusy(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase]);
@@ -28,6 +28,7 @@ export default function VendorsAnalyticsPage(): JSX.Element {
         <AnalyticsNav />
         <h1 style={{ marginTop:0 }}>تحليلات الموردين</h1>
         <FilterBar value={filters} onChange={setFilters} onApply={load} />
+        {err && errorView(err, load)}
         <div style={{ marginTop:12, overflowX:'auto' }}>
           <table className="table" role="table" aria-label="Vendors">
             <thead><tr><th>المورد</th><th>الزيارات</th><th>الكمية</th><th>الإيراد</th></tr></thead>

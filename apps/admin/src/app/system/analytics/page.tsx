@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { safeFetchJson, errorView } from '../../lib/http';
 
 type TabKey = 'overview'|'top'|'funnels'|'segments'|'cohorts'|'realtime'|'utm';
 
@@ -22,21 +23,22 @@ export default function SystemAnalyticsPage(): JSX.Element {
     try{
       const qs = (from||to)? `?from=${encodeURIComponent(from||'')}&to=${encodeURIComponent(to||'')}` : '';
       const [a, t, f, s, c, rt, u] = await Promise.all([
-        fetch(`/api/admin/analytics${qs}`, { credentials:'include' }).then(r=>r.json()),
-        fetch(`/api/admin/analytics/top-products${qs}`, { credentials:'include' }).then(r=>r.json()),
-        fetch(`/api/admin/analytics/funnels${qs}`, { credentials:'include' }).then(r=>r.json()),
-        fetch(`/api/admin/analytics/segments${qs}`, { credentials:'include' }).then(r=>r.json()),
-        fetch(`/api/admin/analytics/cohorts${qs}`, { credentials:'include' }).then(r=>r.json()),
-        fetch(`/api/admin/analytics/realtime${qs}`, { credentials:'include' }).then(r=>r.json()),
-        fetch(`/api/admin/analytics/utm${qs}`, { credentials:'include' }).then(r=>r.json()),
+        safeFetchJson<any>(`/api/admin/analytics${qs}`),
+        safeFetchJson<any>(`/api/admin/analytics/top-products${qs}`),
+        safeFetchJson<any>(`/api/admin/analytics/funnels${qs}`),
+        safeFetchJson<any>(`/api/admin/analytics/segments${qs}`),
+        safeFetchJson<any>(`/api/admin/analytics/cohorts${qs}`),
+        safeFetchJson<any>(`/api/admin/analytics/realtime${qs}`),
+        safeFetchJson<any>(`/api/admin/analytics/utm${qs}`),
       ]);
-      if (a.ok) setKpis(a.kpis||{}); else setKpis({});
-      if (t.ok) setTop(t.items||[]); else setTop([]);
-      if (f.ok) setFunnel(f.funnel||{}); else setFunnel({});
-      if (s.ok) setSegments(s.segments||{}); else setSegments({});
-      if (c.ok) setCohorts(c.cohorts||[]); else setCohorts([]);
-      if (rt.ok) setRealtime(rt.metrics||{}); else setRealtime({});
-      if (u.ok) setUtm(u.items||[]); else setUtm([]);
+      if (!a.ok) setError(a.message||'failed');
+      setKpis(a.ok? (a.data?.kpis||{}) : {});
+      setTop(t.ok? (t.data?.items||[]) : []);
+      setFunnel(f.ok? (f.data?.funnel||{}) : {});
+      setSegments(s.ok? (s.data?.segments||{}) : {});
+      setCohorts(c.ok? (c.data?.cohorts||[]) : []);
+      setRealtime(rt.ok? (rt.data?.metrics||{}) : {});
+      setUtm(u.ok? (u.data?.items||[]) : []);
     }catch{ setError('network'); }
     finally{ setLoading(false); }
   }
@@ -63,7 +65,7 @@ export default function SystemAnalyticsPage(): JSX.Element {
           <button role="tab" aria-selected={tab==='utm'} onClick={()=> setTab('utm')} className={`btn ${tab==='utm'?'':'btn-outline'}`}>UTM</button>
         </div>
 
-        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 240 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
+        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 240 }} /> : error ? errorView(error, load) : (
           <section style={{ marginTop:12 }}>
             {tab==='overview' && (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12 }}>

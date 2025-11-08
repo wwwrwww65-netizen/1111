@@ -2,14 +2,20 @@
 import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
 import { AnalyticsNav } from "../components/AnalyticsNav";
+import { safeFetchJson } from "../../lib/http";
 
 export default function FunnelsPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [funnel, setFunnel] = React.useState<{ sessions:number; addToCart:number; checkouts:number; purchased:number }>({ sessions:0, addToCart:0, checkouts:0, purchased:0 });
   const [busy, setBusy] = React.useState(true);
+  const [err, setErr] = React.useState('');
 
   React.useEffect(()=>{ (async()=>{
-    try{ const j = await (await fetch(`${apiBase}/api/admin/analytics/funnels`, { credentials:'include' })).json(); setFunnel(j.funnel||{}); }
+    try{
+      setErr('');
+      const r = await safeFetchJson<{ funnel:any }>(`${apiBase}/api/admin/analytics/funnels`);
+      if (r.ok) setFunnel(r.data?.funnel||{}); else setErr(r.message||'failed');
+    }
     finally{ setBusy(false); }
   })(); }, [apiBase]);
 
@@ -27,7 +33,8 @@ export default function FunnelsPage(): JSX.Element {
         <div style={{ marginTop:16 }}>
           <SimpleFunnel a={funnel.sessions} b={funnel.addToCart} c={funnel.checkouts} d={funnel.purchased} />
         </div>
-        {!busy && (funnel.sessions===0) && <div style={{ color:'var(--sub)', marginTop:12 }}>لا توجد بيانات</div>}
+        {!busy && (funnel.sessions===0) && !err && <div style={{ color:'var(--sub)', marginTop:12 }}>لا توجد بيانات</div>}
+        {!!err && <div className="error" style={{ marginTop:12 }}>{err}</div>}
       </div>
     </main>
   );

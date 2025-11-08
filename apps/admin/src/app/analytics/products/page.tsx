@@ -3,6 +3,8 @@ import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
 import { FilterBar, type AnalyticsFilters } from "../components/FilterBar";
 import { AnalyticsNav } from "../components/AnalyticsNav";
+import { buildUrl, safeFetchJson, errorView } from "../../lib/http";
+import { exportToXlsx } from "../../lib/export";
 
 export default function ProductsAnalyticsPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
@@ -10,20 +12,18 @@ export default function ProductsAnalyticsPage(): JSX.Element {
   const [busy, setBusy] = React.useState(true);
   const [q, setQ] = React.useState('');
   const [filters, setFilters] = React.useState<AnalyticsFilters>({});
+  const [err, setErr] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const pageSize = 20;
 
   async function load(){
-    setBusy(true);
+    setBusy(true); setErr('');
     try{
-      const url = new URL(`${apiBase}/api/admin/analytics/products/table`);
-      if (filters.from) url.searchParams.set('from', filters.from);
-      if (filters.to) url.searchParams.set('to', filters.to);
-      if (filters.device) url.searchParams.set('device', filters.device);
-      if (filters.country) url.searchParams.set('country', filters.country);
-      if (filters.channel) url.searchParams.set('channel', filters.channel);
-      if (filters.utmSource) url.searchParams.set('utmSource', filters.utmSource);
-      if (filters.utmMedium) url.searchParams.set('utmMedium', filters.utmMedium);
-      if (filters.utmCampaign) url.searchParams.set('utmCampaign', filters.utmCampaign);
-      const j = await (await fetch(url.toString(), { credentials:'include' })).json(); setRows(j.rows||[]);
+      const url = buildUrl(`${apiBase}/api/admin/analytics/products/table`, {
+        from: filters.from, to: filters.to, device: filters.device, country: filters.country, channel: filters.channel, utmSource: filters.utmSource, utmMedium: filters.utmMedium, utmCampaign: filters.utmCampaign, currency: filters.currency, page: (filters as any).page, userSegment: (filters as any).userSegment
+      });
+      const r = await safeFetchJson<{ rows:any[] }>(url);
+      if (r.ok) setRows(r.data?.rows||[]); else { setRows([]); setErr(r.message||'failed'); }
     } finally { setBusy(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase]);
@@ -33,6 +33,11 @@ export default function ProductsAnalyticsPage(): JSX.Element {
     if (!s) return rows;
     return rows.filter((r:any)=> (r.product?.name||'').toLowerCase().includes(s) || String(r.productId).includes(s));
   }, [rows, q]);
+  const paged = React.useMemo(()=>{
+    const start = (page-1)*pageSize;
+    return filtered.slice(start, start+pageSize);
+  }, [filtered, page]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
   return (
     <main className="container">
@@ -42,10 +47,12 @@ export default function ProductsAnalyticsPage(): JSX.Element {
           <h1 style={{ margin:0 }}>تحليلات المنتجات</h1>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             <input className="input" placeholder="بحث عن منتج" value={q} onChange={(e)=> setQ(e.target.value)} />
-            <a className="btn btn-outline" href={`${apiBase}/api/admin/analytics/products/table?csv=1`} target="_blank" rel="noreferrer">تصدير CSV</a>
+            <a className="btn btn-outline" href={buildUrl(`${apiBase}/api/admin/analytics/products/table`, { csv: 1, from: filters.from, to: filters.to, device: filters.device, country: filters.country, channel: filters.channel, utmSource: filters.utmSource, utmMedium: filters.utmMedium, utmCampaign: filters.utmCampaign })} target="_blank" rel="noreferrer">تصدير CSV</a>
+            <button className="btn btn-outline" onClick={()=> exportToXlsx(`products_${new Date().toISOString().slice(0,10)}.xlsx`, ['product','views','add_to_cart','purchases','conversion'], filtered.map((r:any)=> [r.product?.name||'', r.views, r.addToCart, r.purchases, `${(r.conversion*100).toFixed(2)}%`]))}>Excel</button>
           </div>
         </div>
         <FilterBar value={filters} onChange={setFilters} onApply={load} />
+        {err && errorView(err, load)}
         <div style={{ marginTop:12, overflowX:'auto' }}>
           <table className="table" role="table" aria-label="Products Analytics">
             <thead>
@@ -58,14 +65,13 @@ export default function ProductsAnalyticsPage(): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r:any)=> (
+              {paged.map((r:any)=> (
                 <tr key={r.productId}>
                   <td>
                     <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                       <img src={(r.product?.images?.[0]||'')+''} alt="" style={{ width:38, height:38, objectFit:'cover', borderRadius:8 }} />
                       <div>
-                        <div style={{ fontWeight:600 }}><a className="link" href={`/products/${r.productId}`}>{r.product?.name||r.productId}</a></div>
-                        <div style={{ color:'var(--sub)', fontSize:12 }}>#{r.productId}</div>
+                        <div style={{ fontWeight:600 }}>{r.product?.name||'—'}</div>
                       </div>
                     </div>
                   </td>
@@ -78,6 +84,11 @@ export default function ProductsAnalyticsPage(): JSX.Element {
               {!busy && !filtered.length && (<tr><td colSpan={5} style={{ color:'var(--sub)' }}>لا توجد بيانات</td></tr>)}
             </tbody>
           </table>
+        </div>
+        <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:8, marginTop:12 }}>
+          <button className="btn btn-outline" disabled={page<=1} onClick={()=> setPage(p=> Math.max(1, p-1))}>السابق</button>
+          <span style={{ color:'var(--sub)' }}>{page} / {totalPages}</span>
+          <button className="btn btn-outline" disabled={page>=totalPages} onClick={()=> setPage(p=> Math.min(totalPages, p+1))}>التالي</button>
         </div>
       </div>
     </main>

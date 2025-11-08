@@ -2,21 +2,24 @@
 import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
 import { AnalyticsNav } from "../components/AnalyticsNav";
+import { safeFetchJson, errorView } from "../../lib/http";
 
 export default function AcquisitionPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [utm, setUtm] = React.useState<any[]>([]);
   const [fb, setFb] = React.useState<{ roas:number; conv:number; purchases:number; cpa:number }|null>(null);
   const [busy, setBusy] = React.useState(true);
+  const [err, setErr] = React.useState('');
 
   React.useEffect(()=>{ (async()=>{
     try{
       const [u, f] = await Promise.all([
-        fetch(`${apiBase}/api/admin/analytics/utm`, { credentials:'include' }).then(r=> r.json()),
-        fetch(`${apiBase}/api/admin/marketing/facebook/analytics`, { credentials:'include' }).then(r=> r.json()).catch(()=>null)
+        safeFetchJson<{ items:any[] }>(`${apiBase}/api/admin/analytics/utm`),
+        safeFetchJson<{ analytics:any }>(`${apiBase}/api/admin/marketing/facebook/analytics`)
       ]);
-      setUtm(u.items||[]);
-      setFb(f?.analytics||null);
+      if (!u.ok) setErr(u.message||'failed');
+      setUtm(u.ok? (u.data?.items||[]) : []);
+      setFb(f.ok? (f.data?.analytics||null) : null);
     } finally { setBusy(false); }
   })(); }, [apiBase]);
 
@@ -25,6 +28,7 @@ export default function AcquisitionPage(): JSX.Element {
       <div className="panel" style={{ padding:16 }}>
         <AnalyticsNav />
         <h1 style={{ marginTop:0 }}>الاكتساب والقنوات</h1>
+        {err && errorView(err)}
         {fb && (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12, marginTop:8 }}>
             <Card label="ROAS" value={fb.roas.toFixed(2)} />

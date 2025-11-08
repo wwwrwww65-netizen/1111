@@ -1,4 +1,3 @@
 "use client";
-export { MediaPicker } from "../../app/promotions/components/MediaPicker";
-*** End Patch  يقوم الشغل  ***!
+export { MediaPicker } from "../promotions/components/MediaPicker";
 

@@ -2,21 +2,21 @@
 import React from 'react';
 import { resolveApiBase } from "../../lib/apiBase";
 import { AnalyticsNav } from "../components/AnalyticsNav";
+import { buildUrl, safeFetchJson, errorView } from "../../lib/http";
 
 export default function UserExplorerPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [userId, setUserId] = React.useState('');
   const [events, setEvents] = React.useState<any[]>([]);
   const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
 
   async function load(){
-    setBusy(true);
+    setBusy(true); setErr('');
     try{
-      const url = new URL(`${apiBase}/api/admin/analytics/events/recent`);
-      url.searchParams.set('limit', '200');
-      if (userId.trim()) url.searchParams.set('userId', userId.trim());
-      const j = await (await fetch(url.toString(), { credentials:'include' })).json();
-      setEvents(j.events||[]);
+      const url = buildUrl(`${apiBase}/api/admin/analytics/events/recent`, { limit: 200, userId: userId.trim()||undefined });
+      const r = await safeFetchJson<{ events:any[] }>(url);
+      if (r.ok) setEvents(r.data?.events||[]); else { setEvents([]); setErr(r.message||'failed'); }
     } finally { setBusy(false); }
   }
 
@@ -25,6 +25,7 @@ export default function UserExplorerPage(): JSX.Element {
       <div className="panel" style={{ padding:16 }}>
         <AnalyticsNav />
         <h1 style={{ marginTop:0 }}>مستكشف المستخدم</h1>
+        {err && errorView(err)}
         <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:8 }}>
           <input className="input" placeholder="User ID" value={userId} onChange={(e)=> setUserId(e.target.value)} />
           <button className="btn" onClick={load} disabled={busy}>بحث</button>
