@@ -34,157 +34,92 @@
 
     <template v-if="!tabSections.length">
     <div class="w-screen px-0">
-      <div class="relative w-full h-[257.172px]">
-        <swiper
-          :modules="[Autoplay]"
-          :slides-per-view="1"
-          :loop="true"
-          :autoplay="homeAutoplayCfg"
-          :space-between="0"
-          class="h-full"
-          dir="rtl"
-          @swiper="onSwiper"
-          @slide-change="onSlideChange"
-        >
-          <swiper-slide v-for="(b,i) in banners" :key="'bnr-'+i">
-            <img :src="b.src" :srcset="b.srcset" :alt="b.alt" class="w-full h-full object-cover" loading="eager" />
-          </swiper-slide>
-        </swiper>
-        <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
+      <!-- Skeleton Hero (exact height/spacing as real) -->
+      <div class="relative w-full h-[257.172px] bg-gray-200 animate-pulse rounded-none overflow-hidden" aria-label="جاري التحميل">
+        <div class="absolute inset-0 bg-gradient-to-b from-black/20 via-black/10 to-transparent pointer-events-none" />
         <div class="absolute left-4 right-4 bottom-4 text-white pointer-events-none">
-          <div class="text-[12px] mb-1">احتفالنا الأكبر على الإطلاق</div>
-          <div class="text-[32px] font-extrabold leading-tight">خصم يصل حتى 90%</div>
-          <button class="mt-2 bg-white text-black px-3 py-2 rounded text-[13px] font-semibold border border-gray-200 pointer-events-auto" aria-label="تسوّق الآن" @click="go('/products')">تسوّق الآن</button>
+          <div class="w-24 h-3 bg-white/40 rounded mb-1"></div>
+          <div class="w-48 h-6 bg-white/50 rounded"></div>
         </div>
         <div class="easy-pagination absolute left-1/2 -translate-x-1/2 bottom-2 flex items-center gap-1.5" dir="rtl">
-          <button v-for="(b,i) in banners" :key="'pg-'+i" class="w-1.5 h-1.5 rounded-full transition-colors" :class="i===activeBanner ? 'bg-white' : 'bg-white/50'" aria-label="انتقل إلى البنر" @click="goToBanner(i)" />
+          <span v-for="i in 4" :key="'pg-sk-'+i" class="w-1.5 h-1.5 rounded-full bg-white/50"></span>
         </div>
       </div>
     </div>
 
-    
-
     <div class="w-screen px-0">
+      <!-- Skeleton promo tiles -->
       <div class="bg-white p-3">
-        <div class="flex overflow-x-auto gap-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="عروض">
-          <div v-for="p in promoTiles" :key="p.title" class="relative w-[100px] h-[50px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-white snap-start" :style="{ backgroundColor: p.bg }">
-            <img :src="p.image" :alt="p.title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-          </div>
+        <div class="flex overflow-x-auto gap-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']" aria-label="جاري التحميل">
+          <div v-for="i in 6" :key="'sk-pt-'+i" class="relative w-[100px] h-[50px] flex-shrink-0 border border-gray-200 rounded overflow-hidden bg-gray-200 animate-pulse snap-start"></div>
         </div>
       </div>
 
+      <!-- Skeleton mid promo -->
       <div class="px-3">
-        <div class="w-full h-[90px] border border-gray-200 rounded overflow-hidden relative bg-white">
-          <img :src="midPromo.image" :alt="midPromo.alt" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-          <div class="absolute inset-0 bg-black/10" />
-          <div class="absolute left-3 right-3 top-1/2 -translate-y-1/2 text-white text-[12px] font-semibold">{{ midPromo.text }}</div>
-        </div>
+        <div class="w-full h-[90px] border border-gray-200 rounded overflow-hidden relative bg-gray-200 animate-pulse"></div>
       </div>
 
-      <section class="py-3" aria-label="الفئات">
+      <!-- Skeleton categories scroller (same layout sizes) -->
+      <section class="py-3" aria-label="الفئات (تحميل)">
         <div class="overflow-x-auto no-scrollbar px-3">
           <div class="flex gap-2 pb-0.5">
-            <div v-for="(col,ci) in catColsLocked" :key="'col-'+ci" class="flex flex-col gap-1">
-              <RouterLink v-for="(c,ri) in col" :key="(c.slug||c.name) + '-' + ci + '-' + ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0 inline-block" :aria-label="'فئة ' + c.name" :to="'/c/'+encodeURIComponent(c.slug||c.id||c.name)">
-                <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
-                  <img :src="c.image" :alt="c.name" class="w-full h-full object-cover" loading="lazy" />
-                </div>
-                <div class="text-[11px] text-gray-700">{{ c.name }}</div>
-              </RouterLink>
+            <div v-for="ci in 6" :key="'sk-col-'+ci" class="flex flex-col gap-1">
+              <div v-for="ri in 3" :key="'sk-c-'+ci+'-'+ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0 inline-block">
+                <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-gray-200 animate-pulse"></div>
+                <div class="mx-auto w-16 h-3 bg-gray-200 rounded"></div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="px-3 py-3" aria-label="عروض كبرى">
+      <!-- Skeleton big deals -->
+      <section class="px-3 py-3" aria-label="عروض كبرى (تحميل)">
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <div class="mb-1.5 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900">عروض كبرى</h2>
-            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في عروض كبرى" @click="go('/products?sort=price_desc')">
-              <span class="mr-1">المزيد</span>
-              <ChevronLeft class="w-4 h-4" />
-            </button>
+            <div class="w-24 h-4 bg-gray-200 rounded"></div>
+            <div class="w-12 h-3 bg-gray-200 rounded"></div>
           </div>
-          <div ref="dealsRef" class="overflow-x-auto no-scrollbar snap-x-start simple-row">
-            <div v-if="dealsLoading" class="simple-row-inner">
+          <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+            <div class="simple-row-inner">
               <div v-for="i in 6" :key="'sk-deal-'+i" class="text-start snap-item simple-item">
                 <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-gray-200 animate-pulse aspect-[255/192]" />
                 <div class="mt-1"><span class="inline-block w-12 h-3 bg-gray-200 rounded" /></div>
               </div>
             </div>
-            <div class="simple-row-inner">
-              <button v-for="(p,i) in bigDeals" :key="'deal-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
-                <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
-                  <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
-                </div>
-                <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
-              </button>
-            </div>
           </div>
         </div>
       </section>
 
-      <section class="px-3 py-3" aria-label="أهم الترندات">
+      <!-- Skeleton trends -->
+      <section class="px-3 py-3" aria-label="أهم الترندات (تحميل)">
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
           <div class="mb-1.5 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900">أهم الترندات</h2>
-            <button class="flex items-center text-xs text-gray-700" aria-label="عرض المزيد في أهم الترندات" @click="go('/products?sort=new')">
-              <span class="mr-1">المزيد</span>
-              <ChevronLeft class="w-4 h-4" />
-            </button>
+            <div class="w-24 h-4 bg-gray-200 rounded"></div>
+            <div class="w-12 h-3 bg-gray-200 rounded"></div>
           </div>
-          <div ref="trendsRef" class="overflow-x-auto no-scrollbar snap-x-start simple-row">
-            <div v-if="trendsLoading" class="simple-row-inner">
+          <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
+            <div class="simple-row-inner">
               <div v-for="i in 6" :key="'sk-trend-'+i" class="text-start snap-item simple-item">
                 <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-gray-200 animate-pulse aspect-[255/192]" />
                 <div class="mt-1"><span class="inline-block w-12 h-3 bg-gray-200 rounded" /></div>
               </div>
             </div>
-            <div class="simple-row-inner">
-              <button v-for="(p,i) in hotTrends" :key="'trend-'+i" class="text-start snap-item simple-item" :aria-label="'منتج بسعر '+p.price" @click="openProduct({ id: p.id || '' , title:'', image:p.image, price:p.price })">
-                <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
-                  <img :src="p.image" :alt="p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
-                </div>
-                <div class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.price }}</span></div>
-              </button>
-            </div>
           </div>
         </div>
       </section>
 
-      <section class="px-3 py-3" aria-label="من أجلك">
+      <!-- Skeleton For You -->
+      <section class="px-3 py-3" aria-label="من أجلك (تحميل)">
         <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
-          <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
+          <div class="w-24 h-4 bg-gray-200 rounded mx-auto"></div>
         </div>
-
-        <div ref="fyRef" class="mt-0 masonry">
-          <template v-if="fyLoading">
-            <div v-for="i in 8" :key="'sk-fy-'+i" class="mb-1">
-              <div class="w-full border border-gray-200 rounded bg-gray-200 overflow-hidden h-40 animate-pulse" />
-            </div>
-          </template>
-          <div v-for="(p,i) in forYouShein" :key="'fy-'+i" class="mb-1">
-            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.enter="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })" @keydown.space.prevent="openProduct({ id: p.id || '' , title: p.title || '', image: p.image, price: (p.basePrice||'0') + ' ر.س' })">
-              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar x-snap">
-                <div class="flex">
-                  <img v-for="(img,idx) in (p.images && p.images.length ? p.images : [p.image])" :key="'img-'+idx" :src="img" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
-                </div>
-                <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center"><div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full"><span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span><span v-if="typeof p.colorCount==='number'" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span></div></div>
-              </div>
-              <div v-if="p.overlayBannerSrc" class="w-full h-7 relative"><img :src="p.overlayBannerSrc" :alt="p.overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" /></div>
-              <div class="relative p-2">
-                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden"><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700"><Store :size="14" color="#6D28D9" :stroke-width="2" /><span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span><span class="text-violet-700 ms-0.5">&gt;</span></span></div>
-                <div class="flex items-center gap-1 mt-1.5"><div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div><div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div></div>
-                <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden"><div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div><button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ p.bestRankCategory }}</span><span>&gt;</span></button></div>
-                <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1"><span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span><span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span></div>
-                <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="openSuggestOptions(String(p.id||''))"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
-                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>
-              </div>
-            </div>
+        <div class="mt-0 masonry">
+          <div v-for="i in 8" :key="'sk-fy-'+i" class="mb-1">
+            <div class="w-full border border-gray-200 rounded bg-gray-200 overflow-hidden h-40 animate-pulse" />
           </div>
         </div>
-
-        <div class="mt-4" />
       </section>
 
       <div style="height:80px" />
@@ -517,25 +452,7 @@ onMounted(async ()=>{
     const arr = Array.isArray(cats?.categories) ? cats.categories : Array.isArray(cats?.items) ? cats.items : []
     categories.value = arr.map((c:any)=> ({ name: c.name||c.title, image: c.image||`https://csspicker.dev/api/image/?q=${encodeURIComponent(c.name||'fashion')}&image_type=photo`, slug: c.slug||undefined, id: c.id||undefined }))
   } catch {}
-  if (!categories.value.length){
-    categories.value = [
-      { name: 'فساتين', image: 'https://csspicker.dev/api/image/?q=dress&image_type=photo' },
-      { name: 'أحذية', image: 'https://csspicker.dev/api/image/?q=shoes+footwear&image_type=photo' },
-      { name: 'حقائب', image: 'https://csspicker.dev/api/image/?q=handbag&image_type=photo' },
-      { name: 'ملابس رياضية', image: 'https://csspicker.dev/api/image/?q=sportswear&image_type=photo' },
-      { name: 'إكسسوارات', image: 'https://csspicker.dev/api/image/?q=fashion+accessories&image_type=photo' },
-      { name: 'مجوهرات', image: 'https://csspicker.dev/api/image/?q=jewelry&image_type=photo' },
-      { name: 'أزياء نسائية', image: 'https://csspicker.dev/api/image/?q=women+fashion&image_type=photo' },
-      { name: 'أزياء رجالية', image: 'https://csspicker.dev/api/image/?q=men+fashion&image_type=photo' },
-      { name: 'أزياء الأطفال', image: 'https://csspicker.dev/api/image/?q=kids+fashion&image_type=photo' },
-      { name: 'جمال وصحة', image: 'https://csspicker.dev/api/image/?q=beauty+cosmetics&image_type=photo' },
-      { name: 'منزل وحديقة', image: 'https://csspicker.dev/api/image/?q=home+garden&image_type=photo' },
-      { name: 'بلوزات', image: 'https://csspicker.dev/api/image/?q=blouse&image_type=photo' },
-      { name: 'تنورات', image: 'https://csspicker.dev/api/image/?q=skirt&image_type=photo' },
-      { name: 'معاطف', image: 'https://csspicker.dev/api/image/?q=coat&image_type=photo' },
-      { name: 'جينز', image: 'https://csspicker.dev/api/image/?q=jeans&image_type=photo' }
-    ]
-  }
+  // لا نملأ فئات افتراضية بصور خارجية؛ نعرض هيكل التحميل حتى تصل البيانات الفعلية
 
   // Products to sections (lazy on visibility)
   async function loadDeals(){ if (!dealsLoading.value) return; try{

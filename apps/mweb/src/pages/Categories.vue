@@ -390,6 +390,7 @@ const featuredCategories = computed(() => {
 })
 
 const showFeaturedSection = computed(() => {
+  if (usingPublishedTabs.value) return featuredCategories.value.length > 0
   return active.value !== 'all' && featuredCategories.value.length > 0
 })
 
