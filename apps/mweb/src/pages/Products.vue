@@ -172,7 +172,24 @@
     
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-2 py-2">
-      <div class="columns-2 gap-1 [column-fill:_balance]">
+      <!-- Skeleton grid (initial/refresh) -->
+      <div v-if="initialLoading" class="columns-2 gap-1 [column-fill:_balance]">
+        <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-1 break-inside-avoid">
+          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+            <div class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
+            <div class="p-2">
+              <div class="inline-flex items-center gap-1 mb-1">
+                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+              </div>
+              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Real grid -->
+      <div v-else class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'product-'+i" class="mb-1 break-inside-avoid">
           <ProductGridCard 
             :product="{ id: p.id, title: p.title, images: (p.images && p.images.length ? p.images : [p.image]), overlayBannerSrc: (p as any).overlayBannerSrc, overlayBannerAlt: (p as any).overlayBannerAlt, brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.basePrice, soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
@@ -333,6 +350,20 @@ const products = ref([
 ]);
 // annotate trending ids from Admin as they load
 markTrending(products.value)
+// Skeleton control for initial paint
+const initialLoading = ref(true)
+function preloadFirstImages(): Promise<void>{
+  const urls: string[] = []
+  try{
+    for (const p of products.value){ const u = (Array.isArray(p.images)&&p.images[0]) || p.image; if (u) urls.push(u); if (urls.length>=8) break }
+  }catch{}
+  const tasks = urls.map(u=> new Promise<void>(res=>{ const img = new Image(); img.onload = ()=> res(); img.onerror = ()=> res(); img.src = u }))
+  return new Promise<void>((resolve)=>{
+    let settled = false
+    const timer = setTimeout(()=>{ if (!settled){ settled = true; resolve() } }, 500)
+    Promise.allSettled(tasks).then(()=>{ if (!settled){ settled = true; clearTimeout(timer); resolve() } })
+  })
+}
 
 const cartBadge = computed(() => items.value.length);
 const promoWords = ["فساتين","هودي","بلايز","تيشيرت","جواكت"];
@@ -371,6 +402,8 @@ let interval: any;
 let lastScrollY = 0;
 
 onMounted(() => {
+  // show skeleton briefly until key images are ready
+  preloadFirstImages().catch(()=>{}).finally(()=>{ initialLoading.value = false })
   interval = setInterval(()=> { promoIndex.value = (promoIndex.value + 1) % promoWords.length }, 3000);
   lastScrollY = window.scrollY || 0;
   atTop.value = lastScrollY <= 0;

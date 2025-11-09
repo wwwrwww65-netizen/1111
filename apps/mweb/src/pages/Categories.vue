@@ -76,15 +76,26 @@
 
       <!-- Main grid -->
       <main class="main">
-        <!-- Promo Banner (tab override -> global) -->
-        <div class="promo-banner" v-if="activePromoBanner.enabled">
+        <!-- Promo Banner (tab override -> global). لا نستخدم صور خارجية احتياطية -->
+        <div class="promo-banner" v-if="activePromoBanner.enabled && activePromoBanner.image">
           <div class="promo-content">
             <h3>{{ activePromoBanner.title || 'بانر ترويجي' }}</h3>
-            <img :src="activePromoBanner.image || 'https://csspicker.dev/api/image/?q=women+fashion+banner&image_type=photo'" alt="بانر ترويجي" class="promo-img" />
+            <img :src="activePromoBanner.image" alt="بانر ترويجي" class="promo-img" />
+          </div>
+        </div>
+        <!-- Skeleton للبنر عند التفعيل بدون صورة بعد -->
+        <div class="promo-banner" v-else-if="activePromoBanner.enabled">
+          <div class="promo-content">
+            <div class="w-24 h-4 bg-gray-200 rounded mb-1 animate-pulse"></div>
+            <div class="w-full h-24 bg-gray-200 rounded animate-pulse"></div>
           </div>
         </div>
 
-        <h2 class="ttl">{{ currentSectionTitle }}</h2>
+        <!-- عنوان القسم أو Skeleton أثناء التحميل/التحويل -->
+        <h2 v-if="!redirecting && !loading" class="ttl">{{ currentSectionTitle }}</h2>
+        <div v-else class="ttl">
+          <span class="inline-block w-40 h-4 bg-gray-200 rounded animate-pulse"></span>
+        </div>
         
         <!-- Featured Categories with subcategories -->
         <div v-if="showFeaturedSection && featuredCategories.length > 0" class="featured-section">
@@ -97,6 +108,12 @@
             >
               {{ sub.name }}
             </button>
+          </div>
+        </div>
+        <!-- Skeleton لشرائح مميزة عند التحميل/التحويل -->
+        <div v-else-if="redirecting || loading" class="featured-section">
+          <div class="subcategories-scroll">
+            <span v-for="i in 6" :key="'sk-chip-'+i" class="inline-flex items-center px-3 py-1 rounded-full bg-gray-200 text-transparent animate-pulse">placeholder</span>
           </div>
         </div>
 

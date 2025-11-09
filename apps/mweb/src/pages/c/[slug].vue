@@ -175,7 +175,24 @@
     
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-2 py-2">
-      <div class="columns-2 gap-1 [column-fill:_balance]">
+      <!-- Skeleton grid أثناء التحميل -->
+      <div v-if="productsLoading" class="columns-2 gap-1 [column-fill:_balance]">
+        <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-1 break-inside-avoid">
+          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+            <div class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
+            <div class="p-2">
+              <div class="inline-flex items-center gap-1 mb-1">
+                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+              </div>
+              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- الشبكة الفعلية -->
+      <div v-else class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'product-'+i" class="mb-1 break-inside-avoid">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct(p)" @keydown.enter="openProduct(p)" @keydown.space.prevent="openProduct(p)">
             <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
@@ -221,16 +238,16 @@
           <button class="text-[20px]" @click="closeFilter">×</button>
         </div>
         <div v-if="filterSheet.type==='size'" class="grid grid-cols-4 gap-2">
-          <button v-for="s in ['XS','S','M','L','XL','2XL','3XL']" :key="s" @click="selSizes.value = selSizes.value.includes(s)? selSizes.value.filter(x=>x!==s) : [...selSizes.value, s]" :class="['px-2 py-1 rounded border text-[12px]', selSizes.value.includes(s)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ s }}</button>
+          <button v-for="s in ['XS','S','M','L','XL','2XL','3XL']" :key="s" @click="selSizes = selSizes.includes(s)? selSizes.filter(x=>x!==s) : [...selSizes, s]" :class="['px-2 py-1 rounded border text-[12px]', selSizes.includes(s)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ s }}</button>
         </div>
         <div v-else-if="filterSheet.type==='color'" class="grid grid-cols-8 gap-2">
-          <button v-for="c in ['black','white','red','blue','green','yellow','pink','beige']" :key="c" @click="selColors.value = selColors.value.includes(c)? selColors.value.filter(x=>x!==c) : [...selColors.value, c]" :class="['w-7 h-7 rounded-full border', selColors.value.includes(c)? 'ring-2 ring-black':'']" :style="{ background: c }" />
+          <button v-for="c in ['black','white','red','blue','green','yellow','pink','beige']" :key="c" @click="selColors = selColors.includes(c)? selColors.filter(x=>x!==c) : [...selColors, c]" :class="['w-7 h-7 rounded-full border', selColors.includes(c)? 'ring-2 ring-black':'']" :style="{ background: c }" />
         </div>
         <div v-else-if="filterSheet.type==='material'" class="grid grid-cols-3 gap-2">
-          <button v-for="m in ['cotton','polyester','wool','denim','silk']" :key="m" @click="selMaterials.value = selMaterials.value.includes(m)? selMaterials.value.filter(x=>x!==m) : [...selMaterials.value, m]" :class="['px-2 py-1 rounded border text-[12px]', selMaterials.value.includes(m)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ m }}</button>
+          <button v-for="m in ['cotton','polyester','wool','denim','silk']" :key="m" @click="selMaterials = selMaterials.includes(m)? selMaterials.filter(x=>x!==m) : [...selMaterials, m]" :class="['px-2 py-1 rounded border text-[12px]', selMaterials.includes(m)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ m }}</button>
         </div>
         <div v-else-if="filterSheet.type==='style'" class="grid grid-cols-3 gap-2">
-          <button v-for="st in ['casual','elegant','sport','classic','boho']" :key="st" @click="selStyles.value = selStyles.value.includes(st)? selStyles.value.filter(x=>x!==st) : [...selStyles.value, st]" :class="['px-2 py-1 rounded border text-[12px]', selStyles.value.includes(st)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ st }}</button>
+          <button v-for="st in ['casual','elegant','sport','classic','boho']" :key="st" @click="selStyles = selStyles.includes(st)? selStyles.filter(x=>x!==st) : [...selStyles, st]" :class="['px-2 py-1 rounded border text-[12px]', selStyles.includes(st)? 'bg-black text-white border-black':'bg-white text-gray-800 border-gray-300']">{{ st }}</button>
         </div>
         <div v-else class="text-[13px] text-gray-600">اختر من الشريط العلوي فئة فرعية.</div>
         <div class="mt-3 flex justify-end gap-2">
@@ -273,6 +290,7 @@ const categories = ref<Array<{ id:string; label:string; img:string }>>([])
 // بيانات المنتجات (حقيقية من API)
 const products = ref<any[]>([])
 const hasMore = ref(false)
+const productsLoading = ref(true)
 
 const cartBadge = computed(() => items.value.length);
 const promoWords = ["فساتين","هودي","بلايز","تيشيرت","جواكت"];
@@ -313,6 +331,28 @@ onMounted(() => {
   isScrollingUp.value = false;
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
   void bootstrap()
+  // دعم المعاينة الحية من لوحة التحكم (Categories Tabs)
+  try{
+    window.addEventListener('message', (e: MessageEvent)=>{
+      try{
+        const data:any = (e as any).data
+        if (data && typeof data==='object' && data.__categories_preview){
+          const c = data.content
+          if (c && (c.type==='categories-v1' || c.data)){
+            // استخرج فئات للمعاينة من content.data (featured / grid.explicit / suggestions.items)
+            const d = c.data || {}
+            const catFromMini = (arr:any[]) => (Array.isArray(arr)? arr : []).map((x:any)=> ({ id: String(x?.id||x?.slug||x?.name||''), label: String(x?.name||x?.label||''), img: String(x?.image||x?.img||'') })).filter((x:any)=> x.id && x.label)
+            let list:any[] = []
+            try{ list = list.concat(catFromMini(d.featured||[])) }catch{}
+            try{ if (Array.isArray(d.sidebarItems)) for (const it of d.sidebarItems){ if (Array.isArray(it?.featured)) list = list.concat(catFromMini(it.featured)); if (it?.grid?.mode==='explicit' && Array.isArray(it?.grid?.categories)) list = list.concat(catFromMini(it.grid.categories)); if (it?.suggestions && Array.isArray(it.suggestions.items)) list = list.concat(catFromMini(it.suggestions.items)); } }catch{}
+            // fallback إلى promoBanner أو عنوان
+            if (!list.length && d.title){ list = [{ id: 'title', label: String(d.title), img:'' }] }
+            if (Array.isArray(list) && list.length){ categories.value = list.slice(0, 20) }
+          }
+        }
+      }catch{}
+    })
+  }catch{}
 });
 
 onBeforeUnmount(() => {
@@ -463,6 +503,7 @@ function mapSort(): string {
 
 async function loadProducts(limit: number = 24){
   try{
+    productsLoading.value = true
     const slug = currentSlug()
     const sort = mapSort()
     const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
@@ -490,6 +531,7 @@ async function loadProducts(limit: number = 24){
       await fireListView(products.value.slice(0, Math.min(24, products.value.length)), 1)
     }catch{}
   }catch{ products.value = []; hasMore.value = false }
+  finally { productsLoading.value = false }
 }
 
 async function bootstrap(){ await loadCategories(); await loadProducts() }
@@ -591,9 +633,7 @@ async function fireListView(list:any[], page:number){
       content_ids: ids,
       content_type: 'product_group',
       contents,
-      currency: (window as any).__CURRENCY_CODE__||'YER',
-      content_category: categoryName,
-      list_name: 'Category'
+      currency: (window as any).__CURRENCY_CODE__||'YER'
     })
   }catch{}
 }
