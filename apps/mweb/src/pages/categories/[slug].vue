@@ -263,13 +263,13 @@ onMounted(async()=>{
 </script>
 
 <style scoped>
-.page{min-height:100dvh;background:#f9fafb;position:relative}
+.page{height:100dvh;overflow:hidden;background:#f9fafb;position:relative}
 .layout{display:grid;grid-template-columns:180px 1fr;min-height:0}
-.side{background:#f3f4f6;padding:12px;overflow-y:auto;height:100%;padding-bottom:calc(env(safe-area-inset-bottom) + 64px)}
+.side{background:#f3f4f6;padding:12px;overflow-y:auto;height:100%;padding-bottom:calc(env(safe-area-inset-bottom) + 64px);overscroll-behavior:contain}
 .side .it{padding:10px 8px;border-bottom:1px solid #e5e7eb;color:#374151;font-size:13px;background:transparent;border:0;text-align:start;width:100%;cursor:pointer;transition:all 0.2s;border-radius:6px;margin-bottom:2px}
 .side .it:hover{background:#e5e7eb;transform:translateX(-2px)}
 .side .it.active{background:#fff;color:#111;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
-.main{padding:12px;overflow-y:auto;height:100%;padding-bottom:calc(env(safe-area-inset-bottom) + 64px)}
+.main{padding:12px;overflow-y:auto;height:100%;padding-bottom:calc(env(safe-area-inset-bottom) + 64px);overscroll-behavior:contain}
 .promo-banner{background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:12px;padding:16px;margin-bottom:16px;overflow:hidden;box-shadow:0 4px 12px rgba(102,126,234,0.2)}
 .promo-content h3{color:#fff;font-size:18px;font-weight:700;margin-bottom:12px;text-align:center}
 .promo-img{width:100%;height:120px;object-fit:cover;border-radius:8px}

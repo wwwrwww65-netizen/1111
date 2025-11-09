@@ -688,7 +688,7 @@ onMounted(async () => {
 
 <style scoped>
 /* Base Layout */
-.page{min-height:100dvh;background:#f9fafb;position:relative}
+.page{height:100dvh;overflow:hidden;background:#f9fafb;position:relative}
 
 /* Tabs Navigation */
 .tabs{display:flex;align-items:center;gap:16px;padding:10px 12px;overflow-x:auto;white-space:nowrap}
@@ -713,6 +713,7 @@ onMounted(async () => {
   overflow-y:auto;
   height:100%;
   padding-bottom:calc(env(safe-area-inset-bottom) + 64px);
+  overscroll-behavior:contain;
 }
 .side::-webkit-scrollbar{width:6px}
 .side::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
@@ -741,6 +742,7 @@ onMounted(async () => {
   overflow-y:auto;
   height:100%;
   padding-bottom:calc(env(safe-area-inset-bottom) + 64px);
+  overscroll-behavior:contain;
 }
 
 /* Promo Banner */
