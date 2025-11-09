@@ -101,7 +101,13 @@ export default function CategoriesTabBuilder(): JSX.Element {
   async function savePageMeta(){
     try{
       if (!pageId) return;
-      const body = { id: pageId, slug: pageMeta.slug, label: pageMeta.label, device: 'MOBILE' };
+      const normalizedSlug = String(pageMeta.slug||'')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g,'-')
+        .replace(/^-+|-+$/g,'')
+        .replace(/^(cat-)+/,'cat-'); // امنع cat-cat-
+      const body = { id: pageId, slug: normalizedSlug, label: pageMeta.label, device: 'MOBILE' };
       const r = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) });
       if (!r.ok){ const t=await r.text().catch(()=> ''); showToast(`فشل حفظ الاسم/Slug${t? ': '+t:''}`); return; }
       const j = await r.json();

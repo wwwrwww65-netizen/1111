@@ -10,9 +10,16 @@ export function MediaPicker({ apiBase, value, onChange, onClose }: { apiBase: st
   async function load(){
     setLoading(true);
     try{
-      const url = new URL(`${apiBase}/api/admin/media/list`);
-      if (q.trim()) url.searchParams.set('search', q.trim());
-      const j = await (await fetch(url.toString(), { credentials:'include' })).json();
+      const origin = (apiBase && apiBase.trim()) ? apiBase : (typeof window!=='undefined' ? window.location.origin : '');
+      let urlStr = '/api/admin/media/list';
+      if (origin){
+        const url = new URL('/api/admin/media/list', origin);
+        if (q.trim()) url.searchParams.set('search', q.trim());
+        urlStr = url.toString();
+      } else if (q.trim()){
+        urlStr = `/api/admin/media/list?search=${encodeURIComponent(q.trim())}`;
+      }
+      const j = await (await fetch(urlStr, { credentials:'include' })).json();
       setAssets(j.assets||[]);
     } finally { setLoading(false); }
   }

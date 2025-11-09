@@ -20,25 +20,56 @@ export default function CategoriesTabsIndex(): JSX.Element {
   async function load(){
     try{
       setLoading(true);
-      // مصدران: (1) كل الصفحات و (2) فقط تبويبات الفئات — ثم دمج وتصفيه
-      const [allRes, catsRes] = await Promise.all([
-        fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }),
-        fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200&includeCategories=1`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } })
-      ]);
-      const allJ = await allRes.json().catch(()=>({ pages: [] }));
-      const catsJ = await catsRes.json().catch(()=>({ pages: [] }));
-      const all: any[] = Array.isArray(allJ?.pages)? allJ.pages: [];
-      const cats: any[] = Array.isArray(catsJ?.pages)? catsJ.pages: [];
-      const merged = new Map<string, any>();
-      // أضف كل ما يبدأ Slug الخاص به بـ cat- (حتى إن لم تُنشَر أو لم تُنشأ نسخة بعد)
-      for (const p of all){ if (String(p?.slug||'').startsWith('cat-')) merged.set(p.id, p); }
-      // أضف أيضاً ما تمّ التعرف عليه كتبوبيبات فئات عبر المحتوى
-      for (const p of cats){ merged.set(p.id, p); }
-      setRows(Array.from(merged.values()));
+      // أعتمد فقط على includeCategories لتجنّب أي ازدواج
+      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=1000&includeCategories=1`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      const j = await r.json();
+      const list: any[] = Array.isArray(j?.pages)? j.pages: [];
+      const normalize = (s:string)=> String(s||'').replace(/^(cat-)+/, 'cat-');
+      const statusRank = (s:string)=> s==='PUBLISHED'? 3 : s==='SCHEDULED'? 2 : s==='DRAFT'? 1 : 0;
+      // اجمع حسب slug الموحّد
+      const groups = new Map<string, any[]>();
+      for (const it of list){
+        const key = normalize(String(it.slug||''));
+        const arr = groups.get(key) || [];
+        arr.push(it);
+        groups.set(key, arr);
+      }
+      // اختر عنصر واحد مفضل لكل مجموعة وأخفِ البقية
+      const chosen: any[] = [];
+      const redundantIds: string[] = [];
+      for (const [, arr] of groups){
+        if (arr.length === 1){ chosen.push(arr[0]); continue; }
+        // فضّل الحالة الأقوى، ثم الأقصر slug (cat-xyz أفضل من cat-cat-xyz)، ثم الأحدث
+        arr.sort((a:any,b:any)=>{
+          const r = statusRank(b.status) - statusRank(a.status);
+          if (r!==0) return r;
+          const len = String(a.slug||'').length - String(b.slug||'').length;
+          if (len!==0) return len;
+          return new Date(b.updatedAt||b.createdAt||0).getTime() - new Date(a.updatedAt||a.createdAt||0).getTime();
+        });
+        chosen.push(arr[0]);
+        for (let i=1;i<arr.length;i++) redundantIds.push(arr[i].id);
+      }
+      chosen.sort((a:any,b:any)=> new Date(b.updatedAt||b.createdAt||0).getTime() - new Date(a.updatedAt||a.createdAt||0).getTime());
+      setRows(chosen);
+      setHiddenDuplicateIds(redundantIds);
     }catch{ setRows([]) }
     finally{ setLoading(false) }
   }
   React.useEffect(()=>{ load(); },[]);
+
+  const [hiddenDuplicateIds, setHiddenDuplicateIds] = React.useState<string[]>([]);
+  async function cleanupDuplicates(){
+    if (!hiddenDuplicateIds.length) { showToast('لا توجد نسخ مكررة'); return; }
+    const ok = window.confirm(`سيتم حذف ${hiddenDuplicateIds.length} نسخة مكررة. هل أنت متأكد؟`);
+    if (!ok) return;
+    try{
+      await Promise.all(hiddenDuplicateIds.map(id=> fetch(`/api/admin/tabs/pages/${encodeURIComponent(id)}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } }).catch(()=>null)));
+      showToast('تم تنظيف النسخ المكررة');
+      setHiddenDuplicateIds([]);
+      await load();
+    }catch{ showToast('تعذر التنظيف'); }
+  }
 
   async function remove(id: string){
     if (!id) return;
@@ -98,7 +129,10 @@ export default function CategoriesTabsIndex(): JSX.Element {
         <div style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:16 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
             <h3 style={{ margin:0 }}>القائمة ({rows.length})</h3>
-            <button onClick={load} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>{loading? 'جارٍ التحديث…' : 'تحديث'}</button>
+            <div style={{ display:'flex', gap:8 }}>
+              {hiddenDuplicateIds.length>0 && (<button onClick={cleanupDuplicates} style={{ padding:'8px 12px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>تنظيف نسخ مكررة ({hiddenDuplicateIds.length})</button>)}
+              <button onClick={load} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>{loading? 'جارٍ التحديث…' : 'تحديث'}</button>
+            </div>
           </div>
           <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
             <thead>
