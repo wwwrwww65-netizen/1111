@@ -232,12 +232,13 @@ onMounted(()=>{
 watch([showHeader, showTabs], ()=> measureChrome())
 const navTop = computed(()=> `${headerH.value}px`)
 const layoutTop = computed(()=> `${headerH.value + tabsH.value}px`)
-// نمط تخطيط ثابت: نعين الارتفاع دائماً بالاعتماد على 100dvh لتفادي اختفاء الصفحة
+// نمط تخطيط ثابت مع بديل: نعين الارتفاع على 100dvh وminHeight على 100vh لضمان الظهور
 const layoutStyle = computed(()=>{
   const totalTop = headerH.value + tabsH.value
   return {
     marginTop: `${totalTop}px`,
-    height: `calc(100dvh - ${totalTop}px - 60px)`
+    height: `calc(100dvh - ${totalTop}px - 60px)`,
+    minHeight: `calc(100vh - ${totalTop}px - 60px)`
   } as any
 })
 const tabsList = computed(()=>{
