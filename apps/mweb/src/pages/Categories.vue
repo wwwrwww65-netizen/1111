@@ -44,8 +44,8 @@
     </nav>
 
     <!-- أثناء تحديد التبويب والانتقال إليه، اعرض هيكل عظمي -->
-    <div v-if="redirecting" class="px-0">
-      <div class="layout" :style="layoutStyle">
+    <div v-if="redirecting" class="px-0" :style="{ marginTop: layoutTop }">
+      <div class="layout" :style="{ height: layoutHeight }">
         <aside class="side">
           <div v-for="i in 8" :key="'sk-side-'+i" class="h-8 rounded bg-gray-200 animate-pulse mb-2" />
         </aside>
@@ -59,7 +59,7 @@
         </main>
       </div>
     </div>
-    <div v-else class="layout" :style="layoutStyle">
+    <div v-else class="layout" :style="{ marginTop: layoutTop, height: layoutHeight }">
       <!-- Sidebar -->
       <aside v-if="showSidebar" class="side">
         <button 
@@ -96,7 +96,7 @@
         <div v-else class="ttl">
           <span class="inline-block w-40 h-4 bg-gray-200 rounded animate-pulse"></span>
         </div>
-        
+
         <!-- Featured Categories with subcategories -->
         <div v-if="showFeaturedSection && featuredCategories.length > 0" class="featured-section">
           <div class="subcategories-scroll">
@@ -152,7 +152,7 @@
 
     <BottomNav active="categories" />
   </div>
-  
+
 </template>
 
 <script setup lang="ts">
@@ -216,9 +216,8 @@ const showSidebar = computed(()=> {
 // قياس ديناميكي لارتفاع الهيدر وشريط التبويبات
 const headerRef = ref<HTMLElement|null>(null)
 const tabsRef = ref<HTMLElement|null>(null)
-// استخدم قيم افتراضية آمنة لتفادي تراكب أولي قبل القياس
-const headerH = ref<number>(56)
-const tabsH = ref<number>(48)
+const headerH = ref<number>(0)
+const tabsH = ref<number>(0)
 function measureChrome(){
   try{ headerH.value = showHeader.value ? Math.round(headerRef.value?.getBoundingClientRect().height || 0) : 0 }catch{ headerH.value = showHeader.value ? 56 : 0 }
   try{ tabsH.value = showTabs.value ? Math.round(tabsRef.value?.getBoundingClientRect().height || 0) : 0 }catch{ tabsH.value = showTabs.value ? 48 : 0 }
@@ -226,21 +225,11 @@ function measureChrome(){
 onMounted(()=>{
   measureChrome()
   window.addEventListener('resize', measureChrome)
-    // مؤقت أمان لقياس ثانٍ سريعاً
-    setTimeout(measureChrome, 250)
 })
 watch([showHeader, showTabs], ()=> measureChrome())
 const navTop = computed(()=> `${headerH.value}px`)
 const layoutTop = computed(()=> `${headerH.value + tabsH.value}px`)
-// نمط تخطيط ثابت مع بديل: نعين الارتفاع على 100dvh وminHeight على 100vh لضمان الظهور
-const layoutStyle = computed(()=>{
-  const totalTop = headerH.value + tabsH.value
-  return {
-    marginTop: `${totalTop}px`,
-    height: `calc(100dvh - ${totalTop}px - 60px)`,
-    minHeight: `calc(100vh - ${totalTop}px - 60px)`
-  } as any
-})
+const layoutHeight = computed(()=> `calc(100dvh - ${headerH.value + tabsH.value}px - 60px)`)
 const tabsList = computed(()=>{
   // أعرض فقط التبويبات المنشورة الحقيقية من API
   if (publishedTabs.value.length) return publishedTabs.value.map((t:any)=> ({ key: String(t.slug||''), label: String(t.label||t.slug||'') }))
@@ -683,8 +672,6 @@ onMounted(async () => {
   // Show promo popup from config
   if (catConfig.value?.layout?.showPromoPopup) setTimeout(()=>{ showPromoPopup.value = true }, 2000)
 
-  // أزيل المحتوى الاحتياطي: ستظهر الصفحة بالهيكل العظمي ثم بالبيانات الحقيقية فقط
-
   // Apply SEO
   try{
     const t = catConfig.value?.seo?.title || 'الفئات'
@@ -997,4 +984,3 @@ onMounted(async () => {
   .discount-text{font-size:18px}
 }
 </style>
-

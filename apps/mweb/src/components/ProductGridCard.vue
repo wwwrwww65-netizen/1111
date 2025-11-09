@@ -1,10 +1,12 @@
 <template>
-  <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button"
-       :aria-label="'افتح '+(title||'المنتج')" tabindex="0"
-       @click="open($event)" @keydown.enter.prevent="open($event)" @keydown.space.prevent="open($event)">
+  <a class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer block no-underline" role="link"
+       :aria-label="'افتح '+(title||'المنتج')" tabindex="0" :href="href"
+       @click.prevent="open($event)" @keydown.enter.prevent="open($event)" @keydown.space.prevent="open($event)">
+    <!-- صورة: هيكل عظمي حتى تحميل أول صورة -->
+    <div v-if="!imgLoaded" class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
     <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
       <div class="flex">
-        <img v-for="(img,idx) in gallery" :key="'img-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
+        <img v-for="(img,idx) in gallery" :key="'img-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" @load="idx===0 && onImgLoad()" />
       </div>
       <!-- عمود الألوان: نقاط ألوان عند توفر قائمة ألوان، وإلا تعرض مصغرات صور الألوان -->
       <div v-if="colorsHex.length || colorThumbs.length" class="absolute top-1 left-1 flex gap-1">
@@ -48,11 +50,11 @@
       </button>
       <div v-if="displayCoupon" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ displayCoupon }}</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>
     </div>
-  </div>
+  </a>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { fmtPrice, initCurrency } from '@/lib/currency'
 import { useRouter } from 'vue-router'
 import { useCart } from '@/store/cart'
@@ -117,6 +119,9 @@ const gallery = computed(()=> {
   if (list.length) return list
   return [props.product?.image || '/images/placeholder-product.jpg']
 })
+const href = computed(()=> `/p?id=${encodeURIComponent(id.value)}`)
+const imgLoaded = ref(false)
+function onImgLoad(){ imgLoaded.value = true }
 
 // Lazy enrichment: colors + category label if missing
 import { ref, onMounted } from 'vue'

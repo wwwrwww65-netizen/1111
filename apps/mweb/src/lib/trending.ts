@@ -26,19 +26,18 @@ function extractIds(payload: any): string[] {
 export async function getTrendingIdSet(): Promise<Set<string>>{
   const now = Date.now()
   if (cachedIds && (now - lastFetchTs) < TTL_MS) return cachedIds
-  const paths = [
-    '/api/admin/products/trending',
-    '/api/products/trending',
-    '/api/recommendations/trending',
-    '/api/admin/badges/trending',
-    '/api/admin/trending/products'
-  ]
+  // اربط باللوحة فقط: إن كان نظام الترندات متاحاً سيُعيد بيانات، وإلا نعتبره غير مُفعل بدون محاولات إضافية
   let ids: string[] = []
-  for (const p of paths){
-    const j = await tryJson(p)
-    ids = extractIds(j)
-    if (ids.length) break
-  }
+  try{
+    const res = await fetch(`${API_BASE}/api/admin/trending/products`, { credentials:'include', headers:{ 'Accept':'application/json' } })
+    if (res.ok){
+      const j = await res.json().catch(()=>null)
+      ids = extractIds(j)
+    } else {
+      // 404 أو أي خطأ ⇒ اعتبر الترندات غير مفعلة مؤقتاً
+      ids = []
+    }
+  }catch{ ids = [] }
   cachedIds = new Set(ids.map(String))
   lastFetchTs = now
   return cachedIds

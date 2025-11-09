@@ -370,7 +370,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+        <div class="flex items-center justify-between py-3 border-b border-gray-200" @click="openPolicy('secure')" role="button">
           <div class="flex items-center gap-2">
             <ShieldCheck :size="20" class="text-green-600" />
             <span class="text-[14px]">أمن التسوق</span>
