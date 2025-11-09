@@ -251,6 +251,19 @@ export default function TabPageBuilder(): JSX.Element {
           <div>
             <h1 className="h1">مصمم تبويبات الصفحة</h1>
             <div className="muted">ID: {id} {page?.slug? `(/${page.slug})`: ''}</div>
+            {/* Edit label/slug */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8, marginTop:8 }}>
+              <input className="input" placeholder="Label (الاسم الظاهر)" value={String(page?.label||'')} onChange={(e)=> setPage((p:any)=> ({ ...(p||{}), label: (e.target as HTMLInputElement).value }))} />
+              <input className="input" placeholder="Slug" dir="ltr" value={String(page?.slug||'')} onChange={(e)=> setPage((p:any)=> ({ ...(p||{}), slug: (e.target as HTMLInputElement).value }))} />
+              <button className="btn btn-outline btn-sm" onClick={async()=>{
+                try{
+                  const body = { id, label: String(page?.label||''), slug: String(page?.slug||'').trim().toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,''), device: String(page?.device||'MOBILE') };
+                  const r = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+                  if (!r.ok){ alert('فشل حفظ الاسم/Slug'); return; }
+                  const j = await r.json(); setPage((p:any)=> ({ ...(p||{}), label: j?.page?.label||p?.label, slug: j?.page?.slug||p?.slug }));
+                }catch{ alert('تعذر الحفظ'); }
+              }}>حفظ الاسم/Slug</button>
+            </div>
             {hasLocal && (
               <div className="muted" style={{marginTop:8, display:'flex', gap:8, alignItems:'center'}}>
                 <span>تم العثور على مسودة محلية غير محفوظة.</span>
@@ -345,7 +358,7 @@ export default function TabPageBuilder(): JSX.Element {
           <div className="mt-2">
             <details>
               <summary className="muted" style={{cursor:'pointer'}}>عرض JSON</summary>
-              <pre style={{fontSize:12, background:'rgba(255,255,255,0.03)', padding:12, borderRadius:8, overflow:'auto'}} dir="ltr">{JSON.stringify(content, null, 2)}</pre>
+              <pre style={{fontSize:12, background:'rgba(255,255,255,0.03)', padding:12, borderRadius:8, overflow:'auto', whiteSpace:'pre-wrap', wordBreak:'break-word', maxHeight:320}} dir="ltr">{JSON.stringify(content, null, 2)}</pre>
             </details>
           </div>
           <div className="toolbar mt-2">
@@ -460,6 +473,7 @@ export default function TabPageBuilder(): JSX.Element {
 function LivePreviewFrame({ content, device, slug }:{ content:any; device:Device; slug:string }): JSX.Element {
   const frameRef = React.useRef<HTMLIFrameElement|null>(null);
   const [src, setSrc] = React.useState<string>('');
+  const postTimerRef = React.useRef<any>(null);
   React.useEffect(()=>{ (async()=>{
     try{
       const r = await fetch(`/api/admin/tabs/preview/sign`, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ device, content }) });
@@ -473,13 +487,19 @@ function LivePreviewFrame({ content, device, slug }:{ content:any; device:Device
   React.useEffect(()=>{
     try{
       const win = frameRef.current?.contentWindow; if (!win) return;
-      // No postMessage needed when using tokenized Home.vue route; kept for backward compatibility
-      win.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com');
+      if (postTimerRef.current) clearTimeout(postTimerRef.current);
+      postTimerRef.current = setTimeout(()=>{ try{ win.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com'); }catch{} }, 120);
     }catch{}
   }, [content, device, src]);
   // Also update external window if open
   React.useEffect(()=>{
-    try{ const w = externalWinRef.current; if (w && !w.closed){ w.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com'); } }catch{}
+    try{
+      const w = externalWinRef.current;
+      if (w && !w.closed){
+        if (postTimerRef.current) clearTimeout(postTimerRef.current);
+        postTimerRef.current = setTimeout(()=>{ try{ w.postMessage({ __tabs_preview: true, device, content }, 'https://m.jeeey.com'); }catch{} }, 120);
+      }
+    }catch{}
   }, [content, device]);
   return (
     <iframe ref={frameRef} title="Live MWeb Preview" src={src} style={{ width:'100%', height:h, border:0 }} onLoad={()=>{
@@ -519,7 +539,7 @@ function validateContent(c:any): string[] {
   return errs;
 }
 
-function SectionInspector({ section, onChange, openMedia, openCategories, openProducts }:{ section:any; onChange:(upd:any)=>void; openMedia:(cb:(url:string)=>void)=>void; openCategories:(cb:(items:Category[])=>void)=>void; openProducts:(cb:(items:ProductMini[])=>void)=>void }): JSX.Element {
+function SectionInspector({ section, onChange, openMedia, openCategories, openProducts }:{ section:any; onChange:(upd:any)=>void; openMedia:(cb:(url:string)=>void)=>void; openCategories:(initial:Category[], cb:(items:Category[])=>void)=>void; openProducts:(cb:(items:ProductMini[])=>void)=>void }): JSX.Element {
   const t = String(section?.type||'');
 
   // Helpers for image pick/drag
@@ -645,7 +665,7 @@ function SectionInspector({ section, onChange, openMedia, openCategories, openPr
           <div className="toolbar" style={{marginBottom:0}}>
             <div className="muted">منشئ فلترة (بديل للاختيار اليدوي)</div>
             <div className="actions">
-              <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker([], (cats)=> setCfg({ filter: { ...(filter||{}), categoryIds: cats.map(c=> c.id) } }))}>اختر فئات</button>
+              <button className="btn btn-outline btn-sm" onClick={()=> openCategories([], (cats)=> setCfg({ filter: { ...(filter||{}), categoryIds: cats.map(c=> c.id) } }))}>اختر فئات</button>
               <button className="btn btn-outline btn-sm" onClick={()=> setCfg({ filter: {} })}>مسح</button>
             </div>
           </div>
@@ -677,7 +697,7 @@ function SectionInspector({ section, onChange, openMedia, openCategories, openPr
     return (
       <div style={{display:'grid',gap:12}}>
         <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-          <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker(list, (items)=> setList(items))}>{t==='categories'? 'اختر فئات' : 'اختر علامات تجارية'}</button>
+          <button className="btn btn-outline btn-sm" onClick={()=> openCategories(list, (items)=> setList(items))}>{t==='categories'? 'اختر فئات' : 'اختر علامات تجارية'}</button>
           <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
             {list.map((it:any, idx:number)=> (
               <div key={`${it.id||idx}:${it.name||''}`} className="badge" style={{gap:6}}>
