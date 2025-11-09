@@ -20,20 +20,43 @@ export default function CategoriesTabsIndex(): JSX.Element {
   async function load(){
     try{
       setLoading(true);
-      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=100&includeCategories=1`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
-      const j = await r.json();
-      const list = Array.isArray(j?.pages)? j.pages: [];
-      // أعرض فقط تبويبات الفئات (التي تحمل content.type === 'categories-v1')
-      setRows(list);
+      // مصدران: (1) كل الصفحات و (2) فقط تبويبات الفئات — ثم دمج وتصفيه
+      const [allRes, catsRes] = await Promise.all([
+        fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } }),
+        fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200&includeCategories=1`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } })
+      ]);
+      const allJ = await allRes.json().catch(()=>({ pages: [] }));
+      const catsJ = await catsRes.json().catch(()=>({ pages: [] }));
+      const all: any[] = Array.isArray(allJ?.pages)? allJ.pages: [];
+      const cats: any[] = Array.isArray(catsJ?.pages)? catsJ.pages: [];
+      const merged = new Map<string, any>();
+      // أضف كل ما يبدأ Slug الخاص به بـ cat- (حتى إن لم تُنشَر أو لم تُنشأ نسخة بعد)
+      for (const p of all){ if (String(p?.slug||'').startsWith('cat-')) merged.set(p.id, p); }
+      // أضف أيضاً ما تمّ التعرف عليه كتبوبيبات فئات عبر المحتوى
+      for (const p of cats){ merged.set(p.id, p); }
+      setRows(Array.from(merged.values()));
     }catch{ setRows([]) }
     finally{ setLoading(false) }
   }
   React.useEffect(()=>{ load(); },[]);
 
+  async function remove(id: string){
+    if (!id) return;
+    try{
+      const ok = window.confirm('حذف التبويب؟ لا يمكن التراجع.');
+      if (!ok) return;
+      const r = await fetch(`/api/admin/tabs/pages/${encodeURIComponent(id)}`, { method:'DELETE', credentials:'include', headers: { ...authHeaders() } });
+      if (!r.ok){ const t = await r.text().catch(()=> ''); showToast(`فشل الحذف${t? ': '+t:''}`); return; }
+      setRows(rows=> rows.filter(r=> r.id!==id));
+      showToast('تم الحذف');
+    }catch{ showToast('تعذر الحذف'); }
+  }
+
   async function create(){
     if (!slug.trim() || !label.trim()) { showToast('Slug والاسم مطلوبان'); return; }
     try{
-      const safeSlug = slug.startsWith('cat-') ? slug : `cat-${slug}`;
+      // لا تضف cat- تلقائياً؛ استخدم الإدخال كما هو لتجنّب مضاعفة البادئة
+      const safeSlug = slug.trim();
       const body = { slug: safeSlug, label, device:'MOBILE' };
       const r = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) });
       if (!r.ok){
@@ -96,6 +119,7 @@ export default function CategoriesTabsIndex(): JSX.Element {
                     <div style={{ display:'flex', gap:8 }}>
                       <a href={`/categories-tabs/${encodeURIComponent(p.slug)}`} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>تعديل</a>
                       {p.status==='PUBLISHED' ? (<a href={`/categories/${encodeURIComponent(p.slug)}`} target="_blank" style={{ padding:'6px 10px', background:'#065f46', color:'#e5e7eb', borderRadius:8 }}>عرض</a>) : null}
+                    <button onClick={()=> remove(p.id)} style={{ padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
                     </div>
                   </td>
                 </tr>

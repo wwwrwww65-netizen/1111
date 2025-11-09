@@ -5,6 +5,8 @@ export function MediaPicker({ apiBase, value, onChange, onClose }: { apiBase: st
   const [assets, setAssets] = React.useState<Array<{ id:string; url:string; alt?:string }>>([]);
   const [q, setQ] = React.useState('');
   const [loading, setLoading] = React.useState(true);
+  const [uploading, setUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement|null>(null);
   async function load(){
     setLoading(true);
     try{
@@ -14,7 +16,20 @@ export function MediaPicker({ apiBase, value, onChange, onClose }: { apiBase: st
       setAssets(j.assets||[]);
     } finally { setLoading(false); }
   }
-  React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase]);
+  React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, q]);
+  async function doUploadFile(file: File){
+    try{
+      setUploading(true);
+      const base64 = await new Promise<string>((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onload = ()=> resolve(String(reader.result||''));
+        reader.onerror = (e)=> reject(e);
+        reader.readAsDataURL(file);
+      });
+      const j = await (await fetch(`${apiBase}/api/admin/media`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ base64, type: 'image' }) })).json();
+      if (j?.asset?.url){ onChange(j.asset.url); onClose(); return; }
+    } finally { setUploading(false); await load().catch(()=>{}); }
+  }
   return (
     <div role="dialog" aria-modal="true" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'grid', placeItems:'center', zIndex:1100 }} onClick={onClose}>
       <div style={{ width:'min(900px,96vw)', maxHeight:'90vh', overflow:'auto', background:'var(--panel,#0b0e14)', border:'1px solid #1c2333', borderRadius:12, padding:12 }} onClick={(e)=> e.stopPropagation()}>
@@ -26,6 +41,16 @@ export function MediaPicker({ apiBase, value, onChange, onClose }: { apiBase: st
           </div>
         </div>
         <div style={{ marginTop:12 }}>
+          {/* Drag & drop upload */}
+          <div
+            onDragOver={(e)=>{ e.preventDefault(); }}
+            onDrop={(e)=>{ e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) doUploadFile(f).catch(()=>{}); }}
+            style={{ border:'1px dashed #334155', borderRadius:10, padding:12, textAlign:'center', color:'#94a3b8', marginBottom:12 }}
+          >
+            {uploading? 'جارٍ الرفع…' : 'اسحب وأفلت صورة هنا للرفع، أو '}
+            <button className="btn btn-outline btn-sm" onClick={()=> fileInputRef.current?.click()}>اختر ملفاً</button>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={(e)=>{ const f = e.target.files?.[0]; if (f) doUploadFile(f).catch(()=>{}); }} />
+          </div>
           {loading? <div className="skeleton" style={{ height:180 }} /> : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:10 }}>
               {assets.map(a=> (

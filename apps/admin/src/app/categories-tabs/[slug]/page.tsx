@@ -64,7 +64,7 @@ export default function CategoriesTabBuilder(): JSX.Element {
             p = cj?.page || null;
           } else if (cr.status === 409) {
             // Slug محجوز ربما لغير الفئات: أنشئ نسخة بإضافة cat- لتجنّب خلط المحتوى
-            const altSlug = `cat-${slug}`;
+            const altSlug = slug.startsWith('cat-') ? slug : `cat-${slug}`;
             const cr2 = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ slug: altSlug, label: slug, device:'MOBILE' }) });
             if (cr2.ok){ const cj2 = await cr2.json(); p = cj2?.page || null; setEffectiveSlug(altSlug); }
           }
@@ -74,6 +74,13 @@ export default function CategoriesTabBuilder(): JSX.Element {
       if (!p) { showToast('لم يتم العثور على الصفحة'); return; }
       setPageId(p.id);
       if (p.slug && String(p.slug)!==effectiveSlug) setEffectiveSlug(String(p.slug));
+      // Load latest page meta (label/slug) to allow editing
+      try{
+        const pr = await fetch(`/api/admin/tabs/pages/${p.id}`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+        const pj = await pr.json();
+        const page = pj?.page || p;
+        setPageMeta({ id: page.id, slug: page.slug, label: page.label||page.slug||'' });
+      }catch{}
       // load latest version content
       try{
         const r2 = await fetch(`/api/admin/tabs/pages/${p.id}/versions`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
@@ -88,6 +95,25 @@ export default function CategoriesTabBuilder(): JSX.Element {
     }catch{ showToast('تعذر التحميل'); }
   }
   React.useEffect(()=>{ init(); },[slug]);
+
+  // Editable page meta (label/slug)
+  const [pageMeta, setPageMeta] = React.useState<{ id?:string; slug:string; label:string }>({ slug, label: slug });
+  async function savePageMeta(){
+    try{
+      if (!pageId) return;
+      const body = { id: pageId, slug: pageMeta.slug, label: pageMeta.label, device: 'MOBILE' };
+      const r = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+      if (!r.ok){ const t=await r.text().catch(()=> ''); showToast(`فشل حفظ الاسم/Slug${t? ': '+t:''}`); return; }
+      const j = await r.json();
+      setPageMeta({ id: j?.page?.id, slug: j?.page?.slug, label: j?.page?.label||'' });
+      // إذا تغيّر الslug انتقل إلى المسار الجديد
+      if (j?.page?.slug && j.page.slug !== effectiveSlug){
+        setEffectiveSlug(j.page.slug);
+        window.history.replaceState(null, '', `/categories-tabs/${encodeURIComponent(j.page.slug)}`);
+      }
+      showToast('تم حفظ الاسم/Slug');
+    }catch{ showToast('تعذر الحفظ'); }
+  }
 
   // keep parsed in sync with JSON
   React.useEffect(()=>{
@@ -189,12 +215,25 @@ export default function CategoriesTabBuilder(): JSX.Element {
 
   return (
     <main style={{ padding:16 }}>
-      <h1 style={{ margin:'0 0 10px', fontSize:22, fontWeight:700 }}>محرر تبويب الفئات: {slug}</h1>
+      <h1 style={{ margin:'0 0 10px', fontSize:22, fontWeight:700 }}>محرر تبويب الفئات: {pageMeta.label||slug}</h1>
       {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
 
       <section style={{ display:'grid', gridTemplateColumns:'1.3fr 0.7fr', gap:12, alignItems:'start' }}>
         {/* Visual Editor */}
         <div style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:12 }}>
+          {/* Page meta (label/slug) */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+            <label>الاسم الظاهر
+              <input value={pageMeta.label} onChange={(e)=> setPageMeta(m=> ({ ...m, label: (e.target as HTMLInputElement).value }))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+            </label>
+            <label>Slug
+              <input value={pageMeta.slug} onChange={(e)=> setPageMeta(m=> ({ ...m, slug: (e.target as HTMLInputElement).value }))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', direction:'ltr' }} />
+            </label>
+          </div>
+          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+            <button onClick={savePageMeta} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>حفظ الاسم/Slug</button>
+          </div>
+
           <h3 style={{ marginTop:0 }}>إعدادات الصفحة</h3>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
             <label>عنوان القسم
@@ -262,6 +301,22 @@ export default function CategoriesTabBuilder(): JSX.Element {
                         <input type="checkbox" checked={!!it?.promoBanner?.enabled} onChange={(e)=>{
                           const list = [...ensureArray(['data','sidebarItems'])]; const en = (e.target as HTMLInputElement).checked; list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), enabled: en } }; setAtPath(['data','sidebarItems'], list);
                         }} /> تفعيل
+                      </label>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:8 }}>
+                      <label>عنوان البنر
+                        <input defaultValue={String(it?.promoBanner?.title||'')} onBlur={(e)=>{
+                          const list = [...ensureArray(['data','sidebarItems'])];
+                          list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), title: (e.target as HTMLInputElement).value } };
+                          setAtPath(['data','sidebarItems'], list);
+                        }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                      </label>
+                      <label>رابط البنر
+                        <input defaultValue={String(it?.promoBanner?.href||'')} onBlur={(e)=>{
+                          const list = [...ensureArray(['data','sidebarItems'])];
+                          list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), href: (e.target as HTMLInputElement).value } };
+                          setAtPath(['data','sidebarItems'], list);
+                        }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0', direction:'ltr' }} />
                       </label>
                     </div>
                   </div>
