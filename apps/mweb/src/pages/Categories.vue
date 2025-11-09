@@ -44,8 +44,8 @@
     </nav>
 
     <!-- أثناء تحديد التبويب والانتقال إليه، اعرض هيكل عظمي -->
-    <div v-if="redirecting" class="px-0" :style="{ marginTop: layoutTop }">
-      <div class="layout" :style="{ height: layoutHeight }">
+    <div v-if="redirecting" class="px-0">
+      <div class="layout" :style="layoutStyle">
         <aside class="side">
           <div v-for="i in 8" :key="'sk-side-'+i" class="h-8 rounded bg-gray-200 animate-pulse mb-2" />
         </aside>
@@ -59,7 +59,7 @@
         </main>
       </div>
     </div>
-    <div v-else class="layout" :style="{ marginTop: layoutTop, height: layoutHeight }">
+    <div v-else class="layout" :style="layoutStyle">
       <!-- Sidebar -->
       <aside v-if="showSidebar" class="side">
         <button 
@@ -226,11 +226,20 @@ function measureChrome(){
 onMounted(()=>{
   measureChrome()
   window.addEventListener('resize', measureChrome)
+    // مؤقت أمان لقياس ثانٍ سريعاً
+    setTimeout(measureChrome, 250)
 })
 watch([showHeader, showTabs], ()=> measureChrome())
 const navTop = computed(()=> `${headerH.value}px`)
 const layoutTop = computed(()=> `${headerH.value + tabsH.value}px`)
-const layoutHeight = computed(()=> `calc(100dvh - ${headerH.value + tabsH.value}px - 60px)`)
+// نمط تخطيط ثابت: نعين الارتفاع دائماً بالاعتماد على 100dvh لتفادي اختفاء الصفحة
+const layoutStyle = computed(()=>{
+  const totalTop = headerH.value + tabsH.value
+  return {
+    marginTop: `${totalTop}px`,
+    height: `calc(100dvh - ${totalTop}px - 60px)`
+  } as any
+})
 const tabsList = computed(()=>{
   // أعرض فقط التبويبات المنشورة الحقيقية من API
   if (publishedTabs.value.length) return publishedTabs.value.map((t:any)=> ({ key: String(t.slug||''), label: String(t.label||t.slug||'') }))
@@ -672,6 +681,8 @@ onMounted(async () => {
 
   // Show promo popup from config
   if (catConfig.value?.layout?.showPromoPopup) setTimeout(()=>{ showPromoPopup.value = true }, 2000)
+
+  // أزيل المحتوى الاحتياطي: ستظهر الصفحة بالهيكل العظمي ثم بالبيانات الحقيقية فقط
 
   // Apply SEO
   try{
