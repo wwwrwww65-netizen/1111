@@ -203,15 +203,16 @@ const previewActive = ref<boolean>(false)
 const publishedTabs = ref<Array<{ slug: string; label: string }>>([])
 const activePublishedSlug = ref<string>('')
 const page = ref<PageData>({})
-const showHeader = computed(()=> catConfig.value?.layout?.showHeader!==false)
+const showHeader = computed(()=> usingPublishedTabs.value ? (page.value?.layout?.showHeader !== false) : (catConfig.value?.layout?.showHeader!==false))
 // أظهر شريط التبويبات دائماً إذا كانت هناك تبويبات منشورة من API،
 // وإلا اتبع إعدادات التصميم (showTabs !== false)
-const showTabs = computed(()=> (publishedTabs.value.length>0) || (catConfig.value?.layout?.showTabs!==false))
+const showTabs = computed(()=> usingPublishedTabs.value ? true : (catConfig.value?.layout?.showTabs!==false))
 // عند وجود تبويبات منشورة: اتبع إعداد التبويب/الصفحة لعرض الشريط الجانبي (لا نخفيه)
 const showSidebar = computed(()=> {
   if (publishedTabs.value.length>0) return page.value?.layout?.showSidebar !== false
   return (catConfig.value?.layout?.showSidebar!==false)
 })
+// showHeader already defined above; ensure single declaration
 const navTop = computed(()=> showHeader.value ? '56px' : '0px')
 const layoutTop = computed(()=> {
   const headerH = showHeader.value ? 56 : 0
