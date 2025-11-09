@@ -454,7 +454,7 @@ export default function TabPageBuilder(): JSX.Element {
           <div>
             <h3 className="h3" style={{marginBottom:8}}>المعاينة (المنشور)</h3>
             {published? (
-              <pre style={{fontSize:12, background:'rgba(255,255,255,0.03)', padding:12, borderRadius:8, overflow:'auto'}} dir="ltr">{JSON.stringify(published, null, 2)}</pre>
+              <pre style={{fontSize:12, background:'rgba(255,255,255,0.03)', padding:12, borderRadius:8, overflow:'auto', whiteSpace:'pre-wrap', wordBreak:'break-word', maxHeight:320}} dir="ltr">{JSON.stringify(published, null, 2)}</pre>
             ) : (
               <div className="muted">لا يوجد محتوى منشور بعد</div>
             )}
