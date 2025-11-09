@@ -117,7 +117,12 @@
           </div>
         </div>
 
-        <SkeletonGrid v-if="loading" :count="12" :cols="3" />
+        <div v-if="loading" class="grid">
+          <div v-for="i in 12" :key="'sk-circ2-'+i" class="cell">
+            <div class="w-20 h-20 bg-gray-200 rounded-full animate-pulse" />
+            <div class="name"><span class="inline-block w-16 h-3 bg-gray-200 rounded mt-2"></span></div>
+          </div>
+        </div>
         <div v-else class="grid">
           <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`" @click="trackCategoryClick(c)">
             <img :src="c.image" :alt="c.name" loading="lazy" />
@@ -153,7 +158,6 @@
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
-import SkeletonGrid from '@/components/SkeletonGrid.vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, API_BASE } from '@/lib/api'
@@ -700,8 +704,6 @@ onMounted(async () => {
   display:grid;
   grid-template-columns:180px 1fr;
   min-height:0;
-  margin-top:104px; /* 56px header + 48px tabs */
-  height:calc(100dvh - 104px - 60px); /* minus header, tabs and bottom nav */
 }
 
 /* Enhanced Sidebar - scroll منفصل */
