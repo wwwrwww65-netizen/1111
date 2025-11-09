@@ -198,12 +198,23 @@ export default function CategoriesTabBuilder(): JSX.Element {
 
   async function publish(){
     if (!pageId) { showToast('لا توجد صفحة'); return; }
-    if (!latestVersion) { await saveDraft(); }
-    const version = latestVersion || 1;
     setBusy(true);
     try{
+      // أنشئ نسخة فوراً من المحتوى الحالي ثم انشرها لضمان حفظ آخر التعديلات
+      let content:any = null;
+      try{
+        content = JSON.parse(json);
+        if (!content || typeof content !== 'object') content = {};
+        if (content.type !== 'categories-v1') content.type = 'categories-v1';
+        if (!content.data || typeof content.data !== 'object') content.data = {};
+      }catch{ showToast('JSON غير صالح'); return; }
+      const vr = await fetch(`/api/admin/tabs/pages/${pageId}/versions`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ title: content?.data?.title||'', content, notes: '' }) });
+      if (!vr.ok){ const t=await vr.text().catch(()=>""); showToast(`فشل إنشاء نسخة للنشر${t? ': '+t: ''}`); return; }
+      const vj = await vr.json();
+      const version = Number(vj?.version?.version||vj?.version||0) || 1;
       const r = await fetch(`/api/admin/tabs/pages/${pageId}/publish`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ version }) });
       if (!r.ok){ const t=await r.text().catch(()=>""); showToast(`فشل النشر${t? ': '+t: ''}`); return; }
+      setLatestVersion(version);
       showToast('تم النشر');
     } finally { setBusy(false); }
   }
@@ -288,12 +299,12 @@ export default function CategoriesTabBuilder(): JSX.Element {
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:8 }}>
                   <label>الاسم
-                    <input defaultValue={String(it?.label||'')} onBlur={(e)=>{
+                    <input value={String(it?.label||'')} onChange={(e)=>{
                       const list = [...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), label: (e.target as HTMLInputElement).value }; setAtPath(['data','sidebarItems'], list);
                     }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
                   </label>
                   <label>رابط اختياري
-                    <input defaultValue={String(it?.href||'')} onBlur={(e)=>{
+                    <input value={String(it?.href||'')} onChange={(e)=>{
                       const list = [...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), href: (e.target as HTMLInputElement).value }; setAtPath(['data','sidebarItems'], list);
                     }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
                   </label>
@@ -311,14 +322,14 @@ export default function CategoriesTabBuilder(): JSX.Element {
                     </div>
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:8 }}>
                       <label>عنوان البنر
-                        <input defaultValue={String(it?.promoBanner?.title||'')} onBlur={(e)=>{
+                        <input value={String(it?.promoBanner?.title||'')} onChange={(e)=>{
                           const list = [...ensureArray(['data','sidebarItems'])];
                           list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), title: (e.target as HTMLInputElement).value } };
                           setAtPath(['data','sidebarItems'], list);
                         }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
                       </label>
                       <label>رابط البنر
-                        <input defaultValue={String(it?.promoBanner?.href||'')} onBlur={(e)=>{
+                        <input value={String(it?.promoBanner?.href||'')} onChange={(e)=>{
                           const list = [...ensureArray(['data','sidebarItems'])];
                           list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), href: (e.target as HTMLInputElement).value } };
                           setAtPath(['data','sidebarItems'], list);
@@ -335,19 +346,19 @@ export default function CategoriesTabBuilder(): JSX.Element {
                   <div style={{ color:'#94a3b8', marginBottom:6 }}>Grid</div>
                   <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                     <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      <input type="radio" name={`grid-${idx}`} defaultChecked={(it?.grid?.mode||'filter')==='explicit'} onChange={(e)=>{ if(!(e.target as HTMLInputElement).checked) return; const list=[...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), grid: { mode:'explicit', categories: Array.isArray(it?.grid?.categories)? it.grid.categories: [] } }; setAtPath(['data','sidebarItems'], list); }} /> explicit
+                      <input type="radio" name={`grid-${idx}`} checked={(it?.grid?.mode||'filter')==='explicit'} onChange={(e)=>{ if(!(e.target as HTMLInputElement).checked) return; const list=[...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), grid: { mode:'explicit', categories: Array.isArray(it?.grid?.categories)? it.grid.categories: [] } }; setAtPath(['data','sidebarItems'], list); }} /> explicit
                     </label>
                     <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      <input type="radio" name={`grid-${idx}`} defaultChecked={(it?.grid?.mode||'filter')==='filter'} onChange={(e)=>{ if(!(e.target as HTMLInputElement).checked) return; const list=[...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), grid: { mode:'filter', categoryIds: [], limit: 36, sortBy:'name_asc' } }; setAtPath(['data','sidebarItems'], list); }} /> filter
+                      <input type="radio" name={`grid-${idx}`} checked={(it?.grid?.mode||'filter')==='filter'} onChange={(e)=>{ if(!(e.target as HTMLInputElement).checked) return; const list=[...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), grid: { mode:'filter', categoryIds: [], limit: 36, sortBy:'name_asc' } }; setAtPath(['data','sidebarItems'], list); }} /> filter
                     </label>
                     {(it?.grid?.mode||'filter')==='explicit' ? (
                       <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'grid','categories']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختيار فئات للشبكة</button>
                     ) : (
                       <>
-                        <input placeholder="IDs مفصولة بفاصلة" defaultValue={Array.isArray(it?.grid?.categoryIds)? it.grid.categoryIds.join(','): ''} onBlur={(e)=>{
+                        <input placeholder="IDs مفصولة بفاصلة" value={Array.isArray(it?.grid?.categoryIds)? it.grid.categoryIds.join(','): ''} onChange={(e)=>{
                           const list=[...ensureArray(['data','sidebarItems'])]; const ids=String((e.target as HTMLInputElement).value||'').split(',').map(s=>s.trim()).filter(Boolean); list[idx] = { ...(list[idx]||{}), grid: { ...(list[idx]?.grid||{ mode:'filter' }), mode:'filter', categoryIds: ids } }; setAtPath(['data','sidebarItems'], list);
                         }} style={{ padding:8, borderRadius:8, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-                        <input type="number" placeholder="limit" defaultValue={Number(it?.grid?.limit||36)} onBlur={(e)=>{
+                        <input type="number" placeholder="limit" value={Number(it?.grid?.limit||36)} onChange={(e)=>{
                           const list=[...ensureArray(['data','sidebarItems'])]; const v=Number((e.target as HTMLInputElement).value||36); list[idx] = { ...(list[idx]||{}), grid: { ...(list[idx]?.grid||{ mode:'filter' }), mode:'filter', limit: v } }; setAtPath(['data','sidebarItems'], list);
                         }} style={{ width:100, padding:8, borderRadius:8, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
                       </>
@@ -358,11 +369,11 @@ export default function CategoriesTabBuilder(): JSX.Element {
                   <div style={{ color:'#94a3b8', marginBottom:6 }}>اقتراحات</div>
                   <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
                     <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      <input type="checkbox" defaultChecked={(it?.suggestions?.enabled??true)!==false} onChange={(e)=>{
+                      <input type="checkbox" checked={(it?.suggestions?.enabled??true)!==false} onChange={(e)=>{
                         const list=[...ensureArray(['data','sidebarItems'])]; const en=(e.target as HTMLInputElement).checked; const sg=it?.suggestions && !Array.isArray(it.suggestions)? it.suggestions: { items: [] }; list[idx] = { ...(list[idx]||{}), suggestions: { ...(sg||{}), enabled: en } }; setAtPath(['data','sidebarItems'], list);
                       }} /> تفعيل
                     </label>
-                    <input placeholder="عنوان" defaultValue={String((it?.suggestions && !Array.isArray(it.suggestions)? it.suggestions.title: '')||'')} onBlur={(e)=>{
+                    <input placeholder="عنوان" value={String((it?.suggestions && !Array.isArray(it.suggestions)? it.suggestions.title: '')||'')} onChange={(e)=>{
                       const list=[...ensureArray(['data','sidebarItems'])]; const sg=it?.suggestions && !Array.isArray(it.suggestions)? it.suggestions: { enabled:true, items: [] }; sg.title = (e.target as HTMLInputElement).value; list[idx] = { ...(list[idx]||{}), suggestions: sg }; setAtPath(['data','sidebarItems'], list);
                     }} style={{ padding:8, borderRadius:8, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0', minWidth:240 }} />
                     <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'suggestions','items']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختيار عناصر</button>
