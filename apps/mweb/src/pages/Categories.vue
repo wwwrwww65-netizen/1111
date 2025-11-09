@@ -19,7 +19,7 @@
     </div>
 
     <!-- Header -->
-    <div v-if="showHeader" class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm h-14" aria-label="رأس الصفحة">
+    <div v-if="showHeader" ref="headerRef" class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm h-14" aria-label="رأس الصفحة">
       <div class="w-screen px-3 h-full flex items-center justify-between">
         <div class="flex items-center gap-1">
           <button class="w-11 h-11 flex items-center justify-center rounded-[4px]" aria-label="الإشعارات" @click="go('/notifications')">
@@ -39,7 +39,7 @@
       </div>
 
     <!-- Tabs (ملتصقة بالهيدر) -->
-    <nav v-if="showTabs" class="tabs fixed left-0 right-0 z-40 bg-white border-t border-b border-gray-200" :style="{ top: navTop }">
+    <nav v-if="showTabs" ref="tabsRef" class="tabs fixed left-0 right-0 z-40 bg-white border-t border-b border-gray-200" :style="{ top: navTop }">
       <button v-for="t in tabsList" :key="t.key" :class="{on: currentTabKey===t.key}" @click="setTab(t.key)">{{ t.label }}</button>
     </nav>
 
@@ -213,17 +213,23 @@ const showSidebar = computed(()=> {
   return (catConfig.value?.layout?.showSidebar!==false)
 })
 // showHeader already defined above; ensure single declaration
-const navTop = computed(()=> showHeader.value ? '56px' : '0px')
-const layoutTop = computed(()=> {
-  const headerH = showHeader.value ? 56 : 0
-  const tabsH = showTabs.value ? 48 : 0
-  return `${headerH + tabsH}px`
+// قياس ديناميكي لارتفاع الهيدر وشريط التبويبات
+const headerRef = ref<HTMLElement|null>(null)
+const tabsRef = ref<HTMLElement|null>(null)
+const headerH = ref<number>(0)
+const tabsH = ref<number>(0)
+function measureChrome(){
+  try{ headerH.value = showHeader.value ? Math.round(headerRef.value?.getBoundingClientRect().height || 0) : 0 }catch{ headerH.value = showHeader.value ? 56 : 0 }
+  try{ tabsH.value = showTabs.value ? Math.round(tabsRef.value?.getBoundingClientRect().height || 0) : 0 }catch{ tabsH.value = showTabs.value ? 48 : 0 }
+}
+onMounted(()=>{
+  measureChrome()
+  window.addEventListener('resize', measureChrome)
 })
-const layoutHeight = computed(()=> {
-  const headerH = showHeader.value ? 56 : 0
-  const tabsH = showTabs.value ? 48 : 0
-  return `calc(100dvh - ${headerH + tabsH}px - 60px)`
-})
+watch([showHeader, showTabs], ()=> measureChrome())
+const navTop = computed(()=> `${headerH.value}px`)
+const layoutTop = computed(()=> `${headerH.value + tabsH.value}px`)
+const layoutHeight = computed(()=> `calc(100dvh - ${headerH.value + tabsH.value}px - 60px)`)
 const tabsList = computed(()=>{
   // أعرض فقط التبويبات المنشورة الحقيقية من API
   if (publishedTabs.value.length) return publishedTabs.value.map((t:any)=> ({ key: String(t.slug||''), label: String(t.label||t.slug||'') }))

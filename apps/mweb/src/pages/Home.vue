@@ -25,8 +25,8 @@
 
     <div v-if="layoutShowTopTabs" :class="[scrolled ? 'bg-white/95 backdrop-blur-sm' : 'bg-transparent','fixed left-0 right-0 z-40 transition-colors']" :style="{ top: tabsTopPx + 'px' }" role="tablist" aria-label="التبويبات">
       <div ref="tabsRef" class="w-screen px-3 overflow-x-auto no-scrollbar py-2 flex gap-4" @keydown="onTabsKeyDown">
-        <button v-for="(t,i) in tabs" :key="t.slug || t.href || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="go(t.href||'/')" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
-          {{ (t.label || t) }}
+        <button v-for="(t,i) in tabs" :key="t.slug || t.label || i" role="tab" :aria-selected="activeTab===i" tabindex="0" @click="switchTab(t.slug, i)" :class="['text-sm whitespace-nowrap relative pb-1', activeTab===i ? 'text-black font-semibold' : (scrolled ? 'text-gray-700' : 'text-white')]">
+          {{ (t.label || t.slug || '') }}
           <span :class="['absolute left-0 right-0 -bottom-0.5 h-0.5 transition-all', activeTab===i ? (scrolled ? 'bg-black' : 'bg-white') : 'bg-transparent']" />
         </button>
       </div>
@@ -206,7 +206,7 @@ const headerRef = ref<HTMLElement|null>(null)
 const headerH = ref<number>(64)
 const scrolled = ref(false)
 const activeTab = ref(0)
-const tabs = ref<Array<{ label:string; slug:string; href:string }>>([])
+const tabs = ref<Array<{ label:string; slug:string }>>([])
 const tabsRef = ref<HTMLDivElement|null>(null)
 const homeAutoplayCfg: any = { delay: 5000, disableOnInteraction: true, reverseDirection: false }
 // Preview controls (for Admin live preview compatibility)
@@ -221,6 +221,9 @@ const tabsTopPx = computed(()=> layoutShowHeader.value ? headerH.value : 0)
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
+const isTabLoading = ref(false)
+const tabCache = ref<Record<string, any[]>>({})
+let currentTabController: AbortController | null = null
 function renderBlock(s:any){ 
   const t=String(s?.type||'').toLowerCase();
   if (t==='hero') return HeroBlock; 
@@ -233,16 +236,42 @@ function renderBlock(s:any){
 }
 async function loadTab(slug:string){
   currentSlug.value = slug
-  try{
-    const r = await fetch(`${API_BASE}/api/tabs/${encodeURIComponent(slug)}`)
-    const j = await r.json()
-    const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
-    tabSections.value = sections
-    // Impression tracking
-    fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
-  }catch{ tabSections.value = [] }
+  const cached = tabCache.value[slug]
+  if (cached && cached.length){
+    tabSections.value = cached
+    void fetchTab(slug, true)
+    const idx1 = tabs.value.findIndex(t=> t.slug === slug); if (idx1>=0) activeTab.value = idx1
+    return
+  }
+  isTabLoading.value = true
+  await fetchTab(slug, false)
+  isTabLoading.value = false
   const idx = tabs.value.findIndex(t=> t.slug === slug)
   if (idx >= 0) activeTab.value = idx
+}
+
+async function fetchTab(slug:string, silent:boolean){
+  try{
+    if (currentTabController) { try{ currentTabController.abort() }catch{} }
+    currentTabController = new AbortController()
+    const ctrl = currentTabController
+    const timer = setTimeout(()=>{ try{ ctrl.abort() }catch{} }, 10000)
+    const r = await fetch(`${API_BASE}/api/tabs/${encodeURIComponent(slug)}`, { signal: ctrl.signal as any })
+    clearTimeout(timer)
+    const j = await r.json()
+    const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
+    tabCache.value[slug] = sections
+    if (!silent){ tabSections.value = sections }
+    // Impression tracking
+    fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug, type:'impression' }) }).catch(()=>{})
+  }catch{
+    // keep previous content
+  }
+}
+
+function switchTab(slug:string, idx:number){
+  activeTab.value = idx
+  void loadTab(slug)
 }
 function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
@@ -292,8 +321,14 @@ onMounted(()=>{ try{ window.addEventListener('message', onPreviewMessage) }catch
 onBeforeUnmount(()=>{ window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', measureHeader); try{ window.removeEventListener('message', onPreviewMessage) }catch{} })
 watch(scrolled, ()=> nextTick(measureHeader))
 function onTabsKeyDown(e: KeyboardEvent){
-  if (e.key === 'ArrowRight') activeTab.value = Math.min(activeTab.value + 1, tabs.value.length - 1)
-  if (e.key === 'ArrowLeft') activeTab.value = Math.max(activeTab.value - 1, 0)
+  if (e.key === 'ArrowRight') {
+    const i = Math.min(activeTab.value + 1, tabs.value.length - 1)
+    const next = tabs.value[i]; if (next) switchTab(next.slug, i)
+  }
+  if (e.key === 'ArrowLeft') {
+    const i = Math.max(activeTab.value - 1, 0)
+    const prev = tabs.value[i]; if (prev) switchTab(prev.slug, i)
+  }
   const el = tabsRef.value?.children[activeTab.value] as HTMLElement | undefined
   el?.scrollIntoView({ inline: 'center', behavior: 'smooth' })
 }
@@ -438,10 +473,16 @@ onMounted(async ()=>{
     const all = Array.isArray(allResp?.tabs)? allResp.tabs: []
     const cats = new Set((Array.isArray(catsResp?.tabs)? catsResp.tabs: []).map((t:any)=> String(t.slug||'')))
     const filtered = all.filter((t:any)=> !cats.has(String(t.slug||'')))
-    tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||''), href: `/tabs/${encodeURIComponent(t.slug)}` }))
+    tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||'') }))
     const paramSlug = String(route.params.slug||'')
     const initial = paramSlug || (tabs.value[0]?.slug || '')
     if (!previewActive.value && initial) await loadTab(initial)
+    setTimeout(()=>{
+      try{
+        const ahead = tabs.value.slice(1, 3).map(t=> t.slug)
+        ahead.forEach(s=> { if (s && !tabCache.value[s]) fetchTab(s, true) })
+      }catch{}
+    }, 300)
   }catch{}
   // Notify admin that preview is ready (parent iframe or opener window)
   try{ if (window.parent) window.parent.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
