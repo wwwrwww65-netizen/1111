@@ -340,6 +340,24 @@ export default function CategoriesTabBuilder(): JSX.Element {
                   <div>
                     <div style={{ color:'#94a3b8', marginBottom:6 }}>Featured</div>
                     <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'featured']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>اختيار فئات</button>
+                    {Array.isArray(it?.featured) && it.featured.length>0 && (
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px,1fr))', gap:8, marginTop:8 }}>
+                        {it.featured.map((c:any, fi:number)=> (
+                          <div key={String(c?.id||fi)} style={{ display:'flex', gap:8, alignItems:'center', background:'#0f1320', border:'1px solid #1c2333', borderRadius:8, padding:8 }}>
+                            {c?.image? <img src={c.image} alt={c?.name||''} style={{ width:40, height:40, objectFit:'cover', borderRadius:6 }} /> : <div style={{ width:40, height:40, background:'#111827', borderRadius:6 }} />}
+                            <div style={{ display:'grid' }}>
+                              <div style={{ fontWeight:600, color:'#e2e8f0' }}>{c?.name||c?.id||'—'}</div>
+                              <div style={{ color:'#94a3b8', fontSize:12, direction:'ltr', textAlign:'start' }}>{String(c?.id||'')}</div>
+                            </div>
+                            <button onClick={()=>{
+                              const list = Array.isArray(it?.featured)? [...it.featured]: [];
+                              list.splice(fi,1);
+                              const all = [...ensureArray(['data','sidebarItems'])]; all[idx] = { ...(all[idx]||{}), featured: list }; setAtPath(['data','sidebarItems'], all);
+                            }} style={{ marginInlineStart:'auto', padding:'4px 8px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>إزالة</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div style={{ marginTop:8 }}>
@@ -352,7 +370,29 @@ export default function CategoriesTabBuilder(): JSX.Element {
                       <input type="radio" name={`grid-${idx}`} checked={(it?.grid?.mode||'filter')==='filter'} onChange={(e)=>{ if(!(e.target as HTMLInputElement).checked) return; const list=[...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), grid: { mode:'filter', categoryIds: [], limit: 36, sortBy:'name_asc' } }; setAtPath(['data','sidebarItems'], list); }} /> filter
                     </label>
                     {(it?.grid?.mode||'filter')==='explicit' ? (
-                      <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'grid','categories']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختيار فئات للشبكة</button>
+                      <div style={{ display:'grid', gap:8, width:'100%' }}>
+                        <div>
+                          <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'grid','categories']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختيار فئات للشبكة</button>
+                        </div>
+                        {Array.isArray(it?.grid?.categories) && it.grid.categories.length>0 && (
+                          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px,1fr))', gap:8 }}>
+                            {it.grid.categories.map((c:any, gi:number)=> (
+                              <div key={String(c?.id||gi)} style={{ display:'flex', gap:8, alignItems:'center', background:'#0f1320', border:'1px solid #1c2333', borderRadius:8, padding:8 }}>
+                                {c?.image? <img src={c.image} alt={c?.name||''} style={{ width:40, height:40, objectFit:'cover', borderRadius:6 }} /> : <div style={{ width:40, height:40, background:'#111827', borderRadius:6 }} />}
+                                <div style={{ display:'grid' }}>
+                                  <div style={{ fontWeight:600, color:'#e2e8f0' }}>{c?.name||c?.id||'—'}</div>
+                                  <div style={{ color:'#94a3b8', fontSize:12, direction:'ltr', textAlign:'start' }}>{String(c?.id||'')}</div>
+                                </div>
+                                <button onClick={()=>{
+                                  const list = Array.isArray(it?.grid?.categories)? [...it.grid.categories]: [];
+                                  list.splice(gi,1);
+                                  const all = [...ensureArray(['data','sidebarItems'])]; all[idx] = { ...(all[idx]||{}), grid: { ...(all[idx]?.grid||{ mode:'explicit', categories: [] }), categories: list, mode:'explicit' } }; setAtPath(['data','sidebarItems'], all);
+                                }} style={{ marginInlineStart:'auto', padding:'4px 8px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>إزالة</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <>
                         <input placeholder="IDs مفصولة بفاصلة" value={Array.isArray(it?.grid?.categoryIds)? it.grid.categoryIds.join(','): ''} onChange={(e)=>{

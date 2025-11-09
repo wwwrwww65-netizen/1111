@@ -48,7 +48,8 @@ export default function TabPageBuilder(): JSX.Element {
 
   const [categoriesOpen, setCategoriesOpen] = React.useState(false);
   const categoriesOnSaveRef = React.useRef<(items:Category[])=>void>(()=>{});
-  const openCategoriesPicker = (onSave:(items:Category[])=>void)=>{ categoriesOnSaveRef.current = onSave; setCategoriesOpen(true); };
+  const categoriesInitialRef = React.useRef<Category[]>([]);
+  const openCategoriesPicker = (initial: Category[], onSave:(items:Category[])=>void)=>{ categoriesInitialRef.current = Array.isArray(initial)? initial: []; categoriesOnSaveRef.current = onSave; setCategoriesOpen(true); };
 
   const [productsOpen, setProductsOpen] = React.useState(false);
   const productsOnSaveRef = React.useRef<(items:ProductMini[])=>void>(()=>{});
@@ -450,7 +451,7 @@ export default function TabPageBuilder(): JSX.Element {
 
       {/* Shared modals */}
       <MediaPickerModal open={mediaOpen} onClose={()=> setMediaOpen(false)} onSelect={(u)=>{ try{ mediaOnSelectRef.current && mediaOnSelectRef.current(u); } finally { setMediaOpen(false); } }} />
-      <CategoriesPickerModal open={categoriesOpen} onClose={()=> setCategoriesOpen(false)} onSave={(items)=>{ try{ categoriesOnSaveRef.current && categoriesOnSaveRef.current(items); } finally { setCategoriesOpen(false); } }} />
+      <CategoriesPickerModal open={categoriesOpen} initial={categoriesInitialRef.current} onClose={()=> setCategoriesOpen(false)} onSave={(items)=>{ try{ categoriesOnSaveRef.current && categoriesOnSaveRef.current(items); } finally { setCategoriesOpen(false); } }} />
       <ProductsPickerModal open={productsOpen} onClose={()=> setProductsOpen(false)} onSave={(items)=>{ try{ productsOnSaveRef.current && productsOnSaveRef.current(items); } finally { setProductsOpen(false); } }} />
     </div>
   );
@@ -644,7 +645,7 @@ function SectionInspector({ section, onChange, openMedia, openCategories, openPr
           <div className="toolbar" style={{marginBottom:0}}>
             <div className="muted">منشئ فلترة (بديل للاختيار اليدوي)</div>
             <div className="actions">
-              <button className="btn btn-outline btn-sm" onClick={()=> openCategories((cats)=> setCfg({ filter: { ...(filter||{}), categoryIds: cats.map(c=> c.id) } }))}>اختر فئات</button>
+              <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker([], (cats)=> setCfg({ filter: { ...(filter||{}), categoryIds: cats.map(c=> c.id) } }))}>اختر فئات</button>
               <button className="btn btn-outline btn-sm" onClick={()=> setCfg({ filter: {} })}>مسح</button>
             </div>
           </div>
@@ -676,7 +677,7 @@ function SectionInspector({ section, onChange, openMedia, openCategories, openPr
     return (
       <div style={{display:'grid',gap:12}}>
         <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-          <button className="btn btn-outline btn-sm" onClick={()=> openCategories((items)=> setList(items))}>{t==='categories'? 'اختر فئات' : 'اختر علامات تجارية'}</button>
+          <button className="btn btn-outline btn-sm" onClick={()=> openCategoriesPicker(list, (items)=> setList(items))}>{t==='categories'? 'اختر فئات' : 'اختر علامات تجارية'}</button>
           <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
             {list.map((it:any, idx:number)=> (
               <div key={`${it.id||idx}:${it.name||''}`} className="badge" style={{gap:6}}>
@@ -1071,10 +1072,15 @@ function MediaPickerModal({ open, onClose, onSelect }:{ open:boolean; onClose:()
   );
 }
 
-function CategoriesPickerModal({ open, onClose, onSave }:{ open:boolean; onClose:()=>void; onSave:(items:Category[])=>void }): JSX.Element|null {
-  const [rows, setRows] = React.useState<Category[]>([]);
+function CategoriesPickerModal({ open, initial, onClose, onSave }:{ open:boolean; initial?:Category[]; onClose:()=>void; onSave:(items:Category[])=>void }): JSX.Element|null {
+  const [rows, setRows] = React.useState<Array<{ id:string; name:string; image?:string; parentId?:string|null }>>([]);
   const [search, setSearch] = React.useState('');
   const [selected, setSelected] = React.useState<Record<string, Category>>({});
+  const parentNameById = React.useMemo(()=>{
+    const map = new Map<string,string>();
+    for (const r of rows){ if (r?.id && r?.name) map.set(r.id, r.name); }
+    return map;
+  }, [rows]);
 
   React.useEffect(()=>{ if(!open) return; (async()=>{
     try{
@@ -1082,6 +1088,15 @@ function CategoriesPickerModal({ open, onClose, onSave }:{ open:boolean; onClose
       const j = await r.json(); const list = Array.isArray(j.categories)? j.categories : []; setRows(list);
     }catch{}
   })(); },[open, search]);
+  React.useEffect(()=>{
+    if (!open) return;
+    const init = Array.isArray(initial)? initial : [];
+    setSelected(()=>{
+      const s: Record<string, Category> = {};
+      for (const it of init){ if (it?.id) s[it.id] = it; }
+      return s;
+    });
+  }, [open, initial]);
 
   if (!open) return null;
   const items = Object.values(selected);
@@ -1097,16 +1112,22 @@ function CategoriesPickerModal({ open, onClose, onSave }:{ open:boolean; onClose
           <button className="btn btn-outline btn-sm" onClick={()=> setSelected({})}>مسح</button>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4, minmax(0,1fr))', gap:12 }}>
-          {rows.map((c: any)=>{
+          {rows.map((c)=>{
             const isSel = !!selected[c.id];
+            const parentName = c.parentId ? parentNameById.get(String(c.parentId)) : undefined;
             return (
-              <button key={c.id} onClick={()=> setSelected(s=> ({ ...s, [c.id]: isSel? undefined as any : { id:c.id, name:c.name, image:c.image } }))} style={{ textAlign:'start', background: isSel? '#101828' : '#0f1320', border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
-                {c.image ? <img src={c.image} alt={c.name||''} style={{ width:'100%', height:100, objectFit:'cover' }} /> : <div style={{ height:100, background:'#101828' }} />}
-                <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span className="line-2" style={{ fontSize:14 }}>{c.name}</span>
-                  <span className="badge" style={{ height:24 }}>{isSel? '✓' : '+'}</span>
+              <label key={c.id} style={{ display:'block', cursor:'pointer' }}>
+                <div style={{ textAlign:'start', background: isSel? '#101828' : '#0f1320', border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
+                  {c.image ? <img src={c.image} alt={c.name||''} style={{ width:'100%', height:100, objectFit:'cover' }} /> : <div style={{ height:100, background:'#101828' }} />}
+                  <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                    <div style={{ display:'grid' }}>
+                      <span className="line-2" style={{ fontSize:14 }}>{c.name}</span>
+                      {parentName && <span className="muted" style={{ fontSize:12 }}>{parentName}</span>}
+                    </div>
+                    <input type="checkbox" checked={isSel} onChange={()=> setSelected(s=> ({ ...s, [c.id]: isSel? undefined as any : { id:c.id, name:c.name, image:c.image } }))} />
+                  </div>
                 </div>
-              </button>
+              </label>
             );
           })}
           {!rows.length && <div className="muted">لا توجد نتائج</div>}
