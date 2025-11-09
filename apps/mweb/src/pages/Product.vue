@@ -645,10 +645,19 @@
           />
         </div>
       </div>
-      <div v-if="isLoadingRecommended" class="flex items-center justify-center py-8">
-        <div class="flex flex-col items-center gap-2">
-          <div class="w-8 h-8 border-4 border-gray-300 rounded-full animate-spin" style="border-top-color: #8a1538"></div>
-          <span class="text-[12px] text-gray-500">جاري التحميل...</span>
+      <div v-if="isLoadingRecommended" class="columns-2 gap-1 [column-fill:_balance] pb-2">
+        <div v-for="i in 8" :key="'sk-rec-'+i" class="mb-1 break-inside-avoid">
+          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+            <div class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
+            <div class="p-2">
+              <div class="inline-flex items-center gap-1 mb-1">
+                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+              </div>
+              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1390,6 +1399,8 @@ const recTabs = ref<Array<{ key:string; label:string; catId?:string }>>([
   { key:'reco', label:'التوصية' }
 ])
 const activeRecTab = ref<string>('reco')
+let recoController: AbortController | null = null
+const nonEmptyCatCache = ref<Record<string, boolean>>({})
 function switchRecTab(key:string){
   if (activeRecTab.value===key) return
   activeRecTab.value = key
@@ -1409,11 +1420,20 @@ async function buildRecTabsFromCategory(){
     const parentId = current.parentId || current.parentID || current.parent_id || null
     const parent = parentId ? idToCat.get(String(parentId)) : null
     const children = cats.filter(c=> String(c.parentId||c.parentID||c.parent_id||'') === String(parent ? parent.id : current.id))
-    const tabs: Array<{key:string;label:string;catId?:string}> = [ { key:'reco', label:'التوصية' } ]
-    for (const ch of children){
-      tabs.push({ key: 'cat:'+String(ch.id), label: String(ch.name||''), catId: String(ch.id) })
-    }
-    recTabs.value = tabs
+    // build tabs then filter out empty child categories (limit=1 probe, cached)
+    const baseTabs: Array<{key:string;label:string;catId?:string}> = [ { key:'reco', label:'التوصية' } ]
+    const probes = await Promise.all(children.map(async (ch:any)=>{
+      const cid = String(ch.id)
+      if (nonEmptyCatCache.value[cid] === true) return { cid, ok: true, name: String(ch.name||'') }
+      try{
+        const r = await apiGet<any>(`/api/catalog/${encodeURIComponent(cid)}?limit=1`)
+        const ok = Array.isArray(r?.items) && r.items.length>0
+        nonEmptyCatCache.value[cid] = ok
+        return { cid, ok, name: String(ch.name||'') }
+      }catch{ return { cid, ok:false, name:String(ch.name||'') } }
+    }))
+    for (const pr of probes){ if (pr.ok) baseTabs.push({ key:'cat:'+pr.cid, label: pr.name, catId: pr.cid }) }
+    recTabs.value = baseTabs
   }catch{}
 }
 
@@ -2212,17 +2232,20 @@ watch(colorIdx, ()=>{
 async function fetchRecommendations(){
   isLoadingRecommended.value = true
   try{
+    if (recoController) { try{ recoController.abort() }catch{} }
+    recoController = new AbortController()
+    const signal = recoController.signal as any
     // If a subcategory tab is active, fetch catalog for that category
     const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
     if (tab && tab.catId){
-      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=24`)
+      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=24`, undefined, signal).catch(()=>null)
       const items = Array.isArray(j?.items)? j.items : []
       recommendedProducts.value = items.map((it:any)=> toRecItem(it))
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       return
     }
     // Default: similar by current product's category, then recent
-    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`)
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`, undefined, signal).catch(()=>null)
     const list = Array.isArray(sim?.items) ? sim!.items : []
     if (list.length) {
       recommendedProducts.value = list.map((it:any)=> toRecItem(it))
@@ -2230,7 +2253,7 @@ async function fetchRecommendations(){
       try{ await hydrateCouponsForRecommended() }catch{}
       return
     }
-    const rec = await apiGet<any>('/api/recommendations/recent')
+    const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
     const items = Array.isArray(rec?.items) ? rec!.items : []
     recommendedProducts.value = items.map((it:any)=> toRecItem(it))
     try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}

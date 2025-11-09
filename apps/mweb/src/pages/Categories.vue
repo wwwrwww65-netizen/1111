@@ -216,8 +216,9 @@ const showSidebar = computed(()=> {
 // قياس ديناميكي لارتفاع الهيدر وشريط التبويبات
 const headerRef = ref<HTMLElement|null>(null)
 const tabsRef = ref<HTMLElement|null>(null)
-const headerH = ref<number>(0)
-const tabsH = ref<number>(0)
+// استخدم قيم افتراضية آمنة لتفادي تراكب أولي قبل القياس
+const headerH = ref<number>(56)
+const tabsH = ref<number>(48)
 function measureChrome(){
   try{ headerH.value = showHeader.value ? Math.round(headerRef.value?.getBoundingClientRect().height || 0) : 0 }catch{ headerH.value = showHeader.value ? 56 : 0 }
   try{ tabsH.value = showTabs.value ? Math.round(tabsRef.value?.getBoundingClientRect().height || 0) : 0 }catch{ tabsH.value = showTabs.value ? 48 : 0 }
