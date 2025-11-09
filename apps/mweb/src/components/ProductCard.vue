@@ -1,10 +1,11 @@
 <template>
   <article class="product-card" tabindex="0" role="article" dir="rtl" @click="onCardClick">
     <div class="image-wrap" @click.stop="go()">
+      <div v-if="!imgLoaded" class="skeleton"></div>
       <picture>
         <source :srcset="`${img}&fm=avif 1x, ${img}&fm=avif&w=1200 2x`" type="image/avif" />
         <source :srcset="`${img}&fm=webp 1x, ${img}&fm=webp&w=1200 2x`" type="image/webp" />
-        <img class="product-img" :src="img" :alt="title" loading="lazy" decoding="async" fetchpriority="low" @error="onImgError" />
+        <img class="product-img" :src="img" :alt="title" loading="lazy" decoding="async" fetchpriority="low" @error="onImgError" @load="onImgLoad" />
       </picture>
       <div v-if="discountPercent" class="discount-badge">-{{ discountPercent }}%</div>
       <div v-if="badgeRank" class="rank-badge">#{{ badgeRank }}</div>
@@ -45,6 +46,8 @@ const { id = Math.random().toString(36).slice(2), img, title, price, original, a
 const cart = useCart()
 const wl = useWishlist()
 const router = useRouter()
+const imgLoaded = ref(false)
+function onImgLoad(){ imgLoaded.value = true }
 function onImgError(e: Event){
   const t = e.target as HTMLImageElement
   if (!t) return
@@ -85,6 +88,7 @@ function toggleWish(){ wl.toggle({ id, title, price: Number((price||'').replace(
 <style scoped>
 .product-card{width:100%;background:#fff;border-radius:8px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .image-wrap{position:relative;width:100%;height:200px;overflow:hidden;border-radius:8px}
+.skeleton{position:absolute;inset:0;background:#e5e7eb;animation:pulse 1.3s ease-in-out infinite}
 .product-img{width:100%;height:100%;object-fit:cover;display:block;background:#f3f3f3}
 .discount-badge{position:absolute;top:8px;left:8px;background:#FF6B4A;color:#fff;padding:2px 6px;height:20px;display:grid;place-items:center;font-size:12px;border-radius:6px}
 .rank-badge{position:absolute;top:8px;right:8px;background:#FFD166;color:#222;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-weight:700}
@@ -102,4 +106,5 @@ function toggleWish(){ wl.toggle({ id, title, price: Number((price||'').replace(
 .ship-tag{background:#E8F8EF;color:#27AE60;font-size:12px;padding:4px 6px;border-radius:6px}
 .thumbs{display:flex;gap:6px;margin-top:6px}
 .thumbs img{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#f3f3f3}
+@keyframes pulse{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}
 </style>

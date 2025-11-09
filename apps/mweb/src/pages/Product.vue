@@ -370,7 +370,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="flex items-center justify-between py-3 border-b border-gray-200" @click="openPolicy('secure')" role="button">
+        <div class="flex items-center justify-between py-3 border-b border-gray-200 cursor-pointer" @click="openPolicy('secure')" @keydown.enter.prevent="openPolicy('secure')" @keydown.space.prevent="openPolicy('secure')" role="button" tabindex="0">
           <div class="flex items-center gap-2">
             <ShieldCheck :size="20" class="text-green-600" />
             <span class="text-[14px]">أمن التسوق</span>
@@ -645,7 +645,7 @@
           />
         </div>
       </div>
-      <div v-if="isLoadingRecommended" class="columns-2 gap-1 [column-fill:_balance] pb-2">
+      <div v-if="isLoadingRecommended && hasMoreRecommended" class="columns-2 gap-1 [column-fill:_balance] pb-2">
         <div v-for="i in 8" :key="'sk-rec-'+i" class="mb-1 break-inside-avoid">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
             <div class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
@@ -924,7 +924,7 @@
             <div class="p-2">وسيلة الشحن</div>
           </div>
           <div v-for="(m,i) in shippingMethods" :key="m.id||i" class="grid grid-cols-3 text-[13px] border-b last:border-b-0">
-            <div class="p-2">{{ Number(m.price||0) }} {{ shippingCurrency }}</div>
+            <div class="p-2">{{ fmtPrice(Number(m.price||0)) }}</div>
             <div class="p-2">{{ formatEtaRange(m?.etaMinHours, m?.etaMaxHours) || (m.desc||'') }}</div>
             <div class="p-2">{{ m.offerTitle || m.name }}</div>
           </div>
@@ -977,7 +977,7 @@ import {
 } from 'lucide-vue-next'
 import { consumePrefetchPayload } from '@/lib/nav'
 import ProductGridCard from '@/components/ProductGridCard.vue'
-import { fmtPrice, getCurrency } from '@/lib/currency'
+import { fmtPrice, getCurrency, getSymbol } from '@/lib/currency'
 import { getTrendingIdSet } from '@/lib/trending'
 
 // ==================== ROUTE & ROUTER ====================
@@ -1391,6 +1391,7 @@ const tabs = ref<Array<{ key:string; label:string }>>([
 
 // ==================== RECOMMENDED PRODUCTS ====================
 const isLoadingRecommended = ref(false)
+const hasMoreRecommended = ref(true)
 type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string }
 const recommendedProducts = ref<RecItem[]>([])
 
@@ -1457,7 +1458,7 @@ async function loadMoreRecommended() {
       recommendedProducts.value.push(...mapped)
       try{ const set = await getTrendingIdSet(); mapped.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
-    }
+    } else { hasMoreRecommended.value = false }
   }catch{} finally {
     isLoadingRecommended.value = false
   }
@@ -1786,7 +1787,7 @@ function onScroll(){
   const scrollTop = window.scrollY
   const clientHeight = window.innerHeight
   
-  if (scrollTop + clientHeight >= scrollHeight - 300 && !isLoadingRecommended.value) {
+  if (scrollTop + clientHeight >= scrollHeight - 300 && !isLoadingRecommended.value && hasMoreRecommended.value) {
     loadMoreRecommended()
   }
   
@@ -2251,6 +2252,7 @@ async function fetchRecommendations(){
       recommendedProducts.value = list.map((it:any)=> toRecItem(it))
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
+      hasMoreRecommended.value = list.length >= 24
       return
     }
     const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
@@ -2258,6 +2260,7 @@ async function fetchRecommendations(){
     recommendedProducts.value = items.map((it:any)=> toRecItem(it))
     try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
     try{ await hydrateCouponsForRecommended() }catch{}
+    hasMoreRecommended.value = items.length >= 24
   }catch{} finally { isLoadingRecommended.value = false }
 }
 
@@ -2487,11 +2490,7 @@ const destinationText = computed(()=>{
   }
   return 'اليمن'
 })
-const shippingCurrency = computed(()=>{
-  const c = String(selectedAddress.value?.country||'').toLowerCase()
-  if (c.includes('yemen') || c.includes('اليمن')) return 'ر.ي'
-  return 'ر.س'
-})
+const shippingCurrency = computed(()=> getSymbol())
 function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null): string {
   const min = Number(minH||0); const max = Number(maxH||0)
   if (max<=0 && min<=0) return ''
@@ -2510,7 +2509,7 @@ const shippingTitleText = computed(()=>{
   const m:any = shippingMethods.value?.[0]
   if (!m) return ''
   const priceNum = Number(m.price||0)
-  const priceText = priceNum>0 ? `${priceNum} ${shippingCurrency.value}` : 'مجاني'
+  const priceText = priceNum>0 ? fmtPrice(priceNum) : 'مجاني'
   const offer = (m.offerTitle || m.name || '')
   return `${offer ? offer + ' ' : ''}(${priceText})`.trim()
 })
@@ -2544,7 +2543,7 @@ async function loadAddresses(){
 async function trackViewItem(){
   try{
     ;(window as any).dataLayer = (window as any).dataLayer || []
-    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0), currency:'YER' }] } })
+    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0), currency:getCurrency() }] } })
   }catch{}
   try{
     const { trackEvent } = await import('@/lib/track')
@@ -2552,7 +2551,7 @@ async function trackViewItem(){
   }catch{}
 }
 async function trackAddToCart(){
-  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1, currency:'YER' }] } }) }catch{}
+  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1, currency:getCurrency() }] } }) }catch{}
   try{
     const { trackEvent } = await import('@/lib/track')
     // مهم: نستخدم معرف المنتج الأساسي المطابق للكاتالوج (g:id) وليس معرف المتغير
@@ -2581,7 +2580,7 @@ function injectProductJsonLd(){
       offers: {
         '@type': 'Offer',
         url: href,
-        priceCurrency: 'YER',
+        priceCurrency: getCurrency(),
         price: Number(price.value||0),
         availability: 'https://schema.org/InStock',
         itemCondition: 'https://schema.org/NewCondition'
@@ -2619,7 +2618,7 @@ function injectHeadMeta(){
     if (images.value[0]) setMeta('og:image', images.value[0])
     setMeta('og:url', url.href)
     setMeta('product:price:amount', String(Number(price.value||0)))
-    setMeta('product:price:currency', 'YER')
+    setMeta('product:price:currency', getCurrency())
     setMeta('og:description', (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300))
     setMeta('product:retailer_item_id', String(id))
     setMeta('product:availability', 'in stock')

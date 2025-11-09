@@ -712,6 +712,7 @@ onMounted(async () => {
   padding:12px;
   overflow-y:auto;
   height:100%;
+  padding-bottom:calc(env(safe-area-inset-bottom) + 64px);
 }
 .side::-webkit-scrollbar{width:6px}
 .side::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
@@ -739,6 +740,7 @@ onMounted(async () => {
   padding:12px;
   overflow-y:auto;
   height:100%;
+  padding-bottom:calc(env(safe-area-inset-bottom) + 64px);
 }
 
 /* Promo Banner */

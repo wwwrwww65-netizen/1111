@@ -197,6 +197,7 @@ import ProductCarouselBlock from '@/components/blocks/ProductCarouselBlock.vue'
 import CategoriesBlock from '@/components/blocks/CategoriesBlock.vue'
 import MasonryForYouBlock from '@/components/blocks/MasonryForYouBlock.vue'
 import ProductOptionsModal from '../components/ProductOptionsModal.vue'
+import { fmtPrice } from '@/lib/currency'
 
 const router = useRouter()
 const route = useRoute()
@@ -337,7 +338,7 @@ type Prod = { id?: string; title: string; image: string; price: string; oldPrice
 type Cat = { name: string; image: string; slug?: string; id?: string }
 
 const promoTiles = reactive([
-  { title: 'شحن مجاني', sub: 'للطلبات فوق 99 ر.س', image: 'https://csspicker.dev/api/image/?q=free+shipping+icon&image_type=photo', bg: '#ffffff' },
+  { title: 'شحن مجاني', sub: `للطلبات فوق ${fmtPrice(99)}`, image: 'https://csspicker.dev/api/image/?q=free+shipping+icon&image_type=photo', bg: '#ffffff' },
   { title: 'خصم 90%', sub: 'لفترة محدودة', image: 'https://csspicker.dev/api/image/?q=sale+tag&image_type=photo', bg: '#fff6f1' },
   { title: 'الدفع عند الاستلام', sub: 'متاح لمدن مختارة', image: 'https://csspicker.dev/api/image/?q=cod+payment&image_type=photo', bg: '#f7faff' },
   { title: 'نقاط ومكافآت', sub: 'اكسب مع كل شراء', image: 'https://csspicker.dev/api/image/?q=reward+points&image_type=photo', bg: '#f9f9ff' },
@@ -364,7 +365,10 @@ function aspectClassByIndex(i: number): string {
 }
 
 function parsePrice(s: string): number { const n = Number(String(s).replace(/[^0-9.]/g,'')); return isFinite(n)? n : 0 }
-function toProd(p:any): Prod { return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: (p.price!=null? p.price : p.priceMin||0) + ' ر.س', oldPrice: p.original? (p.original+' ر.س'): undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'JEEEY' } }
+function toProd(p:any): Prod { 
+  const priceNum = (p.price!=null? p.price : p.priceMin||0)
+  return { id: p.id, title: p.name||p.title, image: p.images?.[0]||p.image, price: fmtPrice(priceNum), oldPrice: p.original!=null ? fmtPrice(p.original) : undefined, rating: Number(p.rating||4.6), reviews: Number(p.reviews||0), brand: p.brand||'JEEEY' }
+}
 
 // Top-level loaders for lazy content
 async function loadDeals(){ if (!dealsLoading.value) return; try{
@@ -372,7 +376,7 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
     apiGet<any>('/api/products?limit=12&sort=price_desc'),
     apiGet<any>('/api/products?limit=12&sort=new')
   ])
-  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
+  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: fmtPrice(Number(p.price||0)), name: p.name }))
   bigDeals.value = mapItems(deals)
   if (!hotTrends.value.length) hotTrends.value = mapItems(trends)
   const fy = (trends?.items||[]).slice(0, 8)
@@ -418,7 +422,7 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
 }
 async function loadTrends(){ if (!trendsLoading.value) return; try{
   const t = await apiGet<any>('/api/products?limit=12&sort=new')
-  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
+  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: fmtPrice(Number(p.price||0)), name: p.name }))
   hotTrends.value = mapItems(t)
   trendsLoading.value = false
 }catch{ trendsLoading.value = false }
@@ -501,7 +505,7 @@ onMounted(async ()=>{
       apiGet<any>('/api/products?limit=12&sort=price_desc'),
       apiGet<any>('/api/products?limit=12&sort=new')
     ])
-    const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: String(p.price||0) + ' ر.س', name: p.name }))
+    const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: fmtPrice(Number(p.price||0)), name: p.name }))
     bigDeals.value = mapItems(deals)
     if (!hotTrends.value.length) hotTrends.value = mapItems(trends)
     // For You section (use same items, map to structure)

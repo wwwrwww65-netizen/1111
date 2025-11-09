@@ -43,7 +43,18 @@
 
       <section v-if="items.length" class="results">
         <div class="grid">
-          <ProductCard v-for="p in items" :key="p.id" :img="p.img" :title="p.title" :price="p.price + ' ر.س'" :afterCoupon="p.after" :discountPercent="p.off" :soldCount="p.sold" :isFastShipping="p.fast" />
+          <ProductCard
+            v-for="p in items"
+            :key="p.id"
+            :id="p.id"
+            :img="p.img"
+            :title="p.title"
+            :price="fmtPrice(p.price)"
+            :afterCoupon="p.after"
+            :discountPercent="p.off"
+            :soldCount="p.sold"
+            :isFastShipping="p.fast"
+          />
         </div>
       </section>
       <div v-else class="muted" v-if="searched">لا توجد نتائج</div>
@@ -74,6 +85,7 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import { ref, computed } from 'vue'
 import { API_BASE } from '@/lib/api'
+import { fmtPrice } from '@/lib/currency'
 
 type P = { id:string; title:string; price:number; img:string }
 const q = ref('')
@@ -118,7 +130,7 @@ async function runSearch(){
       if(items.value.length) return
     }
   }catch{}
-  items.value = Array.from({length:6}).map((_,i)=>({ id:String(i+1), title:`${q.value||'منتج'} ${i+1}`, price: 49 + i*7, img:'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', off: i%2?10:0, sold: 120+i, fast: i%3===0, after: i%2? `SR ${(49+i*7-3).toFixed(2)}`: '' }))
+  items.value = Array.from({length:6}).map((_,i)=>({ id:String(i+1), title:`${q.value||'منتج'} ${i+1}`, price: 49 + i*7, img:'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', off: i%2?10:0, sold: 120+i, fast: i%3===0, after: i%2? fmtPrice(49+i*7-3): '' }))
 }
 
 // suggestions (debounced)

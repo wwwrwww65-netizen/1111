@@ -32,6 +32,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_BASE } from '@/lib/api'
+import { fmtPrice, initCurrency } from '@/lib/currency'
 
 type Filter = { sortBy?: string; limit?: number }
 type Cfg = { title?: string; showPrice?: boolean; products?: any[]; filter?: Filter }
@@ -50,13 +51,23 @@ function goMore(){
 function open(p: { id?: string }){ const id = String(p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(id)}`) }
 
 onMounted(async ()=>{
+  try{ await initCurrency() }catch{}
   try{
     const limit = Number(props.cfg?.filter?.limit||12)
     const sort = String(props.cfg?.filter?.sortBy||'new')
     const r = await fetch(`${API_BASE}/api/products?limit=${encodeURIComponent(String(limit))}&sort=${encodeURIComponent(sort)}`)
     const j = await r.json()
     const arr = Array.isArray(j?.items)? j.items: []
-    items.value = arr.map((p:any)=> ({ id: String(p.id||''), name: String(p.name||''), image: (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg', price: Number(p.price||0), priceText: (Number(p.price||0)).toFixed(2)+' ر.س' }))
+    items.value = arr.map((p:any)=> {
+      const priceNum = Number(p.price||0)
+      return {
+        id: String(p.id||''),
+        name: String(p.name||''),
+        image: (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg',
+        price: priceNum,
+        priceText: fmtPrice(priceNum)
+      }
+    })
   }catch{ items.value = [] }
   finally{ loading.value = false }
 })
