@@ -2203,35 +2203,88 @@ shop.post('/events', async (req: any, res) => {
       }
     }catch{}
 
-    // Persist analytics event with robust fallback
+    // Persist analytics event with robust, self-healing fallback (schema-safe)
     try{
       await db.event.create({ data: payload } as any);
       return res.json({ ok:true });
     }catch(e:any){
+      // If schema mismatch (e.g., old DB missing columns), upgrade table in-place, then retry
       try{
-        // Fallback: store minimal safe record and move everything else into properties
-        const safeName = String(payload.name||'event').slice(0, 64);
-        const safeProps:any = {
-          pageUrl: payload.pageUrl || undefined,
-          referrer: payload.referrer || undefined,
-          sessionId: payload.sessionId || undefined,
-          anonymousId: payload.anonymousId || undefined,
-          userId: payload.userId || undefined,
-          productId: payload.productId || undefined,
-          orderId: payload.orderId || undefined,
-          device: payload.device || undefined,
-          os: payload.os || undefined,
-          browser: payload.browser || undefined,
-          country: payload.country || undefined,
-          city: payload.city || undefined,
-          ipHash: payload.ipHash || undefined,
-          utm_source: payload.utmSource || undefined,
-          utm_medium: payload.utmMedium || undefined,
-          utm_campaign: payload.utmCampaign || undefined,
-          raw: payload
+        const ddl: string[] = [
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "anonymousId" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "sessionId" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "pageUrl" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "referrer" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "productId" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "orderId" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "device" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "os" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "browser" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "country" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "city" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "ipHash" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmSource" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmMedium" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmCampaign" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "properties" JSONB DEFAULT '{}'::jsonb`
+        ];
+        for (const sql of ddl){ try{ await (db as any).$executeRawUnsafe(sql) }catch{} }
+        // Ensure VisitorSession table exists for upsert code above
+        try{
+          await (db as any).$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "VisitorSession"(
+              id TEXT PRIMARY KEY,
+              "userId" TEXT,
+              "anonymousId" TEXT,
+              device TEXT,
+              os TEXT,
+              browser TEXT,
+              country TEXT,
+              city TEXT,
+              "ipHash" TEXT,
+              "firstSeenAt" TIMESTAMPTZ DEFAULT now(),
+              "lastSeenAt"  TIMESTAMPTZ DEFAULT now()
+            )`);
+          await (db as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "VisitorSession_lastSeenAt_idx" ON "VisitorSession"("lastSeenAt")`);
+        }catch{}
+        // Retry with reduced data (avoid huge properties)
+        const minimal:any = {
+          name: String(payload.name||'event').slice(0,64),
+          sessionId: payload.sessionId||null,
+          anonymousId: payload.anonymousId||null,
+          pageUrl: payload.pageUrl||null,
+          referrer: payload.referrer||null,
+          productId: payload.productId||null,
+          orderId: payload.orderId||null,
+          device: payload.device||null,
+          os: payload.os||null,
+          browser: payload.browser||null,
+          country: payload.country||null,
+          city: payload.city||null,
+          ipHash: payload.ipHash||null,
+          utmSource: payload.utmSource||null,
+          utmMedium: payload.utmMedium||null,
+          utmCampaign: payload.utmCampaign||null,
+          properties: { ...(payload.properties||{}), raw: undefined }
         };
-        await db.event.create({ data: { name: safeName, properties: safeProps, createdAt: new Date() } } as any);
-        return res.json({ ok:true, downgraded:true });
+        try{
+          await db.event.create({ data: minimal } as any);
+          return res.json({ ok:true, self_healed:true });
+        }catch{}
+        // Last resort: raw INSERT with only guaranteed columns
+        try{
+          const name = minimal.name;
+          const props = JSON.stringify(minimal.properties||{});
+          const pageUrl = minimal.pageUrl||null;
+          const referrer = minimal.referrer||null;
+          await (db as any).$executeRawUnsafe(
+            `INSERT INTO "Event" ("name","properties","pageUrl","referrer","createdAt") VALUES ($1, $2::jsonb, $3, $4, now())`,
+            name, props, pageUrl, referrer
+          );
+          return res.json({ ok:true, downgraded:true });
+        }catch(e3:any){
+          return res.status(500).json({ error: e3?.message || e?.message || 'event_ingest_failed' });
+        }
       }catch(e2:any){
         return res.status(500).json({ error: e2?.message || e?.message || 'event_ingest_failed' });
       }

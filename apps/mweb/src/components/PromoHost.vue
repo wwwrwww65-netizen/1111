@@ -162,7 +162,7 @@ function handleClose(reason: string){ if (!current.value) return; track('close',
 function handleEvent(type: string, meta?: any){ if (!current.value) return; track(type, current.value, meta) }
 
 async function track(type:string, c:CampaignItem, meta?:any){
-  try{ fetch('/api/promotions/events', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ type, campaignId: c.id, variantKey: c.variantKey, meta: meta||{} }) }).catch(()=>{}) }catch{}
+  try{ const { apiPost } = await import('@/lib/api'); apiPost('/api/promotions/events', { type, campaignId: c.id, variantKey: c.variantKey, meta: meta||{} }).catch(()=>{}) }catch{}
   try{ if ((window as any).gtag) (window as any).gtag('event', 'promo_'+type, { campaign_id: c.id, variant: c.variantKey }) }catch{}
   try{ const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('trackCustom','Promo'+type.charAt(0).toUpperCase()+type.slice(1), { campaign_id: c.id, variant: c.variantKey }) }catch{}
 }
