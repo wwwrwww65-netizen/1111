@@ -2114,15 +2114,24 @@ shop.post('/promotions/events', async (req: any, res) => {
     const body = req.body||{};
     const { campaignId, variantKey, type, meta } = body;
     if (!campaignId || !type) return res.status(400).json({ error:'missing_fields' });
-    // identify user if present
-    const header = (req?.headers?.authorization as string|undefined)||'';
-    let tokenAuth = '';
-    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
-    const jwt = require('jsonwebtoken');
+    // identify user if present (best-effort)
     let userId: string|undefined;
-    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
-    await db.event.create({ data: { userId: userId||null, name: 'promo_'+String(type), properties: { campaignId, variantKey, meta: meta||{} } } } as any);
+    try{
+      const header = (req?.headers?.authorization as string|undefined)||'';
+      let tokenAuth = '';
+      if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+      const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+      const jwt = require('jsonwebtoken');
+      for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+    }catch{}
+    // Insert minimally with raw SQL to tolerate older schemas
+    const rnd = (()=>{ try{ return require("crypto").randomUUID() }catch{ return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) } })()
+    const name = 'promo_'+String(type);
+    const props = JSON.stringify({ campaignId, variantKey, meta: meta||{} });
+    await (db as any).$executeRawUnsafe(
+      `INSERT INTO "Event" ("id","name","properties","createdAt") VALUES ($1,$2,$3::jsonb,now())`,
+      rnd, name, props
+    );
     res.json({ ok:true });
   }catch(e:any){ return res.status(500).json({ error: e?.message||'promo_event_failed' }); }
 });
@@ -2247,39 +2256,16 @@ shop.post('/events', async (req: any, res) => {
             )`);
           await (db as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "VisitorSession_lastSeenAt_idx" ON "VisitorSession"("lastSeenAt")`);
         }catch{}
-        // Retry with reduced data (avoid huge properties)
-        const minimal:any = {
-          name: String(payload.name||'event').slice(0,64),
-          sessionId: payload.sessionId||null,
-          anonymousId: payload.anonymousId||null,
-          pageUrl: payload.pageUrl||null,
-          referrer: payload.referrer||null,
-          productId: payload.productId||null,
-          orderId: payload.orderId||null,
-          device: payload.device||null,
-          os: payload.os||null,
-          browser: payload.browser||null,
-          country: payload.country||null,
-          city: payload.city||null,
-          ipHash: payload.ipHash||null,
-          utmSource: payload.utmSource||null,
-          utmMedium: payload.utmMedium||null,
-          utmCampaign: payload.utmCampaign||null,
-          properties: { ...(payload.properties||{}), raw: undefined }
-        };
+        // Last resort: raw INSERT مع id مُولّد لتفادي NOT NULL على id في جداول قديمة
         try{
-          await db.event.create({ data: minimal } as any);
-          return res.json({ ok:true, self_healed:true });
-        }catch{}
-        // Last resort: raw INSERT with only guaranteed columns
-        try{
-          const name = minimal.name;
-          const props = JSON.stringify(minimal.properties||{});
-          const pageUrl = minimal.pageUrl||null;
-          const referrer = minimal.referrer||null;
+          const rnd = (()=>{ try{ return require("crypto").randomUUID() }catch{ return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) } })()
+          const name = String(payload.name||'event').slice(0,64);
+          const pageUrl = payload.pageUrl? String(payload.pageUrl) : null;
+          const referrer = payload.referrer? String(payload.referrer) : null;
+          const props = JSON.stringify(payload.properties||{});
           await (db as any).$executeRawUnsafe(
-            `INSERT INTO "Event" ("name","properties","pageUrl","referrer","createdAt") VALUES ($1, $2::jsonb, $3, $4, now())`,
-            name, props, pageUrl, referrer
+            `INSERT INTO "Event" ("id","name","properties","pageUrl","referrer","createdAt") VALUES ($1, $2, $3::jsonb, $4, $5, now())`,
+            rnd, name, props, pageUrl, referrer
           );
           return res.json({ ok:true, downgraded:true });
         }catch(e3:any){

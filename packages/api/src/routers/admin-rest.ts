@@ -8018,18 +8018,20 @@ adminRest.get('/analytics/orders-series', async (req, res) => {
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'orders_series_failed' }); }
 });
 
-// Revenue by channel (utm/channel)
+// Revenue by channel (utm/channel) - tolerate older schemas without "channel" column
 adminRest.get('/analytics/revenue-by-channel', async (_req, res) => {
   try{
-    // naive: use Event channel/utmSource counts as attribution proxy and Order totals per utm
-    const events:any[] = await db.$queryRawUnsafe(`
-      SELECT COALESCE(channel, COALESCE(utmSource,'')) as channel, COUNT(*) as cnt
+    // استخدم properties->>'channel' أولاً لتفادي الإشارة لعمود مفقود، ثم utmSource
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT
+        COALESCE((properties->>'channel'), COALESCE("utmSource", '')) AS ch,
+        COUNT(*) as cnt
       FROM "Event"
       GROUP BY 1
       ORDER BY cnt DESC
       LIMIT 20
     `);
-    res.json({ ok:true, channels: events.map(r=> ({ channel: r.channel||'unknown', count: Number(r.cnt||0) })) });
+    res.json({ ok:true, channels: rows.map((r:any)=> ({ channel: r.ch||'unknown', count: Number(r.cnt||0) })) });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'revenue_by_channel_failed' }); }
 });
 
