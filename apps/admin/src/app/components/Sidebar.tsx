@@ -151,6 +151,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     title: 'التقارير والتحليلات',
     items: [
       { href: '/analytics', label: 'التحليلات' },
+      { href: '/analytics/independent', label: 'تحليلات مستقلة' },
       { href: '/system/analytics', label: 'إحصاءات النظام' },
     ],
   },

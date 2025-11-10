@@ -60,8 +60,8 @@ export async function apiGet<T = any>(path: string, init?: RequestInit): Promise
 export async function apiPost<T = any>(path: string, body?: any, init?: RequestInit): Promise<T | null> {
   try {
     const url = path.startsWith('http') ? path : `${API_BASE}${path}`
-    // Only the OTP request should omit credentials to simplify CORS; OTP verify must include credentials to receive auth cookie
-    const isPublic = /^\/api\/auth\/otp\/request/.test(path)
+    // Public posts (no cookies) to avoid CORS issues from first-party pages
+    const isPublic = /^\/api\/auth\/otp\/request/.test(path) || /^\/api\/events(\/|$)?/.test(path) || /^\/api\/tabs\/track/.test(path) || /^\/api\/promotions\/claim\/start/.test(path)
     const res = await fetch(url, { method:'POST', headers: { 'content-type':'application/json', ...getAuthHeader(), ...(init?.headers||{}) }, credentials: isPublic ? 'omit' : 'include', body: body==null?undefined: JSON.stringify(body) })
     if(!res.ok) return null
     return await res.json()
