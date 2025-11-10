@@ -38,9 +38,18 @@ export default function EcommerceReport(): JSX.Element {
         <h3 style={{ marginTop:0 }}>أفضل المبيعات</h3>
         <div style={{ overflowX:'auto' }}>
           <table className="table">
-            <thead><tr><th>المنتج</th><th>الكمية</th><th>الإيراد</th></tr></thead>
+            <thead><tr><th></th><th>المنتج</th><th>SKU</th><th>الكمية</th><th>الإيراد</th><th>الربح الصافي</th></tr></thead>
             <tbody>
-              {top.map((r:any)=> (<tr key={r.productId}><td>{r.product?.name||r.productId}</td><td>{Number(r.qty||0)}</td><td>{Number(r.revenue||0).toLocaleString()}</td></tr>))}
+              {top.map((r:any)=> (
+                <tr key={r.productId}>
+                  <td>{Array.isArray(r.product?.images)&&r.product.images[0]? (<img src={r.product.images[0]} alt="" className="thumb" />): null}</td>
+                  <td>{r.product?.name||r.productId}</td>
+                  <td>{r.product?.sku||'-'}</td>
+                  <td>{Number(r.qty||0)}</td>
+                  <td>{Number(r.revenue||0).toLocaleString()}</td>
+                  <td>{Number(r.profit||0).toLocaleString()}</td>
+                </tr>
+              ))}
               {!top.length && <tr><td colSpan={3} style={{ color:'var(--sub)' }}>لا بيانات</td></tr>}
             </tbody>
           </table>

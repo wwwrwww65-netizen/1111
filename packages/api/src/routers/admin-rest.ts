@@ -8038,13 +8038,11 @@ adminRest.get('/analytics/ia/kpis', async (req, res) => {
     const views = await db.event.count({ where: { name:'page_view', createdAt: { gte: from, lte: to } } as any });
     // Sessions created in window
     const sessions = await db.visitorSession.count({ where: { firstSeenAt: { gte: from, lte: to } } as any } as any);
-    // Distinct visitors (userId or anonymousId) in window
-    const vrows:any[] = await db.$queryRawUnsafe(`
-      SELECT COUNT(DISTINCT COALESCE("userId", "anonymousId")) AS c
-      FROM "VisitorSession"
-      WHERE "firstSeenAt" BETWEEN $1 AND $2
-    `, from, to);
-    const visitors = Array.isArray(vrows)&&vrows[0]? Number(vrows[0].c||0) : 0;
+    // Distinct visitors (all time) and in window
+    const vrows:any[] = await db.$queryRawUnsafe(`SELECT COUNT(DISTINCT COALESCE("userId","anonymousId")) AS c FROM "VisitorSession"`);
+    const visitorsTotal = Array.isArray(vrows)&&vrows[0]? Number(vrows[0].c||0) : 0;
+    const vwin:any[] = await db.$queryRawUnsafe(`SELECT COUNT(DISTINCT COALESCE("userId","anonymousId")) AS c FROM "VisitorSession" WHERE "firstSeenAt" BETWEEN $1 AND $2`, from, to);
+    const visitorsWindow = Array.isArray(vwin)&&vwin[0]? Number(vwin[0].c||0) : 0;
     // Avg session duration
     const drows:any[] = await db.$queryRawUnsafe(`
       SELECT AVG(EXTRACT(EPOCH FROM ("lastSeenAt" - "firstSeenAt"))) AS sec
@@ -8069,7 +8067,9 @@ adminRest.get('/analytics/ia/kpis', async (req, res) => {
     const totalCount = Array.isArray(brows)&&brows[0]? Number(brows[0].total||0) : 0;
     const bounceRate = totalCount>0? (bounces/totalCount) : 0;
     const viewsPerSession = sessions>0? (views/sessions) : 0;
-    return res.json({ ok:true, kpis: { visitors, views, sessions, avgSessionDurationSec, bounceRate, viewsPerSession } });
+    // Keep both keys: views (IA-style) and pageViews (compat with other checks/UI)
+    // visitors => إجمالي الزوار عبر كل الزمن كما طلبت
+    return res.json({ ok:true, kpis: { visitors: visitorsTotal, totalVisitors: visitorsTotal, visitorsWindow, views, pageViews: views, sessions, avgSessionDurationSec, bounceRate, viewsPerSession } });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_kpis_failed' }); }
 });
 
@@ -8146,14 +8146,29 @@ adminRest.get('/analytics/ia/referrers', async (req, res) => {
     if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     const limit = Math.min(Number(req.query.limit||50), 200);
+    // Normalize to host without scheme and common prefixes (m., lm., l.)
     const rows:any[] = await db.$queryRawUnsafe(`
-      SELECT
-        COALESCE("referrer", properties->>'referrer', '') AS ref,
-        COUNT(*)::bigint AS views
-      FROM "Event"
-      WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
-      GROUP BY 1
-      ORDER BY views DESC
+      WITH base AS (
+        SELECT COALESCE("referrer", properties->>'referrer','') AS ref
+        FROM "Event" WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
+      ), hostnorm AS (
+        SELECT
+          regexp_replace(
+            regexp_replace(
+              regexp_replace(
+                COALESCE(NULLIF(regexp_replace(ref, '^https?://', ''), ''), ''),
+                '^www\\.', '', 'i'
+              ),
+              '^(m\\.|lm\\.|l\\.)', '', 'i'
+            ),
+            '/.*$', ''
+          ) AS host
+        FROM base
+      )
+      SELECT host AS ref, COUNT(*)::bigint AS views
+      FROM hostnorm
+      WHERE host <> ''
+      GROUP BY 1 ORDER BY views DESC
       LIMIT ${limit}
     `, from, to);
     res.json({ ok:true, referrers: rows });
@@ -8169,12 +8184,21 @@ adminRest.get('/analytics/ia/geo', async (req, res) => {
     if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     const rows:any[] = await db.$queryRawUnsafe(`
-      SELECT COALESCE(country, properties->>'country','') AS country, COUNT(*)::bigint AS views
-      FROM "Event"
-      WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
-      GROUP BY 1
-      ORDER BY views DESC
-      LIMIT 100
+      WITH ev AS (
+        SELECT COALESCE(country, properties->>'country','') AS c
+        FROM "Event" WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
+      ),
+      vs AS (
+        SELECT COALESCE(country,'') AS c
+        FROM "VisitorSession" WHERE "firstSeenAt" BETWEEN $1 AND $2
+      ),
+      unioned AS (
+        SELECT c FROM ev UNION ALL SELECT c FROM vs
+      )
+      SELECT c AS country, COUNT(*)::bigint AS views
+      FROM unioned
+      WHERE c <> ''
+      GROUP BY 1 ORDER BY views DESC LIMIT 100
     `, from, to);
     res.json({ ok:true, countries: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_geo_failed' }); }
@@ -8259,15 +8283,28 @@ adminRest.get('/analytics/ia/users', async (req, res) => {
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     const limit = Math.min(Number(req.query.limit||100), 500);
     const rows:any[] = await db.$queryRawUnsafe(`
-      SELECT
-        u.id, u.name, u.email, u.phone,
-        COUNT(DISTINCT vs.id) as sessions,
-        MIN(vs."firstSeenAt") AS firstSeen,
-        MAX(vs."lastSeenAt")  AS lastSeen,
-        MAX(vs.country)       AS country
-      FROM "VisitorSession" vs
-      JOIN "User" u ON u.id = vs."userId"
-      WHERE vs."firstSeenAt" BETWEEN $1 AND $2
+      WITH vs AS (
+        SELECT "userId" as uid, id as sid, "firstSeenAt" as fs, "lastSeenAt" as ls, country
+        FROM "VisitorSession" WHERE "firstSeenAt" BETWEEN $1 AND $2 AND "userId" IS NOT NULL
+      ),
+      ev AS (
+        SELECT COALESCE("userId", properties->>'userId') AS uid, "sessionId" as sid, MIN("createdAt") as fs, MAX("createdAt") as ls
+        FROM "Event" WHERE "createdAt" BETWEEN $1 AND $2 AND COALESCE("userId", properties->>'userId') IS NOT NULL
+        GROUP BY 1,2
+      ),
+      unioned AS (
+        SELECT uid, sid, fs, ls FROM vs
+        UNION ALL
+        SELECT uid, sid, fs, ls FROM ev
+      )
+      SELECT u.id, u.name, u.email, u.phone,
+             COUNT(DISTINCT unioned.sid) AS sessions,
+             MIN(unioned.fs) AS firstSeen,
+             MAX(unioned.ls) AS lastSeen,
+             MAX(COALESCE(vs.country,'')) AS country
+      FROM unioned
+      JOIN "User" u ON u.id = unioned.uid
+      LEFT JOIN "VisitorSession" vs ON vs.id = unioned.sid
       GROUP BY u.id, u.name, u.email, u.phone
       ORDER BY lastSeen DESC
       LIMIT ${limit}
@@ -8530,7 +8567,7 @@ adminRest.get('/analytics/top-sellers', async (req, res) => {
       GROUP BY 1 ORDER BY revenue DESC LIMIT ${limit}
     `, from, to);
     const pids = rows.map(r=> String(r.pid));
-    const prods = await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true, vendorId:true } });
+    const prods = await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true, vendorId:true, sku:true } });
     const costRows:any[] = pids.length? await db.$queryRawUnsafe(`
       SELECT pv."productId" as pid, AVG(COALESCE(pv."purchasePrice",0)) as avg_cost
       FROM "ProductVariant" pv

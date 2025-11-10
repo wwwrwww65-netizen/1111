@@ -18,7 +18,7 @@ type Point = { day: string; visitors: number; views: number; sessions: number };
 export default function IndependentAnalyticsPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [range, setRange] = React.useState<"7d"|"30d"|"90d">("30d");
-  const [pages, setPages] = React.useState<Array<{ name:string; url:string; views:number; visitors:number; sessions:number }>>([]);
+  const [pages, setPages] = React.useState<Array<{ name:string; url:string; views:number; sessions:number }>>([]);
   const [referrers, setReferrers] = React.useState<Array<{ ref:string; views:number }>>([]);
   const [countries, setCountries] = React.useState<Array<{ country:string; views:number }>>([]);
   const [devices, setDevices] = React.useState<Array<{ device:string; views:number }>>([]);
@@ -68,7 +68,7 @@ export default function IndependentAnalyticsPage(): JSX.Element {
       ]);
       if (kr.ok) setKpis(kr.data.kpis);
       if (sr.ok) setSeries(sr.data.series);
-      if (pr.ok) setPages(pr.data.pages?.map((r:any)=> ({ name: r.product?.name || (String(r.url||'').split('/').filter(Boolean).pop()||'-'), url:String(r.url||'-'), views:Number(r.views||0), visitors:Number(r.visitors||0), sessions:Number(r.sessions||0) }))||[]);
+      if (pr.ok) setPages(pr.data.pages?.map((r:any)=> ({ name: r.product?.name || (String(r.url||'').split('/').filter(Boolean).pop()||'-'), url:String(r.url||'-'), views:Number(r.views||0), sessions:Number(r.sessions||0) }))||[]);
       if (rr.ok) setReferrers(rr.data.referrers?.map((r:any)=> ({ ref:String(r.ref||'-'), views:Number(r.views||0) }))||[]);
       if (gr.ok) setCountries(gr.data.countries?.map((r:any)=> ({ country:String(r.country||'-'), views:Number(r.views||0) }))||[]);
       if (dr.ok) setDevices(dr.data.devices?.map((r:any)=> ({ device:String(r.device||'-'), views:Number(r.views||0) }))||[]);
@@ -194,13 +194,12 @@ export default function IndependentAnalyticsPage(): JSX.Element {
           <h3 style={{ marginTop:0 }}>أكثر الصفحات مشاهدة</h3>
           <div style={{ overflowX:'auto' }}>
             <table className="table">
-              <thead><tr><th>الاسم</th><th>الرابط</th><th>المشاهدات</th><th>الزوار</th><th>الجلسات</th></tr></thead>
+              <thead><tr><th>الاسم</th><th>الرابط</th><th>المشاهدات</th><th>الجلسات</th></tr></thead>
               <tbody>
                 {pages.map((p)=> (<tr key={p.url}>
                   <td className="truncate" style={{maxWidth:220}}>{p.name||'-'}</td>
-                  <td style={{maxWidth:360, direction:'ltr'}} className="truncate">{p.url||'-'}</td>
+                  <td style={{maxWidth:360, direction:'ltr'}} className="truncate"><a href={p.url||'#'} target="_blank" rel="noreferrer">{p.url||'-'}</a></td>
                   <td suppressHydrationWarning>{num(p.views)}</td>
-                  <td suppressHydrationWarning>{num(p.visitors)}</td>
                   <td suppressHydrationWarning>{num(p.sessions)}</td>
                 </tr>))}
                 {!pages.length && <tr><td colSpan={4} style={{color:'var(--sub)'}}>لا بيانات</td></tr>}

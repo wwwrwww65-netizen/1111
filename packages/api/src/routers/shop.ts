@@ -2143,12 +2143,17 @@ shop.post('/events', async (req: any, res) => {
     const now = new Date();
     const name = String(b.name||'').trim();
     if (!name) return res.status(400).json({ error:'name_required' });
-    // read anonymization setting (defaults true)
-    let anonymize = true;
-    try{ const s = await db.setting.findUnique({ where: { key:'analytics.ipAnonymize' } }); anonymize = s? !!(s.value as any) : true; }catch{}
-    const ip = (req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '') as string;
+    // read anonymization setting (defaults false per request) - allow env override ANALYTICS_IP_ANONYMIZE=true
+    let anonymize = false;
+    try{
+      const s = await db.setting.findUnique({ where: { key:'analytics.ipAnonymize' } });
+      anonymize = s? !!(s.value as any) : false;
+      const envOverride = String(process.env.ANALYTICS_IP_ANONYMIZE||'').trim().toLowerCase();
+      if (envOverride==='true' || envOverride==='1' || envOverride==='yes') anonymize = true;
+    }catch{}
+    const ip = (req.ip || (req.headers['x-forwarded-for'] as any)?.toString()?.split(',')[0]?.trim() || req.socket?.remoteAddress || '') as string;
     const crypto = require('crypto');
-    const ipHash = anonymize && ip ? crypto.createHash('sha256').update(String(process.env.IP_HASH_SALT||'')+ip).digest('hex').slice(0,32) : null;
+    const ipHash = ip ? (anonymize ? crypto.createHash('sha256').update(String(process.env.IP_HASH_SALT||'')+ip).digest('hex').slice(0,32) : ip) : null;
     // identify shop user if cookie/jwt present
     const header = (req?.headers?.authorization as string|undefined)||'';
     let tokenAuth = '';
@@ -2200,6 +2205,33 @@ shop.post('/events', async (req: any, res) => {
       properties: { ...(b.properties||{}), uaBrand: uaInfo.brand||undefined },
       createdAt: now,
     };
+
+    // Best-effort IP → Geo enrichment if country/city missing and not anonymized
+    try{
+      if (!anonymize && ip && (!payload.country || !payload.city)){
+        const key = `__geo_cache__`;
+        (global as any)[key] = (global as any)[key] || new Map();
+        const cache = (global as any)[key] as Map<string, { country?:string; city?:string; at:number }>;
+        let entry = cache.get(ip);
+        const nowMs = Date.now();
+        if (!entry || (nowMs - entry.at) > 24*3600*1000){
+          const ctrl = new AbortController();
+          const t = setTimeout(()=> ctrl.abort(), 800);
+          try{
+            const resp = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, { signal: ctrl.signal } as any);
+            if (resp.ok){
+              const j = await resp.json();
+              entry = { country: j?.country || j?.country_code || undefined, city: j?.city || undefined, at: nowMs };
+              cache.set(ip, entry);
+            }
+          }catch{} finally{ clearTimeout(t); }
+        }
+        if (entry){
+          if (!payload.country && entry.country) payload.country = entry.country;
+          if (!payload.city && entry.city) payload.city = entry.city;
+        }
+      }
+    }catch{}
 
     // Upsert/update visitor session (best-effort)
     try{

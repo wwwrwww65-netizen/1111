@@ -22,7 +22,8 @@ export default function RealtimePage(): JSX.Element {
     try{
       const rec = await safeFetchJson<{ events:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/events/recent`, { limit: 500 }));
       if (!rec.ok) { setSessions([]); return; }
-      const ev = (rec.data?.events||[]);
+      const sinceMs = Date.now() - (win*60*1000);
+      const ev = (rec.data?.events||[]).filter((e:any)=> new Date(e.createdAt).getTime() >= sinceMs);
       const bySid = new Map<string, any[]>();
       for (const e of ev){ const sid = e.sessionId || e.properties?.sessionId || e.anonymousId || 'guest'; if (!bySid.has(sid)) bySid.set(sid, []); bySid.get(sid)!.push(e); }
       const rows: Array<{ startedAt:string; visitor:string; device:string; pageUrl:string; referrer?:string; utm_source?:string; country?:string; city?:string; durationSec:number; sid?:string }> = [];
