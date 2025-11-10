@@ -2203,8 +2203,39 @@ shop.post('/events', async (req: any, res) => {
       }
     }catch{}
 
-    await db.event.create({ data: payload } as any);
-    res.json({ ok:true });
+    // Persist analytics event with robust fallback
+    try{
+      await db.event.create({ data: payload } as any);
+      return res.json({ ok:true });
+    }catch(e:any){
+      try{
+        // Fallback: store minimal safe record and move everything else into properties
+        const safeName = String(payload.name||'event').slice(0, 64);
+        const safeProps:any = {
+          pageUrl: payload.pageUrl || undefined,
+          referrer: payload.referrer || undefined,
+          sessionId: payload.sessionId || undefined,
+          anonymousId: payload.anonymousId || undefined,
+          userId: payload.userId || undefined,
+          productId: payload.productId || undefined,
+          orderId: payload.orderId || undefined,
+          device: payload.device || undefined,
+          os: payload.os || undefined,
+          browser: payload.browser || undefined,
+          country: payload.country || undefined,
+          city: payload.city || undefined,
+          ipHash: payload.ipHash || undefined,
+          utm_source: payload.utmSource || undefined,
+          utm_medium: payload.utmMedium || undefined,
+          utm_campaign: payload.utmCampaign || undefined,
+          raw: payload
+        };
+        await db.event.create({ data: { name: safeName, properties: safeProps, createdAt: new Date() } } as any);
+        return res.json({ ok:true, downgraded:true });
+      }catch(e2:any){
+        return res.status(500).json({ error: e2?.message || e?.message || 'event_ingest_failed' });
+      }
+    }
   }catch(e:any){ return res.status(500).json({ error: e?.message||'event_ingest_failed' }); }
 });
 
