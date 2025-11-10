@@ -2151,7 +2151,13 @@ shop.post('/events', async (req: any, res) => {
       const envOverride = String(process.env.ANALYTICS_IP_ANONYMIZE||'').trim().toLowerCase();
       if (envOverride==='true' || envOverride==='1' || envOverride==='yes') anonymize = true;
     }catch{}
-    const ip = (req.ip || (req.headers['x-forwarded-for'] as any)?.toString()?.split(',')[0]?.trim() || req.socket?.remoteAddress || '') as string;
+    function pickPublicIp(xff: string|undefined, fallback: string|undefined): string {
+      const list = (xff||'').split(',').map(s=> String(s||'').trim()).filter(Boolean);
+      const isPrivate = (ip:string)=> /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.|::1|fc00:|fe80:)/.test(ip);
+      for (const ip of list){ if (!isPrivate(ip)) return ip; }
+      return fallback||list[0]||'';
+    }
+    const ip = pickPublicIp((req.headers['x-forwarded-for'] as any)?.toString(), (req.ip as any) || (req.socket?.remoteAddress as any));
     const crypto = require('crypto');
     const ipHash = ip ? (anonymize ? crypto.createHash('sha256').update(String(process.env.IP_HASH_SALT||'')+ip).digest('hex').slice(0,32) : ip) : null;
     // identify shop user if cookie/jwt present

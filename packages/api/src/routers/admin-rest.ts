@@ -8484,7 +8484,7 @@ adminRest.get('/analytics/utm', async (req, res) => {
   try{
     const from = req.query.from ? new Date(String(req.query.from)) : undefined;
     const to = req.query.to ? new Date(String(req.query.to)) : undefined;
-    const where = from && to ? 'WHERE properties IS NOT NULL AND "createdAt" BETWEEN $1 AND $2' : 'WHERE properties IS NOT NULL';
+    const where = from && to ? 'WHERE "createdAt" BETWEEN $1 AND $2' : '';
     const args = from && to ? [from, to] : [];
     const items = await db.$queryRawUnsafe(`
       SELECT
