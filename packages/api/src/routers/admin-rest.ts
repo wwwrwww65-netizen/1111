@@ -4453,13 +4453,15 @@ adminRest.get('/analytics', async (req, res) => {
   try {
     const user = (req as any).user;
     if (!(await can(user.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
-    const [users, orders, revenue] = await Promise.all([
+    const [users, orders, revenue, ev] = await Promise.all([
       db.user.count(),
       db.order.count(),
-      db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID','SHIPPED','DELIVERED'] } } })
+      db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID','SHIPPED','DELIVERED'] } } }),
+      db.$queryRawUnsafe(`SELECT COUNT(*)::bigint AS c FROM "Event" WHERE name IN ('page_view','viewcontent')`)
     ]);
     await audit(req, 'analytics', 'kpis');
-    res.json({ kpis: { users, orders, revenue: revenue._sum.total || 0 } });
+    const pageViews = Array.isArray(ev) && ev[0] ? Number((ev as any)[0].c||0) : 0;
+    res.json({ kpis: { users, orders, revenue: revenue._sum.total || 0, pageViews } });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'analytics_failed' });
   }
@@ -7967,7 +7969,13 @@ adminRest.get('/analytics/realtime', async (req, res) => {
       const c = await db.event.count({ where: { name: n, ...(base as any) } as any });
       out[n] = c;
     }
-    res.json({ ok:true, windowMin, metrics: out });
+    // Active sessions (currently online) = VisitorSession seen within window
+    let online = 0;
+    try{
+      const rows:any[] = await db.$queryRawUnsafe(`SELECT COUNT(*)::bigint AS c FROM "VisitorSession" WHERE "lastSeenAt" >= $1`, since);
+      online = Array.isArray(rows)&&rows[0]? Number(rows[0].c||0) : 0;
+    }catch{ online = 0 }
+    res.json({ ok:true, windowMin, metrics: out, online });
   }catch(e:any){ res.status(200).json({ ok:true, windowMin:5, metrics: { page_view:0, add_to_cart:0, checkout:0, purchase:0 } }); }
 });
 
@@ -8041,28 +8049,25 @@ adminRest.get('/analytics/events/recent', async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit||100), 1), 500);
     const userId = (req.query.userId as string|undefined) || undefined;
     const sessionId = (req.query.sessionId as string|undefined) || undefined;
-    const where:any = {};
-    if (userId) where.userId = String(userId);
-    if (sessionId) where.sessionId = String(sessionId);
-  // Use raw query selecting a safe subset to avoid missing columns on older schemas
-  const conds: string[] = [];
-  const args: any[] = [];
-  let idx = 1;
-  if (userId){ conds.push(`(properties->>'userId') = $${idx++}`); args.push(String(userId)); }
-  if (sessionId){ conds.push(`(properties->>'sessionId') = $${idx++}`); args.push(String(sessionId)); }
-  const whereSql = conds.length? `WHERE ${conds.join(' AND ')}` : '';
-  args.push(limit);
-  const rows:any[] = await db.$queryRawUnsafe(`
-    SELECT id, "createdAt", name,
-           (properties->>'sessionId') AS "sessionId",
-           (properties->>'userId') AS "userId",
-           (properties->>'pageUrl') AS "pageUrl",
-           properties
-    FROM "Event"
-    ${whereSql}
-    ORDER BY "createdAt" DESC
-    LIMIT $${idx}
-  `, ...args);
+    // Raw query with COALESCE to support old/new columns
+    const conds: string[] = [];
+    const args: any[] = [];
+    let idx = 1;
+    if (userId){ conds.push(`COALESCE("userId", properties->>'userId') = $${idx++}`); args.push(String(userId)); }
+    if (sessionId){ conds.push(`COALESCE("sessionId", properties->>'sessionId') = $${idx++}`); args.push(String(sessionId)); }
+    const whereSql = conds.length? `WHERE ${conds.join(' AND ')}` : '';
+    args.push(limit);
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT id, "createdAt", name,
+             COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
+             COALESCE("userId", properties->>'userId')     AS "userId",
+             COALESCE("pageUrl", properties->>'pageUrl')   AS "pageUrl",
+             properties
+      FROM "Event"
+      ${whereSql}
+      ORDER BY "createdAt" DESC
+      LIMIT $${idx}
+    `, ...args);
   res.json({ ok:true, events: rows });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'events_recent_failed' }); }
 });
@@ -8101,9 +8106,9 @@ adminRest.get('/analytics/utm', async (req, res) => {
     const args = from && to ? [from, to] : [];
     const items = await db.$queryRawUnsafe(`
       SELECT
-        COALESCE((properties->>'utm_source'),'') as source,
-        COALESCE((properties->>'utm_medium'),'') as medium,
-        COALESCE((properties->>'utm_campaign'),'') as campaign,
+        COALESCE("utmSource", (properties->>'utm_source'), '') as source,
+        COALESCE("utmMedium", (properties->>'utm_medium'), '') as medium,
+        COALESCE("utmCampaign", (properties->>'utm_campaign'), '') as campaign,
         COUNT(*) as cnt
       FROM "Event"
       ${where}

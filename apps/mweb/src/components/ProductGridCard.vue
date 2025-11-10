@@ -171,9 +171,13 @@ function open(ev?: Event){
   try{
     const img = (ev?.currentTarget as HTMLElement)?.querySelector('img') as HTMLElement | null
     if ((document as any).startViewTransition && img){
-      const name = `p-img-${id.value}`
+      // اجعل الاسم فريداً لتفادي خطأ "Unexpected duplicate view-transition-name"
+      const name = `p-img-${id.value}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`
       ;(img as any).style.viewTransitionName = name
-      ;(document as any).startViewTransition(()=>{ go() })
+      try{ ;(document as any).startViewTransition(()=>{ go() }) } finally {
+        // امسح الاسم مباشرة بعد جدولة الانتقال
+        setTimeout(()=>{ try{ ;(img as any).style.viewTransitionName = '' }catch{} }, 0)
+      }
       return
     }
   }catch{}

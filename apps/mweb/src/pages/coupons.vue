@@ -361,13 +361,16 @@ watch(activeTab, () => {
 async function fetchCoupons(){
   try{
     // Try authenticated coupons first
-    let res = await fetch(`${API_BASE}/api/admin/me/coupons`, { credentials:'include' })
+    let res = await fetch(`${API_BASE}/api/me/coupons`, { credentials:'include' })
     if (res.status === 401) {
       // Fallback to public coupons for الزوار
-      res = await fetch(`${API_BASE}/api/admin/coupons/public`, { credentials:'omit' })
+      res = await fetch(`${API_BASE}/api/coupons/public`, { credentials:'omit' })
     }
     const j = await res.json().catch(()=>null)
-    if (j && Array.isArray(j.coupons)) coupons.value = j.coupons
+    if (j){
+      if (Array.isArray(j.coupons)) coupons.value = j.coupons
+      else if (Array.isArray(j.items)) coupons.value = j.items
+    }
   } catch (e) {
     // silently ignore; UI سيعرض النص الافتراضي
   }

@@ -2316,6 +2316,47 @@ shop.post('/promotions/claim/complete', async (req: any, res) => {
   }catch(e:any){ res.status(500).json({ error: e?.message||'claim_complete_failed' }); }
 });
 
+// Public: list public/active coupons (no auth required)
+shop.get('/coupons/public', async (_req: any, res) => {
+  try{
+    const rows:any[] = await db.coupon.findMany({ where: { isActive: true as any }, orderBy: { updatedAt: 'desc' }, take: 100 } as any);
+    const items = rows.map((c:any)=> ({
+      id: c.id, code: c.code, title: c.title||c.code,
+      discountType: c.discountType, discountValue: c.discountValue,
+      minOrderAmount: c.minOrderAmount||0, validUntil: c.validUntil||null
+    }));
+    res.json({ ok:true, items });
+  }catch{ res.json({ ok:true, items: [] }) }
+});
+
+// Auth: coupons owned by current user (granted)
+shop.get('/me/coupons', async (req: any, res) => {
+  try{
+    // Identify shop user via cookie/header JWT (same pattern as other endpoints)
+    const header = (req?.headers?.authorization as string|undefined) || '';
+    let tokenAuth = '';
+    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    const jwt = require('jsonwebtoken');
+    let payload:any = null;
+    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ payload = jwt.verify(t, process.env.JWT_SECRET||''); break; }catch{} }
+    if (!payload?.userId) return res.status(401).json({ error:'unauthorized' });
+    const userId = String(payload.userId);
+    const rows:any[] = await db.userReward.findMany({
+      where: { userId, status: 'granted' as any },
+      include: { reward: true }
+    } as any);
+    const items = rows.map((r:any)=> ({
+      id: r.id, code: r.reward?.code||r.rewardId, title: r.reward?.title||r.reward?.code||'كوبون',
+      discountType: r.reward?.config?.discountType||r.reward?.type||'COUPON',
+      discountValue: r.reward?.config?.discountValue||r.reward?.config?.amount||0,
+      minOrderAmount: r.reward?.config?.min||r.reward?.config?.minOrderAmount||0,
+      validUntil: r.reward?.validUntil||null, grantedAt: r.createdAt
+    }));
+    res.json({ ok:true, items });
+  }catch{ res.status(401).json({ error:'unauthorized' }) }
+});
+
 // Pricing: compute effective totals with active user rewards (MVP: single coupon)
 shop.post('/pricing/effective', async (req: any, res) => {
   try{

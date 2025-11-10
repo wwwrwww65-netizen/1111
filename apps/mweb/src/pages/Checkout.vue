@@ -515,9 +515,9 @@ const afterById = ref<Record<string, number>>({})
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const { API_BASE } = await import('@/lib/api')
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/admin/me/coupons')
+  let data: any = await tryFetch('/api/me/coupons')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  data = await tryFetch('/api/admin/coupons/public')
+  data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
   data = await tryFetch('/api/admin/coupons/list')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)

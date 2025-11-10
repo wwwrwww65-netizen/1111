@@ -222,7 +222,7 @@ async function fetchCouponDetails(){
     }catch{}
     // fallback to public coupons
     if (!list.length){
-      const r2 = await fetch(buildApiUrl('/api/admin/coupons/public'), { credentials:'omit', cache:'no-store' })
+      const r2 = await fetch(buildApiUrl('/api/coupons/public'), { credentials:'omit', cache:'no-store' })
       const j2 = await r2.json().catch(()=>null)
       list = (j2 && Array.isArray(j2.coupons))? j2.coupons : []
     }

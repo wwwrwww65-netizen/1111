@@ -545,9 +545,9 @@ const couponsCache = ref<SimpleCoupon[]>([])
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const base = (await import('../../lib/api')).API_BASE
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${base}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/admin/me/coupons')
+  let data: any = await tryFetch('/api/me/coupons')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  data = await tryFetch('/api/admin/coupons/public')
+  data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
   data = await tryFetch('/api/admin/coupons/list')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
