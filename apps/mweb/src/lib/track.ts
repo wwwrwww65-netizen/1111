@@ -74,6 +74,43 @@ export async function trackEvent(name: string, payload: MetaEventPayload = {}, e
       phone: payload.phone || undefined
     })
   }catch{}
+  // Persist normalized event into DB for Admin analytics/realtime
+  try{
+    const url = typeof location!=='undefined' ? new URL(location.href) : null
+    const params = url ? Object.fromEntries(url.searchParams.entries()) : {}
+    const mapName = (n:string)=>{
+      const s = n.toLowerCase()
+      if (s==='pageview') return 'page_view'
+      if (s==='addtocart') return 'add_to_cart'
+      if (s==='initiatecheckout' || s==='checkout') return 'checkout'
+      if (s==='purchase') return 'purchase'
+      return s
+    }
+    await apiPost('/api/events', {
+      name: mapName(name),
+      sessionId: sid,
+      pageUrl: typeof location!=='undefined'? location.href : undefined,
+      referrer: typeof document!=='undefined'? document.referrer : undefined,
+      productId: (payload as any)?.content_ids?.[0] || undefined,
+      orderId: payload.order_id || undefined,
+      utm_source: (params as any).utm_source,
+      utm_medium: (params as any).utm_medium,
+      utm_campaign: (params as any).utm_campaign,
+      properties: {
+        // duplicate critical fields for legacy queries that read from properties JSON
+        sessionId: sid,
+        pageUrl: typeof location!=='undefined'? location.href : undefined,
+        referrer: typeof document!=='undefined'? document.referrer : undefined,
+        utm_source: (params as any).utm_source,
+        utm_medium: (params as any).utm_medium,
+        utm_campaign: (params as any).utm_campaign,
+        value: (payload as any)?.value,
+        currency: cur,
+        contents: (payload as any)?.contents,
+        content_type: (payload as any)?.content_type
+      }
+    })
+  }catch{}
   return eid
 }
 
