@@ -1453,7 +1453,11 @@ async function loadMoreRecommended() {
     }
     // Map and de-dup by id
     const existing = new Set(recommendedProducts.value.map(p=> String(p.id)))
-    const mapped = list.map((it:any)=> toRecItem(it)).filter((p:any)=> !existing.has(String(p.id)))
+    const mapped = list
+      .map((it:any)=> toRecItem(it))
+      // exclude current product id to avoid "reload same page" effect
+      .filter((p:any)=> String(p.id) !== String(id))
+      .filter((p:any)=> !existing.has(String(p.id)))
     if (mapped.length){
       recommendedProducts.value.push(...mapped)
       try{ const set = await getTrendingIdSet(); mapped.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
@@ -2249,7 +2253,7 @@ async function fetchRecommendations(){
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`, undefined, signal).catch(()=>null)
     const list = Array.isArray(sim?.items) ? sim!.items : []
     if (list.length) {
-      recommendedProducts.value = list.map((it:any)=> toRecItem(it))
+      recommendedProducts.value = list.map((it:any)=> toRecItem(it)).filter(p=> String(p.id)!==String(id))
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
       hasMoreRecommended.value = list.length >= 24
@@ -2257,7 +2261,7 @@ async function fetchRecommendations(){
     }
     const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
     const items = Array.isArray(rec?.items) ? rec!.items : []
-    recommendedProducts.value = items.map((it:any)=> toRecItem(it))
+    recommendedProducts.value = items.map((it:any)=> toRecItem(it)).filter(p=> String(p.id)!==String(id))
     try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
     try{ await hydrateCouponsForRecommended() }catch{}
     hasMoreRecommended.value = items.length >= 24
