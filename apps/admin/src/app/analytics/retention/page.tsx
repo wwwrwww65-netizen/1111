@@ -22,7 +22,7 @@ export default function RetentionCohortsPage(): JSX.Element {
     <main className="container">
       <div className="panel" style={{ padding:16 }}>
         <AnalyticsNav />
-        <h1 style={{ marginTop:0 }}>الاحتفاظ Cohorts</h1>
+        <h1 style={{ marginTop:0 }}>الاحتفاظ (المجموعات)</h1>
         {err && errorView(err)}
         <div style={{ marginTop:12 }}>
           <table className="table" role="table" aria-label="Cohorts">

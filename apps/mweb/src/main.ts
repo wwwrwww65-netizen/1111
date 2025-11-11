@@ -111,7 +111,18 @@ try{ const cart = useCart(); cart.loadLocal();
   // If logged in (token cookie present) hydrate from server; else for guests hydrate if local is empty (guest cart via cookie)
   try{
     const hasTok = document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')
-    if (hasTok) { cart.syncFromServer().catch(()=>{}) }
+    if (hasTok) {
+      // Best-effort: link anonymous session to user after any login/callback (incl. social)
+      try{
+        const already = sessionStorage.getItem('__linked_v1') === '1'
+        const sid = localStorage.getItem('sid_v1') || ''
+        if (!already && sid){
+          await fetch('/api/analytics/link', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ sessionId: sid }) })
+          sessionStorage.setItem('__linked_v1','1')
+        }
+      }catch{}
+      cart.syncFromServer().catch(()=>{})
+    }
     else if (!Array.isArray(cart.items) || cart.items.length===0) { cart.syncFromServer().catch(()=>{}) }
   }catch{}
 }catch{}

@@ -10,6 +10,11 @@ export default function PagesReport(): JSX.Element {
   const [to, setTo] = React.useState<string>(new Date().toISOString().slice(0,10));
   const [rows, setRows] = React.useState<Array<{ name:string; url:string; views:number; sessions:number }>>([]);
   const [q, setQ] = React.useState('');
+  function exportCsv(){
+    const data = [['name','url','views','sessions'], ...rows.map(r=> [r.name, r.url, String(r.views), String(r.sessions)])];
+    const csv = data.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' }); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ia_pages.csv'; a.click(); setTimeout(()=> URL.revokeObjectURL(a.href), 1500);
+  }
   async function load(){
     const r = await safeFetchJson<{ ok:boolean; pages:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/ia/pages`, { from, to }));
     if (r.ok){ setRows((r.data.pages||[]).map((x:any)=> ({ name: x.product?.name || (String(x.url||'').split('/').filter(Boolean).pop()||'-'), url:String(x.url||'-'), views:Number(x.views||0), sessions:Number(x.sessions||0) }))); }
@@ -25,6 +30,7 @@ export default function PagesReport(): JSX.Element {
         <label>إلى<input type="date" value={to} onChange={e=> setTo(e.target.value)} className="input" /></label>
         <input placeholder="ابحث بالرابط" value={q} onChange={e=> setQ(e.target.value)} className="input" style={{ flex:1 }} />
         <button className="btn btn-outline" onClick={load}>تحديث</button>
+        <button className="btn" onClick={exportCsv}>تصدير CSV</button>
       </div>
       <div className="panel" style={{ padding:12 }}>
         <div style={{ overflowX:'auto' }}>

@@ -202,9 +202,9 @@ function Spark({ label, color }: { label:string; color:string }): JSX.Element {
   React.useEffect(()=>{
     let disposed = false; async function ensure(){
       if (!ref.current) return;
-      if (!(window as any).echarts){ await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); }); }
+      const { ensureEcharts } = await import("../lib/echarts");
       if (disposed) return;
-      const echarts=(window as any).echarts; const chart = echarts.init(ref.current);
+      const echarts = await ensureEcharts(); const chart = echarts.init(ref.current);
       chartRef.current = chart;
       chart.setOption({ backgroundColor:'transparent', grid:{ left:0, right:0, top:10, bottom:0 }, xAxis:{ type:'category', show:false, data: data.map((_,i)=> i) }, yAxis:{ type:'value', show:false }, series:[ { type:'line', data, smooth:true, symbol:'none', lineStyle:{ color }, areaStyle:{ color, opacity:0.12 } } ] });
     }

@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { resolveApiBase } from "../../lib/apiBase";
-import { buildUrl, safeFetchJson } from "../../lib/http";
+import { buildUrl, safeFetchJson, errorView } from "../../lib/http";
 import { IndependentNav } from "./components/IndependentNav";
 
 type KPIs = {
@@ -42,9 +42,13 @@ export default function IndependentAnalyticsPage(): JSX.Element {
   const [series, setSeries] = React.useState<Point[]>([]);
   const [showStats, setShowStats] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string>('');
   const chartRef = React.useRef<HTMLDivElement|null>(null);
   const echartsRef = React.useRef<any>(null);
   const [utm, setUtm] = React.useState<Array<{ source?:string; medium?:string; campaign?:string; count:number }>>([]);
+  const [tz, setTz] = React.useState<string>('local');
+  function fmtDate(d: string): string { try { const dt = new Date(d); return tz==='utc'? dt.toUTCString().slice(17,25) : dt.toLocaleTimeString(); } catch { return d; } }
+  const [reportName, setReportName] = React.useState<string>('');
   const nf = React.useMemo(()=> new Intl.NumberFormat('en-US'), []);
   const num = (n:number)=> nf.format(Number(n||0));
 
@@ -64,7 +68,7 @@ export default function IndependentAnalyticsPage(): JSX.Element {
   }, [apiBase, rt.windowMin, rtAuto]);
 
   async function loadAll(){
-    setBusy(true);
+    setBusy(true); setErr('');
     try{
       // previous period range (same span immediately قبل الفترة)
       const start = new Date(from);
@@ -89,7 +93,8 @@ export default function IndependentAnalyticsPage(): JSX.Element {
       if (rr.ok) setReferrers(rr.data.referrers?.map((r:any)=> ({ ref:String(r.ref||'-'), views:Number(r.views||0) }))||[]);
       if (gr.ok) setCountries(gr.data.countries?.map((r:any)=> ({ country:String(r.country||'-'), views:Number(r.views||0) }))||[]);
       if (dr.ok) setDevices(dr.data.devices?.map((r:any)=> ({ device:String(r.device||'-'), views:Number(r.views||0) }))||[]);
-    }finally{ setBusy(false); }
+      if (!kr.ok && !sr.ok && !pr.ok && !rr.ok && !gr.ok && !dr.ok) setErr('فشل تحميل البيانات');
+    }catch{ setErr('فشل الاتصال'); } finally{ setBusy(false); }
   }
   React.useEffect(()=>{ loadAll().catch(()=>{}); },[apiBase, from, to]);
 
@@ -103,11 +108,9 @@ export default function IndependentAnalyticsPage(): JSX.Element {
     let disposed=false;
     async function mount(){
       if (!chartRef.current) return;
-      if (!(window as any).echarts){
-        await new Promise<void>((resolve)=>{ const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"; s.onload=()=> resolve(); document.body.appendChild(s); });
-      }
+      const { ensureEcharts } = await import("../../lib/echarts");
       if (disposed) return;
-      const echarts = (window as any).echarts;
+      const echarts = await ensureEcharts();
       const chart = echarts.init(chartRef.current);
       echartsRef.current = chart;
       const days = series.map(p=> p.day);
@@ -132,6 +135,7 @@ export default function IndependentAnalyticsPage(): JSX.Element {
   return (
     <main>
       <IndependentNav />
+      {!!err && errorView(err, ()=> loadAll())}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
         <h1 style={{ margin:0 }}>تحليلات مستقلة</h1>
         <div style={{ display:"flex", gap:8, alignItems:'center' }}>
@@ -150,8 +154,18 @@ export default function IndependentAnalyticsPage(): JSX.Element {
               <button className="btn btn-outline" onClick={()=> loadAll()}>تحديث</button>
             </>
           )}
+          <label className="form-label" style={{ margin:0 }}>المنطقة الزمنية</label>
+          <select className="input" value={tz} onChange={e=> setTz(e.target.value)}>
+            <option value="local">محلي</option>
+            <option value="utc">UTC</option>
+          </select>
           <button className="btn btn-outline" onClick={()=> setShowStats(s=> !s)}>تبديل عرض الإحصاءات</button>
-          <button className="btn" disabled>حفظ كعرض…</button>
+          <input placeholder="اسم العرض" className="input" value={reportName} onChange={e=> setReportName(e.target.value)} />
+          <button className="btn" onClick={async()=>{
+            const cfg = { preset, from, to, tz };
+            const r = await fetch('/api/admin/analytics/reports', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ name: reportName||`ia_${Date.now()}`, config: cfg }) });
+            if (r.ok) setReportName('');
+          }}>حفظ كعرض…</button>
         </div>
       </div>
 

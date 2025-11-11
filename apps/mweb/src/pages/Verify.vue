@@ -226,13 +226,22 @@ async function onSubmit(){
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r: any = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
-    if (r && r.ok){
+      if (r && r.ok){
       // If token returned, persist locally to avoid any Set-Cookie timing issues
       if (r.token) {
         writeCookie('auth_token', r.token)
         writeCookie('shop_auth_token', r.token)
         try{ localStorage.setItem('shop_token', r.token) }catch{}
       }
+        // Link anonymous session to user for analytics continuity
+        try{
+          const sid = localStorage.getItem('sid_v1') || ''
+          const me = await meWithRetry(2)
+          const uid = me?.user?.id || ''
+          if (uid && sid){
+            await apiPost('/api/analytics/link', { sessionId: sid })
+          }
+        }catch{}
       // Complete pending claim if any
       try{ const claimTok = String(route.query.claimToken||''); if (claimTok){ await fetch('/api/promotions/claim/complete', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ token: claimTok }) }) } }catch{}
       // Fetch session and hydrate user store before redirect

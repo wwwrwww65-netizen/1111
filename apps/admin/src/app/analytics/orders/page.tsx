@@ -49,11 +49,9 @@ function ChartOrdersRevenue({ series, onPointClick }: { series: Array<{ day:stri
     let disposed = false;
     async function ensure(){
       if (!ref.current) return;
-      if (!(window as any).echarts) {
-        await new Promise<void>((resolve)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'; s.onload=()=> resolve(); document.body.appendChild(s); });
-      }
+      const { ensureEcharts } = await import("../../lib/echarts");
       if (disposed) return;
-      const echarts = (window as any).echarts;
+      const echarts = await ensureEcharts();
       chartRef.current = echarts.init(ref.current);
       const option = {
         backgroundColor: 'transparent', textStyle:{ color:'#e2e8f0' }, tooltip:{ trigger:'axis' }, legend:{ data:['الطلبات','الإيرادات'], textStyle:{ color:'#cbd5e1' } }, grid:{ left: 36, right: 18, top: 30, bottom: 28 },

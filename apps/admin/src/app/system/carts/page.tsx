@@ -27,6 +27,14 @@ export default function CartsPage(): JSX.Element {
   }
   React.useEffect(()=>{ load(); }, []);
 
+  function shortHash(s: string): string {
+    try{
+      let h = 2166136261 >>> 0;
+      for (let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return (h>>>0).toString(36).slice(0,6).toUpperCase();
+    }catch{ return 'GUEST'; }
+  }
+
   function toggleAll(list:any[]){ const m:Record<string,boolean> = {}; list.forEach((c)=>{ m[c.id] = !Object.values(selected).every(Boolean); }); setSelected(m); }
   function targets(){
     if (tab==='users') return userCarts.filter(c=>selected[c.id]).map(c=> ({ userId: c.user?.id }))
@@ -74,7 +82,7 @@ export default function CartsPage(): JSX.Element {
                     <td>
                       {tab==='users' ? (<div>{c.user?.name||c.user?.email||c.user?.id}</div>) : (<div>Guest</div>)}
                     </td>
-                    <td>{tab==='users'? (c.user?.name||'-') : `زائر - ${1 + rows.indexOf(c)}`}</td>
+                  <td>{tab==='users'? (c.user?.name||'-') : `زائر #${shortHash(String(c.sessionId||c.id||''))}`}</td>
                     <td style={{ direction:'ltr' }}>{tab==='users'? (c.user?.id||'-') : (c.sessionId||'-')}</td>
                     <td>
                       <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>

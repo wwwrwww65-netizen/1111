@@ -9,6 +9,11 @@ export default function ReferrersReport(): JSX.Element {
   const [from, setFrom] = React.useState<string>(new Date(Date.now()-30*24*3600*1000).toISOString().slice(0,10));
   const [to, setTo] = React.useState<string>(new Date().toISOString().slice(0,10));
   const [rows, setRows] = React.useState<Array<{ ref:string; views:number }>>([]);
+  function exportCsv(){
+    const data = [['referrer','views'], ...rows.map(r=> [r.ref, String(r.views)])];
+    const csv = data.map(r=> r.map(v=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v)).join(',')).join('\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' }); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ia_referrers.csv'; a.click(); setTimeout(()=> URL.revokeObjectURL(a.href), 1500);
+  }
   async function load(){
     const r = await safeFetchJson<{ ok:boolean; referrers:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/ia/referrers`, { from, to }));
     if (r.ok) setRows((r.data.referrers||[]).map((x:any)=> ({ ref:String(x.ref||'-'), views:Number(x.views||0) })));
@@ -22,6 +27,7 @@ export default function ReferrersReport(): JSX.Element {
         <label>من<input type="date" value={from} onChange={e=> setFrom(e.target.value)} className="input" /></label>
         <label>إلى<input type="date" value={to} onChange={e=> setTo(e.target.value)} className="input" /></label>
         <button className="btn btn-outline" onClick={load}>تحديث</button>
+        <button className="btn" onClick={exportCsv}>تصدير CSV</button>
       </div>
       <div className="panel" style={{ padding:12 }}>
         <div style={{ overflowX:'auto' }}>

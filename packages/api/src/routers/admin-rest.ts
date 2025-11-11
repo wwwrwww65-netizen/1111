@@ -7954,6 +7954,39 @@ adminRest.get('/analytics/funnels', async (req, res) => {
   }catch(e:any){ return res.status(200).json({ ok:true, funnel: { sessions:0, addToCart:0, checkouts:0, purchased:0 } }); }
 });
 
+// Custom funnels (order-insensitive intersection by sessionId)
+adminRest.post('/analytics/funnels/custom', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const { steps, from, to } = req.body || {};
+    const names: string[] = Array.isArray(steps)? steps.map((s:any)=> String(s)).filter(Boolean) : [];
+    if (!names.length) return res.status(400).json({ error:'steps_required' });
+    const start = from ? new Date(String(from)) : new Date(Date.now()-7*24*3600*1000);
+    const end = to ? new Date(String(to)) : new Date();
+    const sets: Array<Set<string>> = [];
+    for (const n of names){
+      const rows:any[] = await db.$queryRawUnsafe(`
+        SELECT DISTINCT COALESCE("sessionId", properties->>'sessionId') as sid
+        FROM "Event"
+        WHERE name=$1 AND "createdAt" BETWEEN $2 AND $3
+      `, n, start, end);
+      sets.push(new Set((rows||[]).map((r:any)=> String(r.sid||'').trim()).filter(Boolean)));
+    }
+    const totals: number[] = sets.map(s=> s.size);
+    let intersect = new Set<string>(sets[0]);
+    for (let i=1;i<sets.length;i++){
+      intersect = new Set(Array.from(intersect).filter(x=> sets[i].has(x)));
+    }
+    const result = {
+      steps: names,
+      totals,
+      all: intersect.size,
+      conversion: totals[0]? intersect.size / totals[0] : 0
+    };
+    res.json({ ok:true, result });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'custom_funnels_failed' }); }
+});
+
 adminRest.get('/analytics/segments', async (req, res) => {
   try{
     const totalUsers = await db.user.count();
@@ -7966,6 +7999,7 @@ adminRest.get('/analytics/segments', async (req, res) => {
 
 adminRest.get('/analytics/realtime', async (req, res) => {
   try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
     const windowMin = Math.min(Math.max(Number(req.query.windowMin||5), 1), 60);
     const since = new Date(Date.now() - windowMin*60*1000);
     const device = (req.query.device as string|undefined)||undefined;
@@ -7989,6 +8023,116 @@ adminRest.get('/analytics/realtime', async (req, res) => {
     }catch{ online = 0 }
     res.json({ ok:true, windowMin, metrics: out, online });
   }catch(e:any){ res.status(200).json({ ok:true, windowMin:5, metrics: { page_view:0, add_to_cart:0, checkout:0, purchase:0 } }); }
+});
+
+// Flexible funnel builder: POST { steps: string[], from?: string, to?: string }
+adminRest.post('/analytics/funnels/custom', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const steps: string[] = Array.isArray(req.body?.steps)? req.body.steps.map(String) : ['page_view','add_to_cart','checkout','purchase'];
+    const from = req.body?.from ? new Date(String(req.body.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.body?.to ? new Date(String(req.body.to)) : new Date();
+    if (typeof req.body?.from==='string' && req.body.from.length<=10) { from.setHours(0,0,0,0); }
+    if (typeof req.body?.to==='string' && req.body.to.length<=10) { to.setHours(23,59,59,999); }
+    // Collect sessions that performed each step within window
+    const perStep: Array<Set<string>> = [];
+    for (const n of steps){
+      const rows:any[] = await db.$queryRawUnsafe(`
+        SELECT DISTINCT COALESCE("sessionId", properties->>'sessionId') AS sid
+        FROM "Event"
+        WHERE name=$1 AND "createdAt" BETWEEN $2 AND $3
+      `, n, from, to);
+      perStep.push(new Set(rows.map((r:any)=> String(r.sid||'').trim()).filter(Boolean)));
+    }
+    // Count progressive conversion (intersection up to step i)
+    const progressive: number[] = [];
+    let current = new Set(perStep[0] || new Set<string>());
+    progressive.push(current.size);
+    for (let i=1;i<perStep.length;i++){
+      const nxt = new Set<string>();
+      for (const sid of current){ if (perStep[i].has(sid)) nxt.add(sid); }
+      current = nxt;
+      progressive.push(current.size);
+    }
+    const out = steps.map((name, idx)=> ({ step: name, sessions: progressive[idx]||0 }));
+    res.json({ ok:true, funnel: out });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'funnels_custom_failed' }); }
+});
+
+// Realtime sessions grouped on server
+adminRest.get('/analytics/realtime/sessions', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const windowMin = Math.min(Math.max(Number(req.query.windowMin||5), 1), 60);
+    const since = new Date(Date.now() - windowMin*60*1000);
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT id, "createdAt", name,
+             COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
+             COALESCE("userId", properties->>'userId')       AS "userId",
+             COALESCE("pageUrl", properties->>'pageUrl')     AS "pageUrl",
+             COALESCE("referrer", properties->>'referrer')   AS "referrer",
+             COALESCE("utmSource", properties->>'utm_source') AS "utm_source",
+             COALESCE("country", properties->>'country')     AS "country",
+             COALESCE("city", properties->>'city')           AS "city",
+             COALESCE(properties->>'uaBrand','')             AS "uaBrand",
+             COALESCE("os", properties->>'os')               AS "os",
+             COALESCE("browser", properties->>'browser')     AS "browser"
+      FROM "Event"
+      WHERE "createdAt" >= $1
+      ORDER BY "createdAt" DESC
+      LIMIT 2000
+    `, since);
+    const bySid = new Map<string, any[]>();
+    for (const e of rows){
+      const sid = e.sessionId || 'guest';
+      if (!bySid.has(sid)) bySid.set(sid, []);
+      bySid.get(sid)!.push(e);
+    }
+    const out: Array<{ startedAt:string; visitor:string; device:string; pageUrl:string; referrer?:string; utm_source?:string; country?:string; city?:string; durationSec:number; sid?:string }> = [];
+    for (const [sid, list] of bySid.entries()){
+      const sorted = list.sort((a:any,b:any)=> new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime());
+      const first = sorted[0]; const last = sorted[sorted.length-1];
+      const durationSec = Math.max(0, Math.round((new Date(last.createdAt).getTime()-new Date(first.createdAt).getTime())/1000));
+      const device = ((first.uaBrand? first.uaBrand+' ' : '') + (first.os||'') + (first.browser? ' · '+first.browser:'')) || '-';
+      out.push({ startedAt: first.createdAt, visitor: first.userId? 'User':'Guest', device, pageUrl: first.pageUrl||'-', referrer: first.referrer||'', utm_source: first.utm_source||'', country: first.country||'', city: first.city||'', durationSec, sid });
+    }
+    out.sort((a,b)=> new Date(b.startedAt).getTime()-new Date(a.startedAt).getTime());
+    res.json({ ok:true, sessions: out.slice(0, 200) });
+  }catch(e:any){ res.status(200).json({ ok:true, sessions: [] }); }
+});
+
+// Segmentation query: POST { from,to, filters:{ country?, device?, source?, refHost? } }
+adminRest.post('/analytics/segments/query', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.body?.from ? new Date(String(req.body.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.body?.to ? new Date(String(req.body.to)) : new Date();
+    if (typeof req.body?.from==='string' && req.body.from.length<=10) { from.setHours(0,0,0,0); }
+    if (typeof req.body?.to==='string' && req.body.to.length<=10) { to.setHours(23,59,59,999); }
+    const f = Object(req.body?.filters||{});
+    const conds: string[] = [`"createdAt" BETWEEN $1 AND $2`];
+    const args: any[] = [from, to];
+    let i = 3;
+    if (f.country){ conds.push(`COALESCE(country, properties->>'country','') = $${i++}`); args.push(String(f.country)); }
+    if (f.device){ conds.push(`COALESCE(device, (properties->>'uaBrand')||' '||(properties->>'os')||' '||(properties->>'browser')) ILIKE $${i++}`); args.push(`%${String(f.device)}%`); }
+    if (f.source){ conds.push(`COALESCE("utmSource", properties->>'utm_source','') = $${i++}`); args.push(String(f.source)); }
+    if (f.refHost){
+      conds.push(`regexp_replace(regexp_replace(regexp_replace(COALESCE("referrer", properties->>'referrer',''), '^https?://', ''), '^www\\.', '', 'i'), '/.*$', '') = $${i++}`);
+      args.push(String(f.refHost));
+    }
+    const whereSql = conds.length? `WHERE ${conds.join(' AND ')}` : '';
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT
+        COUNT(*)::bigint FILTER (WHERE name='page_view')  AS views,
+        COUNT(*)::bigint FILTER (WHERE name='purchase')   AS purchases,
+        COUNT(DISTINCT COALESCE("sessionId", properties->>'sessionId'))::bigint AS sessions,
+        COUNT(DISTINCT COALESCE("userId", properties->>'userId', "anonymousId", properties->>'anonymousId'))::bigint AS visitors
+      FROM "Event"
+      ${whereSql}
+    `, ...args);
+    const r = Array.isArray(rows)&&rows[0]? rows[0] : {};
+    res.json({ ok:true, result: { visitors: Number(r.visitors||0), sessions: Number(r.sessions||0), views: Number(r.views||0), purchases: Number(r.purchases||0) } });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'segments_query_failed' }); }
 });
 
 // Orders & Revenue time-series (daily)
@@ -8038,6 +8182,158 @@ adminRest.get('/analytics/orders-series', async (req, res) => {
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'orders_series_failed' }); }
 });
 
+// Retention heatmap daily for last N weeks
+adminRest.get('/analytics/retention/heatmap', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const weeks = Math.min(Math.max(Number(req.query.weeks||8), 1), 26);
+    const since = new Date(Date.now() - weeks*7*24*3600*1000);
+    const base:any[] = await db.$queryRawUnsafe(`
+      SELECT to_char(date_trunc('day', "firstSeenAt"), 'YYYY-MM-DD') AS cohort_day,
+             COUNT(*)::bigint AS new_users
+      FROM "VisitorSession"
+      WHERE "firstSeenAt" >= $1
+      GROUP BY 1 ORDER BY 1
+    `, since);
+    const out:any[] = [];
+    for (const row of base){
+      const day = String(row.cohort_day);
+      const start = new Date(day+'T00:00:00Z');
+      const cohorts: Array<{ offset:number; sessions:number }> = [];
+      for (let d=0; d<=14; d++){
+        const from = new Date(start.getTime() + d*24*3600*1000);
+        const to = new Date(from.getTime() + 24*3600*1000);
+        const sessions:any[] = await db.$queryRawUnsafe(`
+          SELECT COUNT(*)::bigint AS c
+          FROM "VisitorSession"
+          WHERE "firstSeenAt" >= $1 AND "firstSeenAt" < $2
+        `, from, to);
+        cohorts.push({ offset: d, sessions: Number((sessions[0]&&sessions[0].c)||0) });
+      }
+      out.push({ cohortDay: day, newUsers: Number(row.new_users||0), series: cohorts });
+    }
+    res.json({ ok:true, heatmap: out });
+  }catch(e:any){ res.status(200).json({ ok:true, heatmap: [] }); }
+});
+
+// Paths (top transitions) from consecutive page_view events
+adminRest.get('/analytics/paths/top', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-7*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
+    if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
+    const limit = Math.min(Math.max(Number(req.query.limit||50), 10), 200);
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT
+        s.sid,
+        array_agg(s.url ORDER BY s.created) AS seq
+      FROM (
+        SELECT
+          COALESCE("sessionId", properties->>'sessionId') AS sid,
+          COALESCE("pageUrl", properties->>'pageUrl')     AS url,
+          "createdAt"                                     AS created
+        FROM "Event"
+        WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
+      ) s
+      GROUP BY 1
+    `, from, to);
+    const map = new Map<string, number>();
+    for (const r of rows){
+      const seq: string[] = (r.seq||[]).map((u:string)=> String(u||'').trim()).filter(Boolean);
+      for (let i=0;i<seq.length-1;i++){
+        const key = `${seq[i]} -> ${seq[i+1]}`;
+        map.set(key, (map.get(key)||0)+1);
+      }
+    }
+    const trans = Array.from(map.entries()).map(([k,v])=> ({ transition:k, count:v }));
+    trans.sort((a,b)=> b.count - a.count);
+    res.json({ ok:true, transitions: trans.slice(0, limit) });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'paths_top_failed' }); }
+});
+
+// Basic anomalies (z-score) on daily metrics
+adminRest.get('/analytics/anomalies/daily', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const metric = String(req.query.metric||'page_views');
+    const days = Math.min(Math.max(Number(req.query.days||60), 14), 365);
+    let rows:any[] = [];
+    if (metric === 'page_views'){
+      rows = await db.$queryRawUnsafe(`
+        SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day, COUNT(*)::bigint AS val
+        FROM "Event" WHERE name='page_view' AND "createdAt" >= now() - interval '${days} days'
+        GROUP BY 1 ORDER BY 1
+      `);
+    } else if (metric === 'orders'){
+      rows = await db.$queryRawUnsafe(`
+        SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day, COUNT(*)::bigint AS val
+        FROM "Order" WHERE "createdAt" >= now() - interval '${days} days'
+        GROUP BY 1 ORDER BY 1
+      `);
+    } else {
+      return res.status(400).json({ ok:false, error:'unsupported_metric' });
+    }
+    const vals = rows.map((r:any)=> Number(r.val||0));
+    const mean = vals.reduce((a,b)=> a+b,0)/(vals.length||1);
+    const std = Math.sqrt(vals.reduce((s,v)=> s+Math.pow(v-mean,2),0)/(Math.max(1, vals.length-1)));
+    const anomalies = rows.map((r:any)=> {
+      const v = Number(r.val||0);
+      const score = std>0? ((v-mean)/std) : 0;
+      return { day: String(r.day), value: v, z: Number(score.toFixed(2)), anomaly: Math.abs(score) >= 2.5 };
+    });
+    res.json({ ok:true, mean: Number(mean.toFixed(2)), std: Number(std.toFixed(2)), anomalies });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'anomalies_failed' }); }
+});
+
+// Link anonymousId to userId: migrate sessions/events
+adminRest.post('/analytics/link-anonymous', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'users.update'))) return res.status(403).json({ error:'forbidden' });
+    const { anonymousId, userId, sessionId } = req.body || {};
+    if (!userId || (!anonymousId && !sessionId)) return res.status(400).json({ ok:false, error:'userId_and_(anonymousId_or_sessionId)_required' });
+    // 1) Update VisitorSession
+    let sessionsUpdated = 0;
+    if (anonymousId){
+      const r1 = await db.$executeRawUnsafe(`
+        UPDATE "VisitorSession" SET "userId" = $1
+        WHERE "userId" IS NULL AND "anonymousId" = $2
+      `, String(userId), String(anonymousId));
+      sessionsUpdated += Number(r1)||0;
+    }
+    if (sessionId){
+      const r2 = await db.$executeRawUnsafe(`
+        UPDATE "VisitorSession" SET "userId" = $1
+        WHERE "userId" IS NULL AND id = $2
+      `, String(userId), String(sessionId));
+      sessionsUpdated += Number(r2)||0;
+    }
+    // 2) Update Event.userId for events with matching anonymous (column or properties) or sessionId belonging to those sessions
+    if (anonymousId){
+      const sids:any[] = await db.$queryRawUnsafe(`SELECT id FROM "VisitorSession" WHERE "anonymousId" = $1`, String(anonymousId));
+      const sidArr = (sids||[]).map((r:any)=> String(r.id));
+      if (sidArr.length){
+        await db.$executeRawUnsafe(`
+          UPDATE "Event" SET "userId" = $1
+          WHERE "userId" IS NULL AND COALESCE("sessionId", properties->>'sessionId') = ANY($2)
+        `, String(userId), sidArr);
+      }
+      await db.$executeRawUnsafe(`
+        UPDATE "Event" SET "userId" = $1
+        WHERE "userId" IS NULL AND COALESCE("anonymousId", properties->>'anonymousId') = $2
+      `, String(userId), String(anonymousId));
+    }
+    if (sessionId){
+      await db.$executeRawUnsafe(`
+        UPDATE "Event" SET "userId" = $1
+        WHERE "userId" IS NULL AND COALESCE("sessionId", properties->>'sessionId') = $2
+      `, String(userId), String(sessionId));
+    }
+    return res.json({ ok:true, sessionsUpdated, eventsUpdated: true });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'link_anonymous_failed' }); }
+});
+
 // Independent Analytics (Visitors/Views like IA)
 adminRest.get('/analytics/ia/kpis', async (req, res) => {
   try{
@@ -8053,7 +8349,7 @@ adminRest.get('/analytics/ia/kpis', async (req, res) => {
     // Distinct visitors (all time) and in window
     const vrows:any[] = await db.$queryRawUnsafe(`SELECT COUNT(DISTINCT COALESCE("userId","anonymousId")) AS c FROM "VisitorSession"`);
     const visitorsTotal = Array.isArray(vrows)&&vrows[0]? Number(vrows[0].c||0) : 0;
-    const vwin:any[] = await db.$queryRawUnsafe(`SELECT COUNT(DISTINCT COALESCE("userId","anonymousId")) AS c FROM "VisitorSession" WHERE "firstSeenAt" BETWEEN $1 AND $2`, from, to);
+    const vwin:any[] = await db.$queryRawUnsafe(`SELECT COUNT(DISTINCT COALESCE("userId","anonymousId","ipHash")) AS c FROM "VisitorSession" WHERE "firstSeenAt" BETWEEN $1 AND $2`, from, to);
     const visitorsWindow = Array.isArray(vwin)&&vwin[0]? Number(vwin[0].c||0) : 0;
     // Avg session duration
     const drows:any[] = await db.$queryRawUnsafe(`
@@ -8093,20 +8389,35 @@ adminRest.get('/analytics/ia/series', async (req, res) => {
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
     if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
-    const vrows:any[] = await db.$queryRawUnsafe(`
-      SELECT to_char(date_trunc('day', "firstSeenAt"), 'YYYY-MM-DD') AS day,
-             COUNT(*) AS sessions,
-             COUNT(DISTINCT COALESCE("userId","anonymousId")) AS visitors
-      FROM "VisitorSession"
-      WHERE "firstSeenAt" BETWEEN $1 AND $2
-      GROUP BY 1 ORDER BY 1
-    `, from, to);
-    const pvrows:any[] = await db.$queryRawUnsafe(`
-      SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
-             COUNT(*) AS views
-      FROM "Event" WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
-      GROUP BY 1 ORDER BY 1
-    `, from, to);
+    // Prefer materialized views when available, fallback to raw aggregation
+    const mvPvExists:any[] = await db.$queryRawUnsafe(`SELECT to_regclass('public.mv_event_page_views_daily') AS reg`);
+    const mvVsExists:any[] = await db.$queryRawUnsafe(`SELECT to_regclass('public.mv_visitor_sessions_daily') AS reg`);
+    const useMvPv = Array.isArray(mvPvExists) && mvPvExists[0] && mvPvExists[0].reg;
+    const useMvVs = Array.isArray(mvVsExists) && mvVsExists[0] && mvVsExists[0].reg;
+    const vrows:any[] = useMvVs
+      ? await db.$queryRawUnsafe(`
+          SELECT to_char(day, 'YYYY-MM-DD') AS day, SUM(sessions)::bigint AS sessions, SUM(visitors)::bigint AS visitors
+          FROM mv_visitor_sessions_daily WHERE day BETWEEN $1::date AND $2::date GROUP BY 1 ORDER BY 1
+        `, from, to)
+      : await db.$queryRawUnsafe(`
+          SELECT to_char(date_trunc('day', "firstSeenAt"), 'YYYY-MM-DD') AS day,
+                 COUNT(*) AS sessions,
+                 COUNT(DISTINCT COALESCE("userId","anonymousId","ipHash")) AS visitors
+          FROM "VisitorSession"
+          WHERE "firstSeenAt" BETWEEN $1 AND $2
+          GROUP BY 1 ORDER BY 1
+        `, from, to);
+    const pvrows:any[] = useMvPv
+      ? await db.$queryRawUnsafe(`
+          SELECT to_char(day, 'YYYY-MM-DD') AS day, SUM(views)::bigint AS views
+          FROM mv_event_page_views_daily WHERE day BETWEEN $1::date AND $2::date GROUP BY 1 ORDER BY 1
+        `, from, to)
+      : await db.$queryRawUnsafe(`
+          SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
+                 COUNT(*) AS views
+          FROM "Event" WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
+          GROUP BY 1 ORDER BY 1
+        `, from, to);
     const map = new Map<string, { day:string; visitors:number; views:number; sessions:number }>();
     for (const r of vrows as any[]){
       const day = String(r.day); map.set(day, { day, visitors: Number(r.visitors||0), sessions: Number(r.sessions||0), views: 0 });
@@ -8146,6 +8457,16 @@ adminRest.get('/analytics/ia/pages', async (req, res) => {
     const prods = pids.length? await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true } }) : [];
     const pmap = new Map(prods.map(p=> [p.id, p]));
     const out = rows.map((r:any)=> ({ url: String(r.url||''), product: r.pid? (pmap.get(String(r.pid))||null) : null, views: Number(r.views||0), visitors: Number(r.visitors||0), sessions: Number(r.sessions||0) }));
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="ia_pages.csv"`);
+      const head = 'url,name,views,visitors,sessions\n';
+      const body = out.map(p=> {
+        const name = (p.product?.name||'').replace(/"/g,'""');
+        return `${p.url},"${name}",${p.views},${p.visitors},${p.sessions}`;
+      }).join('\n');
+      return res.send(head+body);
+    }
     res.json({ ok:true, pages: out });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_pages_failed' }); }
 });
@@ -8184,6 +8505,13 @@ adminRest.get('/analytics/ia/referrers', async (req, res) => {
       GROUP BY 1 ORDER BY views DESC
       LIMIT ${limit}
     `, from, to);
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="ia_referrers.csv"`);
+      const head = 'referrer,views\n';
+      const body = rows.map((r:any)=> `${r.ref},${r.views}`).join('\n');
+      return res.send(head+body);
+    }
     res.json({ ok:true, referrers: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_referrers_failed' }); }
 });
@@ -8213,6 +8541,13 @@ adminRest.get('/analytics/ia/geo', async (req, res) => {
       WHERE c <> ''
       GROUP BY 1 ORDER BY views DESC LIMIT 100
     `, from, to);
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="ia_countries.csv"`);
+      const head = 'country,views\n';
+      const body = rows.map((r:any)=> `${r.country},${r.views}`).join('\n');
+      return res.send(head+body);
+    }
     res.json({ ok:true, countries: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_geo_failed' }); }
 });
@@ -8235,6 +8570,13 @@ adminRest.get('/analytics/ia/devices', async (req, res) => {
       ORDER BY views DESC
       LIMIT 50
     `, from, to);
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="ia_devices.csv"`);
+      const head = 'device,views\n';
+      const body = rows.map((r:any)=> `"${String(r.device||'').replace(/"/g,'""')}",${r.views}`).join('\n');
+      return res.send(head+body);
+    }
     res.json({ ok:true, devices: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_devices_failed' }); }
 });
@@ -8249,39 +8591,55 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     const limit = Math.min(Number(req.query.limit||100), 500);
     const offset = Math.max(Number(req.query.offset||0), 0);
+    // Aggregate by person key (anonymousId or ipHash) to avoid duplicates across sessions
     const rows:any[] = await db.$queryRawUnsafe(`
-      SELECT
-        vs.id as sid,
-        vs."anonymousId" as anonymousId,
-        vs."userId"      as userId,
-        vs."ipHash"      as ip,
-        vs.country, vs.city,
-        vs.device, vs.os, vs.browser,
-        vs."firstSeenAt" as firstSeenAt,
-        vs."lastSeenAt"  as lastSeenAt,
-        COALESCE(e.ref, '') as referrer
-      FROM "VisitorSession" vs
-      LEFT JOIN LATERAL (
-        SELECT COALESCE(ev."referrer", ev.properties->>'referrer') AS ref
-        FROM "Event" ev
-        WHERE (ev."sessionId" = vs.id OR ev.properties->>'sessionId' = vs.id) AND ev.name='page_view'
-        ORDER BY ev."createdAt" ASC
-        LIMIT 1
-      ) e ON TRUE
-      WHERE vs."firstSeenAt" BETWEEN $1 AND $2 AND vs."userId" IS NULL
-      ORDER BY vs."lastSeenAt" DESC
+      WITH base AS (
+        SELECT id, COALESCE("anonymousId","ipHash") AS pkey, "anonymousId", "ipHash", "firstSeenAt", "lastSeenAt", country, city, device, os, browser
+        FROM "VisitorSession"
+        WHERE "firstSeenAt" BETWEEN $1 AND $2 AND "userId" IS NULL
+      ),
+      agg AS (
+        SELECT pkey, COUNT(*)::bigint AS sessions, MIN("firstSeenAt") AS fs, MAX("lastSeenAt") AS ls
+        FROM base GROUP BY 1
+      ),
+      latest AS (
+        SELECT DISTINCT ON (pkey) pkey, id AS sid, country, city, device, os, browser
+        FROM base
+        ORDER BY pkey, "lastSeenAt" DESC
+      ),
+      refs AS (
+        SELECT DISTINCT ON (COALESCE(vs."anonymousId",vs."ipHash")) COALESCE(vs."anonymousId",vs."ipHash") AS pkey,
+               COALESCE(ev."referrer", ev.properties->>'referrer') AS ref
+        FROM "VisitorSession" vs
+        JOIN "Event" ev ON (ev."sessionId" = vs.id OR ev.properties->>'sessionId' = vs.id) AND ev.name='page_view'
+        WHERE vs."firstSeenAt" BETWEEN $1 AND $2 AND vs."userId" IS NULL
+        ORDER BY COALESCE(vs."anonymousId",vs."ipHash"), ev."createdAt" ASC
+      )
+      SELECT a.pkey, a.sessions, a.fs as firstSeenAt, a.ls as lastSeenAt,
+             l.sid, l.country, l.city, l.device, l.os, l.browser,
+             COALESCE(r.ref,'') AS referrer
+      FROM agg a
+      JOIN latest l ON l.pkey = a.pkey
+      LEFT JOIN refs r ON r.pkey = a.pkey
+      ORDER BY a.ls DESC
       LIMIT ${limit} OFFSET ${offset}
     `, from, to);
-    const items = rows.map((r:any, idx:number)=> ({
-      sid: String(r.sid), anonymousId: r.anonymousid? String(r.anonymousid) : null,
-      userId: r.userid? String(r.userid) : null,
-      ip: r.ip? String(r.ip) : '',
+    function shortHash(s: string): string {
+      let h = 2166136261 >>> 0; // FNV-1a
+      for (let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return (h>>>0).toString(36).slice(0,6).toUpperCase();
+    }
+    const items = rows.map((r:any)=> ({
+      sid: String(r.sid), // latest session id for drilldown
+      anonymousId: null, userId: null,
+      ip: '', // aggregated: keep IP hashed internally; avoid exposing here
       country: r.country||'', city: r.city||'',
       device: [r.device, r.os, r.browser].filter(Boolean).join(' · '),
       firstSeenAt: r.firstseenat, lastSeenAt: r.lastseenat,
       durationSec: Math.max(0, Math.round((new Date(r.lastseenat).getTime() - new Date(r.firstseenat).getTime())/1000)),
       referrer: r.referrer||'',
-      label: `زائر - ${offset + idx + 1}`
+      label: `زائر #${shortHash(String(r.pkey||'guest'))}`,
+      sessions: Number(r.sessions||0)
     }));
     res.json({ ok:true, visitors: items });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_visitors_failed' }); }
@@ -8410,6 +8768,13 @@ adminRest.get('/analytics/ia/clicks', async (req, res) => {
       WHERE name='click' AND "createdAt" BETWEEN $1 AND $2
       GROUP BY 1 ORDER BY clicks DESC LIMIT 200
     `, from, to);
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="ia_clicks.csv"`);
+      const head = 'target,clicks\n';
+      const body = rows.map((r:any)=> `"${String(r.target||'').replace(/"/g,'""')}",${r.clicks}`).join('\n');
+      return res.send(head+body);
+    }
     res.json({ ok:true, clicks: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_clicks_failed' }); }
 });
@@ -8430,6 +8795,13 @@ adminRest.get('/analytics/ia/forms', async (req, res) => {
       WHERE name='form_submit' AND "createdAt" BETWEEN $1 AND $2
       GROUP BY 1 ORDER BY submits DESC LIMIT 200
     `, from, to);
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="ia_forms.csv"`);
+      const head = 'form,submits\n';
+      const body = rows.map((r:any)=> `"${String(r.form||'').replace(/"/g,'""')}",${r.submits}`).join('\n');
+      return res.send(head+body);
+    }
     res.json({ ok:true, forms: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_forms_failed' }); }
 });
@@ -8451,9 +8823,73 @@ adminRest.get('/analytics/revenue-by-channel', async (_req, res) => {
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'revenue_by_channel_failed' }); }
 });
 
+// Simple in-memory rate limiter for recent events endpoint
+const __eventsRecentRate = new Map<string, { count:number; resetAt:number }>();
+
+// Grouped recent sessions (server-side grouping for realtime view)
+adminRest.get('/analytics/sessions/recent', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const windowMin = Math.min(Math.max(Number(req.query.windowMin||5), 1), 60);
+    const since = new Date(Date.now() - windowMin*60*1000);
+    // Pull recent events with minimal columns, tolerate legacy columns via COALESCE
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT id, "createdAt", name,
+             COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
+             COALESCE("userId", properties->>'userId')     AS "userId",
+             COALESCE("pageUrl", properties->>'pageUrl')   AS "pageUrl",
+             COALESCE("referrer", properties->>'referrer') AS "referrer",
+             COALESCE("utmSource", properties->>'utm_source') AS "utm_source",
+             COALESCE("country", properties->>'country')   AS "country",
+             COALESCE("city", properties->>'city')         AS "city",
+             COALESCE("device", properties->>'device')     AS "device",
+             properties
+      FROM "Event"
+      WHERE "createdAt" >= $1
+      ORDER BY "createdAt" DESC
+      LIMIT 2000
+    `, since);
+    // Group by sessionId/anonymous
+    const bySid = new Map<string, any[]>();
+    for (const e of rows){
+      const sid = e.sessionId || e.properties?.sessionId || e.userId || e.properties?.anonymousId || 'guest';
+      if (!bySid.has(sid)) bySid.set(sid, []);
+      bySid.get(sid)!.push(e);
+    }
+    const sessions: Array<{ startedAt:string; visitor:string; device:string; pageUrl:string; referrer?:string; utm_source?:string; country?:string; city?:string; durationSec:number; sid?:string }> = [];
+    for (const [sid, list] of bySid.entries()){
+      const sorted = list.sort((a:any,b:any)=> new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime());
+      const first = sorted[0]; const last = sorted[sorted.length-1];
+      const durationSec = Math.max(0, Math.round((new Date(last.createdAt).getTime()-new Date(first.createdAt).getTime())/1000));
+      sessions.push({
+        startedAt: first.createdAt,
+        visitor: first.userId? 'User' : 'Guest',
+        device: (first.device || first.properties?.uaBrand || first.properties?.device || '-') as string,
+        pageUrl: first.pageUrl || first.properties?.pageUrl || '-',
+        referrer: first.referrer || first.properties?.referrer || '',
+        utm_source: first.utm_source || first.properties?.utm_source || '',
+        country: first.country || '',
+        city: first.city || '',
+        durationSec, sid
+      });
+    }
+    sessions.sort((a,b)=> new Date(b.startedAt).getTime()-new Date(a.startedAt).getTime());
+    res.json({ ok:true, windowMin, sessions: sessions.slice(0, 200) });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'sessions_recent_failed' }); }
+});
+
 // Recent events stream (for realtime/user explorer)
 adminRest.get('/analytics/events/recent', async (req, res) => {
   try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    // Basic per-user (fallback IP) rate limiting: 60 req/min
+    const key = String((u && u.userId) || req.ip || 'anon');
+    const now = Date.now();
+    let entry = __eventsRecentRate.get(key);
+    if (!entry || entry.resetAt < now) { entry = { count: 0, resetAt: now + 60*1000 }; }
+    entry.count += 1;
+    __eventsRecentRate.set(key, entry);
+    if (entry.count > 60) return res.status(429).json({ error:'rate_limited' });
     const limit = Math.min(Math.max(Number(req.query.limit||100), 1), 500);
     const userId = (req.query.userId as string|undefined) || undefined;
     const sessionId = (req.query.sessionId as string|undefined) || undefined;
@@ -8536,6 +8972,7 @@ adminRest.get('/analytics/cohorts', async (_req, res) => {
 
 adminRest.get('/analytics/utm', async (req, res) => {
   try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
     const from = req.query.from ? new Date(String(req.query.from)) : undefined;
     const to = req.query.to ? new Date(String(req.query.to)) : undefined;
     const where = from && to ? 'WHERE "createdAt" BETWEEN $1 AND $2' : '';

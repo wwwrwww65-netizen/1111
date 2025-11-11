@@ -2327,6 +2327,50 @@ shop.post('/events', async (req: any, res) => {
   }catch(e:any){ return res.status(500).json({ error: e?.message||'event_ingest_failed' }); }
 });
 
+// Link current user to an anonymous/session id (shop scope)
+shop.post('/analytics/link', async (req: any, res) => {
+  try{
+    // Identify logged-in shop user
+    const header = (req?.headers?.authorization as string|undefined)||'';
+    let tokenAuth = '';
+    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    const jwt = require('jsonwebtoken');
+    let userId: string|undefined;
+    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+    if (!userId) return res.status(401).json({ ok:false, error:'unauthorized' });
+
+    const { sessionId, anonymousId } = req.body||{};
+    if (!sessionId && !anonymousId) return res.status(400).json({ ok:false, error:'missing_session_or_anonymous' });
+
+    // Update VisitorSession
+    let sessionsUpdated = 0;
+    if (sessionId){
+      const r = await db.$executeRawUnsafe(`UPDATE "VisitorSession" SET "userId" = $1 WHERE "userId" IS NULL AND id = $2`, String(userId), String(sessionId));
+      sessionsUpdated += Number(r)||0;
+    }
+    if (anonymousId){
+      const r = await db.$executeRawUnsafe(`UPDATE "VisitorSession" SET "userId" = $1 WHERE "userId" IS NULL AND "anonymousId" = $2`, String(userId), String(anonymousId));
+      sessionsUpdated += Number(r)||0;
+    }
+    // Update Event.userId for related events
+    if (sessionId){
+      await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE "userId" IS NULL AND COALESCE("sessionId", properties->>'sessionId') = $2`, String(userId), String(sessionId));
+    }
+    if (anonymousId){
+      // session-bound
+      const sids:any[] = await db.$queryRawUnsafe(`SELECT id FROM "VisitorSession" WHERE "anonymousId" = $1`, String(anonymousId));
+      const sidArr = (sids||[]).map((r:any)=> String(r.id));
+      if (sidArr.length){
+        await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE "userId" IS NULL AND COALESCE("sessionId", properties->>'sessionId') = ANY($2)`, String(userId), sidArr);
+      }
+      // direct anonymous
+      await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE "userId" IS NULL AND COALESCE("anonymousId", properties->>'anonymousId') = $2`, String(userId), String(anonymousId));
+    }
+    return res.json({ ok:true, sessionsUpdated });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e?.message||'link_failed' }); }
+});
+
 // Public: read recent events for a given sessionId/userId (limited, for diagnostics)
 shop.get('/events', async (req: any, res) => {
   try{

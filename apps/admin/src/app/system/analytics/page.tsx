@@ -60,9 +60,9 @@ export default function SystemAnalyticsPage(): JSX.Element {
           <button role="tab" aria-selected={tab==='top'} onClick={()=> setTab('top')} className={`btn ${tab==='top'?'':'btn-outline'}`}>الأعلى مبيعاً</button>
           <button role="tab" aria-selected={tab==='funnels'} onClick={()=> setTab('funnels')} className={`btn ${tab==='funnels'?'':'btn-outline'}`}>مسارات التحويل</button>
           <button role="tab" aria-selected={tab==='segments'} onClick={()=> setTab('segments')} className={`btn ${tab==='segments'?'':'btn-outline'}`}>الشرائح</button>
-          <button role="tab" aria-selected={tab==='cohorts'} onClick={()=> setTab('cohorts')} className={`btn ${tab==='cohorts'?'':'btn-outline'}`}>Cohorts</button>
-          <button role="tab" aria-selected={tab==='realtime'} onClick={()=> setTab('realtime')} className={`btn ${tab==='realtime'?'':'btn-outline'}`}>Realtime</button>
-          <button role="tab" aria-selected={tab==='utm'} onClick={()=> setTab('utm')} className={`btn ${tab==='utm'?'':'btn-outline'}`}>UTM</button>
+          <button role="tab" aria-selected={tab==='cohorts'} onClick={()=> setTab('cohorts')} className={`btn ${tab==='cohorts'?'':'btn-outline'}`}>Cohorts المجموعات</button>
+          <button role="tab" aria-selected={tab==='realtime'} onClick={()=> setTab('realtime')} className={`btn ${tab==='realtime'?'':'btn-outline'}`}>الزمن الحقيقي</button>
+          <button role="tab" aria-selected={tab==='utm'} onClick={()=> setTab('utm')} className={`btn ${tab==='utm'?'':'btn-outline'}`}>الحملات UTM</button>
         </div>
 
         {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 240 }} /> : error ? errorView(error, load) : (

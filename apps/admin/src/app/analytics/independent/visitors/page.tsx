@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { resolveApiBase } from "../../../lib/apiBase";
-import { buildUrl, safeFetchJson } from "../../../lib/http";
+import { buildUrl, safeFetchJson, errorView } from "../../../lib/http";
 import { IndependentNav } from "../components/IndependentNav";
 
 function rangeToFromTo(v: string): { from: string; to: string } {
@@ -15,18 +15,21 @@ export default function VisitorsPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [rng, setRng] = React.useState<'today'|'week'|'month'|'year'>('week');
   const { from, to } = React.useMemo(()=> rangeToFromTo(rng), [rng]);
-  const [rows, setRows] = React.useState<Array<{ sid:string; label?:string; ip:string; referrer:string; country:string; city?:string; device:string; durationSec:number; firstSeenAt:string; lastSeenAt:string }>>([]);
+  const [rows, setRows] = React.useState<Array<{ sid:string; label?:string; ip:string; referrer:string; country:string; city?:string; device:string; durationSec:number; firstSeenAt:string; lastSeenAt:string; sessions?:number }>>([]);
   const nf = React.useMemo(()=> new Intl.NumberFormat('en-US'), []);
   function fmtSec(s:number){ const m = Math.floor(s/60); const ss = s%60; return `${m}m ${ss}s`; }
+  const [err, setErr] = React.useState<string>('');
   async function load(){
     const r = await safeFetchJson<{ ok:boolean; visitors:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/ia/visitors`, { from, to, limit: 200 }));
-    if (r.ok) setRows((r.data.visitors||[]).map((x:any)=> ({ sid:x.sid, label:x.label, ip:x.ip, referrer:x.referrer, country:x.country, city:x.city, device:x.device, durationSec:Number(x.durationSec||0), firstSeenAt:x.firstSeenAt, lastSeenAt:x.lastSeenAt })));
+    if (r.ok) { setRows((r.data.visitors||[]).map((x:any)=> ({ sid:x.sid, label:x.label, ip:x.ip, referrer:x.referrer, country:x.country, city:x.city, device:x.device, durationSec:Number(x.durationSec||0), firstSeenAt:x.firstSeenAt, lastSeenAt:x.lastSeenAt, sessions: Number(x.sessions||0) }))); setErr(''); }
+    else { setErr(r.message||'failed'); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); },[apiBase, from, to]);
   return (
     <main>
       <IndependentNav />
       <h1 style={{ marginBottom:12 }}>الزائرون</h1>
+      {!!err && errorView(err, ()=> load())}
       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
         <select className="input" value={rng} onChange={e=> setRng(e.target.value as any)} style={{ width:180 }}>
           <option value="today">اليوم</option>
@@ -39,7 +42,7 @@ export default function VisitorsPage(): JSX.Element {
       <div className="panel" style={{ padding:12 }}>
         <div style={{ overflowX:'auto' }}>
           <table className="table">
-            <thead><tr><th>اسم الزائر</th><th>IP</th><th>المعرف</th><th>المُحيل</th><th>الدولة - المدينة</th><th>الجهاز</th><th>مدة الجلسة</th><th>آخر نشاط</th><th></th></tr></thead>
+            <thead><tr><th>اسم الزائر</th><th>IP</th><th>المعرف</th><th>المُحيل</th><th>الدولة - المدينة</th><th>الجهاز</th><th>الجلسات</th><th>مدة الجلسة</th><th>آخر نشاط</th><th></th></tr></thead>
             <tbody>
               {rows.map(r=> (
                 <tr key={r.sid}>
@@ -49,6 +52,7 @@ export default function VisitorsPage(): JSX.Element {
                   <td style={{ maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', direction:'ltr' }}>{r.referrer||'-'}</td>
                   <td>{(r.country||'-') + (r.city? ` - ${r.city}`:'')}</td>
                   <td className="truncate" style={{ maxWidth:260 }}>{r.device||'-'}</td>
+                  <td suppressHydrationWarning>{typeof r.sessions==='number'? r.sessions.toLocaleString() : '-'}</td>
                   <td suppressHydrationWarning>{fmtSec(r.durationSec)}</td>
                   <td>{new Date(r.lastSeenAt).toLocaleString()}</td>
                   <td><a className="btn btn-sm" href={`/analytics/independent/visitors/${encodeURIComponent(r.sid)}`}>سجل الزائر</a></td>
