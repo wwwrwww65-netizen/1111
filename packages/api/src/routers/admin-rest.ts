@@ -8642,6 +8642,7 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
     }
     const items = rows.map((r:any)=> ({
       sid: String(r.sid), // latest session id for drilldown
+      pkey: String(r.pkey||''),
       anonymousId: null, userId: null,
       ip: String(r.ip||''),
       country: r.country||'', city: r.city||'',
@@ -8671,7 +8672,9 @@ adminRest.get('/analytics/ia/products', async (req, res) => {
                COUNT(*)::bigint AS views,
                COUNT(DISTINCT COALESCE("sessionId", properties->>'sessionId'))::bigint AS sessions
         FROM "Event"
-        WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2 AND COALESCE("productId", properties->>'productId') IS NOT NULL
+        WHERE name IN ('page_view','viewcontent','product_view')
+          AND "createdAt" BETWEEN $1 AND $2
+          AND COALESCE("productId", properties->>'productId') IS NOT NULL
         GROUP BY 1
       ),
       atc AS (
@@ -8810,12 +8813,29 @@ adminRest.get('/analytics/ia/visitor/:sid', async (req, res) => {
   try{
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
     const sid = String(req.params.sid);
-    const events:any[] = await db.$queryRawUnsafe(`
-      SELECT id, "createdAt", name, "sessionId", "userId", "pageUrl", "referrer", "productId", device, os, browser, country, city, properties
-      FROM "Event"
-      WHERE ("sessionId" = $1 OR properties->>'sessionId' = $1)
-      ORDER BY "createdAt" ASC
-    `, sid);
+    const pkey = typeof req.query.pkey === 'string' && req.query.pkey ? String(req.query.pkey) : null;
+    let events:any[] = [];
+    if (pkey){
+      const sess:any[] = await db.$queryRawUnsafe(`SELECT id FROM "VisitorSession" WHERE COALESCE("anonymousId","ipHash") = $1`, pkey);
+      const sids = (sess||[]).map((r:any)=> String(r.id));
+      if (sids.length){
+        events = await db.$queryRawUnsafe(`
+          SELECT id, "createdAt", name, "sessionId", "userId", "pageUrl", "referrer", "productId", device, os, browser, country, city, properties
+          FROM "Event"
+          WHERE COALESCE("sessionId", properties->>'sessionId') = ANY($1)
+          ORDER BY "createdAt" ASC
+        `, sids);
+      } else {
+        events = [];
+      }
+    } else {
+      events = await db.$queryRawUnsafe(`
+        SELECT id, "createdAt", name, "sessionId", "userId", "pageUrl", "referrer", "productId", device, os, browser, country, city, properties
+        FROM "Event"
+        WHERE ("sessionId" = $1 OR properties->>'sessionId' = $1)
+        ORDER BY "createdAt" ASC
+      `, sid);
+    }
     const pids = Array.from(new Set(events.map(e=> String(e.productId||e?.properties?.productId||'')).filter(Boolean)));
     const prod = pids.length? await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true } }) : [];
     const pmap = new Map(prod.map(p=> [p.id, p]));

@@ -86,12 +86,13 @@ export async function trackEvent(name: string, payload: MetaEventPayload = {}, e
       if (s==='purchase') return 'purchase'
       return s
     }
+    const pid0 = (payload as any)?.content_ids?.[0]
     await apiPost('/api/events', {
       name: mapName(name),
       sessionId: sid,
       pageUrl: typeof location!=='undefined'? location.href : undefined,
       referrer: typeof document!=='undefined'? document.referrer : undefined,
-      productId: (payload as any)?.content_ids?.[0] || undefined,
+      productId: pid0 || undefined,
       orderId: payload.order_id || undefined,
       utm_source: (params as any).utm_source,
       utm_medium: (params as any).utm_medium,
@@ -104,6 +105,7 @@ export async function trackEvent(name: string, payload: MetaEventPayload = {}, e
         utm_source: (params as any).utm_source,
         utm_medium: (params as any).utm_medium,
         utm_campaign: (params as any).utm_campaign,
+        ...(pid0? { productId: pid0 }: {}),
         value: (payload as any)?.value,
         currency: cur,
         contents: (payload as any)?.contents,

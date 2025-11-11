@@ -2811,8 +2811,8 @@ shop.get('/auth/facebook/callback', async (req, res) => {
   }catch(e:any){ return res.status(500).json({ error: e.message||'facebook_callback_failed' }) }
 });
 
-// Cart endpoints (auth-required)
-shop.get('/cart', requireAuth, async (req: any, res) => {
+// Cart endpoints (auth-required variants under /cart/auth to avoid shadowing public guest endpoints)
+shop.get('/cart/auth', requireAuth, async (req: any, res) => {
   const userId = req.user.userId;
   const cart = await db.cart.findUnique({
     where: { userId },
@@ -2822,7 +2822,7 @@ shop.get('/cart', requireAuth, async (req: any, res) => {
   res.json({ cart, subtotal });
 });
 
-shop.post('/cart/add', requireAuth, async (req: any, res) => {
+shop.post('/cart/auth/add', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const { productId, quantity = 1 } = req.body || {};
@@ -2864,7 +2864,7 @@ shop.post('/cart/add', requireAuth, async (req: any, res) => {
   }
 });
 
-shop.post('/cart/update', requireAuth, async (req: any, res) => {
+shop.post('/cart/auth/update', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const { productId, quantity } = req.body || {};
@@ -2881,7 +2881,7 @@ shop.post('/cart/update', requireAuth, async (req: any, res) => {
   }
 });
 
-shop.post('/cart/remove', requireAuth, async (req: any, res) => {
+shop.post('/cart/auth/remove', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const { productId } = req.body || {};
@@ -2896,7 +2896,7 @@ shop.post('/cart/remove', requireAuth, async (req: any, res) => {
   }
 });
 
-shop.post('/cart/clear', requireAuth, async (req: any, res) => {
+shop.post('/cart/auth/clear', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const cart = await db.cart.findUnique({ where: { userId } });

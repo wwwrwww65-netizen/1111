@@ -1850,6 +1850,7 @@ onMounted(()=>{
   loadPdpMeta()
   loadSeller()
   trackViewItem()
+  trackPageViewProduct()
   injectHeadMeta()
   try{
     const hasAny = (!!reviews.value?.length) || (!!customerReviews.value?.length)
@@ -1890,6 +1891,7 @@ watch(() => route.query.id, async (nv, ov)=>{
       await loadSeller()
       computeGalleryHeight()
       window.scrollTo({ top: 0, behavior: 'instant' as any })
+      try{ await trackViewItem(); await trackPageViewProduct(); }catch{}
     }
   }catch{}
 })
@@ -2552,6 +2554,12 @@ async function trackViewItem(){
   try{
     const { trackEvent } = await import('@/lib/track')
     trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[id], content_type:'product_group', contents:[{ id, item_price: Number(price.value||0), quantity: 1 }] })
+  }catch{}
+}
+async function trackPageViewProduct(){
+  try{
+    const { trackEvent } = await import('@/lib/track')
+    trackEvent('PageView', { content_ids:[id], content_type:'product' })
   }catch{}
 }
 async function trackAddToCart(){

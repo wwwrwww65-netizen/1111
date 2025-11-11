@@ -17,7 +17,7 @@ export default function VisitorsPage(): JSX.Element {
   const [customFrom, setCustomFrom] = React.useState<string>(new Date(Date.now()-7*24*3600*1000).toISOString().slice(0,10));
   const [customTo, setCustomTo] = React.useState<string>(new Date().toISOString().slice(0,10));
   const { from, to } = React.useMemo(()=> rng==='custom'? { from: customFrom, to: customTo } : rangeToFromTo(rng), [rng, customFrom, customTo]);
-  const [rows, setRows] = React.useState<Array<{ sid:string; label?:string; ip:string; referrer:string; country:string; city?:string; device:string; durationSec:number; firstSeenAt:string; lastSeenAt:string; sessions?:number }>>([]);
+  const [rows, setRows] = React.useState<Array<{ sid:string; pkey?:string; label?:string; ip:string; referrer:string; country:string; city?:string; device:string; durationSec:number; firstSeenAt:string; lastSeenAt:string; sessions?:number }>>([]);
   const [summary, setSummary] = React.useState<{ count:number; prevCount:number; sessions:number }|null>(null);
   const nf = React.useMemo(()=> new Intl.NumberFormat('en-US'), []);
   function fmtSec(s:number){ const m = Math.floor(s/60); const ss = s%60; return `${m}m ${ss}s`; }
@@ -27,7 +27,7 @@ export default function VisitorsPage(): JSX.Element {
       safeFetchJson<{ ok:boolean; visitors:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/ia/visitors`, { from, to, limit: 200 })),
       safeFetchJson<{ ok:boolean; count:number; prevCount:number; sessions:number }>(buildUrl(`${apiBase}/api/admin/analytics/ia/visitors/summary`, { from, to })),
     ]);
-    if (r.ok) { setRows((r.data.visitors||[]).map((x:any)=> ({ sid:x.sid, label:x.label, ip:x.ip, referrer:x.referrer, country:x.country, city:x.city, device:x.device, durationSec:Number(x.durationSec||0), firstSeenAt:x.firstSeenAt, lastSeenAt:x.lastSeenAt, sessions: Number(x.sessions||0) }))); setErr(''); }
+    if (r.ok) { setRows((r.data.visitors||[]).map((x:any)=> ({ sid:x.sid, pkey:x.pkey, label:x.label, ip:x.ip, referrer:x.referrer, country:x.country, city:x.city, device:x.device, durationSec:Number(x.durationSec||0), firstSeenAt:x.firstSeenAt, lastSeenAt:x.lastSeenAt, sessions: Number(x.sessions||0) }))); setErr(''); }
     else { setErr(r.message||'failed'); }
     if (s.ok){ setSummary({ count: s.data.count, prevCount: s.data.prevCount, sessions: s.data.sessions }); }
   }
@@ -74,7 +74,7 @@ export default function VisitorsPage(): JSX.Element {
                   <td suppressHydrationWarning>{typeof r.sessions==='number'? r.sessions.toLocaleString() : '-'}</td>
                   <td suppressHydrationWarning>{fmtSec(r.durationSec)}</td>
                   <td>{new Date(r.lastSeenAt).toLocaleString()}</td>
-                  <td><a className="btn btn-sm" href={`/analytics/independent/visitors/${encodeURIComponent(r.sid)}`}>سجل الزائر</a></td>
+                  <td><a className="btn btn-sm" href={`/analytics/independent/visitors/${encodeURIComponent(r.sid)}${r.pkey? `?pkey=${encodeURIComponent(r.pkey)}`:''}`}>سجل الزائر</a></td>
                 </tr>
               ))}
               {!rows.length && <tr><td colSpan={8} style={{ color:'var(--sub)' }}>لا بيانات</td></tr>}
