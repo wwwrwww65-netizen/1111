@@ -117,8 +117,9 @@ try{ const cart = useCart(); cart.loadLocal();
         const already = sessionStorage.getItem('__linked_v1') === '1'
         const sid = localStorage.getItem('sid_v1') || ''
         if (!already && sid){
-          await fetch('/api/analytics/link', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ sessionId: sid }) })
-          sessionStorage.setItem('__linked_v1','1')
+          fetch('/api/analytics/link', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ sessionId: sid }) })
+            .then(()=> { try{ sessionStorage.setItem('__linked_v1','1') }catch{} })
+            .catch(()=>{})
         }
       }catch{}
       cart.syncFromServer().catch(()=>{})
