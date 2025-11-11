@@ -2212,6 +2212,17 @@ shop.post('/events', async (req: any, res) => {
       createdAt: now,
     };
 
+    // Ensure sessionId (fallback synthetic if missing) لتجنّب دمج الجلسات باسم guest
+    if (!payload.sessionId){
+      try{
+        const crypto = require('crypto');
+        const uaSig = `${uaInfo.deviceType||''}|${uaInfo.os||''}|${uaInfo.browser||''}`;
+        const bucket = String(new Date(now.toISOString().slice(0,13)+':00:00')).slice(0,13); // ساعة
+        const raw = `${payload.userId||''}|${payload.anonymousId||''}|${ipHash||''}|${uaSig}|${bucket}`;
+        payload.sessionId = 'sid_' + crypto.createHash('sha256').update(raw).digest('hex').slice(0,16);
+      }catch{ payload.sessionId = 'sid_' + Math.random().toString(36).slice(2,10); }
+    }
+
     // Best-effort IP → Geo enrichment if country/city missing and not anonymized
     try{
       if (!anonymize && ip && (!payload.country || !payload.city)){
@@ -2316,6 +2327,33 @@ shop.post('/events', async (req: any, res) => {
   }catch(e:any){ return res.status(500).json({ error: e?.message||'event_ingest_failed' }); }
 });
 
+// Public: read recent events for a given sessionId/userId (limited, for diagnostics)
+shop.get('/events', async (req: any, res) => {
+  try{
+    const limit = Math.min(Math.max(Number(req.query.limit||50), 1), 200);
+    const sessionId = (req.query.sessionId as string|undefined) || undefined;
+    const userId = (req.query.userId as string|undefined) || undefined;
+    const conds: string[] = []; const args:any[] = []; let idx=1;
+    if (sessionId){ conds.push(`COALESCE("sessionId", properties->>'sessionId') = $${idx++}`); args.push(String(sessionId)); }
+    if (userId){ conds.push(`COALESCE("userId", properties->>'userId') = $${idx++}`); args.push(String(userId)); }
+    const whereSql = conds.length? `WHERE ${conds.join(' AND ')}` : '';
+    args.push(limit);
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT id, "createdAt", name,
+             COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
+             COALESCE("userId", properties->>'userId')     AS "userId",
+             COALESCE("pageUrl", properties->>'pageUrl')   AS "pageUrl",
+             COALESCE("referrer", properties->>'referrer') AS "referrer",
+             device, os, browser, country, city
+      FROM "Event"
+      ${whereSql}
+      ORDER BY "createdAt" DESC
+      LIMIT $${idx}
+    `, ...args);
+    // mask potential PII in public response (no properties dump)
+    return res.json({ ok:true, events: rows });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e?.message||'events_list_failed' }); }
+});
 // Promotions claim (shop user)
 shop.post('/promotions/claim/start', async (req: any, res) => {
   try{

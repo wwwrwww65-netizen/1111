@@ -7864,27 +7864,19 @@ adminRest.get('/analytics/top-products', async (req, res) => {
 adminRest.get('/analytics/products/table', async (req, res) => {
   try{
     const limit = Math.min(Number(req.query.limit||50), 200);
-    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
-    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
     const device = (req.query.device as string|undefined)||undefined;
     const country = (req.query.country as string|undefined)||undefined;
     const channel = (req.query.channel as string|undefined)||undefined;
     const utmSource = (req.query.utmSource as string|undefined)||undefined;
     const utmMedium = (req.query.utmMedium as string|undefined)||undefined;
     const utmCampaign = (req.query.utmCampaign as string|undefined)||undefined;
-    // aggregate purchases by product
-  const purchases:any[] = await db.$queryRawUnsafe(`
-      SELECT oi."productId" as "productId", SUM(oi.quantity) as purchases
-      FROM "OrderItem" oi
-      GROUP BY oi."productId"
-      ORDER BY purchases DESC
-      LIMIT ${limit}
-    `);
-    const ids = purchases.map(r=> String(r.productId));
-    // Build WHERE for events
-    const evConds: string[] = [ `(properties->>'productId') IS NOT NULL`, `(properties->>'productId') = ANY($1)` ];
-    const evArgs: any[] = [ ids ];
-    let argIdx = 2;
+
+    // WHERE للـ events
+    const evConds: string[] = [ `(properties->>'productId') IS NOT NULL` ];
+    const evArgs: any[] = [];
+    let argIdx = 1;
     if (from && to){ evConds.push(`"createdAt" BETWEEN $${argIdx} AND $${argIdx+1}`); evArgs.push(from, to); argIdx+=2; }
     if (device){ evConds.push(`device = $${argIdx}`); evArgs.push(device); argIdx++; }
     if (country){ evConds.push(`country = $${argIdx}`); evArgs.push(country); argIdx++; }
@@ -7892,32 +7884,52 @@ adminRest.get('/analytics/products/table', async (req, res) => {
     if (utmSource){ evConds.push(`"utmSource" = $${argIdx}`); evArgs.push(utmSource); argIdx++; }
     if (utmMedium){ evConds.push(`"utmMedium" = $${argIdx}`); evArgs.push(utmMedium); argIdx++; }
     if (utmCampaign){ evConds.push(`"utmCampaign" = $${argIdx}`); evArgs.push(utmCampaign); argIdx++; }
-    const whereSql = evConds.join(' AND ');
-    const views:any[] = await db.$queryRawUnsafe(`
+    const whereEv = evConds.join(' AND ');
+
+    // الأعلى مشاهدة (يدعم legacy viewcontent)
+    const viewsTop:any[] = await db.$queryRawUnsafe(`
       SELECT (properties->>'productId') as "productId", COUNT(1) as views
       FROM "Event"
-      WHERE name='product_view' AND ${whereSql}
-      GROUP BY 1
+      WHERE name IN ('product_view','viewcontent') AND ${whereEv}
+      GROUP BY 1 ORDER BY views DESC LIMIT ${limit}
     `, ...evArgs);
+    const ids = viewsTop.map(r=> String(r.productId));
+    if (!ids.length){ return res.json({ ok:true, rows: [] }); }
+
+    // add_to_cart لنفس المعرّفات
+    const whereEvIds = whereEv + ` AND (properties->>'productId') = ANY($${argIdx})`;
+    const evArgsIds = [...evArgs, ids];
     const atc:any[] = await db.$queryRawUnsafe(`
       SELECT (properties->>'productId') as "productId", COUNT(1) as add_to_cart
       FROM "Event"
-      WHERE name='add_to_cart' AND ${whereSql}
+      WHERE name='add_to_cart' AND ${whereEvIds}
       GROUP BY 1
-    `, ...evArgs);
-    const vmap = new Map(views.map((r:any)=> [String(r.productId), Number(r.views||0)]));
+    `, ...evArgsIds);
+
+    // مشتريات لنفس المعرّفات
+    const purchases:any[] = await db.$queryRawUnsafe(`
+      SELECT oi."productId" as "productId", SUM(oi.quantity) as purchases
+      FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND oi."productId" = ANY($3) AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      GROUP BY 1
+    `, from, to, ids);
+
+    const vmap = new Map(viewsTop.map((r:any)=> [String(r.productId), Number(r.views||0)]));
     const amap = new Map(atc.map((r:any)=> [String(r.productId), Number(r.add_to_cart||0)]));
+    const pmapPur = new Map(purchases.map((r:any)=> [String(r.productId), Number(r.purchases||0)]));
+
     const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id:true, name:true, images:true, price:true } });
     const pmap = new Map(prods.map(p=> [p.id, p]));
-    const rows = purchases.map((r:any)=> {
-      const productId = String(r.productId);
+
+    let rows = ids.map((productId:string)=> {
       const p = pmap.get(productId);
       const pv = vmap.get(productId)||0;
       const ac = amap.get(productId)||0;
-      const pur = Number(r.purchases||0);
+      const pur = pmapPur.get(productId)||0;
       const conv = pv>0 ? (pur/pv) : 0;
       return { productId, product: p||null, views: pv, addToCart: ac, purchases: pur, conversion: conv };
     });
+    rows.sort((a,b)=> b.views - a.views);
     if (String(req.query.csv||'')==='1'){
       res.setHeader('content-type','text/csv; charset=utf-8');
       res.setHeader('content-disposition',`attachment; filename="products_analytics.csv"`);
@@ -8069,7 +8081,8 @@ adminRest.get('/analytics/ia/kpis', async (req, res) => {
     const viewsPerSession = sessions>0? (views/sessions) : 0;
     // Keep both keys: views (IA-style) and pageViews (compat with other checks/UI)
     // visitors => إجمالي الزوار عبر كل الزمن كما طلبت
-    return res.json({ ok:true, kpis: { visitors: visitorsTotal, totalVisitors: visitorsTotal, visitorsWindow, views, pageViews: views, sessions, avgSessionDurationSec, bounceRate, viewsPerSession } });
+    // distinctVisitors => عدد الأشخاص (فريد) ضمن الفترة المحددة
+    return res.json({ ok:true, kpis: { visitors: visitorsTotal, totalVisitors: visitorsTotal, visitorsWindow, distinctVisitors: visitorsWindow, views, pageViews: views, sessions, avgSessionDurationSec, bounceRate, viewsPerSession } });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_kpis_failed' }); }
 });
 
@@ -8255,11 +8268,11 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
         ORDER BY ev."createdAt" ASC
         LIMIT 1
       ) e ON TRUE
-      WHERE vs."firstSeenAt" BETWEEN $1 AND $2
+      WHERE vs."firstSeenAt" BETWEEN $1 AND $2 AND vs."userId" IS NULL
       ORDER BY vs."lastSeenAt" DESC
       LIMIT ${limit} OFFSET ${offset}
     `, from, to);
-    const items = rows.map((r:any)=> ({
+    const items = rows.map((r:any, idx:number)=> ({
       sid: String(r.sid), anonymousId: r.anonymousid? String(r.anonymousid) : null,
       userId: r.userid? String(r.userid) : null,
       ip: r.ip? String(r.ip) : '',
@@ -8267,7 +8280,8 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
       device: [r.device, r.os, r.browser].filter(Boolean).join(' · '),
       firstSeenAt: r.firstseenat, lastSeenAt: r.lastseenat,
       durationSec: Math.max(0, Math.round((new Date(r.lastseenat).getTime() - new Date(r.firstseenat).getTime())/1000)),
-      referrer: r.referrer||''
+      referrer: r.referrer||'',
+      label: `زائر - ${offset + idx + 1}`
     }));
     res.json({ ok:true, visitors: items });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_visitors_failed' }); }
@@ -8284,11 +8298,11 @@ adminRest.get('/analytics/ia/users', async (req, res) => {
     const limit = Math.min(Number(req.query.limit||100), 500);
     const rows:any[] = await db.$queryRawUnsafe(`
       WITH vs AS (
-        SELECT "userId" as uid, id as sid, "firstSeenAt" as fs, "lastSeenAt" as ls, country
+        SELECT "userId" as uid, id as sid, "firstSeenAt" as fs, "lastSeenAt" as ls
         FROM "VisitorSession" WHERE "firstSeenAt" BETWEEN $1 AND $2 AND "userId" IS NOT NULL
       ),
       ev AS (
-        SELECT COALESCE("userId", properties->>'userId') AS uid, "sessionId" as sid, MIN("createdAt") as fs, MAX("createdAt") as ls
+        SELECT COALESCE("userId", properties->>'userId') AS uid, COALESCE("sessionId", properties->>'sessionId') as sid, MIN("createdAt") as fs, MAX("createdAt") as ls
         FROM "Event" WHERE "createdAt" BETWEEN $1 AND $2 AND COALESCE("userId", properties->>'userId') IS NOT NULL
         GROUP BY 1,2
       ),
@@ -8296,20 +8310,28 @@ adminRest.get('/analytics/ia/users', async (req, res) => {
         SELECT uid, sid, fs, ls FROM vs
         UNION ALL
         SELECT uid, sid, fs, ls FROM ev
+      ),
+      lastSess AS (
+        SELECT DISTINCT ON (u.uid) u.uid, s.country, s.city, s."ipHash"
+        FROM unioned u
+        LEFT JOIN "VisitorSession" s ON s.id = u.sid
+        ORDER BY u.uid, u.ls DESC
       )
       SELECT u.id, u.name, u.email, u.phone,
              COUNT(DISTINCT unioned.sid) AS sessions,
              MIN(unioned.fs) AS firstSeen,
              MAX(unioned.ls) AS lastSeen,
-             MAX(COALESCE(vs.country,'')) AS country
+             COALESCE(lastSess.country,'') AS country,
+             COALESCE(lastSess.city,'') AS city,
+             COALESCE(lastSess."ipHash",'') AS ip
       FROM unioned
       JOIN "User" u ON u.id = unioned.uid
-      LEFT JOIN "VisitorSession" vs ON vs.id = unioned.sid
-      GROUP BY u.id, u.name, u.email, u.phone
+      LEFT JOIN lastSess ON lastSess.uid = u.id
+      GROUP BY u.id, u.name, u.email, u.phone, lastSess.country, lastSess.city, lastSess."ipHash"
       ORDER BY lastSeen DESC
       LIMIT ${limit}
     `, from, to);
-    res.json({ ok:true, users: rows.map((r:any)=> ({ id:String(r.id), name:r.name, email:r.email, phone:r.phone, sessions:Number(r.sessions||0), lastSeen:r.lastseen, firstSeen:r.firstseen, country:r.country||'' })) });
+    res.json({ ok:true, users: rows.map((r:any)=> ({ id:String(r.id), name:r.name, email:r.email, phone:r.phone, sessions:Number(r.sessions||0), lastSeen:r.lastseen, firstSeen:r.firstseen, country:r.country||'', city:r.city||'', ip:r.ip||'' })) });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_users_failed' }); }
 });
 
@@ -8348,10 +8370,14 @@ adminRest.get('/analytics/ia/user/:id', async (req, res) => {
   try{
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
     const id = String(req.params.id);
+    // اجلب أحداث المستخدم + أي أحداث لجلسات مرتبطة بالمستخدم في VisitorSession حتى لو لم تحمل userId
     const events:any[] = await db.$queryRawUnsafe(`
+      WITH sess AS (
+        SELECT id FROM "VisitorSession" WHERE "userId" = $1
+      )
       SELECT id, "createdAt", name, "sessionId", "userId", "pageUrl", "referrer", "productId", device, os, browser, country, city, properties
       FROM "Event"
-      WHERE ("userId" = $1 OR properties->>'userId' = $1)
+      WHERE ("userId" = $1 OR properties->>'userId' = $1 OR "sessionId" IN (SELECT id FROM sess) OR (properties->>'sessionId') IN (SELECT id FROM sess))
       ORDER BY "createdAt" ASC
     `, id);
     const pids = Array.from(new Set(events.map(e=> String(e.productId||e?.properties?.productId||'')).filter(Boolean)));
@@ -8454,6 +8480,34 @@ adminRest.get('/analytics/events/recent', async (req, res) => {
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'events_recent_failed' }); }
 });
 
+// Admin: ad-hoc events query for debugging (filters: sessionId, userId, limit)
+adminRest.get('/events', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const limit = Math.min(Math.max(Number(req.query.limit||100), 1), 500);
+    const userId = (req.query.userId as string|undefined) || undefined;
+    const sessionId = (req.query.sessionId as string|undefined) || undefined;
+    const conds: string[] = []; const args:any[] = []; let idx=1;
+    if (userId){ conds.push(`COALESCE("userId", properties->>'userId') = $${idx++}`); args.push(String(userId)); }
+    if (sessionId){ conds.push(`COALESCE("sessionId", properties->>'sessionId') = $${idx++}`); args.push(String(sessionId)); }
+    const whereSql = conds.length? `WHERE ${conds.join(' AND ')}` : '';
+    args.push(limit);
+    const rows:any[] = await db.$queryRawUnsafe(`
+      SELECT id, "createdAt", name,
+             COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
+             COALESCE("userId", properties->>'userId')     AS "userId",
+             COALESCE("pageUrl", properties->>'pageUrl')   AS "pageUrl",
+             COALESCE("referrer", properties->>'referrer') AS "referrer",
+             device, os, browser, country, city,
+             properties
+      FROM "Event"
+      ${whereSql}
+      ORDER BY "createdAt" DESC
+      LIMIT $${idx}
+    `, ...args);
+    return res.json({ ok:true, events: rows });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'events_query_failed' }); }
+});
 adminRest.get('/analytics/cohorts', async (_req, res) => {
   try{
     // Weekly cohorts (last 8 weeks) based on user createdAt and first order in subsequent weeks
@@ -8611,6 +8665,46 @@ adminRest.get('/analytics/vendors/top', async (req, res) => {
     const vmap = new Map(vendors.map(v=> [v.id, v]));
     res.json({ ok:true, vendors: vids.map(id=> ({ vendor: vmap.get(id)||{ id, name: id }, visits: Number((visits.find(v=> String(v.vid)===id)?.visits)||0), revenue: Number((sales.find(s=> String(s.vid)===id)?.revenue)||0), qty: Number((sales.find(s=> String(s.vid)===id)?.qty)||0) })) });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'vendors_top_failed' }); }
+});
+
+// ------------------------ System: Carts ------------------------
+adminRest.get('/carts', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const since = req.query.since? new Date(String(req.query.since)) : undefined;
+
+    const [userCarts, guestCarts] = await Promise.all([
+      db.cart.findMany({
+        where: since? { updatedAt: { gte: since } } as any : {},
+        select: {
+          id: true, updatedAt: true, createdAt: true,
+          user: { select: { id:true, name:true, email:true, phone:true } },
+          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true } } } }
+        },
+        orderBy: { updatedAt: 'desc' }
+      } as any),
+      db.guestCart.findMany({
+        where: since? { updatedAt: { gte: since } } as any : {},
+        select: {
+          id: true, sessionId: true, updatedAt: true, createdAt: true,
+          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true } } } }
+        },
+        orderBy: { updatedAt: 'desc' }
+      } as any)
+    ]);
+    res.json({ ok:true, userCarts, guestCarts });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_list_failed' }); }
+});
+
+adminRest.post('/carts/notify', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'notifications.write'))) return res.status(403).json({ error:'forbidden' });
+    const targets = Array.isArray(req.body?.targets)? req.body.targets : [];
+    const title = String(req.body?.title||'').trim(); const body = String(req.body?.body||'').trim();
+    // لاحقًا يمكن ربطه بخدمة الإشعارات الفعلية، نكتفي بتسجيل التدقيق
+    try{ await db.auditLog.create({ data: { userId: u.userId, module:'carts', action:'notify', details: { targetsCount: targets.length, titleLen: title.length, bodyLen: body.length } } }); }catch{}
+    return res.json({ ok:true, sent: targets.length });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_notify_failed' }); }
 });
 
 // Potential-to-buy recommendations (products)

@@ -15,12 +15,12 @@ export default function VisitorsPage(): JSX.Element {
   const apiBase = React.useMemo(()=> resolveApiBase(), []);
   const [rng, setRng] = React.useState<'today'|'week'|'month'|'year'>('week');
   const { from, to } = React.useMemo(()=> rangeToFromTo(rng), [rng]);
-  const [rows, setRows] = React.useState<Array<{ sid:string; ip:string; referrer:string; country:string; city?:string; device:string; durationSec:number; firstSeenAt:string; lastSeenAt:string }>>([]);
+  const [rows, setRows] = React.useState<Array<{ sid:string; label?:string; ip:string; referrer:string; country:string; city?:string; device:string; durationSec:number; firstSeenAt:string; lastSeenAt:string }>>([]);
   const nf = React.useMemo(()=> new Intl.NumberFormat('en-US'), []);
   function fmtSec(s:number){ const m = Math.floor(s/60); const ss = s%60; return `${m}m ${ss}s`; }
   async function load(){
     const r = await safeFetchJson<{ ok:boolean; visitors:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/ia/visitors`, { from, to, limit: 200 }));
-    if (r.ok) setRows((r.data.visitors||[]).map((x:any)=> ({ sid:x.sid, ip:x.ip, referrer:x.referrer, country:x.country, city:x.city, device:x.device, durationSec:Number(x.durationSec||0), firstSeenAt:x.firstSeenAt, lastSeenAt:x.lastSeenAt })));
+    if (r.ok) setRows((r.data.visitors||[]).map((x:any)=> ({ sid:x.sid, label:x.label, ip:x.ip, referrer:x.referrer, country:x.country, city:x.city, device:x.device, durationSec:Number(x.durationSec||0), firstSeenAt:x.firstSeenAt, lastSeenAt:x.lastSeenAt })));
   }
   React.useEffect(()=>{ load().catch(()=>{}); },[apiBase, from, to]);
   return (
@@ -39,10 +39,11 @@ export default function VisitorsPage(): JSX.Element {
       <div className="panel" style={{ padding:12 }}>
         <div style={{ overflowX:'auto' }}>
           <table className="table">
-            <thead><tr><th>IP</th><th>المعرف</th><th>المُحيل</th><th>الدولة - المدينة</th><th>الجهاز</th><th>مدة الجلسة</th><th>آخر نشاط</th><th></th></tr></thead>
+            <thead><tr><th>اسم الزائر</th><th>IP</th><th>المعرف</th><th>المُحيل</th><th>الدولة - المدينة</th><th>الجهاز</th><th>مدة الجلسة</th><th>آخر نشاط</th><th></th></tr></thead>
             <tbody>
               {rows.map(r=> (
                 <tr key={r.sid}>
+                  <td>{r.label||'-'}</td>
                   <td style={{ direction:'ltr' }}>{r.ip||'-'}</td>
                   <td style={{ direction:'ltr' }}>{r.sid}</td>
                   <td style={{ maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', direction:'ltr' }}>{r.referrer||'-'}</td>

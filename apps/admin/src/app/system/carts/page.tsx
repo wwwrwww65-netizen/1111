@@ -16,7 +16,12 @@ export default function CartsPage(): JSX.Element {
 
   async function load(){
     setLoading(true); setError('');
-    try{ const url = since? `/api/admin/carts?since=${encodeURIComponent(since)}` : '/api/admin/carts'; const r = await fetch(url, { credentials:'include' }); const j = await r.json(); if (r.ok) { setUserCarts(j.userCarts||[]); setGuestCarts(j.guestCarts||[]); } else setError(j.error||'failed'); }
+    try{
+      const url = since? `/api/admin/carts?since=${encodeURIComponent(since)}` : '/api/admin/carts';
+      const r = await fetch(url, { credentials:'include' });
+      const j = await r.json();
+      if (r.ok) { setUserCarts(j.userCarts||[]); setGuestCarts(j.guestCarts||[]); } else setError(j.error||'failed');
+    }
     catch{ setError('network'); }
     finally{ setLoading(false); }
   }
@@ -56,7 +61,9 @@ export default function CartsPage(): JSX.Element {
             <table className="table" role="table" aria-label={tab==='users'? 'سلال المستخدمين':'سلال الزوار'}>
               <thead><tr>
                 <th><input type="checkbox" onChange={()=> toggleAll(rows)} aria-label="تحديد الكل" /></th>
-                <th>{tab==='users'? 'المستخدم' : 'جلسة/زائر'}</th>
+                <th>{tab==='users'? 'المستخدم' : 'الزائر'}</th>
+                <th>اسم الزائر</th>
+                <th>المعرف</th>
                 <th>المنتجات</th>
                 <th>آخر تحديث</th>
               </tr></thead>
@@ -65,8 +72,10 @@ export default function CartsPage(): JSX.Element {
                   <tr key={c.id}>
                     <td><input type="checkbox" checked={!!selected[c.id]} onChange={()=> setSelected(s=> ({...s, [c.id]: !s[c.id]}))} aria-label={`اختيار ${c.id}`} /></td>
                     <td>
-                      {tab==='users' ? (<div>{c.user?.name||c.user?.email||c.user?.id}</div>) : (<div>{c.sessionId}</div>)}
+                      {tab==='users' ? (<div>{c.user?.name||c.user?.email||c.user?.id}</div>) : (<div>Guest</div>)}
                     </td>
+                    <td>{tab==='users'? (c.user?.name||'-') : `زائر - ${1 + rows.indexOf(c)}`}</td>
+                    <td style={{ direction:'ltr' }}>{tab==='users'? (c.user?.id||'-') : (c.sessionId||'-')}</td>
                     <td>
                       <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
                         {(c.items||[]).map((it:any)=> (
