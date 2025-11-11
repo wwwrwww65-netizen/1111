@@ -2164,7 +2164,14 @@ shop.post('/events', async (req: any, res) => {
     const header = (req?.headers?.authorization as string|undefined)||'';
     let tokenAuth = '';
     if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    // Accept multiple possible cookie names for JWT to improve compatibility
+    const allCookies = (req?.cookies||{}) as Record<string, string>;
+    const candidateCookieNames = ['shop_auth_token','auth_token','token','jwt','access_token'];
+    let cookieTok = '';
+    for (const k of candidateCookieNames){
+      const v = (allCookies as any)[k];
+      if (typeof v === 'string' && v) { cookieTok = v; break; }
+    }
     const jwt = require('jsonwebtoken');
     let userId: string|undefined;
     for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }

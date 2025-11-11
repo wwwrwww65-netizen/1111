@@ -10,11 +10,14 @@ export default function EcommerceReport(): JSX.Element {
   const [to, setTo] = React.useState<string>(new Date().toISOString().slice(0,10));
   const [sum, setSum] = React.useState<any>(null);
   const [top, setTop] = React.useState<any[]>([]);
+  const [topViewed, setTopViewed] = React.useState<any[]>([]);
   async function load(){
     const s = await safeFetchJson<{ ok:boolean; summary:any }>(buildUrl(`${apiBase}/api/admin/analytics/sales/summary`, { from, to }));
     if (s.ok) setSum(s.data.summary);
     const t = await safeFetchJson<{ ok:boolean; items:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/top-sellers`, { from, to, limit: 20 }));
     if (t.ok) setTop(t.data.items||[]);
+    const v = await safeFetchJson<{ ok:boolean; products:any[] }>(buildUrl(`${apiBase}/api/admin/analytics/ia/products`, { from, to, limit: 20 }));
+    if (v.ok) setTopViewed((v.data.products||[]).map((x:any)=> ({ productId:String(x.productId), product:x.product||null, views:Number(x.views||0), addToCart:Number(x.addToCart||0), sessions:Number(x.sessions||0) })));
   }
   React.useEffect(()=>{ load().catch(()=>{}); },[apiBase, from, to]);
   return (
@@ -50,7 +53,28 @@ export default function EcommerceReport(): JSX.Element {
                   <td>{Number(r.profit||0).toLocaleString()}</td>
                 </tr>
               ))}
-              {!top.length && <tr><td colSpan={3} style={{ color:'var(--sub)' }}>لا بيانات</td></tr>}
+              {!top.length && <tr><td colSpan={6} style={{ color:'var(--sub)' }}>لا بيانات</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="panel" style={{ padding:12, marginTop:12 }}>
+        <h3 style={{ marginTop:0 }}>المنتجات الأكثر مشاهدة</h3>
+        <div style={{ overflowX:'auto' }}>
+          <table className="table">
+            <thead><tr><th></th><th>المنتج</th><th>المشاهدات</th><th>الإضافة للسلة</th><th>الجلسات</th></tr></thead>
+            <tbody>
+              {topViewed.map((r:any)=> (
+                <tr key={r.productId}>
+                  <td>{Array.isArray(r.product?.images)&&r.product.images[0]? (<img src={r.product.images[0]} alt="" className="thumb" />): null}</td>
+                  <td>{r.product?.name||r.productId}</td>
+                  <td>{r.views.toLocaleString()}</td>
+                  <td>{r.addToCart.toLocaleString()}</td>
+                  <td>{r.sessions.toLocaleString()}</td>
+                </tr>
+              ))}
+              {!topViewed.length && <tr><td colSpan={5} style={{ color:'var(--sub)' }}>لا بيانات</td></tr>}
             </tbody>
           </table>
         </div>

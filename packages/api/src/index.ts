@@ -629,6 +629,10 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
          END$$;`
       );
     } catch {}
+    // Ensure modern columns and indexes for guest cart items (cartId-based)
+    try { await db.$executeRawUnsafe('ALTER TABLE "GuestCartItem" ADD COLUMN IF NOT EXISTS "cartId" TEXT'); } catch {}
+    try { await db.$executeRawUnsafe('UPDATE "GuestCartItem" SET "cartId"="guestCartId" WHERE "cartId" IS NULL AND "guestCartId" IS NOT NULL'); } catch {}
+    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "GuestCartItem_cartId_productId_key" ON "GuestCartItem"("cartId","productId")');
     await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "GuestCartItem_guestCartId_productId_key" ON "GuestCartItem"("guestCartId","productId")');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "GuestCartItem_productId_idx" ON "GuestCartItem"("productId")');
     // Seed default accounts

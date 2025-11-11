@@ -8489,10 +8489,11 @@ adminRest.get('/analytics/ia/referrers', async (req, res) => {
     if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     const limit = Math.min(Number(req.query.limit||50), 200);
-    // Normalize to host without scheme and common prefixes (m., lm., l.)
+    // Normalize to host without scheme and common prefixes (www., m., lm., l.)
     const rows:any[] = await db.$queryRawUnsafe(`
       WITH base AS (
-        SELECT COALESCE("referrer", properties->>'referrer','') AS ref
+        SELECT COALESCE("referrer", properties->>'referrer','') AS ref,
+               COALESCE("sessionId", properties->>'sessionId') AS sid
         FROM "Event" WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
       ), hostnorm AS (
         SELECT
@@ -8505,10 +8506,11 @@ adminRest.get('/analytics/ia/referrers', async (req, res) => {
               '^(m\\.|lm\\.|l\\.)', '', 'i'
             ),
             '/.*$', ''
-          ) AS host
+          ) AS host,
+          sid
         FROM base
       )
-      SELECT host AS ref, COUNT(*)::bigint AS views
+      SELECT host AS ref, COUNT(*)::bigint AS views, COUNT(DISTINCT sid)::bigint AS sessions
       FROM hostnorm
       WHERE host <> ''
       GROUP BY 1 ORDER BY views DESC
@@ -8612,7 +8614,7 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
         FROM base GROUP BY 1
       ),
       latest AS (
-        SELECT DISTINCT ON (pkey) pkey, id AS sid, country, city, device, os, browser
+        SELECT DISTINCT ON (pkey) pkey, id AS sid, "ipHash", country, city, device, os, browser
         FROM base
         ORDER BY pkey, "lastSeenAt" DESC
       ),
@@ -8625,7 +8627,7 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
         ORDER BY COALESCE(vs."anonymousId",vs."ipHash"), ev."createdAt" ASC
       )
       SELECT a.pkey, a.sessions, a.fs as firstSeenAt, a.ls as lastSeenAt,
-             l.sid, l.country, l.city, l.device, l.os, l.browser,
+             l.sid, l."ipHash" as ip, l.country, l.city, l.device, l.os, l.browser,
              COALESCE(r.ref,'') AS referrer
       FROM agg a
       JOIN latest l ON l.pkey = a.pkey
@@ -8641,7 +8643,7 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
     const items = rows.map((r:any)=> ({
       sid: String(r.sid), // latest session id for drilldown
       anonymousId: null, userId: null,
-      ip: '', // aggregated: keep IP hashed internally; avoid exposing here
+      ip: String(r.ip||''),
       country: r.country||'', city: r.city||'',
       device: [r.device, r.os, r.browser].filter(Boolean).join(' · '),
       firstSeenAt: r.firstseenat, lastSeenAt: r.lastseenat,
@@ -8652,6 +8654,52 @@ adminRest.get('/analytics/ia/visitors', async (req, res) => {
     }));
     res.json({ ok:true, visitors: items });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_visitors_failed' }); }
+});
+
+// IA Products report (views, add_to_cart, sessions per product)
+adminRest.get('/analytics/ia/products', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
+    if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
+    const limit = Math.min(Number(req.query.limit||100), 500);
+    const rows:any[] = await db.$queryRawUnsafe(`
+      WITH pv AS (
+        SELECT COALESCE("productId", properties->>'productId') AS pid,
+               COUNT(*)::bigint AS views,
+               COUNT(DISTINCT COALESCE("sessionId", properties->>'sessionId'))::bigint AS sessions
+        FROM "Event"
+        WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2 AND COALESCE("productId", properties->>'productId') IS NOT NULL
+        GROUP BY 1
+      ),
+      atc AS (
+        SELECT COALESCE("productId", properties->>'productId') AS pid,
+               COUNT(*)::bigint AS add_to_cart
+        FROM "Event"
+        WHERE (name='add_to_cart' OR name='AddToCart') AND "createdAt" BETWEEN $1 AND $2 AND COALESCE("productId", properties->>'productId') IS NOT NULL
+        GROUP BY 1
+      )
+      SELECT pv.pid, pv.views, pv.sessions, COALESCE(atc.add_to_cart,0)::bigint AS add_to_cart
+      FROM pv LEFT JOIN atc ON atc.pid = pv.pid
+      ORDER BY pv.views DESC
+      LIMIT ${limit}
+    `, from, to);
+    const pids = Array.from(new Set(rows.map((r:any)=> String(r.pid||'')).filter(Boolean)));
+    const prods = pids.length? await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true, sku:true } }) : [];
+    const pmap = new Map(prods.map(p=> [p.id, p]));
+    const out = rows.map((r:any)=> ({ product: pmap.get(String(r.pid))||null, productId: String(r.pid), views: Number(r.views||0), addToCart: Number(r.add_to_cart||0), sessions: Number(r.sessions||0) }));
+    if (String(req.query.csv||'')==='1'){
+      res.setHeader('content-type','text/csv; charset=utf-8');
+      res.setHeader('content-disposition',`attachment; filename="ia_products.csv"`);
+      const head = 'productId,name,views,addToCart,sessions\n';
+      const esc = (v:string)=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v);
+      const body = out.map(r=> [r.productId, r.product?.name||'', r.views, r.addToCart, r.sessions].map(esc).join(',')).join('\n');
+      return res.send(head+body);
+    }
+    return res.json({ ok:true, products: out });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_products_failed' }); }
 });
 
 // IA Users list (aggregated by userId from VisitorSession)
@@ -8700,6 +8748,61 @@ adminRest.get('/analytics/ia/users', async (req, res) => {
     `, from, to);
     res.json({ ok:true, users: rows.map((r:any)=> ({ id:String(r.id), name:r.name, email:r.email, phone:r.phone, sessions:Number(r.sessions||0), lastSeen:r.lastseen, firstSeen:r.firstseen, country:r.country||'', city:r.city||'', ip:r.ip||'' })) });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_users_failed' }); }
+});
+
+// IA Summaries for KPI cards
+adminRest.get('/analytics/ia/visitors/summary', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-7*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
+    if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
+    const span = to.getTime() - from.getTime();
+    const prevTo = new Date(from.getTime()); const prevFrom = new Date(from.getTime() - (span || 24*3600*1000));
+    const [cur, prev]: any[] = await Promise.all([
+      db.$queryRawUnsafe(`
+        SELECT COUNT(DISTINCT COALESCE("anonymousId","ipHash"))::bigint AS cnt,
+               COUNT(*)::bigint AS sessions
+        FROM "VisitorSession" WHERE "userId" IS NULL AND "firstSeenAt" BETWEEN $1 AND $2
+      `, from, to),
+      db.$queryRawUnsafe(`
+        SELECT COUNT(DISTINCT COALESCE("anonymousId","ipHash"))::bigint AS cnt
+        FROM "VisitorSession" WHERE "userId" IS NULL AND "firstSeenAt" BETWEEN $1 AND $2
+      `, prevFrom, prevTo),
+    ]);
+    const count = Number(cur?.[0]?.cnt||0);
+    const sessions = Number(cur?.[0]?.sessions||0);
+    const prevCount = Number(prev?.[0]?.cnt||0);
+    res.json({ ok:true, count, sessions, prevCount });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_visitors_summary_failed' }); }
+});
+
+adminRest.get('/analytics/ia/users/summary', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
+    if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
+    const span = to.getTime() - from.getTime();
+    const prevTo = new Date(from.getTime()); const prevFrom = new Date(from.getTime() - (span || 24*3600*1000));
+    const [cur, prev]: any[] = await Promise.all([
+      db.$queryRawUnsafe(`
+        SELECT COUNT(DISTINCT "userId")::bigint AS cnt,
+               COUNT(*)::bigint AS sessions
+        FROM "VisitorSession" WHERE "userId" IS NOT NULL AND "firstSeenAt" BETWEEN $1 AND $2
+      `, from, to),
+      db.$queryRawUnsafe(`
+        SELECT COUNT(DISTINCT "userId")::bigint AS cnt
+        FROM "VisitorSession" WHERE "userId" IS NOT NULL AND "firstSeenAt" BETWEEN $1 AND $2
+      `, prevFrom, prevTo),
+    ]);
+    const count = Number(cur?.[0]?.cnt||0);
+    const sessions = Number(cur?.[0]?.sessions||0);
+    const prevCount = Number(prev?.[0]?.cnt||0);
+    res.json({ ok:true, count, sessions, prevCount });
+  }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'ia_users_summary_failed' }); }
 });
 
 // IA Visitor timeline
@@ -8770,12 +8873,24 @@ adminRest.get('/analytics/ia/clicks', async (req, res) => {
     if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     const rows:any[] = await db.$queryRawUnsafe(`
+      WITH base AS (
+        SELECT
+          COALESCE(properties->>'href', COALESCE(properties->>'selector',''), '') AS raw,
+          COUNT(*)::bigint AS clicks
+        FROM "Event"
+        WHERE name='click' AND "createdAt" BETWEEN $1 AND $2
+        GROUP BY 1
+      )
       SELECT
-        COALESCE(properties->>'href', COALESCE(properties->>'selector',''), '') AS target,
-        COUNT(*)::bigint AS clicks
-      FROM "Event"
-      WHERE name='click' AND "createdAt" BETWEEN $1 AND $2
-      GROUP BY 1 ORDER BY clicks DESC LIMIT 200
+        CASE
+          WHEN raw ILIKE 'http%' THEN
+            regexp_replace(regexp_replace(raw, '^https?://', ''), '^www\\.|^m\\.|^lm\\.|^l\\.', '', 'i')
+          ELSE raw
+        END AS target,
+        clicks
+      FROM base
+      ORDER BY clicks DESC
+      LIMIT 200
     `, from, to);
     if (String(req.query.csv||'')==='1'){
       res.setHeader('content-type','text/csv; charset=utf-8');
@@ -8991,8 +9106,10 @@ adminRest.get('/analytics/utm', async (req, res) => {
         COALESCE("utmSource", (properties->>'utm_source'), '') as source,
         COALESCE("utmMedium", (properties->>'utm_medium'), '') as medium,
         COALESCE("utmCampaign", (properties->>'utm_campaign'), '') as campaign,
-        COUNT(*) as cnt
+        COUNT(*)::bigint as cnt,
+        COUNT(DISTINCT COALESCE("sessionId", properties->>'sessionId'))::bigint as sessions
       FROM "Event"
+      WHERE name='page_view'
       ${where}
       GROUP BY 1,2,3
       ORDER BY cnt DESC
@@ -9063,7 +9180,8 @@ adminRest.get('/analytics/top-sellers', async (req, res) => {
     const rows:any[] = await db.$queryRawUnsafe(`
       SELECT oi."productId" as pid, SUM(oi.quantity) as qty, SUM(oi.price*oi.quantity) as revenue
       FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      WHERE o."createdAt" BETWEEN $1 AND $2
+        AND (o.status IS NULL OR UPPER(o.status) NOT IN ('CANCELLED','DRAFT'))
       GROUP BY 1 ORDER BY revenue DESC LIMIT ${limit}
     `, from, to);
     const pids = rows.map(r=> String(r.pid));

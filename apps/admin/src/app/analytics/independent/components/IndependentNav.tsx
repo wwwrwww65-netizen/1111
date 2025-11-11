@@ -8,6 +8,7 @@ const tabs = [
   { href: "/analytics/independent/visitors", label: "الزائر" },
   { href: "/analytics/independent/users", label: "المستخدم" },
   { href: "/analytics/independent/pages", label: "الصفحات" },
+  { href: "/analytics/independent/products", label: "المنتجات" },
   { href: "/analytics/independent/referrers", label: "المُحيلون" },
   { href: "/analytics/independent/geo", label: "الجغرافيا" },
   { href: "/analytics/independent/devices", label: "الأجهزة" },
