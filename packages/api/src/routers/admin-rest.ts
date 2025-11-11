@@ -8695,7 +8695,7 @@ adminRest.get('/analytics/ia/products', async (req, res) => {
       res.setHeader('content-disposition',`attachment; filename="ia_products.csv"`);
       const head = 'productId,name,views,addToCart,sessions\n';
       const esc = (v:string)=> /[",\n]/.test(String(v))? '"'+String(v).replace(/"/g,'""')+'"' : String(v);
-      const body = out.map(r=> [r.productId, r.product?.name||'', r.views, r.addToCart, r.sessions].map(esc).join(',')).join('\n');
+      const body = out.map(r=> [String(r.productId), String(r.product?.name||''), String(r.views), String(r.addToCart), String(r.sessions)].map(esc).join(',')).join('\n');
       return res.send(head+body);
     }
     return res.json({ ok:true, products: out });
