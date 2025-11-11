@@ -8390,10 +8390,19 @@ adminRest.get('/analytics/ia/series', async (req, res) => {
     if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
     if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     // Prefer materialized views when available, fallback to raw aggregation
-    const mvPvExists:any[] = await db.$queryRawUnsafe(`SELECT to_regclass('public.mv_event_page_views_daily') AS reg`);
-    const mvVsExists:any[] = await db.$queryRawUnsafe(`SELECT to_regclass('public.mv_visitor_sessions_daily') AS reg`);
-    const useMvPv = Array.isArray(mvPvExists) && mvPvExists[0] && mvPvExists[0].reg;
-    const useMvVs = Array.isArray(mvVsExists) && mvVsExists[0] && mvVsExists[0].reg;
+    // NOTE: Avoid returning regclass in result (Prisma cannot deserialize regclass).
+    const mvPvExists:any[] = await db.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_matviews WHERE schemaname='public' AND matviewname='mv_event_page_views_daily'
+      ) AS ok
+    `);
+    const mvVsExists:any[] = await db.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_matviews WHERE schemaname='public' AND matviewname='mv_visitor_sessions_daily'
+      ) AS ok
+    `);
+    const useMvPv = Array.isArray(mvPvExists) && mvPvExists[0] && !!(mvPvExists[0] as any).ok;
+    const useMvVs = Array.isArray(mvVsExists) && mvVsExists[0] && !!(mvVsExists[0] as any).ok;
     const vrows:any[] = useMvVs
       ? await db.$queryRawUnsafe(`
           SELECT to_char(day, 'YYYY-MM-DD') AS day, SUM(sessions)::bigint AS sessions, SUM(visitors)::bigint AS visitors
