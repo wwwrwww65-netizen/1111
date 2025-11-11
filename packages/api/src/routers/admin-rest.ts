@@ -9097,10 +9097,10 @@ adminRest.get('/analytics/cohorts', async (_req, res) => {
 adminRest.get('/analytics/utm', async (req, res) => {
   try{
     const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
-    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
-    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
-    const where = from && to ? 'WHERE "createdAt" BETWEEN $1 AND $2' : '';
-    const args = from && to ? [from, to] : [];
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now()-30*24*3600*1000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    if (typeof req.query.from==='string' && req.query.from.length<=10) { from.setHours(0,0,0,0); }
+    if (typeof req.query.to==='string' && req.query.to.length<=10) { to.setHours(23,59,59,999); }
     const items = await db.$queryRawUnsafe(`
       SELECT
         COALESCE("utmSource", (properties->>'utm_source'), '') as source,
@@ -9109,12 +9109,11 @@ adminRest.get('/analytics/utm', async (req, res) => {
         COUNT(*)::bigint as cnt,
         COUNT(DISTINCT COALESCE("sessionId", properties->>'sessionId'))::bigint as sessions
       FROM "Event"
-      WHERE name='page_view'
-      ${where}
+      WHERE name='page_view' AND "createdAt" BETWEEN $1 AND $2
       GROUP BY 1,2,3
       ORDER BY cnt DESC
       LIMIT 100
-    `, ...args);
+    `, from, to);
     res.json({ ok:true, items });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'utm_failed' }); }
 });
@@ -9181,7 +9180,7 @@ adminRest.get('/analytics/top-sellers', async (req, res) => {
       SELECT oi."productId" as pid, SUM(oi.quantity) as qty, SUM(oi.price*oi.quantity) as revenue
       FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
       WHERE o."createdAt" BETWEEN $1 AND $2
-        AND (o.status IS NULL OR UPPER(o.status) NOT IN ('CANCELLED','DRAFT'))
+        AND (o.status IS NULL OR UPPER(o.status::text) NOT IN ('CANCELLED','DRAFT'))
       GROUP BY 1 ORDER BY revenue DESC LIMIT ${limit}
     `, from, to);
     const pids = rows.map(r=> String(r.pid));
