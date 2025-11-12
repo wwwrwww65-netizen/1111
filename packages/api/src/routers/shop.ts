@@ -3496,10 +3496,17 @@ shop.post('/cart/add', async (req: any, res) => {
     const userId = (req as any)?.user?.userId;
     const { productId, quantity } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId_required' });
+    // Validate product exists and is active to avoid FK/hidden items
+    try{
+      const p = await db.product.findFirst({ where: { id: String(productId), isActive: true }, select: { id: true } } as any);
+      if (!p) return res.status(404).json({ error: 'product_not_found_or_inactive' });
+    }catch{
+      return res.status(500).json({ error: 'product_lookup_failed' });
+    }
     const q = Math.max(1, Number(quantity||1));
     if (userId) {
-      let cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
-      if (!cart) cart = await db.cart.create({ data: { userId } });
+      // Upsert cart by userId to handle rare duplicates safely
+      let cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
       const cartId = cart.id;
       const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } });
       if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } });
@@ -3906,11 +3913,17 @@ shop.post('/cart/add', async (req: any, res) => {
   try {
     const { productId, quantity } = req.body || {};
     const qty = Math.max(1, Number(quantity || 1));
-    if (!productId) return res.status(400).json({ error: 'productId required' });
+    if (!productId) return res.status(400).json({ error: 'productId_required' });
+    // Validate product exists and active
+    try{
+      const p = await db.product.findFirst({ where: { id: String(productId), isActive: true }, select: { id: true } } as any);
+      if (!p) return res.status(404).json({ error: 'product_not_found_or_inactive' });
+    }catch{
+      return res.status(500).json({ error: 'product_lookup_failed' });
+    }
     if (req.user && req.user.userId) {
       const userId = req.user.userId;
-      let cart = await db.cart.findUnique({ where: { userId } });
-      if (!cart) cart = await db.cart.create({ data: { userId } });
+      const cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
       const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
       if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
       else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty } });
