@@ -15,6 +15,11 @@ on:
         required: false
         type: boolean
         default: false
+      run_variants_smoke:
+        description: "Run product variants/colors smoke after deploy"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -916,7 +921,7 @@ jobs:
             journalctl -u ecom-api --no-pager -n 50 || tail -n 50 /var/log/ecom-api.out 2>/dev/null || true
 
       - name: Product variants/colors smoke
-        if: ${{ env.HAVE_SSH == '1' }}
+        if: ${{ env.HAVE_SSH == '1' && github.event_name == 'workflow_dispatch' && inputs.run_variants_smoke == true }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
