@@ -3514,6 +3514,7 @@ shop.post('/cart/add', async (req: any, res) => {
       const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } });
       if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } });
       else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q } });
+      try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
       // Use Prisma instead of raw SQL to avoid schema drift issues
@@ -3523,6 +3524,7 @@ shop.post('/cart/add', async (req: any, res) => {
       } else {
         await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q } } as any);
       }
+      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
       // Fire FB CAPI AddToCart for guest using fbp/fbc only
       try {
         const { fbSendEvents } = await import('../services/fb');
@@ -3553,6 +3555,7 @@ shop.post('/cart/update', async (req: any, res) => {
       if (!existing) return res.json({ ok: true });
       if (q === 0) await db.cartItem.delete({ where: { id: existing.id } });
       else await db.cartItem.update({ where: { id: existing.id }, data: { quantity: q } });
+      try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
       if (q === 0) {
@@ -3562,6 +3565,7 @@ shop.post('/cart/update', async (req: any, res) => {
         const id = (require('crypto').randomUUID as ()=>string)();
         await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "cartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("cartId","productId") DO UPDATE SET "quantity"=$4', id, cartId, String(productId), q);
       }
+      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'update_failed' }); }
@@ -3577,9 +3581,11 @@ shop.post('/cart/remove', async (req: any, res) => {
       if (!cart) return res.json({ ok: true });
       const existing = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) }, select: { id: true } });
       if (existing) await db.cartItem.delete({ where: { id: existing.id } });
+      try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
       await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', cartId, String(productId));
+      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'remove_failed' }); }
@@ -3592,9 +3598,11 @@ shop.post('/cart/clear', async (req: any, res) => {
       const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
       if (!cart) return res.json({ ok: true });
       await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+      try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
       await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', cartId);
+      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'clear_failed' }); }
