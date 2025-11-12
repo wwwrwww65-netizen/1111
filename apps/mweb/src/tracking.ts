@@ -24,19 +24,7 @@ export async function injectTracking(): Promise<void> {
       document.head.appendChild(s);
     }
 
-    // Web Vitals to GA4 if consented
-    // Lazy import to avoid blocking
-    import('https://unpkg.com/web-vitals@3/dist/web-vitals.attribution.iife.js').then(()=>{
-      // @ts-ignore
-      if (typeof webVitals!=='undefined' && (window as any).gtag){
-        // @ts-ignore
-        webVitals.onCLS(sendToGA); webVitals.onFID(sendToGA); webVitals.onLCP(sendToGA); webVitals.onINP(sendToGA); webVitals.onTTFB(sendToGA);
-        function sendToGA(metric:any){
-          // @ts-ignore
-          gtag('event', metric.name, { value: Math.round(metric.value * (metric.name==='CLS'?1000:1)), event_label: metric.id, non_interaction: true });
-        }
-      }
-    }).catch(()=>{})
+    // NOTE: Delay web-vitals import until consent AND GA exist to avoid extra network
     // Wait for consent
     const consent = localStorage.getItem('consent_v1')
     if (consent !== 'yes') {
@@ -109,6 +97,21 @@ export async function injectTracking(): Promise<void> {
       const s2 = document.createElement('script'); s2.id='ga-gtag'; s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','${ga}', { 'transport_type': 'beacon' });`;
       document.head.appendChild(s2);
     }
+    // Web Vitals to GA4 only when GA is present (and after consent)
+    try{
+      if ((window as any).gtag){
+        await import('https://unpkg.com/web-vitals@3/dist/web-vitals.attribution.iife.js');
+        // @ts-ignore
+        if (typeof webVitals!=='undefined'){
+          // @ts-ignore
+          webVitals.onCLS(sendToGA); webVitals.onFID(sendToGA); webVitals.onLCP(sendToGA); webVitals.onINP(sendToGA); webVitals.onTTFB(sendToGA);
+          function sendToGA(metric:any){
+            // @ts-ignore
+            gtag('event', metric.name, { value: Math.round(metric.value * (metric.name==='CLS'?1000:1)), event_label: metric.id, non_interaction: true });
+          }
+        }
+      }
+    }catch{}
     if (gtm && !document.getElementById('gtm')){
       const s = document.createElement('script'); s.id='gtm'; s.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtm}');`;
       document.head.appendChild(s);

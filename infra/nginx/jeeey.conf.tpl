@@ -45,6 +45,11 @@ server {
 
   # Increase body size for base64 uploads
   client_max_body_size 20m;
+  # Compression for JSON/JS/CSS/SVG
+  gzip on;
+  gzip_comp_level 5;
+  gzip_min_length 1024;
+  gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
 
   # Unified CORS: hide upstream CORS headers and set our own (applies on errors too)
   add_header Access-Control-Allow-Origin $http_origin always;
@@ -114,6 +119,11 @@ server {
   server_name admin.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/admin.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/admin.jeeey.com/privkey.pem;
+  # Compression
+  gzip on;
+  gzip_comp_level 5;
+  gzip_min_length 1024;
+  gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
 
   # Directly proxy admin REST to API to avoid app-layer proxy issues
   location ^~ /api/admin/ {
@@ -158,6 +168,11 @@ server {
   server_name jeeey.com www.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  # Compression
+  gzip on;
+  gzip_comp_level 5;
+  gzip_min_length 1024;
+  gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
 
   if ($is_mobile) { return 302 https://m.jeeey.com$request_uri; }
 
@@ -187,5 +202,16 @@ server {
 
   root /var/www/ecom/apps/mweb/dist;
   index index.html;
+  # Compression
+  gzip on;
+  gzip_comp_level 5;
+  gzip_min_length 1024;
+  gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
+  # Long cache for static assets
+  location ~* \.(?:js|css|svg|woff2?|png|jpg|jpeg|webp|avif)$ {
+    expires 30d;
+    add_header Cache-Control "public, max-age=2592000, immutable";
+    try_files $uri =404;
+  }
   location / { try_files $uri $uri/ /index.html; }
 }

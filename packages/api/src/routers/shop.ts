@@ -8,6 +8,18 @@ import { normalizeCategoriesPageConfig } from '../validators/categories-page';
 
 const shop = Router();
 
+// -------------------- Public caching helpers (API output) --------------------
+const PUBLIC_SW_MAX_AGE = Number(process.env.PUBLIC_SW_MAX_AGE || 30);
+const PUBLIC_SW_SWR = Number(process.env.PUBLIC_SW_SWR || 120);
+function setPublicCache(res: any, maxAge = PUBLIC_SW_MAX_AGE, swr = PUBLIC_SW_SWR): void {
+  try { res.set('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${swr}`); } catch {}
+}
+// Cached aggregates to avoid heavy queries on hot paths
+type RankEntry = { rank:number; qty:number };
+let topSalesCache: { ts:number; map: Map<string, RankEntry> } | null = null;
+const CATEGORY_RANK_TTL_MS = 300_000; // 5 minutes
+const categoryRanksCache: Map<string, { ts:number; rows: Array<{ pid:string; qty:number }> }> = new Map();
+
 // ===================== Variant normalization helpers =====================
 function normToken(s: string): string { return String(s||'').trim().toLowerCase() }
 function normalizeDigits(input: string): string {
@@ -216,6 +228,7 @@ shop.get('/reverse-geocode', async (req: any, res) => {
 // List published tabs for device (default: MOBILE)
 shop.get('/tabs/list', async (_req: any, res) => {
   try {
+    setPublicCache(res, 60, 300);
     const device = String(_req.query.device || 'MOBILE').toUpperCase();
     const rows = await db.tabPage.findMany({
       where: { status: 'PUBLISHED', device: device as any },
@@ -229,6 +242,7 @@ shop.get('/tabs/list', async (_req: any, res) => {
 // List published Categories tabs only (content.type === 'categories-v1')
 shop.get('/tabs/categories/list', async (req: any, res) => {
   try {
+    setPublicCache(res, 60, 300);
     const device = String(req.query.device || 'MOBILE').toUpperCase();
     const pages: Array<any> = await db.tabPage.findMany({
       where: { status: 'PUBLISHED', device: device as any },
@@ -252,6 +266,7 @@ shop.get('/tabs/categories/list', async (req: any, res) => {
 // Get published tab content by slug
 shop.get('/tabs/:slug', async (req: any, res) => {
   try {
+    setPublicCache(res, 60, 300);
     const slug = String(req.params.slug || '').trim();
     if (!slug) return res.status(400).json({ error: 'invalid_slug' });
     const page: any = await db.tabPage.findUnique({ where: { slug }, select: { id: true, status: true, currentVersionId: true } } as any);
@@ -1402,6 +1417,7 @@ shop.get('/products', async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit||20)));
     const sort = String(req.query.sort||'new');
     const orderBy: any = sort === 'price_asc' ? { price: 'asc' } : sort === 'price_desc' ? { price: 'desc' } : { createdAt: 'desc' };
+    setPublicCache(res, 20, 120);
     const items = await db.product.findMany({
       select: { id: true, name: true, price: true, images: true },
       orderBy,
@@ -1409,14 +1425,19 @@ shop.get('/products', async (req, res) => {
     });
     // annotate global top-sellers rank and sold counts
     try{
-      const ranks:any[] = await db.$queryRawUnsafe(`
-        SELECT oi."productId" as pid, SUM(oi.quantity) as qty
-        FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
-        GROUP BY 1 ORDER BY qty DESC LIMIT 200
-      `);
-      const rankMap = new Map<string, { rank:number; qty:number }>();
-      let r=1; for (const row of ranks){ rankMap.set(String(row.pid), { rank: r, qty: Number(row.qty||0) }); r++; }
+      const now = Date.now();
+      if (!topSalesCache || (now - topSalesCache.ts) > CATEGORY_RANK_TTL_MS) {
+        const ranks:any[] = await db.$queryRawUnsafe(`
+          SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+          FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+          WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+          GROUP BY 1 ORDER BY qty DESC LIMIT 200
+        `);
+        const rankMap = new Map<string, { rank:number; qty:number }>();
+        let r=1; for (const row of ranks){ rankMap.set(String(row.pid), { rank: r, qty: Number(row.qty||0) }); r++; }
+        topSalesCache = { ts: now, map: rankMap };
+      }
+      const rankMap = topSalesCache.map;
       (items as any[]).forEach((it:any)=>{ const m = rankMap.get(String(it.id)); if (m){ it.bestRank = m.rank; it.soldPlus = `${m.qty}`; } });
     }catch{}
     res.json({ items });
@@ -1428,6 +1449,7 @@ shop.get('/products', async (req, res) => {
 // Public: product detail
 shop.get('/product/:id', async (req, res) => {
   try {
+    setPublicCache(res, 10, 60);
     const p = await db.product.findUnique({
       where: { id: String(req.params.id) },
       include: {
@@ -1440,14 +1462,22 @@ shop.get('/product/:id', async (req, res) => {
     // compute best seller rank within category
     try{
       if (p.categoryId){
-        const rows:any[] = await db.$queryRawUnsafe(`
-          SELECT oi."productId" as pid, SUM(oi.quantity) as qty
-          FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
-          WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
-          GROUP BY 1 ORDER BY qty DESC LIMIT 100
-        `, p.categoryId);
+        const now = Date.now();
+        let rows:any[] | undefined;
+        const cached = categoryRanksCache.get(String(p.categoryId));
+        if (cached && (now - cached.ts) <= CATEGORY_RANK_TTL_MS) {
+          rows = cached.rows;
+        } else {
+          rows = await db.$queryRawUnsafe(`
+            SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+            FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
+            WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
+            GROUP BY 1 ORDER BY qty DESC LIMIT 100
+          `, p.categoryId);
+          categoryRanksCache.set(String(p.categoryId), { ts: now, rows: rows as any[] });
+        }
         let rank = 1; let found: { rank:number; qty:number }|null = null;
-        for (const row of rows){ if (String(row.pid)===p.id){ found = { rank, qty: Number(row.qty||0) }; break; } rank++; }
+        for (const row of (rows||[])){ if (String(row.pid)===p.id){ found = { rank, qty: Number(row.qty||0) }; break; } rank++; }
         (p as any).bestRank = found?.rank; (p as any).bestRankCategory = p.category?.name || '';
         (p as any).soldPlus = found? String(found.qty) : undefined;
       }
@@ -1893,6 +1923,7 @@ shop.get('/cms/page/:slug', async (req, res) => {
 // Categories list
 shop.get('/categories', async (req, res) => {
   try {
+    setPublicCache(res, 60, 300);
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 200);
     const search = String(req.query.search || '').trim();
 

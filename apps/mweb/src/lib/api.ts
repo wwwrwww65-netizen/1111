@@ -7,6 +7,13 @@ try {
 } catch {}
 export const API_BASE = VITE_BASE || LOCAL_BASE
 
+// Lightweight client-side de-duplication and short-lived cache for public GETs
+// Prevents duplicate concurrent requests and reduces network chatter on home
+const inFlight: Map<string, Promise<any>> = new Map()
+type CacheEntry = { ts: number; data: any }
+const shortCache: Map<string, CacheEntry> = new Map()
+const CACHE_TTL_MS = 15000 // 15s for public resources
+
 function getAuthHeader(): Record<string,string> {
   try {
     // Prefer client-stored token to bypass 3P cookie blocking
@@ -51,7 +58,25 @@ export async function apiGet<T = any>(path: string, init?: RequestInit): Promise
   try {
     const url = path.startsWith('http') ? path : `${API_BASE}${path}`
     const isPublic = /^\/api\/(products|categories|search|product|catalog)/.test(path)
-    const res = await fetch(url, { ...init, credentials: isPublic ? 'omit' : 'include', headers: { 'Accept': 'application/json', 'X-Shop-Client': 'mweb', ...getAuthHeader(), ...(init?.headers||{}) } })
+    const headers = { 'Accept': 'application/json', 'X-Shop-Client': 'mweb', ...getAuthHeader(), ...(init?.headers||{}) }
+    const key = isPublic ? url : '' // only cache public GETs
+    if (key) {
+      const c = shortCache.get(key)
+      if (c && (Date.now() - c.ts) < CACHE_TTL_MS) return c.data as T
+      const inflight = inFlight.get(key)
+      if (inflight) return inflight as Promise<T|null>
+      const p = (async () => {
+        const res = await fetch(url, { ...init, credentials: 'omit', headers })
+        if(!res.ok) return null
+        const data = await res.json()
+        shortCache.set(key, { ts: Date.now(), data })
+        inFlight.delete(key)
+        return data as T
+      })()
+      inFlight.set(key, p)
+      return await p
+    }
+    const res = await fetch(url, { ...init, credentials: isPublic ? 'omit' : 'include', headers })
     if(!res.ok) return null
     return await res.json()
   } catch { return null }
