@@ -1417,8 +1417,9 @@ shop.get('/products', async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit||20)));
     const sort = String(req.query.sort||'new');
     const orderBy: any = sort === 'price_asc' ? { price: 'asc' } : sort === 'price_desc' ? { price: 'desc' } : { createdAt: 'desc' };
-    setPublicCache(res, 20, 120);
+    setPublicCache(res, 5, 60);
     const items = await db.product.findMany({
+      where: { isActive: true },
       select: { id: true, name: true, price: true, images: true },
       orderBy,
       take: limit,
@@ -1458,7 +1459,7 @@ shop.get('/product/:id', async (req, res) => {
         variants: true,
       },
     });
-    if (!p) return res.status(404).json({ error: 'not_found' });
+    if (!p || (p as any).isActive === false) return res.status(404).json({ error: 'not_found' });
     // compute best seller rank within category
     try{
       if (p.categoryId){
@@ -1845,6 +1846,7 @@ shop.get('/reviews', async (req, res) => {
 shop.get('/recommendations/recent', async (_req, res) => {
   try {
     const items = await db.product.findMany({
+      where: { isActive: true },
       select: { id: true, name: true, price: true, images: true, brand: true },
       orderBy: { updatedAt: 'desc' },
       take: 12,
@@ -1874,7 +1876,7 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
     const p = await db.product.findUnique({ where: { id: productId }, select: { id: true, categoryId: true } });
     if (!p) return res.status(404).json({ error: 'not_found' });
     const items = await db.product.findMany({
-      where: { categoryId: p.categoryId, NOT: { id: productId } },
+      where: { categoryId: p.categoryId, isActive: true, NOT: { id: productId } },
       select: { id: true, name: true, price: true, images: true, brand: true },
       orderBy: { updatedAt: 'desc' },
       take: 12,
@@ -2570,7 +2572,7 @@ shop.get('/catalog/:slug', async (req, res) => {
     const materials = parseCsv('materials');
     const styles = parseCsv('styles');
     const tagsAny = [...sizes, ...colors, ...materials, ...styles];
-    const where:any = { categoryId: cat.id } as any;
+    const where:any = { categoryId: cat.id, isActive: true } as any;
     if (q) where.name = { contains: q, mode: 'insensitive' };
     if (brand) where.brand = { contains: brand, mode: 'insensitive' } as any;
     if (min!=null || max!=null) where.price = { gte: (min!=null && isFinite(min))? Number(min): undefined, lte: (max!=null && isFinite(max))? Number(max): undefined } as any;

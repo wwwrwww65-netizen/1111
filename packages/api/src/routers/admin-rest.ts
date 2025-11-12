@@ -9404,6 +9404,10 @@ adminRest.delete('/products/:id', async (req, res) => {
     await db.$transaction(async (tx)=>{
       // Remove dependent order items referencing this product to satisfy FK
       try { await tx.$executeRawUnsafe('DELETE FROM "OrderItem" WHERE "productId"=$1', id as any); } catch {}
+      // Remove cart items referencing this product (user carts)
+      try { await tx.$executeRawUnsafe('DELETE FROM "CartItem" WHERE "productId"=$1', id as any); } catch {}
+      // Remove guest cart items referencing this product
+      try { await tx.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "productId"=$1', id as any); } catch {}
       await tx.product.delete({ where: { id } });
     });
     return res.json({ ok:true });
