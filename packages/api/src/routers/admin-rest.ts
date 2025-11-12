@@ -7659,8 +7659,8 @@ adminRest.post('/events', async (req, res) => {
 adminRest.get('/carts', async (req, res) => {
   try{
     const since = req.query.since ? new Date(String(req.query.since)) : undefined;
-    const whereUser:any = since? { OR: [ { updatedAt: { gte: since } }, { items: { some: { updatedAt: { gte: since } } } } ] } : {};
-    const whereGuest:any = since? { OR: [ { updatedAt: { gte: since } }, { items: { some: { updatedAt: { gte: since } } } } ] } : {};
+    const whereUser:any = since? { updatedAt: { gte: since } } : {};
+    const whereGuest:any = since? { updatedAt: { gte: since } } : {};
     const [userCarts, guestCarts] = await Promise.all([
       db.cart.findMany({ where: whereUser, include: { items: { include: { product: true } }, user: { select: { id:true, email:true, name:true } } }, orderBy: { updatedAt: 'desc' } }),
       db.guestCart.findMany({ where: whereGuest, include: { items: { include: { product: true } } }, orderBy: { updatedAt: 'desc' } })
@@ -9334,7 +9334,7 @@ adminRest.get('/carts', async (req, res) => {
 
     const [userCarts, guestCarts] = await Promise.all([
       db.cart.findMany({
-        where: since? { OR: [ { updatedAt: { gte: since } }, { items: { some: { updatedAt: { gte: since } } } } ] } as any : {},
+        where: since? { updatedAt: { gte: since } } as any : {},
         select: {
           id: true, updatedAt: true, createdAt: true,
           user: { select: { id:true, name:true, email:true, phone:true } },
@@ -9343,7 +9343,7 @@ adminRest.get('/carts', async (req, res) => {
         orderBy: { updatedAt: 'desc' }
       } as any),
       db.guestCart.findMany({
-        where: since? { OR: [ { updatedAt: { gte: since } }, { items: { some: { updatedAt: { gte: since } } } } ] } as any : {},
+        where: since? { updatedAt: { gte: since } } as any : {},
         select: {
           id: true, sessionId: true, updatedAt: true, createdAt: true,
           items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true } } } }

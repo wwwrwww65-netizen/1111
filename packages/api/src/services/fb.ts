@@ -51,15 +51,34 @@ export async function fbSendEvents(events: FbEvent[]): Promise<{ ok: boolean; st
     return { ok: false, status: 0 }
   }
   const payload = {
-    data: events.map((e) => ({
+    data: events.map((e) => {
+      // Sanitize custom_data.contents to allowed keys only (id, quantity, item_price, delivery_category)
+      let cd: Record<string, any> | undefined = e.custom_data;
+      try{
+        if (cd && Array.isArray((cd as any).contents)){
+          const allowed = new Set(['id','quantity','item_price','delivery_category']);
+          (cd as any).contents = (cd as any).contents.map((it:any)=>{
+            if (it && typeof it==='object'){
+              const o:any = {};
+              for (const k of Object.keys(it)){ if (allowed.has(k)) o[k]=it[k]; }
+              // ensure id is string
+              if (o.id!=null) o.id = String(o.id);
+              return o;
+            }
+            return it;
+          });
+        }
+      }catch{}
+      return ({
       event_name: e.event_name,
       event_time: e.event_time || Math.floor(Date.now() / 1000),
       action_source: e.action_source || 'website',
       event_source_url: e.event_source_url,
       event_id: e.event_id,
       user_data: e.user_data,
-      custom_data: e.custom_data,
-    })),
+        custom_data: cd,
+      })
+    }),
     test_event_code: testCode || undefined,
   }
   try {
