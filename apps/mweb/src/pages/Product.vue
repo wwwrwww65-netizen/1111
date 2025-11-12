@@ -1598,9 +1598,10 @@ async function addToCartInternal(){
 const hasWish = ref(false)
 // PDP Meta (badges, bestRank, fit, model, shipping destination override)
 const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null; clubBanner?: { enabled:boolean; amount:number; discountType:'percent'|'fixed'; discountValue:number; text:string; joinUrl?:string; style?: { theme?: string; rounded?: boolean }; placement?: { pdp?: { enabled:boolean; position?: string } } }|null }>({ badges: [] })
-async function loadPdpMeta(){
+async function loadPdpMeta(pid?: string){
   try{
-    const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/meta`)
+    const p = String(pid || id)
+    const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/meta`)
     const meta = (j && j.meta) ? j.meta : j
     if (meta && typeof meta==='object') pdpMeta.value = Object.assign({ badges: [] }, meta)
   }catch{}
@@ -1636,8 +1637,8 @@ const sellerFollowText = computed(()=>{
     return `تمت متابعته منذ ${days} يوم`
   }catch{ return '' }
 })
-async function loadSeller(){
-  try{ const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/seller`); seller.value = j?.vendor || null }catch{}
+async function loadSeller(pid?: string){
+  try{ const p = String(pid || id); const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); seller.value = j?.vendor || null }catch{}
 }
 
 // Size Guide Modal
@@ -1884,11 +1885,12 @@ watch(() => route.query.id, async (nv, ov)=>{
       categorySlug.value = ''
       categoryName.value = ''
       categoryId.value = ''
-      // re-run loaders using new id from route
-      await loadProductData()
-      await fetchRecommendations()
-      await loadPdpMeta()
-      await loadSeller()
+      // re-run loaders using new id from route (pass explicitly to avoid using stale id)
+      const newId = String(nv||'')
+      await loadProductData(newId)
+      await fetchRecommendations(newId)
+      await loadPdpMeta(newId)
+      await loadSeller(newId)
       computeGalleryHeight()
       window.scrollTo({ top: 0, behavior: 'instant' as any })
       try{ await trackViewItem(); await trackPageViewProduct(); }catch{}
@@ -1902,11 +1904,12 @@ onBeforeUnmount(()=> {
 })
 
 // ==================== DATA LOADING ====================
-async function loadProductData() {
+async function loadProductData(pid?: string) {
   // Load product details
   try{
     isLoadingPdp.value = true
-    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { 
+    const p = String(pid || id)
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(p)}`, { 
       credentials:'omit', 
       headers:{ 'Accept':'application/json' } 
     })
@@ -2236,7 +2239,7 @@ watch(colorIdx, ()=>{
 })
 
 // ==================== RECOMMENDATIONS FETCH ====================
-async function fetchRecommendations(){
+async function fetchRecommendations(pid?: string){
   isLoadingRecommended.value = true
   try{
     if (recoController) { try{ recoController.abort() }catch{} }
@@ -2251,11 +2254,12 @@ async function fetchRecommendations(){
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       return
     }
-    // Default: similar by current product's category, then recent
-    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`, undefined, signal).catch(()=>null)
+  // Default: similar by current product's category, then recent
+    const p = String(pid || id)
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, undefined, signal).catch(()=>null)
     const list = Array.isArray(sim?.items) ? sim!.items : []
     if (list.length) {
-      recommendedProducts.value = list.map((it:any)=> toRecItem(it)).filter(p=> String(p.id)!==String(id))
+      recommendedProducts.value = list.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
       hasMoreRecommended.value = list.length >= 24
@@ -2263,7 +2267,7 @@ async function fetchRecommendations(){
     }
     const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
     const items = Array.isArray(rec?.items) ? rec!.items : []
-    recommendedProducts.value = items.map((it:any)=> toRecItem(it)).filter(p=> String(p.id)!==String(id))
+    recommendedProducts.value = items.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
     try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
     try{ await hydrateCouponsForRecommended() }catch{}
     hasMoreRecommended.value = items.length >= 24
