@@ -162,17 +162,51 @@ function open(ev?: Event){
   if (!id.value) return
   const go = ()=> {
     try{
-      const imgEl = (ev?.currentTarget as HTMLElement)?.querySelector('img') as HTMLElement | null
+      // اختر الصورة الأكثر ظهوراً داخل شريط البطاقة لتكون مصدر الانتقال
+      const root = (ev?.currentTarget as HTMLElement) || null
+      const scroller = root ? (root.querySelector('.snap-x') as HTMLElement | null) : null
+      let imgEl: HTMLElement | null = null
+      if (scroller){
+        const contRect = scroller.getBoundingClientRect()
+        const imgs = Array.from(scroller.querySelectorAll('img')) as HTMLElement[]
+        let best: { el: HTMLElement; w: number } | null = null
+        for (const el of imgs){
+          const r = el.getBoundingClientRect()
+          const inter = Math.min(r.right, contRect.right) - Math.max(r.left, contRect.left)
+          const visibleW = Math.max(0, inter)
+          if (!best || visibleW > best.w) best = { el, w: visibleW }
+        }
+        imgEl = best?.el || (root.querySelector('img') as HTMLElement | null)
+      }else{
+        imgEl = (root?.querySelector('img') as HTMLElement | null)
+      }
       const rect = imgEl ? imgEl.getBoundingClientRect() : undefined
       setPrefetchPayload(id.value, { imgUrl: (gallery.value?.[0]||''), rect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined })
     }catch{}
     router.push(`/p?id=${encodeURIComponent(id.value)}`)
   }
   try{
-    const img = (ev?.currentTarget as HTMLElement)?.querySelector('img') as HTMLElement | null
+    // عيّن اسم الانتقال على الصورة الأكثر ظهوراً لضمان تطابق الاسم مع الهيرو في صفحة المنتج
+    const root = (ev?.currentTarget as HTMLElement) || null
+    const scroller = root ? (root.querySelector('.snap-x') as HTMLElement | null) : null
+    let img: HTMLElement | null = null
+    if (scroller){
+      const contRect = scroller.getBoundingClientRect()
+      const imgs = Array.from(scroller.querySelectorAll('img')) as HTMLElement[]
+      let best: { el: HTMLElement; w: number } | null = null
+      for (const el of imgs){
+        const r = el.getBoundingClientRect()
+        const inter = Math.min(r.right, contRect.right) - Math.max(r.left, contRect.left)
+        const visibleW = Math.max(0, inter)
+        if (!best || visibleW > best.w) best = { el, w: visibleW }
+      }
+      img = best?.el || (root.querySelector('img') as HTMLElement | null)
+    }else{
+      img = (root?.querySelector('img') as HTMLElement | null)
+    }
     if ((document as any).startViewTransition && img){
-      // اجعل الاسم فريداً لتفادي خطأ "Unexpected duplicate view-transition-name"
-      const name = `p-img-${id.value}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`
+      // استخدم اسمًا حتميًا يطابق صفحة المنتج لتمكين انتقال سلس بين الصفحات
+      const name = `p-img-${id.value}`
       ;(img as any).style.viewTransitionName = name
       try{ ;(document as any).startViewTransition(()=>{ go() }) } finally {
         // امسح الاسم مباشرة بعد جدولة الانتقال

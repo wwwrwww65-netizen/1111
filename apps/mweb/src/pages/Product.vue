@@ -110,7 +110,7 @@
       <!-- Product Image Gallery -->
     <div class="relative">
         <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar bg-black"
-           :style="{ height: galleryHeight ? (galleryHeight + 'px') : undefined }"
+           :style="{ height: galleryHeight ? (galleryHeight + 'px') : undefined, aspectRatio: galleryHeight ? undefined : ('4 / 5') }"
            @scroll.passive="onGalleryScroll">
           <div class="flex h-full">
             <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
