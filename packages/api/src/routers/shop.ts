@@ -3412,13 +3412,16 @@ async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: 
   // Ensure DB row exists
   let row: any[] = [];
   try { row = await db.$queryRawUnsafe('SELECT id FROM "GuestCart" WHERE "sessionId"=$1 LIMIT 1', sid); } catch {}
+  // If row already exists, use its id; otherwise create and then re-read to get canonical id
   let cartId = row?.[0]?.id as string | undefined;
   if (!cartId){
-    cartId = uuid;
-    try { await db.$executeRawUnsafe('INSERT INTO "GuestCart" (id, "sessionId") VALUES ($1,$2) ON CONFLICT ("sessionId") DO NOTHING', cartId, sid); } catch {}
-    if (!row?.length){
-      try { const r2:any[] = await db.$queryRawUnsafe('SELECT id FROM "GuestCart" WHERE "sessionId"=$1 LIMIT 1', sid); cartId = r2?.[0]?.id || cartId; } catch {}
-    }
+    try {
+      await db.$executeRawUnsafe('INSERT INTO "GuestCart" (id, "sessionId") VALUES ($1,$2) ON CONFLICT ("sessionId") DO NOTHING', uuid, sid);
+    } catch {}
+    try {
+      const r2:any[] = await db.$queryRawUnsafe('SELECT id FROM "GuestCart" WHERE "sessionId"=$1 LIMIT 1', sid);
+      cartId = (r2?.[0]?.id as string|undefined) || uuid;
+    } catch { cartId = uuid; }
   }
   return { sessionId: sid, cartId: String(cartId) };
 }
