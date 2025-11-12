@@ -1468,14 +1468,14 @@ shop.get('/products', async (req, res) => {
     try{
       const now = Date.now();
       if (!topSalesCache || (now - topSalesCache.ts) > CATEGORY_RANK_TTL_MS) {
-        const ranks:any[] = await db.$queryRawUnsafe(`
-          SELECT oi."productId" as pid, SUM(oi.quantity) as qty
-          FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-          WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
-          GROUP BY 1 ORDER BY qty DESC LIMIT 200
-        `);
-        const rankMap = new Map<string, { rank:number; qty:number }>();
-        let r=1; for (const row of ranks){ rankMap.set(String(row.pid), { rank: r, qty: Number(row.qty||0) }); r++; }
+      const ranks:any[] = await db.$queryRawUnsafe(`
+        SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+        FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
+        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+        GROUP BY 1 ORDER BY qty DESC LIMIT 200
+      `);
+      const rankMap = new Map<string, { rank:number; qty:number }>();
+      let r=1; for (const row of ranks){ rankMap.set(String(row.pid), { rank: r, qty: Number(row.qty||0) }); r++; }
         topSalesCache = { ts: now, map: rankMap };
       }
       const rankMap = topSalesCache.map;
@@ -1510,11 +1510,11 @@ shop.get('/product/:id', async (req, res) => {
           rows = cached.rows;
         } else {
           rows = await db.$queryRawUnsafe(`
-            SELECT oi."productId" as pid, SUM(oi.quantity) as qty
-            FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
-            WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
-            GROUP BY 1 ORDER BY qty DESC LIMIT 100
-          `, p.categoryId);
+          SELECT oi."productId" as pid, SUM(oi.quantity) as qty
+          FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
+          WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
+          GROUP BY 1 ORDER BY qty DESC LIMIT 100
+        `, p.categoryId);
           categoryRanksCache.set(String(p.categoryId), { ts: now, rows: rows as any[] });
         }
         let rank = 1; let found: { rank:number; qty:number }|null = null;

@@ -9,6 +9,7 @@ import './styles.css';
 import { injectTracking } from './tracking';
 import { useCart } from './store/cart'
 import { initCurrency } from './lib/currency'
+import { apiPost } from './lib/api'
 // Track affiliate ref
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
@@ -117,7 +118,7 @@ try{ const cart = useCart(); cart.loadLocal();
         const already = sessionStorage.getItem('__linked_v1') === '1'
         const sid = localStorage.getItem('sid_v1') || ''
         if (!already && sid){
-          fetch('/api/analytics/link', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ sessionId: sid }) })
+          apiPost('/api/analytics/link', { sessionId: sid })
             .then(()=> { try{ sessionStorage.setItem('__linked_v1','1') }catch{} })
             .catch(()=>{})
         }

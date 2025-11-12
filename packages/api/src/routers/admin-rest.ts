@@ -7665,6 +7665,61 @@ adminRest.get('/carts', async (req, res) => {
       db.cart.findMany({ where: whereUser, include: { items: { include: { product: true } }, user: { select: { id:true, email:true, name:true } } }, orderBy: { updatedAt: 'desc' } }),
       db.guestCart.findMany({ where: whereGuest, include: { items: { include: { product: true } } }, orderBy: { updatedAt: 'desc' } })
     ]);
+    // Attach analytics summary to carts (events count, last event, device, geo)
+    try{
+      // Guest carts by sessionId
+      const sids = Array.from(new Set((guestCarts||[]).map((g:any)=> String(g.sessionId||'')).filter(Boolean)));
+      if (sids.length){
+        const rows:any[] = await db.$queryRawUnsafe(`
+          WITH e AS (
+            SELECT COALESCE("sessionId", properties->>'sessionId') AS sid, "createdAt", device, browser, country, city
+            FROM "Event"
+            WHERE COALESCE("sessionId", properties->>'sessionId') = ANY($1)
+          ),
+          agg AS (
+            SELECT sid, COUNT(1)::bigint AS events, MAX("createdAt") AS last
+            FROM e GROUP BY sid
+          ),
+          last AS (
+            SELECT DISTINCT ON (sid) sid, device, browser, country, city
+            FROM e ORDER BY sid, "createdAt" DESC
+          )
+          SELECT agg.sid, agg.events, agg.last, last.device, last.browser, last.country, last.city
+          FROM agg LEFT JOIN last USING (sid)
+        `, sids);
+        const map = new Map<string, any>(rows.map((r:any)=> [String(r.sid), r]));
+        for (const g of guestCarts as any[]){
+          const m = map.get(String(g.sessionId||''));
+          if (m) g.analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
+        }
+      }
+      // User carts by userId
+      const uids = Array.from(new Set((userCarts||[]).map((c:any)=> String(c.userId||'')).filter(Boolean)));
+      if (uids.length){
+        const rows:any[] = await db.$queryRawUnsafe(`
+          WITH e AS (
+            SELECT COALESCE("userId", properties->>'userId') AS uid, "createdAt", device, browser, country, city
+            FROM "Event"
+            WHERE COALESCE("userId", properties->>'userId') = ANY($1)
+          ),
+          agg AS (
+            SELECT uid, COUNT(1)::bigint AS events, MAX("createdAt") AS last
+            FROM e GROUP BY uid
+          ),
+          last AS (
+            SELECT DISTINCT ON (uid) uid, device, browser, country, city
+            FROM e ORDER BY uid, "createdAt" DESC
+          )
+          SELECT agg.uid, agg.events, agg.last, last.device, last.browser, last.country, last.city
+          FROM agg LEFT JOIN last USING (uid)
+        `, uids);
+        const map = new Map<string, any>(rows.map((r:any)=> [String(r.uid), r]));
+        for (const c of userCarts as any[]){
+          const m = map.get(String(c.userId||''));
+          if (m) (c as any).analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
+        }
+      }
+    }catch{}
     res.json({ ok:true, userCarts, guestCarts });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_list_failed' }); }
 });
@@ -9048,15 +9103,26 @@ adminRest.get('/analytics/events/recent', async (req, res) => {
     const rows:any[] = await db.$queryRawUnsafe(`
       SELECT id, "createdAt", name,
              COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
-             COALESCE("userId", properties->>'userId')     AS "userId",
-             COALESCE("pageUrl", properties->>'pageUrl')   AS "pageUrl",
+             COALESCE("userId", properties->>'userId')       AS "userId",
+             COALESCE("pageUrl", properties->>'pageUrl')     AS "pageUrl",
+             COALESCE("productId", properties->>'productId') AS "productId",
+             device, os, browser, country, city,
              properties
       FROM "Event"
       ${whereSql}
       ORDER BY "createdAt" DESC
       LIMIT $${idx}
     `, ...args);
-  res.json({ ok:true, events: rows });
+    // Enrich with product details to support thumbnails/names in User log
+    try{
+      const pids = Array.from(new Set(rows.map(r=> String(r.productId||'')).filter(Boolean)));
+      if (pids.length){
+        const prods = await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true } });
+        const map = new Map(prods.map(p=> [p.id, p]));
+        for (const r of rows){ const pid = String(r.productId||''); (r as any).product = pid? (map.get(pid)||null) : null; }
+      }
+    }catch{}
+    res.json({ ok:true, events: rows });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'events_recent_failed' }); }
 });
 
@@ -9075,9 +9141,10 @@ adminRest.get('/events', async (req, res) => {
     const rows:any[] = await db.$queryRawUnsafe(`
       SELECT id, "createdAt", name,
              COALESCE("sessionId", properties->>'sessionId') AS "sessionId",
-             COALESCE("userId", properties->>'userId')     AS "userId",
-             COALESCE("pageUrl", properties->>'pageUrl')   AS "pageUrl",
-             COALESCE("referrer", properties->>'referrer') AS "referrer",
+             COALESCE("userId", properties->>'userId')       AS "userId",
+             COALESCE("pageUrl", properties->>'pageUrl')     AS "pageUrl",
+             COALESCE("referrer", properties->>'referrer')   AS "referrer",
+             COALESCE("productId", properties->>'productId') AS "productId",
              device, os, browser, country, city,
              properties
       FROM "Event"
@@ -9085,6 +9152,15 @@ adminRest.get('/events', async (req, res) => {
       ORDER BY "createdAt" DESC
       LIMIT $${idx}
     `, ...args);
+    // Attach product details when available for richer admin tables
+    try{
+      const pids = Array.from(new Set(rows.map(r=> String(r.productId||'')).filter(Boolean)));
+      if (pids.length){
+        const prods = await db.product.findMany({ where: { id: { in: pids } }, select: { id:true, name:true, images:true } });
+        const map = new Map(prods.map(p=> [p.id, p]));
+        for (const r of rows){ const pid = String(r.productId||''); (r as any).product = pid? (map.get(pid)||null) : null; }
+      }
+    }catch{}
     return res.json({ ok:true, events: rows });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e.message||'events_query_failed' }); }
 });
@@ -9275,8 +9351,93 @@ adminRest.get('/carts', async (req, res) => {
         orderBy: { updatedAt: 'desc' }
       } as any)
     ]);
+    // Enrich carts with analytics summary (events count, last event, device/browser/geo)
+    try{
+      const sids = Array.from(new Set((guestCarts||[]).map((g:any)=> String(g.sessionId||'')).filter(Boolean)));
+      if (sids.length){
+        const rows:any[] = await db.$queryRawUnsafe(`
+          WITH e AS (
+            SELECT COALESCE("sessionId", properties->>'sessionId') AS sid, "createdAt", device, browser, country, city
+            FROM "Event"
+            WHERE COALESCE("sessionId", properties->>'sessionId') = ANY($1)
+          ),
+          agg AS (
+            SELECT sid, COUNT(1)::bigint AS events, MAX("createdAt") AS last
+            FROM e GROUP BY sid
+          ),
+          last AS (
+            SELECT DISTINCT ON (sid) sid, device, browser, country, city
+            FROM e ORDER BY sid, "createdAt" DESC
+          )
+          SELECT agg.sid, agg.events, agg.last, last.device, last.browser, last.country, last.city
+          FROM agg LEFT JOIN last USING (sid)
+        `, sids);
+        const map = new Map<string, any>(rows.map((r:any)=> [String(r.sid), r]));
+        for (const g of guestCarts as any[]){
+          const m = map.get(String(g.sessionId||''));
+          if (m) (g as any).analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
+        }
+      }
+      const uids = Array.from(new Set((userCarts||[]).map((c:any)=> String(c.user?.id||'')).filter(Boolean)));
+      if (uids.length){
+        const rows:any[] = await db.$queryRawUnsafe(`
+          WITH e AS (
+            SELECT COALESCE("userId", properties->>'userId') AS uid, "createdAt", device, browser, country, city
+            FROM "Event"
+            WHERE COALESCE("userId", properties->>'userId') = ANY($1)
+          ),
+          agg AS (
+            SELECT uid, COUNT(1)::bigint AS events, MAX("createdAt") AS last
+            FROM e GROUP BY uid
+          ),
+          last AS (
+            SELECT DISTINCT ON (uid) uid, device, browser, country, city
+            FROM e ORDER BY uid, "createdAt" DESC
+          )
+          SELECT agg.uid, agg.events, agg.last, last.device, last.browser, last.country, last.city
+          FROM agg LEFT JOIN last USING (uid)
+        `, uids);
+        const map = new Map<string, any>(rows.map((r:any)=> [String(r.uid), r]));
+        for (const c of userCarts as any[]){
+          const uid = String(c?.user?.id||'');
+          const m = uid? map.get(uid) : undefined;
+          if (m) (c as any).analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
+        }
+      }
+    }catch{}
     res.json({ ok:true, userCarts, guestCarts });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_list_failed' }); }
+});
+
+// Deep link: fetch guest cart by analytics session id
+adminRest.get('/analytics/session/:sid/cart', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const sid = String(req.params.sid||'').trim();
+    if (!sid) return res.status(400).json({ ok:false, error:'sid_required' });
+    const cart = await db.guestCart.findFirst({
+      where: { sessionId: sid },
+      include: { items: { include: { product: true } } }
+    } as any);
+    if (!cart) return res.status(404).json({ ok:false, error:'not_found' });
+    return res.json({ ok:true, cart });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'guest_cart_by_session_failed' }); }
+});
+
+// Deep link: fetch latest user cart by user id (from analytics user)
+adminRest.get('/analytics/user/:uid/cart', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const uid = String(req.params.uid||'').trim();
+    if (!uid) return res.status(400).json({ ok:false, error:'uid_required' });
+    const cart = await db.cart.findFirst({
+      where: { userId: uid } as any,
+      orderBy: { updatedAt: 'desc' } as any,
+      include: { user: { select: { id:true, name:true, email:true, phone:true } }, items: { include: { product: true } } }
+    } as any);
+    if (!cart) return res.status(404).json({ ok:false, error:'not_found' });
+    return res.json({ ok:true, cart });
+  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'user_cart_by_user_failed' }); }
 });
 
 adminRest.post('/carts/notify', async (req, res) => {

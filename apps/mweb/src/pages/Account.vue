@@ -245,6 +245,11 @@ onMounted(async ()=>{
       writeCookie('auth_token', t)
       writeCookie('shop_auth_token', t)
       try{ localStorage.setItem('shop_token', t) }catch{}
+      // Link analytics session to user immediately after setting token
+      try{
+        const sid = localStorage.getItem('sid_v1') || ''
+        if (sid){ await apiPost('/api/analytics/link', { sessionId: sid }) }
+      }catch{}
       try{ const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null,'',u.toString()) }catch{}
     }
 
