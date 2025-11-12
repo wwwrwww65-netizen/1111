@@ -27,6 +27,11 @@ function getAuthHeader(): Record<string,string> {
         if (st && st.trim()) return { Authorization: `Bearer ${st}` }
       } catch {}
     }
+    // include session id for guest cart/linking consistency
+    try{
+      const sid = typeof window!=='undefined' ? (window.localStorage?.getItem('sid_v1') || '') : ''
+      if (sid && sid.trim()) return { 'X-Session-Id': sid }
+    }catch{}
     // Fallback: try cookies (may fail if httpOnly or 3P cookies blocked)
     const raw = typeof document !== 'undefined' ? document.cookie || '' : ''
     const mShop = /(?:^|; )shop_auth_token=([^;]+)/.exec(raw)

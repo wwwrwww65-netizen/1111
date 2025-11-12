@@ -2239,8 +2239,8 @@ shop.post('/events', async (req: any, res) => {
       device: b.device? String(b.device) : (req.headers['x-device'] as string||uaInfo.deviceType||null),
       os: b.os? String(b.os) : (uaInfo.os||null),
       browser: b.browser? String(b.browser) : (uaInfo.browser||null),
-      country: b.country? String(b.country) : null,
-      city: b.city? String(b.city) : null,
+      country: b.country? String(b.country) : (req.headers['cf-ipcountry'] as string||req.headers['x-vercel-ip-country'] as string||req.headers['x-geo-country'] as string||null),
+      city: b.city? String(b.city) : (req.headers['cf-ipcity'] as string||req.headers['x-vercel-ip-city'] as string||req.headers['x-geo-city'] as string||null),
       ipHash,
       utmSource: b.utmSource? String(b.utmSource) : (b.utm_source? String(b.utm_source): null),
       utmMedium: b.utmMedium? String(b.utmMedium) : (b.utm_medium? String(b.utm_medium): null),
@@ -2407,6 +2407,30 @@ shop.post('/analytics/link', async (req: any, res) => {
       // direct anonymous
       await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE "userId" IS NULL AND COALESCE("anonymousId", properties->>'anonymousId') = $2`, String(userId), String(anonymousId));
     }
+    // Merge guest cart (by session header/cookies) into user cart to keep continuity
+    try{
+      // Construct a faux request carrying same headers to reuse getOrCreateGuestCartId
+      const proxyReq:any = { headers: req.headers, cookies: req.cookies };
+      const proxyRes:any = { setHeader: ()=>{} };
+      const { cartId: guestCartId } = await getOrCreateGuestCartId(proxyReq, proxyRes);
+      const rows:any[] = await db.$queryRawUnsafe('SELECT "productId","quantity" FROM "GuestCartItem" WHERE "cartId"=$1', guestCartId);
+      if (rows && rows.length){
+        let cart = await db.cart.findUnique({ where: { userId }, select: { id:true } });
+        if (!cart) cart = await db.cart.create({ data: { userId } });
+        const agg = new Map<string, number>();
+        for (const r of rows){ const pid=String(r.productId); const q=Math.max(1, Number(r.quantity||1)); agg.set(pid, (agg.get(pid)||0)+q); }
+        for (const [pid, qty] of agg.entries()){
+          try{
+            const existing = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: pid }, select: { id:true, quantity:true } });
+            if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty } });
+            else await db.cartItem.create({ data: { cartId: cart.id, productId: pid, quantity: qty } });
+          }catch{}
+        }
+        try{ await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', guestCartId) }catch{}
+        try{ await db.$executeRawUnsafe('DELETE FROM "GuestCart" WHERE id=$1', guestCartId) }catch{}
+      }
+    }catch{}
+
     return res.json({ ok:true, sessionsUpdated });
   }catch(e:any){ return res.status(500).json({ ok:false, error: e?.message||'link_failed' }); }
 });
@@ -3321,7 +3345,8 @@ function parseCookies(req: any): Record<string,string> {
 }
 async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: string; cartId: string }>{
   const cookies = parseCookies(req);
-  let sid = cookies['guest_session'] || cookies['guest_sid'];
+  // Prefer explicit session header (aligns with analytics sid_v1) then existing cookies
+  let sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
   const uuid = (require('crypto').randomUUID as ()=>string)();
   if (!sid) {
     sid = (require('crypto').randomUUID as ()=>string)();
@@ -3331,6 +3356,17 @@ async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: 
         `guest_session=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`,
         `guest_sid=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`
       ]);
+    } catch {}
+  } else {
+    // Ensure cookies reflect provided header for later requests/merges
+    try {
+      const raw = String(req.headers?.cookie||'');
+      const has1 = /(?:^|; )guest_session=/.test(raw);
+      const has2 = /(?:^|; )guest_sid=/.test(raw);
+      const set: string[] = [];
+      if (!has1) set.push(`guest_session=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`);
+      if (!has2) set.push(`guest_sid=${encodeURIComponent(sid)}; Path=/; Max-Age=${60*60*24*180}; SameSite=Lax`);
+      if (set.length) res.setHeader('Set-Cookie', set);
     } catch {}
   }
   // Ensure DB row exists
