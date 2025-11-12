@@ -3513,8 +3513,13 @@ shop.post('/cart/add', async (req: any, res) => {
       else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q } });
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
-      const id = (require('crypto').randomUUID as ()=>string)();
-      await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "cartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("cartId","productId") DO UPDATE SET "quantity" = "GuestCartItem"."quantity" + EXCLUDED."quantity"', id, cartId, String(productId), q);
+      // Use Prisma instead of raw SQL to avoid schema drift issues
+      const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
+      if (existing) {
+        await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } } as any);
+      } else {
+        await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q } } as any);
+      }
       // Fire FB CAPI AddToCart for guest using fbp/fbc only
       try {
         const { fbSendEvents } = await import('../services/fb');
@@ -3528,7 +3533,7 @@ shop.post('/cart/add', async (req: any, res) => {
       } catch {}
     }
     return res.json({ ok: true });
-  } catch { return res.status(500).json({ error: 'add_failed' }); }
+  } catch (e:any) { return res.status(500).json({ error: 'add_failed', message: e?.message || '' }); }
 });
 
 shop.post('/cart/update', async (req: any, res) => {
