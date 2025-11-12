@@ -6,7 +6,18 @@
     <div v-if="!imgLoaded" class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
     <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
       <div class="flex">
-        <img v-for="(img,idx) in gallery" :key="'img-'+idx" :src="img" :alt="title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" @load="idx===0 && onImgLoad()" />
+        <img
+          v-for="(img,idx) in gallery"
+          :key="'img-'+idx"
+          :src="thumb(img, 512)"
+          :srcset="`${thumb(img,256)} 256w, ${thumb(img,384)} 384w, ${thumb(img,512)} 512w, ${thumb(img,768)} 768w`"
+          sizes="(max-width: 480px) 50vw, 33vw"
+          :alt="title"
+          class="w-full h-auto object-cover block flex-shrink-0 snap-start"
+          style="min-width:100%"
+          loading="lazy"
+          @load="idx===0 && onImgLoad()"
+        />
       </div>
       <!-- عمود الألوان: نقاط ألوان عند توفر قائمة ألوان، وإلا تعرض مصغرات صور الألوان -->
       <div v-if="colorsHex.length || colorThumbs.length" class="absolute top-1 left-1 flex gap-1">
@@ -61,6 +72,7 @@ import { useCart } from '@/store/cart'
 import { setPrefetchPayload } from '@/lib/nav'
 import { ShoppingCart, Store } from 'lucide-vue-next'
 import { apiGet, API_BASE } from '@/lib/api'
+import { buildThumbUrl as thumb } from '@/lib/media'
 
 type P = {
   id: string

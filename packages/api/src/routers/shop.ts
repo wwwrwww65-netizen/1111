@@ -5,6 +5,8 @@ import type { Prisma } from '@prisma/client';
 import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express';
 import { normalizeCategoriesPageConfig } from '../validators/categories-page';
+import path from 'path';
+import fs from 'fs';
 
 const shop = Router();
 
@@ -221,6 +223,44 @@ shop.get('/reverse-geocode', async (req: any, res) => {
     return res.json(j);
   } catch (e: any) {
     return res.status(500).json({ error: 'reverse_exception', message: e?.message || 'failed' });
+  }
+});
+
+// Lightweight on-the-fly thumbnailer for uploaded media (safe path-only)
+shop.get('/media/thumb', async (req, res) => {
+  try{
+    const srcRaw = String(req.query.src||'').trim();
+    const w = Math.max(64, Math.min(1200, Number(req.query.w||512)));
+    const q = Math.max(40, Math.min(85, Number(req.query.q||60)));
+    if (!srcRaw) return res.status(400).send('src required');
+    // Allow only uploads under our API domain or local /uploads path
+    const apiHost = (process.env.PUBLIC_API_BASE || process.env.API_BASE_URL || 'https://api.jeeey.com').replace(/\/+$/,'');
+    let localRel = '';
+    if (srcRaw.startsWith('/uploads/')) localRel = srcRaw;
+    else if (srcRaw.startsWith(`${apiHost}/uploads/`)) localRel = srcRaw.slice(apiHost.length);
+    else return res.status(400).send('invalid src');
+    const abs = path.resolve(process.cwd(), '.' + localRel);
+    // Ensure within uploads directory
+    const uploadsRoot = path.resolve(process.cwd(), './uploads');
+    if (!abs.startsWith(uploadsRoot)) return res.status(403).send('forbidden');
+    if (!fs.existsSync(abs)) return res.status(404).send('not_found');
+    // Cache headers
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    // Try sharp; fallback to streaming original
+    let sharpMod:any = null;
+    try{ sharpMod = require('sharp'); }catch{}
+    if (!sharpMod) {
+      const stream = fs.createReadStream(abs);
+      stream.on('error', ()=> res.status(500).end('stream_error'));
+      return stream.pipe(res);
+    }
+    const ext = (path.extname(abs).toLowerCase()||'').replace('.jpeg','.jpg');
+    const sharp = sharpMod(fs.readFileSync(abs));
+    // Use webp for broad support/size
+    const out = await sharp.resize({ width: w, withoutEnlargement: true }).webp({ quality: q }).toBuffer();
+    res.type('image/webp').send(out);
+  }catch(e:any){
+    try{ res.status(500).send(e?.message||'thumb_failed') }catch{}
   }
 });
 
