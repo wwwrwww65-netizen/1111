@@ -24,13 +24,7 @@ export async function injectTracking(): Promise<void> {
       document.head.appendChild(s);
     }
 
-    // NOTE: Delay web-vitals import until consent AND GA exist to avoid extra network
-    // Wait for consent
-    const consent = localStorage.getItem('consent_v1')
-    if (consent !== 'yes') {
-      document.addEventListener('consent:granted', ()=> injectTracking(), { once: true })
-      return
-    }
+    // NOTE: Run tracking without waiting for consent (temporary disable banner gating)
     let fb = (import.meta as any)?.env?.FB_PIXEL_ID;
     let ga = (import.meta as any)?.env?.GA_MEASUREMENT_ID;
     let gtm = (import.meta as any)?.env?.GOOGLE_TAG_MANAGER_ID;
@@ -97,7 +91,7 @@ export async function injectTracking(): Promise<void> {
       const s2 = document.createElement('script'); s2.id='ga-gtag'; s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','${ga}', { 'transport_type': 'beacon' });`;
       document.head.appendChild(s2);
     }
-    // Web Vitals to GA4 only when GA is present (and after consent)
+    // Web Vitals to GA4 only when GA is present
     try{
       if ((window as any).gtag){
         await import('https://unpkg.com/web-vitals@3/dist/web-vitals.attribution.iife.js');
