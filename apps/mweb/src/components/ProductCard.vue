@@ -24,8 +24,8 @@
       </div>
       <div v-if="afterCoupon" class="price-after">بعد الكوبون {{ afterCoupon }}</div>
       <div class="actions">
-        <button class="btn-add" @click="addToCart($event)" aria-label="أضف إلى الحقيبة">🛒</button>
-        <button class="btn-wish" @click="toggleWish" aria-label="إضافة للمفضلة">♡</button>
+        <button class="btn-add" @click.stop.prevent="addToCart($event)" aria-label="أضف إلى الحقيبة">🛒</button>
+        <button class="btn-wish" @click.stop="toggleWish" aria-label="إضافة للمفضلة">♡</button>
         <span v-if="isFastShipping" class="ship-tag">شحن سريع</span>
       </div>
       <div v-if="thumbs && thumbs.length" class="thumbs">

@@ -56,7 +56,7 @@
         <span v-if="displayPrice" class="text-red-600 font-bold text-[13px]">{{ displayPrice }}</span>
         <span v-if="soldDisplay" class="text-[11px] text-gray-700">{{ soldDisplay }}</span>
       </div>
-      <button class="absolute left-2 bottom-3 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="add()">
+      <button class="absolute left-2 bottom-3 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop.prevent="add()">
         <ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span>
       </button>
       <div v-if="displayCoupon" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ displayCoupon }}</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>

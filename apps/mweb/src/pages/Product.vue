@@ -1869,6 +1869,7 @@ watch(() => route.query.id, async (nv, ov)=>{
       isLoadingPdp.value = true
       // in-place reload: reset UI state and re-fetch instead of hard reload
       activeIdx.value = 0
+      colorIdx.value = 0
       images.value = []
       allImages.value = []
       product.value = null
@@ -1876,8 +1877,11 @@ watch(() => route.query.id, async (nv, ov)=>{
       price.value = null
       colorVariants.value = []
       sizeOptions.value = []
+      sizeGroups.value = []
       size.value = ''
       selectedGroupValues.value = {}
+      variantByKey.value = {}
+      attrsLoaded.value = false
       pdpMeta.value = { badges: [] }
       reviews.value = []
       avgRating.value = 0
@@ -1967,7 +1971,7 @@ async function loadProductData(pid?: string) {
           size.value = ''
         }
       }
-      try { await loadNormalizedVariants() } catch {}
+      try { await loadNormalizedVariants(p) } catch {}
       // Ensure default color and size after variants load
       try {
         if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
@@ -2034,15 +2038,16 @@ async function loadProductData(pid?: string) {
 
 // ==================== VARIANTS (normalized API) ====================
 const attrsLoaded = ref(false)
-async function loadNormalizedVariants(){
+async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
-  const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`).catch(()=>null)
+  const p = String(pid || route.query.id || id)
+  const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null)
   let list: any[] = Array.isArray(j?.items) ? j!.items : []
   if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
 
   // 2) Prefer grouped attributes from product endpoint to render buttons per group
   try {
-    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`).catch(()=>null)
+    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
     const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
     // Ingest server color galleries
     if (Array.isArray(pd?.colorGalleries)) colorGalleries.value = pd!.colorGalleries
@@ -2254,7 +2259,7 @@ async function fetchRecommendations(pid?: string){
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       return
     }
-  // Default: similar by current product's category, then recent
+    // Default: similar by current product's category, then recent
     const p = String(pid || id)
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, undefined, signal).catch(()=>null)
     const list = Array.isArray(sim?.items) ? sim!.items : []
