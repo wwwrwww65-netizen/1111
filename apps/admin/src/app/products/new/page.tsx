@@ -135,7 +135,8 @@ export default function AdminProductCreate(): JSX.Element {
                 const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
                 const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
                 const cards = (colorNames as string[]).map((c:string)=> {
-                  const mapped = (mapping||{})[c];
+                  // Use any existing review.mapping if available; mapping below is defined later
+                  const mapped = (((review as any)?.mapping)||{})[c];
                   const idx = mapped ? urlIndex(mapped) : -1;
                   return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: [], primaryImageIdx: idx>=0? idx : undefined };
                 });

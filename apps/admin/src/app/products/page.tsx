@@ -243,7 +243,7 @@ export default function AdminProducts(): JSX.Element {
                     </div>
                   </td>
                   <td>
-                    <a href={`${(process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com')}/product/${p.id}`} target="_blank" rel="noopener noreferrer" className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
+                    <a href={`${(process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com')}/p?id=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer" className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
                     <a href={`/products/new?id=${p.id}&backPage=${encodeURIComponent(String(page))}&backStatus=${encodeURIComponent(status)}&backSearch=${encodeURIComponent(search)}&backCategoryId=${encodeURIComponent(categoryId)}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
                     <button onClick={async ()=>{ const r=await fetch(`/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); if (r.ok){ showToast('تم الحذف'); } await load(); }} className="btn btn-md">حذف</button>
                   </td>
