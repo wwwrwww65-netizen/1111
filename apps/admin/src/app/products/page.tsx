@@ -92,14 +92,25 @@ export default function AdminProducts(): JSX.Element {
     function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
       const kids = Array.isArray(node.children)? node.children : [];
       const hasKids = kids.length>0;
-      const isOpen = !!expanded[node.id];
+      const isOpen = !!filter || !!expanded[node.id];
       return (
         <div onMouseDown={(e)=> e.stopPropagation()}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
             <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(node.id); }} />
             <div style={{ flex:1 }}>{node.name}</div>
             {hasKids ? (
-              <button type="button" className="icon-btn" aria-expanded={isOpen} onClick={()=> toggleExpand(node.id)} style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)' }}>▾</button>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-expanded={isOpen}
+                onClick={(e)=> { e.stopPropagation(); toggleExpand(node.id); }}
+                onMouseDown={(e)=> e.stopPropagation()}
+                style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center' }}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
             ) : <span style={{ width:18 }} />}
           </div>
           {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
