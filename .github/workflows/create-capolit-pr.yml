@@ -27,18 +27,21 @@ jobs:
       
       - name: Checkout capolit branch
         run: |
-          git fetch origin capolit:capolit || git checkout -b capolit origin/main
+          git fetch origin capolit:capolit
           git checkout capolit
       
       - name: Create minimal change if needed
         run: |
+          # Fetch main branch for comparison
+          git fetch origin main:main
+          
           # Check if capolit and main are identical
-          if git diff --quiet capolit main; then
+          if git diff --quiet origin/capolit origin/main; then
             echo "Branches are identical, creating minimal change..."
             mkdir -p .github
             echo "# Placeholder file to trigger CI for capolit branch" > .github/.keep
             git add .github/.keep
-            git commit -m "chore: trigger CI for capolit" || echo "No changes to commit"
+            git commit -m "chore: trigger CI for capolit"
             git push origin capolit
           else
             echo "Branches already differ, no need for minimal change"
