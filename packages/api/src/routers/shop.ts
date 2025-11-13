@@ -10,6 +10,24 @@ import fs from 'fs';
 
 const shop = Router();
 
+// Optional auth middleware: populate req.user from token if present (non-blocking)
+shop.use((req: any, res: any, next: any) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (token) {
+      try {
+        const payload = verifyJwt(token);
+        req.user = payload;
+      } catch {
+        // Invalid token - continue without auth
+      }
+    }
+  } catch {
+    // Continue without auth
+  }
+  next();
+});
+
 // -------------------- Public caching helpers (API output) --------------------
 const PUBLIC_SW_MAX_AGE = Number(process.env.PUBLIC_SW_MAX_AGE || 30);
 const PUBLIC_SW_SWR = Number(process.env.PUBLIC_SW_SWR || 120);
@@ -3507,7 +3525,7 @@ async function recordCartEvent(params: {
   mergeCount?: number;
 }): Promise<void> {
   try {
-    const { name, req, res, productId, quantity, itemsAffected, mergeCount } = params;
+    const { name, req, productId, quantity, itemsAffected, mergeCount } = params;
     
     // Determine userId or sessionId
     let userId: string | null = null;
@@ -3516,15 +3534,9 @@ async function recordCartEvent(params: {
     if (req.user?.userId) {
       userId = String(req.user.userId);
     } else {
-      // For guest, derive sessionId
-      try {
-        const guestData = await getOrCreateGuestCartId(req, res);
-        sessionId = guestData.sessionId;
-      } catch {
-        // Fallback: try to get from cookie directly
-        const cookies = parseCookies(req);
-        sessionId = cookies['guest_session'] || cookies['guest_sid'] || null;
-      }
+      // For guest, get sessionId from cookies or headers (don't create cart here)
+      const cookies = parseCookies(req);
+      sessionId = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'] || null;
     }
     
     // Build properties object
@@ -3642,29 +3654,30 @@ shop.post('/cart/add', async (req: any, res) => {
       else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q } });
       try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
-      const { cartId } = await getOrCreateGuestCartId(req, res);
+      let cartId: string;
+      try {
+        const result = await getOrCreateGuestCartId(req, res);
+        cartId = result.cartId;
+      } catch (err: any) {
+        console.error('[cart/add] getOrCreateGuestCartId failed:', err);
+        return res.status(500).json({ error: 'cart_id_failed', message: err?.message || '' });
+      }
       // Use Prisma instead of raw SQL to avoid schema drift issues
       const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
       if (existing) {
         await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } } as any);
       } else {
-        await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q } } as any);
+        const itemId = (require('crypto').randomUUID as ()=>string)();
+        await db.guestCartItem.create({ data: { id: itemId, cartId, productId: String(productId), quantity: q } } as any);
       }
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
-      // Fire FB CAPI AddToCart for guest using fbp/fbc only
-      try {
-        const { fbSendEvents } = await import('../services/fb');
-        let fbp: string|undefined; let fbc: string|undefined;
-        try{
-          const raw = String(req.headers.cookie||'');
-          const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]);
-          const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]);
-        }catch{}
-        await fbSendEvents([{ event_name:'AddToCart', user_data:{ fbp, fbc }, custom_data:{ value: 0, currency:'YER', contents:[{ id: String(productId), quantity: q }], content_type:'product' }, action_source:'website' }])
-      } catch {}
     }
     // Record cart_add event
-    await recordCartEvent({ name: 'cart_add', req, res, productId: String(productId), quantity: q });
+    try {
+      await recordCartEvent({ name: 'cart_add', req, res, productId: String(productId), quantity: q });
+    } catch (err) {
+      // Silent failure for event recording
+    }
     return res.json({ ok: true });
   } catch (e:any) { return res.status(500).json({ error: 'add_failed', message: e?.message || '' }); }
 });
