@@ -2055,6 +2055,43 @@ export default function AdminProductCreate(): JSX.Element {
     ]));
   }
 
+  function remapColorCardIndicesAfterChange(oldUrls: string[], newUrls: string[]): void {
+    try {
+      setColorCards(prev => prev.map(card => {
+        const oldSel = Array.isArray(card.selectedImageIdxs) ? card.selectedImageIdxs : [];
+        const selectedUrls = oldSel.map(i => oldUrls[i]).filter(Boolean);
+        const newIdxs = Array.from(new Set(selectedUrls.map(u => newUrls.indexOf(u)).filter(i => i >= 0)));
+        let nextPrimary: number | undefined = undefined;
+        if (typeof card.primaryImageIdx === 'number') {
+          const oldPrimaryUrl = oldUrls[card.primaryImageIdx];
+          const mapped = newUrls.indexOf(oldPrimaryUrl);
+          nextPrimary = mapped >= 0 ? mapped : undefined;
+        }
+        return { ...card, selectedImageIdxs: newIdxs, primaryImageIdx: nextPrimary };
+      }));
+    } catch {}
+  }
+
+  function removeImageAt(index: number): void {
+    const oldUrls = allProductImageUrls();
+    const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (index < urlStrings.length) {
+      // remove from existing URL list
+      const nextUrlStrings = urlStrings.filter((_, i) => i !== index);
+      const newUrls = Array.from(new Set([...nextUrlStrings, ...fileUrls]));
+      remapColorCardIndicesAfterChange(oldUrls, newUrls);
+      setImages(nextUrlStrings.join(', '));
+    } else {
+      // remove from local files
+      const fileIdx = index - urlStrings.length;
+      const nextFiles = files.filter((_, i) => i !== fileIdx);
+      const nextFileUrls = fileUrls.filter((_, i) => i !== fileIdx);
+      const newUrls = Array.from(new Set([...urlStrings, ...nextFileUrls]));
+      remapColorCardIndicesAfterChange(oldUrls, newUrls);
+      setFiles(nextFiles);
+    }
+  }
+
   // Build color→image mapping from selected color cards
   function buildColorMappingFromCards(): Record<string, string | undefined> {
     const urls = allProductImageUrls();
@@ -2682,18 +2719,22 @@ export default function AdminProductCreate(): JSX.Element {
               </label>
               <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
             </div>
-            {files.length > 0 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
-                {files.map((f, idx) => (
-                  <div key={idx} className="panel" style={{ padding:0 }}>
-                    <img src={fileUrls[idx]} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                    <div style={{ padding:8, textAlign:'right' }}>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
+            {(() => {
+              const urls = allProductImageUrls();
+              return urls.length > 0 ? (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
+                  {urls.map((u, idx) => (
+                    <div key={`${u}__${idx}`} className="panel" style={{ padding:0 }}>
+                      <img src={u} alt={`img-${idx}`} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                      <div style={{ padding:8, textAlign:'right', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <span className="muted" style={{ fontSize:12, direction:'ltr', textAlign:'left', maxWidth:'70%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u}</span>
+                        <button type="button" onClick={() => removeImageAt(idx)} className="icon-btn">إزالة</button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
       </Section>
