@@ -22,18 +22,6 @@ export default function AdminProductCreate(): JSX.Element {
   const search = useSearchParams();
   const apiBase = useApiBase();
   const authHeaders = useAuthHeaders();
-  // Avoid any client-only logic during SSR/hydration glitches
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(()=>{ setMounted(true); }, []);
-  if (!mounted) {
-    return (
-      <main className="panel" style={{ padding:16 }}>
-        <div className="skeleton" style={{ height: 24, marginBottom: 12 }} />
-        <div className="skeleton" style={{ height: 320, marginBottom: 12 }} />
-        <div className="skeleton" style={{ height: 480 }} />
-      </main>
-    );
-  }
   const [paste, setPaste] = React.useState('');
   const [review, setReview] = React.useState<any|null>(null);
   const [loadingExisting, setLoadingExisting] = React.useState<boolean>(false);
