@@ -144,7 +144,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
         {summary}
       </button>
       {open && (
-        <div ref={panelRef} className="panel" role="listbox" onMouseDown={(e)=> e.stopPropagation()} onClick={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
+        <div ref={panelRef} className="panel" role="listbox" onPointerDown={(e)=> e.stopPropagation()} onMouseDown={(e)=> e.stopPropagation()} onClick={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
           <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
             <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
             <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
@@ -2459,7 +2459,8 @@ export default function AdminProductCreate(): JSX.Element {
       price: Number(salePrice || 0),
       images: baseImages,
       categoryId: primaryCategoryId,
-      additionalCategoryIds: Array.from(new Set(selectedCategoryIds.filter(id => id && id !== primaryCategoryId))),
+      // Send full selection; backend already excludes primary when inserting links
+      additionalCategoryIds: Array.from(new Set(selectedCategoryIds.filter(id => !!id))),
       vendorId: vendorId || null,
       stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
