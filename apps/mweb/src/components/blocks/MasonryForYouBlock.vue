@@ -98,6 +98,27 @@ async function loadRecommendations(){
   if (provided.length){ products.value = provided.map(toGridP); try{ await hydrateCouponsAndPrices() }catch{}; isLoading.value = false; return }
 
   try{
+    // Prefer categories coming from config or last carousel to align with admin selection
+    const w: any = window as any
+    const cfgRec: any = (cfg as any).recommend || {}
+    const catIds: string[] = Array.isArray(cfgRec.categoryIds) ? cfgRec.categoryIds : (Array.isArray(w.__LAST_CAROUSEL_CATEGORY_IDS) ? w.__LAST_CAROUSEL_CATEGORY_IDS : [])
+    const exclude: string[] = Array.isArray(cfgRec.excludeIds) ? cfgRec.excludeIds : (Array.isArray(w.__USED_PRODUCT_IDS) ? Array.from(w.__USED_PRODUCT_IDS) : [])
+    if (catIds.length){
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit', String(fallbackCount.value*2))
+      u.searchParams.set('sort', 'new')
+      u.searchParams.set('categoryIds', catIds.join(','))
+      if (exclude.length) u.searchParams.set('excludeIds', exclude.join(','))
+      const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
+      const arr = Array.isArray(j?.items)? j.items: []
+      const lst = uniqById(arr).slice(0, fallbackCount.value)
+      products.value = lst.map(toGridP)
+      try{ markTrending(products.value) }catch{}
+      try{ await hydrateCouponsAndPrices() }catch{}
+      isLoading.value = false
+      return
+    }
+    // Fallback to mixed recent/new/similar
     let lastId: string|undefined
     try{ lastId = window.localStorage?.getItem('last_view_product_id') || undefined }catch{}
     const [recent, newest, similar] = await Promise.all([
@@ -108,11 +129,13 @@ async function loadRecommendations(){
     const a = Array.isArray(recent?.items)? recent.items : []
     const b = Array.isArray(newest?.items)? newest.items : []
     const c = Array.isArray(similar?.items)? similar.items : []
-    // Interleave recent and new to balance exploration/exploitation
     const mixed:any[] = []
     const max = Math.max(a.length, b.length, c.length)
     for (let i=0;i<max;i++){ if (c[i]) mixed.push(c[i]); if (a[i]) mixed.push(a[i]); if (b[i]) mixed.push(b[i]) }
-    const dedup = uniqById(mixed)
+    // De-dup against prior blocks on page if any
+    const used: Set<string> = (w && w.__USED_PRODUCT_IDS) ? (w.__USED_PRODUCT_IDS as Set<string>) : new Set<string>()
+    const filtered = mixed.filter((p:any)=> !used.has(String(p?.id||'')))
+    const dedup = uniqById(filtered)
     products.value = dedup.slice(0, fallbackCount.value).map(toGridP)
     try{ markTrending(products.value) }catch{}
     try{ await hydrateCouponsAndPrices() }catch{}

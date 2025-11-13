@@ -1458,12 +1458,61 @@ shop.get('/products', async (req, res) => {
     const sort = String(req.query.sort||'new');
     const orderBy: any = sort === 'price_asc' ? { price: 'asc' } : sort === 'price_desc' ? { price: 'desc' } : { createdAt: 'desc' };
     setPublicCache(res, 5, 60);
-    const items = await db.product.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, price: true, images: true },
-      orderBy,
-      take: limit,
-    });
+    const idsParam = String(req.query.ids||'').trim();
+    const ids = idsParam ? idsParam.split(',').map(s=> s.trim()).filter(Boolean) : [];
+    const excludeParam = String(req.query.excludeIds||'').trim();
+    const excludeIds = excludeParam ? excludeParam.split(',').map(s=> s.trim()).filter(Boolean) : [];
+    const catParam = String(req.query.categoryIds||'').trim();
+    const categoryIds = catParam ? catParam.split(',').map(s=> s.trim()).filter(Boolean) : [];
+
+    let items: Array<{ id:string; name:string; price:number; images:string[] }> = [];
+    if (ids.length) {
+      // Explicit ids preserve order
+      const rows = await db.product.findMany({
+        where: { isActive: true, id: { in: ids } },
+        select: { id: true, name: true, price: true, images: true },
+      });
+      const byId = new Map<string, any>(rows.map(r=> [String(r.id), r]));
+      items = ids.map(id=> byId.get(id)).filter(Boolean) as any[];
+      if (excludeIds.length) items = items.filter(it=> !excludeIds.includes(String((it as any).id)));
+      items = items.slice(0, limit);
+    } else if (categoryIds.length) {
+      // Include primary or linked categories
+      try {
+        items = await db.product.findMany({
+          where: {
+            isActive: true,
+            OR: [
+              { categoryId: { in: categoryIds } },
+              // Link table for additional categories (if exists)
+              { categoryLinks: { some: { categoryId: { in: categoryIds } } } as any }
+            ]
+          },
+          select: { id: true, name: true, price: true, images: true },
+          orderBy,
+          take: limit + excludeIds.length,
+        }) as any;
+        if (excludeIds.length) items = items.filter(it=> !excludeIds.includes(String((it as any).id)));
+        items = items.slice(0, limit);
+      } catch {
+        // Fallback without link
+        items = await db.product.findMany({
+          where: { isActive: true, categoryId: { in: categoryIds } },
+          select: { id: true, name: true, price: true, images: true },
+          orderBy,
+          take: limit + excludeIds.length,
+        }) as any;
+        if (excludeIds.length) items = items.filter(it=> !excludeIds.includes(String((it as any).id)));
+        items = items.slice(0, limit);
+      }
+    } else {
+      items = await db.product.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, price: true, images: true },
+        orderBy,
+        take: limit,
+      }) as any;
+    }
     // annotate global top-sellers rank and sold counts
     try{
       const now = Date.now();

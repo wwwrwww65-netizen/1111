@@ -34,7 +34,7 @@ import { useRouter } from 'vue-router'
 import { API_BASE } from '@/lib/api'
 import { fmtPrice, initCurrency } from '@/lib/currency'
 
-type Filter = { sortBy?: string; limit?: number }
+type Filter = { sortBy?: string; limit?: number; categoryIds?: string[]; onlyDiscounted?: boolean }
 type Cfg = { title?: string; showPrice?: boolean; products?: any[]; filter?: Filter }
 
 const props = defineProps<{ cfg?: Cfg; device?: 'MOBILE'|'DESKTOP' }>()
@@ -53,21 +53,50 @@ function open(p: { id?: string }){ const id = String(p?.id||''); if (id) router.
 onMounted(async ()=>{
   try{ await initCurrency() }catch{}
   try{
-    const limit = Number(props.cfg?.filter?.limit||12)
-    const sort = String(props.cfg?.filter?.sortBy||'new')
-    const r = await fetch(`${API_BASE}/api/products?limit=${encodeURIComponent(String(limit))}&sort=${encodeURIComponent(sort)}`)
-    const j = await r.json()
-    const arr = Array.isArray(j?.items)? j.items: []
-    items.value = arr.map((p:any)=> {
-      const priceNum = Number(p.price||0)
-      return {
-        id: String(p.id||''),
-        name: String(p.name||''),
-        image: (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg',
-        price: priceNum,
-        priceText: fmtPrice(priceNum)
-      }
-    })
+    // 1) Explicit products override
+    const provided = Array.isArray(props.cfg?.products) ? props.cfg!.products! : []
+    if (provided.length){
+      items.value = provided.map((p:any)=> {
+        const priceNum = Number(p.price||p.basePrice||0)
+        return {
+          id: String(p.id||''),
+          name: String(p.name||p.title||''),
+          image: p.image || (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg',
+          price: priceNum,
+          priceText: fmtPrice(priceNum)
+        }
+      })
+    } else {
+      // 2) Filtered fetch (supports categoryIds)
+      const limit = Number(props.cfg?.filter?.limit||12)
+      const sort = String(props.cfg?.filter?.sortBy||'new')
+      const cats = Array.isArray(props.cfg?.filter?.categoryIds) ? (props.cfg?.filter?.categoryIds as string[]) : []
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit', String(limit))
+      u.searchParams.set('sort', sort)
+      if (cats.length) u.searchParams.set('categoryIds', cats.join(','))
+      const r = await fetch(u.toString())
+      const j = await r.json()
+      const arr = Array.isArray(j?.items)? j.items: []
+      items.value = arr.map((p:any)=> {
+        const priceNum = Number(p.price||0)
+        return {
+          id: String(p.id||''),
+          name: String(p.name||''),
+          image: (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg',
+          price: priceNum,
+          priceText: fmtPrice(priceNum)
+        }
+      })
+    }
+    // 3) Share used IDs for downstream blocks to avoid duplicates
+    try{
+      const w = window as any
+      if (!w.__USED_PRODUCT_IDS) w.__USED_PRODUCT_IDS = new Set<string>()
+      for (const it of items.value){ if (it?.id) w.__USED_PRODUCT_IDS.add(String(it.id)) }
+      const catIds = Array.isArray(props.cfg?.filter?.categoryIds)? props.cfg!.filter!.categoryIds! : []
+      if (catIds.length){ w.__LAST_CAROUSEL_CATEGORY_IDS = catIds.slice() }
+    }catch{}
   }catch{ items.value = [] }
   finally{ loading.value = false }
 })
