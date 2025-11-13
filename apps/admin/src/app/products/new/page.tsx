@@ -31,7 +31,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
 
   React.useEffect(()=>{
-    function onDocClick(e: MouseEvent){
+    function onDocClick(e: MouseEvent | PointerEvent){
       if (!open) return;
       const el = containerRef.current;
       const t = e.target as any;
@@ -39,8 +39,8 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
       const inside = el && (el.contains(t) || (Array.isArray(path) && path.includes(el)));
       if (el && !inside) setOpen(false);
     }
-    document.addEventListener('mousedown', onDocClick);
-    return ()=> document.removeEventListener('mousedown', onDocClick);
+    document.addEventListener('pointerdown', onDocClick as any, { passive: true } as any);
+    return ()=> document.removeEventListener('pointerdown', onDocClick as any);
   }, [open]);
 
   async function loadTree(){
@@ -144,7 +144,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
         {summary}
       </button>
       {open && (
-        <div ref={panelRef} className="panel" role="listbox" onMouseDown={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
+        <div ref={panelRef} className="panel" role="listbox" onMouseDown={(e)=> e.stopPropagation()} onClick={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
           <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
             <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
             <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
