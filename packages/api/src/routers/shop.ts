@@ -2507,7 +2507,13 @@ shop.post('/analytics/link', async (req: any, res) => {
         let cart = await db.cart.findUnique({ where: { userId }, select: { id:true } });
         if (!cart) cart = await db.cart.create({ data: { userId } });
         const agg = new Map<string, number>();
-        for (const r of rows){ const pid=String(r.productId); const q=Math.max(1, Number(r.quantity||1)); agg.set(pid, (agg.get(pid)||0)+q); }
+        let totalMergeCount = 0;
+        for (const r of rows){ 
+          const pid=String(r.productId); 
+          const q=Math.max(1, Number(r.quantity||1)); 
+          agg.set(pid, (agg.get(pid)||0)+q); 
+          totalMergeCount += q;
+        }
         for (const [pid, qty] of agg.entries()){
           try{
             const existing = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: pid }, select: { id:true, quantity:true } });
@@ -2515,6 +2521,8 @@ shop.post('/analytics/link', async (req: any, res) => {
             else await db.cartItem.create({ data: { cartId: cart.id, productId: pid, quantity: qty } });
           }catch{}
         }
+        // Record cart_merge event before deleting guest cart
+        await recordCartEvent('cart_merge', userId, null, { mergeCount: totalMergeCount });
         // Reflect recent activity on the user's cart
         try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
         try{ await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', guestCartId) }catch{}
@@ -2980,6 +2988,8 @@ shop.post('/cart/auth/add', requireAuth, async (req: any, res) => {
     const existing = await db.cartItem.findUnique({ where: { cartId_productId: { cartId: cart.id, productId } } });
     if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(quantity || 1) } });
     else await db.cartItem.create({ data: { cartId: cart.id, productId, quantity: Number(quantity || 1) } });
+    // Record cart_add event for user
+    await recordCartEvent('cart_add', userId, null, { productId: String(productId), quantity: Number(quantity || 1) });
     // Fire FB CAPI AddToCart (best-effort) with dedupe + client hints
     try {
       const { fbSendEvents, hashEmail } = await import('../services/fb');
@@ -3961,6 +3971,28 @@ function getGuestSession(req: any, res: any): string {
   } catch { return Math.random().toString(36).slice(2); }
 }
 
+// Helper to record cart analytics events (silent failure)
+async function recordCartEvent(
+  name: string,
+  userId: string | null,
+  sessionId: string | null,
+  properties: Record<string, any>
+): Promise<void> {
+  try {
+    await db.event.create({
+      data: {
+        name,
+        userId: userId || null,
+        sessionId: sessionId || null,
+        source: 'server',
+        properties: properties || {}
+      }
+    } as any);
+  } catch {
+    // Silent failure - event logging must never break cart operations
+  }
+}
+
 shop.get('/cart', async (req: any, res) => {
   try {
     if (req.user && req.user.userId) {
@@ -3997,6 +4029,8 @@ shop.post('/cart/add', async (req: any, res) => {
       if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
       else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      // Record cart_add event for user
+      await recordCartEvent('cart_add', userId, null, { productId: String(productId), quantity: qty });
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
@@ -4006,6 +4040,8 @@ shop.post('/cart/add', async (req: any, res) => {
     if (ex) await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
     else await db.guestCartItem.create({ data: { cartId: g.id, productId: String(productId), quantity: qty } });
     try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
+    // Record cart_add event for guest
+    await recordCartEvent('cart_add', null, sessionId, { productId: String(productId), quantity: qty });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4024,6 +4060,8 @@ shop.post('/cart/update', async (req: any, res) => {
       if (qty <= 0) await db.cartItem.delete({ where: { id: ex.id } });
       else await db.cartItem.update({ where: { id: ex.id }, data: { quantity: qty } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      // Record cart_update event for user
+      await recordCartEvent('cart_update', userId, null, { productId: String(productId), quantity: qty });
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
@@ -4034,6 +4072,8 @@ shop.post('/cart/update', async (req: any, res) => {
     if (qty <= 0) await db.guestCartItem.delete({ where: { id: ex.id } });
     else await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: qty } });
     try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
+    // Record cart_update event for guest
+    await recordCartEvent('cart_update', null, sessionId, { productId: String(productId), quantity: qty });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4043,13 +4083,24 @@ shop.post('/cart/remove', async (req: any, res) => {
     const { productId } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId required' });
     if (req.user && req.user.userId) {
-      const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
-      if (cart) { await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } }); try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+      const userId = req.user.userId;
+      const cart = await db.cart.findUnique({ where: { userId } });
+      if (cart) { 
+        await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } }); 
+        try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} 
+      }
+      // Record cart_remove event for user
+      await recordCartEvent('cart_remove', userId, null, { productId: String(productId) });
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
     const g = await db.guestCart.findUnique({ where: { sessionId } });
-    if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id, productId: String(productId) } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+    if (g) { 
+      await db.guestCartItem.deleteMany({ where: { cartId: g.id, productId: String(productId) } }); 
+      try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} 
+    }
+    // Record cart_remove event for guest
+    await recordCartEvent('cart_remove', null, sessionId, { productId: String(productId) });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4057,13 +4108,30 @@ shop.post('/cart/remove', async (req: any, res) => {
 shop.post('/cart/clear', async (req: any, res) => {
   try {
     if (req.user && req.user.userId) {
-      const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
-      if (cart) { await db.cartItem.deleteMany({ where: { cartId: cart.id } }); try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+      const userId = req.user.userId;
+      const cart = await db.cart.findUnique({ where: { userId }, include: { items: true } });
+      let itemsAffected = 0;
+      if (cart) {
+        // Calculate itemsAffected before deletion
+        itemsAffected = (cart.items || []).reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+        await db.cartItem.deleteMany({ where: { cartId: cart.id } }); 
+        try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} 
+      }
+      // Record cart_clear event for user
+      await recordCartEvent('cart_clear', userId, null, { itemsAffected });
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
-    const g = await db.guestCart.findUnique({ where: { sessionId } });
-    if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+    const g = await db.guestCart.findUnique({ where: { sessionId }, include: { items: true } });
+    let itemsAffected = 0;
+    if (g) {
+      // Calculate itemsAffected before deletion
+      itemsAffected = (g.items || []).reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+      await db.guestCartItem.deleteMany({ where: { cartId: g.id } }); 
+      try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} 
+    }
+    // Record cart_clear event for guest
+    await recordCartEvent('cart_clear', null, sessionId, { itemsAffected });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
