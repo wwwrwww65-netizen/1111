@@ -31,7 +31,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
 
   React.useEffect(()=>{
-    function onDocClick(e: MouseEvent | PointerEvent){
+    function onDocClick(e: MouseEvent){
       if (!open) return;
       const el = containerRef.current;
       const t = e.target as any;
@@ -39,23 +39,23 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
       const inside = el && (el.contains(t) || (Array.isArray(path) && path.includes(el)));
       if (el && !inside) setOpen(false);
     }
-    document.addEventListener('pointerdown', onDocClick as any, { passive: true } as any);
-    return ()=> document.removeEventListener('pointerdown', onDocClick as any);
+    document.addEventListener('mousedown', onDocClick as any);
+    return ()=> document.removeEventListener('mousedown', onDocClick as any);
   }, [open]);
 
-  // Native stopPropagation to defeat document-level native listeners
+  // Guard: prevent outside click handler from firing when interacting inside the panel (bubble phase only)
   React.useEffect(()=>{
     if (!open) return;
     const panel = panelRef.current;
     if (!panel) return;
-    const stop = (e: Event)=> { e.stopPropagation(); };
-    panel.addEventListener('pointerdown', stop, true);
-    panel.addEventListener('mousedown', stop, true);
-    panel.addEventListener('click', stop, true);
+    const stop = (e: Event)=> e.stopPropagation();
+    panel.addEventListener('mousedown', stop, false);
+    panel.addEventListener('click', stop, false);
+    panel.addEventListener('touchstart', stop, false);
     return ()=> {
-      try { panel.removeEventListener('pointerdown', stop, true); } catch {}
-      try { panel.removeEventListener('mousedown', stop, true); } catch {}
-      try { panel.removeEventListener('click', stop, true); } catch {}
+      try { panel.removeEventListener('mousedown', stop, false); } catch {}
+      try { panel.removeEventListener('click', stop, false); } catch {}
+      try { panel.removeEventListener('touchstart', stop, false); } catch {}
     };
   }, [open]);
   async function loadTree(){
@@ -169,7 +169,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const shown = React.useMemo(()=> filtered(tree, filter), [tree, filter]);
 
   return (
-    <div ref={containerRef} onPointerDownCapture={(e)=> e.stopPropagation()} style={{ position:'relative' }}>
+    <div ref={containerRef} style={{ position:'relative' }}>
       <button type="button" className="select" onClick={()=>{ setOpen(v=> !v); if (!open) loadTree(); }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
         {summary}
       </button>
