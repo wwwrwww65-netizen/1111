@@ -1,0 +1,76 @@
+name: Create Capolit PR
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - copilot/create-capolit-branch
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Checkout capolit branch
+        run: |
+          git fetch origin capolit:capolit
+          git checkout capolit
+      
+      - name: Create minimal change if needed
+        run: |
+          # Fetch main branch for comparison
+          git fetch origin main:main
+          
+          # Check if capolit and main are identical
+          if git diff --quiet origin/capolit origin/main; then
+            echo "Branches are identical, creating minimal change..."
+            mkdir -p .github
+            echo "# Placeholder file to trigger CI for capolit branch" > .github/.keep
+            git add .github/.keep
+            git commit -m "chore: trigger CI for capolit"
+            git push origin capolit
+          else
+            echo "Branches already differ, no need for minimal change"
+          fi
+      
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head capolit --base main --json number --jq '.[0].number' || echo "")
+          
+          if [ -z "$EXISTING_PR" ]; then
+            echo "Creating new PR..."
+            PR_URL=$(gh pr create \
+              --base main \
+              --head capolit \
+              --title "feature: create capolit from main" \
+              --body "نسخة فرع للاختبارات وتهيئة CI (GitHub Actions & build tests)" \
+              || echo "Failed to create PR")
+            
+            echo "PR Created: $PR_URL"
+            echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+          else
+            echo "PR already exists: #$EXISTING_PR"
+            PR_URL="https://github.com/${{ github.repository }}/pull/$EXISTING_PR"
+            echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+          fi
+      
+      - name: Output PR URL
+        run: |
+          echo "Pull Request URL: ${{ env.PR_URL }}"
