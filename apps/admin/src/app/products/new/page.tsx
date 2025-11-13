@@ -31,7 +31,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
 
   React.useEffect(()=>{
-    function onOutside(e: PointerEvent){
+    function onOutside(e: MouseEvent){
       if (!open) return;
       const el = containerRef.current;
       const t = e.target as any;
@@ -43,10 +43,10 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
       if (!open) return;
       if (e.key === 'Escape') setOpen(false);
     }
-    document.addEventListener('pointerdown', onOutside as any, true);
+    document.addEventListener('mousedown', onOutside as any, false);
     document.addEventListener('keydown', onEsc as any, true);
     return ()=> {
-      document.removeEventListener('pointerdown', onOutside as any, true);
+      document.removeEventListener('mousedown', onOutside as any, false);
       document.removeEventListener('keydown', onEsc as any, true);
     };
   }, [open]);
@@ -110,6 +110,14 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
           }}
           style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', cursor: hasKids? 'pointer':'default' }}
         >
+          {/* Leading chevron to indicate children */}
+          {hasKids ? (
+            <span role="button" aria-label={isOpen? 'طيّ':'توسيع'} onClick={(e)=>{ e.stopPropagation(); toggleExpand(node.id); }} style={{ width:20, height:20, display:'grid', placeItems:'center' }}>
+              <svg viewBox="0 0 24 24" width="14" height="14" style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)' }} aria-hidden="true">
+                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </span>
+          ) : (<span style={{ width:20 }} />)}
           <input
             type="checkbox"
             checked={selectedSet.has(node.id)}
@@ -124,19 +132,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
               <button type="button" className="btn btn-outline" onClick={()=> onPrimaryChange(node.id)} style={{ padding:'2px 6px', fontSize:12 }}>تعيين كرئيسي</button>
             ) : null}
           </div>
-          {hasKids ? (
-            <button
-              type="button"
-              className="icon-btn"
-              aria-expanded={isOpen}
-              onClick={(e)=> { e.stopPropagation(); toggleExpand(node.id); }}
-              style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center', background:'transparent', border:'none' }}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          ) : <span style={{ width:18 }} />}
+          <span style={{ width:18 }} />
         </div>
         {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
       </div>
@@ -174,6 +170,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
           role="listbox"
           style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:60, width:'min(560px, 96vw)', maxHeight:420, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}
           onPointerDown={(e)=> e.stopPropagation()}
+          onMouseDown={(e)=> e.stopPropagation()}
           onClick={(e)=> e.stopPropagation()}
         >
           <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
