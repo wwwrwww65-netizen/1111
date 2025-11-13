@@ -3668,7 +3668,7 @@ shop.post('/cart/add', async (req: any, res) => {
         await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } } as any);
       } else {
         const itemId = (require('crypto').randomUUID as ()=>string)();
-        await db.guestCartItem.create({ data: { id: itemId, cartId, productId: String(productId), quantity: q } } as any);
+        await db.guestCartItem.create({ data: { id: itemId, cartId, guestCartId: cartId, productId: String(productId), quantity: q } } as any);
       }
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
@@ -3704,7 +3704,7 @@ shop.post('/cart/update', async (req: any, res) => {
       } else {
         // Ensure row exists or update
         const id = (require('crypto').randomUUID as ()=>string)();
-        await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "cartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("cartId","productId") DO UPDATE SET "quantity"=$4', id, cartId, String(productId), q);
+        await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "cartId", "guestCartId", "productId", "quantity") VALUES ($1,$2,$2,$3,$4) ON CONFLICT ("cartId","productId") DO UPDATE SET "quantity"=$4', id, cartId, String(productId), q);
       }
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
