@@ -1,5 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import React from "react";
 import { createPortal } from "react-dom";
 import { resolveApiBase } from "../../lib/apiBase";
@@ -17,7 +18,7 @@ function useAuthHeaders(){
   }, []);
 }
 
-export default function AdminProductCreate(): JSX.Element {
+function AdminProductCreate(): JSX.Element {
   const router = useRouter();
   const search = useSearchParams();
   const apiBase = useApiBase();
@@ -3097,3 +3098,4 @@ export default function AdminProductCreate(): JSX.Element {
   );
 }
 
+export default dynamic(() => Promise.resolve(AdminProductCreate), { ssr: false });
