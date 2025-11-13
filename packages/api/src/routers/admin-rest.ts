@@ -9247,7 +9247,9 @@ adminRest.get('/analytics/vendors/top', async (req, res) => {
 // ------------------------ System: Carts ------------------------
 adminRest.get('/carts', async (req, res) => {
   try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const u = (req as any).user; 
+    if (!u || !u.userId) return res.status(401).json({ error:'unauthorized' });
+    if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
     const since = req.query.since? new Date(String(req.query.since)) : undefined;
 
     const [userCarts, guestCarts] = await Promise.all([
@@ -9360,7 +9362,9 @@ adminRest.get('/analytics/user/:uid/cart', async (req, res) => {
 
 adminRest.post('/carts/notify', async (req, res) => {
   try{
-    const u = (req as any).user; if (!(await can(u.userId, 'notifications.write'))) return res.status(403).json({ error:'forbidden' });
+    const u = (req as any).user; 
+    if (!u || !u.userId) return res.status(401).json({ error:'unauthorized' });
+    if (!(await can(u.userId, 'notifications.write'))) return res.status(403).json({ error:'forbidden' });
     
     // Validate input with zod
     const schema = z.object({ 
