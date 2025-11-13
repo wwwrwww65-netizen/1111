@@ -3997,6 +3997,10 @@ shop.post('/cart/add', async (req: any, res) => {
       if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
       else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      // Analytics event tracking (silent fail to avoid breaking cart logic)
+      try {
+        await db.event.create({ data: { name: 'cart_add', userId, productId: String(productId), channel: 'server', properties: { productId: String(productId), quantity: qty } } });
+      } catch {}
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
@@ -4006,6 +4010,10 @@ shop.post('/cart/add', async (req: any, res) => {
     if (ex) await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
     else await db.guestCartItem.create({ data: { cartId: g.id, productId: String(productId), quantity: qty } });
     try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
+    // Analytics event tracking for guest (silent fail)
+    try {
+      await db.event.create({ data: { name: 'cart_add', sessionId, productId: String(productId), channel: 'server', properties: { productId: String(productId), quantity: qty } } });
+    } catch {}
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4024,6 +4032,10 @@ shop.post('/cart/update', async (req: any, res) => {
       if (qty <= 0) await db.cartItem.delete({ where: { id: ex.id } });
       else await db.cartItem.update({ where: { id: ex.id }, data: { quantity: qty } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      // Analytics event tracking (silent fail)
+      try {
+        await db.event.create({ data: { name: 'cart_update', userId, productId: String(productId), channel: 'server', properties: { productId: String(productId), quantity: qty } } });
+      } catch {}
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
@@ -4034,6 +4046,10 @@ shop.post('/cart/update', async (req: any, res) => {
     if (qty <= 0) await db.guestCartItem.delete({ where: { id: ex.id } });
     else await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: qty } });
     try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
+    // Analytics event tracking for guest (silent fail)
+    try {
+      await db.event.create({ data: { name: 'cart_update', sessionId, productId: String(productId), channel: 'server', properties: { productId: String(productId), quantity: qty } } });
+    } catch {}
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4043,13 +4059,22 @@ shop.post('/cart/remove', async (req: any, res) => {
     const { productId } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId required' });
     if (req.user && req.user.userId) {
+      const userId = req.user.userId;
       const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
       if (cart) { await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } }); try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+      // Analytics event tracking (silent fail)
+      try {
+        await db.event.create({ data: { name: 'cart_remove', userId, productId: String(productId), channel: 'server', properties: { productId: String(productId) } } });
+      } catch {}
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
     const g = await db.guestCart.findUnique({ where: { sessionId } });
     if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id, productId: String(productId) } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+    // Analytics event tracking for guest (silent fail)
+    try {
+      await db.event.create({ data: { name: 'cart_remove', sessionId, productId: String(productId), channel: 'server', properties: { productId: String(productId) } } });
+    } catch {}
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4057,13 +4082,34 @@ shop.post('/cart/remove', async (req: any, res) => {
 shop.post('/cart/clear', async (req: any, res) => {
   try {
     if (req.user && req.user.userId) {
-      const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
-      if (cart) { await db.cartItem.deleteMany({ where: { cartId: cart.id } }); try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+      const userId = req.user.userId;
+      const cart = await db.cart.findUnique({ where: { userId } });
+      let itemsAffected = 0;
+      if (cart) { 
+        const items = await db.cartItem.findMany({ where: { cartId: cart.id } });
+        itemsAffected = items.length;
+        await db.cartItem.deleteMany({ where: { cartId: cart.id } }); 
+        try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} 
+      }
+      // Analytics event tracking (silent fail)
+      try {
+        await db.event.create({ data: { name: 'cart_clear', userId, channel: 'server', properties: { itemsAffected } } });
+      } catch {}
       return res.json({ ok: true });
     }
     const sessionId = getGuestSession(req, res);
     const g = await db.guestCart.findUnique({ where: { sessionId } });
-    if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+    let itemsAffected = 0;
+    if (g) { 
+      const items = await db.guestCartItem.findMany({ where: { cartId: g.id } });
+      itemsAffected = items.length;
+      await db.guestCartItem.deleteMany({ where: { cartId: g.id } }); 
+      try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} 
+    }
+    // Analytics event tracking for guest (silent fail)
+    try {
+      await db.event.create({ data: { name: 'cart_clear', sessionId, channel: 'server', properties: { itemsAffected } } });
+    } catch {}
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
