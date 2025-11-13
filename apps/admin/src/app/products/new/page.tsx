@@ -1897,6 +1897,23 @@ export default function AdminProductCreate(): JSX.Element {
     const sizes = await loadSizesForType(typeId);
     setSelectedSizeTypes(prev => [...prev, { id: typeId, name: getTypeNameById(typeId), sizes, selectedSizes: [] }]);
   }
+  function removeSizeType(typeId: string) {
+    // Remove from selected list
+    setSelectedSizeTypes(prev => prev.filter(t => t.id !== typeId));
+    // Prune the label from each variant row's composite size string and option_values
+    const label = getTypeNameById(typeId);
+    if (!label) return;
+    setVariantRows(prev => prev.map((r) => {
+      const parts = parseCompositeSizes(r.size);
+      if (Object.prototype.hasOwnProperty.call(parts, label)) {
+        delete parts[label];
+      }
+      const comp = Object.entries(parts).filter(([k,v])=> (k && v)).map(([k,v])=> `${k}:${v}`).join('|');
+      const nextOv = Array.isArray(r.option_values) ? r.option_values.filter(o => o.name !== 'size') : [];
+      const withSize = comp ? nextOv.concat([{ name:'size', value: comp }]) : nextOv;
+      return { ...r, size: comp, option_values: withSize };
+    }).filter(r => true));
+  }
   function toggleSizeForType(typeId: string, sizeName: string) {
     setSelectedSizeTypes(prev => prev.map(t => {
       if (t.id !== typeId) return t;
@@ -2530,10 +2547,10 @@ export default function AdminProductCreate(): JSX.Element {
     }
     const j = await res.json().catch(()=>({}));
     const productId = editId || j?.product?.id;
-    // Replace variants to persist edits and deletions robustly
-    if (type === 'variable' && productId) {
+    // Replace variants to persist edits and deletions robustly (even when switching to simple -> send empty list)
+    if (productId) {
       try {
-        const list = Array.isArray(normalizedVariants) ? normalizedVariants : [];
+        const list = type === 'variable' ? (Array.isArray(normalizedVariants) ? normalizedVariants : []) : [];
         await fetch(`${apiBase}/api/admin/products/${encodeURIComponent(productId)}/variants/replace`, {
           method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
           body: JSON.stringify({ variants: list })
@@ -2874,7 +2891,10 @@ export default function AdminProductCreate(): JSX.Element {
                   <div style={{ display:'grid', gap:10, marginTop:10 }}>
                     {selectedSizeTypes.map((t)=>(
                       <div key={t.id} className="panel" style={{ padding:10 }}>
-                        <div style={{ marginBottom:6, fontWeight:600 }}>{t.name}</div>
+                        <div style={{ marginBottom:6, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                          <span>{t.name}</span>
+                          <button type="button" className="btn btn-outline" onClick={()=> removeSizeType(t.id)}>إزالة النوع</button>
+                        </div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
                           {t.sizes.map(s=> (
                             <label key={s.id} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
