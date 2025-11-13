@@ -31,35 +31,27 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
 
   React.useEffect(()=>{
-    function onDocClick(e: MouseEvent){
+    function onOutside(e: PointerEvent){
       if (!open) return;
       const el = containerRef.current;
       const t = e.target as any;
       const path = (e as any).composedPath ? (e as any).composedPath() : [];
       const inside = el && (el.contains(t) || (Array.isArray(path) && path.includes(el)));
-      if (el && !inside) setOpen(false);
+      if (!inside) setOpen(false);
     }
-    document.addEventListener('mousedown', onDocClick as any);
-    return ()=> document.removeEventListener('mousedown', onDocClick as any);
-  }, [open]);
-
-  // Guard: prevent outside click handler from firing when interacting inside the panel (bubble phase only)
-  React.useEffect(()=>{
-    if (!open) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const stop = (e: Event)=> e.stopPropagation();
-    panel.addEventListener('mousedown', stop, false);
-    panel.addEventListener('click', stop, false);
-    panel.addEventListener('touchstart', stop, false);
+    function onEsc(e: KeyboardEvent){
+      if (!open) return;
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown', onOutside as any, true);
+    document.addEventListener('keydown', onEsc as any, true);
     return ()=> {
-      try { panel.removeEventListener('mousedown', stop, false); } catch {}
-      try { panel.removeEventListener('click', stop, false); } catch {}
-      try { panel.removeEventListener('touchstart', stop, false); } catch {}
+      document.removeEventListener('pointerdown', onOutside as any, true);
+      document.removeEventListener('keydown', onEsc as any, true);
     };
   }, [open]);
+
   async function loadTree(){
-    if (tree.length || loading) return;
     try{
       setLoading(true);
       const r = await fetch(`/api/admin/categories/tree`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
@@ -68,27 +60,6 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     } finally { setLoading(false); }
   }
 
-  function restoreScroll(next: () => void){
-    try {
-      const p = panelRef.current;
-      const top = p?.scrollTop || 0;
-      next();
-      requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
-    } catch { next(); }
-  }
-  function toggleExpand(id: string){
-    restoreScroll(()=> setExpanded(prev => ({ ...prev, [id]: !prev[id] })));
-  }
-  function toggleSelect(id: string){
-    restoreScroll(()=> {
-      const next = new Set(selectedSet);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      const arr = Array.from(next);
-      onChange(arr);
-      if (!primaryId && arr.length) onPrimaryChange(arr[0]);
-      if (primaryId && !next.has(primaryId)) onPrimaryChange(arr[0] || '');
-    });
-  }
   function filtered(nodes: any[], q: string): any[] {
     const t = String(q||'').trim().toLowerCase();
     if (!t) return nodes;
@@ -107,22 +78,37 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     return dfs(nodes);
   }
 
+  function toggleExpand(id: string){
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+    try {
+      const p = panelRef.current;
+      const top = p?.scrollTop || 0;
+      requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
+    } catch {}
+  }
+  function toggleSelect(id: string){
+    const next = new Set(selectedSet);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    const arr = Array.from(next);
+    onChange(arr);
+    if (!primaryId && arr.length) onPrimaryChange(arr[0]);
+    if (primaryId && !next.has(primaryId)) onPrimaryChange(arr[0] || '');
+  }
+
   function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
     const kids = Array.isArray(node.children)? node.children : [];
     const hasKids = kids.length>0;
     const isOpen = !!filter || !!expanded[node.id];
     return (
-      <div
-        onMouseDown={(e)=> e.stopPropagation()}
-      >
+      <div onMouseDown={(e)=> e.stopPropagation()}>
         <div
           onClick={(e)=> {
-            // توسعة عند النقر على صف الفئة الأب (ما عدا التفاعل مع عناصر التحكم)
             const tag = (e.target as HTMLElement).tagName.toLowerCase();
             if (tag === 'input' || tag === 'button' || tag === 'svg' || tag === 'path') return;
             if (hasKids) toggleExpand(node.id);
+            else toggleSelect(node.id);
           }}
-          style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', background:'transparent', cursor: hasKids? 'pointer':'default' }}
+          style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', cursor: hasKids? 'pointer':'default' }}
         >
           <input
             type="checkbox"
@@ -141,12 +127,10 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
           {hasKids ? (
             <button
               type="button"
-              onClick={(e)=> { e.stopPropagation(); toggleExpand(node.id); }}
-              onMouseDown={(e)=> e.stopPropagation()}
               className="icon-btn"
-              aria-label={isOpen? 'طيّ':'توسيع'}
               aria-expanded={isOpen}
-              style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center', color:'#fff', background:'transparent', border:'none' }}
+              onClick={(e)=> { e.stopPropagation(); toggleExpand(node.id); }}
+              style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center', background:'transparent', border:'none' }}
             >
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -170,10 +154,9 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
 
   return (
     <div ref={containerRef} style={{ position:'relative' }}>
-      <button type="button" className="select" onClick={()=>{ setOpen(v=> !v); if (!open) loadTree(); }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
+      <button type="button" className="select" onClick={()=>{ const next=!open; setOpen(next); if (next) loadTree(); }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
         {summary}
       </button>
-      {/* قائمة مختصرة للفئات المختارة لإظهار كل الاختيارات وإزالتها بسرعة */}
       {Array.isArray(value) && value.length > 0 && (
         <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6 }}>
           {value.map((id)=> (
@@ -185,13 +168,23 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
         </div>
       )}
       {open && (
-        <div ref={panelRef} className="panel" role="listbox" onPointerDown={(e)=> e.stopPropagation()} onMouseDown={(e)=> e.stopPropagation()} onClick={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
+        <div
+          ref={panelRef}
+          className="panel"
+          role="listbox"
+          style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:60, width:'min(560px, 96vw)', maxHeight:420, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}
+          onPointerDown={(e)=> e.stopPropagation()}
+          onClick={(e)=> e.stopPropagation()}
+        >
           <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
             <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
             <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
+            <div style={{ marginInlineStart:'auto', display:'flex', gap:8 }}>
+              <button type="button" className="btn btn-outline" onClick={()=> setOpen(false)}>إغلاق</button>
+            </div>
           </div>
           {loading ? (
-            <div className="skeleton" style={{ height:120 }} />
+            <div className="skeleton" style={{ height:140 }} />
           ) : (
             <div>
               {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
@@ -2593,9 +2586,16 @@ export default function AdminProductCreate(): JSX.Element {
     if (productId) {
       try {
         const list = type === 'variable' ? (Array.isArray(normalizedVariants) ? normalizedVariants : []) : [];
+        // Normalize stock field name for API (expects `stock`, UI uses `stockQuantity`)
+        const listForApi = list.map((v:any)=> {
+          const hasStock = typeof (v as any).stock === 'number' && Number.isFinite((v as any).stock);
+          const hasStockQty = typeof (v as any).stockQuantity === 'number' && Number.isFinite((v as any).stockQuantity);
+          const stock = hasStock ? Number((v as any).stock) : (hasStockQty ? Number((v as any).stockQuantity) : 0);
+          return { ...v, stock };
+        });
         await fetch(`${apiBase}/api/admin/products/${encodeURIComponent(productId)}/variants/replace`, {
           method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-          body: JSON.stringify({ variants: list })
+          body: JSON.stringify({ variants: listForApi })
         });
       } catch {}
     }

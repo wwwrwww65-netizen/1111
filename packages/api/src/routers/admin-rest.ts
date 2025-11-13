@@ -9952,14 +9952,27 @@ adminRest.get('/products', async (req, res) => {
   const status = (req.query.status as string | undefined) ?? undefined; // 'active' | 'archived'
   const suggest = String(req.query.suggest || '').trim() === '1';
   const skip = (page - 1) * limit;
-  const where: any = {};
-  if (search) where.OR = [
-    { name: { contains: search, mode: 'insensitive' } },
-    { sku: { contains: search, mode: 'insensitive' } },
-  ];
-  if (categoryId) where.categoryId = categoryId;
-  if (status === 'active') where.isActive = true;
-  if (status === 'archived') where.isActive = false;
+  // Build robust AND conditions so search and category filters combine correctly
+  const andConds: any[] = [];
+  if (search) {
+    andConds.push({
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ],
+    });
+  }
+  if (categoryId) {
+    andConds.push({
+      OR: [
+        { categoryId },
+        { categoryLinks: { some: { categoryId } } },
+      ],
+    });
+  }
+  if (status === 'active') andConds.push({ isActive: true });
+  if (status === 'archived') andConds.push({ isActive: false });
+  const where: any = andConds.length ? { AND: andConds } : {};
   if (suggest) {
     const afterId = (req.query.afterId as string | undefined) || undefined;
     const afterCreated = (req.query.afterCreated as string | undefined) ? new Date(String(req.query.afterCreated)) : undefined;
@@ -10481,6 +10494,21 @@ adminRest.put('/products/:id/variants/replace', async (req, res) => {
     return res.json({ ok: true });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || 'variants_replace_failed' });
+  }
+});
+// Update product publish/archive/disabled status
+adminRest.post('/products/:id/status', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'products.update'))) return res.status(403).json({ error:'forbidden' });
+    const { id } = req.params;
+    const status = String((req.body?.status || '')).toUpperCase();
+    // Map UI statuses to isActive flag; treat DISABLED same as ARCHIVED for now
+    const isActive = status === 'PUBLISHED';
+    const p = await db.product.update({ where: { id }, data: { isActive } });
+    await audit(req, 'products', 'status', { id, status, isActive });
+    return res.json({ ok: true, product: p });
+  } catch (e:any) {
+    return res.status(500).json({ error: e?.message || 'status_update_failed' });
   }
 });
 adminRest.patch('/products/:id', async (req, res) => {

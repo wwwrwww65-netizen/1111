@@ -150,7 +150,14 @@ export default function AdminProducts(): JSX.Element {
       const isOpen = !!filter || !!expanded[node.id];
       return (
         <div onMouseDown={(e)=> e.stopPropagation()}>
-          <div style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
+          <div
+            onClick={(e)=> {
+              const tag = (e.target as HTMLElement).tagName.toLowerCase();
+              if (tag === 'input' || tag === 'button' || tag === 'svg' || tag === 'path') return;
+              if (hasKids) { toggleExpand(node.id); return; }
+              onChange(value===node.id? '' : node.id);
+            }}
+            style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
             <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(value===node.id? '' : node.id); }} />
             <div style={{ flex:1 }}>{node.name}</div>
             {hasKids ? (

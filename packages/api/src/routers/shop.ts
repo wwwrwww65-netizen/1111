@@ -2687,18 +2687,29 @@ shop.get('/catalog/:slug', async (req, res) => {
     const materials = parseCsv('materials');
     const styles = parseCsv('styles');
     const tagsAny = [...sizes, ...colors, ...materials, ...styles];
-    const where:any = { categoryId: cat.id, isActive: true } as any;
-    if (q) where.name = { contains: q, mode: 'insensitive' };
-    if (brand) where.brand = { contains: brand, mode: 'insensitive' } as any;
-    if (min!=null || max!=null) where.price = { gte: (min!=null && isFinite(min))? Number(min): undefined, lte: (max!=null && isFinite(max))? Number(max): undefined } as any;
-    if (tagsAny.length) where.tags = { hasSome: tagsAny } as any;
+    // Include products whose primary category OR additional link table contains this category
+    const andConds: any[] = [
+      { isActive: true },
+      { OR: [ { categoryId: cat.id }, { categoryLinks: { some: { categoryId: cat.id } } } ] }
+    ];
+    if (q) andConds.push({ name: { contains: q, mode: 'insensitive' } });
+    if (brand) andConds.push({ brand: { contains: brand, mode: 'insensitive' } as any });
+    if (min!=null || max!=null) andConds.push({ price: { gte: (min!=null && isFinite(min))? Number(min): undefined, lte: (max!=null && isFinite(max))? Number(max): undefined } as any });
+    if (tagsAny.length) andConds.push({ tags: { hasSome: tagsAny } as any });
+    const where:any = { AND: andConds } as any;
     const items:any[] = await db.product.findMany({ where, select: { id:true, name:true, price:true, images:true, brand:true, tags:true }, orderBy, take: limit });
     // annotate category best sellers rank and sold counts
     try{
       const rows:any[] = await db.$queryRawUnsafe(`
         SELECT oi."productId" as pid, SUM(oi.quantity) as qty
-        FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" p ON p.id=oi."productId"
-        WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND p."categoryId"=$1
+        FROM "OrderItem" oi
+        JOIN "Order" o ON o.id=oi."orderId"
+        JOIN "Product" p ON p.id=oi."productId"
+        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+          AND (
+            p."categoryId"=$1
+            OR EXISTS (SELECT 1 FROM "ProductCategory" pc WHERE pc."productId"=p.id AND pc."categoryId"=$1)
+          )
         GROUP BY 1 ORDER BY qty DESC LIMIT 200
       `, cat.id);
       const rankMap = new Map<string, { rank:number; qty:number }>(); let r=1;
