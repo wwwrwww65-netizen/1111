@@ -31,22 +31,12 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
 
   React.useEffect(()=>{
-    function onOutside(e: MouseEvent){
-      if (!open) return;
-      const el = containerRef.current;
-      const t = e.target as any;
-      const path = (e as any).composedPath ? (e as any).composedPath() : [];
-      const inside = el && (el.contains(t) || (Array.isArray(path) && path.includes(el)));
-      if (!inside) setOpen(false);
-    }
     function onEsc(e: KeyboardEvent){
       if (!open) return;
       if (e.key === 'Escape') setOpen(false);
     }
-    document.addEventListener('mousedown', onOutside as any, false);
     document.addEventListener('keydown', onEsc as any, true);
     return ()=> {
-      document.removeEventListener('mousedown', onOutside as any, false);
       document.removeEventListener('keydown', onEsc as any, true);
     };
   }, [open]);
@@ -164,6 +154,12 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
         </div>
       )}
       {open && (
+        <>
+          {/* Backdrop to capture outside clicks without relying on document listeners */}
+          <div
+            style={{ position:'fixed', inset:0, zIndex:59, background:'transparent' }}
+            onMouseDown={()=> setOpen(false)}
+          />
         <div
           ref={panelRef}
           className="panel"
@@ -186,6 +182,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
             <div>
               {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
             </div>
+        </>
           )}
         </div>
       )}
