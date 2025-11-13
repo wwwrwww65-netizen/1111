@@ -17,6 +17,128 @@ function useAuthHeaders(){
   }, []);
 }
 
+function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange, options }:{ value: string[]; onChange:(ids:string[])=>void; primaryId: string; onPrimaryChange:(id:string)=>void; options: Array<{id:string;name:string}> }): JSX.Element {
+  const authHeaders = useAuthHeaders();
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [tree, setTree] = React.useState<any[]>([]);
+  const [filter, setFilter] = React.useState('');
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const containerRef = React.useRef<HTMLDivElement|null>(null);
+
+  const selectedSet = React.useMemo(()=> new Set(value||[]), [value]);
+  const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
+
+  React.useEffect(()=>{
+    function onDocClick(e: MouseEvent){
+      if (!open) return;
+      const el = containerRef.current;
+      const t = e.target as any;
+      if (el && t && typeof t !== 'undefined' && !el.contains(t)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return ()=> document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  async function loadTree(){
+    if (tree.length || loading) return;
+    try{
+      setLoading(true);
+      const r = await fetch(`/api/admin/categories/tree`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+      const j = await r.json().catch(()=>({}));
+      setTree(Array.isArray(j?.tree) ? j.tree : []);
+    } finally { setLoading(false); }
+  }
+
+  function toggleExpand(id: string){
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+  function toggleSelect(id: string){
+    const next = new Set(selectedSet);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    const arr = Array.from(next);
+    onChange(arr);
+    if (!primaryId && arr.length) onPrimaryChange(arr[0]);
+    if (primaryId && !next.has(primaryId)) onPrimaryChange(arr[0] || '');
+  }
+  function filtered(nodes: any[], q: string): any[] {
+    const t = String(q||'').trim().toLowerCase();
+    if (!t) return nodes;
+    const matchNode = (n:any): boolean => String(n?.name||'').toLowerCase().includes(t);
+    const dfs = (arr:any[]): any[] => {
+      const out:any[] = [];
+      for (const n of arr||[]){
+        const kids = Array.isArray(n.children)? n.children : [];
+        const fk = dfs(kids);
+        if (matchNode(n) || fk.length){
+          out.push({ ...n, children: fk });
+        }
+      }
+      return out;
+    };
+    return dfs(nodes);
+  }
+
+  function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
+    const kids = Array.isArray(node.children)? node.children : [];
+    const hasKids = kids.length>0;
+    const isOpen = !!expanded[node.id];
+    return (
+      <div>
+        <div style={{ display:'flex', alignItems:'center', gap:8, padding:6, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
+          {hasKids ? (
+            <button type="button" onClick={()=> toggleExpand(node.id)} className="icon-btn" aria-label={isOpen? 'Collapse':'Expand'} style={{ transform: isOpen? 'rotate(90deg)':'none' }}>▶</button>
+          ) : (
+            <span style={{ width:18 }} />
+          )}
+          <input type="checkbox" checked={selectedSet.has(node.id)} onChange={()=> toggleSelect(node.id)} />
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span>{node.name}</span>
+            {primaryId === node.id ? (
+              <span className="badge">رئيسي</span>
+            ) : selectedSet.has(node.id) ? (
+              <button type="button" className="btn btn-outline" onClick={()=> onPrimaryChange(node.id)} style={{ padding:'2px 6px', fontSize:12 }}>تعيين كرئيسي</button>
+            ) : null}
+          </div>
+        </div>
+        {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
+      </div>
+    );
+  }
+
+  const summary = React.useMemo(()=>{
+    if (!value || value.length===0) return 'اختر فئة';
+    const primaryName = nameOf(primaryId) || nameOf(value[0]);
+    const extraCount = value.filter(id=> id && id!==primaryId).length;
+    return extraCount>0 ? `${primaryName} +${extraCount}` : (primaryName || `${value.length} تصنيف(ات)`);
+  }, [value, primaryId, nameOf]);
+
+  const shown = React.useMemo(()=> filtered(tree, filter), [tree, filter]);
+
+  return (
+    <div ref={containerRef} style={{ position:'relative' }}>
+      <button type="button" className="select" onClick={()=>{ setOpen(v=> !v); if (!open) loadTree(); }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
+        {summary}
+      </button>
+      {open && (
+        <div className="panel" role="listbox" style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14' }}>
+          <div style={{ display:'flex', gap:8, marginBottom:8, alignItems:'center' }}>
+            <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
+            <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
+          </div>
+          {loading ? (
+            <div className="skeleton" style={{ height:120 }} />
+          ) : (
+            <div>
+              {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminProductCreate(): JSX.Element {
   const router = useRouter();
   const search = useSearchParams();
@@ -65,6 +187,11 @@ export default function AdminProductCreate(): JSX.Element {
           setName(String(p.name||''));
           setDescription(String(p.description||''));
           setCategoryId(String(p.categoryId||''));
+          try {
+            const extra: string[] = Array.isArray((j?.additionalCategoryIds||p?.additionalCategoryIds)) ? (j?.additionalCategoryIds||p?.additionalCategoryIds) : [];
+            const all = Array.from(new Set([String(p.categoryId||'')].concat(extra).filter(Boolean)));
+            setSelectedCategoryIds(all);
+          } catch {}
           setVendorId(String(p.vendorId||''));
           setSku(String(p.sku||''));
           if (typeof p.price === 'number') setSalePrice(p.price);
@@ -1638,6 +1765,7 @@ export default function AdminProductCreate(): JSX.Element {
   const [loyaltyMultiplier, setLoyaltyMultiplier] = React.useState<string>('');
   const [excludeFromPoints, setExcludeFromPoints] = React.useState<boolean>(false);
   const [categoryId, setCategoryId] = React.useState('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<string[]>([]);
   const [vendorId, setVendorId] = React.useState('');
   const [categoryOptions, setCategoryOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [vendorOptions, setVendorOptions] = React.useState<Array<{id:string;name:string;vendorCode?:string}>>([]);
@@ -2203,7 +2331,13 @@ export default function AdminProductCreate(): JSX.Element {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!name || !categoryId || salePrice === '' || salePrice === undefined) {
+    // Derive primary category from selection if missing
+    let primaryCategoryId = categoryId;
+    if (!primaryCategoryId && selectedCategoryIds.length) {
+      primaryCategoryId = selectedCategoryIds[0];
+      setCategoryId(primaryCategoryId);
+    }
+    if (!name || !primaryCategoryId || salePrice === '' || salePrice === undefined) {
       setError('يرجى تعبئة الاسم، التصنيف، وسعر البيع');
       showToast('أكمل الحقول المطلوبة', 'err');
       return;
@@ -2247,7 +2381,8 @@ export default function AdminProductCreate(): JSX.Element {
       description,
       price: Number(salePrice || 0),
       images: baseImages,
-      categoryId,
+      categoryId: primaryCategoryId,
+      additionalCategoryIds: Array.from(new Set(selectedCategoryIds.filter(id => id && id !== primaryCategoryId))),
       vendorId: vendorId || null,
       stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
@@ -2603,12 +2738,26 @@ export default function AdminProductCreate(): JSX.Element {
             </select>
           </label>
           <label>التصنيف
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required className="select">
-              <option value="">اختر تصنيفاً</option>
-              {categoryOptions.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <CategoryMultiTreeDropdown
+              value={selectedCategoryIds}
+              onChange={(ids)=>{
+                const uniq = Array.from(new Set(ids));
+                setSelectedCategoryIds(uniq);
+                if (!uniq.includes(categoryId)) {
+                  setCategoryId(uniq[0] || '');
+                }
+              }}
+              primaryId={categoryId}
+              onPrimaryChange={(pid)=>{
+                setCategoryId(pid);
+                setSelectedCategoryIds(prev=>{
+                  const set = new Set(prev);
+                  if (pid) set.add(pid);
+                  return Array.from(set);
+                });
+              }}
+              options={categoryOptions}
+            />
           </label>
           <label>المخزون
             <input type="text" inputMode="numeric" value={formatThousands(stockQuantity)} onChange={(e) => {
@@ -2906,7 +3055,14 @@ export default function AdminProductCreate(): JSX.Element {
             <span className="badge">{type==='variable' ? 'متعدد' : 'بسيط'}</span>
           </div>
           <div style={{ fontWeight:700, marginTop:6 }}>{name || '— بدون اسم —'}</div>
-          <div style={{ color:'var(--sub)', fontSize:12 }}>{categoryOptions.find(c=>c.id===categoryId)?.name || 'بدون تصنيف'}</div>
+          <div style={{ color:'var(--sub)', fontSize:12 }}>
+            {(() => {
+              const primaryName = categoryOptions.find(c=>c.id===categoryId)?.name;
+              const extraCount = Math.max(0, (selectedCategoryIds||[]).filter(id=> id && id!==categoryId).length);
+              if (!primaryName && (!selectedCategoryIds || !selectedCategoryIds.length)) return 'بدون تصنيف';
+              return primaryName ? (extraCount>0 ? `${primaryName} +${extraCount}` : primaryName) : `${selectedCategoryIds.length} تصنيف(ات)`;
+            })()}
+          </div>
           <div className="panel" style={{ padding:10, marginTop:8 }}>
             <div style={{ marginBottom:6, color:'#9ca3af' }}>SEO</div>
             <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
