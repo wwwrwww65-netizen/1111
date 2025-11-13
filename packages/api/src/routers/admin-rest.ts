@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { getIo } from '../io';
 import { db } from '@repo/db';
 import { fbSendEvents, hashEmail } from '../services/fb';
+import { fbCatalogUpsert, buildCatalogItemsFromProducts } from '../services/fb_catalog';
 import nodemailer from 'nodemailer';
 import { normalizeCategoriesPageConfig } from '../validators/categories-page';
 
@@ -11689,6 +11690,18 @@ adminRest.get('/marketing/facebook/catalog.xml', async (req, res) => {
     xml.push('</channel></rss>');
     res.send(xml.join(''));
   }catch(e:any){ res.status(500).send('feed_failed'); }
+});
+
+// Admin: Sync products to Facebook Catalog via Graph API (items_batch)
+adminRest.post('/marketing/facebook/catalog/sync', async (req, res) => {
+  try{
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const ids: string[] = Array.isArray(req.body?.ids) ? (req.body.ids as string[]).map(String) : [];
+    const items = await buildCatalogItemsFromProducts(ids);
+    if (!items.length) return res.json({ ok:true, synced: 0, results: [] });
+    const r = await fbCatalogUpsert(items);
+    return res.json({ ok: r.ok, synced: items.length, sample: r.results.slice(0,2) });
+  }catch(e:any){ return res.status(500).json({ error: e?.message||'fb_catalog_sync_failed' }); }
 });
 
 function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c)=> ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as any)[c] || c) }

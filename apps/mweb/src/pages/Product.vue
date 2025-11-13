@@ -1978,6 +1978,22 @@ async function loadProductData(pid?: string) {
         if (!currentColorName.value && colorVariants.value[0]?.name) colorIdx.value = 0
       } catch {}
       try { await nextTick(); await updateImagesForColor() } catch {}
+      // Fire Facebook Pixel ViewContent with catalog-friendly content_ids
+      try{
+        const fbq = (window as any).fbq
+        if (typeof fbq === 'function'){
+          const pidStr = String(d.id || p)
+          const val = Number(price.value||0)
+          const cur = (window as any).__CURRENCY_CODE__ || 'YER'
+          fbq('track','ViewContent', {
+            content_ids: [pidStr],
+            content_type: 'product',
+            contents: [{ id: pidStr, quantity: 1, item_price: val }],
+            value: val,
+            currency: cur
+          })
+        }
+      }catch{}
       
       // After primary data is ready, fire dependent loads (non-blocking)
       try { await buildRecTabsFromCategory() } catch {}
