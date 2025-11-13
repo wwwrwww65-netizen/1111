@@ -124,6 +124,7 @@ model Category {
   parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children    Category[] @relation("CategoryHierarchy")
   products    Product[]
+  productLinks ProductCategory[]
 
   @@index([parentId, sortOrder])
 }
@@ -165,6 +166,21 @@ model Product {
   guestCartItems GuestCartItem[]
   colors       ProductColor[]
   analytics    ProductAnalytics[]
+  categoryLinks ProductCategory[]
+}
+
+// Many-to-many link for additional product categories (non-breaking; primary stays Product.categoryId)
+model ProductCategory {
+  productId String
+  categoryId String
+  createdAt DateTime @default(now())
+
+  // Relations
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category  Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, categoryId])
+  @@index([categoryId])
 }
 
 model ProductVariant {

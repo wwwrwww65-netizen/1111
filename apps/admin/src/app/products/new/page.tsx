@@ -566,6 +566,11 @@ export default function AdminProductCreate(): JSX.Element {
     };
   }, []);
 
+  // Existing product images parsed from the comma-separated field for edit mode and UI preview
+  const existingImageUrlsUI = React.useMemo<string[]>(() => {
+    try { return (images || '').split(',').map(s => s.trim()).filter(Boolean); } catch { return []; }
+  }, [images]);
+
   function generateStrictName(clean: string): string {
     // Reuse makeSeoName baseline then enforce 8–12 words, avoid marketing
     const base = makeSeoName(clean, '')
@@ -1634,6 +1639,11 @@ export default function AdminProductCreate(): JSX.Element {
   const [loyaltyMultiplier, setLoyaltyMultiplier] = React.useState<string>('');
   const [excludeFromPoints, setExcludeFromPoints] = React.useState<boolean>(false);
   const [categoryId, setCategoryId] = React.useState('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<string[]>([]);
+  const [categoryTree, setCategoryTree] = React.useState<Array<{ id:string; name:string; children?: any[] }>>([]);
+  const [catOpen, setCatOpen] = React.useState<boolean>(false);
+  const [catSearch, setCatSearch] = React.useState<string>('');
+  const [expandedCats, setExpandedCats] = React.useState<Record<string, boolean>>({});
   const [vendorId, setVendorId] = React.useState('');
   const [categoryOptions, setCategoryOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [vendorOptions, setVendorOptions] = React.useState<Array<{id:string;name:string;vendorCode?:string}>>([]);
@@ -1708,14 +1718,16 @@ export default function AdminProductCreate(): JSX.Element {
   React.useEffect(()=>{
     (async ()=>{
       try {
-        const [cats, vends, brands, colors, types] = await Promise.all([
+        const [cats, treeRes, vends, brands, colors, types] = await Promise.all([
           fetch(`${apiBase}/api/admin/categories`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({categories:[]})),
+          fetch(`${apiBase}/api/admin/categories/tree`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({tree:[]})),
           fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({vendors:[]})),
           fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({brands:[]})),
           fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({colors:[]})),
           fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({types:[]})),
         ]);
         setCategoryOptions(cats.categories||[]);
+        setCategoryTree(Array.isArray((treeRes as any).tree) ? (treeRes as any).tree : []);
         setVendorOptions(vends.vendors||[]);
         setBrandOptions(brands.brands||[]);
         setColorOptions(colors.colors||[]);
@@ -1723,6 +1735,59 @@ export default function AdminProductCreate(): JSX.Element {
       } catch {}
     })();
   }, [apiBase]);
+
+  // Keep primary category in sync with first selected
+  React.useEffect(()=>{
+    const primary = selectedCategoryIds[0] || '';
+    setCategoryId(primary);
+  }, [selectedCategoryIds]);
+
+  const toggleExpandCat = React.useCallback((id:string)=>{
+    setExpandedCats(s=> ({ ...s, [id]: !s[id] }));
+  },[]);
+  const toggleSelectCat = React.useCallback((id:string)=>{
+    setSelectedCategoryIds((cur)=>{
+      const has = cur.includes(id);
+      const next = has ? cur.filter(x=> x!==id) : [...cur, id];
+      return next;
+    });
+  },[]);
+  const isExpanded = React.useCallback((id:string)=> !!expandedCats[id], [expandedCats]);
+  const flattenTree = React.useCallback((nodes:any[], depth=0, path:string[]=[]): Array<{id:string;name:string;depth:number;hasChildren:boolean;path:string[]}>=>{
+    const out: Array<{id:string;name:string;depth:number;hasChildren:boolean;path:string[]}> = [];
+    for (const n of (nodes||[])) {
+      out.push({ id:n.id, name:n.name, depth, hasChildren: Array.isArray(n.children) && n.children.length>0, path:[...path, n.name] });
+      if (Array.isArray(n.children) && n.children.length>0) {
+        out.push(...flattenTree(n.children, depth+1, [...path, n.name]));
+      }
+    }
+    return out;
+  },[]);
+  const filteredFlat = React.useMemo(()=>{
+    const flat = flattenTree(categoryTree||[]);
+    const q = catSearch.trim().toLowerCase();
+    if (!q) return flat;
+    return flat.filter(it=> it.name.toLowerCase().includes(q));
+  }, [categoryTree, catSearch, flattenTree]);
+
+  // If editing, hydrate selected categories from server
+  React.useEffect(()=>{
+    try {
+      const id = search?.get('id');
+      if (!id) return;
+      (async ()=>{
+        try{
+          const r = await fetch(`${apiBase}/api/admin/products/${encodeURIComponent(id)}`, { credentials:'include', headers: { ...authHeaders() } });
+          const j = await r.json();
+          const primary = j?.product?.categoryId ? String(j.product.categoryId) : '';
+          const extras: string[] = Array.isArray(j?.product?.additionalCategoryIds) ? j.product.additionalCategoryIds.map((x:any)=> String(x)) : [];
+          const uniq = Array.from(new Set([primary, ...extras].filter(Boolean)));
+          if (uniq.length) setSelectedCategoryIds(uniq);
+        } catch {}
+      })();
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   async function loadSizesForType(typeId: string): Promise<Array<{id:string;name:string}>> {
     try{
       const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
@@ -2236,12 +2301,18 @@ export default function AdminProductCreate(): JSX.Element {
       }
     } catch {}
     const baseImages: string[] = Array.from(new Set([...existingImageUrls, ...uploadedOrBase64]));
+    if (!categoryId) {
+      setBusy(false);
+      showToast('يرجى اختيار فئة واحدة على الأقل', 'err');
+      return;
+    }
     const productPayload: any = {
       name,
       description,
       price: Number(salePrice || 0),
       images: baseImages,
       categoryId,
+      additionalCategoryIds: Array.isArray(selectedCategoryIds) ? selectedCategoryIds.filter(id=> id && id!==categoryId) : undefined,
       vendorId: vendorId || null,
       stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
@@ -2352,8 +2423,18 @@ export default function AdminProductCreate(): JSX.Element {
     }
     setBusy(false);
     showToast(editId? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح', 'ok');
-    // بعد الحفظ، الانتقال مباشرة لقائمة المنتجات
-    router.replace('/products');
+    // بعد الحفظ، العودة إلى نفس صفحة الجدول (الصف/الفلاتر) إن وُجِدت
+    try{
+      const params = new URLSearchParams();
+      const bp = search?.get('backPage'); if (bp) params.set('page', bp);
+      const bs = search?.get('backStatus'); if (bs) params.set('status', bs);
+      const bq = search?.get('backSearch'); if (bq) params.set('search', bq);
+      const bc = search?.get('backCategoryId'); if (bc) params.set('categoryId', bc);
+      const qs = params.toString();
+      router.replace(qs ? `/products?${qs}` : '/products');
+    } catch {
+      router.replace('/products');
+    }
   }
 
   return (
@@ -2538,6 +2619,21 @@ export default function AdminProductCreate(): JSX.Element {
                 ))}
               </div>
             )}
+            {files.length === 0 && existingImageUrlsUI.length > 0 && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
+                {existingImageUrlsUI.map((u, idx) => (
+                  <div key={idx} className="panel" style={{ padding:0 }}>
+                    <img src={u} alt={String(idx)} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                    <div style={{ padding:8, textAlign:'right', display:'flex', gap:8, justifyContent:'flex-end' }}>
+                      <button type="button" onClick={() => {
+                        const next = existingImageUrlsUI.filter((_, i) => i!==idx).join(', ');
+                        setImages(next);
+                      }} className="icon-btn">إزالة</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </Section>
@@ -2586,13 +2682,60 @@ export default function AdminProductCreate(): JSX.Element {
               {brandOptions.map(b=> (<option key={b.id} value={b.name}>{b.name}</option>))}
             </select>
           </label>
-          <label>التصنيف
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required className="select">
-              <option value="">اختر تصنيفاً</option>
-              {categoryOptions.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+          <label>التصنيفات
+            <div style={{ position:'relative' }}>
+              <div className="input" style={{ display:'flex', flexWrap:'wrap', gap:6, minHeight:38, alignItems:'center', cursor:'pointer' }} onClick={()=> setCatOpen(v=>!v)}>
+                {selectedCategoryIds.length===0 && (<span style={{ color:'var(--sub)' }}>اختر فئات… (الأولى = الرئيسية)</span>)}
+                {selectedCategoryIds.map(id=> (
+                  <span key={id} style={{ display:'inline-flex', alignItems:'center', gap:6, background:'#0f1320', border:'1px solid #1c2333', borderRadius:999, padding:'4px 8px' }}>
+                    <span>{(categoryOptions.find(c=>c.id===id)?.name) || id}</span>
+                    <button type="button" onClick={(e)=>{ e.stopPropagation(); setSelectedCategoryIds(list=> list.filter(x=> x!==id)); }} className="icon-btn" aria-label="إزالة" style={{ border:'none', background:'transparent', color:'#94a3b8' }}>×</button>
+                  </span>
+                ))}
+                <div style={{ marginInlineStart:'auto', color:'#94a3b8' }}>▼</div>
+              </div>
+              {catOpen && (
+                <div style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(560px, 80vw)', maxHeight:340, overflow:'auto', background:'#0b0e14', border:'1px solid #1c2333', borderRadius:10, padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' }} onClick={(e)=> e.stopPropagation()}>
+                  <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                    <input className="input" placeholder="بحث ضمن الفئات" value={catSearch} onChange={(e)=> setCatSearch((e.target as HTMLInputElement).value)} />
+                    <button type="button" className="btn btn-outline" onClick={()=> setCatOpen(false)}>تم</button>
+                  </div>
+                  <div role="list" aria-label="قائمة الفئات" style={{ display:'grid', gap:4 }}>
+                    {catSearch.trim()
+                      ? filteredFlat.map(it=> (
+                        <div key={`f-${it.id}`} role="listitem" style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:8, border:'1px solid #1c2333', background:'#0f1320' }}>
+                          <input type="checkbox" checked={selectedCategoryIds.includes(it.id)} onChange={()=> toggleSelectCat(it.id)} />
+                          <div style={{ opacity:.6, fontSize:12, minWidth: it.depth*12, alignSelf:'stretch' }} />
+                          <div style={{ flex:1 }}>{it.name}</div>
+                        </div>
+                      ))
+                      : ((): JSX.Element[] => {
+                          const els: JSX.Element[] = [];
+                          const renderLevel = (nodes:any[], depth:number)=>{
+                            for (const n of (nodes||[])) {
+                              const open = isExpanded(n.id);
+                              const hasChildren = Array.isArray(n.children) && n.children.length>0;
+                              els.push(
+                                <div key={n.id} role="listitem" style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:8, border:'1px solid #1c2333', background:'#0f1320' }}>
+                                  <input type="checkbox" checked={selectedCategoryIds.includes(n.id)} onChange={()=> toggleSelectCat(n.id)} />
+                                  <button type="button" onClick={()=> hasChildren && toggleExpandCat(n.id)} disabled={!hasChildren} title={hasChildren? (open? 'طيّ':'عرض الأبناء') : 'لا يوجد أبناء'} style={{ width:28, height:28, borderRadius:6, border:'1px solid #1c2333', background:'#0b0e14', color:'#e2e8f0', opacity: hasChildren? 1 : .4 }}>
+                                    {hasChildren ? (open ? '▾' : '▸') : '•'}
+                                  </button>
+                                  <div style={{ opacity:.6, fontSize:12, minWidth: depth*12, alignSelf:'stretch' }} />
+                                  <div style={{ flex:1 }}>{n.name}</div>
+                                </div>
+                              );
+                              if (hasChildren && open) renderLevel(n.children||[], depth+1);
+                            }
+                          };
+                          renderLevel(categoryTree||[], 0);
+                          return els;
+                        })()
+                    }
+                  </div>
+                </div>
+              )}
+            </div>
           </label>
           <label>المخزون
             <input type="text" inputMode="numeric" value={formatThousands(stockQuantity)} onChange={(e) => {

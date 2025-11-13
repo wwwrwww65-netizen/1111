@@ -10093,6 +10093,12 @@ adminRest.get('/products/:id', async (req, res) => {
   const { id } = req.params;
   const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } }, colors: { include: { images: true } } } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
+  // Fetch additional category links
+  let additionalCategoryIds: string[] = [];
+  try {
+    const links: Array<{ categoryId: string }> = await db.$queryRawUnsafe('SELECT "categoryId" FROM "ProductCategory" WHERE "productId"=$1', id);
+    additionalCategoryIds = links.map(l => l.categoryId).filter(Boolean);
+  } catch {}
   // Derive sizes/colors summary for admin convenience
   try {
     const sizes = new Set<string>();
@@ -10149,20 +10155,29 @@ adminRest.get('/products/:id', async (req, res) => {
       variantsOut.push(Object.assign({}, v, { size: meta.size, color: meta.color, option_values: meta.option_values || undefined }));
     }
     const colorGalleries = (p as any).colors?.map((c:any)=> ({ name:c.name, primaryImageUrl:c.primaryImageUrl||undefined, isPrimary:!!c.isPrimary, order:c.order||0, images:(c.images||[]).map((x:any)=> x.url).filter(Boolean) })) || [];
-    return res.json({ product: Object.assign({}, p, { variants: variantsOut, sizes: Array.from(sizes), colors: Array.from(colors), colorGalleries }) });
+    return res.json({ product: Object.assign({}, p, { variants: variantsOut, sizes: Array.from(sizes), colors: Array.from(colors), colorGalleries, additionalCategoryIds }) });
   } catch {
-    return res.json({ product: p });
+    return res.json({ product: Object.assign({}, p, { additionalCategoryIds }) });
   }
 });
 adminRest.post('/products', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.create'))) return res.status(403).json({ error:'forbidden' });
   const { name, description, price, images, categoryId, stockQuantity, sku, brand, tags, isActive, vendorId, colors, pointsFixed, pointsPercent, loyaltyMultiplier, excludeFromPoints } = req.body || {};
+  const additionalCategoryIds: string[] = Array.isArray((req.body||{}).additionalCategoryIds) ? (req.body as any).additionalCategoryIds.map((x:any)=> String(x)).filter((x:string)=> !!x) : [];
   // Fallback: if categoryId missing, pick any existing category to satisfy FK
   let nextCategoryId = categoryId;
   if (!nextCategoryId) {
     try { const any = await db.category.findFirst({ select: { id: true } }); nextCategoryId = any?.id || undefined; } catch {}
   }
   const p = await db.product.create({ data: { name, description, price, images: images||[], categoryId: nextCategoryId as any, vendorId: vendorId||null, stockQuantity: stockQuantity??0, sku, brand, tags: tags||[], isActive: isActive??true, pointsFixed: pointsFixed!=null? Number(pointsFixed): null as any, pointsPercent: pointsPercent!=null? Number(pointsPercent): null as any, loyaltyMultiplier: loyaltyMultiplier!=null? Number(loyaltyMultiplier): null as any, excludeFromPoints: !!excludeFromPoints } });
+  // Insert additional category links (excluding primary)
+  try {
+    const toInsert = additionalCategoryIds.filter(x => x !== nextCategoryId);
+    if (toInsert.length) {
+      const values = toInsert.map((cid, i) => `($1,$${i+2})`).join(',');
+      await db.$executeRawUnsafe(`INSERT INTO "ProductCategory"("productId","categoryId") VALUES ${values} ON CONFLICT DO NOTHING`, p.id, ...toInsert);
+    }
+  } catch {}
   // Optionally persist colors (primary + gallery) for the new product
   try {
     const colorsIn: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = Array.isArray(colors) ? colors : [];
@@ -10480,6 +10495,20 @@ adminRest.patch('/products/:id', async (req, res) => {
     const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true, sku: true } });
     const p = await db.product.update({ where: { id }, data: allowed });
     await audit(req, 'products', 'update', { id });
+    // Update additional categories if provided
+    try {
+      const additionalCategoryIds: string[] = Array.isArray((req.body||{}).additionalCategoryIds) ? (req.body as any).additionalCategoryIds.map((x:any)=> String(x)).filter((x:string)=> !!x) : [];
+      if (Array.isArray(additionalCategoryIds)) {
+        // Replace strategy: delete all then re-insert
+        await db.$executeRawUnsafe('DELETE FROM "ProductCategory" WHERE "productId"=$1', id);
+        const primary = allowed.categoryId || (await db.product.findUnique({ where: { id }, select: { categoryId: true } }))?.categoryId;
+        const toInsert = additionalCategoryIds.filter(x => x !== primary);
+        if (toInsert.length) {
+          const values = toInsert.map((cid, i) => `($1,$${i+2})`).join(',');
+          await db.$executeRawUnsafe(`INSERT INTO "ProductCategory"("productId","categoryId") VALUES ${values} ON CONFLICT DO NOTHING`, id, ...toInsert);
+        }
+      }
+    } catch {}
     // Upsert variants if provided
     try {
       const rows: any[] = Array.isArray((req.body || {}).variants) ? (req.body as any).variants : [];

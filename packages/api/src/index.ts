@@ -190,6 +190,32 @@ async function ensureSchema(): Promise<void> {
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_sku_idx" ON "Product"(sku)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_created_idx" ON "Product"("createdAt")'); } catch {}
 
+    // Ensure ProductCategory (link table for additional categories) exists without breaking existing schema
+    await db.$executeRawUnsafe(
+      'CREATE TABLE IF NOT EXISTS "ProductCategory" ('+
+      '"productId" TEXT NOT NULL,'+
+      '"categoryId" TEXT NOT NULL,'+
+      '"createdAt" TIMESTAMP DEFAULT NOW(),'+
+      'PRIMARY KEY ("productId","categoryId")'+
+      ')'
+    );
+    // Add indexes and FKs if missing
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ProductCategory_categoryId_idx" ON "ProductCategory"("categoryId")');
+    await db.$executeRawUnsafe(
+      'DO $$ BEGIN '+
+      'IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = \'ProductCategory_productId_fkey\') THEN '+
+      'ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE; '+
+      'END IF; '+
+      'END $$;'
+    );
+    await db.$executeRawUnsafe(
+      'DO $$ BEGIN '+
+      'IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = \'ProductCategory_categoryId_fkey\') THEN '+
+      'ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE CASCADE; '+
+      'END IF; '+
+      'END $$;'
+    );
+
     // Ensure PointsCampaign exists (Prisma model) to avoid runtime errors before migrations
     await db.$executeRawUnsafe(
       'CREATE TABLE IF NOT EXISTS "PointsCampaign" ('+
