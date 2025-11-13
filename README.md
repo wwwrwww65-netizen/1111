@@ -846,6 +846,23 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
   - `GET /api/admin/finance/invoices`
   - مواعيد الاستحقاق والتنبيهات مفعّلة (idempotent schema ensure)
 
+## 🛒 Shopping Carts (System)
+
+- سلال التسوق (Carts):
+  - `GET /api/admin/carts` - الحصول على قائمة سلال المستخدمين والزوار
+    - Query params: `since` (ISO datetime اختياري) لتصفية السلال المحدثة بعد تاريخ معين
+    - يعيد: `{ ok:true, userCarts: [...], guestCarts: [...] }`
+    - كل سلة تحتوي على: المعلومات الأساسية، العناصر، بيانات المستخدم/الجلسة، وتحليلات (events count, device, browser, geo)
+    - يتطلب صلاحية: `settings.manage`
+  - `POST /api/admin/carts/notify` - إرسال إشعارات لأصحاب السلال المحددة
+    - Body: `{ targets: [{ userId?, guestSessionId? }], title: string, body: string }`
+    - يرسل إشعارات فورية عبر Socket.IO للمستخدمين/الزوار المتصلين
+    - يسجل في audit log لتتبع الإشعارات المرسلة
+    - يعيد: `{ ok:true, sent: number, channel: 'socket' | 'none' }`
+    - يتطلب صلاحية: `notifications.write`
+  - `GET /api/admin/analytics/session/:sid/cart` - الحصول على سلة زائر محدد بواسطة session ID
+  - `GET /api/admin/analytics/user/:uid/cart` - الحصول على سلة مستخدم محدد بواسطة user ID
+
 ## 🏷️ Discounts & Campaigns
 
 - Campaigns (تقسيم/جدولة/كوبونات):
