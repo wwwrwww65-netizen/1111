@@ -119,7 +119,6 @@ export default function AdminProducts(): JSX.Element {
       };
       return dfs(nodes);
     }
-    const panelRef = React.useRef<HTMLDivElement|null>(null);
     function restoreScroll(next: () => void){
       try {
         const p = panelRef.current;
