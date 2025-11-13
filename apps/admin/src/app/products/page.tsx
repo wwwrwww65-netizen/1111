@@ -99,7 +99,21 @@ export default function AdminProducts(): JSX.Element {
       const raf = requestAnimationFrame(updatePlacement);
       const onResize = () => updatePlacement();
       window.addEventListener('resize', onResize);
-      return ()=> { try { cancelAnimationFrame(raf); } catch {} window.removeEventListener('resize', onResize); };
+      // Native stopPropagation on panel to avoid outside-closer seeing inside clicks
+      const panel = panelRef.current;
+      const stop = (e: Event)=> { e.stopPropagation(); };
+      try {
+        panel?.addEventListener('pointerdown', stop, true);
+        panel?.addEventListener('mousedown', stop, true);
+        panel?.addEventListener('click', stop, true);
+      } catch {}
+      return ()=> {
+        try { cancelAnimationFrame(raf); } catch {}
+        window.removeEventListener('resize', onResize);
+        try { panel?.removeEventListener('pointerdown', stop, true); } catch {}
+        try { panel?.removeEventListener('mousedown', stop, true); } catch {}
+        try { panel?.removeEventListener('click', stop, true); } catch {}
+      };
     }, [open]);
 
     function filtered(nodes: any[], q: string): any[] {

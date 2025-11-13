@@ -43,6 +43,21 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     return ()=> document.removeEventListener('pointerdown', onDocClick as any);
   }, [open]);
 
+  // Native stopPropagation to defeat document-level native listeners
+  React.useEffect(()=>{
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const stop = (e: Event)=> { e.stopPropagation(); };
+    panel.addEventListener('pointerdown', stop, true);
+    panel.addEventListener('mousedown', stop, true);
+    panel.addEventListener('click', stop, true);
+    return ()=> {
+      try { panel.removeEventListener('pointerdown', stop, true); } catch {}
+      try { panel.removeEventListener('mousedown', stop, true); } catch {}
+      try { panel.removeEventListener('click', stop, true); } catch {}
+    };
+  }, [open]);
   async function loadTree(){
     if (tree.length || loading) return;
     try{
