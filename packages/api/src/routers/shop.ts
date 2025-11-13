@@ -2466,6 +2466,8 @@ shop.post('/analytics/link', async (req: any, res) => {
             else await db.cartItem.create({ data: { cartId: cart.id, productId: pid, quantity: qty } });
           }catch{}
         }
+        // Reflect recent activity on the user's cart
+        try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
         try{ await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', guestCartId) }catch{}
         try{ await db.$executeRawUnsafe('DELETE FROM "GuestCart" WHERE id=$1', guestCartId) }catch{}
       }
@@ -3490,6 +3492,8 @@ shop.post('/cart/merge', async (req: any, res) => {
         }
       } catch {}
     }
+    // Ensure the parent cart reflects recent activity
+    try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'merge_failed' }); }
 });
