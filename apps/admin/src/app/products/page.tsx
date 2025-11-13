@@ -42,59 +42,7 @@ export default function AdminProducts(): JSX.Element {
     return e?.name === 'AbortError' || e?.code === 20;
   }
 
-  // Initialize from URL on first mount
-  React.useEffect(()=>{
-    try{
-      const params = new URLSearchParams(location.search);
-      const pPage = parseInt(params.get('page')||'') || 1;
-      const pSearch = params.get('search') || '';
-      const pStatus = params.get('status') || '';
-      const pCat = params.get('categoryId') || '';
-      setPage(pPage);
-      setSearch(pSearch);
-      setStatus(pStatus);
-      setCategoryId(pCat);
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // Sync state to URL
-  React.useEffect(()=>{
-    try{
-      const params = new URLSearchParams();
-      if (page>1) params.set('page', String(page));
-      if (search) params.set('search', search);
-      if (status) params.set('status', status);
-      if (categoryId) params.set('categoryId', categoryId);
-      const qs = params.toString();
-      const next = qs? `?${qs}` : location.pathname;
-      window.history.replaceState(null, '', next);
-    } catch {}
-  }, [page, search, status, categoryId]);
-
-  // Status counts per current filters
-  const [countAll, setCountAll] = React.useState<number|undefined>(undefined);
-  const [countPublished, setCountPublished] = React.useState<number|undefined>(undefined);
-  const [countArchived, setCountArchived] = React.useState<number|undefined>(undefined);
-  async function loadCounts(){
-    try{
-      const mk = async (st?: 'active'|'archived') => {
-        const url = new URL(`/api/admin/products`, window.location.origin);
-        url.searchParams.set('page','1');
-        url.searchParams.set('limit','1');
-        if (search) url.searchParams.set('search', search);
-        if (categoryId) url.searchParams.set('categoryId', categoryId);
-        if (st) url.searchParams.set('status', st);
-        const r = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
-        const j = await r.json().catch(()=>({}));
-        const t = Number(j?.pagination?.total||0);
-        return Number.isFinite(t) ? t : 0;
-      };
-      const [all, pub, arc] = await Promise.all([mk(undefined), mk('active'), mk('archived')]);
-      setCountAll(all); setCountPublished(pub); setCountArchived(arc);
-    } catch {
-      setCountAll(undefined); setCountPublished(undefined); setCountArchived(undefined);
-    }
-  }
+  // No URL/state syncing or counts in the simple list view
   async function load(){
     if (ctlRef.current) { try { ctlRef.current.abort(); } catch {} }
     const ctl = new AbortController(); ctlRef.current = ctl;
@@ -103,23 +51,24 @@ export default function AdminProducts(): JSX.Element {
     url.searchParams.set('limit', String(limit));
     if (search) url.searchParams.set('search', search);
     if (status) url.searchParams.set('status', status);
-    if (categoryId) url.searchParams.set('categoryId', categoryId);
-    // include category info; avoid suggest mode here
+    // request lean payload for faster first paint
+    url.searchParams.set('suggest','1');
+    if (nextCursor && page>1) { url.searchParams.set('afterId', nextCursor.id); url.searchParams.set('afterCreated', nextCursor.createdAt); }
     try {
       const res = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal });
       const j = await res.json();
       if (ctl.signal.aborted) return;
       setRows(j.products||[]);
       setTotal(j.pagination?.total?? null);
-      setHasMore(false);
-      setNextCursor(null);
+      setHasMore(Boolean(j.pagination?.hasMore));
+      setNextCursor(j.pagination?.nextCursor||null);
     } catch (err) {
       if (isAbortError(err)) return; // ignore cancels
       // Optional: surface a lightweight error indicator without crashing the page
       // console.error('products load error', err);
     }
   }
-  React.useEffect(()=>{ load(); loadCounts(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
+  React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
   React.useEffect(()=>{
     const t = setTimeout(()=>{ setPage(1); load(); }, 300);
     return ()=> clearTimeout(t);
@@ -163,9 +112,9 @@ export default function AdminProducts(): JSX.Element {
       <div className="toolbar" style={{ marginBottom:12 }}>
         <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/sku" className="input" /></div>
         <select value={status} onChange={(e)=>{ setStatus(e.target.value); setPage(1); }} className="select">
-          <option value="">الكل{countAll!=null? ` (${countAll})`: ''}</option>
-          <option value="active">منشور{countPublished!=null? ` (${countPublished})`: ''}</option>
-          <option value="archived">مؤرشف{countArchived!=null? ` (${countArchived})`: ''}</option>
+          <option value="">الكل</option>
+          <option value="active">نشط</option>
+          <option value="archived">مؤرشف</option>
         </select>
         <div className="actions">
           <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
@@ -211,7 +160,6 @@ export default function AdminProducts(): JSX.Element {
               {/* <th style={{minWidth:160}}>ID</th> */}
               <th style={{minWidth:120}}>صورة</th>
               <th style={{minWidth:220}}>الاسم</th>
-              <th style={{minWidth:160}}>الفئة</th>
               <th style={{minWidth:160}}>SKU/التباينات</th>
               <th style={{minWidth:120}}>سعر البيع</th>
               <th style={{minWidth:120}}>المخزون</th>
@@ -228,7 +176,6 @@ export default function AdminProducts(): JSX.Element {
                   {/* <td>{p.id.slice(0,6)}</td> */}
                   <td>{p.images?.[0] ? <img src={normalizeImageSrc(p.images[0])} alt={p.name} width={64} height={64} style={{ width:64, height:64, objectFit:'cover', borderRadius:6 }} onError={(e)=>{ const t=e.currentTarget; t.onerror=null; t.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='; }} /> : '-'}</td>
                   <td><div className="line-2" style={{maxWidth:420}}>{p.name}</div></td>
-                  <td>{p?.category?.name || '—'}</td>
                   <td>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
                   <td>{p.price}</td>
                   <td>{totalStock}</td>
@@ -243,8 +190,8 @@ export default function AdminProducts(): JSX.Element {
                     </div>
                   </td>
                   <td>
-                    <a href={`${(process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com')}/p?id=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer" className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
-                    <a href={`/products/new?id=${p.id}&backPage=${encodeURIComponent(String(page))}&backStatus=${encodeURIComponent(status)}&backSearch=${encodeURIComponent(search)}&backCategoryId=${encodeURIComponent(categoryId)}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
+                    <a href={`/products/${p.id}`} className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
+                    <a href={`/products/new?id=${p.id}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
                     <button onClick={async ()=>{ const r=await fetch(`/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); if (r.ok){ showToast('تم الحذف'); } await load(); }} className="btn btn-md">حذف</button>
                   </td>
                 </tr>
