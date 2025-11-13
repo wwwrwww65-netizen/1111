@@ -9258,22 +9258,68 @@ adminRest.get('/carts', async (req, res) => {
         select: {
           id: true, updatedAt: true, createdAt: true,
           user: { select: { id:true, name:true, email:true, phone:true } },
-          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true } } } }
+          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true, price:true } } } }
         },
         orderBy: { updatedAt: 'desc' }
       } as any),
       db.guestCart.findMany({
         where: since? { updatedAt: { gte: since } } as any : {},
         select: {
-          id: true, sessionId: true, updatedAt: true, createdAt: true,
-          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true } } } }
+          id: true, sessionId: true, updatedAt: true, createdAt: true, userAgent: true, ip: true,
+          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true, price:true } } } }
         },
         orderBy: { updatedAt: 'desc' }
       } as any)
     ]);
+    
+    // Transform carts to add derived metrics
+    const enrichedUserCarts = (userCarts as any[]).map(c => {
+      const items = c.items || [];
+      const itemCount = items.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+      const totalValue = items.reduce((sum: number, it: any) => sum + Number(it.quantity || 0) * Number(it.product?.price || 0), 0);
+      return {
+        id: c.id,
+        user: c.user,
+        items: items.map((it: any) => ({
+          id: it.id,
+          productId: String(it.product?.id || ''),
+          quantity: it.quantity,
+          product: it.product
+        })),
+        itemCount,
+        totalValue,
+        updatedAt: c.updatedAt,
+        createdAt: c.createdAt,
+        lastActivity: c.updatedAt || c.createdAt,
+      };
+    });
+    
+    const enrichedGuestCarts = (guestCarts as any[]).map(g => {
+      const items = g.items || [];
+      const itemCount = items.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+      const totalValue = items.reduce((sum: number, it: any) => sum + Number(it.quantity || 0) * Number(it.product?.price || 0), 0);
+      return {
+        id: g.id,
+        sessionId: g.sessionId,
+        items: items.map((it: any) => ({
+          id: it.id,
+          productId: String(it.product?.id || ''),
+          quantity: it.quantity,
+          product: it.product
+        })),
+        itemCount,
+        totalValue,
+        updatedAt: g.updatedAt,
+        createdAt: g.createdAt,
+        lastActivity: g.updatedAt || g.createdAt,
+        userAgent: g.userAgent || undefined,
+        ip: g.ip || undefined,
+      };
+    });
+    
     // Enrich carts with analytics summary (events count, last event, device/browser/geo)
     try{
-      const sids = Array.from(new Set((guestCarts||[]).map((g:any)=> String(g.sessionId||'')).filter(Boolean)));
+      const sids = Array.from(new Set(enrichedGuestCarts.map((g:any)=> String(g.sessionId||'')).filter(Boolean)));
       if (sids.length){
         const rows:any[] = await db.$queryRawUnsafe(`
           WITH e AS (
@@ -9293,12 +9339,12 @@ adminRest.get('/carts', async (req, res) => {
           FROM agg LEFT JOIN last USING (sid)
         `, sids);
         const map = new Map<string, any>(rows.map((r:any)=> [String(r.sid), r]));
-        for (const g of guestCarts as any[]){
+        for (const g of enrichedGuestCarts as any[]){
           const m = map.get(String(g.sessionId||''));
           if (m) (g as any).analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
         }
       }
-      const uids = Array.from(new Set((userCarts||[]).map((c:any)=> String(c.user?.id||'')).filter(Boolean)));
+      const uids = Array.from(new Set(enrichedUserCarts.map((c:any)=> String(c.user?.id||'')).filter(Boolean)));
       if (uids.length){
         const rows:any[] = await db.$queryRawUnsafe(`
           WITH e AS (
@@ -9318,14 +9364,14 @@ adminRest.get('/carts', async (req, res) => {
           FROM agg LEFT JOIN last USING (uid)
         `, uids);
         const map = new Map<string, any>(rows.map((r:any)=> [String(r.uid), r]));
-        for (const c of userCarts as any[]){
+        for (const c of enrichedUserCarts as any[]){
           const uid = String(c?.user?.id||'');
           const m = uid? map.get(uid) : undefined;
           if (m) (c as any).analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
         }
       }
     }catch{}
-    res.json({ ok:true, userCarts, guestCarts });
+    res.json({ ok:true, userCarts: enrichedUserCarts, guestCarts: enrichedGuestCarts });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_list_failed' }); }
 });
 
