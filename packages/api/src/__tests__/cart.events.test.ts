@@ -294,7 +294,8 @@ describe('Cart Analytics Events', () => {
 
       // Extract session cookie
       const cookies = guestRes.headers['set-cookie'];
-      const sessionCookie = cookies?.find((c: string) => c.startsWith('guest_session='));
+      const cookiesArray = Array.isArray(cookies) ? cookies : (cookies ? [cookies] : []);
+      const sessionCookie = cookiesArray.find((c: string) => c.startsWith('guest_session='));
 
       // Clear add events
       await db.event.deleteMany({ where: { name: 'cart_add' } });
