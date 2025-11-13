@@ -2493,7 +2493,7 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       if (editId) {
         // PATCH existing product with variants in one request
-        const body = { ...productPayload, ...(normalizedVariants.length? { variants: normalizedVariants } : {}) };
+        const body = { ...productPayload, ...(normalizedVariants.length? { /* do not send variants here; we will replace after */ } : {}) };
         res = await fetch(`${apiBase}/api/admin/products/${editId}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
       } else {
         res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
@@ -2517,11 +2517,13 @@ export default function AdminProductCreate(): JSX.Element {
     }
     const j = await res.json().catch(()=>({}));
     const productId = editId || j?.product?.id;
-    if (!editId && type === 'variable' && productId && normalizedVariants.length) {
+    // Replace variants to persist edits and deletions robustly
+    if (type === 'variable' && productId) {
       try {
-        await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
-          method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-          body: JSON.stringify({ variants: normalizedVariants })
+        const list = Array.isArray(normalizedVariants) ? normalizedVariants : [];
+        await fetch(`${apiBase}/api/admin/products/${encodeURIComponent(productId)}/variants/replace`, {
+          method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+          body: JSON.stringify({ variants: list })
         });
       } catch {}
     }
