@@ -49,16 +49,40 @@ export default function AdminProducts(): JSX.Element {
     const [filter, setFilter] = React.useState('');
     const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
     const containerRef = React.useRef<HTMLDivElement|null>(null);
+    const panelRef = React.useRef<HTMLDivElement|null>(null);
+    const [alignRight, setAlignRight] = React.useState(false);
+    const [openUp, setOpenUp] = React.useState(false);
 
     React.useEffect(()=>{
       function onDocMouseDown(e: MouseEvent){
         const el = containerRef.current;
         const t = e.target as any;
-        if (open && el && t && !el.contains(t)) setOpen(false);
+        const path = (e as any).composedPath ? (e as any).composedPath() : [];
+        const inside = el && (el.contains(t) || (Array.isArray(path) && path.includes(el)));
+        if (open && el && !inside) setOpen(false);
       }
       document.addEventListener('mousedown', onDocMouseDown);
       return ()=> document.removeEventListener('mousedown', onDocMouseDown);
     }, [open]);
+
+    function updatePlacement(){
+      try{
+        const host = containerRef.current;
+        const panel = panelRef.current;
+        if (!host || !panel) return;
+        const hostRect = host.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const vw = window.innerWidth || document.documentElement.clientWidth;
+        const vh = window.innerHeight || document.documentElement.clientHeight;
+        // Horizontal
+        const overflowRight = (hostRect.left + panelRect.width) > (vw - 8);
+        setAlignRight(overflowRight);
+        // Vertical
+        const spaceBelow = vh - (hostRect.top + hostRect.height);
+        const needOpenUp = spaceBelow < panelRect.height + 12 && hostRect.top > panelRect.height + 12;
+        setOpenUp(needOpenUp);
+      } catch {}
+    }
 
     async function loadTree(){
       if (tree.length || loading) return;
@@ -69,6 +93,15 @@ export default function AdminProducts(): JSX.Element {
         setTree(Array.isArray(j?.tree)? j.tree : []);
       } finally { setLoading(false); }
     }
+
+    React.useEffect(()=>{
+      if (!open) return;
+      const raf = requestAnimationFrame(updatePlacement);
+      const onResize = () => updatePlacement();
+      window.addEventListener('resize', onResize);
+      return ()=> { try { cancelAnimationFrame(raf); } catch {} window.removeEventListener('resize', onResize); };
+    }, [open]);
+
     function filtered(nodes: any[], q: string): any[] {
       const t = String(q||'').trim().toLowerCase();
       if (!t) return nodes;
@@ -86,8 +119,17 @@ export default function AdminProducts(): JSX.Element {
       };
       return dfs(nodes);
     }
+    const panelRef = React.useRef<HTMLDivElement|null>(null);
+    function restoreScroll(next: () => void){
+      try {
+        const p = panelRef.current;
+        const top = p?.scrollTop || 0;
+        next();
+        requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
+      } catch { next(); }
+    }
     function toggleExpand(id: string){
-      setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+      restoreScroll(()=> setExpanded(prev => ({ ...prev, [id]: !prev[id] })));
     }
     function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
       const kids = Array.isArray(node.children)? node.children : [];
@@ -96,7 +138,7 @@ export default function AdminProducts(): JSX.Element {
       return (
         <div onMouseDown={(e)=> e.stopPropagation()}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
-            <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(node.id); }} />
+            <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(value===node.id? '' : node.id); }} />
             <div style={{ flex:1 }}>{node.name}</div>
             {hasKids ? (
               <button
@@ -105,7 +147,7 @@ export default function AdminProducts(): JSX.Element {
                 aria-expanded={isOpen}
                 onClick={(e)=> { e.stopPropagation(); toggleExpand(node.id); }}
                 onMouseDown={(e)=> e.stopPropagation()}
-                style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center' }}
+                style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center', color:'#fff', background:'transparent', border:'none' }}
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                   <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -134,9 +176,28 @@ export default function AdminProducts(): JSX.Element {
 
     return (
       <div ref={containerRef} style={{ position:'relative' }}>
-        <button type="button" className="select" onClick={()=>{ setOpen(v=>!v); if (!open) loadTree(); }} style={{ width:'100%', textAlign:'start' }}>{label}</button>
+        <button type="button" className="select" onClick={()=>{ const next=!open; setOpen(next); if (next) { loadTree(); } }} style={{ width:'100%', textAlign:'start' }}>{label}</button>
         {open && (
-          <div className="panel" onMouseDown={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(420px, 96vw)', maxHeight:320, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
+          <div
+            ref={panelRef}
+            className="panel"
+            onMouseDown={(e)=> e.stopPropagation()}
+            style={{
+              position:'absolute',
+              insetInlineStart: alignRight? 'auto' : 0,
+              insetInlineEnd: alignRight? 0 : 'auto',
+              [openUp? 'insetBlockEnd':'insetBlockStart']: 'calc(100% + 6px)',
+              zIndex:50,
+              width:'min(420px, 96vw)',
+              maxHeight: Math.max(280, Math.floor((window?.innerHeight||600)*0.6)),
+              overflow:'auto',
+              border:'1px solid #1c2333',
+              borderRadius:10,
+              padding:8,
+              background:'#0b0e14',
+              boxShadow:'0 8px 24px rgba(0,0,0,.35)'
+            } as any}
+          >
             <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
               <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث" className="input" />
               <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>

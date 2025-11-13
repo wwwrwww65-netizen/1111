@@ -25,6 +25,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const [filter, setFilter] = React.useState('');
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const containerRef = React.useRef<HTMLDivElement|null>(null);
+  const panelRef = React.useRef<HTMLDivElement|null>(null);
 
   const selectedSet = React.useMemo(()=> new Set(value||[]), [value]);
   const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
@@ -34,7 +35,9 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
       if (!open) return;
       const el = containerRef.current;
       const t = e.target as any;
-      if (el && t && typeof t !== 'undefined' && !el.contains(t)) setOpen(false);
+      const path = (e as any).composedPath ? (e as any).composedPath() : [];
+      const inside = el && (el.contains(t) || (Array.isArray(path) && path.includes(el)));
+      if (el && !inside) setOpen(false);
     }
     document.addEventListener('mousedown', onDocClick);
     return ()=> document.removeEventListener('mousedown', onDocClick);
@@ -50,16 +53,26 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     } finally { setLoading(false); }
   }
 
+  function restoreScroll(next: () => void){
+    try {
+      const p = panelRef.current;
+      const top = p?.scrollTop || 0;
+      next();
+      requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
+    } catch { next(); }
+  }
   function toggleExpand(id: string){
-    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+    restoreScroll(()=> setExpanded(prev => ({ ...prev, [id]: !prev[id] })));
   }
   function toggleSelect(id: string){
-    const next = new Set(selectedSet);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    const arr = Array.from(next);
-    onChange(arr);
-    if (!primaryId && arr.length) onPrimaryChange(arr[0]);
-    if (primaryId && !next.has(primaryId)) onPrimaryChange(arr[0] || '');
+    restoreScroll(()=> {
+      const next = new Set(selectedSet);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      const arr = Array.from(next);
+      onChange(arr);
+      if (!primaryId && arr.length) onPrimaryChange(arr[0]);
+      if (primaryId && !next.has(primaryId)) onPrimaryChange(arr[0] || '');
+    });
   }
   function filtered(nodes: any[], q: string): any[] {
     const t = String(q||'').trim().toLowerCase();
@@ -103,7 +116,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
               className="icon-btn"
               aria-label={isOpen? 'طيّ':'توسيع'}
               aria-expanded={isOpen}
-              style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center' }}
+              style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center', color:'#fff', background:'transparent', border:'none' }}
             >
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -131,7 +144,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
         {summary}
       </button>
       {open && (
-        <div className="panel" role="listbox" onMouseDown={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
+        <div ref={panelRef} className="panel" role="listbox" onMouseDown={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
           <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
             <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
             <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
