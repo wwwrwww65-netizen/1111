@@ -124,7 +124,12 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
           }}
           style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', background:'transparent', cursor: hasKids? 'pointer':'default' }}
         >
-          <input type="checkbox" checked={selectedSet.has(node.id)} onChange={()=> toggleSelect(node.id)} />
+          <input
+            type="checkbox"
+            checked={selectedSet.has(node.id)}
+            onClick={(e)=>{ e.stopPropagation(); toggleSelect(node.id); }}
+            onChange={()=>{}}
+          />
           <div style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
             <span>{node.name}</span>
             {primaryId === node.id ? (
@@ -164,7 +169,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
   const shown = React.useMemo(()=> filtered(tree, filter), [tree, filter]);
 
   return (
-    <div ref={containerRef} style={{ position:'relative' }}>
+    <div ref={containerRef} onPointerDownCapture={(e)=> e.stopPropagation()} style={{ position:'relative' }}>
       <button type="button" className="select" onClick={()=>{ setOpen(v=> !v); if (!open) loadTree(); }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
         {summary}
       </button>
