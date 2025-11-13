@@ -67,11 +67,11 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     const matchNode = (n:any): boolean => String(n?.name||'').toLowerCase().includes(t);
     const dfs = (arr:any[]): any[] => {
       const out:any[] = [];
-      for (const n of arr||[]){
-        const kids = Array.isArray(n.children)? n.children : [];
+      for (const n of (arr as any[] || [])){
+        const kids = Array.isArray((n as any).children)? (n as any).children : [];
         const fk = dfs(kids);
         if (matchNode(n) || fk.length){
-          out.push({ ...n, children: fk });
+          out.push({ ...(n as any), children: fk });
         }
       }
       return out;
@@ -84,15 +84,10 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     const hasKids = kids.length>0;
     const isOpen = !!expanded[node.id];
     return (
-      <div>
-        <div style={{ display:'flex', alignItems:'center', gap:8, padding:6, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
-          {hasKids ? (
-            <button type="button" onClick={()=> toggleExpand(node.id)} className="icon-btn" aria-label={isOpen? 'Collapse':'Expand'} style={{ transform: isOpen? 'rotate(90deg)':'none' }}>▶</button>
-          ) : (
-            <span style={{ width:18 }} />
-          )}
+      <div onMouseDown={(e)=> e.stopPropagation()}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', background:'transparent' }}>
           <input type="checkbox" checked={selectedSet.has(node.id)} onChange={()=> toggleSelect(node.id)} />
-          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
             <span>{node.name}</span>
             {primaryId === node.id ? (
               <span className="badge">رئيسي</span>
@@ -100,6 +95,16 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
               <button type="button" className="btn btn-outline" onClick={()=> onPrimaryChange(node.id)} style={{ padding:'2px 6px', fontSize:12 }}>تعيين كرئيسي</button>
             ) : null}
           </div>
+          {hasKids ? (
+            <button
+              type="button"
+              onClick={()=> toggleExpand(node.id)}
+              className="icon-btn"
+              aria-label={isOpen? 'طيّ':'توسيع'}
+              aria-expanded={isOpen}
+              style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)' }}
+            >▾</button>
+          ) : <span style={{ width:18 }} />}
         </div>
         {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
       </div>
@@ -121,8 +126,8 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
         {summary}
       </button>
       {open && (
-        <div className="panel" role="listbox" style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14' }}>
-          <div style={{ display:'flex', gap:8, marginBottom:8, alignItems:'center' }}>
+        <div className="panel" role="listbox" onMouseDown={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
+          <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
             <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
             <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
           </div>

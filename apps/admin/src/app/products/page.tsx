@@ -42,6 +42,106 @@ export default function AdminProducts(): JSX.Element {
     return e?.name === 'AbortError' || e?.code === 20;
   }
 
+  function CategoryTreeDropdown({ value, onChange }:{ value: string; onChange:(id:string)=>void }): JSX.Element {
+    const [open, setOpen] = React.useState(false);
+    const [loading, setLoading] = React.useState(false);
+    const [tree, setTree] = React.useState<any[]>([]);
+    const [filter, setFilter] = React.useState('');
+    const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+    const containerRef = React.useRef<HTMLDivElement|null>(null);
+
+    React.useEffect(()=>{
+      function onDocMouseDown(e: MouseEvent){
+        const el = containerRef.current;
+        const t = e.target as any;
+        if (open && el && t && !el.contains(t)) setOpen(false);
+      }
+      document.addEventListener('mousedown', onDocMouseDown);
+      return ()=> document.removeEventListener('mousedown', onDocMouseDown);
+    }, [open]);
+
+    async function loadTree(){
+      if (tree.length || loading) return;
+      try{
+        setLoading(true);
+        const r = await fetch(`/api/admin/categories/tree`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+        const j = await r.json().catch(()=>({}));
+        setTree(Array.isArray(j?.tree)? j.tree : []);
+      } finally { setLoading(false); }
+    }
+    function filtered(nodes: any[], q: string): any[] {
+      const t = String(q||'').trim().toLowerCase();
+      if (!t) return nodes;
+      const matchNode = (n:any): boolean => String(n?.name||'').toLowerCase().includes(t);
+      const dfs = (arr:any[]): any[] => {
+        const out:any[] = [];
+        for (const n of (arr as any[] || [])){
+          const kids = Array.isArray((n as any).children)? (n as any).children : [];
+          const fk = dfs(kids);
+          if (matchNode(n) || fk.length){
+            out.push({ ...(n as any), children: fk });
+          }
+        }
+        return out;
+      };
+      return dfs(nodes);
+    }
+    function toggleExpand(id: string){
+      setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+    }
+    function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
+      const kids = Array.isArray(node.children)? node.children : [];
+      const hasKids = kids.length>0;
+      const isOpen = !!expanded[node.id];
+      return (
+        <div onMouseDown={(e)=> e.stopPropagation()}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
+            <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(node.id); }} />
+            <div style={{ flex:1 }}>{node.name}</div>
+            {hasKids ? (
+              <button type="button" className="icon-btn" aria-expanded={isOpen} onClick={()=> toggleExpand(node.id)} style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)' }}>▾</button>
+            ) : <span style={{ width:18 }} />}
+          </div>
+          {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
+        </div>
+      );
+    }
+
+    const shown = React.useMemo(()=> filtered(tree, filter), [tree, filter]);
+    const label = React.useMemo(()=> {
+      if (!value) return 'اختر فئة (فلتر)';
+      const findName = (nodes:any[]): string|undefined => {
+        for (const n of nodes){
+          if (n.id===value) return n.name;
+          const kids = Array.isArray(n.children)? n.children: [];
+          const v = findName(kids); if (v) return v;
+        }
+        return undefined;
+      };
+      return findName(tree) || 'فئة محددة';
+    }, [value, tree]);
+
+    return (
+      <div ref={containerRef} style={{ position:'relative' }}>
+        <button type="button" className="select" onClick={()=>{ setOpen(v=>!v); if (!open) loadTree(); }} style={{ width:'100%', textAlign:'start' }}>{label}</button>
+        {open && (
+          <div className="panel" onMouseDown={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(420px, 96vw)', maxHeight:320, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
+            <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
+              <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث" className="input" />
+              <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
+              <button type="button" className="btn btn-outline" onClick={()=>{ onChange(''); setOpen(false); }}>الكل</button>
+            </div>
+            {loading ? (<div className="skeleton" style={{ height:120 }} />) : (
+              <div>
+                {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // No URL/state syncing or counts in the simple list view
   async function load(){
     if (ctlRef.current) { try { ctlRef.current.abort(); } catch {} }
@@ -51,6 +151,7 @@ export default function AdminProducts(): JSX.Element {
     url.searchParams.set('limit', String(limit));
     if (search) url.searchParams.set('search', search);
     if (status) url.searchParams.set('status', status);
+    if (categoryId) url.searchParams.set('categoryId', categoryId);
     // request lean payload for faster first paint
     url.searchParams.set('suggest','1');
     if (nextCursor && page>1) { url.searchParams.set('afterId', nextCursor.id); url.searchParams.set('afterCreated', nextCursor.createdAt); }
@@ -111,6 +212,9 @@ export default function AdminProducts(): JSX.Element {
       {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
       <div className="toolbar" style={{ marginBottom:12 }}>
         <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/sku" className="input" /></div>
+        <div style={{ minWidth: 260 }}>
+          <CategoryTreeDropdown value={categoryId} onChange={(id)=>{ setCategoryId(id); setPage(1); }} />
+        </div>
         <select value={status} onChange={(e)=>{ setStatus(e.target.value); setPage(1); }} className="select">
           <option value="">الكل</option>
           <option value="active">نشط</option>
