@@ -60,7 +60,7 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
 
   it('records cart_add (guest)', async () => {
     const r = await request(expressApp)
-      .post('/api/shop/cart/add')
+      .post('/api/cart/add')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ productId, quantity: 2 });
     expect(r.status).toBe(200);
@@ -74,11 +74,11 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
 
   it('records cart_update (guest)', async () => {
     await request(expressApp)
-      .post('/api/shop/cart/add')
+      .post('/api/cart/add')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ productId, quantity: 1 });
     const r2 = await request(expressApp)
-      .post('/api/shop/cart/update')
+      .post('/api/cart/update')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ productId, quantity: 5 });
     expect(r2.status).toBe(200);
@@ -89,11 +89,11 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
 
   it('records cart_remove (guest)', async () => {
     await request(expressApp)
-      .post('/api/shop/cart/add')
+      .post('/api/cart/add')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ productId, quantity: 1 });
     const r = await request(expressApp)
-      .post('/api/shop/cart/remove')
+      .post('/api/cart/remove')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ productId });
     expect(r.status).toBe(200);
@@ -104,11 +104,11 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
 
   it('records cart_clear (guest)', async () => {
     await request(expressApp)
-      .post('/api/shop/cart/add')
+      .post('/api/cart/add')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ productId, quantity: 3 });
     const r = await request(expressApp)
-      .post('/api/shop/cart/clear')
+      .post('/api/cart/clear')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({});
     expect(r.status).toBe(200);
@@ -119,7 +119,7 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
 
   it('records cart_add (user)', async () => {
     const r = await request(expressApp)
-      .post('/api/shop/cart/auth/add')
+      .post('/api/cart/auth/add')
       .set('Authorization', `Bearer ${userToken}`)
       .send({ productId, quantity: 4 });
     expect(r.status).toBe(200);
@@ -132,11 +132,11 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
 
   it('records cart_remove (user)', async () => {
     await request(expressApp)
-      .post('/api/shop/cart/auth/add')
+      .post('/api/cart/auth/add')
       .set('Authorization', `Bearer ${userToken}`)
       .send({ productId, quantity: 2 });
     const r = await request(expressApp)
-      .post('/api/shop/cart/remove')
+      .post('/api/cart/remove')
       .set('Authorization', `Bearer ${userToken}`)
       .send({ productId });
     expect(r.status).toBe(200);
@@ -147,11 +147,11 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
 
   it('records cart_clear (user)', async () => {
     await request(expressApp)
-      .post('/api/shop/cart/auth/add')
+      .post('/api/cart/auth/add')
       .set('Authorization', `Bearer ${userToken}`)
       .send({ productId, quantity: 3 });
     const r = await request(expressApp)
-      .post('/api/shop/cart/clear')
+      .post('/api/cart/clear')
       .set('Authorization', `Bearer ${userToken}`)
       .send({});
     expect(r.status).toBe(200);
@@ -164,12 +164,12 @@ describe('Cart Analytics Events (guest + user + merge)', () => {
   it('records cart_merge on /analytics/link when guest merged into user', async () => {
     // guest add
     await request(expressApp)
-      .post('/api/shop/cart/add')
+      .post('/api/cart/add')
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ productId, quantity: 2 });
     // link (merge)
     const r = await request(expressApp)
-      .post('/api/shop/analytics/link')
+      .post('/api/analytics/link')
       .set('Authorization', `Bearer ${userToken}`)
       .set('Cookie', `guest_session=${GUEST_SESSION_ID}`)
       .send({ sessionId: GUEST_SESSION_ID });

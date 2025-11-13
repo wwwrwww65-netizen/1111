@@ -9377,11 +9377,14 @@ adminRest.post('/carts/notify', async (req, res) => {
     });
     const data = schema.parse(req.body||{});
     
+    // Filter valid targets (must have userId or guestSessionId)
+    const validTargets = data.targets.filter(t => t && (t.userId || t.guestSessionId));
+    const sent = validTargets.length;
+    
     // Emit notifications over Socket.IO to web/app clients
     const io = getIo();
-    let sent = 0;
     if (io) {
-      for (const t of data.targets) {
+      for (const t of validTargets) {
         if (t.userId) { 
           io.to(`user:${t.userId}`).emit('notification', { 
             title: data.title, 
@@ -9389,7 +9392,6 @@ adminRest.post('/carts/notify', async (req, res) => {
             scope: 'user',
             timestamp: new Date().toISOString()
           }); 
-          sent++; 
         }
         if (t.guestSessionId) { 
           io.to(`guest:${t.guestSessionId}`).emit('notification', { 
@@ -9398,7 +9400,6 @@ adminRest.post('/carts/notify', async (req, res) => {
             scope: 'guest',
             timestamp: new Date().toISOString()
           }); 
-          sent++; 
         }
       }
     }
@@ -9421,7 +9422,7 @@ adminRest.post('/carts/notify', async (req, res) => {
       }); 
     }catch{}
     
-    return res.json({ ok:true, sent, channel: io ? 'socket' : 'none' });
+    return res.json({ ok:true, sent, channel: sent > 0 ? 'socket' : 'none' });
   }catch(e:any){ 
     if (e instanceof z.ZodError) {
       return res.status(400).json({ ok:false, error: 'validation_failed', details: e.errors });
