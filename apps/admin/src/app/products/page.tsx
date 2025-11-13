@@ -163,8 +163,7 @@ export default function AdminProducts(): JSX.Element {
     if (search) url.searchParams.set('search', search);
     if (status) url.searchParams.set('status', status);
     if (categoryId) url.searchParams.set('categoryId', categoryId);
-    // request lean payload for faster first paint
-    url.searchParams.set('suggest','1');
+    // request full payload to include category and total counts
     if (nextCursor && page>1) { url.searchParams.set('afterId', nextCursor.id); url.searchParams.set('afterCreated', nextCursor.createdAt); }
     try {
       const res = await fetch(url.toString(), { credentials:'include', cache:'no-store', headers: { ...authHeaders() }, signal: ctl.signal });
@@ -213,11 +212,48 @@ export default function AdminProducts(): JSX.Element {
     }
   }
 
+  // Status counts for quick insight
+  const [countActive, setCountActive] = React.useState<number|null>(null);
+  const [countArchived, setCountArchived] = React.useState<number|null>(null);
+  React.useEffect(()=>{
+    (async ()=>{
+      try{
+        const base = new URL(`/api/admin/products`, window.location.origin);
+        base.searchParams.set('limit','1');
+        // Active
+        const u1 = new URL(base.toString()); u1.searchParams.set('status','active');
+        const r1 = await fetch(u1.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' });
+        const j1 = await r1.json().catch(()=>({}));
+        setCountActive(Number(j1?.pagination?.total ?? 0));
+        // Archived
+        const u2 = new URL(base.toString()); u2.searchParams.set('status','archived');
+        const r2 = await fetch(u2.toString(), { credentials:'include', headers:{ ...authHeaders() }, cache:'no-store' });
+        const j2 = await r2.json().catch(()=>({}));
+        setCountArchived(Number(j2?.pagination?.total ?? 0));
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function storeProductUrl(id: string): string {
+    try { return `/p?id=${encodeURIComponent(id)}`; } catch { return `/p?id=${id}`; }
+  }
+  function editUrlWithBack(id?: string): string {
+    const params = new URLSearchParams();
+    if (id) params.set('id', id);
+    params.set('backPage', String(page));
+    if (status) params.set('backStatus', status);
+    if (search) params.set('backSearch', search);
+    if (categoryId) params.set('backCategoryId', categoryId);
+    const qs = params.toString();
+    return qs ? `/products/new?${qs}` : '/products/new';
+  }
+
   return (
     <main className="panel">
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
         <h1 style={{ margin:0 }}>إدارة المنتجات</h1>
-        <a href="/products/new" className="btn">إضافة منتج</a>
+        <a href={editUrlWithBack()} className="btn">إضافة منتج</a>
       </div>
 
       {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
@@ -231,6 +267,11 @@ export default function AdminProducts(): JSX.Element {
           <option value="active">نشط</option>
           <option value="archived">مؤرشف</option>
         </select>
+        <div style={{ color:'var(--sub)', fontSize:12, minWidth:120, textAlign:'center' }}>
+          {status==='' && total!=null ? <>العدد: {total}</> : null}
+          {status==='active' && countActive!=null ? <>المنشورة: {countActive}</> : null}
+          {status==='archived' && countArchived!=null ? <>المؤرشفة: {countArchived}</> : null}
+        </div>
         <div className="actions">
           <button onClick={()=>{ setPage(1); load(); }} className="btn btn-outline">بحث</button>
           <div style={{ display:'inline-flex', gap:8, alignItems:'center', marginInlineStart:8 }}>
@@ -276,6 +317,7 @@ export default function AdminProducts(): JSX.Element {
               <th style={{minWidth:120}}>صورة</th>
               <th style={{minWidth:220}}>الاسم</th>
               <th style={{minWidth:160}}>SKU/التباينات</th>
+              <th style={{minWidth:160}}>الفئة</th>
               <th style={{minWidth:120}}>سعر البيع</th>
               <th style={{minWidth:120}}>المخزون</th>
               <th style={{minWidth:140}}>الحالة</th>
@@ -292,6 +334,7 @@ export default function AdminProducts(): JSX.Element {
                   <td>{p.images?.[0] ? <img src={normalizeImageSrc(p.images[0])} alt={p.name} width={64} height={64} style={{ width:64, height:64, objectFit:'cover', borderRadius:6 }} onError={(e)=>{ const t=e.currentTarget; t.onerror=null; t.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='; }} /> : '-'}</td>
                   <td><div className="line-2" style={{maxWidth:420}}>{p.name}</div></td>
                   <td>{p.sku || (p.variants?.length ? `${p.variants.length} variants` : '-')}</td>
+                  <td>{p.category?.name || '-'}</td>
                   <td>{p.price}</td>
                   <td>{totalStock}</td>
                   <td>
@@ -305,8 +348,8 @@ export default function AdminProducts(): JSX.Element {
                     </div>
                   </td>
                   <td>
-                    <a href={`/products/${p.id}`} className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
-                    <a href={`/products/new?id=${p.id}`} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
+                    <a href={storeProductUrl(p.id)} target="_blank" rel="noopener" className="btn btn-md" style={{ marginInlineEnd:6 }}>عرض</a>
+                    <a href={editUrlWithBack(p.id)} className="btn btn-md btn-outline" style={{ marginInlineEnd:6 }}>تعديل</a>
                     <button onClick={async ()=>{ const r=await fetch(`/api/admin/products/${p.id}`, { method:'DELETE', credentials:'include' }); if (r.ok){ showToast('تم الحذف'); } await load(); }} className="btn btn-md">حذف</button>
                   </td>
                 </tr>

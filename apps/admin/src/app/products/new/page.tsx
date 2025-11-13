@@ -2727,10 +2727,10 @@ export default function AdminProductCreate(): JSX.Element {
             {(() => {
               const urls = allProductImageUrls();
               return urls.length > 0 ? (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:12, marginTop:10, maxWidth:'100%' }}>
                   {urls.map((u, idx) => (
-                    <div key={`${u}__${idx}`} className="panel" style={{ padding:0 }}>
-                      <img src={u} alt={`img-${idx}`} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
+                    <div key={`${u}__${idx}`} className="panel" style={{ padding:0, overflow:'hidden', borderRadius:8 }}>
+                      <img src={u} alt={`img-${idx}`} style={{ display:'block', width:'100%', height:120, objectFit:'cover' }} />
                       <div style={{ padding:8, textAlign:'right', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                         <span className="muted" style={{ fontSize:12, direction:'ltr', textAlign:'left', maxWidth:'70%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u}</span>
                         <button type="button" onClick={() => removeImageAt(idx)} className="icon-btn">إزالة</button>
