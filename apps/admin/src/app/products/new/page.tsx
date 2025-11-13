@@ -112,8 +112,18 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     const hasKids = kids.length>0;
     const isOpen = !!filter || !!expanded[node.id];
     return (
-      <div onMouseDown={(e)=> e.stopPropagation()}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', background:'transparent' }}>
+      <div
+        onMouseDown={(e)=> e.stopPropagation()}
+      >
+        <div
+          onClick={(e)=> {
+            // توسعة عند النقر على صف الفئة الأب (ما عدا التفاعل مع عناصر التحكم)
+            const tag = (e.target as HTMLElement).tagName.toLowerCase();
+            if (tag === 'input' || tag === 'button' || tag === 'svg' || tag === 'path') return;
+            if (hasKids) toggleExpand(node.id);
+          }}
+          style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', background:'transparent', cursor: hasKids? 'pointer':'default' }}
+        >
           <input type="checkbox" checked={selectedSet.has(node.id)} onChange={()=> toggleSelect(node.id)} />
           <div style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
             <span>{node.name}</span>
@@ -158,6 +168,17 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
       <button type="button" className="select" onClick={()=>{ setOpen(v=> !v); if (!open) loadTree(); }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
         {summary}
       </button>
+      {/* قائمة مختصرة للفئات المختارة لإظهار كل الاختيارات وإزالتها بسرعة */}
+      {Array.isArray(value) && value.length > 0 && (
+        <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6 }}>
+          {value.map((id)=> (
+            <span key={id} className="badge" style={{ display:'inline-flex', alignItems:'center', gap:6, background:'#111827', border:'1px solid #1c2333' }}>
+              <span>{nameOf(id)}</span>
+              <button type="button" className="icon-btn" onClick={(e)=>{ e.stopPropagation(); toggleSelect(id); }} aria-label="إزالة">×</button>
+            </span>
+          ))}
+        </div>
+      )}
       {open && (
         <div ref={panelRef} className="panel" role="listbox" onPointerDown={(e)=> e.stopPropagation()} onMouseDown={(e)=> e.stopPropagation()} onClick={(e)=> e.stopPropagation()} style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:50, width:'min(520px, 96vw)', maxHeight:360, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>
           <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
