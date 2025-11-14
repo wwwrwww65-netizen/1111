@@ -73,6 +73,33 @@ server {
     try_files $uri =404;
   }
 
+  # Restrict direct access to admin API from non-admin origins
+  location ^~ /api/admin/ {
+    # Allow CORS preflight first
+    if ($request_method = 'OPTIONS') { return 204; }
+    # Only allow calls originating from admin.jeeey.com
+    if ($http_origin !~* ^https://admin\.jeeey\.com$) { return 403; }
+    proxy_hide_header Access-Control-Allow-Origin;
+    proxy_hide_header Access-Control-Allow-Credentials;
+    proxy_hide_header Access-Control-Allow-Methods;
+    proxy_hide_header Access-Control-Allow-Headers;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 300s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    proxy_pass http://127.0.0.1:4000;
+  }
+
   location / {
     # Fast-path preflight with CORS headers (only on OPTIONS)
     if ($request_method = 'OPTIONS') {
