@@ -670,6 +670,8 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'AP','Accounts Payable','LIABILITY') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as ()=>string)()); } catch {}
   } catch {}
   // Run ensureSchema only when explicitly allowed or in development
+  // Always run non-breaking safe ensures even in production
+  try { await ensureSchemaSafe(); } catch {}
   const allowEnsure = process.env.API_RUN_ENSURE_SCHEMA === '1' || process.env.NODE_ENV !== 'production';
   if (allowEnsure) {
     await ensureSchemaSafe();

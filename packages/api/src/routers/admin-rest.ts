@@ -7023,7 +7023,7 @@ async function saveAnalyzeTeachExample(text: string, analyzed: any): Promise<voi
     const keywords = Array.isArray(analyzed?.tags?.value) ? analyzed.tags.value : undefined;
     const descTable = Array.isArray((analyzed as any)?.description_table?.value) ? (analyzed as any).description_table.value : undefined;
     await db.$executeRawUnsafe(
-      'INSERT INTO "AnalyzeTeach" ("id","textHash","name","price","sizes","colors","keywords","descriptionTable") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT ("id") DO NOTHING',
+      'INSERT INTO "AnalyzeTeach" ("id","textHash","name","price","sizes","colors","keywords","descriptionTable") VALUES ($1,$2,$3,$4,CAST($5 AS JSONB),CAST($6 AS JSONB),CAST($7 AS JSONB),CAST($8 AS JSONB)) ON CONFLICT ("id") DO NOTHING',
       hash, hash, analyzed?.name?.value || null, analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? null, JSON.stringify(sizes||null), JSON.stringify(colors||null), JSON.stringify(keywords||null), JSON.stringify(descTable||null)
     );
   } catch {}
