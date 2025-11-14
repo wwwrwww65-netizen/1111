@@ -203,9 +203,6 @@ server {
   root /var/www/ecom/apps/mweb/dist;
   index index.html;
 
-  # HTTP/2
-  http2 on;
-
   # OCSP stapling
   ssl_stapling on;
   ssl_stapling_verify on;

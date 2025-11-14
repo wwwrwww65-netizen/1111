@@ -111,8 +111,8 @@ rm -f "$ENABLED_DIR/jeeey-ssl.conf" "$ENABLED_DIR/jeeey-ssl.conf".* 2>/dev/null 
 cat > "$SSL_CONF" <<EOF
 # Auto-generated SSL upstream mapping
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${DOMAIN_WEB} www.${DOMAIN_WEB};
     ssl_certificate ${WEB_CERT_DIR}/fullchain.pem;
     ssl_certificate_key ${WEB_CERT_DIR}/privkey.pem;
@@ -128,8 +128,8 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${DOMAIN_ADMIN};
     ssl_certificate ${ADMIN_CERT_DIR}/fullchain.pem;
     ssl_certificate_key ${ADMIN_CERT_DIR}/privkey.pem;
@@ -146,8 +146,8 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${DOMAIN_API};
     ssl_certificate ${API_CERT_DIR}/fullchain.pem;
     ssl_certificate_key ${API_CERT_DIR}/privkey.pem;
@@ -210,8 +210,8 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${DOMAIN_MWEB};
     ssl_certificate ${MWEB_CERT_DIR}/fullchain.pem;
     ssl_certificate_key ${MWEB_CERT_DIR}/privkey.pem;

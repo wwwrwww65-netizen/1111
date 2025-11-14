@@ -376,7 +376,26 @@ jobs:
             echo '--- Clean any conflicting site files and reload ---'
             # Keep only jeeey.conf (template) and remove any jeeey-ssl.conf to avoid duplication
             find /etc/nginx/sites-enabled -maxdepth 1 -type l -not -name 'jeeey.conf' -exec rm -f {} + || true
-            nginx -t
+            echo '--- Test nginx config and strip http2 if needed ---'
+            if ! nginx -t 2>&1 | tee /tmp/nginx-test.log; then
+              if grep -q 'unknown directive "http2"' /tmp/nginx-test.log; then
+                echo 'WARN: http2 directive not supported, stripping from configs...'
+                # Remove http2 from all nginx config files
+                sed -i 's/ http2//g' /etc/nginx/sites-available/jeeey.conf 2>/dev/null || true
+                sed -i 's/ http2//g' /etc/nginx/sites-enabled/jeeey.conf 2>/dev/null || true
+                sed -i 's/ http2//g' /etc/nginx/sites-available/jeeey-ssl.conf 2>/dev/null || true
+                sed -i 's/ http2//g' /etc/nginx/sites-enabled/jeeey-ssl.conf 2>/dev/null || true
+                sed -i 's/http2 on;//g' /etc/nginx/sites-available/jeeey.conf 2>/dev/null || true
+                sed -i 's/http2 on;//g' /etc/nginx/sites-enabled/jeeey.conf 2>/dev/null || true
+                sed -i 's/http2 on;//g' /etc/nginx/sites-available/jeeey-ssl.conf 2>/dev/null || true
+                sed -i 's/http2 on;//g' /etc/nginx/sites-enabled/jeeey-ssl.conf 2>/dev/null || true
+                echo 'Retrying nginx config test after stripping http2...'
+                nginx -t
+              else
+                echo 'nginx -t failed for a different reason (not http2), exiting...'
+                exit 1
+              fi
+            fi
             (nginx -s reload || systemctl reload nginx || systemctl restart nginx)
             echo '--- Wait for 443 readiness ---'
             ok=0; for i in $(seq 1 30); do code=$(curl -ksS -o /dev/null -w '%{http_code}' https://api.jeeey.com/health || true); echo "try $i => $code"; [ "$code" = "200" ] && ok=1 && break; sleep 2; done; [ "$ok" = "1" ] || exit 1
