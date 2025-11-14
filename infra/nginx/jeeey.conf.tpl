@@ -37,11 +37,12 @@ server {
 
 # HTTPS servers
 server {
-  listen 443 ssl;
-  listen [::]:443 ssl;
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
   server_name api.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/api.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/api.jeeey.com/privkey.pem;
+  ssl_trusted_certificate /etc/letsencrypt/live/api.jeeey.com/chain.pem;
 
   # Increase body size for base64 uploads
   client_max_body_size 20m;
@@ -114,11 +115,12 @@ server {
 }
 
 server {
-  listen 443 ssl;
-  listen [::]:443 ssl;
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
   server_name admin.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/admin.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/admin.jeeey.com/privkey.pem;
+  ssl_trusted_certificate /etc/letsencrypt/live/admin.jeeey.com/chain.pem;
   # Compression
   gzip on;
   gzip_comp_level 5;
@@ -163,11 +165,12 @@ server {
 }
 
 server {
-  listen 443 ssl;
-  listen [::]:443 ssl;
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
   server_name jeeey.com www.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/jeeey.com/privkey.pem;
+  ssl_trusted_certificate /etc/letsencrypt/live/jeeey.com/chain.pem;
   # Compression
   gzip on;
   gzip_comp_level 5;
@@ -194,11 +197,12 @@ server {
 }
 
 server {
-  listen 443 ssl;
-  listen [::]:443 ssl;
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
   server_name m.jeeey.com;
   ssl_certificate /etc/letsencrypt/live/m.jeeey.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/m.jeeey.com/privkey.pem;
+  ssl_trusted_certificate /etc/letsencrypt/live/m.jeeey.com/chain.pem;
 
   root /var/www/ecom/apps/mweb/dist;
   index index.html;
