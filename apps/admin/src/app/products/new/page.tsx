@@ -182,9 +182,9 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
             <div>
               {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
             </div>
-        </>
           )}
         </div>
+        </>
       )}
     </div>
   );
