@@ -402,11 +402,13 @@ jobs:
             for svc in ecom-api ecom-web ecom-admin; do
               mkdir -p "/etc/systemd/system/$svc.service.d"
               printf '[Service]\nEnvironment=HOST=127.0.0.1\n' > "/etc/systemd/system/$svc.service.d/host.conf"
+              printf '[Service]\nEnvironment=HOSTNAME=127.0.0.1\n' > "/etc/systemd/system/$svc.service.d/hostname.conf"
             done
             systemctl daemon-reload || true
-            systemctl try-restart ecom-api || true
-            systemctl try-restart ecom-web || true
-            systemctl try-restart ecom-admin || true
+            # Force restart to pick up new env
+            systemctl restart ecom-api || true
+            systemctl restart ecom-web || true
+            systemctl restart ecom-admin || true
             echo '--- UFW: allow only 22/80/443; deny 3000/3001/4000 ---'
             if command -v ufw >/dev/null 2>&1; then
               ufw allow OpenSSH || true
