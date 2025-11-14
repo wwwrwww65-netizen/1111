@@ -1011,6 +1011,34 @@ jobs:
               fi
             done
 
+      - name: Verify m.jeeey.com CSP, Service Worker and IPv6
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
+          timeout: 180s
+          command_timeout: 10m
+          debug: true
+          script_stop: true
+          script: |
+            set -eux
+            echo '--- CSP header present ---'
+            curl -ksSI https://m.jeeey.com | grep -i '^content-security-policy:' >/dev/null
+            echo '--- Service worker reachable (200) ---'
+            code=$(curl -ksS -o /dev/null -w '%{http_code}' https://m.jeeey.com/sw.js || true)
+            [ "$code" = "200" ] || { echo "sw.js status=$code"; exit 1; }
+            echo '--- Service-Worker-Allowed header present ---'
+            curl -ksSI https://m.jeeey.com/sw.js | grep -i '^service-worker-allowed:' >/dev/null
+            echo '--- IPv6 AAAA lookup (optional) ---'
+            dig +short AAAA m.jeeey.com || true
+            echo '--- HTTPS over IPv6 (if AAAA exists) ---'
+            curl -6 -ksSI https://m.jeeey.com | head -n1 || true
+
       - name: Admin layout check (UI sanity) — disabled per request
         if: false
         env:

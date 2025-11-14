@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import legacy from '@vitejs/plugin-legacy';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -29,7 +30,13 @@ function fallbackVuePage() {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [vue(), fallbackVuePage()],
+  plugins: [
+    vue(),
+    fallbackVuePage(),
+    legacy({
+      targets: ['defaults', 'not IE 11', 'ios >= 12', 'android >= 5']
+    })
+  ],
   server: { host: true, hmr: { overlay: false } },
   build: {
     sourcemap: false,

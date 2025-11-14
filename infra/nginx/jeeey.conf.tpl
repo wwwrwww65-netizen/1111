@@ -202,16 +202,59 @@ server {
 
   root /var/www/ecom/apps/mweb/dist;
   index index.html;
+
+  # HTTP/2
+  http2 on;
+
+  # OCSP stapling
+  ssl_stapling on;
+  ssl_stapling_verify on;
+  resolver 1.1.1.1 1.0.0.1 valid=300s ipv6=on;
+  resolver_timeout 5s;
+
+  # Security headers
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+
+  # Content Security Policy
+  add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https: data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://api.jeeey.com https://maps.googleapis.com https://maps.gstatic.com https://nominatim.openstreetmap.org https://www.facebook.com https://graph.facebook.com https://connect.facebook.net https://unpkg.com; worker-src 'self' blob:; frame-src https://www.facebook.com; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests" always;
+
   # Compression
   gzip on;
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
+
+  # Service Worker
+  location = /sw.js {
+    default_type application/javascript;
+    add_header Service-Worker-Allowed "/" always;
+    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    try_files /sw.js =404;
+  }
+
+  # Web App Manifest
+  location = /manifest.webmanifest {
+    default_type application/manifest+json;
+    add_header Cache-Control "public, max-age=3600" always;
+    try_files /manifest.webmanifest =404;
+  }
+
   # Long cache for static assets
   location ~* \.(?:js|css|svg|woff2?|png|jpg|jpeg|webp|avif)$ {
     expires 30d;
     add_header Cache-Control "public, max-age=2592000, immutable";
     try_files $uri =404;
   }
+
+  # HTML no-store
+  location = /index.html {
+    add_header Cache-Control "no-store, must-revalidate" always;
+  }
+
   location / { try_files $uri $uri/ /index.html; }
 }
