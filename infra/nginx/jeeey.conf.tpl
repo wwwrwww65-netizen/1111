@@ -250,6 +250,7 @@ server {
 
   # HTML no-store
   location = /index.html {
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https: data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; connect-src 'self' https://api.jeeey.com https://maps.googleapis.com https://maps.gstatic.com https://nominatim.openstreetmap.org https://www.facebook.com https://graph.facebook.com https://connect.facebook.net https://unpkg.com; worker-src 'self' blob:; frame-src https://www.facebook.com; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests" always;
     add_header Cache-Control "no-store, must-revalidate" always;
   }
 
