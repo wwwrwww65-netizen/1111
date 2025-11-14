@@ -747,12 +747,13 @@ jobs:
             echo '--- Admin login via API domain (JSON) ---'
             curl -k -sSi -c "$CJ" \
               -H 'content-type: application/json' \
+              -H 'origin: https://admin.jeeey.com' \
               -X POST 'https://api.jeeey.com/api/admin/auth/login' \
               --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" | sed -n '1,60p'
             echo
             echo '--- Extract token from response body (fallback to cookie if missing) ---'
             BODY=/tmp/admin_login_body_$$.json
-            curl -k -s -c "$CJ" -H 'content-type: application/json' -X POST 'https://api.jeeey.com/api/admin/auth/login' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
+            curl -k -s -c "$CJ" -H 'content-type: application/json' -H 'origin: https://admin.jeeey.com' -X POST 'https://api.jeeey.com/api/admin/auth/login' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
             if [ -n "${TOKEN:-}" ]; then echo "token: ${#TOKEN} bytes"; else echo 'token: (not present, will rely on cookie)'; fi
             echo
@@ -769,7 +770,7 @@ jobs:
             fi
             echo
             echo '--- API whoami (cookie jar) ---'
-            curl -k -sS -b "$CJ" https://api.jeeey.com/api/admin/auth/whoami | sed -n '1,80p'
+            curl -k -sS -H 'origin: https://admin.jeeey.com' -b "$CJ" https://api.jeeey.com/api/admin/auth/whoami | sed -n '1,80p'
             echo
             echo '--- Done ---'
 
@@ -795,7 +796,7 @@ jobs:
             rm -f "$CJ"
             echo '--- Login (JSON) ---'
             BODY=/tmp/login.body
-            curl -k -s -c "$CJ" -o "$BODY" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}"
+            curl -k -s -c "$CJ" -o "$BODY" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}"
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/' ) || true
             echo "token-bytes: ${#TOKEN}"
             echo '--- Bridge cookie on admin domain ---'
@@ -811,9 +812,9 @@ jobs:
             # API matrix (read-only)
             echo '--- Admin API matrix (read-only) ---'
             # Categories list
-            curl -k -sS 'https://api.jeeey.com/api/admin/categories?limit=1' -b "$CJ" | head -n1 | grep -q '{' || { echo 'categories API failed'; exit 1; }
+            curl -k -sS -H 'origin: https://admin.jeeey.com' 'https://api.jeeey.com/api/admin/categories?limit=1' -b "$CJ" | head -n1 | grep -q '{' || { echo 'categories API failed'; exit 1; }
             # Users list (if available)
-            curl -k -sS 'https://api.jeeey.com/api/admin/users/list?page=1&limit=1' -b "$CJ" | head -n1 | grep -q '{' || echo 'users API not available (continuing)'
+            curl -k -sS -H 'origin: https://admin.jeeey.com' 'https://api.jeeey.com/api/admin/users/list?page=1&limit=1' -b "$CJ" | head -n1 | grep -q '{' || echo 'users API not available (continuing)'
             echo '--- Matrix OK ---'
 
       - name: Post-deploy admin CRUD smoke (RBAC, grant-admin, users, vendor, user)
@@ -841,20 +842,20 @@ jobs:
             head -n 2 /tmp/login.body | sed -n '1,2p'
             [ "$CODE" = "200" ] || { echo "login failed: $CODE"; cat /tmp/login.body; exit 1; }
             echo '--- Ensure RBAC ---'
-            RB=$(curl -k -sS -H "x-maintenance-secret: $SECRET" -X POST https://api.jeeey.com/api/admin/maintenance/ensure-rbac || true)
+            RB=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -H "x-maintenance-secret: $SECRET" -X POST https://api.jeeey.com/api/admin/maintenance/ensure-rbac || true)
             echo "$RB" | sed -n '1,40p'
             echo '--- Grant admin ---'
-            GA=$(curl -k -sS -H "x-maintenance-secret: $SECRET" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/maintenance/grant-admin --data "{\"email\":\"$EMAIL\"}" || true)
+            GA=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -H "x-maintenance-secret: $SECRET" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/maintenance/grant-admin --data "{\"email\":\"$EMAIL\"}" || true)
             echo "$GA" | sed -n '1,60p'
             echo '--- Users list (first 5) ---'
-            UL=$(curl -k -sS -b "$CJ" 'https://api.jeeey.com/api/admin/users/list?page=1&limit=5' || true)
+            UL=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -b "$CJ" 'https://api.jeeey.com/api/admin/users/list?page=1&limit=5' || true)
             echo "$UL" | sed -n '1,80p'
             echo '--- Create vendor (smoke) ---'
-            VEND=$(curl -k -sS -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/vendors --data '{"name":"Deploy Smoke Vendor"}' || true)
+            VEND=$(curl -k -sS -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/vendors --data '{"name":"Deploy Smoke Vendor"}' || true)
             echo "$VEND" | sed -n '1,80p'
             echo '--- Create user (smoke) ---'
             TS=$(date +%s)
-            CUSR=$(curl -k -sS -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/users --data "{\"email\":\"deploy+${TS}@local\",\"password\":\"Temp#12345\",\"name\":\"Deploy User\"}" || true)
+            CUSR=$(curl -k -sS -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/users --data "{\"email\":\"deploy+${TS}@local\",\"password\":\"Temp#12345\",\"name\":\"Deploy User\"}" || true)
             echo "$CUSR" | sed -n '1,120p'
             echo '--- CRUD smoke done ---'
 
@@ -879,7 +880,7 @@ jobs:
               --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY" || true
             if ! grep -q '"token":' "$BODY" 2>/dev/null; then
               echo 'Local login failed, trying public API...'
-              curl -k -sS -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login \
+              curl -k -sS -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login \
                 --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
             fi
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
@@ -889,7 +890,7 @@ jobs:
             IMG=$(curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
             if [ -z "$IMG" ]; then
               echo 'No local media found; trying public API media list...'
-              IMG=$(curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
+              IMG=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
             fi
             if [ -z "$IMG" ]; then echo 'No media assets found in library; please add at least one image to Media.'; exit 1; fi
             echo '--- Create category ---'
@@ -901,7 +902,7 @@ jobs:
             if [ "$CODE" != "200" ]; then
               echo 'Local create failed, trying public API...'
               CODE=$(curl -k -sS --fail-with-body -w '%{http_code}' -o /tmp/cat.body \
-                -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
+                -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
                 -X POST https://api.jeeey.com/api/admin/categories --data-binary @/tmp/cat.json || true)
             fi
             head -n 2 /tmp/cat.body | sed -n '1,2p'
@@ -911,7 +912,7 @@ jobs:
             echo "created id: $ID"
             echo '--- List categories (search=SmokeCat) ---'
             curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/categories?search=SmokeCat' | sed -n '1,200p' || \
-              curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
+              curl -k -sS -H 'origin: https://admin.jeeey.com' -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
             echo '--- Delete created category (cleanup) ---'
             printf '{"ids":["%s"]}' "$ID" > /tmp/del.json
             DCODE=$(curl -sS --fail-with-body -w '%{http_code}' -o /tmp/cat.del \
@@ -919,13 +920,13 @@ jobs:
               -X POST http://127.0.0.1:4000/api/admin/categories/bulk-delete --data-binary @/tmp/del.json || true)
             if [ "$DCODE" != "200" ]; then
               DCODE=$(curl -k -sS --fail-with-body -w '%{http_code}' -o /tmp/cat.del \
-                -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
+                -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
                 -X POST https://api.jeeey.com/api/admin/categories/bulk-delete --data-binary @/tmp/del.json || true)
             fi
             if [ "$DCODE" != "200" ]; then echo "Cleanup delete failed: $DCODE"; cat /tmp/cat.del; exit 1; fi
             echo '--- Verify deleted not found ---'
             OUT=$(curl -sS -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:4000/api/admin/categories?search=$ID" || \
-                  curl -k -sS -H "Authorization: Bearer $TOKEN" "https://api.jeeey.com/api/admin/categories?search=$ID" || true)
+                  curl -k -sS -H 'origin: https://admin.jeeey.com' -H "Authorization: Bearer $TOKEN" "https://api.jeeey.com/api/admin/categories?search=$ID" || true)
             if echo "$OUT" | grep -q "$ID"; then echo 'Cleanup verification failed (ID still present)'; echo "$OUT"; exit 1; fi
 
       - name: Post-deploy popup claim smoke (create reward/campaign → claim → cleanup)
@@ -946,13 +947,13 @@ jobs:
             API='https://api.jeeey.com'
             echo '--- Admin login (JSON) ---'
             CJ=/tmp/promo_cj
-            curl -k -s -c "$CJ" -H 'content-type: application/json' -X POST "$API/api/admin/auth/login" --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" >/dev/null
+            curl -k -s -c "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST "$API/api/admin/auth/login" --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" >/dev/null
             echo '--- Create reward (COUPON 10%) ---'
-            RID=$(curl -k -s -b "$CJ" -H 'content-type: application/json' -X POST "$API/api/admin/promotions/rewards" --data '{"name":"SmokeReward","type":"COUPON","config":{"percent":10}}' | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
+            RID=$(curl -k -s -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST "$API/api/admin/promotions/rewards" --data '{"name":"SmokeReward","type":"COUPON","config":{"percent":10}}' | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
             [ -n "$RID" ] || { echo 'Create reward failed'; exit 1; }
             echo "RID=$RID"
             echo '--- Create campaign LIVE ---'
-            CID=$(curl -k -s -b "$CJ" -H 'content-type: application/json' -X POST "$API/api/admin/promotions/campaigns" --data "{\"name\":\"SmokeCampaign\",\"priority\":5,\"status\":\"LIVE\",\"rewardId\":\"$RID\"}" | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
+            CID=$(curl -k -s -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST "$API/api/admin/promotions/campaigns" --data "{\"name\":\"SmokeCampaign\",\"priority\":5,\"status\":\"LIVE\",\"rewardId\":\"$RID\"}" | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
             [ -n "$CID" ] || { echo 'Create campaign failed'; exit 1; }
             echo "CID=$CID"
             echo '--- Start claim ---'
@@ -963,7 +964,7 @@ jobs:
             echo "complete status=$CODE"
             [ "$CODE" = "200" ] || { echo 'Claim complete failed'; exit 1; }
             echo '--- Cleanup: delete campaign (reward kept for audit) ---'
-            curl -k -s -b "$CJ" -X DELETE "$API/api/admin/promotions/campaigns/$CID" || true
+            curl -k -s -b "$CJ" -H 'origin: https://admin.jeeey.com' -X DELETE "$API/api/admin/promotions/campaigns/$CID" || true
 
       - name: Server & Prisma comprehensive self-check
         if: ${{ env.HAVE_SSH == '1' }}
@@ -1189,14 +1190,14 @@ jobs:
             if [ -z "$PHONE" ]; then echo 'WHATSAPP_TEST_PHONE not set; skipping WA smoke'; exit 0; fi
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
             PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
-            curl -sS -c /tmp/cj -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -X POST "$API/api/admin/auth/login" >/dev/null
+            curl -sS -c /tmp/cj -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -X POST "$API/api/admin/auth/login" >/dev/null
             # Use smart send which introspects template components
-            resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send-smart" -d "{\"phone\":\"$PHONE\",\"template\":\"$TMPL\",\"languageCode\":\"ar\",\"bodyParams\":[\"123456\"]}")
+            resp=$(curl -sS -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send-smart" -d "{\"phone\":\"$PHONE\",\"template\":\"$TMPL\",\"languageCode\":\"ar\",\"bodyParams\":[\"123456\"]}")
             echo "Smart send => $(echo "$resp" | head -c 200)" || true
             echo "$resp" | grep -q 'messageId' || { echo "WA smoke failed: $resp"; exit 1; }
             mid=$(echo "$resp" | grep -o '"messageId":"[^\"]\+"' | head -n1 | sed 's/.*"messageId":"\([^\"]\+\)".*/\1/')
             for i in $(seq 1 5); do
-              st=$(curl -sS -b /tmp/cj "$API/api/admin/whatsapp/status?id=$mid" || true)
+              st=$(curl -sS -H 'origin: https://admin.jeeey.com' -b /tmp/cj "$API/api/admin/whatsapp/status?id=$mid" || true)
               echo "$st" | grep -Eq 'DELIVERED|READ|SENT' && break
               sleep 3
             done
