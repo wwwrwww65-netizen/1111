@@ -2508,6 +2508,7 @@ shop.post('/analytics/link', async (req: any, res) => {
         if (!cart) cart = await db.cart.create({ data: { userId } });
         const agg = new Map<string, number>();
         for (const r of rows){ const pid=String(r.productId); const q=Math.max(1, Number(r.quantity||1)); agg.set(pid, (agg.get(pid)||0)+q); }
+        const mergeCount = agg.size;
         for (const [pid, qty] of agg.entries()){
           try{
             const existing = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: pid }, select: { id:true, quantity:true } });
@@ -2519,6 +2520,8 @@ shop.post('/analytics/link', async (req: any, res) => {
         try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
         try{ await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', guestCartId) }catch{}
         try{ await db.$executeRawUnsafe('DELETE FROM "GuestCart" WHERE id=$1', guestCartId) }catch{}
+        // Record cart_merge analytics event
+        await recordCartEvent({ type: 'cart_merge', req, res, mergeCount });
       }
     }catch{}
 
@@ -3017,6 +3020,9 @@ shop.post('/cart/auth/add', requireAuth, async (req: any, res) => {
         },
       ]);
     } catch {}
+    // Record cart_add analytics event
+    const q = Number(quantity || 1);
+    await recordCartEvent({ type: 'cart_add', req, res, productId: String(productId), quantity: q });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -3034,6 +3040,8 @@ shop.post('/cart/auth/update', requireAuth, async (req: any, res) => {
     if (!existing) return res.json({ success: true });
     if (quantity <= 0) await db.cartItem.delete({ where: { id: existing.id } });
     else await db.cartItem.update({ where: { id: existing.id }, data: { quantity } });
+    // Record cart_update analytics event
+    await recordCartEvent({ type: 'cart_update', req, res, productId: String(productId), quantity });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -3049,6 +3057,8 @@ shop.post('/cart/auth/remove', requireAuth, async (req: any, res) => {
     if (!cart) return res.json({ success: true });
     const existing = await db.cartItem.findUnique({ where: { cartId_productId: { cartId: cart.id, productId } } });
     if (existing) await db.cartItem.delete({ where: { id: existing.id } });
+    // Record cart_remove analytics event
+    await recordCartEvent({ type: 'cart_remove', req, res, productId: String(productId) });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -3059,7 +3069,14 @@ shop.post('/cart/auth/clear', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
     const cart = await db.cart.findUnique({ where: { userId } });
-    if (cart) await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+    let itemsAffected = 0;
+    if (cart) {
+      const items = await db.cartItem.findMany({ where: { cartId: cart.id }, select: { id: true } });
+      itemsAffected = items.length;
+      await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+    }
+    // Record cart_clear analytics event
+    await recordCartEvent({ type: 'cart_clear', req, res, itemsAffected });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -3488,6 +3505,28 @@ async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: 
   return { sessionId: sid, cartId: String(cartId) };
 }
 
+// ===================== Cart Analytics Event Recording =====================
+async function recordCartEvent({ type, req, res, productId, quantity, itemsAffected, mergeCount }: {
+  type: 'cart_add'|'cart_update'|'cart_remove'|'cart_clear'|'cart_merge';
+  req: any; res: any;
+  productId?: string; quantity?: number; itemsAffected?: number; mergeCount?: number;
+}) {
+  try {
+    const userId = req?.user?.userId || null;
+    let sessionId: string|null = null;
+    if (!userId) {
+      const guest = await getOrCreateGuestCartId(req, res);
+      sessionId = guest.sessionId;
+    }
+    const properties: any = {};
+    if (productId) properties.productId = String(productId);
+    if (typeof quantity === 'number') properties.quantity = quantity;
+    if (typeof itemsAffected === 'number') properties.itemsAffected = itemsAffected;
+    if (typeof mergeCount === 'number') properties.mergeCount = mergeCount;
+    await db.event.create({ data: { name: type, userId, sessionId, properties } });
+  } catch {}
+}
+
 shop.get('/cart', async (req: any, res) => {
   try {
     const userId = (req as any)?.user?.userId;
@@ -3601,6 +3640,8 @@ shop.post('/cart/add', async (req: any, res) => {
         await fbSendEvents([{ event_name:'AddToCart', user_data:{ fbp, fbc }, custom_data:{ value: 0, currency:'YER', contents:[{ id: String(productId), quantity: q }], content_type:'product' }, action_source:'website' }])
       } catch {}
     }
+    // Record cart_add analytics event
+    await recordCartEvent({ type: 'cart_add', req, res, productId: String(productId), quantity: q });
     return res.json({ ok: true });
   } catch (e:any) { return res.status(500).json({ error: 'add_failed', message: e?.message || '' }); }
 });
@@ -3631,6 +3672,8 @@ shop.post('/cart/update', async (req: any, res) => {
       }
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
+    // Record cart_update analytics event
+    await recordCartEvent({ type: 'cart_update', req, res, productId: String(productId), quantity: q });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'update_failed' }); }
 });
@@ -3651,6 +3694,8 @@ shop.post('/cart/remove', async (req: any, res) => {
       await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', cartId, String(productId));
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
+    // Record cart_remove analytics event
+    await recordCartEvent({ type: 'cart_remove', req, res, productId: String(productId) });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'remove_failed' }); }
 });
@@ -3658,16 +3703,23 @@ shop.post('/cart/remove', async (req: any, res) => {
 shop.post('/cart/clear', async (req: any, res) => {
   try {
     const userId = (req as any)?.user?.userId;
+    let itemsAffected = 0;
     if (userId) {
       const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
       if (!cart) return res.json({ ok: true });
+      const items = await db.cartItem.findMany({ where: { cartId: cart.id }, select: { id: true } });
+      itemsAffected = items.length;
       await db.cartItem.deleteMany({ where: { cartId: cart.id } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
+      const items: any[] = await db.$queryRawUnsafe('SELECT id FROM "GuestCartItem" WHERE "cartId"=$1', cartId);
+      itemsAffected = items.length;
       await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', cartId);
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
+    // Record cart_clear analytics event
+    await recordCartEvent({ type: 'cart_clear', req, res, itemsAffected });
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'clear_failed' }); }
 });
