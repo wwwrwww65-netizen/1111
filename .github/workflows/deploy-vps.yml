@@ -314,11 +314,9 @@ jobs:
             pnpm install --frozen-lockfile=false
             bash infra/scripts/deploy.sh "$PATH_ON_HOST"
             echo '--- Prisma migrate (deploy) ---'
-            if [ -f "$PATH_ON_HOST/.env.api" ]; then
-              set -a
-              . "$PATH_ON_HOST/.env.api"
-              set +a
-            fi
+            # Safe env loader (handles &, #, CRLF)
+            load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+            load_env_file "$PATH_ON_HOST/.env.api"
             if [ -n "${DATABASE_URL:-}" ] || [ -n "${DIRECT_URL:-}" ]; then
               # Fallback: if DIRECT_URL is empty, reuse DATABASE_URL to avoid schema validation issues
               if [ -z "${DIRECT_URL:-}" ] && [ -n "${DATABASE_URL:-}" ]; then export DIRECT_URL="$DATABASE_URL"; fi
@@ -632,7 +630,9 @@ jobs:
               PASS="${ADMIN_PASSWORD:-admin123}"
               JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}")
               if [ "$JSON_STATUS" != "200" ]; then
-                . "$ROOT/.env.api" || true
+              # Safe env loader for MAINTENANCE_SECRET and others
+              load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+              load_env_file "$ROOT/.env.api" || true
                 curl -s -X POST http://127.0.0.1:4000/api/admin/maintenance/create-admin -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"name\":\"Admin\"}" || true
                 sleep 1
                 JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}")
@@ -672,7 +672,9 @@ jobs:
             EMAIL=${ADMIN_EMAIL:-${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}}
             PASS=${ADMIN_PASSWORD:-${{ secrets.ADMIN_PASSWORD || 'admin123' }}}
             API=http://127.0.0.1:4000
-            if [ -f "$ROOT/.env.api" ]; then . "$ROOT/.env.api" || true; fi
+            # Safe env loader and load .env.api if present
+            load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+            load_env_file "$ROOT/.env.api" || true
             echo '--- ensure RBAC'
             curl -sS -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -X POST "$API/api/admin/maintenance/ensure-rbac" | sed -n '1,60p' || true
             echo '--- create admin (idempotent)'
@@ -1011,7 +1013,9 @@ jobs:
               echo '(missing packages/api/dist)'
             fi
             echo '== prisma status =='
-            if [ -f "$ROOT/.env.api" ]; then set -a; . "$ROOT/.env.api"; set +a; fi
+            # Safe env loader for prisma section
+            load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+            load_env_file "$ROOT/.env.api"
             if [ -n "${DATABASE_URL:-}" ] || [ -n "${DIRECT_URL:-}" ]; then
               cd "$ROOT/packages/db"
               pnpm install --prod --ignore-scripts >/dev/null 2>&1 || true

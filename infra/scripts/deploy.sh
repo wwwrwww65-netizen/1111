@@ -56,10 +56,31 @@ export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 pnpm install -r --no-frozen-lockfile --prod=false
 
+# Safe env loader that tolerates '&', '#', spaces and CRLF without executing code
+load_env_file() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  # shellcheck disable=SC2162
+  while IFS= read -r line || [ -n "$line" ]; do
+    # strip trailing CR (Windows line endings)
+    line="${line%$'\r'}"
+    case "$line" in
+      ''|'#'*) continue ;; # skip empty and comment lines
+    esac
+    # split on first '=' only
+    local key="${line%%=*}"
+    local val="${line#*=}"
+    # trim possible surrounding quotes without interpreting content
+    if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi
+    if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi
+    export "$key=$val"
+  done < "$f"
+}
+
 # Load or materialize public env (for Next build) and per-app .env.production
 mkdir -p "$ROOT_DIR/apps/admin" "$ROOT_DIR/apps/web"
 if [ -f "$ROOT_DIR/.env.web" ]; then
-  set -a; . "$ROOT_DIR/.env.web"; set +a
+  load_env_file "$ROOT_DIR/.env.web"
 fi
 {
   echo "NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://jeeey.com}"
@@ -72,7 +93,7 @@ cp "$ROOT_DIR/apps/admin/.env.production" "$ROOT_DIR/apps/web/.env.production"
 export NODE_ENV=production
 # Load API env for Prisma and run migrate deploy
 if [ -f "$ROOT_DIR/.env.api" ]; then
-  set -a; . "$ROOT_DIR/.env.api"; set +a
+  load_env_file "$ROOT_DIR/.env.api"
 fi
 # Try deploy migrations using npx prisma; if fails, attempt baseline resolve
 set +e
