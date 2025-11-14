@@ -7651,9 +7651,54 @@ adminRest.post('/affiliates/payouts', async (req, res) => {
   }catch(e:any){ res.status(500).json({ error: e.message || 'aff_payout_failed' }) }
 });
 adminRest.post('/events', async (req, res) => {
-  const { name, userId, properties } = req.body || {};
-  const ev = await db.event.create({ data: { name, userId, properties } });
-  res.json({ event: ev });
+  try{
+    const payload = req.body || {};
+    const ev = await db.event.create({ data: payload as any });
+    return res.json({ event: ev });
+  }catch(e:any){
+    try{
+      const ddl: string[] = [
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "anonymousId" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "sessionId" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "pageUrl" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "referrer" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "productId" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "orderId" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "device" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "os" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "browser" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "country" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "city" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "ipHash" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmSource" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmMedium" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmCampaign" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmContent" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmTerm" TEXT`,
+        `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "properties" JSONB DEFAULT '{}'::jsonb`
+      ];
+      for (const sql of ddl){ try{ await (db as any).$executeRawUnsafe(sql) }catch{} }
+      const payload = req.body || {};
+      const ev = await db.event.create({ data: payload as any });
+      return res.json({ event: ev, upgraded:true });
+    }catch(e2:any){
+      // Fallback raw insert with minimal columns
+      try{
+        const rnd = (()=>{ try{ return require("crypto").randomUUID() }catch{ return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) } })()
+        const name = String((req.body||{}).name||'event').slice(0,64);
+        const pageUrl = (req.body||{}).pageUrl? String((req.body||{}).pageUrl) : null;
+        const referrer = (req.body||{}).referrer? String((req.body||{}).referrer) : null;
+        const props = JSON.stringify((req.body||{}).properties||{});
+        await (db as any).$executeRawUnsafe(
+          `INSERT INTO "Event" ("id","name","properties","pageUrl","referrer","createdAt") VALUES ($1, $2, $3::jsonb, $4, $5, now())`,
+          rnd, name, props, pageUrl, referrer
+        );
+        return res.json({ ok:true, downgraded:true });
+      }catch(e3:any){
+        return res.status(500).json({ error: e3?.message || e2?.message || e?.message || 'event_create_failed' });
+      }
+    }
+  }
 });
 
 // Carts overview (users + guests)

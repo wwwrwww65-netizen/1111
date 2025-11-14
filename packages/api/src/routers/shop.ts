@@ -2413,6 +2413,8 @@ shop.post('/events', async (req: any, res) => {
           `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmSource" TEXT`,
           `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmMedium" TEXT`,
           `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmCampaign" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmContent" TEXT`,
+          `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmTerm" TEXT`,
           `ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "properties" JSONB DEFAULT '{}'::jsonb`
         ];
         for (const sql of ddl){ try{ await (db as any).$executeRawUnsafe(sql) }catch{} }
