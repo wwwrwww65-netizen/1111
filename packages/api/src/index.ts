@@ -367,7 +367,7 @@ app.use(
 );
 
 export const expressApp = app;
-const port = process.env.PORT || 4000;
+const port = Number(process.env.PORT || 4000);
 // Health for local reverse-proxy sanity check
 app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 (async () => {
