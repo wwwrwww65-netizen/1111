@@ -1,0 +1,97 @@
+name: Mobile Build and Test
+
+on:
+  push:
+    branches:
+      - main
+      - capolit
+      - copilot/**
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/ui/**'
+      - '.github/workflows/mobile-build.yml'
+  pull_request:
+    branches:
+      - main
+      - capolit
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/ui/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test Mobile App
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.6.10
+          
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+        
+      - name: Type check mobile app
+        run: pnpm --filter mobile type-check
+        
+      - name: Lint mobile app
+        run: pnpm --filter mobile lint
+        
+      - name: Test mobile app
+        run: pnpm --filter mobile test --coverage
+        
+      - name: Build mobile app
+        run: pnpm --filter mobile build
+        env:
+          EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL || 'https://api.jeeey.com/trpc' }}
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        if: success()
+        with:
+          name: mobile-export
+          path: apps/mobile/dist/
+          retention-days: 7
+          
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v3
+        if: success()
+        with:
+          name: mobile-coverage
+          path: apps/mobile/coverage/
+          retention-days: 7
+          
+      - name: Basic smoke test - API health check
+        run: |
+          echo "Checking API health..."
+          API_URL="${{ secrets.EXPO_PUBLIC_TRPC_URL || 'https://api.jeeey.com/trpc' }}"
+          # Remove /trpc suffix to get base URL
+          BASE_URL="${API_URL%/trpc}"
+          echo "Base URL: $BASE_URL"
+          # Simple curl check (optional - may fail if endpoint doesn't exist)
+          curl -f -s -o /dev/null -w "HTTP Status: %{http_code}\n" "$BASE_URL/health" || echo "Health endpoint not available (this is okay)"
+        continue-on-error: true

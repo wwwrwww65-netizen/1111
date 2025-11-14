@@ -2,19 +2,40 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { StyleSheet, Text, View, Alert, FlatList, TouchableOpacity, TextInput } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink } from '@trpc/client';
 import { trpc } from './src/trpc';
+
+// Navigation type definitions
+type RootStackParamList = {
+  Root: undefined;
+  Product: { id: string };
+  Checkout: undefined;
+};
+
+type TabParamList = {
+  Home: undefined;
+  Search: { cat?: string };
+  Categories: undefined;
+  Wishlist: undefined;
+  Account: undefined;
+  Cart: undefined;
+};
+
+type ProductsScreenProps = NativeStackScreenProps<TabParamList, 'Home'>;
+type ProductScreenProps = NativeStackScreenProps<RootStackParamList, 'Product'>;
+type SearchScreenProps = NativeStackScreenProps<TabParamList, 'Search'>;
+type CategoriesScreenProps = NativeStackScreenProps<TabParamList, 'Categories'>;
 
 const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({
   links: [httpBatchLink({ url: process.env.EXPO_PUBLIC_TRPC_URL || 'http://localhost:4000/trpc' })],
 });
 
-const Stack = createNativeStackNavigator();
-const Tabs = createBottomTabNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tabs = createBottomTabNavigator<TabParamList>();
 
 export default function App() {
   return (
@@ -45,7 +66,7 @@ function RootTabs() {
   );
 }
 
-function ProductsScreen({ navigation }: any) {
+function ProductsScreen({ navigation }: ProductsScreenProps) {
   const { data, isLoading, error } = trpc.search.searchProducts.useQuery({ page: 1, limit: 10 });
   return (
     <View style={styles.container}>
@@ -67,7 +88,7 @@ function ProductsScreen({ navigation }: any) {
   );
 }
 
-function ProductScreen({ route, navigation }: any) {
+function ProductScreen({ route, navigation }: ProductScreenProps) {
   const { id } = route.params;
   const { data, isLoading, error } = trpc.products.getById.useQuery({ id });
   const addItem = trpc.cart.addItem.useMutation();
@@ -118,7 +139,7 @@ function CartScreen() {
   );
 }
 
-function SearchScreen({ navigation }: any) {
+function SearchScreen({ navigation }: SearchScreenProps) {
   const [q, setQ] = React.useState('');
   const { data, isLoading, error } = trpc.search.searchProducts.useQuery(
     { page: 1, limit: 10, q },
@@ -149,7 +170,7 @@ function SearchScreen({ navigation }: any) {
   );
 }
 
-function CategoriesScreen({ navigation }: any) {
+function CategoriesScreen({ navigation }: CategoriesScreenProps) {
   const categories = [
     { id: 'dresses', name: 'فساتين' },
     { id: 'shoes', name: 'أحذية' },
