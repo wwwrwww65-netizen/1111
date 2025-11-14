@@ -402,7 +402,7 @@ jobs:
             bash "$ROOT/infra/deploy/schedule-certbot-renew.sh"
 
       - name: Setup swap (optional)
-        if: ${{ env.HAVE_SSH == '1' && (vars.SETUP_SWAP == '1' || secrets.SETUP_SWAP == '1') }}
+        if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3
         continue-on-error: true
         with:
@@ -418,7 +418,13 @@ jobs:
           script: |
             set -e
             ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
-            sudo bash "$ROOT/infra/scripts/setup-swap.sh" 2 || true
+            SWAP_FLAG="${{ secrets.SETUP_SWAP || vars.SETUP_SWAP || '0' }}"
+            echo "SETUP_SWAP=$SWAP_FLAG"
+            if [ "$SWAP_FLAG" = "1" ]; then
+              sudo bash "$ROOT/infra/scripts/setup-swap.sh" 2 || true
+            else
+              echo "Swap setup disabled (SETUP_SWAP != 1)"
+            fi
 
       - name: Network hardening (bind HOST=127.0.0.1 + close 3000/3001/4000)
         if: ${{ env.HAVE_SSH == '1' }}
