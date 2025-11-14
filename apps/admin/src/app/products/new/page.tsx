@@ -140,7 +140,7 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
 
   return (
     <div ref={containerRef} style={{ position:'relative' }}>
-      <button type="button" className="select" onClick={()=>{ const next=!open; setOpen(next); if (next) loadTree(); }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
+      <button type="button" className="select" onClick={()=>{ if (!open) { setOpen(true); loadTree(); } }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
         {summary}
       </button>
       {Array.isArray(value) && value.length > 0 && (
