@@ -52,7 +52,13 @@ pnpm --filter admin build | cat
 pnpm --filter web build | cat
 # Build mweb (Vite) for static hosting
 if [ -d "apps/mweb" ]; then
+  echo "[deploy] Building mweb (Vite)"
   pnpm --filter mweb build | cat || true
+  if [ ! -f "apps/mweb/dist/index.html" ]; then
+    echo "[deploy] ERROR: apps/mweb/dist/index.html missing after build" >&2
+    echo "[deploy] HINT: Ensure devDependencies are installed and Vite build succeeds." >&2
+    exit 1
+  fi
 fi
 # Build API via local tsc
 ( cd packages/api && ./node_modules/.bin/rimraf dist || rm -rf dist )

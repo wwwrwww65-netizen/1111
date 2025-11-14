@@ -8,6 +8,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: '4000',
+        HOST: '127.0.0.1',
         API_FORCE_LISTEN: '1',
         COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.jeeey.com',
         // Ensure API builds absolute URLs for local uploads even if .env is missing
@@ -24,7 +25,8 @@ module.exports = {
       args: '.next/standalone/apps/web/server.js',
       env: {
         NODE_ENV: 'production',
-        PORT: '3000'
+        PORT: '3000',
+        HOST: '127.0.0.1'
       }
     },
     {
@@ -35,6 +37,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: '3001',
+        HOST: '127.0.0.1',
         // Force admin proxy to use local API to avoid egress/SSL issues
         INTERNAL_API_URL: process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000',
         // Public base for client-only references if needed

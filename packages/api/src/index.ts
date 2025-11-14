@@ -714,10 +714,13 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       } catch {}
     }, 3600 * 1000);
 
-    server.listen(port, () => {
-      console.log(`🚀 API server listening on port ${port}`);
-      console.log(`📊 Health check: http://localhost:${port}/health`);
-      console.log(`🔗 tRPC endpoint: http://localhost:${port}/trpc`);
+    const host =
+      process.env.HOST ||
+      (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
+    server.listen(port, host, () => {
+      console.log(`🚀 API server listening on http://${host}:${port}`);
+      console.log(`📊 Health check: http://${host}:${port}/health`);
+      console.log(`🔗 tRPC endpoint: http://${host}:${port}/trpc`);
     });
   }
 })();

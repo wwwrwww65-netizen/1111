@@ -41,6 +41,8 @@ jobs:
           pnpm --filter @repo/api clean
           pnpm --filter @repo/api exec tsc -p tsconfig.json
           pnpm --filter admin build
+          # Build mweb locally to catch Vite errors early (fails fast)
+          pnpm --filter mweb build
 
       # E2E auth moved to dedicated workflow
       - name: Archive project (use git archive to avoid file change warnings)
@@ -380,6 +382,74 @@ jobs:
             (nginx -s reload || systemctl reload nginx || systemctl restart nginx)
             echo '--- Wait for 443 readiness ---'
             ok=0; for i in $(seq 1 30); do code=$(curl -ksS -o /dev/null -w '%{http_code}' https://api.jeeey.com/health || true); echo "try $i => $code"; [ "$code" = "200" ] && ok=1 && break; sleep 2; done; [ "$ok" = "1" ] || exit 1
+
+      - name: Network hardening (bind HOST=127.0.0.1 + close 3000/3001/4000)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          script_stop: true
+          script: |
+            set -e
+            echo '--- Ensure systemd drop-ins set HOST=127.0.0.1 ---'
+            for svc in ecom-api ecom-web ecom-admin; do
+              mkdir -p "/etc/systemd/system/$svc.service.d"
+              printf '[Service]\nEnvironment=HOST=127.0.0.1\n' > "/etc/systemd/system/$svc.service.d/host.conf"
+            done
+            systemctl daemon-reload || true
+            systemctl try-restart ecom-api || true
+            systemctl try-restart ecom-web || true
+            systemctl try-restart ecom-admin || true
+            echo '--- UFW: allow only 22/80/443; deny 3000/3001/4000 ---'
+            if command -v ufw >/dev/null 2>&1; then
+              ufw allow OpenSSH || true
+              ufw allow 80/tcp || true
+              ufw allow 443/tcp || true
+              ufw deny 3000/tcp || true
+              ufw deny 3001/tcp || true
+              ufw deny 4000/tcp || true
+              yes | ufw enable || true
+            fi
+            echo '--- Verify bindings are localhost-only ---'
+            (command -v ss >/dev/null && ss -ltnp | egrep ':4000|:3001|:3000' || netstat -ltnp 2>/dev/null | egrep ':4000|:3001|:3000') || true
+            bad=$( (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | egrep ':4000|:3001|:3000' | egrep -v '127\.0\.0\.1' || true )
+            if [ -n "$bad" ]; then
+              echo 'Found non-localhost bindings:'
+              echo "$bad"
+              exit 1
+            fi
+
+      - name: Verify mweb dist and static serving
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          script_stop: true
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            test -f "$ROOT/apps/mweb/dist/index.html"
+            echo '--- Probe m.jeeey.com root and sw.js ---'
+            code=$(curl -ksS -o /dev/null -w '%{http_code}' https://m.jeeey.com/ || true)
+            echo "mweb / => $code"
+            sw=$(curl -ksS -o /dev/null -w '%{http_code}' https://m.jeeey.com/sw.js || true)
+            echo "mweb /sw.js => $sw"
+            case "$code" in 200|204|301|302|307|308) : ;; *) exit 1;; esac
+            [ "$sw" = "200" ] || exit 1
 
       - name: Post-deploy smoke (health, login, static, services)
         if: ${{ env.HAVE_SSH == '1' }}
