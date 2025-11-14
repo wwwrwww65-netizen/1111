@@ -383,6 +383,43 @@ jobs:
             echo '--- Wait for 443 readiness ---'
             ok=0; for i in $(seq 1 30); do code=$(curl -ksS -o /dev/null -w '%{http_code}' https://api.jeeey.com/health || true); echo "try $i => $code"; [ "$code" = "200" ] && ok=1 && break; sleep 2; done; [ "$ok" = "1" ] || exit 1
 
+      - name: Schedule certbot renew (systemd timer)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 5m
+          script_stop: true
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            bash "$ROOT/infra/deploy/schedule-certbot-renew.sh"
+
+      - name: Setup swap (optional)
+        if: ${{ env.HAVE_SSH == '1' && (vars.SETUP_SWAP == '1' || secrets.SETUP_SWAP == '1') }}
+        uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 5m
+          script_stop: false
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            sudo bash "$ROOT/infra/scripts/setup-swap.sh" 2 || true
+
       - name: Network hardening (bind HOST=127.0.0.1 + close 3000/3001/4000)
         if: ${{ env.HAVE_SSH == '1' }}
         uses: appleboy/ssh-action@v1.0.3

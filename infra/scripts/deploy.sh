@@ -29,6 +29,17 @@ if [ "$rc" -ne 0 ] && [ "$rc" -ne 24 ]; then
 fi
 
 cd "$ROOT_DIR"
+# Ensure dedicated system user for services (non-root execution)
+if ! id -u ecom >/dev/null 2>&1; then
+  echo "[deploy] Creating system user 'ecom' (nologin)"
+  useradd --system --create-home --home-dir /home/ecom --shell /usr/sbin/nologin ecom || true
+fi
+# Ensure ownership for runtime directories
+mkdir -p "$ROOT_DIR" "$ROOT_DIR/uploads" /var/log
+chown -R ecom:ecom "$ROOT_DIR" || true
+touch /var/log/ecom-api.out /var/log/ecom-api.err /var/log/ecom-admin.out /var/log/ecom-admin.err /var/log/ecom-web.out /var/log/ecom-web.err || true
+chown ecom:ecom /var/log/ecom-*.out /var/log/ecom-*.err || true
+
 # Sanitize .env.api (remove non-breaking spaces) and ensure it's present
 if [ -f "$ROOT_DIR/.env.api" ]; then
   # remove UTF-8 NBSP if present
@@ -230,6 +241,8 @@ if [ -f /etc/systemd/system/ecom-admin.service ]; then
   mkdir -p /etc/systemd/system/ecom-admin.service.d || true
   cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<EOF
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3001
 StandardOutput=append:/var/log/ecom-admin.out
 StandardError=append:/var/log/ecom-admin.err
@@ -248,6 +261,8 @@ if [ -f /etc/systemd/system/ecom-web.service ]; then
   mkdir -p /etc/systemd/system/ecom-web.service.d || true
   cat > /etc/systemd/system/ecom-web.service.d/override.conf <<EOF
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3000
 StandardOutput=append:/var/log/ecom-web.out
 StandardError=append:/var/log/ecom-web.err
@@ -261,10 +276,14 @@ systemctl daemon-reload || true
 mkdir -p /etc/systemd/system/ecom-admin.service.d /etc/systemd/system/ecom-web.service.d || true
 cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<'EOF'
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3001
 EOF
 cat > /etc/systemd/system/ecom-web.service.d/override.conf <<'EOF'
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3000
 EOF
 systemctl daemon-reload || true
@@ -281,6 +300,8 @@ Type=simple
 WorkingDirectory=$ROOT_DIR
 EnvironmentFile=$ROOT_DIR/.env.api
 ExecStart=/usr/bin/node $ROOT_DIR/packages/api/dist/index.js
+User=ecom
+Group=ecom
 Restart=always
 RestartSec=2
 
@@ -301,6 +322,8 @@ Type=simple
 WorkingDirectory=$ROOT_DIR/apps/admin
 Environment=PORT=3001
 ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001
+User=ecom
+Group=ecom
 Restart=always
 RestartSec=2
 
@@ -321,6 +344,8 @@ Type=simple
 WorkingDirectory=$ROOT_DIR/apps/web
 Environment=PORT=3000
 ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
+User=ecom
+Group=ecom
 Restart=always
 RestartSec=2
 
@@ -365,6 +390,10 @@ WorkingDirectory=$ROOT_DIR
 Environment=NLP_CONFIG_DIR=$ROOT_DIR/config/nlp
 Environment=API_RUN_ENSURE_SCHEMA=0
 Environment=NODE_ENV=production
+User=ecom
+Group=ecom
+StandardOutput=append:/var/log/ecom-api.out
+StandardError=append:/var/log/ecom-api.err
 EOF
       systemctl daemon-reload || true
     fi
