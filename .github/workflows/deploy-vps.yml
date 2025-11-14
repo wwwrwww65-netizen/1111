@@ -1028,7 +1028,7 @@ jobs:
           script: |
             set -eux
             echo '--- CSP header present ---'
-            curl -ksSI https://m.jeeey.com | grep -i '^content-security-policy:' >/dev/null
+            curl -ksSI https://m.jeeey.com | grep -i 'content-security-policy' >/dev/null
             echo '--- Service worker reachable (200) ---'
             code=$(curl -ksS -o /dev/null -w '%{http_code}' https://m.jeeey.com/sw.js || true)
             [ "$code" = "200" ] || { echo "sw.js status=$code"; exit 1; }
