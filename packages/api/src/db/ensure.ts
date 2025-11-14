@@ -20,6 +20,7 @@ export async function ensureSchemaSafe(): Promise<void> {
   } catch (_) {}
   // Ensure analytics/Event optional columns exist (forward/backward compatible)
   try { await db.$executeRawUnsafe('ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmContent" TEXT'); } catch {}
+  try { await db.$executeRawUnsafe('ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmTerm" TEXT'); } catch {}
 }
 
 // Re-export db for other modules importing from this file
