@@ -40,9 +40,10 @@ async function check(url, expect = 200) {
 }
 
 async function login(apiBase, email, password) {
+  const origin = process.env.ADMIN_URL || 'https://admin.jeeey.com';
   const res = await fetchWithRetry(`${apiBase}/api/admin/auth/login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'origin': origin },
     body: JSON.stringify({ email, password, remember: true }),
     redirect: 'manual',
   });
