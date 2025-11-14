@@ -3452,7 +3452,6 @@ async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: 
   const cookies = parseCookies(req);
   // Prefer explicit session header (aligns with analytics sid_v1) then existing cookies
   let sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
-  const uuid = (require('crypto').randomUUID as ()=>string)();
   if (!sid) {
     sid = (require('crypto').randomUUID as ()=>string)();
     try {
@@ -3474,21 +3473,20 @@ async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: 
       if (set.length) res.setHeader('Set-Cookie', set);
     } catch {}
   }
-  // Ensure DB row exists
-  let row: any[] = [];
-  try { row = await db.$queryRawUnsafe('SELECT id FROM "GuestCart" WHERE "sessionId"=$1 LIMIT 1', sid); } catch {}
-  // If row already exists, use its id; otherwise create and then re-read to get canonical id
-  let cartId = row?.[0]?.id as string | undefined;
-  if (!cartId){
+  // Ensure DB row exists (use Prisma to respect NOT NULL/defaults)
+  const ua = String((req.headers['user-agent'] as string|undefined) || '');
+  const ip = String((req.headers['x-forwarded-for'] as string|undefined) || (req.socket && (req.socket as any).remoteAddress) || '');
+  let cart = await db.guestCart.findUnique({ where: { sessionId: sid } } as any);
+  if (!cart) {
     try {
-      await db.$executeRawUnsafe('INSERT INTO "GuestCart" (id, "sessionId") VALUES ($1,$2) ON CONFLICT ("sessionId") DO NOTHING', uuid, sid);
-    } catch {}
-    try {
-      const r2:any[] = await db.$queryRawUnsafe('SELECT id FROM "GuestCart" WHERE "sessionId"=$1 LIMIT 1', sid);
-      cartId = (r2?.[0]?.id as string|undefined) || uuid;
-    } catch { cartId = uuid; }
+      cart = await db.guestCart.create({ data: { sessionId: sid, userAgent: ua || null, ip: ip || null } } as any);
+    } catch {
+      // Race or constraint: fallback to re-read
+      cart = await db.guestCart.findUnique({ where: { sessionId: sid } } as any) as any;
+    }
   }
-  return { sessionId: sid, cartId: String(cartId) };
+  const cartId = String(cart?.id || '');
+  return { sessionId: sid, cartId };
 }
 
 shop.get('/cart', async (req: any, res) => {

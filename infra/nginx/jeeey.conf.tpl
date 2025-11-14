@@ -256,6 +256,83 @@ server {
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
 
+  # API proxy for cart endpoints (same-origin for mweb)
+  # Preserve auth/cookies and upgrade headers; map /api/shop/cart/* => /api/cart/* upstream
+  location ^~ /api/cart/ {
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 120s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    # Preserve original URI under /api/cart/
+    proxy_pass http://127.0.0.1:4000;
+  }
+  location = /api/cart {
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 120s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    proxy_pass http://127.0.0.1:4000$request_uri;
+  }
+  location ^~ /api/shop/cart/ {
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 120s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    # Rewrite prefix /api/shop/cart/ -> /api/cart/ upstream
+    proxy_pass http://127.0.0.1:4000/api/cart/;
+  }
+  location = /api/shop/cart {
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 120s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    proxy_pass http://127.0.0.1:4000/api/cart;
+  }
+
   # Service Worker
   location = /sw.js {
     default_type application/javascript;
