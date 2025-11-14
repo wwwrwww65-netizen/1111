@@ -7656,90 +7656,7 @@ adminRest.post('/events', async (req, res) => {
   res.json({ event: ev });
 });
 
-// Carts overview (users + guests)
-adminRest.get('/carts', async (req, res) => {
-  try{
-    const since = req.query.since ? new Date(String(req.query.since)) : undefined;
-    const whereUser:any = since? { updatedAt: { gte: since } } : {};
-    const whereGuest:any = since? { updatedAt: { gte: since } } : {};
-    const [userCarts, guestCarts] = await Promise.all([
-      db.cart.findMany({ where: whereUser, include: { items: { include: { product: true } }, user: { select: { id:true, email:true, name:true } } }, orderBy: { updatedAt: 'desc' } }),
-      db.guestCart.findMany({ where: whereGuest, include: { items: { include: { product: true } } }, orderBy: { updatedAt: 'desc' } })
-    ]);
-    // Attach analytics summary to carts (events count, last event, device, geo)
-    try{
-      // Guest carts by sessionId
-      const sids = Array.from(new Set((guestCarts||[]).map((g:any)=> String(g.sessionId||'')).filter(Boolean)));
-      if (sids.length){
-        const rows:any[] = await db.$queryRawUnsafe(`
-          WITH e AS (
-            SELECT COALESCE("sessionId", properties->>'sessionId') AS sid, "createdAt", device, browser, country, city
-            FROM "Event"
-            WHERE COALESCE("sessionId", properties->>'sessionId') = ANY($1)
-          ),
-          agg AS (
-            SELECT sid, COUNT(1)::bigint AS events, MAX("createdAt") AS last
-            FROM e GROUP BY sid
-          ),
-          last AS (
-            SELECT DISTINCT ON (sid) sid, device, browser, country, city
-            FROM e ORDER BY sid, "createdAt" DESC
-          )
-          SELECT agg.sid, agg.events, agg.last, last.device, last.browser, last.country, last.city
-          FROM agg LEFT JOIN last USING (sid)
-        `, sids);
-        const map = new Map<string, any>(rows.map((r:any)=> [String(r.sid), r]));
-        for (const g of guestCarts as any[]){
-          const m = map.get(String(g.sessionId||''));
-          if (m) g.analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
-        }
-      }
-      // User carts by userId
-      const uids = Array.from(new Set((userCarts||[]).map((c:any)=> String(c.userId||'')).filter(Boolean)));
-      if (uids.length){
-        const rows:any[] = await db.$queryRawUnsafe(`
-          WITH e AS (
-            SELECT COALESCE("userId", properties->>'userId') AS uid, "createdAt", device, browser, country, city
-            FROM "Event"
-            WHERE COALESCE("userId", properties->>'userId') = ANY($1)
-          ),
-          agg AS (
-            SELECT uid, COUNT(1)::bigint AS events, MAX("createdAt") AS last
-            FROM e GROUP BY uid
-          ),
-          last AS (
-            SELECT DISTINCT ON (uid) uid, device, browser, country, city
-            FROM e ORDER BY uid, "createdAt" DESC
-          )
-          SELECT agg.uid, agg.events, agg.last, last.device, last.browser, last.country, last.city
-          FROM agg LEFT JOIN last USING (uid)
-        `, uids);
-        const map = new Map<string, any>(rows.map((r:any)=> [String(r.uid), r]));
-        for (const c of userCarts as any[]){
-          const m = map.get(String(c.userId||''));
-          if (m) (c as any).analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
-        }
-      }
-    }catch{}
-    res.json({ ok:true, userCarts, guestCarts });
-  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_list_failed' }); }
-});
-
-adminRest.post('/carts/notify', async (req, res) => {
-  const schema = z.object({ targets: z.array(z.object({ userId: z.string().optional(), guestSessionId: z.string().optional() })), title: z.string().min(2), body: z.string().min(2) });
-  try{
-    const data = schema.parse(req.body||{});
-    // Emit internal notifications over Socket.IO to web/app
-    const io = getIo();
-    if (io) {
-      for (const t of data.targets) {
-        if (t.userId) io.to(`user:${t.userId}`).emit('notification', { title: data.title, body: data.body, scope: 'user' });
-        if (t.guestSessionId) io.to(`guest:${t.guestSessionId}`).emit('notification', { title: data.title, body: data.body, scope: 'guest' });
-      }
-    }
-    res.json({ ok:true, sent: data.targets.length, channel: 'socket' });
-  }catch(e:any){ res.status(400).json({ ok:false, error: e.message||'notify_failed' }); }
-});
+// NOTE: Cart endpoints have been moved to the System section (around line 9331) with proper RBAC checks
 
 adminRest.post('/notifications/send', async (req, res) => {
   const schema = z.object({
@@ -9330,7 +9247,9 @@ adminRest.get('/analytics/vendors/top', async (req, res) => {
 // ------------------------ System: Carts ------------------------
 adminRest.get('/carts', async (req, res) => {
   try{
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const u = (req as any).user; 
+    if (!u || !u.userId) return res.status(401).json({ error:'unauthorized' });
+    if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
     const since = req.query.since? new Date(String(req.query.since)) : undefined;
 
     const [userCarts, guestCarts] = await Promise.all([
@@ -9443,13 +9362,73 @@ adminRest.get('/analytics/user/:uid/cart', async (req, res) => {
 
 adminRest.post('/carts/notify', async (req, res) => {
   try{
-    const u = (req as any).user; if (!(await can(u.userId, 'notifications.write'))) return res.status(403).json({ error:'forbidden' });
-    const targets = Array.isArray(req.body?.targets)? req.body.targets : [];
-    const title = String(req.body?.title||'').trim(); const body = String(req.body?.body||'').trim();
-    // لاحقًا يمكن ربطه بخدمة الإشعارات الفعلية، نكتفي بتسجيل التدقيق
-    try{ await db.auditLog.create({ data: { userId: u.userId, module:'carts', action:'notify', details: { targetsCount: targets.length, titleLen: title.length, bodyLen: body.length } } }); }catch{}
-    return res.json({ ok:true, sent: targets.length });
-  }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_notify_failed' }); }
+    const u = (req as any).user; 
+    if (!u || !u.userId) return res.status(401).json({ error:'unauthorized' });
+    if (!(await can(u.userId, 'notifications.write'))) return res.status(403).json({ error:'forbidden' });
+    
+    // Validate input with zod
+    const schema = z.object({ 
+      targets: z.array(z.object({ 
+        userId: z.string().optional(), 
+        guestSessionId: z.string().optional() 
+      })).min(1), 
+      title: z.string().min(2), 
+      body: z.string().min(2) 
+    });
+    const data = schema.parse(req.body||{});
+    
+    // Filter valid targets (must have userId or guestSessionId)
+    const validTargets = data.targets.filter(t => t && (t.userId || t.guestSessionId));
+    const sent = validTargets.length;
+    
+    // Emit notifications over Socket.IO to web/app clients
+    const io = getIo();
+    if (io) {
+      for (const t of validTargets) {
+        if (t.userId) { 
+          io.to(`user:${t.userId}`).emit('notification', { 
+            title: data.title, 
+            body: data.body, 
+            scope: 'user',
+            timestamp: new Date().toISOString()
+          }); 
+        }
+        if (t.guestSessionId) { 
+          io.to(`guest:${t.guestSessionId}`).emit('notification', { 
+            title: data.title, 
+            body: data.body, 
+            scope: 'guest',
+            timestamp: new Date().toISOString()
+          }); 
+        }
+      }
+    }
+    
+    // Audit log
+    try{ 
+      await db.auditLog.create({ 
+        data: { 
+          userId: u.userId, 
+          module:'carts', 
+          action:'notify', 
+          details: { 
+            targetsCount: data.targets.length, 
+            titleLen: data.title.length, 
+            bodyLen: data.body.length,
+            sent,
+            channel: io ? 'socket' : 'none'
+          } 
+        } 
+      }); 
+    }catch{}
+    
+    return res.json({ ok:true, sent, channel: sent > 0 ? 'socket' : 'none' });
+  }catch(e:any){ 
+    if (e instanceof z.ZodError) {
+      return res.status(400).json({ ok:false, error: 'validation_failed', details: e.errors });
+    }
+    res.status(500).json({ ok:false, error: e.message||'carts_notify_failed' }); 
+  }
 });
 
 // Potential-to-buy recommendations (products)
