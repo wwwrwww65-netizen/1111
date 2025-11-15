@@ -2723,10 +2723,31 @@ shop.get('/catalog/:slug', async (req, res) => {
     const materials = parseCsv('materials');
     const styles = parseCsv('styles');
     const tagsAny = [...sizes, ...colors, ...materials, ...styles];
-    // Include products whose primary category OR additional link table contains this category
+    // Resolve descendant categories (include all children recursively) so parent category lists include products under subcategories
+    let catIds: string[] = [String(cat.id)];
+    try{
+      const rows:any[] = await db.$queryRawUnsafe(`
+        WITH RECURSIVE c AS (
+          SELECT id FROM "Category" WHERE id=$1
+          UNION ALL
+          SELECT ch.id FROM "Category" ch JOIN c ON ch."parentId" = c.id
+        )
+        SELECT id FROM c
+      `, String(cat.id));
+      const ids = Array.isArray(rows) ? rows.map((r:any)=> String(r.id)) : [];
+      if (ids.length) catIds = Array.from(new Set(ids));
+    }catch{
+      // Fallback: best-effort fetch of first-level children only
+      try{
+        const kids:any[] = await db.category.findMany({ where: { parentId: String(cat.id) }, select: { id:true } } as any);
+        const ids = kids.map(k=> String(k.id));
+        catIds = Array.from(new Set([String(cat.id), ...ids]));
+      }catch{}
+    }
+    // Include products whose primary category OR additional link table is within the set of category + descendants
     const andConds: any[] = [
       { isActive: true },
-      { OR: [ { categoryId: cat.id }, { categoryLinks: { some: { categoryId: cat.id } } } ] }
+      { OR: [ { categoryId: { in: catIds } }, { categoryLinks: { some: { categoryId: { in: catIds } } } } ] }
     ];
     if (q) andConds.push({ name: { contains: q, mode: 'insensitive' } });
     if (brand) andConds.push({ brand: { contains: brand, mode: 'insensitive' } as any });
@@ -2743,11 +2764,11 @@ shop.get('/catalog/:slug', async (req, res) => {
         JOIN "Product" p ON p.id=oi."productId"
         WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
           AND (
-            p."categoryId"=$1
-            OR EXISTS (SELECT 1 FROM "ProductCategory" pc WHERE pc."productId"=p.id AND pc."categoryId"=$1)
+            p."categoryId" = ANY($1::text[])
+            OR EXISTS (SELECT 1 FROM "ProductCategory" pc WHERE pc."productId"=p.id AND pc."categoryId" = ANY($1::text[]))
           )
         GROUP BY 1 ORDER BY qty DESC LIMIT 200
-      `, cat.id);
+      `, catIds);
       const rankMap = new Map<string, { rank:number; qty:number }>(); let r=1;
       for (const row of rows){ rankMap.set(String(row.pid), { rank:r, qty: Number(row.qty||0) }); r++; }
       for (const it of items){ const m = rankMap.get(String(it.id)); if (m){ (it as any).bestRank = m.rank; (it as any).bestRankCategory = 'الفئة'; (it as any).soldPlus = `${m.qty}`; } }
