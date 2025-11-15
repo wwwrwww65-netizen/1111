@@ -119,7 +119,7 @@ export const authRouter = router({
         }, {});
         const sid = (req.headers['x-session-id'] as string | undefined) || cookies['guest_session'] || cookies['guest_sid'];
         if (sid) {
-          const guest = await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: true } } as any);
+          const guest: any = await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: true } } as any);
           if (guest && Array.isArray(guest.items) && guest.items.length) {
             // Ensure user cart
             const cart = await db.cart.upsert({ where: { userId: user.id }, create: { userId: user.id }, update: {} } as any);
