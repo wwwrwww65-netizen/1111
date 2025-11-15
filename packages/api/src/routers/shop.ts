@@ -3695,20 +3695,30 @@ shop.post('/cart/update', async (req: any, res) => {
 shop.post('/cart/remove', async (req: any, res) => {
   try {
     const userId = (req as any)?.user?.userId;
-    const { productId } = req.body || {};
+    const { productId, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId_required' });
     if (userId) {
       const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
       if (!cart) return res.json({ ok: true });
-      const existing = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) }, select: { id: true } });
-      if (existing) await db.cartItem.delete({ where: { id: existing.id } });
+      if (attributes) {
+        await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId), attributes: { equals: attributes as any } } } as any);
+      } else {
+        await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+      }
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       // Do NOT create a new guest cart for remove; only operate on existing session cart
       const sid = getGuestSession(req, res);
       const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
       if (g){
-        await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+        if (attributes){
+          await db.$executeRawUnsafe(
+            'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, \'null\') = $3::jsonb',
+            g.id, String(productId), JSON.stringify(attributes)
+          );
+        } else {
+          await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+        }
         try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
       }
     }

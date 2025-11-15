@@ -92,7 +92,7 @@ export const useCart = defineStore('cart', {
       const it = this.items.find(i=> i.uid===uid)
       if (!it) return
       this.items = this.items.filter(i => i.uid !== uid)
-      apiPost('/api/cart/remove', { productId: it.id }).catch(()=>{})
+      apiPost('/api/cart/remove', { productId: it.id, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } }).catch(()=>{})
       try{
         const { trackEvent } = await import('@/lib/track')
         const priceNum = Number(it.price||0)
@@ -110,7 +110,7 @@ export const useCart = defineStore('cart', {
     async update(uid: string, qty: number){
       const it = this.items.find(i=>i.uid===uid); if(!it) return
       it.qty = qty
-      await apiPost('/api/cart/update', { productId: it.id, quantity: qty })
+      await apiPost('/api/cart/update', { productId: it.id, quantity: qty, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } })
       this.saveLocal()
     }
   }
