@@ -197,7 +197,7 @@
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct(p)" @keydown.enter="openProduct(p)" @keydown.space.prevent="openProduct(p)">
             <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
               <div class="flex">
-                <img v-for="(img,idx) in (p.images && p.images.length ? p.images : [p.image])" :key="'img-'+idx" :src="img" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
+                <img :src="thumb((p.images && p.images.length ? p.images[0] : p.image))" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
               </div>
               <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center">
                 <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
@@ -281,7 +281,7 @@ const cart = useCart();
 const { items } = storeToRefs(cart);
 
 import { useRoute } from 'vue-router'
-import { apiGet, API_BASE } from '../../lib/api'
+import { apiGet, API_BASE, isAuthenticated } from '../../lib/api'm '../../lib/api'm '../../lib/api'm '../../lib/api'
 const route = useRoute()
 const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
 const currentCategory = ref<{ id:string; slug?:string|null; name:string }|null>(null)
@@ -514,7 +514,8 @@ async function loadProducts(limit: number = 24){
     if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
     if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
     if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-    const data = await fetch(url.toString(), { headers:{ 'Accept':'application/json' } }).then(r=> r.json()).catch(()=> null)
+    const path = `/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`
+    const data = await apiGet<any>(path).catch(()=> null)
     const items = Array.isArray(data?.items)? data.items : []
     products.value = items.map((it:any)=> ({
       id: String(it.id),
@@ -545,14 +546,15 @@ const couponsCache = ref<SimpleCoupon[]>([])
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const base = (await import('../../lib/api')).API_BASE
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${base}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/me/coupons')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  data = await tryFetch('/api/coupons/public')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  // لا تستخدم مسارات المشرف من الواجهة العامة
-  return []
-}
-
+  if (isAuthenticated()){
+    const data1: any = await tryFetch('/api/me/coupons')
+    if (data1 && Array.isArray(data1.coupons)) return normalizeCoupons(data1.coupons)
+  }
+  const data2: any = await tryFetch('/api/coupons/public')
+  if (data2 && Array.isArray(data2.coupons)) return normalizeCoupons(data2.coupons)ons/public')
+  if (data2 && Array.isArray(data2.coupons)) return normalizeCoupons(data2.coupons)ons/public')
+  if (data2 && Array.isArray(data2.coupons)) return normalizeCoupons(data2.coupons)ons/public')
+  if (data2 && Array.isArray(data2.coupons)) return normalizeCoupons(data2.coupons)
 function normalizeCoupons(list:any[]): SimpleCoupon[] {
   return (list||[]).map((c:any)=> ({
     code: c.code,
@@ -636,18 +638,29 @@ async function fireListView(list:any[], page:number){
     })
   }catch{}
 }
+
+// ===== صور مصغرة مستجيبة =====
+function thumb(u: string): string {
+  try{
+    const s = String(u||'').trim()
+    if (!s) return s
+    if (/^https?:\/\//i.test(s)) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s)}&w=384&q=60`
+    if (s.startsWith('/uploads/') || s.startsWith('uploads/')) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s.startsWith('/')? s : '/'+s)}&w=384&q=60`
+    return s
+  }catch{ return u }
+}
 </script>
 
-<style>
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-.no-scrollbar::-webkit-scrollbar { display: none; }
-
-.category-title {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+// ===== صور مصغرة مستجيبة =====
+function thumb(u: string): string {
+  try{
+    const s = String(u||'').trim()
+    if (!s) return s
+    if (/^https?:\/\//i.test(s)) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s)}&w=384&q=60`
+    if (s.startsWith('/uploads/') || s.startsWith('uploads/')) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s.startsWith('/')? s : '/'+s)}&w=384&q=60`
+    return s
+  }catch{ return u }
+}
   text-overflow: ellipsis;
 }
 
