@@ -4,11 +4,49 @@ import { db } from '@repo/db';
 import type { Prisma } from '@prisma/client';
 import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express';
+import type { Response } from 'express';
 import { normalizeCategoriesPageConfig } from '../validators/categories-page';
 import path from 'path';
 import fs from 'fs';
 
 const shop = Router();
+
+// -------- Auth: logout (shop scope) --------
+// Provide REST logout for mweb to clear auth cookies reliably
+function clearShopCookies(res: Response): void {
+  const isProd = (process.env.NODE_ENV || 'production') === 'production';
+  const base: any = { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/' };
+  const names = ['shop_auth_token', 'auth_token'];
+  // Host-only clears
+  for (const name of names) {
+    try { res.clearCookie(name, base); } catch {}
+  }
+  // Domain clears for apex (e.g., .jeeey.com) when configured/known
+  let domain = process.env.COOKIE_DOMAIN as string | undefined;
+  if (!domain && process.env.NODE_ENV === 'production') {
+    domain = '.jeeey.com';
+  }
+  if (domain) {
+    for (const name of names) {
+      try { res.clearCookie(name, { ...base, domain }); } catch {}
+    }
+    // Also clear api subdomain variant for stricter browsers
+    try {
+      const root = domain.startsWith('.') ? domain.slice(1) : domain;
+      if (root) {
+        for (const name of names) {
+          try { res.clearCookie(name, { ...base, domain: `api.${root}` }); } catch {}
+        }
+      }
+    } catch {}
+  }
+}
+shop.post('/auth/logout', async (_req: any, res) => {
+  try {
+    clearShopCookies(res as unknown as Response);
+  } catch {}
+  return res.json({ success: true });
+});
 
 // -------------------- Public caching helpers (API output) --------------------
 const PUBLIC_SW_MAX_AGE = Number(process.env.PUBLIC_SW_MAX_AGE || 30);

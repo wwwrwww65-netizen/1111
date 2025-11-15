@@ -16,30 +16,33 @@ const CACHE_TTL_MS = 15000 // 15s for public resources
 
 function getAuthHeader(): Record<string,string> {
   try {
+    const out: Record<string,string> = {}
     // Prefer client-stored token to bypass 3P cookie blocking
     if (typeof window !== 'undefined') {
       try {
         const lt = window.localStorage?.getItem('shop_token')
-        if (lt && lt.trim()) return { Authorization: `Bearer ${lt}` }
+        if (lt && lt.trim()) out.Authorization = `Bearer ${lt}`
       } catch {}
       try {
         const st = window.sessionStorage?.getItem('shop_token')
-        if (st && st.trim()) return { Authorization: `Bearer ${st}` }
+        if (!out.Authorization && st && st.trim()) out.Authorization = `Bearer ${st}`
       } catch {}
     }
-    // include session id for guest cart/linking consistency
+    // Always include session id for guest cart/linking consistency (even when authenticated)
     try{
       const sid = typeof window!=='undefined' ? (window.localStorage?.getItem('sid_v1') || '') : ''
-      if (sid && sid.trim()) return { 'X-Session-Id': sid }
+      if (sid && sid.trim()) out['X-Session-Id'] = sid
     }catch{}
     // Fallback: try cookies (may fail if httpOnly or 3P cookies blocked)
-    const raw = typeof document !== 'undefined' ? document.cookie || '' : ''
-    const mShop = /(?:^|; )shop_auth_token=([^;]+)/.exec(raw)
-    const mAdmin = /(?:^|; )auth_token=([^;]+)/.exec(raw)
-    const tok = mShop?.[1] || mAdmin?.[1]
-    if (tok) return { Authorization: `Bearer ${decodeURIComponent(tok)}` }
-  } catch {}
-  return {}
+    if (!out.Authorization) {
+      const raw = typeof document !== 'undefined' ? document.cookie || '' : ''
+      const mShop = /(?:^|; )shop_auth_token=([^;]+)/.exec(raw)
+      const mAdmin = /(?:^|; )auth_token=([^;]+)/.exec(raw)
+      const tok = mShop?.[1] || mAdmin?.[1]
+      if (tok) out.Authorization = `Bearer ${decodeURIComponent(tok)}`
+    }
+    return out
+  } catch { return {} }
 }
 
 export function googleLoginUrl(next: string = '/account'): string {

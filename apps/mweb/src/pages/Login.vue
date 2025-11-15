@@ -170,7 +170,13 @@ async function verifyOtp(){
       }catch{}
       // Link current anonymous session to user for analytics
       try{
-        const sid = localStorage.getItem('sid_v1') || ''
+        let sid = localStorage.getItem('sid_v1') || ''
+        if (!sid){
+          try{
+            sid = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+            localStorage.setItem('sid_v1', sid)
+          }catch{}
+        }
         if (sid){ await apiPost('/api/analytics/link', { sessionId: sid }) }
       }catch{}
       ok.value = true; msg.value = 'تم تسجيل الدخول بنجاح'

@@ -247,7 +247,13 @@ onMounted(async ()=>{
       try{ localStorage.setItem('shop_token', t) }catch{}
       // Link analytics session to user immediately after setting token
       try{
-        const sid = localStorage.getItem('sid_v1') || ''
+        let sid = localStorage.getItem('sid_v1') || ''
+        if (!sid){
+          try{
+            sid = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+            localStorage.setItem('sid_v1', sid)
+          }catch{}
+        }
         if (sid){ await apiPost('/api/analytics/link', { sessionId: sid }) }
       }catch{}
       try{ const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null,'',u.toString()) }catch{}
