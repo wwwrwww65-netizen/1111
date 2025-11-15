@@ -650,29 +650,30 @@ function thumb(u: string): string {
   }catch{ return u }
 }
 </script>
-
-.truncate-2-lines {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* انتقال سلس للفئات */
-.category-switch-enter-active,
-.category-switch-leave-active {
-  transition: all 0.25s ease-in-out;
-}
-
-.category-switch-enter-from {
-  opacity: 0;
-  transform: translateY(-8px) scale(0.98);
-}
-
-.category-switch-leave-to {
-  opacity: 0;
-  transform: translateY(8px) scale(0.98);
-}
-</style>
+<style>
+ 
+ .truncate-2-lines {
+   display: -webkit-box;
+   -webkit-box-orient: vertical;
+   -webkit-line-clamp: 2;
+   line-clamp: 2;
+   overflow: hidden;
+   text-overflow: ellipsis;
+ }
+ 
+ /* انتقال سلس للفئات */
+ .category-switch-enter-active,
+ .category-switch-leave-active {
+   transition: all 0.25s ease-in-out;
+ }
+ 
+ .category-switch-enter-from {
+   opacity: 0;
+   transform: translateY(-8px) scale(0.98);
+ }
+ 
+ .category-switch-leave-to {
+   opacity: 0;
+   transform: translateY(8px) scale(0.98);
+ }
+ </style>
