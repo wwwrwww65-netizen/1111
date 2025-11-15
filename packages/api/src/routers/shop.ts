@@ -2494,14 +2494,15 @@ shop.post('/events', async (req: any, res) => {
 // Link current user to an anonymous/session id (shop scope)
 shop.post('/analytics/link', async (req: any, res) => {
   try{
-    // Identify logged-in shop user
-    const header = (req?.headers?.authorization as string|undefined)||'';
-    let tokenAuth = '';
-    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
-    const jwt = require('jsonwebtoken');
+    // Identify logged-in user from any accepted token (Authorization, shop cookie, or admin cookie)
     let userId: string|undefined;
-    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+    try{
+      const t = readTokenFromRequest(req);
+      if (t) {
+        const p = verifyJwt(String(t));
+        if (p && p.userId) userId = String(p.userId);
+      }
+    }catch{}
     if (!userId) return res.status(401).json({ ok:false, error:'unauthorized' });
 
     const { sessionId, anonymousId } = req.body||{};
@@ -3655,12 +3656,11 @@ shop.post('/cart/add', async (req: any, res) => {
     let userId: string | undefined = (req as any)?.user?.userId;
     if (!userId) {
       try {
-        const header = (req?.headers?.authorization as string|undefined)||'';
-        let tokenAuth = '';
-        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
-        const jwt = require('jsonwebtoken');
-        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+        const t = readTokenFromRequest(req);
+        if (t) {
+          const p = verifyJwt(String(t));
+          if (p && p.userId) userId = String(p.userId);
+        }
       } catch {}
     }
     if (userId) {
@@ -3711,12 +3711,11 @@ shop.post('/cart/update', async (req: any, res) => {
     let userId: string | undefined = (req as any)?.user?.userId;
     if (!userId) {
       try {
-        const header = (req?.headers?.authorization as string|undefined)||'';
-        let tokenAuth = '';
-        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
-        const jwt = require('jsonwebtoken');
-        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+        const t = readTokenFromRequest(req);
+        if (t) {
+          const p = verifyJwt(String(t));
+          if (p && p.userId) userId = String(p.userId);
+        }
       } catch {}
     }
     if (userId) {
@@ -3752,12 +3751,11 @@ shop.post('/cart/remove', async (req: any, res) => {
     let userId: string | undefined = (req as any)?.user?.userId;
     if (!userId) {
       try {
-        const header = (req?.headers?.authorization as string|undefined)||'';
-        let tokenAuth = '';
-        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
-        const jwt = require('jsonwebtoken');
-        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+        const t = readTokenFromRequest(req);
+        if (t) {
+          const p = verifyJwt(String(t));
+          if (p && p.userId) userId = String(p.userId);
+        }
       } catch {}
     }
     const { productId, attributes } = req.body || {};
@@ -4127,6 +4125,16 @@ function getGuestSession(req: any, res: any): string {
 shop.get('/cart', async (req: any, res) => {
   try {
     let userId = (req as any)?.user?.userId;
+    // Fallback: read token from Authorization or cookies (shop or admin) to determine user cart
+    if (!userId) {
+      try {
+        const t = readTokenFromRequest(req);
+        if (t) {
+          const p = verifyJwt(String(t));
+          if (p && p.userId) userId = String(p.userId);
+        }
+      } catch {}
+    }
     if (userId) {
       // Merge any existing guest cart (by header/cookie session) into user cart on first fetch after login
       try { await mergeGuestIntoUserIfPresent(req, res, String(userId)); } catch {}
