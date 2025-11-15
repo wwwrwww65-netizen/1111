@@ -128,7 +128,7 @@ export const authRouter = router({
               const pid = String(it.productId);
               const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
               if (existing) {
-                await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1) } });
+                await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
               } else {
                 await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
               }
@@ -139,6 +139,44 @@ export const authRouter = router({
             try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
           }
         }
+        // Cross-device auto-merge: merge recent guest carts linked to this user via analytics sessionIds
+        try {
+          // Fetch up to 20 recent distinct sessionIds for this user from Event
+          const rows: any[] = await db.$queryRawUnsafe(`
+            SELECT DISTINCT ON (sid) sid
+            FROM (
+              SELECT COALESCE("sessionId", properties->>'sessionId') AS sid, "createdAt"
+              FROM "Event"
+              WHERE "userId"=$1 AND COALESCE("sessionId", properties->>'sessionId') IS NOT NULL
+                AND "createdAt" >= NOW() - INTERVAL '30 days'
+            ) t
+            ORDER BY sid, "createdAt" DESC
+            LIMIT 20
+          `, user.id) as any[];
+          if (Array.isArray(rows) && rows.length) {
+            const cart = await db.cart.upsert({ where: { userId: user.id }, create: { userId: user.id }, update: {} } as any);
+            const cartId = cart.id;
+            for (const r of rows) {
+              const sid2 = String((r as any).sid || '');
+              if (!sid2) continue;
+              const g = await db.guestCart.findFirst({ where: { sessionId: sid2 }, include: { items: true } } as any);
+              if (!g || !Array.isArray(g.items) || g.items.length===0) continue;
+              for (const it of g.items) {
+                const pid = String(it.productId);
+                const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
+                if (existing) {
+                  await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
+                } else {
+                  await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
+                }
+              }
+              // cleanup merged guest cart
+              try { await db.guestCartItem.deleteMany({ where: { cartId: g.id } } as any); } catch {}
+              try { await db.guestCart.delete({ where: { id: g.id } } as any); } catch {}
+            }
+            try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
+          }
+        } catch {}
       } catch {}
 
       const { password: _, ...userWithoutPassword } = user;

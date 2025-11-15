@@ -73,6 +73,7 @@ export default function CartsPage(): JSX.Element {
                 <th>اسم الزائر</th>
                 <th>المعرف</th>
                 <th>المنتجات</th>
+                <th>المتغيرات</th>
                 <th>آخر تحديث</th>
               </tr></thead>
               <tbody>
@@ -95,6 +96,27 @@ export default function CartsPage(): JSX.Element {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                        {(c.items||[]).map((it:any, idx:number)=>{
+                          const v = it.variant || {}
+                          const color = v.color || ''
+                          const size = v.size || ''
+                          const sizeType = v.sizeType || ''
+                          const label = [color, size].filter(Boolean).join(' / ') || '-'
+                          const img = (v.colorImageUrl || it.product?.images?.[0] || '') as string
+                          return (
+                            <div key={String(it.id||idx)+'-v'} className="panel" style={{ padding:6, display:'flex', alignItems:'center', gap:8 }}>
+                              {img ? <img src={img} alt={label} style={{ width:24, height:24, objectFit:'cover', borderRadius:6 }} /> : <div style={{ width:24, height:24, borderRadius:6, background:'#eee' }} />}
+                              <div style={{ fontSize:11 }}>
+                                <div>{label}</div>
+                                {sizeType ? <div style={{ color:'var(--sub)' }}>{sizeType}</div> : null}
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </td>
                     <td>{new Date(c.updatedAt||c.createdAt).toLocaleString()}</td>

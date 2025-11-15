@@ -3604,7 +3604,16 @@ shop.post('/cart/merge', async (req: any, res) => {
 
 shop.post('/cart/add', async (req: any, res) => {
   try {
-    const userId = (req as any)?.user?.userId;
+    let userId = (req as any)?.user?.userId;
+    if (!userId) {
+      try {
+        const t = readTokenFromRequest(req);
+        if (t) {
+          const p = verifyJwt(String(t));
+          if (p && p.userId) userId = String(p.userId);
+        }
+      } catch {}
+    }
     const { productId, quantity, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId_required' });
     // Validate product exists and is active to avoid FK/hidden items
@@ -3616,11 +3625,12 @@ shop.post('/cart/add', async (req: any, res) => {
     }
     const q = Math.max(1, Number(quantity||1));
     if (userId) {
+      await mergeGuestIntoUserIfPresent(req, res, userId);
       // Upsert cart by userId to handle rare duplicates safely
       let cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
       const cartId = cart.id;
       const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } });
-      if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } });
+      if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q, ...(attributes ? { attributes: attributes as any } : {}) } });
       else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } });
       try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
@@ -3628,7 +3638,7 @@ shop.post('/cart/add', async (req: any, res) => {
       // Use Prisma instead of raw SQL to avoid schema drift issues
       const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
       if (existing) {
-        await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } } as any);
+        await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
       } else {
         await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } } as any);
       }
@@ -3652,7 +3662,7 @@ shop.post('/cart/add', async (req: any, res) => {
 shop.post('/cart/update', async (req: any, res) => {
   try {
     const userId = (req as any)?.user?.userId;
-    const { productId, quantity } = req.body || {};
+    const { productId, quantity, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId_required' });
     const q = Math.max(0, Number(quantity||0));
     if (userId) {
@@ -3662,16 +3672,15 @@ shop.post('/cart/update', async (req: any, res) => {
       const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } });
       if (!existing) return res.json({ ok: true });
       if (q === 0) await db.cartItem.delete({ where: { id: existing.id } });
-      else await db.cartItem.update({ where: { id: existing.id }, data: { quantity: q } });
+      else await db.cartItem.update({ where: { id: existing.id }, data: { quantity: q, ...(attributes ? { attributes: attributes as any } : {}) } });
       try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
-      if (q === 0) {
-        await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', cartId, String(productId));
-      } else {
-        // Ensure row exists or update
-        const id = (require('crypto').randomUUID as ()=>string)();
-        await db.$executeRawUnsafe('INSERT INTO "GuestCartItem" (id, "cartId", "productId", "quantity") VALUES ($1,$2,$3,$4) ON CONFLICT ("cartId","productId") DO UPDATE SET "quantity"=$4', id, cartId, String(productId), q);
+      const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } } as any);
+      if (q === 0) { if (existing) await db.guestCartItem.delete({ where: { id: existing.id } } as any); }
+      else {
+        if (existing) await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: q, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
+        else await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } } as any);
       }
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }

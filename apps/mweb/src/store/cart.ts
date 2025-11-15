@@ -39,8 +39,12 @@ export const useCart = defineStore('cart', {
       if (data && data.cart){
         this.items = (data.cart.items||[]).map((ci:any)=>{
           const id = String(ci.productId)
-          const uid = this.computeUid(id)
-          return { uid, id, title: ci.product?.name||ci.productId, price: Number(ci.product?.price||0), img: (ci.product?.images?.[0]||undefined), qty: ci.quantity }
+          const attr = (ci as any).attributes || {}
+          const color = attr.color || undefined
+          const size = attr.size || undefined
+          const img = attr.colorImageUrl || (ci.product?.images?.[0]||undefined)
+          const uid = this.computeUid(id, color, size)
+          return { uid, id, title: ci.product?.name||ci.productId, price: Number(ci.product?.price||0), img, qty: ci.quantity, variantColor: color, variantSize: size }
         })
       }
       this.loaded = true
@@ -51,7 +55,7 @@ export const useCart = defineStore('cart', {
       if (ex) ex.qty += qty
       else this.items.push({ ...item, uid, qty })
       // fire and forget server sync
-      apiPost('/api/cart/add', { productId: item.id, quantity: qty }).catch(()=>{})
+      apiPost('/api/cart/add', { productId: item.id, quantity: qty, attributes: { color: item.variantColor, size: item.variantSize, colorImageUrl: item.img } }).catch(()=>{})
       // Track AddToCart via Pixel + CAPI with dedupe-ready event_id
       try{
         const { trackEvent } = await import('@/lib/track')
@@ -80,6 +84,8 @@ export const useCart = defineStore('cart', {
         if (other){ other.qty += it.qty; this.items = this.items.filter(x=> x!==it) }
         else { it.uid = newUid }
       }
+      // sync attributes to server (best-effort)
+      apiPost('/api/cart/update', { productId: it.id, quantity: it.qty, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } }).catch(()=>{})
       this.saveLocal()
     },
     async remove(uid: string) {
