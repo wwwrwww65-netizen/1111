@@ -3497,7 +3497,7 @@ async function mergeGuestIntoUserIfPresent(req: any, res: any, userId: string): 
     const cookies = parseCookies(req);
     const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
     if (!sid) return;
-    const guest = await db.guestCart.findUnique({
+  const guest: any = await db.guestCart.findUnique({
       where: { sessionId: sid },
       include: { items: true }
     } as any);
