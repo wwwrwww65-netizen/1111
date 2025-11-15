@@ -4099,7 +4099,7 @@ shop.get('/cart', async (req: any, res) => {
     // Guest cart
     const cookies = parseCookies(req);
     const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
-    const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } } : null;
+    const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } }) : null;
     if (!g) return res.json({ cart: { items: [] } });
     return res.json({ cart: { id: g.id, items: g.items } });
   } catch { return res.status(500).json({ error: 'failed' }); }
@@ -4259,13 +4259,12 @@ shop.post('/cart/clear', async (req: any, res) => {
       await db.cartItem.deleteMany({ where: { cartId: cart.id } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
-      const cookies = parseCookies(req);
-      const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
-      const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any) : null;
-      if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
+      const { cartId } = await getOrCreateGuestCartId(req, res);
+      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1', cartId);
+      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     }
     return res.json({ ok: true });
-  } catch { return res.status(500).json({ error: 'failed' }); }
+  } catch { return res.status(500).json({ error: 'clear_failed' }); }
 });
 
 // Wishlist
@@ -4394,7 +4393,6 @@ shop.get('/geo/areas', async (req: any, res) => {
     return res.status(500).json({ error: e?.message || 'geo_areas_failed' });
   }
 });
-
 export default shop;
 
 // Payments session (Stripe/HyperPay via integrations)
@@ -5043,7 +5041,6 @@ shop.post('/referral/click', async (req: any, res) => {
     res.json({ success:true })
   }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
 })
-
 // Redeem points to a single-use coupon (self)
 shop.post('/points/redeem', requireAuth, async (req: any, res) => {
   try{
