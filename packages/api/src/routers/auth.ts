@@ -159,9 +159,10 @@ export const authRouter = router({
             for (const r of rows) {
               const sid2 = String((r as any).sid || '');
               if (!sid2) continue;
-              const g = await db.guestCart.findFirst({ where: { sessionId: sid2 }, include: { items: true } } as any);
-              if (!g || !Array.isArray(g.items) || g.items.length===0) continue;
-              for (const it of g.items) {
+              const g: any = await db.guestCart.findFirst({ where: { sessionId: sid2 }, include: { items: true } } as any) as any;
+              const gItems: any[] = Array.isArray((g as any)?.items) ? (g as any).items : [];
+              if (!g || gItems.length === 0) continue;
+              for (const it of gItems) {
                 const pid = String(it.productId);
                 const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
                 if (existing) {
