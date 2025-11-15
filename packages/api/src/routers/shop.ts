@@ -644,7 +644,6 @@ shop.get('/geo/areas', async (req: any, res) => {
     return res.status(500).json({ items: [], error: e?.message || 'failed' });
   }
 });
-
 // Ensure (upsert) geo entries from reverse geocoding or user input
 shop.post('/geo/ensure', async (req: any, res) => {
   try {
@@ -1293,7 +1292,6 @@ shop.get('/auth/otp/send-log', async (req: any, res) => {
     return res.status(500).json({ error: e.message||'failed' })
   }
 })
-
 // Session info (optional auth)
 // Notification preferences
 shop.get('/me/preferences', requireAuth, async (req: any, res) => {
@@ -1927,7 +1925,6 @@ shop.get('/reviews', async (req, res) => {
     return res.status(500).json({ error: 'reviews_failed' });
   }
 });
-
 // Public: recommendations (recent)
 shop.get('/recommendations/recent', async (_req, res) => {
   try {
@@ -3729,7 +3726,7 @@ shop.post('/cart/remove', async (req: any, res) => {
         try {
           if (attributes){
             const affected: any = await db.$executeRawUnsafe(
-              'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, ''null'') = $3::jsonb',
+              'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, \'null\') = $3::jsonb',
               g.id, String(productId), JSON.stringify(attributes)
             );
             if (!affected || Number(affected) === 0) {
@@ -3765,7 +3762,6 @@ shop.post('/cart/clear', async (req: any, res) => {
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'clear_failed' }); }
 });
-
 // Order detail
 shop.get('/orders/:id', requireAuth, async (req: any, res) => {
   try {
@@ -4173,7 +4169,7 @@ shop.post('/cart/remove', async (req: any, res) => {
         try {
           if (attributes){
             const affected: any = await db.$executeRawUnsafe(
-              'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, ''null'') = $3::jsonb',
+              'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, \'null\') = $3::jsonb',
               g.id, String(productId), JSON.stringify(attributes)
             );
             if (!affected || Number(affected) === 0) {
@@ -4405,7 +4401,6 @@ shop.post('/coupons/apply', requireAuth, async (req:any, res) => {
     res.json({ ok: true, coupon: { code: c.code, type: c.discountType, value: c.discountValue } })
   }catch(e:any){ res.status(500).json({ error:e.message||'failed' }) }
 })
-
 // Gift cards apply (reuse coupon rules under a different namespace if present)
 shop.post('/giftcards/apply', requireAuth, async (req:any, res) => {
   try{
