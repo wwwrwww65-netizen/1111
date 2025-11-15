@@ -651,19 +651,6 @@ function thumb(u: string): string {
 }
 </script>
 
-// ===== صور مصغرة مستجيبة =====
-function thumb(u: string): string {
-  try{
-    const s = String(u||'').trim()
-    if (!s) return s
-    if (/^https?:\/\//i.test(s)) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s)}&w=384&q=60`
-    if (s.startsWith('/uploads/') || s.startsWith('uploads/')) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s.startsWith('/')? s : '/'+s)}&w=384&q=60`
-    return s
-  }catch{ return u }
-}
-  text-overflow: ellipsis;
-}
-
 .truncate-2-lines {
   display: -webkit-box;
   -webkit-box-orient: vertical;
