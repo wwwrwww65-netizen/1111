@@ -92,7 +92,9 @@ export const useCart = defineStore('cart', {
       const it = this.items.find(i=> i.uid===uid)
       if (!it) return
       this.items = this.items.filter(i => i.uid !== uid)
-      apiPost('/api/cart/remove', { productId: it.id, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } }).catch(()=>{})
+      try { await apiPost('/api/cart/remove', { productId: it.id, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } }) } catch {}
+      // Ensure local state matches DB after removal
+      try { await this.syncFromServer(true) } catch {}
       try{
         const { trackEvent } = await import('@/lib/track')
         const priceNum = Number(it.price||0)
@@ -111,6 +113,8 @@ export const useCart = defineStore('cart', {
       const it = this.items.find(i=>i.uid===uid); if(!it) return
       it.qty = qty
       await apiPost('/api/cart/update', { productId: it.id, quantity: qty, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } })
+      // Pull authoritative quantities from server on cart page
+      try { await this.syncFromServer(true) } catch {}
       this.saveLocal()
     }
   }

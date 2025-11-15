@@ -44,7 +44,7 @@ function isColorWord(s: string): boolean {
 function looksSizeToken(s: string): boolean {
   const t = normToken(normalizeDigits(s));
   if (!t) return false;
-  if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|xxxxxxl)$/i.test(t)) return true;
+  if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxxl)$/i.test(t)) return true;
   // Numeric multiplier sizes like 2XL, 3XL, 4XL ...
   if (/^\d{1,2}xl$/i.test(t)) return true;
   if (/^(\d{2}|\d{1,3})$/.test(t)) return true;
@@ -389,7 +389,6 @@ shop.get('/geo/governorates', async (req: any, res) => {
     return res.status(500).json({ items: [], error: e?.message || 'geo_governorates_failed' });
   }
 });
-
 // Public: PDP Meta by product (badges, fit score/text, best-seller rank, model, shipping destination override)
 shop.get('/product/:id/meta', async (req: any, res) => {
   try {
@@ -852,7 +851,6 @@ async function getFacebookOAuthConfig(): Promise<{ appId: string; appSecret?: st
     return { appId, appSecret, redirectUri };
   }catch{ return null }
 }
-
 async function sendWhatsappOtp(phone: string, text: string): Promise<boolean> {
   const cfg = await getLatestIntegration('whatsapp');
   if (!cfg || cfg.enabled === false) return false; // treat missing enabled as true
@@ -1815,7 +1813,6 @@ async function computeCartPoints(userId: string, cartItems: any[], subtotal: num
   totalPts = await applyCaps(userId, totalPts, triggers);
   return { points: Math.max(0, Math.trunc(totalPts)), confirmOn };
 }
-
 // Public: product variants (normalized)
 shop.get('/product/:id/variants', async (req, res) => {
   try {
@@ -2257,7 +2254,6 @@ shop.post('/promotions/events', async (req: any, res) => {
     res.json({ ok:true });
   }catch(e:any){ return res.status(500).json({ error: e?.message||'promo_event_failed' }); }
 });
-
 // General analytics events ingestion (public)
 shop.post('/events', async (req: any, res) => {
   try{
@@ -2724,7 +2720,6 @@ shop.get('/catalog/:slug', async (req, res) => {
     res.status(500).json({ error: e?.message||'failed' });
   }
 });
-
 // Public: tracking keys for client injection (merged from latest integrations)
 shop.get('/tracking/keys', async (_req, res) => {
   try {
@@ -2978,7 +2973,7 @@ shop.get('/cart/auth', requireAuth, async (req: any, res) => {
   const userId = req.user.userId;
   const cart = await db.cart.findUnique({
     where: { userId },
-    include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true } } } } },
+    include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true } } } },
   });
   const subtotal = (cart?.items ?? []).reduce((s, it) => s + it.quantity * (it.product?.price || 0), 0);
   res.json({ cart, subtotal });
@@ -3048,12 +3043,25 @@ shop.post('/cart/auth/update', requireAuth, async (req: any, res) => {
 shop.post('/cart/auth/remove', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { productId } = req.body || {};
+    const { productId, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId required' });
     const cart = await db.cart.findUnique({ where: { userId } });
     if (!cart) return res.json({ success: true });
-    const existing = await db.cartItem.findUnique({ where: { cartId_productId: { cartId: cart.id, productId } } });
-    if (existing) await db.cartItem.delete({ where: { id: existing.id } });
+    // Prefer attribute-exact delete; fallback to delete all rows for productId if nothing matched
+    try {
+      if (attributes) {
+        const r: any = await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId), attributes: { equals: attributes as any } } } as any);
+        if (!r || Number(r.count||0) === 0) {
+          await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+        }
+      } else {
+        await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+      }
+    } catch {
+      // Fallback hard delete by productId
+      try { await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } }); } catch {}
+    }
+    try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
@@ -3121,7 +3129,6 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
     res.status(500).json({ error: 'failed' });
   }
 });
-
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
@@ -3601,7 +3608,6 @@ shop.post('/cart/merge', async (req: any, res) => {
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'merge_failed' }); }
 });
-
 shop.post('/cart/add', async (req: any, res) => {
   try {
     let userId = (req as any)?.user?.userId;
@@ -3700,10 +3706,19 @@ shop.post('/cart/remove', async (req: any, res) => {
     if (userId) {
       const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
       if (!cart) return res.json({ ok: true });
-      if (attributes) {
-        await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId), attributes: { equals: attributes as any } } } as any);
-      } else {
-        await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+      // Prefer attribute-exact delete; fallback to delete all rows for productId if nothing matched
+      try {
+        if (attributes) {
+          const r: any = await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId), attributes: { equals: attributes as any } } } as any);
+          if (!r || Number(r.count||0) === 0) {
+            await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+          }
+        } else {
+          await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+        }
+      } catch {
+        // Fallback hard delete by productId
+        try { await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } }); } catch {}
       }
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
@@ -3711,13 +3726,21 @@ shop.post('/cart/remove', async (req: any, res) => {
       const sid = getGuestSession(req, res);
       const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
       if (g){
-        if (attributes){
-          await db.$executeRawUnsafe(
-            'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, \'null\') = $3::jsonb',
-            g.id, String(productId), JSON.stringify(attributes)
-          );
-        } else {
-          await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+        try {
+          if (attributes){
+            const affected: any = await db.$executeRawUnsafe(
+              'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, ''null'') = $3::jsonb',
+              g.id, String(productId), JSON.stringify(attributes)
+            );
+            if (!affected || Number(affected) === 0) {
+              await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+            }
+          } else {
+            await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+          }
+        } catch {
+          // Last resort: delete by productId
+          try { await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId)); } catch {}
         }
         try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
       }
@@ -4091,7 +4114,6 @@ shop.post('/cart/add', async (req: any, res) => {
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
-
 shop.post('/cart/update', async (req: any, res) => {
   try {
     const { productId, quantity } = req.body || {};
@@ -4122,18 +4144,53 @@ shop.post('/cart/update', async (req: any, res) => {
 
 shop.post('/cart/remove', async (req: any, res) => {
   try {
-    const { productId } = req.body || {};
-    if (!productId) return res.status(400).json({ error: 'productId required' });
-    if (req.user && req.user.userId) {
-      const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
-      if (cart) { await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } }); try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} }
-      return res.json({ ok: true });
+    const userId = (req as any)?.user?.userId;
+    const { productId, attributes } = req.body || {};
+    if (!productId) return res.status(400).json({ error: 'productId_required' });
+    if (userId) {
+      const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
+      if (!cart) return res.json({ ok: true });
+      // Prefer attribute-exact delete; fallback to delete all rows for productId if nothing matched
+      try {
+        if (attributes) {
+          const r: any = await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId), attributes: { equals: attributes as any } } } as any);
+          if (!r || Number(r.count||0) === 0) {
+            await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+          }
+        } else {
+          await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } });
+        }
+      } catch {
+        // Fallback hard delete by productId
+        try { await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: String(productId) } }); } catch {}
+      }
+      try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+    } else {
+      // Do NOT create a new guest cart for remove; only operate on existing session cart
+      const sid = getGuestSession(req, res);
+      const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
+      if (g){
+        try {
+          if (attributes){
+            const affected: any = await db.$executeRawUnsafe(
+              'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, ''null'') = $3::jsonb',
+              g.id, String(productId), JSON.stringify(attributes)
+            );
+            if (!affected || Number(affected) === 0) {
+              await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+            }
+          } else {
+            await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+          }
+        } catch {
+          // Last resort: delete by productId
+          try { await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId)); } catch {}
+        }
+        try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      }
     }
-    const sessionId = getGuestSession(req, res);
-    const g = await db.guestCart.findUnique({ where: { sessionId } });
-    if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id, productId: String(productId) } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
     return res.json({ ok: true });
-  } catch { return res.status(500).json({ error: 'failed' }); }
+  } catch { return res.status(500).json({ error: 'remove_failed' }); }
 });
 
 shop.post('/cart/clear', async (req: any, res) => {
@@ -4591,19 +4648,6 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
     }
     xml.push('</channel></rss>');
     res.send(xml.join(''));
-  }catch(e:any){ res.status(500).send('feed_failed') }
-})
-
-// Public: active coupons list (minimal fields) for mweb
-shop.get('/coupons/public', async (_req: any, res) => {
-  try{
-    const now = new Date();
-    const coupons = await db.coupon.findMany({
-      where: { isActive: true, validFrom: { lte: now }, validUntil: { gte: now } },
-      orderBy: { discountValue: 'desc' },
-      select: { code: true, discountType: true, discountValue: true, minOrderAmount: true }
-    });
-    res.json({ coupons });
   }catch(e:any){ res.status(500).json({ error: e?.message || 'coupons_public_failed' }) }
 });
 
@@ -4979,4 +5023,3 @@ shop.get('/search/suggest', async (req, res)=>{
     res.json({ items: rows.map(r=>r.name) })
   }catch{ res.status(500).json({ items: [] }) }
 })
-
