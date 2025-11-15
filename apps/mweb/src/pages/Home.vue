@@ -698,4 +698,45 @@ async function fetchProductDetails(id: string){
   try{
     if (optionsCache[id]) return optionsCache[id]
     const base = API_BASE
-    const res = await fetch(`
+    const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { credentials:'omit' })
+    if (!res.ok) throw new Error('failed')
+    const j = await res.json()
+    optionsCache[id] = j?.product || j || null
+    return optionsCache[id]
+  }catch{
+    return null
+  }
+}
+
+const Unknown = {}
+
+function openOptions(p: any){
+  try{
+    const id = String(p?.id || '')
+    if (!id) return
+    optionsModal.productId = id
+    optionsModal.color = ''
+    optionsModal.size = ''
+    optionsModal.groupValues = {}
+    optionsModal.open = true
+    void fetchProductDetails(id)
+  }catch{}
+}
+
+function closeOptions(){ optionsModal.open = false }
+
+async function onOptionsSave(payload: { color?: string; size?: string; groupValues?: Record<string,string> }){
+  try{
+    const id = optionsModal.productId || ''
+    if (!id) return closeOptions()
+    const prod = optionsCache[id] || {}
+    const price = parsePrice(String(prod?.price ?? 0))
+    const title = String(prod?.name || prod?.title || ' ')
+    const img = String((Array.isArray(prod?.images) ? prod.images[0] : prod?.image) || '')
+    cart.add({ id, title, price, img }, 1)
+  }catch{} finally{
+    closeOptions()
+  }
+}
+
+</script>
