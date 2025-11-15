@@ -1242,6 +1242,7 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
         }
       }
     }catch{}
+    try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch {}
     return res.json({ ok:true, token, newUser: !existing });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_verify_failed' }); }
 });
@@ -3537,6 +3538,8 @@ shop.get('/cart', async (req: any, res) => {
       } catch {}
     }
     if (userId) {
+      // Merge any existing guest cart (by header/cookie session) into user cart on first fetch after login
+      try { await mergeGuestIntoUserIfPresent(req, res, String(userId)); } catch {}
       const cart = await db.cart.findUnique({ where: { userId }, include: { items: true } });
       if (!cart) return res.json({ cart: { items: [] } });
       const productIds = Array.from(new Set(cart.items.map((it: any) => it.productId)));
@@ -3689,11 +3692,12 @@ shop.post('/cart/update', async (req: any, res) => {
       return res.json({ ok: true });
     }
     // Do NOT create a new guest cart for update; only operate on existing session cart
-    const sid = getGuestSession(req, res);
-    const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
+    const cookies = parseCookies(req);
+    const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+    const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any) : null;
     if (!g) return res.json({ ok: true });
     const cartId = g.id;
-    const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } } as any);
+    const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
     if (qty === 0) { if (existing) await db.guestCartItem.delete({ where: { id: existing.id } } as any); }
     else {
       if (existing) await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: qty, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
@@ -3740,8 +3744,9 @@ shop.post('/cart/remove', async (req: any, res) => {
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       // Do NOT create a new guest cart for remove; only operate on existing session cart
-      const sid = getGuestSession(req, res);
-      const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
+      const cookies = parseCookies(req);
+      const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+      const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any) : null;
       if (g){
         try {
           if (attributes){
@@ -3765,7 +3770,6 @@ shop.post('/cart/remove', async (req: any, res) => {
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'remove_failed' }); }
 });
-
 shop.post('/cart/clear', async (req: any, res) => {
   try {
     const userId = (req as any)?.user?.userId;
@@ -4084,17 +4088,19 @@ function getGuestSession(req: any, res: any): string {
 
 shop.get('/cart', async (req: any, res) => {
   try {
-    if (req.user && req.user.userId) {
-      // User cart
-      const userId = req.user.userId;
-      let cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
-      if (!cart) cart = await db.cart.create({ data: { userId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
+    let userId = (req as any)?.user?.userId;
+    if (userId) {
+      // Merge any existing guest cart (by header/cookie session) into user cart on first fetch after login
+      try { await mergeGuestIntoUserIfPresent(req, res, String(userId)); } catch {}
+      const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
+      if (!cart) return res.json({ cart: { items: [] } });
       return res.json({ cart });
     }
     // Guest cart
-    const sessionId = getGuestSession(req, res);
-    let g = await db.guestCart.findUnique({ where: { sessionId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
-    if (!g) g = await db.guestCart.create({ data: { sessionId }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } });
+    const cookies = parseCookies(req);
+    const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+    const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true } } } } } } : null;
+    if (!g) return res.json({ cart: { items: [] } });
     return res.json({ cart: { id: g.id, items: g.items } });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4130,9 +4136,10 @@ shop.post('/cart/add', async (req: any, res) => {
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
       return res.json({ ok: true });
     }
-    const sessionId = getGuestSession(req, res);
-    let g = await db.guestCart.findUnique({ where: { sessionId } });
-    if (!g) g = await db.guestCart.create({ data: { sessionId } });
+    const cookies = parseCookies(req);
+    const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+    let g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid } }) : null;
+    if (!g) g = await db.guestCart.create({ data: { sessionId: sid } });
     const ex = await db.guestCartItem.findFirst({ where: { cartId: g.id, productId: String(productId) } });
     if (ex) await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
     else await db.guestCartItem.create({ data: { cartId: g.id, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } });
@@ -4167,8 +4174,9 @@ shop.post('/cart/update', async (req: any, res) => {
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
       return res.json({ ok: true });
     }
-    const sessionId = getGuestSession(req, res);
-    const g = await db.guestCart.findUnique({ where: { sessionId } });
+    const cookies = parseCookies(req);
+    const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+    const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid } }) : null;
     if (!g) return res.json({ ok: true });
     const ex = await db.guestCartItem.findFirst({ where: { cartId: g.id, productId: String(productId) } });
     if (!ex) return res.json({ ok: true });
@@ -4215,8 +4223,9 @@ shop.post('/cart/remove', async (req: any, res) => {
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       // Do NOT create a new guest cart for remove; only operate on existing session cart
-      const sid = getGuestSession(req, res);
-      const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
+      const cookies = parseCookies(req);
+      const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+      const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any) : null;
       if (g){
         try {
           if (attributes){
@@ -4243,14 +4252,18 @@ shop.post('/cart/remove', async (req: any, res) => {
 
 shop.post('/cart/clear', async (req: any, res) => {
   try {
-    if (req.user && req.user.userId) {
-      const cart = await db.cart.findUnique({ where: { userId: req.user.userId } });
-      if (cart) { await db.cartItem.deleteMany({ where: { cartId: cart.id } }); try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{} }
-      return res.json({ ok: true });
+    const userId = (req as any)?.user?.userId;
+    if (userId) {
+      const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
+      if (!cart) return res.json({ ok: true });
+      await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+      try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+    } else {
+      const cookies = parseCookies(req);
+      const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+      const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any) : null;
+      if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
     }
-    const sessionId = getGuestSession(req, res);
-    const g = await db.guestCart.findUnique({ where: { sessionId } });
-    if (g) { await db.guestCartItem.deleteMany({ where: { cartId: g.id } }); try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{} }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
@@ -4415,7 +4428,6 @@ shop.post('/payments/session', requireAuth, async (req: any, res) => {
     return res.status(400).json({ error:'no_provider' })
   }catch(e:any){ res.status(500).json({ error: e.message||'failed' }) }
 })
-
 // Stripe webhook (signature validation omitted for brevity)
 shop.post('/webhooks/stripe', async (req: Request, res) => {
   try{
@@ -5058,7 +5070,6 @@ shop.post('/points/redeem', requireAuth, async (req: any, res) => {
     return res.json({ ok:true, coupon: { code, type:'FIXED', value: amount } })
   }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
 })
-
 // Search suggestions
 shop.get('/search/suggest', async (req, res)=>{
   try{
