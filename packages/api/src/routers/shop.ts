@@ -2987,6 +2987,8 @@ shop.get('/cart/auth', requireAuth, async (req: any, res) => {
 shop.post('/cart/auth/add', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
+    // Merge any existing guest cart into the authenticated user's cart
+    await mergeGuestIntoUserIfPresent(req, res, userId);
     const { productId, quantity = 1 } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId required' });
     let cart = await db.cart.findUnique({ where: { userId } });
@@ -3489,9 +3491,47 @@ async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: 
   return { sessionId: sid, cartId };
 }
 
+// Merge guest cart into the authenticated user's cart if a guest session exists
+async function mergeGuestIntoUserIfPresent(req: any, res: any, userId: string): Promise<void> {
+  try {
+    const cookies = parseCookies(req);
+    const sid = (req.headers['x-session-id'] as string|undefined) || cookies['guest_session'] || cookies['guest_sid'];
+    if (!sid) return;
+    const guest = await db.guestCart.findUnique({
+      where: { sessionId: sid },
+      include: { items: true }
+    } as any);
+    if (!guest || !guest.items || guest.items.length === 0) return;
+    const ucart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
+    const cartId = ucart.id;
+    for (const it of guest.items) {
+      const pid = String(it.productId);
+      const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
+      if (existing) {
+        await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1) } });
+      } else {
+        await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1) } });
+      }
+    }
+    await db.guestCartItem.deleteMany({ where: { cartId: guest.id } } as any);
+    try { await db.guestCart.delete({ where: { id: guest.id } } as any); } catch {}
+    try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
+  } catch {}
+}
+
 shop.get('/cart', async (req: any, res) => {
   try {
-    const userId = (req as any)?.user?.userId;
+    let userId = (req as any)?.user?.userId;
+    // Favor authenticated user's cart if token exists (cookie or Authorization)
+    if (!userId) {
+      try {
+        const t = readTokenFromRequest(req);
+        if (t) {
+          const p = verifyJwt(String(t));
+          if (p && p.userId) userId = String(p.userId);
+        }
+      } catch {}
+    }
     if (userId) {
       const cart = await db.cart.findUnique({ where: { userId }, include: { items: true } });
       if (!cart) return res.json({ cart: { items: [] } });
