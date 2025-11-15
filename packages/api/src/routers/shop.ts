@@ -3675,7 +3675,11 @@ shop.post('/cart/update', async (req: any, res) => {
       else await db.cartItem.update({ where: { id: existing.id }, data: { quantity: q, ...(attributes ? { attributes: attributes as any } : {}) } });
       try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
-      const { cartId } = await getOrCreateGuestCartId(req, res);
+      // Do NOT create a new guest cart for update; only operate on existing session cart
+      const sid = getGuestSession(req, res);
+      const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
+      if (!g) return res.json({ ok: true });
+      const cartId = g.id;
       const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } } as any);
       if (q === 0) { if (existing) await db.guestCartItem.delete({ where: { id: existing.id } } as any); }
       else {
@@ -3700,9 +3704,13 @@ shop.post('/cart/remove', async (req: any, res) => {
       if (existing) await db.cartItem.delete({ where: { id: existing.id } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
-      const { cartId } = await getOrCreateGuestCartId(req, res);
-      await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', cartId, String(productId));
-      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
+      // Do NOT create a new guest cart for remove; only operate on existing session cart
+      const sid = getGuestSession(req, res);
+      const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
+      if (g){
+        await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+        try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      }
     }
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'remove_failed' }); }

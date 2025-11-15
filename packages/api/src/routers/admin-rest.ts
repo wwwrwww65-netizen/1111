@@ -7705,6 +7705,8 @@ adminRest.post('/events', async (req, res) => {
 // Carts overview (users + guests)
 adminRest.get('/carts', async (req, res) => {
   try{
+    // Always serve fresh data for carts overview
+    try{ res.set('Cache-Control','no-store'); }catch{}
     const since = req.query.since ? new Date(String(req.query.since)) : undefined;
   const whereUser:any = since? { updatedAt: { gte: since }, items: { some: {} } } : { items: { some: {} } };
   const whereGuest:any = since? { updatedAt: { gte: since }, items: { some: {} } } : { items: { some: {} } };
@@ -9407,6 +9409,8 @@ adminRest.get('/analytics/vendors/top', async (req, res) => {
 // ------------------------ System: Carts ------------------------
 adminRest.get('/carts', async (req, res) => {
   try{
+    // Always serve fresh data for carts overview
+    try{ res.set('Cache-Control','no-store'); }catch{}
     const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
     const since = req.query.since? new Date(String(req.query.since)) : undefined;
 

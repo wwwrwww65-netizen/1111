@@ -147,7 +147,35 @@ async function verifyOtp(){
   try{
     verifying.value = true
     const r = await apiPost('/api/auth/otp/verify', { phone: phone.value, code: code.value })
-    if (r && r.ok){ ok.value = true; msg.value = 'تم تسجيل الدخول بنجاح'; setTimeout(()=> router.push('/'), 500) }
+    if (r && r.ok){
+      // Persist token to cookies and localStorage
+      try{
+        const writeCookie = (name: string, value: string) => {
+          try{
+            const host = location.hostname
+            const parts = host.split('.')
+            const apex = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ''
+            const isHttps = location.protocol === 'https:'
+            const sameSite = isHttps ? 'None' : 'Lax'
+            const secure = isHttps ? ';Secure' : ''
+            const domainPart = apex ? `;domain=${apex}` : ''
+            document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60*60*24*30}${domainPart};SameSite=${sameSite}${secure}`
+          }catch{}
+        }
+        if (r.token){
+          writeCookie('auth_token', r.token)
+          writeCookie('shop_auth_token', r.token)
+          try{ localStorage.setItem('shop_token', r.token) }catch{}
+        }
+      }catch{}
+      // Link current anonymous session to user for analytics
+      try{
+        const sid = localStorage.getItem('sid_v1') || ''
+        if (sid){ await apiPost('/api/analytics/link', { sessionId: sid }) }
+      }catch{}
+      ok.value = true; msg.value = 'تم تسجيل الدخول بنجاح'
+      setTimeout(()=> router.push('/account'), 400)
+    }
     else { msg.value = 'رمز غير صحيح أو منتهي' }
   } catch { msg.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
