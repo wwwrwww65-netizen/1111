@@ -3607,18 +3607,29 @@ shop.post('/cart/merge', async (req: any, res) => {
 });
 shop.post('/cart/add', async (req: any, res) => {
   try {
-    let userId = (req as any)?.user?.userId;
+    const { productId, quantity, attributes } = req.body || {};
+    const qty = Math.max(1, Number(quantity || 1));
+    if (!productId) return res.status(400).json({ error: 'productId_required' });
+    // Resolve userId from middleware or Authorization/cookie token
+    let userId: string | undefined = (req as any)?.user?.userId;
     if (!userId) {
       try {
-        const t = readTokenFromRequest(req);
-        if (t) {
-          const p = verifyJwt(String(t));
-          if (p && p.userId) userId = String(p.userId);
-        }
+        const header = (req?.headers?.authorization as string|undefined)||'';
+        let tokenAuth = '';
+        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+        const jwt = require('jsonwebtoken');
+        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
       } catch {}
     }
-    const { productId, quantity, attributes } = req.body || {};
-    if (!productId) return res.status(400).json({ error: 'productId_required' });
+    if (userId) {
+      const cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
+      const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
+      if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
+      else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } });
+      try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      return res.json({ ok: true });
+    }
     // Validate product exists and is active to avoid FK/hidden items
     try{
       const p = await db.product.findFirst({ where: { id: String(productId), isActive: true }, select: { id: true } } as any);
@@ -3626,78 +3637,87 @@ shop.post('/cart/add', async (req: any, res) => {
     }catch{
       return res.status(500).json({ error: 'product_lookup_failed' });
     }
-    const q = Math.max(1, Number(quantity||1));
-    if (userId) {
-      await mergeGuestIntoUserIfPresent(req, res, userId);
-      // Upsert cart by userId to handle rare duplicates safely
-      let cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
-      const cartId = cart.id;
-      const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } });
-      if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q, ...(attributes ? { attributes: attributes as any } : {}) } });
-      else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } });
-      try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
+    const { cartId } = await getOrCreateGuestCartId(req, res);
+    // Use Prisma instead of raw SQL to avoid schema drift issues
+    const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
+    if (existing) {
+      await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
     } else {
-      const { cartId } = await getOrCreateGuestCartId(req, res);
-      // Use Prisma instead of raw SQL to avoid schema drift issues
-      const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
-      if (existing) {
-        await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
-      } else {
-        await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } } as any);
-      }
-      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
-      // Fire FB CAPI AddToCart for guest using fbp/fbc only
-      try {
-        const { fbSendEvents } = await import('../services/fb');
-        let fbp: string|undefined; let fbc: string|undefined;
-        try{
-          const raw = String(req.headers.cookie||'');
-          const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]);
-          const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]);
-        }catch{}
-        await fbSendEvents([{ event_name:'AddToCart', user_data:{ fbp, fbc }, custom_data:{ value: 0, currency:'YER', contents:[{ id: String(productId), quantity: q }], content_type:'product' }, action_source:'website' }])
-      } catch {}
+      await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } } as any);
     }
+    try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
+    // Fire FB CAPI AddToCart for guest using fbp/fbc only
+    try {
+      const { fbSendEvents } = await import('../services/fb');
+      let fbp: string|undefined; let fbc: string|undefined;
+      try{
+        const raw = String(req.headers.cookie||'');
+        const m1 = /(?:^|; )_fbp=([^;]+)/.exec(raw); if (m1) fbp = decodeURIComponent(m1[1]);
+        const m2 = /(?:^|; )_fbc=([^;]+)/.exec(raw); if (m2) fbc = decodeURIComponent(m2[1]);
+      }catch{}
+      await fbSendEvents([{ event_name:'AddToCart', user_data:{ fbp, fbc }, custom_data:{ value: 0, currency:'YER', contents:[{ id: String(productId), quantity: qty }], content_type:'product' }, action_source:'website' }])
+    } catch {}
     return res.json({ ok: true });
   } catch (e:any) { return res.status(500).json({ error: 'add_failed', message: e?.message || '' }); }
 });
 
 shop.post('/cart/update', async (req: any, res) => {
   try {
-    const userId = (req as any)?.user?.userId;
     const { productId, quantity, attributes } = req.body || {};
-    if (!productId) return res.status(400).json({ error: 'productId_required' });
-    const q = Math.max(0, Number(quantity||0));
-    if (userId) {
-      const cart = await db.cart.findUnique({ where: { userId }, select: { id: true } });
-      if (!cart) return res.json({ ok: true });
-      const cartId = cart.id;
-      const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } });
-      if (!existing) return res.json({ ok: true });
-      if (q === 0) await db.cartItem.delete({ where: { id: existing.id } });
-      else await db.cartItem.update({ where: { id: existing.id }, data: { quantity: q, ...(attributes ? { attributes: attributes as any } : {}) } });
-      try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
-    } else {
-      // Do NOT create a new guest cart for update; only operate on existing session cart
-      const sid = getGuestSession(req, res);
-      const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
-      if (!g) return res.json({ ok: true });
-      const cartId = g.id;
-      const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } } as any);
-      if (q === 0) { if (existing) await db.guestCartItem.delete({ where: { id: existing.id } } as any); }
-      else {
-        if (existing) await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: q, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
-        else await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } } as any);
-      }
-      try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
+    const qty = Math.max(0, Number(quantity || 0));
+    if (!productId) return res.status(400).json({ error: 'productId required' });
+    // Resolve userId from middleware or token
+    let userId: string | undefined = (req as any)?.user?.userId;
+    if (!userId) {
+      try {
+        const header = (req?.headers?.authorization as string|undefined)||'';
+        let tokenAuth = '';
+        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+        const jwt = require('jsonwebtoken');
+        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+      } catch {}
     }
+    if (userId) {
+      const cart = await db.cart.findUnique({ where: { userId } });
+      if (!cart) return res.json({ ok: true });
+      const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
+      if (!ex) return res.json({ ok: true });
+      if (qty <= 0) await db.cartItem.delete({ where: { id: ex.id } });
+      else await db.cartItem.update({ where: { id: ex.id }, data: { quantity: qty, ...(attributes ? { attributes: attributes as any } : {}) } });
+      try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
+      return res.json({ ok: true });
+    }
+    // Do NOT create a new guest cart for update; only operate on existing session cart
+    const sid = getGuestSession(req, res);
+    const g = await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any);
+    if (!g) return res.json({ ok: true });
+    const cartId = g.id;
+    const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true } } as any);
+    if (qty === 0) { if (existing) await db.guestCartItem.delete({ where: { id: existing.id } } as any); }
+    else {
+      if (existing) await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: qty, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
+      else await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } } as any);
+    }
+    try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'update_failed' }); }
 });
 
 shop.post('/cart/remove', async (req: any, res) => {
   try {
-    const userId = (req as any)?.user?.userId;
+    // Resolve userId from middleware or token
+    let userId: string | undefined = (req as any)?.user?.userId;
+    if (!userId) {
+      try {
+        const header = (req?.headers?.authorization as string|undefined)||'';
+        let tokenAuth = '';
+        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+        const jwt = require('jsonwebtoken');
+        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+      } catch {}
+    }
     const { productId, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId_required' });
     if (userId) {
@@ -4078,7 +4098,6 @@ shop.get('/cart', async (req: any, res) => {
     return res.json({ cart: { id: g.id, items: g.items } });
   } catch { return res.status(500).json({ error: 'failed' }); }
 });
-
 shop.post('/cart/add', async (req: any, res) => {
   try {
     const { productId, quantity, attributes } = req.body || {};
@@ -4091,8 +4110,19 @@ shop.post('/cart/add', async (req: any, res) => {
     }catch{
       return res.status(500).json({ error: 'product_lookup_failed' });
     }
-    if (req.user && req.user.userId) {
-      const userId = req.user.userId;
+    // Resolve userId from middleware or Authorization/cookie token
+    let userId: string | undefined = (req as any)?.user?.userId;
+    if (!userId) {
+      try {
+        const header = (req?.headers?.authorization as string|undefined)||'';
+        let tokenAuth = '';
+        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+        const jwt = require('jsonwebtoken');
+        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+      } catch {}
+    }
+    if (userId) {
       const cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
       const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
       if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
@@ -4115,8 +4145,19 @@ shop.post('/cart/update', async (req: any, res) => {
     const { productId, quantity } = req.body || {};
     const qty = Math.max(0, Number(quantity || 0));
     if (!productId) return res.status(400).json({ error: 'productId required' });
-    if (req.user && req.user.userId) {
-      const userId = req.user.userId;
+    // Resolve userId from middleware or token
+    let userId: string | undefined = (req as any)?.user?.userId;
+    if (!userId) {
+      try {
+        const header = (req?.headers?.authorization as string|undefined)||'';
+        let tokenAuth = '';
+        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+        const jwt = require('jsonwebtoken');
+        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+      } catch {}
+    }
+    if (userId) {
       const cart = await db.cart.findUnique({ where: { userId } });
       if (!cart) return res.json({ ok: true });
       const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
@@ -4140,7 +4181,18 @@ shop.post('/cart/update', async (req: any, res) => {
 
 shop.post('/cart/remove', async (req: any, res) => {
   try {
-    const userId = (req as any)?.user?.userId;
+    // Resolve userId from middleware or token
+    let userId: string | undefined = (req as any)?.user?.userId;
+    if (!userId) {
+      try {
+        const header = (req?.headers?.authorization as string|undefined)||'';
+        let tokenAuth = '';
+        if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
+        const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+        const jwt = require('jsonwebtoken');
+        for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ const pay:any = jwt.verify(t, process.env.JWT_SECRET||''); if (pay?.userId){ userId = String(pay.userId); break; } }catch{} }
+      } catch {}
+    }
     const { productId, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId_required' });
     if (userId) {
@@ -4429,7 +4481,6 @@ shop.get('/theme/config', async (req, res) => {
     res.json({ site, theme });
   }catch(e:any){ res.status(500).json({ error: e.message||'theme_config_failed' }) }
 })
-
 // Public Facebook Catalog feed (secured by token from admin settings)
 shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
   try{
@@ -4903,7 +4954,6 @@ shop.post('/points/checkin', requireAuth, async (req: any, res) => {
     res.json({ ok:true, balance })
   }catch(e:any){ res.status(500).json({ error: e?.message||'failed' }) }
 })
-
 // Generic points events (review/share/like milestones)
 shop.post('/points/event', requireAuth, async (req: any, res) => {
   try{
