@@ -65,7 +65,7 @@ export function facebookLoginUrl(next: string = '/account'): string {
 export async function apiGet<T = any>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const url = path.startsWith('http') ? path : `${API_BASE}${path}`
-    const isPublic = /^\/api\/(products|categories|search|product|catalog)/.test(path)
+    const isPublic = /^\/api\/(products|categories|search|product|catalog|tabs)/.test(path)
     const headers = { 'Accept': 'application/json', 'X-Shop-Client': 'mweb', ...getAuthHeader(), ...(init?.headers||{}) }
     const key = isPublic ? url : '' // only cache public GETs
     if (key) {
@@ -99,5 +99,20 @@ export async function apiPost<T = any>(path: string, body?: any, init?: RequestI
     if(!res.ok) return null
     return await res.json()
   } catch { return null }
+}
+
+export function isAuthenticated(): boolean {
+  try {
+    if (typeof window !== 'undefined'){
+      const lt = window.localStorage?.getItem('shop_token')
+      const st = window.sessionStorage?.getItem('shop_token')
+      if (lt && lt.trim()) return true
+      if (st && st.trim()) return true
+    }
+    const raw = typeof document !== 'undefined' ? document.cookie || '' : ''
+    if (/(?:^|; )shop_auth_token=([^;]+)/.test(raw)) return true
+    if (/(?:^|; )auth_token=([^;]+)/.test(raw)) return true
+  } catch {}
+  return false
 }
 

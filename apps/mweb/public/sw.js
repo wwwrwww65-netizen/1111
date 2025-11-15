@@ -14,8 +14,9 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(req.url);
     const isUploads = (url.hostname === 'api.jeeey.com' && url.pathname.startsWith('/uploads/')) ||
                       (url.origin === self.location.origin && url.pathname.startsWith('/uploads/'));
+    const isThumbs = (url.hostname === 'api.jeeey.com' && url.pathname.startsWith('/api/media/thumb'));
     const isStatic = (url.origin === self.location.origin && (url.pathname.includes('/assets/') || STATIC_REGEX.test(url.pathname)));
-    if (!(isUploads || isStatic)) return;
+    if (!(isUploads || isThumbs || isStatic)) return;
     event.respondWith((async ()=>{
       const cache = await caches.open(CACHE_NAME);
       const cached = await cache.match(req);
