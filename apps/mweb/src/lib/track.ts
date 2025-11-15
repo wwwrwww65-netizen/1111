@@ -1,4 +1,6 @@
 import { apiPost } from './api'
+const RECENT_TTL_MS = 1500
+const recentEvents: Map<string, number> = new Map()
 
 function ensureSessionId(): string {
   try{
@@ -36,6 +38,14 @@ export async function trackEvent(name: string, payload: MetaEventPayload = {}, e
   const sid = ensureSessionId()
   const eid = explicitEventId || `${name}_${payload.order_id || sid}_${ts}`
   const cur = payload.currency || currency()
+  // Deduplicate bursts: same event name + page within short window
+  try{
+    const key = `${name}|${typeof location!=='undefined'? location.pathname : ''}`
+    const nowMs = Date.now()
+    const last = recentEvents.get(key) || 0
+    if ((nowMs - last) < RECENT_TTL_MS) return eid
+    recentEvents.set(key, nowMs)
+  }catch{}
   try{ console.log('trackEvent fired', { name, event_id: eid, custom_data: payload }) }catch{}
   const pixelParams: any = {
     ...(payload.value!=null? { value: Number(payload.value)||0 }: {}),

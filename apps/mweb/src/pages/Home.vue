@@ -257,9 +257,8 @@ async function fetchTab(slug:string, silent:boolean){
     currentTabController = new AbortController()
     const ctrl = currentTabController
     const timer = setTimeout(()=>{ try{ ctrl.abort() }catch{} }, 10000)
-    const r = await fetch(`${API_BASE}/api/tabs/${encodeURIComponent(slug)}`, { signal: ctrl.signal as any })
+    const j = await apiGet<any>(`/api/tabs/${encodeURIComponent(slug)}`)
     clearTimeout(timer)
-    const j = await r.json()
     const sections = Array.isArray(j?.content?.sections) ? j.content.sections : (Array.isArray(j?.sections)? j.sections : [])
     tabCache.value[slug] = sections
     if (!silent){ tabSections.value = sections }
@@ -471,8 +470,8 @@ onMounted(async ()=>{
   // Load published tabs for device, then exclude categories tabs
   try{
     const [allResp, catsResp] = await Promise.all([
-      fetch(`${API_BASE}/api/tabs/list?device=MOBILE`).then(r=>r.json()).catch(()=>({ tabs: [] })),
-      fetch(`${API_BASE}/api/tabs/categories/list`).then(r=>r.json()).catch(()=>({ tabs: [] }))
+      apiGet<any>('/api/tabs/list?device=MOBILE').catch(()=>({ tabs: [] })),
+      apiGet<any>('/api/tabs/categories/list').catch(()=>({ tabs: [] }))
     ])
     const all = Array.isArray(allResp?.tabs)? allResp.tabs: []
     const cats = new Set((Array.isArray(catsResp?.tabs)? catsResp.tabs: []).map((t:any)=> String(t.slug||'')))
@@ -699,76 +698,4 @@ async function fetchProductDetails(id: string){
   try{
     if (optionsCache[id]) return optionsCache[id]
     const base = API_BASE
-    const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { headers:{ 'Accept':'application/json' } })
-    if (!res.ok) return
-    const d = await res.json()
-    const imgs = Array.isArray(d.images)? d.images : []
-    const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
-    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
-    const normalizeImage = (u: any): string => {
-      const s = String(u || '').trim()
-      if (!s) return filteredImgs[0] || '/images/placeholder-product.jpg'
-      if (/^https?:\/\//i.test(s)) return s
-      if (s.startsWith('/uploads')) return `${base}${s}`
-      if (s.startsWith('uploads/')) return `${base}/${s}`
-      return s
-    }
-    let colors: Array<{ label: string; img: string }> = []
-    if (galleries.length){ colors = galleries.map((g:any)=> ({ label: String(g.name||'').trim(), img: normalizeImage(g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || '') })).filter(c=> !!c.label) }
-    optionsCache[id] = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes: Array.isArray(d.sizes)? d.sizes: [] }
-    return optionsCache[id]
-  }catch{}
-}
-async function openSuggestOptions(id: string){
-  try{
-    optionsModal.productId = id
-    optionsModal.color = ''
-    optionsModal.size = ''
-    optionsModal.groupValues = {}
-    optionsModal.open = true
-    await fetchProductDetails(id)
-  }catch{}
-}
-function closeOptions(){ optionsModal.open = false }
-function onOptionsSave(payload: { color: string; size: string }){
-  try{
-    const prod = optionsProduct.value
-    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
-    cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
-  }catch{}
-  optionsModal.open = false
-}
-
-const Unknown = { template:`<div class=\"p-3 text-xs text-gray-500\">قسم غير مدعوم</div>` }
-</script>
-
-<style scoped>
-.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
-.no-scrollbar::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
-.simple-row{--visible:4.15;--gap:6px}
-.simple-row-inner{display:flex;gap:var(--gap)}
-.simple-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
-/* categories: show 4.5 items per row */
-.cat-row{--visible:4.5;--gap:12px}
-.cat-row-inner{display:flex;gap:var(--gap)}
-.cat-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
-/* Grid Masonry alternative for mobile friendliness */
-.masonry{ display:grid; grid-template-columns: repeat(2, 1fr); gap:6px }
-@media (min-width: 768px){ .masonry{ grid-template-columns: repeat(3, 1fr) } }
-.masonry > *{ break-inside: avoid }
-.x-snap{ scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain }
-
-/* Easy pagination styles */
-.easy-pagination {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 3px;
-  z-index: 10;
-}
-</style>
-
+    const res = await fetch(`

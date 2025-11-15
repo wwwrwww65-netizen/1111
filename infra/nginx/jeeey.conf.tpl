@@ -73,6 +73,20 @@ server {
     try_files $uri =404;
   }
 
+  # Cache derived thumbnails aggressively
+  location ^~ /api/media/thumb {
+    add_header Cache-Control "public, max-age=2592000, immutable" always;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_pass http://127.0.0.1:4000;
+  }
+
   # Restrict direct access to admin API from non-admin origins
   location ^~ /api/admin/ {
     # Allow CORS preflight first

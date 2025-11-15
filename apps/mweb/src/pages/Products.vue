@@ -251,7 +251,7 @@ import {
 } from 'lucide-vue-next';
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
-import { apiGet } from '@/lib/api'
+import { apiGet, API_BASE } from '@/lib/api'
 import { trackEvent } from '@/lib/track'
 import { markTrending } from '@/lib/trending'
 import { Check } from 'lucide-vue-next'
@@ -621,11 +621,13 @@ const couponsCache = ref<SimpleCoupon[]>([])
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const base = (await import('@/lib/api')).API_BASE
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${base}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/me/coupons')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  data = await tryFetch('/api/coupons/public')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  // لا تستخدم مسارات المشرف من الواجهة العامة
+  // تخطّي me/coupons للزوار لتجنب 401 غير الضرورية
+  if (isAuthenticated()){
+    const data1: any = await tryFetch('/api/me/coupons')
+    if (data1 && Array.isArray(data1.coupons)) return normalizeCoupons(data1.coupons)
+  }
+  const data2: any = await tryFetch('/api/coupons/public')
+  if (data2 && Array.isArray(data2.coupons)) return normalizeCoupons(data2.coupons)
   return []
 }
 
@@ -702,6 +704,17 @@ function fireListView(list:any[], page:number){
       currency: (window as any).__CURRENCY_CODE__||'YER'
     })
   }catch{}
+}
+
+// ===== صور مصغرة مستجيبة =====
+function thumb(u: string): string {
+  try{
+    const s = String(u||'').trim()
+    if (!s) return s
+    if (/^https?:\/\//i.test(s)) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s)}&w=384&q=60`
+    if (s.startsWith('/uploads/') || s.startsWith('uploads/')) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s.startsWith('/')? s : '/'+s)}&w=384&q=60`
+    return s
+  }catch{ return u }
 }
 </script>
 

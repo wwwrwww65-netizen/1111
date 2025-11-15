@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, reactive } from 'vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
-import { apiGet, API_BASE } from '@/lib/api'
+import { apiGet, API_BASE, isAuthenticated } from '@/lib/api'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { useCart } from '@/store/cart'
 import { markTrending } from '@/lib/trending'
@@ -237,11 +237,12 @@ const couponsCache = ref<SimpleCoupon[]>([])
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/me/coupons')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  data = await tryFetch('/api/coupons/public')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  // لا تستخدم مسارات المشرف من الواجهة العامة
+  if (isAuthenticated()){
+    const data1: any = await tryFetch('/api/me/coupons')
+    if (data1 && Array.isArray(data1.coupons)) return normalizeCoupons(data1.coupons)
+  }
+  const data2: any = await tryFetch('/api/coupons/public')
+  if (data2 && Array.isArray(data2.coupons)) return normalizeCoupons(data2.coupons)
   return []
 }
 

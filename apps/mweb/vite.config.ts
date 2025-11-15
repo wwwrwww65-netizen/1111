@@ -33,9 +33,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     fallbackVuePage(),
-    legacy({
-      targets: ['defaults', 'not IE 11', 'ios >= 12', 'android >= 5']
-    })
+    ...(process.env.VITE_ENABLE_LEGACY === '1' ? [legacy({ targets: ['defaults', 'not IE 11', 'ios >= 12', 'android >= 5'] })] : [])
   ],
   server: { host: true, hmr: { overlay: false } },
   build: {

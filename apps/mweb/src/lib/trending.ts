@@ -1,16 +1,10 @@
-import { API_BASE } from '@/lib/api'
+import { apiGet, API_BASE } from '@/lib/api'
 
 let cachedIds: Set<string> | null = null
 let lastFetchTs = 0
 const TTL_MS = 5 * 60 * 1000
 
-async function tryJson(path: string): Promise<any|null> {
-  try{
-    const res = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } })
-    if (!res.ok) return null
-    return await res.json()
-  }catch{ return null }
-}
+async function tryJson(path: string): Promise<any|null> { try{ return await apiGet<any>(path) }catch{ return null } }
 
 function extractIds(payload: any): string[] {
   try{
@@ -29,14 +23,8 @@ export async function getTrendingIdSet(): Promise<Set<string>>{
   // اربط باللوحة فقط: إن كان نظام الترندات متاحاً سيُعيد بيانات، وإلا نعتبره غير مُفعل بدون محاولات إضافية
   let ids: string[] = []
   try{
-    const res = await fetch(`${API_BASE}/api/trending/products`, { credentials:'include', headers:{ 'Accept':'application/json' } })
-    if (res.ok){
-      const j = await res.json().catch(()=>null)
-      ids = extractIds(j)
-    } else {
-      // 404 أو أي خطأ ⇒ اعتبر الترندات غير مفعلة مؤقتاً
-      ids = []
-    }
+    const j = await apiGet<any>('/api/trending/products')
+    ids = extractIds(j)
   }catch{ ids = [] }
   cachedIds = new Set(ids.map(String))
   lastFetchTs = now

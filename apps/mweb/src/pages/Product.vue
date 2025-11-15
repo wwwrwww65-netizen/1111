@@ -1643,11 +1643,11 @@ async function loadSeller(pid?: string){
 
 // Size Guide Modal
 const sizeGuideOpen = ref(false)
-function openSizeGuide(){ sizeGuideOpen.value = true }
+async function openSizeGuide(){ sizeGuideOpen.value = true; try{ if (!sizeGuideHtml.value) await fetchSizeGuide() }catch{} }
 function closeSizeGuide(){ sizeGuideOpen.value = false }
 // Shipping details modal (full-screen sheet)
 const shippingDetailsOpen = ref(false)
-function openShippingDetails(){ shippingDetailsOpen.value = true }
+function openShippingDetails(){ shippingDetailsOpen.value = true; void loadShipping() }
 function closeShippingDetails(){ shippingDetailsOpen.value = false }
 // Policies sheet
 const policyOpenKey = ref<null|'cod'|'returns'|'secure'>(null)
@@ -2320,12 +2320,14 @@ type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountV
 const couponsCacheRec = ref<SimpleCoupon[]>([])
 
 async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
-  const { API_BASE } = await import('@/lib/api')
+  const { API_BASE, isAuthenticated } = await import('@/lib/api')
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/me/coupons')
-  if (data && Array.isArray(data.coupons)) return normalizeCouponsRec(data.coupons)
-  data = await tryFetch('/api/coupons/public')
-  if (data && Array.isArray(data.coupons)) return normalizeCouponsRec(data.coupons)
+  if (isAuthenticated()){
+    const data1: any = await tryFetch('/api/me/coupons')
+    if (data1 && Array.isArray(data1.coupons)) return normalizeCouponsRec(data1.coupons)
+  }
+  const data2 = await tryFetch('/api/coupons/public')
+  if (data2 && Array.isArray((data2 as any).coupons)) return normalizeCouponsRec((data2 as any).coupons)
   // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
 }
@@ -2549,14 +2551,18 @@ const shippingEtaText = computed(()=>{
   return s || m?.desc || ''
 })
 async function loadShipping(){
-  try{
-    const m = await apiGet<any>('/api/shipping/methods')
-    shippingMethods.value = Array.isArray(m?.items)? m!.items : []
-  }catch{}
+  // Always try to get quick quote (used in summary)
   try{
     const q = await apiGet<any>('/api/shipping/quote?method=std')
     if (q && typeof q.price === 'number') shippingQuote.value = Number(q.price)
   }catch{}
+  // Defer methods until the details sheet is opened
+  if (shippingDetailsOpen.value && shippingMethods.value.length===0){
+    try{
+      const m = await apiGet<any>('/api/shipping/methods')
+      shippingMethods.value = Array.isArray(m?.items)? m!.items : []
+    }catch{}
+  }
 }
 
 // Load saved addresses and pick default
