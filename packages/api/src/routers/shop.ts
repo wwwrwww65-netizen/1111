@@ -2970,7 +2970,7 @@ shop.get('/cart/auth', requireAuth, async (req: any, res) => {
   const userId = req.user.userId;
   const cart = await db.cart.findUnique({
     where: { userId },
-    include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true } } } },
+    include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true } } } } },
   });
   const subtotal = (cart?.items ?? []).reduce((s, it) => s + it.quantity * (it.product?.price || 0), 0);
   res.json({ cart, subtotal });
