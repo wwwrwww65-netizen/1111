@@ -366,6 +366,8 @@ async function refreshEffectivePricing(){
 }
 watch([selectedItems, items], ()=>{ refreshEffectivePricing() }, { deep:true })
 onMounted(()=> refreshEffectivePricing())
+// Always hydrate cart from server on cart page load to avoid stale local state
+onMounted(()=> { try{ cart.syncFromServer(true) }catch{} })
 
 // وظائف التنقل
 function goBack() {
