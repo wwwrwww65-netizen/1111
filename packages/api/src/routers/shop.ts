@@ -4567,6 +4567,39 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
   }catch(e:any){ res.status(500).send('feed_failed') }
 })
 
+// Public: active coupons list (minimal fields) for mweb
+shop.get('/coupons/public', async (_req: any, res) => {
+  try{
+    const now = new Date();
+    const coupons = await db.coupon.findMany({
+      where: { isActive: true, validFrom: { lte: now }, validUntil: { gte: now } },
+      orderBy: { discountValue: 'desc' },
+      select: { code: true, discountType: true, discountValue: true, minOrderAmount: true }
+    });
+    res.json({ coupons });
+  }catch(e:any){ res.status(500).json({ error: e?.message || 'coupons_public_failed' }) }
+});
+
+// Public: trending products (top IDs) for mweb badges
+shop.get('/trending/products', async (_req: any, res) => {
+  try{
+    // Rank by purchases + addToCart + a small weight to views in last 14 days
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT "productId" AS id,
+             COALESCE(SUM("purchases"),0)*2
+             + COALESCE(SUM("addToCart"),0)*1
+             + COALESCE(SUM("views"),0)*0.2 AS score
+      FROM "ProductAnalytics"
+      WHERE "date" >= NOW() - INTERVAL '14 days'
+      GROUP BY "productId"
+      ORDER BY score DESC
+      LIMIT 100
+    `) as any[];
+    const items = (rows||[]).map(r=> ({ id: String(r.id) }));
+    res.json({ items });
+  }catch(e:any){ res.status(500).json({ error: e?.message || 'trending_failed' }) }
+});
+
 function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c)=> ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as any)[c] || c) }
 
 // Shipping quote (simple placeholder; replace with provider call if enabled)

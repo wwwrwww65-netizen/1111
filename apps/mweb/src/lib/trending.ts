@@ -29,7 +29,7 @@ export async function getTrendingIdSet(): Promise<Set<string>>{
   // اربط باللوحة فقط: إن كان نظام الترندات متاحاً سيُعيد بيانات، وإلا نعتبره غير مُفعل بدون محاولات إضافية
   let ids: string[] = []
   try{
-    const res = await fetch(`${API_BASE}/api/admin/trending/products`, { credentials:'include', headers:{ 'Accept':'application/json' } })
+    const res = await fetch(`${API_BASE}/api/trending/products`, { credentials:'include', headers:{ 'Accept':'application/json' } })
     if (res.ok){
       const j = await res.json().catch(()=>null)
       ids = extractIds(j)

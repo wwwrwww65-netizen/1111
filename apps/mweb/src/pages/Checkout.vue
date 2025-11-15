@@ -519,8 +519,7 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
   data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
-  data = await tryFetch('/api/admin/coupons/list')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
 }
 function normalizeCoupons(list:any[]): SimpleCoupon[] { return (list||[]).map((c:any)=> ({ code:c.code, discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED'?'FIXED':'PERCENTAGE'), discountValue:Number(c.discountValue||c.discount||0), audience:c.audience?.target||c.audience||undefined, kind:c.kind||undefined, rules:c.rules||undefined })) }
