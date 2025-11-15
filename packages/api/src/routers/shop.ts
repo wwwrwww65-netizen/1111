@@ -2989,13 +2989,13 @@ shop.post('/cart/auth/add', requireAuth, async (req: any, res) => {
     const userId = req.user.userId;
     // Merge any existing guest cart into the authenticated user's cart
     await mergeGuestIntoUserIfPresent(req, res, userId);
-    const { productId, quantity = 1 } = req.body || {};
+    const { productId, quantity = 1, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId required' });
     let cart = await db.cart.findUnique({ where: { userId } });
     if (!cart) cart = await db.cart.create({ data: { userId } });
     const existing = await db.cartItem.findUnique({ where: { cartId_productId: { cartId: cart.id, productId } } });
     if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(quantity || 1) } });
-    else await db.cartItem.create({ data: { cartId: cart.id, productId, quantity: Number(quantity || 1) } });
+    else await db.cartItem.create({ data: { cartId: cart.id, productId, quantity: Number(quantity || 1), attributes: attributes ? (attributes as any) : undefined } });
     // Fire FB CAPI AddToCart (best-effort) with dedupe + client hints
     try {
       const { fbSendEvents, hashEmail } = await import('../services/fb');
@@ -3510,7 +3510,7 @@ async function mergeGuestIntoUserIfPresent(req: any, res: any, userId: string): 
       if (existing) {
         await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1) } });
       } else {
-        await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1) } });
+        await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
       }
     }
     await db.guestCartItem.deleteMany({ where: { cartId: guest.id } } as any);
@@ -3538,7 +3538,7 @@ shop.get('/cart', async (req: any, res) => {
       const productIds = Array.from(new Set(cart.items.map((it: any) => it.productId)));
       const prods = await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, price: true, images: true } });
       const byId = new Map(prods.map((p:any)=> [String(p.id), p]));
-      const items = cart.items.map((ci:any)=> ({ productId: ci.productId, quantity: ci.quantity, product: byId.get(String(ci.productId)) || { id: ci.productId, name: ci.productId, price: 0, images: [] } }));
+      const items = cart.items.map((ci:any)=> ({ productId: ci.productId, quantity: ci.quantity, attributes: (ci as any).attributes || null, product: byId.get(String(ci.productId)) || { id: ci.productId, name: ci.productId, price: 0, images: [] } }));
       return res.json({ cart: { items } });
     }
     // Guest
@@ -3547,7 +3547,10 @@ shop.get('/cart', async (req: any, res) => {
     const productIds = Array.from(new Set((rows||[]).map(r=> String(r.productId))));
     const prods = productIds.length ? await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, price: true, images: true } }) : [];
     const byId = new Map(prods.map((p:any)=> [String(p.id), p]));
-    const items = (rows||[]).map(r=> ({ productId: String(r.productId), quantity: Number(r.quantity||0), product: byId.get(String(r.productId)) || { id: r.productId, name: r.productId, price: 0, images: [] } }));
+    // Re-read with Prisma to include attributes for each line
+    let gitems: any[] = [];
+    try { gitems = await db.guestCartItem.findMany({ where: { cartId }, select: { productId: true, quantity: true, attributes: true } } as any); } catch {}
+    const items = (gitems.length? gitems : rows||[]).map((r:any)=> ({ productId: String(r.productId), quantity: Number(r.quantity||0), attributes: (r as any).attributes || null, product: byId.get(String(r.productId)) || { id: r.productId, name: r.productId, price: 0, images: [] } }));
     return res.json({ cart: { items } });
   } catch { return res.json({ cart: { items: [] } }); }
 });
@@ -3602,7 +3605,7 @@ shop.post('/cart/merge', async (req: any, res) => {
 shop.post('/cart/add', async (req: any, res) => {
   try {
     const userId = (req as any)?.user?.userId;
-    const { productId, quantity } = req.body || {};
+    const { productId, quantity, attributes } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId_required' });
     // Validate product exists and is active to avoid FK/hidden items
     try{
@@ -3618,7 +3621,7 @@ shop.post('/cart/add', async (req: any, res) => {
       const cartId = cart.id;
       const existing = await db.cartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } });
       if (existing) await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } });
-      else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q } });
+      else await db.cartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } });
       try{ await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
     } else {
       const { cartId } = await getOrCreateGuestCartId(req, res);
@@ -3627,7 +3630,7 @@ shop.post('/cart/add', async (req: any, res) => {
       if (existing) {
         await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + q } } as any);
       } else {
-        await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q } } as any);
+        await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: q, attributes: attributes ? (attributes as any) : undefined } } as any);
       }
       try{ await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) }catch{}
       // Fire FB CAPI AddToCart for guest using fbp/fbc only
@@ -4032,7 +4035,7 @@ shop.get('/cart', async (req: any, res) => {
 
 shop.post('/cart/add', async (req: any, res) => {
   try {
-    const { productId, quantity } = req.body || {};
+    const { productId, quantity, attributes } = req.body || {};
     const qty = Math.max(1, Number(quantity || 1));
     if (!productId) return res.status(400).json({ error: 'productId_required' });
     // Validate product exists and active
@@ -4047,7 +4050,7 @@ shop.post('/cart/add', async (req: any, res) => {
       const cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
       const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
       if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
-      else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty } });
+      else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } });
       try{ await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) }catch{}
       return res.json({ ok: true });
     }
@@ -4056,7 +4059,7 @@ shop.post('/cart/add', async (req: any, res) => {
     if (!g) g = await db.guestCart.create({ data: { sessionId } });
     const ex = await db.guestCartItem.findFirst({ where: { cartId: g.id, productId: String(productId) } });
     if (ex) await db.guestCartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
-    else await db.guestCartItem.create({ data: { cartId: g.id, productId: String(productId), quantity: qty } });
+    else await db.guestCartItem.create({ data: { cartId: g.id, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } });
     try{ await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) }catch{}
     return res.json({ ok: true });
   } catch { return res.status(500).json({ error: 'failed' }); }

@@ -7709,8 +7709,8 @@ adminRest.get('/carts', async (req, res) => {
   const whereUser:any = since? { updatedAt: { gte: since }, items: { some: {} } } : { items: { some: {} } };
   const whereGuest:any = since? { updatedAt: { gte: since }, items: { some: {} } } : { items: { some: {} } };
     const [userCarts, guestCarts] = await Promise.all([
-    db.cart.findMany({ where: whereUser, include: { items: { include: { product: true } }, user: { select: { id:true, email:true, name:true } } }, orderBy: { updatedAt: 'desc' } }),
-    db.guestCart.findMany({ where: whereGuest, include: { items: { include: { product: true } } }, orderBy: { updatedAt: 'desc' } })
+      db.cart.findMany({ where: whereUser, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true, tags:true } } } }, user: { select: { id:true, email:true, name:true } } }, orderBy: { updatedAt: 'desc' } }),
+      db.guestCart.findMany({ where: whereGuest, include: { items: { include: { product: { select: { id:true, name:true, price:true, images:true, tags:true } } } } }, orderBy: { updatedAt: 'desc' } })
     ]);
     // Attach analytics summary to carts (events count, last event, device, geo)
     try{
@@ -7766,6 +7766,37 @@ adminRest.get('/carts', async (req, res) => {
           if (m) (c as any).analytics = { events: Number(m.events||0), lastEventAt: m.last, device: m.device||null, browser: m.browser||null, country: m.country||null, city: m.city||null };
         }
       }
+    }catch{}
+    // Derive variant info for display (sizeType/size/color/colorImageUrl) from stored attributes and product.tags
+    try{
+      const deriveColorImage = (tags: string[]|undefined, color: string|undefined): string|undefined => {
+        if (!tags || !color) return undefined;
+        const key1 = `colorPrimaryImage:${color}=`;
+        const found = tags.find(t => typeof t === 'string' && t.startsWith(key1));
+        if (found) return found.split('=',2)[1] || undefined;
+        const key2 = `colorImages:${color}=`;
+        const f2 = tags.find(t => typeof t === 'string' && t.startsWith(key2));
+        if (f2) {
+          const rest = f2.split('=',2)[1] || '';
+          const first = rest.split('|')[0]?.trim();
+          return first || undefined;
+        }
+        return undefined;
+      };
+      const enrich = (arr:any[])=>{
+        for (const c of arr||[]){
+          for (const it of (c.items||[])){
+            const attrs = (it as any).attributes as any || null;
+            const color = attrs?.color || attrs?.colour || attrs?.Color;
+            const size = attrs?.size || attrs?.Size;
+            const sizeType = attrs?.sizeType || attrs?.size_type || attrs?.SizeType;
+            let colorImageUrl = attrs?.colorImageUrl || attrs?.imageUrl;
+            if (!colorImageUrl) colorImageUrl = deriveColorImage((it as any).product?.tags, color);
+            (it as any).variant = { sizeType: sizeType || null, size: size || null, color: color || null, colorImageUrl: colorImageUrl || null };
+          }
+        }
+      };
+      enrich(userCarts as any[]); enrich(guestCarts as any[]);
     }catch{}
     res.json({ ok:true, userCarts, guestCarts });
   }catch(e:any){ res.status(500).json({ ok:false, error: e.message||'carts_list_failed' }); }
@@ -9385,7 +9416,7 @@ adminRest.get('/carts', async (req, res) => {
         select: {
           id: true, updatedAt: true, createdAt: true,
           user: { select: { id:true, name:true, email:true, phone:true } },
-          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true } } } }
+          items: { select: { id:true, quantity:true, attributes:true, product: { select: { id:true, name:true, images:true, tags:true } } } }
         },
         orderBy: { updatedAt: 'desc' }
       } as any),
@@ -9393,7 +9424,7 @@ adminRest.get('/carts', async (req, res) => {
         where: since? { updatedAt: { gte: since }, items: { some: {} } } as any : { items: { some: {} } } as any,
         select: {
           id: true, sessionId: true, updatedAt: true, createdAt: true,
-          items: { select: { id:true, quantity:true, product: { select: { id:true, name:true, images:true } } } }
+          items: { select: { id:true, quantity:true, attributes:true, product: { select: { id:true, name:true, images:true, tags:true } } } }
         },
         orderBy: { updatedAt: 'desc' }
       } as any)
