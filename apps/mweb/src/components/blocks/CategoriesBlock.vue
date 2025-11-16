@@ -5,7 +5,17 @@
         <div v-for="(col,ci) in catColsLocked" :key="'col-'+ci" class="flex flex-col gap-1">
           <RouterLink v-for="(c,ri) in col" :key="(c.name||c.id)+'-'+ci+'-'+ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0 inline-block" :to="'/c/'+encodeURIComponent(c.id||c.name||'')">
             <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
-              <img v-if="c.image" :src="thumb(c.image)" :alt="c.name||c.id" class="w-full h-full object-cover" loading="lazy" decoding="async" />
+              <img
+                v-if="c.image"
+                :src="thumb(c.image)"
+                :srcset="`${thumbW(c.image,96)} 96w, ${thumbW(c.image,120)} 120w, ${thumbW(c.image,160)} 160w, ${thumbW(c.image,200)} 200w`"
+                sizes="96px"
+                :alt="c.name||c.id"
+                class="w-full h-full object-cover"
+                :loading="(ci*3 + ri) < 9 ? 'eager' : 'lazy'"
+                :fetchpriority="(ci*3 + ri) < 9 ? 'high' : 'auto'"
+                decoding="async"
+              />
             </div>
             <div class="text-[11px] text-gray-700">{{ c.name||c.id||'-' }}</div>
           </RouterLink>
@@ -32,6 +42,9 @@ const list = computed<Item[]>(()=>{
 })
 function thumb(u?: string): string {
   return buildThumbUrl(String(u||''), 160, 60)
+}
+function thumbW(u?: string, w = 120): string {
+  return buildThumbUrl(String(u||''), w, 60)
 }
 const catColsLocked = computed(()=>{
   const perCol = 3

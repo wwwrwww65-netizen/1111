@@ -1608,6 +1608,7 @@ async function loadPdpMeta(pid?: string){
 }
 async function loadWishlist(){
   try{
+    if (!isAuthenticated()) { hasWish.value = false; return }
     const j = await apiGet<any>('/api/wishlist')
     const items: any[] = Array.isArray(j) ? j : Array.isArray(j?.items) ? j!.items : []
     const found = items.find((w:any)=> String(w.id||w.productId||'') === String(id))
@@ -2568,6 +2569,7 @@ async function loadShipping(){
 // Load saved addresses and pick default
 async function loadAddresses(){
   try{
+    if (!isAuthenticated()) { addresses.value = []; selectedAddress.value = null; return }
     const j = await apiGet<any>('/api/addresses')
     const list = Array.isArray(j?.items) ? j.items : Array.isArray(j) ? j : []
     addresses.value = list
