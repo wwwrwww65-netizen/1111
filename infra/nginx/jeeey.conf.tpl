@@ -5,6 +5,9 @@ map $http_user_agent $is_mobile {
   ~*(iphone|android|mobile|ipad|ipod) 1;
 }
 
+# Proxy cache for image thumbnails (safe to define at http-level)
+proxy_cache_path /var/cache/nginx/thumbs levels=1:2 keys_zone=thumbs_cache:50m inactive=30d max_size=10g;
+
 # HTTP (80) → HTTPS redirects for all hosts, keep ACME path open
 server {
   listen 80;
@@ -51,6 +54,11 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
+  # Brotli
+  brotli on;
+  brotli_comp_level 5;
+  brotli_static off;
+  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
 
   # Unified CORS: hide upstream CORS headers and set our own (applies on errors too)
   add_header Access-Control-Allow-Origin $http_origin always;
@@ -167,6 +175,11 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
+  # Brotli
+  brotli on;
+  brotli_comp_level 5;
+  brotli_static off;
+  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
 
   # Directly proxy admin REST to API to avoid app-layer proxy issues
   location ^~ /api/admin/ {
@@ -217,6 +230,11 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
+  # Brotli
+  brotli on;
+  brotli_comp_level 5;
+  brotli_static off;
+  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
 
   if ($is_mobile) { return 302 https://m.jeeey.com$request_uri; }
 
@@ -234,6 +252,31 @@ server {
     proxy_buffers 8 16k;
     proxy_busy_buffers_size 64k;
     proxy_pass http://127.0.0.1:3000;
+  }
+
+  # Same-origin CDN path for desktop site too
+  location ^~ /i {
+    add_header Cache-Control "public, max-age=2592000, immutable" always;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_pass http://127.0.0.1:4000/api/media/thumb$is_args$args;
+    proxy_cache thumbs_cache;
+    proxy_cache_valid 200 301 302 30d;
+    proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+    proxy_hide_header Set-Cookie;
+  }
+  location ^~ /uploads/ {
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_pass http://127.0.0.1:4000$request_uri;
+    proxy_hide_header Set-Cookie;
   }
 }
 
@@ -269,6 +312,11 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
+  # Brotli
+  brotli on;
+  brotli_comp_level 5;
+  brotli_static off;
+  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
 
   # API proxy for cart endpoints (same-origin for mweb)
   # Preserve auth/cookies and upgrade headers; map /api/shop/cart/* => /api/cart/* upstream
@@ -345,6 +393,37 @@ server {
     proxy_buffers 8 16k;
     proxy_busy_buffers_size 64k;
     proxy_pass http://127.0.0.1:4000/api/cart;
+  }
+
+  # Same-origin CDN path: proxy image thumbnails to API with proxy_cache
+  location ^~ /i {
+    # Ensure strong cache on client
+    add_header Cache-Control "public, max-age=2592000, immutable" always;
+    # Upstream proxying
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    # Strip only the prefix; pass query string to /api/media/thumb
+    proxy_pass http://127.0.0.1:4000/api/media/thumb$is_args$args;
+    # Enable Nginx cache for derived images
+    proxy_cache thumbs_cache;
+    proxy_cache_valid 200 301 302 30d;
+    proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+    proxy_hide_header Set-Cookie;
+  }
+
+  # Same-origin access to uploads with long cache
+  location ^~ /uploads/ {
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_pass http://127.0.0.1:4000$request_uri;
+    proxy_hide_header Set-Cookie;
   }
 
   # Service Worker

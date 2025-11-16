@@ -3,9 +3,9 @@
     <div class="image-wrap" @click.stop="go()">
       <div v-if="!imgLoaded" class="skeleton"></div>
       <picture>
-        <source :srcset="`${img}&fm=avif 1x, ${img}&fm=avif&w=1200 2x`" type="image/avif" />
-        <source :srcset="`${img}&fm=webp 1x, ${img}&fm=webp&w=1200 2x`" type="image/webp" />
-        <img class="product-img" :src="img" :alt="title" loading="lazy" decoding="async" fetchpriority="low" @error="onImgError" @load="onImgLoad" />
+        <source :srcset="buildCdnSrcSet(img, [480,720,960,1200], 60, 'avif')" type="image/avif" />
+        <source :srcset="buildCdnSrcSet(img, [480,720,960,1200], 60, 'webp')" type="image/webp" />
+        <img class="product-img" :src="buildCdnThumb(img, 720, 60, 'webp')" :alt="title" loading="lazy" decoding="async" fetchpriority="low" @error="onImgError" @load="onImgLoad" />
       </picture>
       <div v-if="discountPercent" class="discount-badge">-{{ discountPercent }}%</div>
       <div v-if="badgeRank" class="rank-badge">#{{ badgeRank }}</div>
@@ -37,10 +37,10 @@
 
 <script setup lang="ts">
 import { useCart } from '@/store/cart'
-import gsap from 'gsap'
 import Icon from '@/components/Icon.vue'
 import { useRouter } from 'vue-router'
 import { useWishlist } from '@/store/wishlist'
+import { buildCdnThumb, buildCdnSrcSet } from '@/lib/cdn'
 const props = defineProps<{ id?: string; img: string; title: string; price: string; original?: string; afterCoupon?: string; discountPercent?: number; soldCount?: number; isFastShipping?: boolean; badgeRank?: number; thumbs?: string[]; href?: string; sizeText?: string; colorText?: string }>();
 const { id = Math.random().toString(36).slice(2), img, title, price, original, afterCoupon, discountPercent, soldCount, isFastShipping = false, badgeRank, thumbs, href, sizeText, colorText } = props;
 const cart = useCart()
@@ -66,6 +66,8 @@ function onCardClick(e: MouseEvent){
 function addToCart(ev?: MouseEvent){
   cart.add({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }, 1)
   try {
+    const mod = await import('gsap')
+    const gsap = mod.default
     const cartEl = document.getElementById('cart-target')
     const btn = (ev?.currentTarget as HTMLElement) || null
     const imgEl = (btn?.closest('.product-card') as HTMLElement)?.querySelector('img') as HTMLImageElement | null

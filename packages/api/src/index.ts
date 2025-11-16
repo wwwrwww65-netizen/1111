@@ -189,6 +189,8 @@ async function ensureSchema(): Promise<void> {
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_name_trgm_idx" ON "Product" USING gin (name gin_trgm_ops)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_sku_idx" ON "Product"(sku)'); } catch {}
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Product_created_idx" ON "Product"("createdAt")'); } catch {}
+    // Speed up trending aggregation reads
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ProductAnalytics_date_productId_idx" ON "ProductAnalytics"("date","productId")'); } catch {}
 
     // Ensure ProductCategory (link table for additional categories) exists without breaking existing schema
     await db.$executeRawUnsafe(

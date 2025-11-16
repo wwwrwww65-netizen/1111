@@ -181,15 +181,14 @@
 
 <script setup lang="ts">
 import PromoPopup from '@/components/PromoPopup.vue'
-import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { apiGet, API_BASE } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
 import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home, ChevronLeft, Store } from 'lucide-vue-next'
-import { Swiper, SwiperSlide } from 'swiper/vue'
-import { Autoplay } from 'swiper/modules'
-import 'swiper/css'
+const Swiper = defineAsyncComponent(async () => (await import('swiper/vue')).Swiper)
+const SwiperSlide = defineAsyncComponent(async () => (await import('swiper/vue')).SwiperSlide)
 import HeroBlock from '@/components/blocks/HeroBlock.vue'
 import PromoTilesBlock from '@/components/blocks/PromoTilesBlock.vue'
 import MidPromoBlock from '@/components/blocks/MidPromoBlock.vue'
@@ -275,32 +274,6 @@ function switchTab(slug:string, idx:number){
 }
 function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
-// Banner responsive sources
-const bannerSrc = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60'
-const bannerSrcSet = 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=1200&q=60&fm=webp 1200w, https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=2400&q=60&fm=webp 2400w'
-type Banner = { src: string; srcset?: string; alt: string }
-const banners = reactive<Banner[]>([
-  { src: bannerSrc, srcset: bannerSrcSet, alt: 'عرض تخفيضات' },
-  { src: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1600&auto=format&fit=crop', alt: 'عروض جديدة' },
-  { src: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&w=1600&auto=format&fit=crop', alt: 'ترندات الموسم' }
-])
-const activeBanner = ref<number>(0)
-let swiperInstance: any = null
-
-function goToBanner(i: number){ 
-  if (swiperInstance) {
-    swiperInstance.slideTo(i)
-  }
-}
-
-function onSwiper(swiper: any) {
-  swiperInstance = swiper
-}
-
-function onSlideChange(swiper: any) {
-  activeBanner.value = swiper.realIndex
-}
-
 function go(path: string){ router.push(path) }
 function onScroll(){ scrolled.value = window.scrollY > 60; nextTick(measureHeader) }
 onMounted(()=>{ onScroll(); measureHeader(); window.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('resize', measureHeader) })
@@ -336,15 +309,7 @@ function onTabsKeyDown(e: KeyboardEvent){
 type Prod = { id?: string; title: string; image: string; price: string; oldPrice?: string; rating: number; reviews: number; brand?: string; coupon?: string }
 type Cat = { name: string; image: string; slug?: string; id?: string }
 
-const promoTiles = reactive([
-  { title: 'شحن مجاني', sub: `للطلبات فوق ${fmtPrice(99)}`, image: 'https://csspicker.dev/api/image/?q=free+shipping+icon&image_type=photo', bg: '#ffffff' },
-  { title: 'خصم 90%', sub: 'لفترة محدودة', image: 'https://csspicker.dev/api/image/?q=sale+tag&image_type=photo', bg: '#fff6f1' },
-  { title: 'الدفع عند الاستلام', sub: 'متاح لمدن مختارة', image: 'https://csspicker.dev/api/image/?q=cod+payment&image_type=photo', bg: '#f7faff' },
-  { title: 'نقاط ومكافآت', sub: 'اكسب مع كل شراء', image: 'https://csspicker.dev/api/image/?q=reward+points&image_type=photo', bg: '#f9f9ff' },
-  { title: 'خصم الطلاب', sub: 'تحقق من الأهلية', image: 'https://csspicker.dev/api/image/?q=student+discount&image_type=photo', bg: '#fffaf3' },
-  { title: 'عروض اليوم', sub: 'لا تفوّت الفرصة', image: 'https://csspicker.dev/api/image/?q=deal+of+the+day&image_type=photo', bg: '#f5fffb' },
-])
-const midPromo = reactive({ image: 'https://images.unsplash.com/photo-1512203492609-8b0f0b52f483?w=1600&q=60', alt: 'عرض منتصف الصفحة', text: 'قسائم إضافية + شحن مجاني' })
+
 
 const categories = ref<Cat[]>([])
 const bigDeals = ref<Array<{ id?:string; image:string; price:string }>>([])

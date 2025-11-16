@@ -93,17 +93,26 @@ export async function injectTracking(): Promise<void> {
     }
     // Web Vitals to GA4 only when GA is present
     try{
-      if ((window as any).gtag){
-        await import('https://unpkg.com/web-vitals@3/dist/web-vitals.attribution.iife.js');
-        // @ts-ignore
-        if (typeof webVitals!=='undefined'){
-          // @ts-ignore
-          webVitals.onCLS(sendToGA); webVitals.onFID(sendToGA); webVitals.onLCP(sendToGA); webVitals.onINP(sendToGA); webVitals.onTTFB(sendToGA);
-          function sendToGA(metric:any){
+      await import('https://unpkg.com/web-vitals@3/dist/web-vitals.attribution.iife.js');
+      // @ts-ignore
+      if (typeof webVitals!=='undefined'){
+        function toValue(n:string, v:number){ return Math.round(v * (n==='CLS'?1000:1)) }
+        async function sendAll(metric:any){
+          try{
+            // Send to GA if present
             // @ts-ignore
-            gtag('event', metric.name, { value: Math.round(metric.value * (metric.name==='CLS'?1000:1)), event_label: metric.id, non_interaction: true });
-          }
+            if ((window as any).gtag){
+              // @ts-ignore
+              gtag('event', metric.name, { value: toValue(metric.name, metric.value), event_label: metric.id, non_interaction: true });
+            }
+          }catch{}
+          try{
+            const { trackEvent } = await import('./lib/track');
+            await trackEvent('WebVital', { value: toValue(metric.name, metric.value), content_type: metric.name as any, contents: [{ id: metric.id }] });
+          }catch{}
         }
+        // @ts-ignore
+        webVitals.onCLS(sendAll); webVitals.onFID(sendAll); webVitals.onLCP(sendAll); webVitals.onINP(sendAll); webVitals.onTTFB(sendAll);
       }
     }catch{}
     if (gtm && !document.getElementById('gtm')){

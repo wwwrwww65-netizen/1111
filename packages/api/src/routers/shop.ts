@@ -54,6 +54,27 @@ const PUBLIC_SW_SWR = Number(process.env.PUBLIC_SW_SWR || 120);
 function setPublicCache(res: any, maxAge = PUBLIC_SW_MAX_AGE, swr = PUBLIC_SW_SWR): void {
   try { res.set('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${swr}`); } catch {}
 }
+// Lightweight ETag helper for public GET responses
+function __etagFor(payload: any): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const crypto = require('crypto');
+    const raw = JSON.stringify(payload);
+    const h = crypto.createHash('sha1').update(raw).digest('hex');
+    return `W/"${h}"`;
+  } catch { return ''; }
+}
+function __maybe304(req: any, res: any, payload: any): boolean {
+  try{
+    const tag = __etagFor(payload);
+    if (tag) {
+      const inm = String(req.headers['if-none-match']||'');
+      if (inm && inm === tag) { res.status(304).end(); return true; }
+      res.set('ETag', tag);
+    }
+  }catch{}
+  return false;
+}
 // Cached aggregates to avoid heavy queries on hot paths
 type RankEntry = { rank:number; qty:number };
 let topSalesCache: { ts:number; map: Map<string, RankEntry> } | null = null;
@@ -270,6 +291,7 @@ shop.get('/media/thumb', async (req, res) => {
     const srcRaw = String(req.query.src||'').trim();
     const w = Math.max(64, Math.min(1200, Number(req.query.w||512)));
     const q = Math.max(40, Math.min(85, Number(req.query.q||60)));
+    const fm = String(req.query.fm||'webp').toLowerCase();
     if (!srcRaw) return res.status(400).send('src required');
     // Allow only uploads under our API domain or local /uploads path
     const apiHost = (process.env.PUBLIC_API_BASE || process.env.API_BASE_URL || 'https://api.jeeey.com').replace(/\/+$/,'');
@@ -294,9 +316,15 @@ shop.get('/media/thumb', async (req, res) => {
     }
     const ext = (path.extname(abs).toLowerCase()||'').replace('.jpeg','.jpg');
     const sharp = sharpMod(fs.readFileSync(abs));
-    // Use webp for broad support/size
-    const out = await sharp.resize({ width: w, withoutEnlargement: true }).webp({ quality: q }).toBuffer();
-    res.type('image/webp').send(out);
+    // Encode based on requested format (default webp)
+    let out: Buffer;
+    if (fm === 'avif') {
+      out = await sharp.resize({ width: w, withoutEnlargement: true }).avif({ quality: q }).toBuffer();
+      res.type('image/avif').send(out);
+    } else {
+      out = await sharp.resize({ width: w, withoutEnlargement: true }).webp({ quality: q }).toBuffer();
+      res.type('image/webp').send(out);
+    }
   }catch(e:any){
     try{ res.status(500).send(e?.message||'thumb_failed') }catch{}
   }
@@ -337,7 +365,11 @@ shop.get('/tabs/categories/list', async (req: any, res) => {
     const tabs = pages
       .filter((p: any) => p.currentVersionId && byId.get(p.currentVersionId)?.content?.type === 'categories-v1')
       .map((p: any) => ({ slug: p.slug, label: p.label }));
-    return res.json({ tabs });
+    {
+      const payload = { tabs };
+      if (__maybe304(req, res, payload)) return;
+      return res.json(payload);
+    }
   } catch (e: any) { return res.status(500).json({ error: e?.message || 'tabs_categories_list_failed' }); }
 });
 
@@ -350,7 +382,11 @@ shop.get('/tabs/:slug', async (req: any, res) => {
     const page: any = await db.tabPage.findUnique({ where: { slug }, select: { id: true, status: true, currentVersionId: true } } as any);
     if (!page || page.status !== 'PUBLISHED' || !page.currentVersionId) return res.status(404).json({ error: 'not_found' });
     const version: any = await db.tabPageVersion.findUnique({ where: { id: page.currentVersionId }, select: { content: true } } as any);
-    return res.json({ slug, content: version?.content || { sections: [] } });
+    {
+      const payload = { slug, content: version?.content || { sections: [] } };
+      if (__maybe304(req, res, payload)) return;
+      return res.json(payload);
+    }
   } catch (e: any) { return res.status(500).json({ error: e?.message || 'tabs_get_failed' }); }
 });
 
@@ -1565,7 +1601,11 @@ shop.get('/products', async (req, res) => {
       const rankMap = topSalesCache.map;
       (items as any[]).forEach((it:any)=>{ const m = rankMap.get(String(it.id)); if (m){ it.bestRank = m.rank; it.soldPlus = `${m.qty}`; } });
     }catch{}
-    res.json({ items });
+    {
+      const payload = { items };
+      if (__maybe304(req, res, payload)) return;
+      res.json(payload);
+    }
   } catch (e) {
     res.status(500).json({ error: 'failed' });
   }
@@ -1695,7 +1735,11 @@ shop.get('/product/:id', async (req, res) => {
       attributes,
       colorGalleries,
     });
-    res.json(out);
+    {
+      const payload = out;
+      if (__maybe304(req, res, payload)) return;
+      res.json(payload);
+    }
   } catch {
     res.status(500).json({ error: 'failed' });
   }
@@ -2089,7 +2133,11 @@ shop.get('/categories', async (req, res) => {
        LIMIT $${params.length}`,
       ...params
     );
-    return res.json({ categories: rows });
+    {
+      const payload = { categories: rows };
+      if (__maybe304(req, res, payload)) return;
+      return res.json(payload);
+    }
   } catch (error: any) {
     console.error('Categories API error:', error);
     return res.status(500).json({ error: 'Unable to transform response from server' });
@@ -4777,6 +4825,8 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
 // Public: trending products (top IDs) for mweb badges
 shop.get('/trending/products', async (_req: any, res) => {
   try{
+    // Public cache (short) to protect DB on hot paths
+    try { res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300'); } catch {}
     // Rank by purchases + addToCart + a small weight to views in last 14 days
     const rows: any[] = await db.$queryRawUnsafe(`
       SELECT "productId" AS id,
