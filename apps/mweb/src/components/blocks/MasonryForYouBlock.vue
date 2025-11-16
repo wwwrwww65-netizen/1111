@@ -12,7 +12,7 @@
       </div>
       <div v-else class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'fy-'+(p.id||i)" class="mb-1 break-inside-avoid">
-          <ProductGridCard :product="p" @add="openSuggestOptions" />
+          <ProductGridCard :product="p" :priority="i<8" @add="openSuggestOptions" />
         </div>
       </div>
     </div>

@@ -15,7 +15,8 @@
           :alt="title"
           class="w-full h-auto object-cover block flex-shrink-0 snap-start"
           style="min-width:100%"
-          loading="lazy"
+          :loading="priority && idx===0 ? 'eager' : 'lazy'"
+          :fetchpriority="priority && idx===0 ? 'high' : 'auto'"
           decoding="async"
           @load="idx===0 && onImgLoad()"
         />
@@ -94,7 +95,7 @@ type P = {
   isTrending?: boolean
 }
 
-const props = defineProps<{ product: P }>()
+const props = defineProps<{ product: P; priority?: boolean }>()
 const emit = defineEmits<{ (e:'add', id: string): void }>()
 const router = useRouter()
 const cart = useCart()

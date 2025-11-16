@@ -24,7 +24,8 @@
                 sizes="(max-width: 480px) 50vw, 33vw"
                 :alt="String(p.name||p.price||'منتج')"
                 class="w-full aspect-[192/255] object-cover"
-                loading="lazy"
+                :loading="i < 6 ? 'eager' : 'lazy'"
+                :fetchpriority="i < 6 ? 'high' : 'auto'"
                 decoding="async"
               />
             </div>
