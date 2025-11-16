@@ -4,10 +4,22 @@
       <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
     </div>
     <div class="px-2 py-2">
-      <div v-if="isLoading" class="flex items-center justify-center py-6">
-        <div class="flex flex-col items-center gap-2">
-          <div class="w-8 h-8 border-4 border-gray-300 rounded-full animate-spin" style="border-top-color:#8a1538"></div>
-          <span class="text-[12px] text-gray-500">جاري التحميل...</span>
+      <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
+      <div v-if="isLoading" class="columns-2 gap-1 [column-fill:_balance]">
+        <div v-for="i in 8" :key="'fy-sk-'+i" class="mb-1 break-inside-avoid">
+          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+            <div class="relative w-full">
+              <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
+            </div>
+            <div class="p-2">
+              <div class="inline-flex items-center gap-1 mb-1">
+                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+              </div>
+              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+            </div>
+          </div>
         </div>
       </div>
       <div v-else class="columns-2 gap-1 [column-fill:_balance]">
@@ -60,6 +72,7 @@ const fallbackCount = computed(()=> (props.device ?? 'MOBILE') === 'MOBILE' ? 8 
 const products = ref<GridP[]>([])
 const isLoading = ref(true)
 const cart = useCart()
+const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
 
 function toGridP(p:any, i:number): GridP{
   return {

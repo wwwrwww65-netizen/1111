@@ -648,7 +648,9 @@
       <div v-if="isLoadingRecommended && hasMoreRecommended" class="columns-2 gap-1 [column-fill:_balance] pb-2">
         <div v-for="i in 8" :key="'sk-rec-'+i" class="mb-1 break-inside-avoid">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
-            <div class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
+            <div class="relative w-full">
+              <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[(i-1)%placeholderRatios.length] * 100) + '%' }"></div>
+            </div>
             <div class="p-2">
               <div class="inline-flex items-center gap-1 mb-1">
                 <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
@@ -1392,6 +1394,7 @@ const tabs = ref<Array<{ key:string; label:string }>>([
 // ==================== RECOMMENDED PRODUCTS ====================
 const isLoadingRecommended = ref(false)
 const hasMoreRecommended = ref(true)
+const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
 type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string }
 const recommendedProducts = ref<RecItem[]>([])
 

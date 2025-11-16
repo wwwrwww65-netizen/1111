@@ -208,7 +208,27 @@
 
       <!-- المنتجات المقترحة خارج الحاوية وبملء العرض، دون هوامش جانبية إضافية -->
       <div>
-        <div v-if="!suggested.length" class="text-center text-gray-500 text-[12px] py-4">لا توجد مقترحات حالياً</div>
+        <!-- Skeleton grid أثناء التحميل -->
+        <div v-if="suggestedLoading" class="px-2 py-2">
+          <div class="columns-2 gap-1 [column-fill:_balance]">
+            <div v-for="i in 8" :key="'sug-sk-'+i" class="mb-1 break-inside-avoid">
+              <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+                <div class="relative w-full">
+                  <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[(i-1)%placeholderRatios.length] * 100) + '%' }"></div>
+                </div>
+                <div class="p-2">
+                  <div class="inline-flex items-center gap-1 mb-1">
+                    <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                    <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                  </div>
+                  <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                  <div class="w-24 h-3 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="!suggested.length" class="text-center text-gray-500 text-[12px] py-4">لا توجد مقترحات حالياً</div>
         <div v-else class="px-2 py-2">
           <div class="columns-2 gap-1 [column-fill:_balance]">
             <div v-for="(p,i) in suggested" :key="'sug-'+i" class="mb-1 break-inside-avoid">
@@ -316,6 +336,8 @@ const validItems = computed(()=> items.value.filter(i=> !oosMap.value[i.uid]))
 const oosItems = computed(()=> items.value.filter(i=> !!oosMap.value[i.uid]))
 function statusOf(uid: string){ return oosMap.value[uid] }
 const isLoggedIn = ref(false)
+const suggestedLoading = ref(true)
+const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
 const suggested = ref<Array<{ id:string; title:string; image:string; images?: string[]; imagesNormalized?: string[]; price:number; brand?:string; colors?: string[]; colorCount?: number; discountPercent?: number; soldPlus?: string; bestRank?: number; bestRankCategory?: string; couponPrice?: string }>>([])
 
 // Modal state
@@ -803,7 +825,7 @@ onMounted(async () => {
     }))
     try{ markTrending(suggested.value as any[]) }catch{}
     try{ await hydrateCouponsAndPricesForSuggested() }catch{}
-  }catch{}
+  }catch{} finally { suggestedLoading.value = false }
 })
 
 function goLogin(){ router.push({ path:'/login', query: { return: '/cart' } }) }
