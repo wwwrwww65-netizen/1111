@@ -2540,7 +2540,10 @@ function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null):
 }
 const shippingTitleText = computed(()=>{
   const m:any = shippingMethods.value?.[0]
-  if (!m) return ''
+  if (!m){
+    if (typeof shippingQuote.value === 'number') return `(${fmtPrice(Number(shippingQuote.value||0))})`
+    return ''
+  }
   const priceNum = Number(m.price||0)
   const priceText = priceNum>0 ? fmtPrice(priceNum) : 'مجاني'
   const offer = (m.offerTitle || m.name || '')
@@ -2557,8 +2560,8 @@ async function loadShipping(){
     const q = await apiGet<any>('/api/shipping/quote?method=std')
     if (q && typeof q.price === 'number') shippingQuote.value = Number(q.price)
   }catch{}
-  // Defer methods until the details sheet is opened
-  if (shippingDetailsOpen.value && shippingMethods.value.length===0){
+  // Fetch methods in background so summary is not empty
+  if (shippingMethods.value.length===0){
     try{
       const m = await apiGet<any>('/api/shipping/methods')
       shippingMethods.value = Array.isArray(m?.items)? m!.items : []

@@ -175,11 +175,13 @@
     
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-2 py-2">
-      <!-- Skeleton grid أثناء التحميل -->
+      <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
       <div v-if="productsLoading" class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-1 break-inside-avoid">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
-            <div class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
+            <div class="relative w-full">
+              <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
+            </div>
             <div class="p-2">
               <div class="inline-flex items-center gap-1 mb-1">
                 <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
@@ -195,10 +197,19 @@
       <div v-else class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'product-'+i" class="mb-1 break-inside-avoid">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct(p)" @keydown.enter="openProduct(p)" @keydown.space.prevent="openProduct(p)">
-            <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
-              <div class="flex">
-                <img :src="thumb((p.images && p.images.length ? p.images[0] : p.image))" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" />
-              </div>
+            <!-- حاوية الصورة مع نسبة متغيرة بحسب صورة المنتج -->
+            <div class="relative w-full">
+              <div class="block w-full bg-gray-100" :class="!p._imgLoaded ? 'animate-pulse' : ''" :style="{ paddingTop: ((p._ratio||defaultRatio) * 100) + '%' }"></div>
+              <img
+                :src="thumbSrc(p, 384)"
+                :srcset="`${thumbSrc(p,256)} 256w, ${thumbSrc(p,384)} 384w, ${thumbSrc(p,512)} 512w, ${thumbSrc(p,768)} 768w`"
+                sizes="(max-width: 480px) 50vw, 384px"
+                :alt="p.title"
+                class="absolute inset-0 w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                @load="p._imgLoaded = true"
+              />
               <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center">
                 <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
                   <span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
@@ -206,7 +217,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="(p as any).overlayBannerSrc" class="w-full h-7 relative"><img :src="(p as any).overlayBannerSrc" :alt="(p as any).overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" /></div>
+            <div v-if="(p as any).overlayBannerSrc" class="w-full h-7 relative"><img :src="(p as any).overlayBannerSrc" :alt="(p as any).overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" /></div>
             <div class="relative p-2">
               <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden"><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700"><Store :size="14" color="#6D28D9" :stroke-width="2" /><span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span><span class="text-violet-700 ms-0.5">&gt;</span></span></div>
               <div class="flex items-center gap-1 mt-1.5"><div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div><div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div></div>
@@ -292,6 +303,31 @@ const categories = ref<Array<{ id:string; label:string; img:string }>>([])
 const products = ref<any[]>([])
 const hasMore = ref(false)
 const productsLoading = ref(true)
+const defaultRatio = 1.3
+const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
+function thumbSrc(p:any, w:number): string {
+  const u = (Array.isArray(p.images)&&p.images[0]) || p.image
+  return buildThumbUrl(String(u||''), w, 60)
+}
+function probeRatioOnce(p:any): void {
+  try{
+    if (p._ratioProbing || p._ratio){ return }
+    p._ratioProbing = true
+    const u = thumbSrc(p, 64)
+    const img = new Image()
+    ;(img as any).loading = 'eager'
+    ;(img as any).decoding = 'async'
+    img.onload = ()=>{
+      try{
+        const w = (img as any).naturalWidth || 64
+        const h = (img as any).naturalHeight || 64
+        if (w>0 && h>0){ p._ratio = h / w }
+      }catch{ p._ratio = defaultRatio } finally { p._ratioProbing = false }
+    }
+    img.onerror = ()=>{ try{ p._ratioProbing = false }catch{} }
+    img.src = u
+  }catch{}
+}
 
 const cartBadge = computed(() => items.value.length);
 const promoWords = ["فساتين","هودي","بلايز","تيشيرت","جواكت"];
@@ -462,18 +498,47 @@ function loadMoreProducts() {
   if (isLoadingMore.value) return;
   if (!hasMore.value) return;
   isLoadingMore.value = true;
-  // TODO: دعم ترقيم حقيقي عند توفره في الـ API
-  // حاليا نستدعي بنفس التصنيف مع limit أعلى ونوقف التحميل عند عدم تغير العدد
   const prev = products.value.length
-  void loadProducts(prev + 24).finally(async ()=>{
-    isLoadingMore.value = false; hasMore.value = products.value.length > prev;
+  ;(async ()=>{
     try{
-      // تقدير الصفحة التالية بناءً على حجم الصفحة 24
-      const nextPage = Math.floor(prev / 24) + 1;
-      pageNumber.value = nextPage;
-      await fireListView(products.value.slice(prev), nextPage);
-    }catch{}
-  })
+      const slug = currentSlug()
+      const sort = mapSort()
+      const nextLimit = prev + 24
+      const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
+      url.searchParams.set('limit', String(nextLimit))
+      if (sort) url.searchParams.set('sort', sort)
+      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+      const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
+      const items = Array.isArray(data?.items)? data.items : []
+      const slice = items.slice(prev).map((it:any)=> ({
+        id: String(it.id),
+        title: String(it.name||''),
+        image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
+        images: Array.isArray(it.images)? it.images : [],
+        basePrice: Number(it.price||0).toFixed(2),
+        brand: it.brand||'',
+        _ratio: undefined,
+        _imgLoaded: false
+      }))
+      if (slice.length){
+        products.value = products.value.concat(slice)
+        for (const p of slice.slice(0, 12)){ probeRatioOnce(p) }
+        setTimeout(()=>{ try{ for (const p of slice.slice(12)){ probeRatioOnce(p) } }catch{} }, 0)
+        hasMore.value = items.length >= nextLimit
+        const nextPage = Math.floor(prev / 24) + 1
+        pageNumber.value = nextPage
+        try{ await fireListView(slice, nextPage) }catch{}
+      } else {
+        hasMore.value = false
+      }
+    } finally {
+      isLoadingMore.value = false
+    }
+  })()
 }
 
 const visibleCategories = computed(()=> categories.value.slice(0,5))
@@ -522,14 +587,20 @@ async function loadProducts(limit: number = 24){
     const path = `/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`
     const data = await apiGet<any>(path).catch(()=> null)
     const items = Array.isArray(data?.items)? data.items : []
-    products.value = items.map((it:any)=> ({
+    const mapped = items.map((it:any)=> ({
       id: String(it.id),
       title: String(it.name||''),
       image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
       images: Array.isArray(it.images)? it.images : [],
       basePrice: Number(it.price||0).toFixed(2),
       brand: it.brand||'',
+      _ratio: undefined,
+      _imgLoaded: false
     }))
+    products.value = mapped
+    // Probe نسب صور أول دفعة
+    for (const p of products.value.slice(0, 12)){ probeRatioOnce(p) }
+    setTimeout(()=>{ try{ for (const p of products.value.slice(12, 36)){ probeRatioOnce(p) } }catch{} }, 0)
     hasMore.value = items.length >= limit
     try{ await hydrateCouponsAndPrices() }catch{}
     try{

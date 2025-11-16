@@ -58,7 +58,9 @@ export async function trackEvent(name: string, payload: MetaEventPayload = {}, e
   try{
     const fbq = (window as any).fbq
     if (typeof fbq === 'function' && name !== 'PageView'){
-      fbq('track', name, pixelParams, { eventID: eid })
+      const std = ['ViewContent','AddToCart','InitiateCheckout','Purchase','Search','Lead','CompleteRegistration','Contact','AddPaymentInfo','AddToWishlist','StartTrial','Subscribe']
+      const isStandard = std.includes(name)
+      fbq(isStandard ? 'track' : 'trackCustom', name, pixelParams, { eventID: eid })
     }
   }catch{}
   try{
