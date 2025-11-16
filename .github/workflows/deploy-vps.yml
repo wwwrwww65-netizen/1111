@@ -349,6 +349,9 @@ jobs:
                 '    default "";' \
                 '    ~^https://(m\.jeeey\.com|admin\.jeeey\.com|jeeey\.com|www\.jeeey\.com)$ $http_origin;' \
                 '}' > /etc/nginx/conf.d/cors_map.conf
+              # Ensure proxy_cache path exists for thumbs cache
+              mkdir -p /var/cache/nginx/thumbs || true
+              chown -R www-data:www-data /var/cache/nginx || true
               echo 'Validating nginx config (staging only, no reload yet)...'
               nginx -t || true
               echo 'Nginx config staged; reload will occur after ensure-https.'
@@ -376,6 +379,9 @@ jobs:
             echo '--- Clean any conflicting site files and reload ---'
             # Keep only jeeey.conf (template) and remove any jeeey-ssl.conf to avoid duplication
             find /etc/nginx/sites-enabled -maxdepth 1 -type l -not -name 'jeeey.conf' -exec rm -f {} + || true
+            # Ensure proxy_cache path exists before nginx -t
+            mkdir -p /var/cache/nginx/thumbs || true
+            chown -R www-data:www-data /var/cache/nginx || true
             nginx -t
             (nginx -s reload || systemctl reload nginx || systemctl restart nginx)
             echo '--- Wait for 443 readiness ---'
