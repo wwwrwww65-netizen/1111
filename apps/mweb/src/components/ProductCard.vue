@@ -63,7 +63,7 @@ function onCardClick(e: MouseEvent){
   if (target.closest('.btn-add') || target.closest('.btn-wish') || target.closest('.wish')) return
   go()
 }
-function addToCart(ev?: MouseEvent){
+async function addToCart(ev?: MouseEvent){
   cart.add({ id, title, price: Number((price||'').replace(/[^\d.]/g,''))||0, img }, 1)
   try {
     const mod = await import('gsap')
