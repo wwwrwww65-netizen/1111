@@ -54,11 +54,7 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
-  # Brotli
-  brotli on;
-  brotli_comp_level 5;
-  brotli_static off;
-  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
+  # Brotli disabled (module not available on some servers) — rely on gzip
 
   # Unified CORS: hide upstream CORS headers and set our own (applies on errors too)
   add_header Access-Control-Allow-Origin $http_origin always;
@@ -175,11 +171,7 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
-  # Brotli
-  brotli on;
-  brotli_comp_level 5;
-  brotli_static off;
-  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
+  # Brotli disabled (module not available on some servers) — rely on gzip
 
   # Directly proxy admin REST to API to avoid app-layer proxy issues
   location ^~ /api/admin/ {
@@ -230,11 +222,7 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
-  # Brotli
-  brotli on;
-  brotli_comp_level 5;
-  brotli_static off;
-  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
+  # Brotli disabled (module not available on some servers) — rely on gzip
 
   if ($is_mobile) { return 302 https://m.jeeey.com$request_uri; }
 
@@ -312,11 +300,7 @@ server {
   gzip_comp_level 5;
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
-  # Brotli
-  brotli on;
-  brotli_comp_level 5;
-  brotli_static off;
-  brotli_types text/plain text/css application/json application/javascript application/xml image/svg+xml font/woff2;
+  # Brotli disabled (module not available on some servers) — rely on gzip
 
   # API proxy for cart endpoints (same-origin for mweb)
   # Preserve auth/cookies and upgrade headers; map /api/shop/cart/* => /api/cart/* upstream
