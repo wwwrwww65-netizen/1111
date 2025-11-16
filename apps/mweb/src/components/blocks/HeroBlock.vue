@@ -14,7 +14,7 @@
       >
         <SwiperSlide v-for="(sl,i) in slides" :key="'sl-'+i">
           <a :href="sl.href || '#'" class="block relative w-full h-full">
-            <img :src="sl.image" alt="slide" class="w-full h-full object-cover" />
+            <img :src="thumb(sl.image)" alt="slide" class="w-full h-full object-cover" />
             <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
           </a>
         </SwiperSlide>
@@ -35,6 +35,7 @@ import { computed, ref } from 'vue'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Autoplay } from 'swiper/modules'
 import 'swiper/css'
+import { buildThumbUrl } from '../../lib/media'
 
 type Slide = { image: string; href?: string }
 type Cfg = { slides?: Slide[]; image?: string; ctaHref?: string }
@@ -47,6 +48,10 @@ const slides = computed<Slide[]>(()=>{
   if (cfg.image) return [{ image: cfg.image, href: cfg.ctaHref }]
   return []
 })
+function thumb(u: string): string {
+  const w = isMobile.value ? 720 : 1200
+  return buildThumbUrl(u, w, 60)
+}
 const autoplayCfg: any = { delay: 5000, disableOnInteraction: true, reverseDirection: false }
 let swiperInstance: any = null
 const activeBanner = ref<number>(0)

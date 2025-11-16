@@ -282,6 +282,7 @@ const { items } = storeToRefs(cart);
 
 import { useRoute } from 'vue-router'
 import { apiGet, API_BASE, isAuthenticated } from '../../lib/api'
+import { buildThumbUrl } from '../../lib/media'
 const route = useRoute()
 const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
 const currentCategory = ref<{ id:string; slug?:string|null; name:string }|null>(null)
@@ -491,7 +492,11 @@ async function loadCategories(){
     currentCategory.value = cur ? { id: cur.id, slug: cur.slug||undefined, name: cur.name } : null
     // Build child categories list
     const children = cur ? allCategories.value.filter(c=> String(c.parentId||'')===cur.id) : []
-    categories.value = children.map(c=> ({ id:c.slug||c.id, label:c.name, img: c.image || '/images/placeholder-product.jpg' }))
+    categories.value = children.map(c=> ({
+      id: c.slug||c.id,
+      label: c.name,
+      img: buildThumbUrl(c.image || '/images/placeholder-product.jpg', 112, 60)
+    }))
   }catch{ allCategories.value = []; currentCategory.value = null; categories.value = [] }
 }
 
@@ -641,13 +646,7 @@ async function fireListView(list:any[], page:number){
 
 // ===== صور مصغرة مستجيبة =====
 function thumb(u: string): string {
-  try{
-    const s = String(u||'').trim()
-    if (!s) return s
-    if (/^https?:\/\//i.test(s)) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s)}&w=384&q=60`
-    if (s.startsWith('/uploads/') || s.startsWith('uploads/')) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s.startsWith('/')? s : '/'+s)}&w=384&q=60`
-    return s
-  }catch{ return u }
+  return buildThumbUrl(u, 384, 60)
 }
 </script>
 <style>
