@@ -11,14 +11,14 @@
       <div class="overflow-x-auto no-scrollbar snap-x-start simple-row">
         <div v-if="loading" class="simple-row-inner">
           <div v-for="i in count" :key="'sk-'+i" class="text-start snap-item simple-item">
-            <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-gray-200 animate-pulse aspect-[255/192]" />
+            <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-gray-200 animate-pulse aspect-[192/255]" />
             <div v-if="showPrice" class="mt-1"><span class="inline-block w-12 h-3 rounded bg-gray-200" /></div>
           </div>
         </div>
         <div class="simple-row-inner">
           <button v-for="(p,i) in items" :key="'prod-'+i" class="text-start snap-item simple-item" :aria-label="'منتج '+(p.name||'')" @click="open(p)">
             <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
-              <img :src="p.image" :alt="p.name||p.price" class="w-full aspect-[255/192] object-cover" loading="lazy" />
+              <img :src="thumb(p.image, 512)" :alt="String(p.name||p.price||'منتج')" class="w-full aspect-[192/255] object-cover" loading="lazy" />
             </div>
             <div v-if="showPrice" class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.priceText }}</span></div>
           </button>
@@ -33,6 +33,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_BASE } from '@/lib/api'
 import { fmtPrice, initCurrency } from '@/lib/currency'
+import { buildThumbUrl as thumb } from '@/lib/media'
 
 type Filter = { sortBy?: string; limit?: number; categoryIds?: string[]; onlyDiscounted?: boolean }
 type Cfg = { title?: string; showPrice?: boolean; products?: any[]; filter?: Filter }

@@ -252,6 +252,7 @@ import {
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { apiGet, API_BASE } from '@/lib/api'
+import { buildThumbUrl } from '@/lib/media'
 import { trackEvent } from '@/lib/track'
 import { markTrending } from '@/lib/trending'
 import { Check } from 'lucide-vue-next'
@@ -708,13 +709,7 @@ function fireListView(list:any[], page:number){
 
 // ===== صور مصغرة مستجيبة =====
 function thumb(u: string): string {
-  try{
-    const s = String(u||'').trim()
-    if (!s) return s
-    if (/^https?:\/\//i.test(s)) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s)}&w=384&q=60`
-    if (s.startsWith('/uploads/') || s.startsWith('uploads/')) return `${API_BASE}/api/media/thumb?src=${encodeURIComponent(s.startsWith('/')? s : '/'+s)}&w=384&q=60`
-    return s
-  }catch{ return u }
+  return buildThumbUrl(String(u||''), 384, 60)
 }
 </script>
 

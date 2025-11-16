@@ -45,7 +45,7 @@
         <div class="promo-banner" v-if="activePromoBanner.enabled">
           <div class="promo-content">
             <h3>{{ activePromoBanner.title || 'بانر ترويجي' }}</h3>
-            <img :src="activePromoBanner.image || 'https://csspicker.dev/api/image/?q=fashion+banner'" alt="بانر" class="promo-img" />
+            <img :src="thumb(activePromoBanner.image || 'https://csspicker.dev/api/image/?q=fashion+banner', 960)" alt="بانر" class="promo-img" />
           </div>
         </div>
 
@@ -60,7 +60,7 @@
         <SkeletonGrid v-if="loading" :count="12" :cols="3" />
         <div v-else class="grid">
           <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`">
-            <img :src="c.image" :alt="c.name" loading="lazy" />
+            <img :src="thumb(c.image, 160)" :alt="c.name" loading="lazy" />
             <div class="name">{{ c.name }}</div>
             <div v-if="c.badge" class="badge">{{ c.badge }}</div>
           </a>
@@ -70,7 +70,7 @@
           <h3 class="ttl2">{{ activeSuggestionsTitle }}</h3>
           <div class="grid suggestions">
             <a v-for="(sug, idx) in activeSuggestions" :key="idx" class="cell" :href="`/c/${encodeURIComponent(sug.id)}`">
-              <img :src="sug.image" :alt="sug.name" loading="lazy" />
+              <img :src="thumb(sug.image, 180)" :alt="sug.name" loading="lazy" />
               <div class="name">{{ sug.name }}</div>
             </a>
           </div>
@@ -87,6 +87,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SkeletonGrid from '@/components/SkeletonGrid.vue'
 import { apiGet, API_BASE } from '@/lib/api'
+import { buildThumbUrl } from '@/lib/media'
 import BottomNav from '@/components/BottomNav.vue'
 import { Bell, ShoppingCart, Search } from 'lucide-vue-next'
 
@@ -175,6 +176,11 @@ const displayedCategories = computed<Mini[]>(()=>{
 })
 
 const pageTitle = computed(()=> page.value?.title || 'مختارات من أجلك')
+
+// Image helper via same-origin CDN (/i)
+function thumb(u?: string, w:number=160, q:number=60): string {
+  return buildThumbUrl(String(u||''), w, q)
+}
 
 function normSuggestions(s: Suggestions|undefined): { enabled: boolean; title?: string; items: Mini[] }{
   if (Array.isArray(s)) return { enabled: true, items: s }

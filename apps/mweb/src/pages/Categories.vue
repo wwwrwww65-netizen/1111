@@ -80,7 +80,7 @@
         <div class="promo-banner" v-if="activePromoBanner.enabled && activePromoBanner.image">
           <div class="promo-content">
             <h3>{{ activePromoBanner.title || 'بانر ترويجي' }}</h3>
-            <img :src="activePromoBanner.image" alt="بانر ترويجي" class="promo-img" />
+            <img :src="thumb(activePromoBanner.image, 960)" alt="بانر ترويجي" class="promo-img" />
           </div>
         </div>
         <!-- Skeleton للبنر عند التفعيل بدون صورة بعد -->
@@ -125,7 +125,7 @@
         </div>
         <div v-else class="grid">
           <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`" @click="trackCategoryClick(c)">
-            <img :src="c.image" :alt="c.name" loading="lazy" />
+            <img :src="thumb(c.image, 160)" :alt="c.name" loading="lazy" />
             <div class="name">{{ c.name }}</div>
             <div v-if="c.badge" class="badge">{{ c.badge }}</div>
           </a>
@@ -142,7 +142,7 @@
               :href="`/c/${encodeURIComponent(sug.id)}`"
               @click="trackSuggestionClick(sug)"
             >
-              <img :src="sug.image" :alt="sug.name" loading="lazy" />
+              <img :src="thumb(sug.image, 180)" :alt="sug.name" loading="lazy" />
               <div class="name">{{ sug.name }}</div>
             </a>
           </div>
@@ -161,6 +161,7 @@ import Icon from '@/components/Icon.vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, API_BASE } from '@/lib/api'
+import { buildThumbUrl } from '@/lib/media'
 import { Bell, ShoppingCart, Search } from 'lucide-vue-next'
 
 // Types
@@ -580,6 +581,11 @@ function trackPopupClose() {
 
 function trackPromoSubscription(email: string) {
   console.log('[Analytics] Promo subscription:', email)
+}
+
+// Image helper via same-origin CDN (/i)
+function thumb(u?: string, w: number = 160, q: number = 60): string {
+  return buildThumbUrl(String(u||''), w, q)
 }
 
 // Load categories & config

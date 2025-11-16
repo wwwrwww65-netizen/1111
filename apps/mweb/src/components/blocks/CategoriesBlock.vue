@@ -5,7 +5,7 @@
         <div v-for="(col,ci) in catColsLocked" :key="'col-'+ci" class="flex flex-col gap-1">
           <RouterLink v-for="(c,ri) in col" :key="(c.name||c.id)+'-'+ci+'-'+ri" class="w-[96px] flex-shrink-0 text-center bg-transparent border-0 inline-block" :to="'/c/'+encodeURIComponent(c.id||c.name||'')">
             <div class="w-[68px] h-[68px] border border-gray-200 rounded-full overflow-hidden mx-auto mb-2 bg-white">
-              <img v-if="c.image" :src="c.image" :alt="c.name||c.id" class="w-full h-full object-cover" loading="lazy" />
+              <img v-if="c.image" :src="thumb(c.image)" :alt="c.name||c.id" class="w-full h-full object-cover" loading="lazy" />
             </div>
             <div class="text-[11px] text-gray-700">{{ c.name||c.id||'-' }}</div>
           </RouterLink>
@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { buildThumbUrl } from '../../lib/media'
 
 type Item = { id?: string; name?: string; image?: string }
 type Cfg = { categories?: Item[]; brands?: Item[] }
@@ -29,6 +30,9 @@ const list = computed<Item[]>(()=>{
   if (Array.isArray(cfg.brands) && cfg.brands.length) return cfg.brands
   return []
 })
+function thumb(u?: string): string {
+  return buildThumbUrl(String(u||''), 160, 60)
+}
 const catColsLocked = computed(()=>{
   const perCol = 3
   const arr = list.value || []
