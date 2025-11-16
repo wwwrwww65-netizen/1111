@@ -2,8 +2,8 @@
   <a class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer block no-underline" role="link"
        :aria-label="'افتح '+(title||'المنتج')" tabindex="0" :href="href"
        @click.prevent="open($event)" @keydown.enter.prevent="open($event)" @keydown.space.prevent="open($event)">
-    <!-- صورة: هيكل عظمي حتى تحميل أول صورة -->
-    <div v-if="!imgLoaded" class="w-full bg-gray-200 animate-pulse aspect-[255/192]"></div>
+    <!-- صورة: هيكل عظمي حتى تحميل أول صورة بنسبة توافق ارتفاع الصورة -->
+    <div v-if="!imgLoaded" class="w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (Math.max(0.6, Math.min(2.0, placeholderRatio)) * 100) + '%' }"></div>
     <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
       <div class="flex">
         <img
@@ -136,6 +136,27 @@ const gallery = computed(()=> {
 const href = computed(()=> `/p?id=${encodeURIComponent(id.value)}`)
 const imgLoaded = ref(false)
 function onImgLoad(){ imgLoaded.value = true }
+// نسبة placeholder ديناميكية حسب أول صورة
+const placeholderRatio = ref(1.33) // h/w افتراضي
+function probePlaceholderRatio(){
+  try{
+    const first = (gallery.value && gallery.value[0]) ? gallery.value[0] : ''
+    if (!first) return
+    const u = thumb(first, 64)
+    const img = new Image()
+    ;(img as any).loading = 'eager'
+    ;(img as any).decoding = 'async'
+    img.onload = ()=>{
+      try{
+        const w = (img as any).naturalWidth || 64
+        const h = (img as any).naturalHeight || 64
+        if (w>0 && h>0){ placeholderRatio.value = h / w }
+      }catch{}
+    }
+    img.src = u
+  }catch{}
+}
+onMounted(()=> { probePlaceholderRatio() })
 
 // Lazy enrichment: colors + category label if missing
 import { ref, onMounted } from 'vue'
