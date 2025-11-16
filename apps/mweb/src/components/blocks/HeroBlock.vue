@@ -14,7 +14,16 @@
       >
         <SwiperSlide v-for="(sl,i) in slides" :key="'sl-'+i">
           <a :href="sl.href || '#'" class="block relative w-full h-full">
-            <img :src="thumb(sl.image)" alt="slide" class="w-full h-full object-cover" />
+            <img
+              :src="thumb(sl.image)"
+              :srcset="`${thumbW(sl.image,480)} 480w, ${thumbW(sl.image,720)} 720w, ${thumbW(sl.image,960)} 960w, ${thumbW(sl.image,1200)} 1200w`"
+              :sizes="isMobile ? '100vw' : '100vw'"
+              alt="slide"
+              class="w-full h-full object-cover"
+              :loading="i===0 ? 'eager' : 'lazy'"
+              :fetchpriority="i===0 ? 'high' : 'auto'"
+              decoding="async"
+            />
             <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
           </a>
         </SwiperSlide>
@@ -50,6 +59,9 @@ const slides = computed<Slide[]>(()=>{
 })
 function thumb(u: string): string {
   const w = isMobile.value ? 720 : 1200
+  return buildThumbUrl(u, w, 60)
+}
+function thumbW(u: string, w: number): string {
   return buildThumbUrl(u, w, 60)
 }
 const autoplayCfg: any = { delay: 5000, disableOnInteraction: true, reverseDirection: false }

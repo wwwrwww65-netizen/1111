@@ -16,6 +16,7 @@
           class="w-full h-auto object-cover block flex-shrink-0 snap-start"
           style="min-width:100%"
           loading="lazy"
+          decoding="async"
           @load="idx===0 && onImgLoad()"
         />
       </div>
