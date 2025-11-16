@@ -48,4 +48,21 @@ dig m.jeeey.com AAAA +short
 7) Real device test
 - Test on iPhone Safari and Android Chrome (fresh tab, no cache).
 
+8) API micro-cache & metrics
+
+```bash
+# API JSON micro-cache (expect X-Cache:HIT after the first request within 1 minute)
+curl -sI https://api.jeeey.com/api/products?limit=12 | grep -i x-cache
+
+# Basic API metrics
+curl -s https://api.jeeey.com/metrics/basic
+```
+
+9) Same-origin API for mweb
+
+```bash
+# Ensure mweb proxies /api/* to API upstream
+curl -sI https://m.jeeey.com/api/tabs/list | head -n 20
+```
+
 

@@ -7,6 +7,8 @@ map $http_user_agent $is_mobile {
 
 # Proxy cache for image thumbnails (safe to define at http-level)
 proxy_cache_path /var/cache/nginx/thumbs levels=1:2 keys_zone=thumbs_cache:50m inactive=30d max_size=10g;
+# Micro-cache for public JSON GET endpoints (short TTL)
+proxy_cache_path /var/cache/nginx/api_micro levels=1:2 keys_zone=api_micro:50m inactive=2m max_size=1g;
 
 # HTTP (80) → HTTPS redirects for all hosts, keep ACME path open
 server {
@@ -66,6 +68,23 @@ server {
   # Handle CORS preflight
   if ($request_method = 'OPTIONS') {
     return 204;
+  }
+
+  # Micro-cache public shop endpoints (only GET) to reduce upstream load
+  location ~* ^/api/(products|categories|product|tabs) {
+    proxy_hide_header Set-Cookie;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_pass http://127.0.0.1:4000;
+    proxy_cache api_micro;
+    proxy_cache_methods GET HEAD;
+    proxy_cache_valid 200 1m;
+    proxy_cache_use_stale updating error timeout http_500 http_502 http_503 http_504;
+    add_header X-Cache $upstream_cache_status;
   }
 
   # Serve uploaded media directly from disk with long cache
@@ -377,6 +396,26 @@ server {
     proxy_buffers 8 16k;
     proxy_busy_buffers_size 64k;
     proxy_pass http://127.0.0.1:4000/api/cart;
+  }
+
+  # Generic same-origin proxy to API for public endpoints
+  location ^~ /api/ {
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 120s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    proxy_pass http://127.0.0.1:4000;
   }
 
   # Same-origin CDN path: proxy image thumbnails to API with proxy_cache

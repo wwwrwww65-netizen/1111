@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <template v-if="!tabSections.length">
+    <template v-if="isTabLoading || !tabSections.length">
     <div class="w-screen px-0">
       <!-- Skeleton Hero (exact height/spacing as real) -->
       <div class="relative w-full h-[257.172px] bg-gray-200 animate-pulse rounded-none overflow-hidden" aria-label="جاري التحميل">
@@ -197,6 +197,7 @@ import CategoriesBlock from '@/components/blocks/CategoriesBlock.vue'
 import MasonryForYouBlock from '@/components/blocks/MasonryForYouBlock.vue'
 import ProductOptionsModal from '../components/ProductOptionsModal.vue'
 import { fmtPrice } from '@/lib/currency'
+import { buildCdnThumb } from '@/lib/cdn'
 
 const router = useRouter()
 const route = useRoute()
@@ -270,6 +271,8 @@ async function fetchTab(slug:string, silent:boolean){
 
 function switchTab(slug:string, idx:number){
   activeTab.value = idx
+  // Update URL to reflect the active tab (improves shareability and back/forward navigation)
+  try{ router.push(`/tabs/${encodeURIComponent(slug)}`) }catch{}
   void loadTab(slug)
 }
 function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
@@ -340,7 +343,11 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
     apiGet<any>('/api/products?limit=12&sort=price_desc'),
     apiGet<any>('/api/products?limit=12&sort=new')
   ])
-  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: fmtPrice(Number(p.price||0)), name: p.name }))
+  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>{
+    const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
+    const image = buildCdnThumb(raw, 512, 60, 'webp') || raw
+    return ({ id: p.id, image, price: fmtPrice(Number(p.price||0)), name: p.name })
+  })
   bigDeals.value = mapItems(deals)
   if (!hotTrends.value.length) hotTrends.value = mapItems(trends)
   const fy = (trends?.items||[]).slice(0, 8)
@@ -353,10 +360,14 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
     for (const hex of merged){ const h = String(hex).startsWith('#')? String(hex) : '#'+String(hex); if (!uniq.includes(h)) uniq.push(h); if (uniq.length>=6) break }
     return uniq
   }
-  forYouShein.value = fy.map((p:any, i:number)=>({
+  forYouShein.value = fy.map((p:any, i:number)=>{
+    const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
+    const image = buildCdnThumb(raw, 384, 60, 'webp') || raw
+    const imgs = Array.isArray(p.images) && p.images.length ? p.images.slice(0,5).map((x:string)=> buildCdnThumb(x, 384, 60, 'webp') || x) : undefined
+    return ({
     id: p.id,
-    image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop',
-    images: Array.isArray(p.images) && p.images.length ? p.images.slice(0,5) : undefined,
+      image,
+      images: imgs,
     title: p.name || '',
     brand: p.brand || 'JEEEY',
     basePrice: String(p.price || 0),
@@ -364,21 +375,26 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
     colors: extractColors(p),
     colorCount: Array.isArray(p.colors)? p.colors.length : undefined,
     imageAspect: aspectClassByIndex(i)
-  }))
+    })
+  })
   if (!forYouShein.value.length){
     const base = hotTrends.value.length ? hotTrends.value : bigDeals.value
     if (base.length){
-      forYouShein.value = base.slice(0,8).map((p:any, i:number)=>({
+      forYouShein.value = base.slice(0,8).map((p:any, i:number)=>{
+        const raw = p.image
+        const img = buildCdnThumb(raw, 384, 60, 'webp') || raw
+        return ({
         id: p.id,
-        image: p.image,
-        images: [p.image],
+          image: img,
+          images: [img],
         title: p.name || '',
         brand: 'JEEEY',
         basePrice: String(parsePrice(p.price)),
         colors: [],
         colorCount: undefined,
         imageAspect: aspectClassByIndex(i)
-      }))
+        })
+      })
     }
   }
   dealsLoading.value = false
@@ -386,7 +402,11 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
 }
 async function loadTrends(){ if (!trendsLoading.value) return; try{
   const t = await apiGet<any>('/api/products?limit=12&sort=new')
-  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: fmtPrice(Number(p.price||0)), name: p.name }))
+  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>{
+    const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
+    const image = buildCdnThumb(raw, 512, 60, 'webp') || raw
+    return ({ id: p.id, image, price: fmtPrice(Number(p.price||0)), name: p.name })
+  })
   hotTrends.value = mapItems(t)
   trendsLoading.value = false
 }catch{ trendsLoading.value = false }
@@ -395,7 +415,12 @@ async function loadFY(){ if (!fyLoading.value) return; try{
   if (!forYouShein.value.length){
     const t = await apiGet<any>('/api/products?limit=12&sort=new')
     const arr = (t?.items||[]).slice(0,8)
-    forYouShein.value = arr.map((p:any, i:number)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', images: Array.isArray(p.images)&&p.images.length? p.images: undefined, title: p.name||'', brand: 'JEEEY', basePrice: String(p.price||0), colors: [], colorCount: undefined, imageAspect: aspectClassByIndex(i) }))
+    forYouShein.value = arr.map((p:any, i:number)=>{
+      const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
+      const image = buildCdnThumb(raw, 384, 60, 'webp') || raw
+      const images = Array.isArray(p.images)&&p.images.length? p.images.map((x:string)=> buildCdnThumb(x, 384, 60, 'webp') || x) : undefined
+      return ({ id: p.id, image, images, title: p.name||'', brand: 'JEEEY', basePrice: String(p.price||0), colors: [], colorCount: undefined, imageAspect: aspectClassByIndex(i) })
+    })
   }
   fyLoading.value = false
 }catch{ fyLoading.value = false }
@@ -444,7 +469,15 @@ onMounted(async ()=>{
     tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||'') }))
     const paramSlug = String(route.params.slug||'')
     const initial = paramSlug || (tabs.value[0]?.slug || '')
-    if (!previewActive.value && initial) await loadTab(initial)
+    if (!previewActive.value && initial) {
+      // If landing on root '/', push the first available tab into the URL for correctness
+      try{
+        if (route.path === '/' || route.matched.length === 0){
+          router.replace(`/tabs/${encodeURIComponent(initial)}`)
+        }
+      }catch{}
+      await loadTab(initial)
+    }
     setTimeout(()=>{
       try{
         const ahead = tabs.value.slice(1, 3).map(t=> t.slug)
@@ -543,8 +576,8 @@ onMounted(async ()=>{
     }
   }, { rootMargin: '100px' })
   try{ if (dealsRef.value) io.observe(dealsRef.value); if (trendsRef.value) io.observe(trendsRef.value); if (fyRef.value) io.observe(fyRef.value) }catch{}
-  // Fallback: load trends quickly after first paint
-  setTimeout(()=>{ try{ loadTrends() }catch{} }, 250)
+  // Fallback: load trends after initial paint with a slight delay to reduce burst
+  setTimeout(()=>{ try{ loadTrends() }catch{} }, 600)
   
   // End lazy products
   

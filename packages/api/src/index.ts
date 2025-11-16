@@ -360,6 +360,25 @@ try {
 } catch {}
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// Basic process metrics (non-prometheus), safe to expose
+app.get('/metrics/basic', (_req, res) => {
+  try{
+    const mem = process.memoryUsage();
+    const out: any = {
+      pid: process.pid,
+      uptime_s: Math.round(process.uptime()),
+      rss_mb: Math.round((mem.rss || 0) / 1024 / 1024),
+      heap_used_mb: Math.round((mem.heapUsed || 0) / 1024 / 1024),
+      heap_total_mb: Math.round((mem.heapTotal || 0) / 1024 / 1024),
+      external_mb: Math.round((mem.external || 0) / 1024 / 1024),
+      timestamp: new Date().toISOString()
+    };
+    res.json(out);
+  }catch(e:any){
+    res.status(500).json({ error: 'metrics_failed', message: e?.message || 'failed' });
+  }
+});
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({

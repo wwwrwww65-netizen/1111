@@ -16,5 +16,21 @@ export const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
+// Optional slow query logging (enable by setting SLOW_QUERY_MS, e.g., 200)
+try{
+  const slowMs = Number(process.env.SLOW_QUERY_MS || '0');
+  if (isFinite(slowMs) && slowMs > 0 && typeof (prisma as any).$on === 'function'){
+    (prisma as any).$on('query', (e: any) => {
+      try{
+        const dur = Number(e?.duration || 0);
+        if (dur >= slowMs){
+          // Minimal structured log to stdout
+          console.warn(JSON.stringify({ level:'warn', type:'slow_query', duration_ms: dur, query: e?.query, params: e?.params }));
+        }
+      }catch{}
+    });
+  }
+}catch{}
+
 export const db = prisma;
 export type { PrismaClientType as PrismaClient };

@@ -167,6 +167,10 @@ model Product {
   colors       ProductColor[]
   analytics    ProductAnalytics[]
   categoryLinks ProductCategory[]
+
+  @@index([isActive, createdAt])
+  @@index([categoryId, isActive, createdAt])
+  @@index([price])
 }
 
 // Many-to-many link for additional product categories (non-breaking; primary stays Product.categoryId)
@@ -767,6 +771,9 @@ model TabPage {
 
   versions        TabPageVersion[]
   stats           TabPageStat[]
+
+  @@index([status, device])
+  @@index([updatedAt])
 }
 
 model TabPageVersion {
@@ -859,6 +866,8 @@ model Driver {
   shipments     Shipment[]
   ledgerEntries DriverLedgerEntry[]
   documents     DriverDocument[]
+
+  @@index([isActive, status, lastSeenAt])
 }
 
 enum LedgerEntryType {

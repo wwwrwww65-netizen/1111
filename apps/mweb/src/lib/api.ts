@@ -64,7 +64,10 @@ export function facebookLoginUrl(next: string = '/account'): string {
 
 export async function apiGet<T = any>(path: string, init?: RequestInit): Promise<T | null> {
   try {
-    const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+    // Prefer same-origin for relative /api/* so SW and browser cache can help
+    const url = path.startsWith('http')
+      ? path
+      : (path.startsWith('/api/') ? path : `${API_BASE}${path}`)
     const isPublic = /^\/api\/(products|categories|search|product|catalog|tabs)/.test(path)
     const headers = { 'Accept': 'application/json', 'X-Shop-Client': 'mweb', ...getAuthHeader(), ...(init?.headers||{}) }
     const key = isPublic ? url : '' // only cache public GETs
@@ -92,7 +95,9 @@ export async function apiGet<T = any>(path: string, init?: RequestInit): Promise
 
 export async function apiPost<T = any>(path: string, body?: any, init?: RequestInit): Promise<T | null> {
   try {
-    const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+    const url = path.startsWith('http')
+      ? path
+      : (path.startsWith('/api/') ? path : `${API_BASE}${path}`)
     // Public posts (no cookies) to avoid CORS issues from first-party pages
     const isPublic = /^\/api\/auth\/otp\/request/.test(path) || /^\/api\/events(\/|$)?/.test(path) || /^\/api\/tabs\/track/.test(path) || /^\/api\/promotions\/claim\/start/.test(path)
     const res = await fetch(url, { method:'POST', headers: { 'content-type':'application/json', ...getAuthHeader(), ...(init?.headers||{}) }, credentials: isPublic ? 'omit' : 'include', body: body==null?undefined: JSON.stringify(body) })
