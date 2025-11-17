@@ -176,7 +176,7 @@
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-2 py-2">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
-      <div v-if="productsLoading" class="grid grid-cols-2 gap-1">
+      <div v-if="productsLoading" class="grid grid-cols-2 gap-px">
         <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-1">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
             <div class="relative w-full">
@@ -194,7 +194,7 @@
         </div>
       </div>
       <!-- الشبكة الفعلية: Masonry عمودين بنفس مقاييس الهيكل العظمي -->
-      <div v-else class="grid grid-cols-2 gap-1">
+      <div v-else class="grid grid-cols-2 gap-px">
         <!-- العمود الأيسر -->
         <div>
           <div v-for="(p,i) in leftProducts" :key="'product-l-'+p.id+'-'+i" class="mb-1">
