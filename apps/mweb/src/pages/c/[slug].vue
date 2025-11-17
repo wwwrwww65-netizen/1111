@@ -193,57 +193,29 @@
           </div>
         </div>
       </div>
-      <!-- الشبكة الفعلية: توزيع تناوبي بين عمودين مستقلين لتفادي ملء عمود واحد أولاً -->
-      <div v-else class="flex gap-1">
-        <!-- العمود الأيسر: العناصر ذات الفهرس الزوجي -->
-        <div class="flex-1 space-y-1">
-          <div v-for="(p,idx) in leftProducts" :key="'product-l-'+p.id+'-'+idx" class="break-inside-avoid">
-            <ProductGridCard
-              :product="{
-                id: p.id,
-                title: p.title,
-                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
-                overlayBannerSrc: (p as any).overlayBannerSrc,
-                overlayBannerAlt: (p as any).overlayBannerAlt,
-                brand: p.brand,
-                discountPercent: p.discountPercent,
-                bestRank: p.bestRank,
-                bestRankCategory: p.bestRankCategory,
-                basePrice: p.basePrice,
-                soldPlus: p.soldPlus,
-                couponPrice: p.couponPrice,
-                isTrending: (p as any).isTrending === true
-              }"
-              :ratio="p._ratio || defaultRatio"
-              :priority="idx<4"
-              @add="openSuggestOptions"
-            />
-          </div>
-        </div>
-        <!-- العمود الأيمن: العناصر ذات الفهرس الفردي -->
-        <div class="flex-1 space-y-1">
-          <div v-for="(p,idx) in rightProducts" :key="'product-r-'+p.id+'-'+idx" class="break-inside-avoid">
-            <ProductGridCard
-              :product="{
-                id: p.id,
-                title: p.title,
-                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
-                overlayBannerSrc: (p as any).overlayBannerSrc,
-                overlayBannerAlt: (p as any).overlayBannerAlt,
-                brand: p.brand,
-                discountPercent: p.discountPercent,
-                bestRank: p.bestRank,
-                bestRankCategory: p.bestRankCategory,
-                basePrice: p.basePrice,
-                soldPlus: p.soldPlus,
-                couponPrice: p.couponPrice,
-                isTrending: (p as any).isTrending === true
-              }"
-              :ratio="p._ratio || defaultRatio"
-              :priority="idx<4"
-              @add="openSuggestOptions"
-            />
-          </div>
+      <!-- الشبكة الفعلية: شبكة عمودين ثابتة لضبط العرض بدقة -->
+      <div v-else class="grid grid-cols-2 gap-1">
+        <div v-for="(p,i) in products" :key="'product-'+p.id+'-'+i" class="break-inside-avoid">
+          <ProductGridCard
+            :product="{
+              id: p.id,
+              title: p.title,
+              images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
+              overlayBannerSrc: (p as any).overlayBannerSrc,
+              overlayBannerAlt: (p as any).overlayBannerAlt,
+              brand: p.brand,
+              discountPercent: p.discountPercent,
+              bestRank: p.bestRank,
+              bestRankCategory: p.bestRankCategory,
+              basePrice: p.basePrice,
+              soldPlus: p.soldPlus,
+              couponPrice: p.couponPrice,
+              isTrending: (p as any).isTrending === true
+            }"
+            :ratio="p._ratio || defaultRatio"
+            :priority="i<8"
+            @add="openSuggestOptions"
+          />
         </div>
       </div>
       <div style="height:80px" />
@@ -359,9 +331,7 @@ function thumbSrc(p:any, w:number): string {
   const u = (Array.isArray(p.images)&&p.images[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
 }
-// تقسيم تناوبي للمنتجات بين عمودين
-const leftProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 0))
-const rightProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 1))
+// (تم استخدام شبكة grid-cols-2 لضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
 function probeRatioOnce(p:any): void {
   try{
     if (p._ratioProbing || p._ratio){ return }
@@ -435,7 +405,7 @@ onMounted(() => {
   atTop.value = lastScrollY <= 0;
   isScrollingUp.value = false;
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
-  void bootstrap()
+  void restoreFromCacheOrBootstrap()
   // دعم المعاينة الحية من لوحة التحكم (Categories Tabs)
   try{
     window.addEventListener('message', (e: MessageEvent)=>{
@@ -463,6 +433,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearInterval(interval);
   window.removeEventListener('scroll', handleWindowScroll);
+  try{ saveCache() }catch{}
 });
 
 function handleWindowScroll() {
@@ -701,6 +672,55 @@ async function loadProducts(limit: number = 24){
 async function bootstrap(){ await loadCategories(); await loadProducts() }
 
 watch(()=> route.params.slug, ()=>{ void bootstrap() })
+
+// ====== ذاكرة الصفحة (جلسة المتصفح) للحفاظ على المكان والبيانات ======
+function cacheKey(slug?: string){ const s = String(slug ?? currentSlug()); return `cat:${s}:v1` }
+function saveCache(){
+  try{
+    const key = cacheKey()
+    const data = {
+      products: products.value,
+      hasMore: hasMore.value,
+      pageNumber: pageNumber.value,
+      activeFilter: activeFilter.value,
+      priceSort: priceSort.value,
+      selSizes: selSizes.value,
+      selColors: selColors.value,
+      selMaterials: selMaterials.value,
+      selStyles: selStyles.value,
+      searchQ: searchQ.value,
+      scrollY: window.scrollY || 0,
+    }
+    sessionStorage.setItem(key, JSON.stringify(data))
+  }catch{}
+}
+function restoreCache(){
+  try{
+    const key = cacheKey()
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return false
+    const j = JSON.parse(raw)
+    if (!j || !Array.isArray(j.products)) return false
+    products.value = j.products
+    hasMore.value = !!j.hasMore
+    pageNumber.value = Number(j.pageNumber||1)
+    activeFilter.value = j.activeFilter || 'recommend'
+    priceSort.value = j.priceSort || null
+    selSizes.value = Array.isArray(j.selSizes)? j.selSizes : []
+    selColors.value = Array.isArray(j.selColors)? j.selColors : []
+    selMaterials.value = Array.isArray(j.selMaterials)? j.selMaterials : []
+    selStyles.value = Array.isArray(j.selStyles)? j.selStyles : []
+    searchQ.value = String(j.searchQ||'')
+    productsLoading.value = false
+    setTimeout(()=>{ try{ window.scrollTo(0, Number(j.scrollY||0)) }catch{} }, 0)
+    return true
+  }catch{ return false }
+}
+async function restoreFromCacheOrBootstrap(){
+  if (!restoreCache()){
+    await bootstrap()
+  }
+}
 
 // ===== كوبونات وتطبيق السعر بعد الخصم على البطاقات =====
 type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }

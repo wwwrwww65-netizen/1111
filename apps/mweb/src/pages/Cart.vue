@@ -230,26 +230,13 @@
         </div>
         <div v-else-if="!suggested.length" class="text-center text-gray-500 text-[12px] py-4">لا توجد مقترحات حالياً</div>
         <div v-else class="px-2 py-2">
-          <div class="flex gap-1">
-            <!-- العمود الأيسر (فهرس زوجي) -->
-            <div class="flex-1 space-y-1">
-              <div v-for="(p,i) in leftSuggested" :key="'sug-l-'+i" class="break-inside-avoid">
-                <ProductGridCard 
-                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
-                  :ratio="(p as any)._ratio || defaultRatio"
-                  @add="openSuggestOptions"
-                />
-              </div>
-            </div>
-            <!-- العمود الأيمن (فهرس فردي) -->
-            <div class="flex-1 space-y-1">
-              <div v-for="(p,i) in rightSuggested" :key="'sug-r-'+i" class="break-inside-avoid">
-                <ProductGridCard 
-                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
-                  :ratio="(p as any)._ratio || defaultRatio"
-                  @add="openSuggestOptions"
-                />
-              </div>
+          <div class="grid grid-cols-2 gap-1">
+            <div v-for="(p,i) in suggested" :key="'sug-'+i" class="break-inside-avoid">
+              <ProductGridCard 
+                :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                :ratio="(p as any)._ratio || defaultRatio"
+                @add="openSuggestOptions"
+              />
             </div>
           </div>
         </div>
@@ -310,7 +297,7 @@
 import { storeToRefs } from 'pinia'
 import { useCart } from '@/store/cart'
 import { useRouter } from 'vue-router'
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
 import { initCurrency, fmtPrice } from '@/lib/currency'
 import { 
   X, 
@@ -359,9 +346,31 @@ function thumbSrcSug(p:any, w:number): string {
   const u = (Array.isArray(p.imagesNormalized)&&p.imagesNormalized[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
 }
-// تقسيم تناوبي بين عمودين
-const leftSuggested = computed(()=> suggested.value.filter((_p, i)=> i % 2 === 0))
-const rightSuggested = computed(()=> suggested.value.filter((_p, i)=> i % 2 === 1))
+// (grid-cols-2 يضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
+// ===== Cache helpers (session) =====
+function saveCartCache(){
+  try{
+    sessionStorage.setItem('cart:scrollY', String(window.scrollY||0))
+    sessionStorage.setItem('cart:suggest', JSON.stringify(suggested.value||[]))
+  }catch{}
+}
+function restoreCartCache(): boolean{
+  try{
+    const raw = sessionStorage.getItem('cart:suggest')
+    if (raw){
+      const list = JSON.parse(raw)||[]
+      if (Array.isArray(list) && list.length){
+        suggested.value = list
+        suggestedLoading.value = false
+      }
+    }
+    const sy = Number(sessionStorage.getItem('cart:scrollY')||'0')
+    if (sy>0) setTimeout(()=>{ try{ window.scrollTo(0, sy) }catch{} }, 0)
+    return true
+  }catch{ return false }
+}
+onMounted(()=>{ try{ restoreCartCache() }catch{} })
+onBeforeUnmount(()=>{ try{ saveCartCache() }catch{} })
 function probeRatioPromise(p:any): Promise<void>{
   return new Promise((resolve)=>{
     try{
@@ -838,6 +847,7 @@ onMounted(async () => {
   }catch{ shippingAddress.value = 'اليمن'; hasAnyAddress.value = false }
   // جلب منتجات مقترحة
   try{
+    if (suggested.value.length){ suggestedLoading.value = false; return }
     const r = await (await import('@/lib/api')).apiGet<any>('/api/products?limit=6')
     const items = r?.items || []
     const normalizeList = (arr: string[]|undefined): string[] => {

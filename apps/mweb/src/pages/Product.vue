@@ -637,54 +637,27 @@
 
     <!-- Product Cards using ProductCard.vue -->
     <div class="px-2 pb-2">
-      <div class="flex gap-1 pb-2">
-        <!-- العمود الأيسر (فهرس زوجي) -->
-        <div class="flex-1 space-y-1">
-          <div v-for="(p,i) in leftRecommended" :key="'rec-l-'+(p.id||i)" class="break-inside-avoid">
-            <ProductGridCard 
-              :product="{
-                id: p.id,
-                title: p.title,
-                images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
-                overlayBannerSrc: (p as any).overlayBannerSrc,
-                overlayBannerAlt: (p as any).overlayBannerAlt,
-                brand: p.brand,
-                discountPercent: p.discountPercent,
-                bestRank: p.bestRank,
-                bestRankCategory: (p as any).bestRankCategory,
-                basePrice: p.priceText,
-                soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
-                couponPrice: (p as any).afterCoupon,
-                isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
-              }"
-              :ratio="(p as any)._ratio || defaultRatio"
-              @add="onRecoAdd"
-            />
-          </div>
-        </div>
-        <!-- العمود الأيمن (فهرس فردي) -->
-        <div class="flex-1 space-y-1">
-          <div v-for="(p,i) in rightRecommended" :key="'rec-r-'+(p.id||i)" class="break-inside-avoid">
-            <ProductGridCard 
-              :product="{
-                id: p.id,
-                title: p.title,
-                images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
-                overlayBannerSrc: (p as any).overlayBannerSrc,
-                overlayBannerAlt: (p as any).overlayBannerAlt,
-                brand: p.brand,
-                discountPercent: p.discountPercent,
-                bestRank: p.bestRank,
-                bestRankCategory: (p as any).bestRankCategory,
-                basePrice: p.priceText,
-                soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
-                couponPrice: (p as any).afterCoupon,
-                isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
-              }"
-              :ratio="(p as any)._ratio || defaultRatio"
-              @add="onRecoAdd"
-            />
-          </div>
+      <div class="grid grid-cols-2 gap-1 pb-2">
+        <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="break-inside-avoid">
+          <ProductGridCard 
+            :product="{
+              id: p.id,
+              title: p.title,
+              images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
+              overlayBannerSrc: (p as any).overlayBannerSrc,
+              overlayBannerAlt: (p as any).overlayBannerAlt,
+              brand: p.brand,
+              discountPercent: p.discountPercent,
+              bestRank: p.bestRank,
+              bestRankCategory: (p as any).bestRankCategory,
+              basePrice: p.priceText,
+              soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
+              couponPrice: (p as any).afterCoupon,
+              isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
+            }"
+            :ratio="(p as any)._ratio || defaultRatio"
+            @add="onRecoAdd"
+          />
         </div>
       </div>
       <div v-if="isLoadingRecommended && hasMoreRecommended" class="columns-2 gap-1 [column-fill:_balance] pb-2">
@@ -1440,6 +1413,7 @@ const hasMoreRecommended = ref(true)
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
 type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string }
 const recommendedProducts = ref<RecItem[]>([])
+const restoredRec = ref(false)
 
 // Rec tabs: recommendation + subcategories
 const recTabs = ref<Array<{ key:string; label:string; catId?:string }>>([
@@ -1895,6 +1869,8 @@ onMounted(()=>{
   window.addEventListener('scroll', onScroll, { passive:true })
   computeGalleryHeight()
   window.addEventListener('resize', computeGalleryHeight, { passive:true })
+  // حاول استعادة حالة الصفحة (التوصيات + موضع التمرير) أولاً
+  try{ restorePdpCache() }catch{}
   loadProductData()
   loadShipping()
   loadAddresses()
@@ -1955,6 +1931,7 @@ watch(() => route.query.id, async (nv, ov)=>{
 onBeforeUnmount(()=> {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', computeGalleryHeight)
+  try{ savePdpCache() }catch{}
 })
 
 // ==================== DATA LOADING ====================
@@ -2047,7 +2024,7 @@ async function loadProductData(pid?: string) {
       
       // After primary data is ready, fire dependent loads (non-blocking)
       try { await buildRecTabsFromCategory() } catch {}
-      try { fetchRecommendations() } catch {}
+      try { if (!restoredRec.value) fetchRecommendations() } catch {}
       try { fetchSizeGuide() } catch {}
       try { loadWishlist() } catch {}
       try { injectProductJsonLd() } catch {}
@@ -2316,8 +2293,38 @@ function thumbSrcRec(p:any, w:number): string {
   return buildThumbUrl(String(u||''), w, 60)
 }
 // تقسيم تناوبي بين عمودين
-const leftRecommended = computed(()=> recommendedProducts.value.filter((_p, i)=> i % 2 === 0))
-const rightRecommended = computed(()=> recommendedProducts.value.filter((_p, i)=> i % 2 === 1))
+// (grid-cols-2 يضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
+// ===== Cache helpers for PDP (per product) =====
+function pCacheKeyBase(pid?: string){ const p = String(pid || id); return `p:${p}:v1` }
+function savePdpCache(){
+  try{
+    const base = pCacheKeyBase()
+    sessionStorage.setItem(`${base}:rec`, JSON.stringify({
+      recommended: recommendedProducts.value,
+      activeRecTab: activeRecTab.value,
+      hasMore: hasMoreRecommended.value
+    }))
+    sessionStorage.setItem(`${base}:scrollY`, String(window.scrollY||0))
+  }catch{}
+}
+function restorePdpCache(): boolean{
+  try{
+    const base = pCacheKeyBase()
+    const raw = sessionStorage.getItem(`${base}:rec`)
+    if (raw){
+      const j = JSON.parse(raw)||{}
+      if (Array.isArray(j.recommended)){
+        recommendedProducts.value = j.recommended
+        if (j.activeRecTab) activeRecTab.value = String(j.activeRecTab)
+        if (typeof j.hasMore==='boolean') hasMoreRecommended.value = j.hasMore
+        restoredRec.value = true
+      }
+    }
+    const sy = Number(sessionStorage.getItem(`${base}:scrollY`)||'0')
+    if (sy>0) setTimeout(()=>{ try{ window.scrollTo(0, sy) }catch{} }, 0)
+    return true
+  }catch{ return false }
+}
 function probeRatioPromise(p:any): Promise<void>{
   return new Promise((resolve)=>{
     try{

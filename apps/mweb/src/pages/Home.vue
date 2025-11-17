@@ -242,6 +242,8 @@ async function loadTab(slug:string){
     tabSections.value = cached
     void fetchTab(slug, true)
     const idx1 = tabs.value.findIndex(t=> t.slug === slug); if (idx1>=0) activeTab.value = idx1
+    // استعادة موضع التمرير إن وجد
+    try{ const sy = Number(sessionStorage.getItem('home:scrollY')||'0'); if (sy>0) setTimeout(()=> window.scrollTo(0, sy), 0) }catch{}
     return
   }
   isTabLoading.value = true
@@ -249,6 +251,8 @@ async function loadTab(slug:string){
   isTabLoading.value = false
   const idx = tabs.value.findIndex(t=> t.slug === slug)
   if (idx >= 0) activeTab.value = idx
+  // استعادة موضع التمرير إن وجد
+  try{ const sy = Number(sessionStorage.getItem('home:scrollY')||'0'); if (sy>0) setTimeout(()=> window.scrollTo(0, sy), 0) }catch{}
 }
 
 async function fetchTab(slug:string, silent:boolean){
@@ -274,6 +278,8 @@ function switchTab(slug:string, idx:number){
   // Update URL to reflect the active tab (improves shareability and back/forward navigation)
   try{ router.push(`/tabs/${encodeURIComponent(slug)}`) }catch{}
   void loadTab(slug)
+  // احفظ التبويب النشط
+  try{ sessionStorage.setItem('home:active_slug', slug) }catch{}
 }
 function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
@@ -295,6 +301,21 @@ function onPreviewMessage(e: MessageEvent){
 }
 onMounted(()=>{ try{ window.addEventListener('message', onPreviewMessage) }catch{} })
 onBeforeUnmount(()=>{ window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', measureHeader); try{ window.removeEventListener('message', onPreviewMessage) }catch{} })
+// احفظ موضع التمرير والتبويب النشط عند مغادرة الصفحة
+onBeforeUnmount(()=>{
+  try{
+    sessionStorage.setItem('home:scrollY', String(window.scrollY||0))
+    const slug = currentSlug.value || tabs.value[activeTab.value]?.slug || ''
+    if (slug) sessionStorage.setItem('home:active_slug', slug)
+    // احفظ محتوى التبويب الحالي في ذاكرة الجلسة (لتفادي إعادة جلبه عند الرجوع)
+    if (slug && (tabSections.value||[]).length){
+      const payload = { [slug]: tabSections.value }
+      const prevRaw = sessionStorage.getItem('home:tabs_cache')
+      const prev = prevRaw ? JSON.parse(prevRaw) : {}
+      sessionStorage.setItem('home:tabs_cache', JSON.stringify({ ...prev, ...payload }))
+    }
+  }catch{}
+})
 watch(scrolled, ()=> nextTick(measureHeader))
 function onTabsKeyDown(e: KeyboardEvent){
   if (e.key === 'ArrowRight') {
@@ -468,12 +489,23 @@ onMounted(async ()=>{
     const filtered = all.filter((t:any)=> !cats.has(String(t.slug||'')))
     tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||'') }))
     const paramSlug = String(route.params.slug||'')
-    const initial = paramSlug || (tabs.value[0]?.slug || '')
+    // حاول استرجاع آخر تبويب نشط من الزيارة السابقة
+    let savedSlug = ''
+    try{ savedSlug = String(sessionStorage.getItem('home:active_slug')||'') }catch{}
+    const initial = paramSlug || savedSlug || (tabs.value[0]?.slug || '')
     if (!previewActive.value && initial) {
       // If landing on root '/', push the first available tab into the URL for correctness
       try{
         if (route.path === '/' || route.matched.length === 0){
           router.replace(`/tabs/${encodeURIComponent(initial)}`)
+        }
+      }catch{}
+      // Hydrate tab cache from sessionStorage if available
+      try{
+        const raw = sessionStorage.getItem('home:tabs_cache')
+        if (raw){
+          const saved = JSON.parse(raw)||{}
+          Object.assign(tabCache.value, saved)
         }
       }catch{}
       await loadTab(initial)

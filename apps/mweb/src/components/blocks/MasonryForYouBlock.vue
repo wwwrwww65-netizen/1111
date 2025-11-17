@@ -22,18 +22,9 @@
           </div>
         </div>
       </div>
-      <div v-else class="flex gap-1">
-        <!-- العمود الأيسر (فهرس زوجي) -->
-        <div class="flex-1 space-y-1">
-          <div v-for="(p,i) in leftProducts" :key="'fy-l-'+(p.id||i)" class="break-inside-avoid">
-            <ProductGridCard :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="i<4" @add="openSuggestOptions" />
-          </div>
-        </div>
-        <!-- العمود الأيمن (فهرس فردي) -->
-        <div class="flex-1 space-y-1">
-          <div v-for="(p,i) in rightProducts" :key="'fy-r-'+(p.id||i)" class="break-inside-avoid">
-            <ProductGridCard :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="i<4" @add="openSuggestOptions" />
-          </div>
+      <div v-else class="grid grid-cols-2 gap-1">
+        <div v-for="(p,i) in products" :key="'fy-'+(p.id||i)" class="break-inside-avoid">
+          <ProductGridCard :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="i<8" @add="openSuggestOptions" />
         </div>
       </div>
     </div>
@@ -88,9 +79,7 @@ function thumbSrc(p:GridP, w:number): string {
   const u = (Array.isArray(p.images)&&p.images[0]) || p.image || ''
   return buildThumbUrl(String(u||''), w, 60)
 }
-// تقسيم تناوبي بين عمودين
-const leftProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 0))
-const rightProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 1))
+// (grid-cols-2 يضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
 function probeRatioPromise(p: any): Promise<void>{
   return new Promise((resolve)=>{
     try{
