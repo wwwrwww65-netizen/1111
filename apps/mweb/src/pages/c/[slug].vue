@@ -212,6 +212,7 @@
               couponPrice: p.couponPrice,
               isTrending: (p as any).isTrending === true
             }"
+            :ratio="p._ratio || defaultRatio"
             :priority="i<8"
             @add="openSuggestOptions"
           />
@@ -348,6 +349,21 @@ function probeRatioOnce(p:any): void {
     img.onerror = ()=>{ try{ p._ratioProbing = false }catch{} }
     img.src = u
   }catch{}
+}
+// نسخة Promise للاستعمال قبل العرض
+function probeRatioPromise(p:any): Promise<void>{
+  return new Promise((resolve)=>{
+    try{
+      if (p._ratio){ resolve(); return }
+      const u = thumbSrc(p, 64)
+      const img = new Image()
+      ;(img as any).loading = 'eager'
+      ;(img as any).decoding = 'async'
+      img.onload = ()=>{ try{ const w=(img as any).naturalWidth||64; const h=(img as any).naturalHeight||64; if (w>0&&h>0) p._ratio=h/w }catch{} finally{ resolve() } }
+      img.onerror = ()=> resolve()
+      img.src = u
+    }catch{ resolve() }
+  })
 }
 
 const cartBadge = computed(() => items.value.length);
@@ -554,9 +570,9 @@ function loadMoreProducts() {
         _imgLoaded: false
       }))
       if (slice.length){
+        // جس النسب قبل الإضافة لمنع أي قفزات لاحقة
+        await Promise.all(slice.map((p:any)=> probeRatioPromise(p)))
         products.value = products.value.concat(slice)
-        for (const p of slice.slice(0, 12)){ probeRatioOnce(p) }
-        setTimeout(()=>{ try{ for (const p of slice.slice(12)){ probeRatioOnce(p) } }catch{} }, 0)
         hasMore.value = items.length >= pageSize
         const nextPage = Math.floor(prev / pageSize) + 1
         pageNumber.value = nextPage
@@ -635,11 +651,12 @@ async function loadProducts(limit: number = 24){
       _ratio: undefined,
       _imgLoaded: false
     }))
+    // جس النسب قبل العرض لضمان أن الهيكل يطابق الصورة
+    await Promise.all(mapped.slice(0, limit).map((p:any)=> probeRatioPromise(p)))
     products.value = mapped
     try{ markTrending(products.value as any[]) }catch{}
-    // Probe نسب صور أول دفعة
-    for (const p of products.value.slice(0, 12)){ probeRatioOnce(p) }
-    setTimeout(()=>{ try{ for (const p of products.value.slice(12, 36)){ probeRatioOnce(p) } }catch{} }, 0)
+    // جس لاحق لأي عناصر إضافية خارج أول دفعة إن لزم
+    setTimeout(()=>{ try{ for (const p of products.value.slice(limit, limit*2)){ probeRatioOnce(p) } }catch{} }, 0)
     hasMore.value = items.length >= limit
     try{ await hydrateCouponsAndPrices() }catch{}
     try{

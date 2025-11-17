@@ -2,24 +2,30 @@
   <a class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer block no-underline" role="link"
        :aria-label="'افتح '+(title||'المنتج')" tabindex="0" :href="href"
        @click.prevent="open($event)" @keydown.enter.prevent="open($event)" @keydown.space.prevent="open($event)">
-    <!-- صورة: هيكل عظمي حتى تحميل أول صورة بنسبة توافق ارتفاع الصورة -->
-    <div v-if="!imgLoaded" class="w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatio * 100) + '%' }"></div>
-    <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
-      <div class="flex">
-        <img
-          v-for="(img,idx) in gallery"
-          :key="'img-'+idx"
-          :src="thumb(img, 512)"
-          :srcset="`${thumb(img,256)} 256w, ${thumb(img,384)} 384w, ${thumb(img,512)} 512w, ${thumb(img,768)} 768w`"
-          sizes="(max-width: 480px) 50vw, 33vw"
-          :alt="title"
-          class="w-full h-auto object-cover block flex-shrink-0 snap-start"
-          style="min-width:100%"
-          :loading="priority && idx===0 ? 'eager' : 'lazy'"
-          :fetchpriority="priority && idx===0 ? 'high' : 'auto'"
-          decoding="async"
-          @load="idx===0 && onImgLoad()"
-        />
+    <!-- غلاف صورة ثابت الارتفاع حسب النسبة (قبل وبعد التحميل) -->
+    <div class="relative w-full">
+      <!-- مُحدد النسبة يحجز الارتفاع دائماً -->
+      <div :style="{ paddingTop: (placeholderRatio * 100) + '%' }"></div>
+      <!-- الهيكل العظمي فوق الصورة حتى تحميل أول صورة -->
+      <div v-if="!imgLoaded" class="absolute inset-0 bg-gray-200 animate-pulse"></div>
+      <!-- شريط الصور -->
+      <div class="absolute inset-0 overflow-x-auto snap-x snap-mandatory no-scrollbar">
+        <div class="flex h-full">
+          <img
+            v-for="(img,idx) in gallery"
+            :key="'img-'+idx"
+            :src="thumb(img, 512)"
+            :srcset="`${thumb(img,256)} 256w, ${thumb(img,384)} 384w, ${thumb(img,512)} 512w, ${thumb(img,768)} 768w`"
+            sizes="(max-width: 480px) 50vw, 33vw"
+            :alt="title"
+            class="w-full h-full object-cover block flex-shrink-0 snap-start"
+            style="min-width:100%"
+            :loading="priority && idx===0 ? 'eager' : 'lazy'"
+            :fetchpriority="priority && idx===0 ? 'high' : 'auto'"
+            decoding="async"
+            @load="idx===0 && onImgLoad()"
+          />
+        </div>
       </div>
       <!-- عمود الألوان: نقاط ألوان عند توفر قائمة ألوان، وإلا تعرض مصغرات صور الألوان -->
       <div v-if="colorsHex.length || colorThumbs.length" class="absolute top-1 left-1 flex gap-1">
@@ -95,7 +101,7 @@ type P = {
   isTrending?: boolean
 }
 
-const props = defineProps<{ product: P; priority?: boolean }>()
+const props = defineProps<{ product: P; priority?: boolean; ratio?: number }>()
 const emit = defineEmits<{ (e:'add', id: string): void }>()
 const router = useRouter()
 const cart = useCart()
@@ -142,9 +148,21 @@ const href = computed(()=> `/p?id=${encodeURIComponent(id.value)}`)
 const imgLoaded = ref(false)
 function onImgLoad(){ imgLoaded.value = true }
 // نسبة placeholder ديناميكية حسب أول صورة
-const placeholderRatio = ref(1) // h/w افتراضي؛ سيُستبدل حالما تُجس الصورة المصغّرة
+const placeholderRatio = ref(1) // h/w افتراضي؛ يُستبدل عند توفر ratio
+// استخدم النسبة القادمة من الأب إن توفرت لضمان ثبات الارتفاع قبل العرض
+watch(() => (props as any).ratio, (r)=>{
+  try{
+    const v = Number(r)
+    if (Number.isFinite(v) && v > 0){ placeholderRatio.value = v }
+  }catch{}
+}, { immediate: true })
 function probePlaceholderRatio(){
   try{
+    // إذا وصلت نسبة من الأب فلا حاجة للجس المحلي
+    try{
+      const r = Number((props as any).ratio)
+      if (Number.isFinite(r) && r > 0) return
+    }catch{}
     const first = (gallery.value && gallery.value[0]) ? gallery.value[0] : ''
     if (!first) return
     const u = thumb(first, 64)

@@ -234,7 +234,7 @@ import GuestAccount from '@/components/account/GuestAccount.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
-import { apiGet, apiPost } from '@/lib/api'
+import { apiGet, apiPost, isAuthenticated } from '@/lib/api'
 import { Settings, User, Heart, Package, Truck, CreditCard, Gift, Camera, Megaphone, FileText, Headphones, Search, Home, ShoppingCart } from 'lucide-vue-next'
 const props = defineProps<{ userName?: string }>()
 const user = useUser()
@@ -244,7 +244,21 @@ function go(path:string){ router.push(path) }
 function goToSettings(){ router.push('/settings') }
 
 onMounted(async ()=>{
-  // Safety: ensure we never block the UI beyond a short window
+  // Render immediately (no blocking skeleton)
+  try{
+    hydrated.value = true
+    // Optimistic UI: show account if token or cached profile exists
+    const cached = JSON.parse(localStorage.getItem('account_profile_cache') || 'null')
+    if (cached && cached.username){
+      user.isLoggedIn = true
+      user.username = String(cached.username)
+    } else if (isAuthenticated()){
+      user.isLoggedIn = true
+    } else {
+      user.isLoggedIn = false
+    }
+  }catch{ hydrated.value = true }
+  // Safety: legacy fallback (kept, but now redundant)
   try{ setTimeout(()=>{ try{ if (!hydrated.value){ user.isLoggedIn = false; hydrated.value = true } }catch{} }, 2500) }catch{}
   // Helpers
   const getApexDomain = (): string | null => {
@@ -286,7 +300,7 @@ onMounted(async ()=>{
       writeCookie('auth_token', t)
       writeCookie('shop_auth_token', t)
       try{ localStorage.setItem('shop_token', t) }catch{}
-      // Link analytics session to user immediately after setting token
+      // Link analytics session to user immediately after setting token (fire-and-forget)
       try{
         let sid = localStorage.getItem('sid_v1') || ''
         if (!sid){
@@ -295,7 +309,7 @@ onMounted(async ()=>{
             localStorage.setItem('sid_v1', sid)
           }catch{}
         }
-        if (sid){ await apiPost('/api/analytics/link', { sessionId: sid }) }
+        if (sid){ apiPost('/api/analytics/link', { sessionId: sid }) }
       }catch{}
       try{ const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null,'',u.toString()) }catch{}
     }
@@ -307,6 +321,7 @@ onMounted(async ()=>{
         user.username = String(me.user.name || me.user.email || me.user.phone)
       }
     // Profile incomplete? Keep user on Account; let Verify flow handle first-time redirection
+      try{ localStorage.setItem('account_profile_cache', JSON.stringify({ username: user.username })) }catch{}
       hydrated.value = true
       return
     }
@@ -322,7 +337,7 @@ onMounted(async ()=>{
   // Stay on guest account page; user can choose to login from the page CTA
 })
 
-const hydrated = ref(false)
+const hydrated = ref(true)
 </script>
 
 <style scoped>
