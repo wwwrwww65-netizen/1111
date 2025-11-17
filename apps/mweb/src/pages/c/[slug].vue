@@ -193,29 +193,57 @@
           </div>
         </div>
       </div>
-      <!-- الشبكة الفعلية -->
-      <div v-else class="columns-2 gap-1 [column-fill:_balance]">
-        <div v-for="(p,i) in products" :key="'product-'+i" class="mb-1 break-inside-avoid">
-          <ProductGridCard
-            :product="{
-              id: p.id,
-              title: p.title,
-              images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
-              overlayBannerSrc: (p as any).overlayBannerSrc,
-              overlayBannerAlt: (p as any).overlayBannerAlt,
-              brand: p.brand,
-              discountPercent: p.discountPercent,
-              bestRank: p.bestRank,
-              bestRankCategory: p.bestRankCategory,
-              basePrice: p.basePrice,
-              soldPlus: p.soldPlus,
-              couponPrice: p.couponPrice,
-              isTrending: (p as any).isTrending === true
-            }"
-            :ratio="p._ratio || defaultRatio"
-            :priority="i<8"
-            @add="openSuggestOptions"
-          />
+      <!-- الشبكة الفعلية: توزيع تناوبي بين عمودين مستقلين لتفادي ملء عمود واحد أولاً -->
+      <div v-else class="flex gap-1">
+        <!-- العمود الأيسر: العناصر ذات الفهرس الزوجي -->
+        <div class="flex-1 space-y-1">
+          <div v-for="(p,idx) in leftProducts" :key="'product-l-'+p.id+'-'+idx" class="break-inside-avoid">
+            <ProductGridCard
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: p.brand,
+                discountPercent: p.discountPercent,
+                bestRank: p.bestRank,
+                bestRankCategory: p.bestRankCategory,
+                basePrice: p.basePrice,
+                soldPlus: p.soldPlus,
+                couponPrice: p.couponPrice,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="p._ratio || defaultRatio"
+              :priority="idx<4"
+              @add="openSuggestOptions"
+            />
+          </div>
+        </div>
+        <!-- العمود الأيمن: العناصر ذات الفهرس الفردي -->
+        <div class="flex-1 space-y-1">
+          <div v-for="(p,idx) in rightProducts" :key="'product-r-'+p.id+'-'+idx" class="break-inside-avoid">
+            <ProductGridCard
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: p.brand,
+                discountPercent: p.discountPercent,
+                bestRank: p.bestRank,
+                bestRankCategory: p.bestRankCategory,
+                basePrice: p.basePrice,
+                soldPlus: p.soldPlus,
+                couponPrice: p.couponPrice,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="p._ratio || defaultRatio"
+              :priority="idx<4"
+              @add="openSuggestOptions"
+            />
+          </div>
         </div>
       </div>
       <div style="height:80px" />
@@ -331,6 +359,9 @@ function thumbSrc(p:any, w:number): string {
   const u = (Array.isArray(p.images)&&p.images[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
 }
+// تقسيم تناوبي للمنتجات بين عمودين
+const leftProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 0))
+const rightProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 1))
 function probeRatioOnce(p:any): void {
   try{
     if (p._ratioProbing || p._ratio){ return }

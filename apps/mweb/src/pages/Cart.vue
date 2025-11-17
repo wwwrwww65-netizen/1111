@@ -230,13 +230,26 @@
         </div>
         <div v-else-if="!suggested.length" class="text-center text-gray-500 text-[12px] py-4">لا توجد مقترحات حالياً</div>
         <div v-else class="px-2 py-2">
-          <div class="columns-2 gap-1 [column-fill:_balance]">
-            <div v-for="(p,i) in suggested" :key="'sug-'+i" class="mb-1 break-inside-avoid">
-              <ProductGridCard 
-                :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
-                :ratio="(p as any)._ratio || defaultRatio"
-                @add="openSuggestOptions"
-              />
+          <div class="flex gap-1">
+            <!-- العمود الأيسر (فهرس زوجي) -->
+            <div class="flex-1 space-y-1">
+              <div v-for="(p,i) in leftSuggested" :key="'sug-l-'+i" class="break-inside-avoid">
+                <ProductGridCard 
+                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                  :ratio="(p as any)._ratio || defaultRatio"
+                  @add="openSuggestOptions"
+                />
+              </div>
+            </div>
+            <!-- العمود الأيمن (فهرس فردي) -->
+            <div class="flex-1 space-y-1">
+              <div v-for="(p,i) in rightSuggested" :key="'sug-r-'+i" class="break-inside-avoid">
+                <ProductGridCard 
+                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                  :ratio="(p as any)._ratio || defaultRatio"
+                  @add="openSuggestOptions"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -346,6 +359,9 @@ function thumbSrcSug(p:any, w:number): string {
   const u = (Array.isArray(p.imagesNormalized)&&p.imagesNormalized[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
 }
+// تقسيم تناوبي بين عمودين
+const leftSuggested = computed(()=> suggested.value.filter((_p, i)=> i % 2 === 0))
+const rightSuggested = computed(()=> suggested.value.filter((_p, i)=> i % 2 === 1))
 function probeRatioPromise(p:any): Promise<void>{
   return new Promise((resolve)=>{
     try{

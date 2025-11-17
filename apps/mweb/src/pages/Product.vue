@@ -637,27 +637,54 @@
 
     <!-- Product Cards using ProductCard.vue -->
     <div class="px-2 pb-2">
-      <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
-        <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="mb-1 break-inside-avoid">
-          <ProductGridCard 
-            :product="{
-              id: p.id,
-              title: p.title,
-              images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
-              overlayBannerSrc: (p as any).overlayBannerSrc,
-              overlayBannerAlt: (p as any).overlayBannerAlt,
-              brand: p.brand,
-              discountPercent: p.discountPercent,
-              bestRank: p.bestRank,
-              bestRankCategory: (p as any).bestRankCategory,
-              basePrice: p.priceText,
-              soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
-              couponPrice: (p as any).afterCoupon,
-              isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
-            }"
-            :ratio="(p as any)._ratio || defaultRatio"
-            @add="onRecoAdd"
-          />
+      <div class="flex gap-1 pb-2">
+        <!-- العمود الأيسر (فهرس زوجي) -->
+        <div class="flex-1 space-y-1">
+          <div v-for="(p,i) in leftRecommended" :key="'rec-l-'+(p.id||i)" class="break-inside-avoid">
+            <ProductGridCard 
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: p.brand,
+                discountPercent: p.discountPercent,
+                bestRank: p.bestRank,
+                bestRankCategory: (p as any).bestRankCategory,
+                basePrice: p.priceText,
+                soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
+                couponPrice: (p as any).afterCoupon,
+                isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
+              }"
+              :ratio="(p as any)._ratio || defaultRatio"
+              @add="onRecoAdd"
+            />
+          </div>
+        </div>
+        <!-- العمود الأيمن (فهرس فردي) -->
+        <div class="flex-1 space-y-1">
+          <div v-for="(p,i) in rightRecommended" :key="'rec-r-'+(p.id||i)" class="break-inside-avoid">
+            <ProductGridCard 
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: p.brand,
+                discountPercent: p.discountPercent,
+                bestRank: p.bestRank,
+                bestRankCategory: (p as any).bestRankCategory,
+                basePrice: p.priceText,
+                soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
+                couponPrice: (p as any).afterCoupon,
+                isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
+              }"
+              :ratio="(p as any)._ratio || defaultRatio"
+              @add="onRecoAdd"
+            />
+          </div>
         </div>
       </div>
       <div v-if="isLoadingRecommended && hasMoreRecommended" class="columns-2 gap-1 [column-fill:_balance] pb-2">
@@ -2288,6 +2315,9 @@ function thumbSrcRec(p:any, w:number): string {
   const u = (Array.isArray(p.images)&&p.images[0]) || p.img
   return buildThumbUrl(String(u||''), w, 60)
 }
+// تقسيم تناوبي بين عمودين
+const leftRecommended = computed(()=> recommendedProducts.value.filter((_p, i)=> i % 2 === 0))
+const rightRecommended = computed(()=> recommendedProducts.value.filter((_p, i)=> i % 2 === 1))
 function probeRatioPromise(p:any): Promise<void>{
   return new Promise((resolve)=>{
     try{
