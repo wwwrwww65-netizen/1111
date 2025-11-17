@@ -129,9 +129,13 @@ const displayCoupon = computed(()=>{
   return fmtPrice(n)
 })
 const gallery = computed(()=> {
-  const list = Array.isArray(props.product?.images) ? props.product!.images! : []
-  if (list.length) return list
-  return [props.product?.image || '/images/placeholder-product.jpg']
+  const raw = Array.isArray(props.product?.images) ? props.product!.images! : []
+  const norm = raw
+    .map(u => String(u||'').trim())
+    .filter(u => /^https?:\/\//i.test(u) && !u.startsWith('blob:'))
+  if (norm.length) return norm
+  const single = String(props.product?.image||'').trim()
+  return [/^https?:\/\//i.test(single) && !single.startsWith('blob:') ? single : '/images/placeholder-product.jpg']
 })
 const href = computed(()=> `/p?id=${encodeURIComponent(id.value)}`)
 const imgLoaded = ref(false)

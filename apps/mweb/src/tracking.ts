@@ -78,7 +78,18 @@ export async function injectTracking(): Promise<void> {
       const em = emRaw ? await sha(emRaw) : '';
       const ph = phRaw ? await sha(phRaw) : '';
       if ((window as any).fbq && (em || ph)){
-        try{ (window as any).fbq('set','user', { em: em || undefined, ph: ph || undefined }) }catch(err){ console.warn('[FB Pixel] set user failed', err) }
+        try{
+          // Prefer advanced matching via init payload to avoid warnings
+          if (typeof (window as any).fbq === 'function' && fb){
+            (window as any).fbq('init', fb, { ...(em?{em}:{}), ...(ph?{ph}:{}) })
+            ;(window as any).fbq('track','PageView')
+          }
+        }catch(err){
+          try{
+            // Fallback to set only when keys exist
+            (window as any).fbq('set','user', { ...(em?{em}:{}), ...(ph?{ph}:{}) })
+          }catch(e){ console.warn('[FB Pixel] advanced match failed', e) }
+        }
       }
     }catch{}
     // Also send PageView via CAPI فقط (تجنّب بعث Pixel مرتين)

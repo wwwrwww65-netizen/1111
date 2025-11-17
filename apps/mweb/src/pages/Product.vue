@@ -1580,18 +1580,22 @@ function barStyle(pct: number): string {
 const cart = useCart()
 const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
+function showToast(msg?: string){
+  try{ if (msg) toastText.value = msg }catch{}
+  toast.value = true
+  setTimeout(()=>{ 
+    toast.value = false
+    try{ toastText.value = 'تمت الإضافة إلى السلة' }catch{}
+  }, 1200)
+}
 async function copyText(text: string){
   try{
     await navigator.clipboard.writeText(text)
-    toastText.value = 'تم النسخ'
-    toast.value = true
-    setTimeout(()=>{ toast.value=false; toastText.value='تمت الإضافة إلى السلة' }, 1200)
+    showToast('تم النسخ')
   }catch{
     try{
       const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
-      toastText.value = 'تم النسخ'
-      toast.value = true
-      setTimeout(()=>{ toast.value=false; toastText.value='تمت الإضافة إلى السلة' }, 1200)
+      showToast('تم النسخ')
     }catch{}
   }
 }
@@ -1609,8 +1613,7 @@ async function addToCartInternal(){
   const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
   cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
   try { await apiPost('/api/cart/add', { productId: id, variantId: selectedVariantId.value, quantity: 1 }) } catch {}
-  toast.value = true
-  setTimeout(()=> toast.value=false, 1200)
+  showToast()
 }
 const hasWish = ref(false)
 // PDP Meta (badges, bestRank, fit, model, shipping destination override)
@@ -2467,14 +2470,14 @@ async function onRecoAdd(pid: string){
     if (!hasColors && !hasSizes){
       try{ await apiPost('/api/cart/add', { productId: pid, quantity: 1 }) }catch{}
       try{ cart.add({ id: pid, title: '', price: 0, img: '' }, 1) }catch{}
-      try{ toast.value = true }catch{}
+      try{ showToast() }catch{}
       return
     }
     // open options modal for reco
     await openRecOptions(pid)
   }catch{
     try{ cart.add({ id: pid, title: '', price: 0, img: '' }, 1) }catch{}
-    try{ toast.value = true }catch{}
+    try{ showToast() }catch{}
   }
 }
 
@@ -2506,7 +2509,7 @@ function onRecModalSave(payload: { color: string; size: string }){
     const size = payload?.size || ''
     if (!recModalProduct.value) return
     cart.add({ id: recModalProduct.value.id, title: recModalProduct.value.title, price: Number(recModalProduct.value.price||0), img: (recModalProduct.value.images?.[0]||''), variantColor: color||undefined, variantSize: size||undefined }, 1)
-    try{ toast.value = true }catch{}
+    try{ showToast() }catch{}
   }finally{ recOptionsOpen.value = false }
 }
 

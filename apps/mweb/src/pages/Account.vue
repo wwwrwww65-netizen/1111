@@ -1,6 +1,45 @@
 <template>
   <div v-if="!hydrated" class="account-loading" dir="rtl" lang="ar">
-    <section class="box" style="margin-top:24px">جاري التحميل…</section>
+    <div class="w-full">
+      <!-- Header skeleton -->
+      <div class="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
+        <div class="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+        <div class="w-24 h-4 bg-gray-200 rounded animate-pulse"></div>
+        <div class="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+      </div>
+      <!-- Club card skeleton -->
+      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
+        <div class="w-20 h-5 bg-orange-100 rounded mb-3"></div>
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div class="h-12 bg-gray-100 rounded"></div>
+          <div class="h-12 bg-gray-100 rounded"></div>
+          <div class="h-12 bg-gray-100 rounded"></div>
+        </div>
+        <div class="h-9 bg-orange-50 rounded"></div>
+      </div>
+      <!-- Shortcuts skeleton -->
+      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="h-9 bg-gray-100 rounded"></div>
+          <div class="h-9 bg-gray-100 rounded"></div>
+        </div>
+      </div>
+      <!-- Stats skeleton -->
+      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="h-8 bg-gray-100 rounded"></div>
+          <div class="h-8 bg-gray-100 rounded"></div>
+          <div class="h-8 bg-gray-100 rounded"></div>
+        </div>
+      </div>
+      <!-- Quick actions skeleton -->
+      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
+        <div class="grid grid-cols-5 gap-4">
+          <div v-for="i in 5" :key="i" class="h-16 bg-gray-100 rounded"></div>
+        </div>
+      </div>
+      <div class="h-20"></div>
+    </div>
   </div>
   <main class="bg-gray-50 min-h-screen" dir="rtl" lang="ar" v-else-if="user.isLoggedIn">
     <!-- Header -->
@@ -195,7 +234,7 @@ import GuestAccount from '@/components/account/GuestAccount.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
-import { apiGet } from '@/lib/api'
+import { apiGet, apiPost } from '@/lib/api'
 import { Settings, User, Heart, Package, Truck, CreditCard, Gift, Camera, Megaphone, FileText, Headphones, Search, Home, ShoppingCart } from 'lucide-vue-next'
 const props = defineProps<{ userName?: string }>()
 const user = useUser()
@@ -205,6 +244,8 @@ function go(path:string){ router.push(path) }
 function goToSettings(){ router.push('/settings') }
 
 onMounted(async ()=>{
+  // Safety: ensure we never block the UI beyond a short window
+  try{ setTimeout(()=>{ try{ if (!hydrated.value){ user.isLoggedIn = false; hydrated.value = true } }catch{} }, 2500) }catch{}
   // Helpers
   const getApexDomain = (): string | null => {
     try{

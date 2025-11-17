@@ -880,9 +880,10 @@ const couponsCacheCart = ref<CartCoupon[]>([])
 const afterById = ref<Record<string, number>>({})
 
 async function fetchCouponsListCart(): Promise<CartCoupon[]> {
-  const { API_BASE } = await import('@/lib/api')
+  const { API_BASE, isAuthenticated } = await import('@/lib/api')
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/me/coupons')
+  let data: any = null
+  if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
   if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
   data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
@@ -923,9 +924,10 @@ type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountV
 const couponsCache = ref<SimpleCoupon[]>([])
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
-  const { API_BASE } = await import('@/lib/api')
+  const { API_BASE, isAuthenticated } = await import('@/lib/api')
   const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
-  let data: any = await tryFetch('/api/me/coupons')
+  let data: any = null
+  if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
   data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
