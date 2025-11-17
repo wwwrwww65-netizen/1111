@@ -640,7 +640,21 @@
       <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
         <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="mb-1 break-inside-avoid">
           <ProductGridCard 
-            :product="{ id: p.id, title: p.title, images: p.img? [p.img] : [], brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, basePrice: p.priceText, soldPlus: (p.soldCount? ('باع '+p.soldCount+'+') : ''), couponPrice: p.afterCoupon, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+            :product="{
+              id: p.id,
+              title: p.title,
+              images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
+              overlayBannerSrc: (p as any).overlayBannerSrc,
+              overlayBannerAlt: (p as any).overlayBannerAlt,
+              brand: p.brand,
+              discountPercent: p.discountPercent,
+              bestRank: p.bestRank,
+              bestRankCategory: (p as any).bestRankCategory,
+              basePrice: p.priceText,
+              soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
+              couponPrice: (p as any).afterCoupon,
+              isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
+            }"
             @add="onRecoAdd"
           />
         </div>

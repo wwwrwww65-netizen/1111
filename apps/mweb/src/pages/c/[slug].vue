@@ -218,6 +218,36 @@
         </div>
       </div>
       <div style="height:80px" />
+
+      <!-- إشعار: يرجى تحديد الخيارات -->
+      <Transition name="fade">
+        <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+          <div class="bg-black/80 text-white text-[13px] px-4 py-2.5 rounded-md shadow-lg">يرجى تحديد الخيارات</div>
+        </div>
+      </Transition>
+
+      <!-- نافذة خيارات المنتج للإضافة للسلة -->
+      <ProductOptionsModal
+        v-if="optionsModal.open"
+        :onClose="closeOptions"
+        :onSave="onOptionsSave"
+        :product="optionsProduct"
+        :selectedColor="optionsModal.color"
+        :selectedSize="optionsModal.size"
+        :groupValues="optionsModal.groupValues"
+        :hideTitle="true"
+        :primaryLabel="'أضف إلى عربة التسوق'"
+        :showWishlist="false"
+      />
+
+      <!-- Toast -->
+      <div 
+        v-if="toast" 
+        class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2"
+      >
+        <span>✓</span>
+        <span>{{ toastText }}</span>
+      </div>
     </section>
 
     <!-- Loading -->
@@ -732,6 +762,9 @@ const optionsModal = reactive<{ open: boolean; productId: string; color: string;
 })
 const optionsProduct = ref<any|null>(null)
 const requireOptionsNotice = ref(false)
+const toast = ref(false)
+const toastText = ref('تمت الإضافة إلى السلة')
+function showToast(msg?: string){ try{ if(msg) toastText.value = msg }catch{}; toast.value = true; setTimeout(()=>{ toast.value=false; try{ toastText.value='تمت الإضافة إلى السلة' }catch{} }, 1200) }
 
 async function fetchProductDetails(id: string){
   try{
@@ -746,7 +779,7 @@ async function fetchProductDetails(id: string){
     const sizeGroups: Array<{label:string; values:string[]}> = []
     if (letters.length) sizeGroups.push({ label:'مقاسات بالأحرف', values: letters })
     if (numbers.length) sizeGroups.push({ label:'مقاسات بالأرقام', values: numbers })
-    optionsProduct.value = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes, sizeGroups }
+    optionsProduct.value = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes, sizeGroups, colorGalleries: galleries }
   }catch{ optionsProduct.value = { id, title:'', price:0, images: ['/images/placeholder-product.jpg'], colors: [], sizes: [], sizeGroups: [] } }
 }
 
@@ -761,7 +794,7 @@ async function openSuggestOptions(id: string){
     const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
     if (!hasColors && !hasSizes){
       const p = products.value.find(x=> String(x.id)===String(id))
-      if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.image || '/images/placeholder-product.jpg' }, 1) }
+      if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.image || '/images/placeholder-product.jpg' }, 1); showToast() }
       return
     }
   }catch{}
@@ -787,6 +820,7 @@ function onOptionsSave(payload: { color: string; size: string }){
     }
     const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
     cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
+    showToast()
   }catch{}
   optionsModal.open = false
 }

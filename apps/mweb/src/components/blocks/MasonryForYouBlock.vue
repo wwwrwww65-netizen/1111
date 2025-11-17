@@ -176,9 +176,11 @@ async function fetchProductDetails(id: string){
     const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { headers:{ 'Accept':'application/json' } })
     if (!res.ok) return
     const d = await res.json()
+
     const imgs = Array.isArray(d.images)? d.images : []
     const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
     const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
+
     const normalizeImage = (u: any): string => {
       const s = String(u || '').trim()
       if (!s) return filteredImgs[0] || '/images/placeholder-product.jpg'
@@ -187,9 +189,74 @@ async function fetchProductDetails(id: string){
       if (s.startsWith('uploads/')) return `${base}/${s}`
       return s
     }
+    const normToken = (s:string)=> String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9\u0600-\u06FF]/g,'')
+    const isColorWord = (t:string): boolean => {
+      const v = normToken(t)
+      return /^(black|white|red|blue|green|yellow|pink|beige|gray|grey|brown|navy|purple|orange|ذهبي|فضي|أسود|ابيض|أبيض|أحمر|ازرق|أزرق|أخضر|أصفر|وردي|بيج|رمادي|بني|紺|بنفسجي)$/i.test(v)
+    }
+    const looksSizeToken = (s:string): boolean => {
+      const v = String(s||'').trim()
+      if (!v) return false
+      if (/^\d{1,3}$/.test(v)) return true
+      const t = v.toUpperCase()
+      return ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL'].includes(t)
+    }
+
+    // Colors: prefer attributes.color values mapped to colorGalleries thumbnails; fallback to galleries names
     let colors: Array<{ label: string; img: string }> = []
-    if (galleries.length){ colors = galleries.map((g:any)=> ({ label: String(g.name||'').trim(), img: normalizeImage(g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || '') })).filter(c=> !!c.label) }
-    optionsCache[id] = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes: Array.isArray(d.sizes)? d.sizes: [] }
+    try{
+      const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray((d as any).attributes)? (d as any).attributes : []
+      const col = attrs.find(a=> a.key==='color')
+      const colVals: string[] = Array.isArray(col?.values)? col!.values : []
+      if (colVals.length){
+        colors = colVals.map((label:string)=>{
+          const g = galleries.find((x:any)=> String(x?.name||'').trim().toLowerCase() === String(label||'').trim().toLowerCase())
+          const chosen = g?.primaryImageUrl || (Array.isArray(g?.images)&&g!.images![0]) || filteredImgs[0] || '/images/placeholder-product.jpg'
+          return { label, img: normalizeImage(chosen) }
+        })
+      }
+    }catch{}
+    if (!colors.length && galleries.length){
+      colors = galleries.map((g:any)=> {
+        const label = String(g.name||'').trim()
+        const chosen = g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || filteredImgs[0] || '/images/placeholder-product.jpg'
+        return { label, img: normalizeImage(chosen) }
+      }).filter(c=> !!c.label)
+    }
+    if (colors.length <= 1) colors = []
+
+    // Sizes: accept only real size tokens; derive groups (letters/numbers) with ordering
+    const variants = Array.isArray(d.variants)? d.variants : []
+    let sizes = Array.isArray(d.sizes)? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && looksSizeToken(String(s).trim()) && !isColorWord(String(s).trim())) : []
+    if (!sizes.length && variants.length){
+      const set = new Set<string>()
+      for (const v of variants){
+        const sv = String((v as any).size||'').trim()
+        if (sv && looksSizeToken(sv) && !isColorWord(sv)) set.add(sv)
+      }
+      sizes = Array.from(set)
+    }
+    const isNumber = (x:string)=> /^\d{1,3}$/.test(String(x).trim())
+    const letters = new Set<string>()
+    const numbers = new Set<string>()
+    for (const s of sizes){ if (isNumber(s)) numbers.add(s); else if (looksSizeToken(s)) letters.add(s) }
+    const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+    const orderLetters = (vals:string[])=> Array.from(vals).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
+    const orderNumbers = (vals:string[])=> Array.from(vals).sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0))
+    const sizeGroups: Array<{ label:string; values:string[] }> = []
+    if (letters.size) sizeGroups.push({ label: 'مقاسات بالأحرف', values: orderLetters(Array.from(letters)) })
+    if (numbers.size) sizeGroups.push({ label: 'مقاسات بالأرقام', values: orderNumbers(Array.from(numbers)) })
+
+    optionsCache[id] = {
+      id: d.id||id,
+      title: d.name||'',
+      price: Number(d.price||0),
+      images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'],
+      colors,
+      sizes,
+      sizeGroups,
+      colorGalleries: galleries
+    }
     return optionsCache[id]
   }catch{}
 }
