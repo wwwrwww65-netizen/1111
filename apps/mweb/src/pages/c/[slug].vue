@@ -176,8 +176,8 @@
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-2 py-2">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
-      <div v-if="productsLoading" class="grid grid-cols-2 gap-x-1 gap-y-0">
-        <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-1">
+      <div v-if="productsLoading" class="columns-2 gap-1 [column-fill:_balance]">
+        <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-1 break-inside-avoid">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
             <div class="relative w-full">
               <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
@@ -194,56 +194,28 @@
         </div>
       </div>
       <!-- الشبكة الفعلية: Masonry عمودين بنفس مقاييس الهيكل العظمي -->
-      <div v-else class="grid grid-cols-2 gap-x-1 gap-y-0">
-        <!-- العمود الأيسر -->
-        <div>
-          <div v-for="(p,i) in leftProducts" :key="'product-l-'+p.id+'-'+i" class="mb-1">
-            <ProductGridCard
-              :product="{
-                id: p.id,
-                title: p.title,
-                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
-                overlayBannerSrc: (p as any).overlayBannerSrc,
-                overlayBannerAlt: (p as any).overlayBannerAlt,
-                brand: p.brand,
-                discountPercent: p.discountPercent,
-                bestRank: p.bestRank,
-                bestRankCategory: p.bestRankCategory,
-                basePrice: p.basePrice,
-                soldPlus: p.soldPlus,
-                couponPrice: p.couponPrice,
-                isTrending: (p as any).isTrending === true
-              }"
-              :ratio="p._ratio || defaultRatio"
-              :priority="i<4"
-              @add="openSuggestOptions"
-            />
-          </div>
-        </div>
-        <!-- العمود الأيمن -->
-        <div>
-          <div v-for="(p,i) in rightProducts" :key="'product-r-'+p.id+'-'+i" class="mb-1">
-            <ProductGridCard
-              :product="{
-                id: p.id,
-                title: p.title,
-                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
-                overlayBannerSrc: (p as any).overlayBannerSrc,
-                overlayBannerAlt: (p as any).overlayBannerAlt,
-                brand: p.brand,
-                discountPercent: p.discountPercent,
-                bestRank: p.bestRank,
-                bestRankCategory: p.bestRankCategory,
-                basePrice: p.basePrice,
-                soldPlus: p.soldPlus,
-                couponPrice: p.couponPrice,
-                isTrending: (p as any).isTrending === true
-              }"
-              :ratio="p._ratio || defaultRatio"
-              :priority="i<4"
-              @add="openSuggestOptions"
-            />
-          </div>
+      <div v-else class="columns-2 gap-1 [column-fill:_balance]">
+        <div v-for="(p,i) in products" :key="'product-'+p.id+'-'+i" class="mb-1 break-inside-avoid">
+          <ProductGridCard
+            :product="{
+              id: p.id,
+              title: p.title,
+              images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
+              overlayBannerSrc: (p as any).overlayBannerSrc,
+              overlayBannerAlt: (p as any).overlayBannerAlt,
+              brand: p.brand,
+              discountPercent: p.discountPercent,
+              bestRank: p.bestRank,
+              bestRankCategory: p.bestRankCategory,
+              basePrice: p.basePrice,
+              soldPlus: p.soldPlus,
+              couponPrice: p.couponPrice,
+              isTrending: (p as any).isTrending === true
+            }"
+            :ratio="p._ratio || defaultRatio"
+            :priority="i<8"
+            @add="openSuggestOptions"
+          />
         </div>
       </div>
       <div style="height:80px" />
