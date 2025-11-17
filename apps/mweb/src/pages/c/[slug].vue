@@ -196,37 +196,25 @@
       <!-- الشبكة الفعلية -->
       <div v-else class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'product-'+i" class="mb-1 break-inside-avoid">
-          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openProduct(p)" @keydown.enter="openProduct(p)" @keydown.space.prevent="openProduct(p)">
-            <!-- حاوية الصورة مع نسبة متغيرة بحسب صورة المنتج -->
-            <div class="relative w-full">
-              <div class="block w-full bg-gray-100" :class="!p._imgLoaded ? 'animate-pulse' : ''" :style="{ paddingTop: ((p._ratio||defaultRatio) * 100) + '%' }"></div>
-              <img
-                :src="thumbSrc(p, 384)"
-                :srcset="`${thumbSrc(p,256)} 256w, ${thumbSrc(p,384)} 384w, ${thumbSrc(p,512)} 512w, ${thumbSrc(p,768)} 768w`"
-                sizes="(max-width: 480px) 50vw, 384px"
-                :alt="p.title"
-                class="absolute inset-0 w-full h-full object-cover"
-                loading="lazy"
-                decoding="async"
-                @load="p._imgLoaded = true"
-              />
-              <div v-if="(p.colors && p.colors.length) || (typeof p.colorCount==='number')" class="absolute bottom-2 right-2 flex items-center">
-                <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
-                  <span v-for="(c,idx) in (p.colors||[]).slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
-                  <span v-if="typeof p.colorCount==='number'" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span>
-                </div>
-              </div>
-            </div>
-            <div v-if="(p as any).overlayBannerSrc" class="w-full h-7 relative"><img :src="(p as any).overlayBannerSrc" :alt="(p as any).overlayBannerAlt||'شريط تسويقي'" class="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" /></div>
-            <div class="relative p-2">
-              <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden"><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span><span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700"><Store :size="14" color="#6D28D9" :stroke-width="2" /><span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span><span class="text-violet-700 ms-0.5">&gt;</span></span></div>
-              <div class="flex items-center gap-1 mt-1.5"><div v-if="typeof p.discountPercent==='number'" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div><div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div></div>
-              <div v-if="(typeof p.bestRank==='number') || p.bestRankCategory" class="mt-1 inline-flex items-stretch rounded overflow-hidden"><div v-if="typeof p.bestRank==='number'" class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div><button v-if="p.bestRankCategory" class="px-1 text-[9px] font-bold flex items-center gap-1 leading-none bg-[rgba(254,243,199,.2)] text-[#d58700] border-0"><span>في {{ p.bestRankCategory }}</span><span>&gt;</span></button></div>
-              <div v-if="p.basePrice || p.soldPlus" class="mt-1 flex items-center gap-1"><span v-if="p.basePrice" class="text-red-600 font-bold text-[13px]">{{ p.basePrice }} ريال</span><span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span></div>
-              <button v-if="p.basePrice || p.soldPlus" class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCart(p)"><ShoppingCart :size="16" class="text-black" /><span class="text-[11px] font-bold text-black">1+</span></button>
-              <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]"><span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span><span class="text-[11px] text-orange-500">/بعد الكوبون</span></div>
-            </div>
-          </div>
+          <ProductGridCard
+            :product="{
+              id: p.id,
+              title: p.title,
+              images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
+              overlayBannerSrc: (p as any).overlayBannerSrc,
+              overlayBannerAlt: (p as any).overlayBannerAlt,
+              brand: p.brand,
+              discountPercent: p.discountPercent,
+              bestRank: p.bestRank,
+              bestRankCategory: p.bestRankCategory,
+              basePrice: p.basePrice,
+              soldPlus: p.soldPlus,
+              couponPrice: p.couponPrice,
+              isTrending: (p as any).isTrending === true
+            }"
+            :priority="i<8"
+            @add="openSuggestOptions"
+          />
         </div>
       </div>
       <div style="height:80px" />
@@ -271,7 +259,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCart } from '../../store/cart';
 import { storeToRefs } from 'pinia';
@@ -286,6 +274,9 @@ import {
   ChevronDown as ArrowDown,
   Store,
 } from 'lucide-vue-next';
+import ProductGridCard from '@/components/ProductGridCard.vue'
+import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
+import { markTrending } from '../../lib/trending'
 
 const router = useRouter();
 const cart = useCart();
@@ -521,6 +512,12 @@ function loadMoreProducts() {
         images: Array.isArray(it.images)? it.images : [],
         basePrice: Number(it.price||0).toFixed(2),
         brand: it.brand||'',
+        discountPercent: typeof it.discountPercent==='number'? it.discountPercent : undefined,
+        bestRank: typeof it.bestRank==='number'? it.bestRank : undefined,
+        bestRankCategory: it.bestRankCategory || undefined,
+        soldPlus: it.soldPlus || undefined,
+        overlayBannerSrc: it.overlayBannerSrc || undefined,
+        overlayBannerAlt: it.overlayBannerAlt || undefined,
         _ratio: undefined,
         _imgLoaded: false
       }))
@@ -532,6 +529,8 @@ function loadMoreProducts() {
         const nextPage = Math.floor(prev / 24) + 1
         pageNumber.value = nextPage
         try{ await fireListView(slice, nextPage) }catch{}
+        try{ markTrending(products.value as any[]) }catch{}
+        try{ await hydrateCouponsAndPrices() }catch{}
       } else {
         hasMore.value = false
       }
@@ -594,10 +593,17 @@ async function loadProducts(limit: number = 24){
       images: Array.isArray(it.images)? it.images : [],
       basePrice: Number(it.price||0).toFixed(2),
       brand: it.brand||'',
+      discountPercent: typeof it.discountPercent==='number'? it.discountPercent : undefined,
+      bestRank: typeof it.bestRank==='number'? it.bestRank : undefined,
+      bestRankCategory: it.bestRankCategory || undefined,
+      soldPlus: it.soldPlus || undefined,
+      overlayBannerSrc: it.overlayBannerSrc || undefined,
+      overlayBannerAlt: it.overlayBannerAlt || undefined,
       _ratio: undefined,
       _imgLoaded: false
     }))
     products.value = mapped
+    try{ markTrending(products.value as any[]) }catch{}
     // Probe نسب صور أول دفعة
     for (const p of products.value.slice(0, 12)){ probeRatioOnce(p) }
     setTimeout(()=>{ try{ for (const p of products.value.slice(12, 36)){ probeRatioOnce(p) } }catch{} }, 0)
@@ -718,6 +724,71 @@ async function fireListView(list:any[], page:number){
 // ===== صور مصغرة مستجيبة =====
 function thumb(u: string): string {
   return buildThumbUrl(u, 384, 60)
+}
+
+// ===== خيارات المنتج (إضافة للسلة من البطاقة) =====
+const optionsModal = reactive<{ open: boolean; productId: string; color: string; size: string; groupValues: Record<string, string> }>({
+  open: false, productId: '', color: '', size: '', groupValues: {}
+})
+const optionsProduct = ref<any|null>(null)
+const requireOptionsNotice = ref(false)
+
+async function fetchProductDetails(id: string){
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
+    const imgs = Array.isArray(d.images)? d.images : []
+    const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
+    const colors = galleries.map((g:any)=> ({ label: String(g.name||'').trim(), img: (g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || filteredImgs[0] || '/images/placeholder-product.jpg') })).filter((c:any)=> !!c.label)
+    const sizes: string[] = Array.isArray(d.sizes)? d.sizes: []
+    const letters = sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
+    const numbers = sizes.filter((s:string)=> /^\\d{1,3}$/.test(String(s)))
+    const sizeGroups: Array<{label:string; values:string[]}> = []
+    if (letters.length) sizeGroups.push({ label:'مقاسات بالأحرف', values: letters })
+    if (numbers.length) sizeGroups.push({ label:'مقاسات بالأرقام', values: numbers })
+    optionsProduct.value = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes, sizeGroups }
+  }catch{ optionsProduct.value = { id, title:'', price:0, images: ['/images/placeholder-product.jpg'], colors: [], sizes: [], sizeGroups: [] } }
+}
+
+async function openSuggestOptions(id: string){
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
+    const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+    const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+    const hasColors = colorsCount > 1
+    const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+    const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+    const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+    if (!hasColors && !hasSizes){
+      const p = products.value.find(x=> String(x.id)===String(id))
+      if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.image || '/images/placeholder-product.jpg' }, 1) }
+      return
+    }
+  }catch{}
+  optionsModal.productId = id
+  optionsModal.color = ''
+  optionsModal.size = ''
+  optionsModal.groupValues = {}
+  optionsModal.open = true
+  await fetchProductDetails(id)
+}
+function closeOptions(){ optionsModal.open = false }
+function onOptionsSave(payload: { color: string; size: string }){
+  try{
+    const prod = optionsProduct.value
+    const groups = Array.isArray(prod?.sizeGroups) ? prod!.sizeGroups : []
+    if (groups.length){
+      const composite = String(payload.size||'')
+      const missing = groups.some((g:any)=> !new RegExp(`(?:^|\\|)${g.label}:[^|]+`).test(composite))
+      if (missing){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    } else {
+      const hasSizes = Array.isArray(prod?.sizes) && prod!.sizes.length>0
+      if (hasSizes && !String(payload.size||'').trim()){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    }
+    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
+    cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
+  }catch{}
+  optionsModal.open = false
 }
 </script>
 <style>
