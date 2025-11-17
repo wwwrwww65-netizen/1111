@@ -524,9 +524,11 @@ function loadMoreProducts() {
     try{
       const slug = currentSlug()
       const sort = mapSort()
-      const nextLimit = prev + 24
+      const pageSize = 24
+      const offset = prev
       const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
-      url.searchParams.set('limit', String(nextLimit))
+      url.searchParams.set('limit', String(pageSize))
+      url.searchParams.set('offset', String(offset))
       if (sort) url.searchParams.set('sort', sort)
       const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
       if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
@@ -535,7 +537,7 @@ function loadMoreProducts() {
       if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
       const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
       const items = Array.isArray(data?.items)? data.items : []
-      const slice = items.slice(prev).map((it:any)=> ({
+      const slice = items.map((it:any)=> ({
         id: String(it.id),
         title: String(it.name||''),
         image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
@@ -555,8 +557,8 @@ function loadMoreProducts() {
         products.value = products.value.concat(slice)
         for (const p of slice.slice(0, 12)){ probeRatioOnce(p) }
         setTimeout(()=>{ try{ for (const p of slice.slice(12)){ probeRatioOnce(p) } }catch{} }, 0)
-        hasMore.value = items.length >= nextLimit
-        const nextPage = Math.floor(prev / 24) + 1
+        hasMore.value = items.length >= pageSize
+        const nextPage = Math.floor(prev / pageSize) + 1
         pageNumber.value = nextPage
         try{ await fireListView(slice, nextPage) }catch{}
         try{ markTrending(products.value as any[]) }catch{}
@@ -607,6 +609,7 @@ async function loadProducts(limit: number = 24){
     const sort = mapSort()
     const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
     url.searchParams.set('limit', String(limit))
+    url.searchParams.set('offset', '0')
     if (sort) url.searchParams.set('sort', sort)
     const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
     if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))

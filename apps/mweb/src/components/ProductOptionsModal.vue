@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-50 overscroll-contain" dir="rtl">
+  <div class="fixed inset-0 z-[70] overscroll-contain" dir="rtl">
     <!-- خلفية -->
     <button
       class="absolute inset-0 bg-black/40"
@@ -10,7 +10,7 @@
     />
 
     <!-- اللوحة -->
-    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[12px] shadow-lg p-4 pb-3">
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[12px] shadow-lg p-4 pb-3" style="padding-bottom: max(12px, env(safe-area-inset-bottom))">
       <!-- زر إغلاق خارج الإطار عند إخفاء العنوان -->
       <button v-if="hideTitle" @click="onClose" aria-label="إغلاق" class="absolute top-0 left-5 -translate-x-1/2 -translate-y-1/2 z-10 bg-white rounded-full shadow p-1">
         <X class="w-4 h-4 text-gray-700" />

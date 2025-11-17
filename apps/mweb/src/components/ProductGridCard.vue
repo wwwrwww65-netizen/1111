@@ -3,7 +3,7 @@
        :aria-label="'افتح '+(title||'المنتج')" tabindex="0" :href="href"
        @click.prevent="open($event)" @keydown.enter.prevent="open($event)" @keydown.space.prevent="open($event)">
     <!-- صورة: هيكل عظمي حتى تحميل أول صورة بنسبة توافق ارتفاع الصورة -->
-    <div v-if="!imgLoaded" class="w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (Math.max(0.6, Math.min(2.0, placeholderRatio)) * 100) + '%' }"></div>
+    <div v-if="!imgLoaded" class="w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatio * 100) + '%' }"></div>
     <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
       <div class="flex">
         <img
@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { fmtPrice, initCurrency } from '@/lib/currency'
 import { useRouter } from 'vue-router'
 import { useCart } from '@/store/cart'
@@ -132,16 +132,17 @@ const gallery = computed(()=> {
   const raw = Array.isArray(props.product?.images) ? props.product!.images! : []
   const norm = raw
     .map(u => String(u||'').trim())
-    .filter(u => /^https?:\/\//i.test(u) && !u.startsWith('blob:'))
+    // اقبل الروابط المطلقة والنسبيّة (uploads/ أو /uploads)، واستبعد blob: فقط
+    .filter(u => !!u && !u.startsWith('blob:'))
   if (norm.length) return norm
   const single = String(props.product?.image||'').trim()
-  return [/^https?:\/\//i.test(single) && !single.startsWith('blob:') ? single : '/images/placeholder-product.jpg']
+  return [single && !single.startsWith('blob:') ? single : '/images/placeholder-product.jpg']
 })
 const href = computed(()=> `/p?id=${encodeURIComponent(id.value)}`)
 const imgLoaded = ref(false)
 function onImgLoad(){ imgLoaded.value = true }
 // نسبة placeholder ديناميكية حسب أول صورة
-const placeholderRatio = ref(1.33) // h/w افتراضي
+const placeholderRatio = ref(1) // h/w افتراضي؛ سيُستبدل حالما تُجس الصورة المصغّرة
 function probePlaceholderRatio(){
   try{
     const first = (gallery.value && gallery.value[0]) ? gallery.value[0] : ''
@@ -161,6 +162,8 @@ function probePlaceholderRatio(){
   }catch{}
 }
 onMounted(()=> { probePlaceholderRatio() })
+// أعد الجس إذا تغيّرت الصورة الأولى
+watch(() => (gallery.value && gallery.value[0]) ? gallery.value[0] : '', () => { try{ probePlaceholderRatio() }catch{} })
 
 // Lazy enrichment: colors + category label if missing
 import { ref, onMounted } from 'vue'
