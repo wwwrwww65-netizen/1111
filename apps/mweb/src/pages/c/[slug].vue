@@ -174,11 +174,11 @@
     </section>
     
     <!-- ✅ مكان بطاقات المنتجات -->
-    <section class="px-2 py-2">
+    <section class="px-0 pt-2 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
-      <div v-if="productsLoading" class="grid grid-cols-2 gap-1 grid-flow-row-dense">
+      <div v-if="productsLoading" class="grid grid-cols-2 gap-x-0 gap-y-1 grid-flow-row-dense">
         <div v-for="i in 8" :key="'sk-prod-'+i">
-          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
+          <div :class="['w-full border border-gray-200 rounded bg-white overflow-hidden', (i % 2 === 1) ? 'border-l-0' : 'border-r-0']">
             <div class="relative w-full">
               <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
             </div>
@@ -194,9 +194,10 @@
         </div>
       </div>
       <!-- الشبكة الفعلية: شبكي عمودان مع مسافات موحّدة، وبنفس تصميم البطاقة -->
-      <div v-else class="grid grid-cols-2 gap-1 grid-flow-row-dense">
+      <div v-else class="grid grid-cols-2 gap-x-0 gap-y-1 grid-flow-row-dense">
         <div v-for="(p,i) in products" :key="'product-'+p.id+'-'+i">
           <ProductGridCard
+            :class="i % 2 === 0 ? 'border-r-0' : 'border-l-0'"
             :product="{
               id: p.id,
               title: p.title,
