@@ -234,6 +234,7 @@
             <div v-for="(p,i) in suggested" :key="'sug-'+i" class="mb-1 break-inside-avoid">
               <ProductGridCard 
                 :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                :ratio="(p as any)._ratio || defaultRatio"
                 @add="openSuggestOptions"
               />
             </div>
@@ -317,6 +318,7 @@ import ProductOptionsModal from '../components/ProductOptionsModal.vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductCard from '@/components/ProductCard.vue'
 import { markTrending } from '@/lib/trending'
+import { buildThumbUrl } from '@/lib/media'
 
 const cart = useCart()
 const router = useRouter()
@@ -338,7 +340,26 @@ function statusOf(uid: string){ return oosMap.value[uid] }
 const isLoggedIn = ref(false)
 const suggestedLoading = ref(true)
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
-const suggested = ref<Array<{ id:string; title:string; image:string; images?: string[]; imagesNormalized?: string[]; price:number; brand?:string; colors?: string[]; colorCount?: number; discountPercent?: number; soldPlus?: string; bestRank?: number; bestRankCategory?: string; couponPrice?: string }>>([])
+const defaultRatio = 1.3
+const suggested = ref<Array<{ id:string; title:string; image:string; images?: string[]; imagesNormalized?: string[]; price:number; brand?:string; colors?: string[]; colorCount?: number; discountPercent?: number; soldPlus?: string; bestRank?: number; bestRankCategory?: string; couponPrice?: string; _ratio?: number }>>([])
+function thumbSrcSug(p:any, w:number): string {
+  const u = (Array.isArray(p.imagesNormalized)&&p.imagesNormalized[0]) || p.image
+  return buildThumbUrl(String(u||''), w, 60)
+}
+function probeRatioPromise(p:any): Promise<void>{
+  return new Promise((resolve)=>{
+    try{
+      if (p._ratio){ resolve(); return }
+      const u = thumbSrcSug(p, 64)
+      const img = new Image()
+      ;(img as any).loading = 'eager'
+      ;(img as any).decoding = 'async'
+      img.onload = ()=>{ try{ const w=(img as any).naturalWidth||64; const h=(img as any).naturalHeight||64; if (w>0&&h>0) p._ratio=h/w }catch{} finally{ resolve() } }
+      img.onerror = ()=> resolve()
+      img.src = u
+    }catch{ resolve() }
+  })
+}
 
 // Modal state
 const optionsModal = reactive({
@@ -808,7 +829,7 @@ onMounted(async () => {
       const filtered = list.filter(u => /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
       return filtered.length ? filtered : ['/images/placeholder-product.jpg']
     }
-    suggested.value = items.map((x:any)=> ({
+    const mapped = items.map((x:any)=> ({
       id: x.id,
       title: x.name,
       image: (normalizeList(x.images)[0]||'/images/placeholder-product.jpg'),
@@ -823,6 +844,8 @@ onMounted(async () => {
       couponPrice: x.couponPrice||undefined,
       options: { colors: (x.variants||[]).map((v:any)=>v.color).filter((c:any)=>!!c), sizes: (x.variants||[]).map((v:any)=>v.size).filter((s:any)=>!!s) }
     }))
+    await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+    suggested.value = mapped
     try{ markTrending(suggested.value as any[]) }catch{}
     try{ await hydrateCouponsAndPricesForSuggested() }catch{}
   }catch{} finally { suggestedLoading.value = false }

@@ -24,7 +24,7 @@
       </div>
       <div v-else class="columns-2 gap-1 [column-fill:_balance]">
         <div v-for="(p,i) in products" :key="'fy-'+(p.id||i)" class="mb-1 break-inside-avoid">
-          <ProductGridCard :product="p" :priority="i<8" @add="openSuggestOptions" />
+          <ProductGridCard :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="i<8" @add="openSuggestOptions" />
         </div>
       </div>
     </div>
@@ -61,11 +61,12 @@
 import { computed, onMounted, ref, reactive } from 'vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import { apiGet, API_BASE, isAuthenticated } from '@/lib/api'
+import { buildThumbUrl } from '@/lib/media'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { useCart } from '@/store/cart'
 import { markTrending } from '@/lib/trending'
 
-type GridP = { id: string; title: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean }
+type GridP = { id: string; title: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean; _ratio?: number }
 type Cfg = { columns?: number; products?: any[]; items?: any[] }
 const props = defineProps<{ cfg?: Cfg; device?: 'MOBILE'|'DESKTOP' }>()
 const fallbackCount = computed(()=> (props.device ?? 'MOBILE') === 'MOBILE' ? 8 : 9)
@@ -73,6 +74,25 @@ const products = ref<GridP[]>([])
 const isLoading = ref(true)
 const cart = useCart()
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
+const defaultRatio = 1.3
+function thumbSrc(p:GridP, w:number): string {
+  const u = (Array.isArray(p.images)&&p.images[0]) || p.image || ''
+  return buildThumbUrl(String(u||''), w, 60)
+}
+function probeRatioPromise(p: any): Promise<void>{
+  return new Promise((resolve)=>{
+    try{
+      if (p._ratio){ resolve(); return }
+      const u = thumbSrc(p, 64)
+      const img = new Image()
+      ;(img as any).loading = 'eager'
+      ;(img as any).decoding = 'async'
+      img.onload = ()=>{ try{ const w=(img as any).naturalWidth||64; const h=(img as any).naturalHeight||64; if (w>0&&h>0) p._ratio=h/w }catch{} finally{ resolve() } }
+      img.onerror = ()=> resolve()
+      img.src = u
+    }catch{ resolve() }
+  })
+}
 
 function toGridP(p:any, i:number): GridP{
   return {
@@ -108,7 +128,14 @@ function uniqById(list:any[]): any[]{
 async function loadRecommendations(){
   const cfg = props.cfg || {}
   const provided = Array.isArray(cfg.products) && cfg.products.length ? cfg.products : (Array.isArray(cfg.items) ? cfg.items : [])
-  if (provided.length){ products.value = provided.map(toGridP); try{ await hydrateCouponsAndPrices() }catch{}; isLoading.value = false; return }
+  if (provided.length){
+    const mapped = provided.map(toGridP)
+    await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+    products.value = mapped
+    try{ await hydrateCouponsAndPrices() }catch{}
+    isLoading.value = false
+    return
+  }
 
   try{
     // Prefer categories coming from config or last carousel to align with admin selection
@@ -125,7 +152,9 @@ async function loadRecommendations(){
       const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
       const arr = Array.isArray(j?.items)? j.items: []
       const lst = uniqById(arr).slice(0, fallbackCount.value)
-      products.value = lst.map(toGridP)
+      const mapped = lst.map(toGridP)
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      products.value = mapped
       try{ markTrending(products.value) }catch{}
       try{ await hydrateCouponsAndPrices() }catch{}
       isLoading.value = false
@@ -149,7 +178,9 @@ async function loadRecommendations(){
     const used: Set<string> = (w && w.__USED_PRODUCT_IDS) ? (w.__USED_PRODUCT_IDS as Set<string>) : new Set<string>()
     const filtered = mixed.filter((p:any)=> !used.has(String(p?.id||'')))
     const dedup = uniqById(filtered)
-    products.value = dedup.slice(0, fallbackCount.value).map(toGridP)
+    const mapped = dedup.slice(0, fallbackCount.value).map(toGridP)
+    await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+    products.value = mapped
     try{ markTrending(products.value) }catch{}
     try{ await hydrateCouponsAndPrices() }catch{}
     isLoading.value = false

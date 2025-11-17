@@ -655,6 +655,7 @@
               couponPrice: (p as any).afterCoupon,
               isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
             }"
+            :ratio="(p as any)._ratio || defaultRatio"
             @add="onRecoAdd"
           />
         </div>
@@ -993,6 +994,7 @@ import {
 } from 'lucide-vue-next'
 import { consumePrefetchPayload } from '@/lib/nav'
 import ProductGridCard from '@/components/ProductGridCard.vue'
+import { buildThumbUrl } from '@/lib/media'
 import { fmtPrice, getCurrency, getSymbol } from '@/lib/currency'
 import { getTrendingIdSet } from '@/lib/trending'
 
@@ -2281,6 +2283,26 @@ watch(colorIdx, ()=>{
 })
 
 // ==================== RECOMMENDATIONS FETCH ====================
+const defaultRatio = 1.3
+function thumbSrcRec(p:any, w:number): string {
+  const u = (Array.isArray(p.images)&&p.images[0]) || p.img
+  return buildThumbUrl(String(u||''), w, 60)
+}
+function probeRatioPromise(p:any): Promise<void>{
+  return new Promise((resolve)=>{
+    try{
+      if (p._ratio){ resolve(); return }
+      const u = thumbSrcRec(p, 64)
+      const img = new Image()
+      ;(img as any).loading = 'eager'
+      ;(img as any).decoding = 'async'
+      img.onload = ()=>{ try{ const w=(img as any).naturalWidth||64; const h=(img as any).naturalHeight||64; if (w>0&&h>0) p._ratio=h/w }catch{} finally{ resolve() } }
+      img.onerror = ()=> resolve()
+      img.src = u
+    }catch{ resolve() }
+  })
+}
+
 async function fetchRecommendations(pid?: string){
   isLoadingRecommended.value = true
   try{
@@ -2292,7 +2314,9 @@ async function fetchRecommendations(pid?: string){
     if (tab && tab.catId){
       const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=24`, undefined, signal).catch(()=>null)
       const items = Array.isArray(j?.items)? j.items : []
-      recommendedProducts.value = items.map((it:any)=> toRecItem(it))
+      const mapped = items.map((it:any)=> toRecItem(it))
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      recommendedProducts.value = mapped
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       return
     }
@@ -2301,7 +2325,9 @@ async function fetchRecommendations(pid?: string){
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, undefined, signal).catch(()=>null)
     const list = Array.isArray(sim?.items) ? sim!.items : []
     if (list.length) {
-      recommendedProducts.value = list.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
+      const mapped = list.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
+      await Promise.all(mapped.map(pr=> probeRatioPromise(pr)))
+      recommendedProducts.value = mapped
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
       hasMoreRecommended.value = list.length >= 24
@@ -2309,7 +2335,9 @@ async function fetchRecommendations(pid?: string){
     }
     const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
     const items = Array.isArray(rec?.items) ? rec!.items : []
-    recommendedProducts.value = items.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
+    const mapped = items.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
+    await Promise.all(mapped.map(pr=> probeRatioPromise(pr)))
+    recommendedProducts.value = mapped
     try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
     try{ await hydrateCouponsForRecommended() }catch{}
     hasMoreRecommended.value = items.length >= 24
@@ -2332,7 +2360,8 @@ function toRecItem(it:any): RecItem{
     fast: false,
     bestRank: undefined,
     thumbs: undefined,
-    href: `/p?id=${encodeURIComponent(String(it?.id||''))}`
+    href: `/p?id=${encodeURIComponent(String(it?.id||''))}`,
+    _ratio: undefined
   }
 }
 
