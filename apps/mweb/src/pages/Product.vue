@@ -2352,8 +2352,11 @@ async function fetchRecommendations(pid?: string){
       const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=24`, undefined, signal).catch(()=>null)
       const items = Array.isArray(j?.items)? j.items : []
       const mapped = items.map((it:any)=> toRecItem(it))
-      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
-      recommendedProducts.value = mapped
+      // de-duplicate by id
+      const seen: Record<string, boolean> = {}
+      const dedup = mapped.filter(p=>{ const k=String((p as any).id); if (seen[k]) return false; seen[k]=true; return true })
+      await Promise.all(dedup.map(p=> probeRatioPromise(p)))
+      recommendedProducts.value = dedup
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       return
     }
@@ -2363,8 +2366,10 @@ async function fetchRecommendations(pid?: string){
     const list = Array.isArray(sim?.items) ? sim!.items : []
     if (list.length) {
       const mapped = list.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
-      await Promise.all(mapped.map(pr=> probeRatioPromise(pr)))
-      recommendedProducts.value = mapped
+      const seen: Record<string, boolean> = {}
+      const dedup = mapped.filter(pp=>{ const k=String((pp as any).id); if (seen[k]) return false; seen[k]=true; return true })
+      await Promise.all(dedup.map(pr=> probeRatioPromise(pr)))
+      recommendedProducts.value = dedup
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
       hasMoreRecommended.value = list.length >= 24
@@ -2373,8 +2378,10 @@ async function fetchRecommendations(pid?: string){
     const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
     const items = Array.isArray(rec?.items) ? rec!.items : []
     const mapped = items.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
-    await Promise.all(mapped.map(pr=> probeRatioPromise(pr)))
-    recommendedProducts.value = mapped
+    const seen: Record<string, boolean> = {}
+    const dedup = mapped.filter(pp=>{ const k=String((pp as any).id); if (seen[k]) return false; seen[k]=true; return true })
+    await Promise.all(dedup.map(pr=> probeRatioPromise(pr)))
+    recommendedProducts.value = dedup
     try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
     try{ await hydrateCouponsForRecommended() }catch{}
     hasMoreRecommended.value = items.length >= 24

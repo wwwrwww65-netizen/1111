@@ -130,7 +130,8 @@ async function loadRecommendations(){
   const cfg = props.cfg || {}
   const provided = Array.isArray(cfg.products) && cfg.products.length ? cfg.products : (Array.isArray(cfg.items) ? cfg.items : [])
   if (provided.length){
-    const mapped = provided.map(toGridP)
+    const base = uniqById(provided)
+    const mapped = base.map(toGridP)
     await Promise.all(mapped.map(p=> probeRatioPromise(p)))
     products.value = mapped
     try{ await hydrateCouponsAndPrices() }catch{}

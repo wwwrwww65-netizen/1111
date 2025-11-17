@@ -870,8 +870,11 @@ onMounted(async () => {
       couponPrice: x.couponPrice||undefined,
       options: { colors: (x.variants||[]).map((v:any)=>v.color).filter((c:any)=>!!c), sizes: (x.variants||[]).map((v:any)=>v.size).filter((s:any)=>!!s) }
     }))
-    await Promise.all(mapped.map(p=> probeRatioPromise(p)))
-    suggested.value = mapped
+    // de-duplicate by id
+    const seen: Record<string, boolean> = {}
+    const dedup = mapped.filter(p=>{ const k=String(p.id); if (seen[k]) return false; seen[k]=true; return true })
+    await Promise.all(dedup.map(p=> probeRatioPromise(p)))
+    suggested.value = dedup
     try{ markTrending(suggested.value as any[]) }catch{}
     try{ await hydrateCouponsAndPricesForSuggested() }catch{}
   }catch{} finally { suggestedLoading.value = false }

@@ -555,7 +555,7 @@ function loadMoreProducts() {
       if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
       const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
       const items = Array.isArray(data?.items)? data.items : []
-      const slice = items.map((it:any)=> ({
+      const sliceRaw = items.map((it:any)=> ({
         id: String(it.id),
         title: String(it.name||''),
         image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
@@ -571,6 +571,9 @@ function loadMoreProducts() {
         _ratio: undefined,
         _imgLoaded: false
       }))
+      // de-duplicate against existing products
+      const existing = new Set(products.value.map((p:any)=> String(p.id)))
+      const slice = sliceRaw.filter((p:any)=> !existing.has(String(p.id)))
       if (slice.length){
         // جس النسب قبل الإضافة لمنع أي قفزات لاحقة
         await Promise.all(slice.map((p:any)=> probeRatioPromise(p)))
@@ -642,7 +645,7 @@ async function loadProducts(limit: number = 24){
     const path = `/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`
     const data = await apiGet<any>(path).catch(()=> null)
     const items = Array.isArray(data?.items)? data.items : []
-    const mapped = items.map((it:any)=> ({
+    const mappedRaw = items.map((it:any)=> ({
       id: String(it.id),
       title: String(it.name||''),
       image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
@@ -658,6 +661,9 @@ async function loadProducts(limit: number = 24){
       _ratio: undefined,
       _imgLoaded: false
     }))
+    // de-duplicate by id
+    const seen: Record<string, boolean> = {}
+    const mapped = mappedRaw.filter((p:any)=>{ const k=String(p.id); if (seen[k]) return false; seen[k]=true; return true })
     // جس النسب قبل العرض لضمان أن الهيكل يطابق الصورة
     await Promise.all(mapped.slice(0, limit).map((p:any)=> probeRatioPromise(p)))
     products.value = mapped
