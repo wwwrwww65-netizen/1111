@@ -181,14 +181,12 @@
 
 <script setup lang="ts">
 import PromoPopup from '@/components/PromoPopup.vue'
-import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed, defineAsyncComponent } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { apiGet, API_BASE } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
 import { Menu, Bell, ShoppingCart, Heart, Search, ShoppingBag, Star, LayoutGrid, User, Home, ChevronLeft, Store } from 'lucide-vue-next'
-const Swiper = defineAsyncComponent(async () => (await import('swiper/vue')).Swiper)
-const SwiperSlide = defineAsyncComponent(async () => (await import('swiper/vue')).SwiperSlide)
 import HeroBlock from '@/components/blocks/HeroBlock.vue'
 import PromoTilesBlock from '@/components/blocks/PromoTilesBlock.vue'
 import MidPromoBlock from '@/components/blocks/MidPromoBlock.vue'
