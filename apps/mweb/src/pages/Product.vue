@@ -637,8 +637,8 @@
 
     <!-- Product Cards using ProductCard.vue -->
     <div class="px-2 pb-2">
-      <div class="grid grid-cols-2 gap-1 pb-2">
-        <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="break-inside-avoid">
+      <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
+        <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="mb-1 break-inside-avoid">
           <ProductGridCard 
             :product="{
               id: p.id,

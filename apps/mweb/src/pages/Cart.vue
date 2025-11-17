@@ -230,8 +230,8 @@
         </div>
         <div v-else-if="!suggested.length" class="text-center text-gray-500 text-[12px] py-4">لا توجد مقترحات حالياً</div>
         <div v-else class="px-2 py-2">
-          <div class="grid grid-cols-2 gap-1">
-            <div v-for="(p,i) in suggested" :key="'sug-'+i" class="break-inside-avoid">
+          <div class="columns-2 gap-1 [column-fill:_balance]">
+            <div v-for="(p,i) in suggested" :key="'sug-'+i" class="mb-1 break-inside-avoid">
               <ProductGridCard 
                 :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
                 :ratio="(p as any)._ratio || defaultRatio"

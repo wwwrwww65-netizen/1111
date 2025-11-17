@@ -22,8 +22,8 @@
           </div>
         </div>
       </div>
-      <div v-else class="grid grid-cols-2 gap-1">
-        <div v-for="(p,i) in products" :key="'fy-'+(p.id||i)" class="break-inside-avoid">
+      <div v-else class="columns-2 gap-1 [column-fill:_balance]">
+        <div v-for="(p,i) in products" :key="'fy-'+(p.id||i)" class="mb-1 break-inside-avoid">
           <ProductGridCard :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="i<8" @add="openSuggestOptions" />
         </div>
       </div>

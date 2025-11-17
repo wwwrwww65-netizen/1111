@@ -193,9 +193,9 @@
           </div>
         </div>
       </div>
-      <!-- الشبكة الفعلية: شبكة عمودين ثابتة لضبط العرض بدقة -->
-      <div v-else class="grid grid-cols-2 gap-1">
-        <div v-for="(p,i) in products" :key="'product-'+p.id+'-'+i" class="break-inside-avoid">
+      <!-- الشبكة الفعلية: Masonry عمودين بنفس مقاييس الهيكل العظمي -->
+      <div v-else class="columns-2 gap-1 [column-fill:_balance]">
+        <div v-for="(p,i) in products" :key="'product-'+p.id+'-'+i" class="mb-1 break-inside-avoid">
           <ProductGridCard
             :product="{
               id: p.id,
@@ -606,10 +606,15 @@ async function loadCategories(){
     currentCategory.value = cur ? { id: cur.id, slug: cur.slug||undefined, name: cur.name } : null
     // Build child categories list
     const children = cur ? allCategories.value.filter(c=> String(c.parentId||'')===cur.id) : []
+    const safeImg = (u?: string|null) => {
+      const s = String(u||'').trim()
+      if (!s || s.startsWith('blob:')) return '/images/placeholder-product.jpg'
+      return buildThumbUrl(s, 112, 60)
+    }
     categories.value = children.map(c=> ({
       id: c.slug||c.id,
       label: c.name,
-      img: buildThumbUrl(c.image || '/images/placeholder-product.jpg', 112, 60)
+      img: safeImg(c.image)
     }))
   }catch{ allCategories.value = []; currentCategory.value = null; categories.value = [] }
 }
