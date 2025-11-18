@@ -729,6 +729,7 @@
           </div>
         </div>
       </div>
++      <div ref="recLoadMoreSentinel" class="h-1"></div>
     </div>
 
     <!-- Back to Top Button -->
@@ -2940,6 +2941,21 @@ const recLeft = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===0)
 const recRight = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===1))
 const recSkLeft = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===1))
 const recSkRight = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===0))
++const recLoadMoreSentinel = ref<HTMLDivElement|null>(null)
++
++onMounted(()=>{
++  try{
++    if ('IntersectionObserver' in window){
++      const io = new IntersectionObserver((entries)=>{
++        const e = entries[0]
++        if (e && e.isIntersecting && hasMoreRecommended.value && !isLoadingRecommended.value){
++          loadMoreRecommended()
++        }
++      }, { root:null, rootMargin:'0px 0px 300px 0px', threshold:0 })
++      if (recLoadMoreSentinel.value) io.observe(recLoadMoreSentinel.value)
++    }
++  }catch{}
++})
 </script>
 
 <style scoped>

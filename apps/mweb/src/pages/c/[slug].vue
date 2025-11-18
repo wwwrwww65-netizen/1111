@@ -656,13 +656,14 @@ function loadMoreProducts() {
         await Promise.all(slice.map((p:any)=> probeRatioPromise(p)))
         products.value = products.value.concat(slice)
         // اعتبر أن هناك المزيد فقط إذا حصلنا على عناصر جديدة بعد الاستبعاد
-        hasMore.value = slice.length >= 1
+        hasMore.value = items.length >= pageSize
         const nextPage = Math.floor(prev / pageSize) + 1
         pageNumber.value = nextPage
         try{ await fireListView(slice, nextPage) }catch{}
         try{ markTrending(products.value as any[]) }catch{}
         try{ await hydrateCouponsAndPrices() }catch{}
       } else {
+        // إذا لم تصل عناصر جديدة بسبب تكرار، حاول اعتبار أن هناك المزيد إن كانت نتيجة السيرفر كاملة
         hasMore.value = false
       }
     } finally {
@@ -735,6 +736,7 @@ async function loadProducts(limit: number = 10){
       if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
       if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
       if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+      try{ const ex = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0,200); if (ex.length) url.searchParams.set('excludeIds', ex.join(',')) }catch{}
       const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
       items = Array.isArray(data?.items)? data.items : []
     } else {

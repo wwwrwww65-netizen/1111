@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, reactive, onBeforeUnmount } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, reactive } from 'vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import { apiGet, API_BASE, isAuthenticated } from '@/lib/api'
 import { buildThumbUrl } from '@/lib/media'
@@ -170,6 +170,7 @@ async function loadRecommendations(){
     products.value = mapped
     try{ await hydrateCouponsAndPrices() }catch{}
     isLoading.value = false
+    hasMore.value = false
     return
   }
 
@@ -194,6 +195,7 @@ async function loadRecommendations(){
       try{ markTrending(products.value) }catch{}
       try{ await hydrateCouponsAndPrices() }catch{}
       isLoading.value = false
+      hasMore.value = arr.length >= fallbackCount.value
       return
     }
     // Fallback to mixed recent/new/similar
@@ -220,9 +222,11 @@ async function loadRecommendations(){
     try{ markTrending(products.value) }catch{}
     try{ await hydrateCouponsAndPrices() }catch{}
     isLoading.value = false
+    hasMore.value = dedup.length >= fallbackCount.value
   }catch{
     products.value = []
     isLoading.value = false
+    hasMore.value = false
   }
 }
 
