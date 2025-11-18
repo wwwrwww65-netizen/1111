@@ -199,33 +199,59 @@
           </div>
         </div>
       </div>
-      <!-- الشبكة الفعلية: شبكي عمودان مع مسافات موحّدة، وبنفس تصميم البطاقة -->
+      <!-- الشبكة الفعلية: عمودان حقيقيان بدون فراغات عمودية -->
       <div v-else class="grid grid-cols-2 gap-x-[1px] gap-y-0 grid-flow-row-dense">
-        <div v-for="(p,i) in products" :key="'product-'+p.id+'-'+i">
-          <ProductGridCard
-            :class="[
-              (i % 2 === 0) ? 'border-r-0 rounded-r-none' : 'border-l-0 rounded-l-none',
-              (i >= 2) ? 'border-t-0 rounded-t-none' : ''
-            ]"
-            :product="{
-              id: p.id,
-              title: p.title,
-              images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
-              overlayBannerSrc: (p as any).overlayBannerSrc,
-              overlayBannerAlt: (p as any).overlayBannerAlt,
-              brand: p.brand,
-              discountPercent: p.discountPercent,
-              bestRank: p.bestRank,
-              bestRankCategory: p.bestRankCategory,
-              basePrice: p.basePrice,
-              soldPlus: p.soldPlus,
-              couponPrice: p.couponPrice,
-              isTrending: (p as any).isTrending === true
-            }"
-            :ratio="p._ratio || defaultRatio"
-            :priority="i<8"
-            @add="openSuggestOptions"
-          />
+        <!-- عمود يسار -->
+        <div>
+          <div v-for="(p,ci) in leftProducts" :key="'lp-'+p.id+'-'+ci">
+            <ProductGridCard
+              :class="[ 'border-r-0 rounded-r-none', ci>0 ? 'border-t-0 rounded-t-none' : '' ]"
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: p.brand,
+                discountPercent: p.discountPercent,
+                bestRank: p.bestRank,
+                bestRankCategory: p.bestRankCategory,
+                basePrice: p.basePrice,
+                soldPlus: p.soldPlus,
+                couponPrice: p.couponPrice,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="p._ratio || defaultRatio"
+              :priority="ci<4"
+              @add="openSuggestOptions"
+            />
+          </div>
+        </div>
+        <!-- عمود يمين -->
+        <div>
+          <div v-for="(p,ci) in rightProducts" :key="'rp-'+p.id+'-'+ci">
+            <ProductGridCard
+              :class="[ 'border-l-0 rounded-l-none', ci>0 ? 'border-t-0 rounded-t-none' : '' ]"
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: Array.isArray(p.images)? p.images : (p.image? [p.image] : []),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: p.brand,
+                discountPercent: p.discountPercent,
+                bestRank: p.bestRank,
+                bestRankCategory: p.bestRankCategory,
+                basePrice: p.basePrice,
+                soldPlus: p.soldPlus,
+                couponPrice: p.couponPrice,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="p._ratio || defaultRatio"
+              :priority="ci<4"
+              @add="openSuggestOptions"
+            />
+          </div>
         </div>
       </div>
       <div style="height:80px" />
