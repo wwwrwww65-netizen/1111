@@ -641,7 +641,7 @@
         <!-- عمود يسار -->
         <div>
           <div v-for="(p,ci) in recLeft" :key="'rec-l-'+(p.id||ci)" class="mb-[6px]">
-            <ProductGridCard 
+          <ProductGridCard 
               :class="'border-t-0 border-b-0 border-l-0'"
               :product="{
                 id: p.id,
@@ -661,9 +661,9 @@
               :ratio="(p as any)._ratio || defaultRatio"
               :priority="ci<6"
               @add="openSuggestOptions"
-            />
-          </div>
+          />
         </div>
+      </div>
         <!-- عمود يمين -->
         <div>
           <div v-for="(p,ci) in recRight" :key="'rec-r-'+(p.id||ci)" class="mb-[6px]">
@@ -699,17 +699,17 @@
               <div class="relative w-full">
                 <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
               </div>
-              <div class="p-2">
-                <div class="inline-flex items-center gap-1 mb-1">
-                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
-                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
-                </div>
-                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
-                <div class="w-24 h-3 bg-gray-200 rounded"></div>
+            <div class="p-2">
+              <div class="inline-flex items-center gap-1 mb-1">
+                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
               </div>
+              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="w-24 h-3 bg-gray-200 rounded"></div>
             </div>
           </div>
         </div>
+      </div>
         <!-- يمين -->
         <div>
           <div v-for="i in recSkRight" :key="'sk-rec-r-'+i" class="mb-[6px]">
@@ -729,7 +729,7 @@
           </div>
         </div>
       </div>
-+      <div ref="recLoadMoreSentinel" class="h-1"></div>
+      <div ref="recLoadMoreSentinel" class="h-1"></div>
     </div>
 
     <!-- Back to Top Button -->
@@ -2446,8 +2446,8 @@ async function fetchRecommendations(pid?: string){
     if (mapped.length){
       await Promise.all(mapped.map(p=> probeRatioPromise(p)))
       recommendedProducts.value.push(...mapped)
-      try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
-      try{ await hydrateCouponsForRecommended() }catch{}
+    try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
+    try{ await hydrateCouponsForRecommended() }catch{}
       hasMoreRecommended.value = list.length >= 10
     } else { hasMoreRecommended.value = false }
   }catch{} finally { isLoadingRecommended.value = false }
@@ -2941,21 +2941,21 @@ const recLeft = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===0)
 const recRight = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===1))
 const recSkLeft = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===1))
 const recSkRight = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===0))
-+const recLoadMoreSentinel = ref<HTMLDivElement|null>(null)
-+
-+onMounted(()=>{
-+  try{
-+    if ('IntersectionObserver' in window){
-+      const io = new IntersectionObserver((entries)=>{
-+        const e = entries[0]
-+        if (e && e.isIntersecting && hasMoreRecommended.value && !isLoadingRecommended.value){
-+          loadMoreRecommended()
-+        }
-+      }, { root:null, rootMargin:'0px 0px 300px 0px', threshold:0 })
-+      if (recLoadMoreSentinel.value) io.observe(recLoadMoreSentinel.value)
-+    }
-+  }catch{}
-+})
+const recLoadMoreSentinel = ref<HTMLDivElement|null>(null)
+
+onMounted(()=>{
+  try{
+    if ('IntersectionObserver' in window){
+      const io = new IntersectionObserver((entries)=>{
+        const e = entries[0]
+        if (e && e.isIntersecting && hasMoreRecommended.value && !isLoadingRecommended.value){
+          loadMoreRecommended()
+        }
+      }, { root:null, rootMargin:'0px 0px 300px 0px', threshold:0 })
+      if (recLoadMoreSentinel.value) io.observe(recLoadMoreSentinel.value)
+    }
+  }catch{}
+})
 </script>
 
 <style scoped>

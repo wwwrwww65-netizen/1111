@@ -663,7 +663,6 @@ function loadMoreProducts() {
         try{ markTrending(products.value as any[]) }catch{}
         try{ await hydrateCouponsAndPrices() }catch{}
       } else {
-        // إذا لم تصل عناصر جديدة بسبب تكرار، حاول اعتبار أن هناك المزيد إن كانت نتيجة السيرفر كاملة
         hasMore.value = false
       }
     } finally {
