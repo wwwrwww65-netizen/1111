@@ -14,7 +14,7 @@ type CacheEntry = { ts: number; data: any }
 const shortCache: Map<string, CacheEntry> = new Map()
 const CACHE_TTL_MS = 15000 // 15s for public resources
 
-function getAuthHeader(): Record<string,string> {
+export function getAuthHeader(): Record<string,string> {
   try {
     const out: Record<string,string> = {}
     // Prefer client-stored token to bypass 3P cookie blocking
