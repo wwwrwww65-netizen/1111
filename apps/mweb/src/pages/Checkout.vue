@@ -514,9 +514,15 @@ const afterById = ref<Record<string, number>>({})
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const { API_BASE } = await import('@/lib/api')
-  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
   let data: any = await tryFetch('/api/me/coupons')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCoupons(data.coupons)
   data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
   // لا تستخدم مسارات المشرف من الواجهة العامة

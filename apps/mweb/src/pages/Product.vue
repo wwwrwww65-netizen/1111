@@ -2503,7 +2503,7 @@ async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
   }
   if (isAuthenticated()){
     const data1: any = await tryFetch('/api/me/coupons')
-    if (data1 && Array.isArray(data1.coupons)) return normalizeCouponsRec(data1.coupons)
+    if (data1 && Array.isArray(data1.coupons) && data1.coupons.length>0) return normalizeCouponsRec(data1.coupons)
   }
   const data2 = await tryFetch('/api/coupons/public')
   if (data2 && Array.isArray((data2 as any).coupons)) return normalizeCouponsRec((data2 as any).coupons)

@@ -362,11 +362,13 @@ async function fetchCoupons(){
   try{
     // Try authenticated coupons first
     let res = await fetch(`${API_BASE}/api/me/coupons`, { credentials:'include' })
-    if (res.status === 401) {
-      // Fallback to public coupons for الزوار
+    let j = await res.json().catch(()=>null)
+    // Fallback when unauthorized OR empty lists
+    const empty = !(j && ((Array.isArray(j.coupons)&&j.coupons.length) || (Array.isArray(j.items)&&j.items.length)))
+    if (res.status === 401 || empty) {
       res = await fetch(`${API_BASE}/api/coupons/public`, { credentials:'omit' })
+      j = await res.json().catch(()=>null)
     }
-    const j = await res.json().catch(()=>null)
     if (j){
       if (Array.isArray(j.coupons)) coupons.value = j.coupons
       else if (Array.isArray(j.items)) coupons.value = j.items

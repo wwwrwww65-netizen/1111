@@ -1054,7 +1054,7 @@ async function fetchCouponsListCart(): Promise<CartCoupon[]> {
   const tryFetch = async (path: string) => { try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
-  if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
+  if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCouponsCart(data.coupons)
   data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
   // لا تستخدم مسارات المشرف من الواجهة العامة
@@ -1102,7 +1102,7 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const tryFetch = async (path: string) => { try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
+  if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCoupons(data.coupons)
   data = await tryFetch('/api/coupons/public')
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
   // لا تستخدم مسارات المشرف من الواجهة العامة
