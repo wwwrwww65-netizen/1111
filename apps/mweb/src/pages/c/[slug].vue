@@ -599,17 +599,30 @@ function loadMoreProducts() {
       const sort = mapSort()
       const pageSize = 24
       const offset = prev
-      const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
-      url.searchParams.set('limit', String(pageSize))
-      url.searchParams.set('offset', String(offset))
-      if (sort) url.searchParams.set('sort', sort)
-      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-      const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
-      const items = Array.isArray(data?.items)? data.items : []
+      const kids = childCategoryIds.value
+      let items: any[] = []
+      if (kids.length){
+        const url = new URL(`${API_BASE}/api/products`)
+        url.searchParams.set('limit', String(pageSize))
+        url.searchParams.set('offset', String(offset))
+        if (sort) url.searchParams.set('sort', sort)
+        url.searchParams.set('categoryIds', kids.join(','))
+        const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+        const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
+        items = Array.isArray(data?.items)? data.items : []
+      } else {
+        const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
+        url.searchParams.set('limit', String(pageSize))
+        url.searchParams.set('offset', String(offset))
+        if (sort) url.searchParams.set('sort', sort)
+        const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+        if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+        if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+        if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+        if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+        const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
+        items = Array.isArray(data?.items)? data.items : []
+      }
       const sliceRaw = items.map((it:any)=> ({
         id: String(it.id),
         title: String(it.name||''),
@@ -648,11 +661,21 @@ function loadMoreProducts() {
   })()
 }
 
-const visibleCategories = computed(()=> categories.value.slice(0,5))
-const compactCategories = computed(()=> categories.value.slice(0,4))
+const visibleCategories = computed(()=> categories.value)
+const compactCategories = computed(()=> categories.value)
 
 // ===== تحميل بيانات الفئة والمنتجات =====
 function currentSlug(): string { try{ return String(route.params.slug||'') }catch{ return '' } }
+
+// Real child category IDs for the current category (to aggregate products from subcategories)
+const childCategoryIds = computed<string[]>(()=>{
+  try{
+    const cur = currentCategory.value
+    if (!cur) return []
+    const kids = allCategories.value.filter(c=> String(c.parentId||'')===cur.id)
+    return kids.map(c=> String(c.id))
+  }catch{ return [] }
+})
 
 async function loadCategories(){
   try{
@@ -688,18 +711,32 @@ async function loadProducts(limit: number = 24){
     productsLoading.value = true
     const slug = currentSlug()
     const sort = mapSort()
-    const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
-    url.searchParams.set('limit', String(limit))
-    url.searchParams.set('offset', '0')
-    if (sort) url.searchParams.set('sort', sort)
-    const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-    if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-    if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-    if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-    if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-    const path = `/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`
-    const data = await apiGet<any>(path).catch(()=> null)
-    const items = Array.isArray(data?.items)? data.items : []
+    const kids = childCategoryIds.value
+    let items: any[] = []
+    if (kids.length){
+      // Aggregate products across subcategories
+      const url = new URL(`${API_BASE}/api/products`)
+      url.searchParams.set('limit', String(limit))
+      url.searchParams.set('offset', '0')
+      if (sort) url.searchParams.set('sort', sort)
+      url.searchParams.set('categoryIds', kids.join(','))
+      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+      const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
+      items = Array.isArray(data?.items)? data.items : []
+    } else {
+      // Fallback to current category only
+      const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
+      url.searchParams.set('limit', String(limit))
+      url.searchParams.set('offset', '0')
+      if (sort) url.searchParams.set('sort', sort)
+      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+      const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
+      items = Array.isArray(data?.items)? data.items : []
+    }
     const mappedRaw = items.map((it:any)=> ({
       id: String(it.id),
       title: String(it.name||''),
