@@ -242,8 +242,17 @@ async function onSubmit(){
             await apiPost('/api/analytics/link', { sessionId: sid })
           }
         }catch{}
-      // Complete pending claim if any
-      try{ const claimTok = String(route.query.claimToken||''); if (claimTok){ await fetch('/api/promotions/claim/complete', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ token: claimTok }) }) } }catch{}
+      // Complete pending claim if any (prefer query, fallback to sessionStorage)
+      try{
+        let claimTok = String(route.query.claimToken||'')
+        if (!claimTok){
+          try{ claimTok = sessionStorage.getItem('claim_token') || '' }catch{}
+        }
+        if (claimTok){
+          await fetch('/api/promotions/claim/complete', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ token: claimTok }) })
+          try{ sessionStorage.removeItem('claim_token') }catch{}
+        }
+      }catch{}
       // Fetch session and hydrate user store before redirect
       const me = await meWithRetry(2)
       const ret = String(route.query.return || '/account')

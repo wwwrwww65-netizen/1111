@@ -363,12 +363,7 @@ async function fetchCoupons(){
     // Try authenticated coupons first
     let res = await fetch(`${API_BASE}/api/me/coupons`, { credentials:'include', headers: { 'Accept':'application/json', ...getAuthHeader() } })
     let j = await res.json().catch(()=>null)
-    // Fallback when unauthorized OR empty lists
-    const empty = !(j && ((Array.isArray(j.coupons)&&j.coupons.length) || (Array.isArray(j.items)&&j.items.length)))
-    if (res.status === 401 || empty) {
-      res = await fetch(`${API_BASE}/api/coupons/public`, { credentials:'omit', headers: { 'Accept':'application/json' } })
-      j = await res.json().catch(()=>null)
-    }
+    // لا يوجد سقوط للزوار: الصفحة خاصة بالمستخدمين فقط
     if (j){
       const itemsArr = Array.isArray(j.items) ? j.items : []
       const couponsArr = Array.isArray(j.coupons) ? j.coupons : []

@@ -2700,7 +2700,15 @@ shop.get('/coupons/public', async (_req: any, res) => {
         const kind = rule?.kind ? String(rule.kind).toLowerCase() : 'sitewide';
         const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
         const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
-        return isGlobal;
+        // Respect audience rules: do NOT expose coupons targeted to users-only on public endpoint
+        const audience = String((rule?.audience?.target ?? rule?.audience ?? '') || '').toLowerCase();
+        const allowedAudience = audience !== 'users';
+        // Respect optional rules enable/schedule if set
+        const now = new Date();
+        const fromOk = !rule?.schedule?.from || new Date(rule.schedule.from) <= now;
+        const toOk = !rule?.schedule?.to || new Date(rule.schedule.to) >= now;
+        const enabledOk = rule?.enabled !== false;
+        return isGlobal && allowedAudience && enabledOk && fromOk && toOk;
       })
       .map((c:any)=> ({
         id: c.id, code: c.code, title: c.title||c.code,
@@ -2767,7 +2775,15 @@ shop.get('/me/coupons', async (req: any, res) => {
         const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
         // Consider global/sitewide if kind explicitly sitewide OR no includes targeting present
         const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
-        return isGlobal;
+        // Respect audience rules for authenticated users: include users/all (not guests-only)
+        const audience = String((rule?.audience?.target ?? rule?.audience ?? '') || '').toLowerCase();
+        const allowedAudience = audience === '' || audience === 'users' || audience === 'all';
+        // Respect optional rules enable/schedule if set
+        const now = new Date();
+        const fromOk = !rule?.schedule?.from || new Date(rule.schedule.from) <= now;
+        const toOk = !rule?.schedule?.to || new Date(rule.schedule.to) >= now;
+        const enabledOk = rule?.enabled !== false;
+        return isGlobal && allowedAudience && enabledOk && fromOk && toOk;
       })
       .map((c:any)=> ({
         id: c.id,

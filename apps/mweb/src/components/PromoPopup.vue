@@ -220,12 +220,7 @@ async function fetchCouponDetails(){
       const j1 = await r1.json().catch(()=>null)
       if (j1 && Array.isArray(j1.coupons)) list = j1.coupons
     }catch{}
-    // fallback to public coupons
-    if (!list.length){
-      const r2 = await fetch(buildApiUrl('/api/coupons/public'), { credentials:'omit', cache:'no-store' })
-      const j2 = await r2.json().catch(()=>null)
-      list = (j2 && Array.isArray(j2.coupons))? j2.coupons : []
-    }
+    // لا تعرض أي كوبونات للزوار عند عدم توفر بيانات للكودات المحددة
     const map: Record<string, any> = {}
     for (const c of list){ if (c?.code) map[String(c.code)] = c }
     couponMap.value = map

@@ -520,8 +520,6 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
     // إذا كانت قائمة المستخدم فارغة، اسقط إلى العامة بدل إرجاع لا شيء
     if (data1 && Array.isArray(data1.coupons) && data1.coupons.length>0) return normalizeCoupons(data1.coupons)
   }
-  const data2: any = await tryFetch('/api/coupons/public')
-  if (data2 && Array.isArray(data2.coupons)) return normalizeCoupons(data2.coupons)
   return []
 }
 

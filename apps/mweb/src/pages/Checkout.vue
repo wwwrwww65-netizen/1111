@@ -523,8 +523,6 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   }
   let data: any = await tryFetch('/api/me/coupons')
   if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCoupons(data.coupons)
-  data = await tryFetch('/api/coupons/public')
-  if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
   // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
 }

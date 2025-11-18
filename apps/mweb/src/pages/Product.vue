@@ -2505,8 +2505,6 @@ async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
     const data1: any = await tryFetch('/api/me/coupons')
     if (data1 && Array.isArray(data1.coupons) && data1.coupons.length>0) return normalizeCouponsRec(data1.coupons)
   }
-  const data2 = await tryFetch('/api/coupons/public')
-  if (data2 && Array.isArray((data2 as any).coupons)) return normalizeCouponsRec((data2 as any).coupons)
   // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
 }
