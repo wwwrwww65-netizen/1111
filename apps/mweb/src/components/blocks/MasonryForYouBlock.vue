@@ -161,6 +161,8 @@ function uniqById(list:any[]): any[]{
   return out
 }
 
+const mode = ref<'category'|'personal'|'popular'>('popular')
+
 async function loadRecommendations(){
   const cfg = props.cfg || {}
   const provided = Array.isArray(cfg.products) && cfg.products.length ? cfg.products : (Array.isArray(cfg.items) ? cfg.items : [])
@@ -174,7 +176,6 @@ async function loadRecommendations(){
     hasMore.value = false
     return
   }
-
   try{
     // Prefer categories coming from config or last carousel to align with admin selection
     const w: any = window as any
@@ -182,6 +183,7 @@ async function loadRecommendations(){
     const catIds: string[] = Array.isArray(cfgRec.categoryIds) ? cfgRec.categoryIds : (Array.isArray(w.__LAST_CAROUSEL_CATEGORY_IDS) ? w.__LAST_CAROUSEL_CATEGORY_IDS : [])
     const exclude: string[] = Array.isArray(cfgRec.excludeIds) ? cfgRec.excludeIds : (Array.isArray(w.__USED_PRODUCT_IDS) ? Array.from(w.__USED_PRODUCT_IDS) : [])
     if (catIds.length){
+      mode.value = 'category'
       const u = new URL(`${API_BASE}/api/products`)
       u.searchParams.set('limit', String(fallbackCount.value))
       u.searchParams.set('sort', 'new')
@@ -199,31 +201,50 @@ async function loadRecommendations(){
       hasMore.value = arr.length >= fallbackCount.value
       return
     }
-    // Fallback to mixed recent/new/similar
+    // Decide personalization vs popular
     let lastId: string|undefined
     try{ lastId = window.localStorage?.getItem('last_view_product_id') || undefined }catch{}
-    const [recent, newest, similar] = await Promise.all([
-      apiGet<any>('/api/recommendations/recent').catch(()=>null),
-      apiGet<any>('/api/products?limit=24&sort=new').catch(()=>null),
-      lastId ? apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(lastId)}`).catch(()=>null) : Promise.resolve(null)
-    ])
-    const a = Array.isArray(recent?.items)? recent.items : []
-    const b = Array.isArray(newest?.items)? newest.items : []
-    const c = Array.isArray(similar?.items)? similar.items : []
-    const mixed:any[] = []
-    const max = Math.max(a.length, b.length, c.length)
-    for (let i=0;i<max;i++){ if (c[i]) mixed.push(c[i]); if (a[i]) mixed.push(a[i]); if (b[i]) mixed.push(b[i]) }
-    // De-dup against prior blocks on page if any
-    const used: Set<string> = (w && w.__USED_PRODUCT_IDS) ? (w.__USED_PRODUCT_IDS as Set<string>) : new Set<string>()
-    const filtered = mixed.filter((p:any)=> !used.has(String(p?.id||'')))
-    const dedup = uniqById(filtered)
-    const mapped = dedup.slice(0, fallbackCount.value).map(toGridP)
+    // try recent to detect any history
+    const recent = await apiGet<any>('/api/recommendations/recent').catch(()=>null)
+    const hasHistory = Array.isArray(recent?.items) && recent.items.length>0
+    if (hasHistory || lastId){
+      mode.value = 'personal'
+      const [newest, similar] = await Promise.all([
+        apiGet<any>('/api/products?limit=24&sort=new').catch(()=>null),
+        lastId ? apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(lastId)}`).catch(()=>null) : Promise.resolve(null)
+      ])
+      const a = Array.isArray(recent?.items)? recent.items : []
+      const b = Array.isArray(newest?.items)? newest.items : []
+      const c = Array.isArray(similar?.items)? similar.items : []
+      const mixed:any[] = []
+      const max = Math.max(a.length, b.length, c.length)
+      for (let i=0;i<max;i++){ if (c[i]) mixed.push(c[i]); if (a[i]) mixed.push(a[i]); if (b[i]) mixed.push(b[i]) }
+      const used: Set<string> = (w && w.__USED_PRODUCT_IDS) ? (w.__USED_PRODUCT_IDS as Set<string>) : new Set<string>()
+      const filtered = mixed.filter((p:any)=> !used.has(String(p?.id||'')))
+      const dedup = uniqById(filtered)
+      const mapped = dedup.slice(0, fallbackCount.value).map(toGridP)
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      products.value = mapped
+      try{ markTrending(products.value) }catch{}
+      try{ await hydrateCouponsAndPrices() }catch{}
+      isLoading.value = false
+      hasMore.value = dedup.length >= fallbackCount.value
+      return
+    }
+    // Popular fallback for first-time visitors
+    mode.value = 'popular'
+    const u = new URL(`${API_BASE}/api/products`)
+    u.searchParams.set('limit', String(fallbackCount.value))
+    u.searchParams.set('sort', 'popular')
+    const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
+    const arr = Array.isArray(j?.items)? j.items: []
+    const mapped = arr.slice(0, fallbackCount.value).map(toGridP)
     await Promise.all(mapped.map(p=> probeRatioPromise(p)))
     products.value = mapped
     try{ markTrending(products.value) }catch{}
     try{ await hydrateCouponsAndPrices() }catch{}
     isLoading.value = false
-    hasMore.value = dedup.length >= fallbackCount.value
+    hasMore.value = arr.length >= fallbackCount.value
   }catch{
     products.value = []
     isLoading.value = false
@@ -274,7 +295,7 @@ async function loadMore(){
     const w: any = window as any
     const cfgRec: any = (cfg as any).recommend || {}
     const catIds: string[] = Array.isArray(cfgRec.categoryIds) ? cfgRec.categoryIds : (Array.isArray(w.__LAST_CAROUSEL_CATEGORY_IDS) ? w.__LAST_CAROUSEL_CATEGORY_IDS : [])
-    if (catIds.length){
+    if (mode.value==='category' && catIds.length){
       const ex = Array.from(new Set(products.value.map(p=> String(p.id)))).slice(0,200)
       const u = new URL(`${API_BASE}/api/products`)
       u.searchParams.set('limit', String(fallbackCount.value))
@@ -294,21 +315,40 @@ async function loadMore(){
       try{ await hydrateCouponsAndPrices() }catch{}
       return
     }
-    // Fallback: use new products with excludeIds
+    // Other modes
     const ex = Array.from(new Set(products.value.map(p=> String(p.id)))).slice(0,200)
-    const u = new URL(`${API_BASE}/api/products`)
-    u.searchParams.set('limit', String(fallbackCount.value))
-    u.searchParams.set('sort', 'new')
-    u.searchParams.set('offset', String(products.value.length))
-    if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
-    const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
-    const arr = Array.isArray(j?.items)? j.items: []
-    const mapped = arr.map(toGridP)
-    await Promise.all(mapped.map(p=> probeRatioPromise(p)))
-    products.value = products.value.concat(mapped)
-    hasMore.value = mapped.length >= 1
-    try{ markTrending(products.value as any[]) }catch{}
-    try{ await hydrateCouponsAndPrices() }catch{}
+    if (mode.value==='popular'){
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit', String(fallbackCount.value))
+      u.searchParams.set('sort', 'popular')
+      u.searchParams.set('offset', String(products.value.length))
+      if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+      const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
+      const arr = Array.isArray(j?.items)? j.items: []
+      const mapped = arr.map(toGridP)
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      products.value = products.value.concat(mapped)
+      hasMore.value = mapped.length >= 1
+      try{ markTrending(products.value as any[]) }catch{}
+      try{ await hydrateCouponsAndPrices() }catch{}
+      return
+    }
+    // personal: fallback to new with excludeIds
+    {
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit', String(fallbackCount.value))
+      u.searchParams.set('sort', 'new')
+      u.searchParams.set('offset', String(products.value.length))
+      if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+      const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
+      const arr = Array.isArray(j?.items)? j.items: []
+      const mapped = arr.map(toGridP)
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      products.value = products.value.concat(mapped)
+      hasMore.value = mapped.length >= 1
+      try{ markTrending(products.value as any[]) }catch{}
+      try{ await hydrateCouponsAndPrices() }catch{}
+    }
   }catch{ hasMore.value = false } finally { isLoadingMore.value = false }
 }
 
