@@ -637,42 +637,94 @@
 
     <!-- Product Cards using ProductCard.vue -->
     <div class="px-2 pb-2">
-      <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
-        <div v-for="(p,i) in recommendedProducts" :key="'rec-'+(p.id||i)" class="mb-1 break-inside-avoid">
-          <ProductGridCard 
-            :product="{
-              id: p.id,
-              title: p.title,
-              images: p.img ? [p.img] : (Array.isArray((p as any).images) ? (p as any).images : []),
-              overlayBannerSrc: (p as any).overlayBannerSrc,
-              overlayBannerAlt: (p as any).overlayBannerAlt,
-              brand: p.brand,
-              discountPercent: p.discountPercent,
-              bestRank: p.bestRank,
-              bestRankCategory: (p as any).bestRankCategory,
-              basePrice: p.priceText,
-              soldPlus: (p.soldCount ? ('باع ' + p.soldCount + '+') : ''),
-              couponPrice: (p as any).afterCoupon,
-              isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges) && (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||''))))
-            }"
-            :ratio="(p as any)._ratio || defaultRatio"
-            @add="onRecoAdd"
-          />
+      <div class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 pb-2">
+        <!-- عمود يسار -->
+        <div>
+          <div v-for="(p,ci) in recLeft" :key="'rec-l-'+(p.id||ci)" class="mb-[6px]">
+            <ProductGridCard 
+              :class="'border-t-0 border-b-0 border-l-0'"
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: p.thumbs || (Array.isArray((p as any).images)? (p as any).images : (p.img?[p.img]:[])),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: (p as any).brand,
+                discountPercent: (p as any).discountPercent,
+                bestRank: (p as any).bestRank,
+                bestRankCategory: (p as any).bestRankCategory,
+                basePrice: (p as any).priceText || (p as any).basePrice,
+                soldPlus: (p as any).soldPlus,
+                couponPrice: (p as any).afterCoupon,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="(p as any)._ratio || defaultRatio"
+              :priority="ci<6"
+              @add="openSuggestOptions"
+            />
+          </div>
+        </div>
+        <!-- عمود يمين -->
+        <div>
+          <div v-for="(p,ci) in recRight" :key="'rec-r-'+(p.id||ci)" class="mb-[6px]">
+            <ProductGridCard 
+              :class="'border-t-0 border-b-0 border-l-0'"
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: p.thumbs || (Array.isArray((p as any).images)? (p as any).images : (p.img?[p.img]:[])),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: (p as any).brand,
+                discountPercent: (p as any).discountPercent,
+                bestRank: (p as any).bestRank,
+                bestRankCategory: (p as any).bestRankCategory,
+                basePrice: (p as any).priceText || (p as any).basePrice,
+                soldPlus: (p as any).soldPlus,
+                couponPrice: (p as any).afterCoupon,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="(p as any)._ratio || defaultRatio"
+              :priority="ci<6"
+              @add="openSuggestOptions"
+            />
+          </div>
         </div>
       </div>
-      <div v-if="isLoadingRecommended && hasMoreRecommended" class="columns-2 gap-1 [column-fill:_balance] pb-2">
-        <div v-for="i in 8" :key="'sk-rec-'+i" class="mb-1 break-inside-avoid">
-          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
-            <div class="relative w-full">
-              <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[(i-1)%placeholderRatios.length] * 100) + '%' }"></div>
-            </div>
-            <div class="p-2">
-              <div class="inline-flex items-center gap-1 mb-1">
-                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
-                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+      <div v-if="isLoadingRecommended && hasMoreRecommended" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 pb-2">
+        <!-- يسار -->
+        <div>
+          <div v-for="i in recSkLeft" :key="'sk-rec-l-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
               </div>
-              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
-              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              <div class="p-2">
+                <div class="inline-flex items-center gap-1 mb-1">
+                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                </div>
+                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- يمين -->
+        <div>
+          <div v-for="i in recSkRight" :key="'sk-rec-r-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
+              </div>
+              <div class="p-2">
+                <div class="inline-flex items-center gap-1 mb-1">
+                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                </div>
+                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -2864,6 +2916,12 @@ async function updateImagesForColor(){
     }catch{}
   }catch{}
 }
+
+// شبكتا التوصيات (يسار/يمين) + سكيليتون مطابق
+const recLeft = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===0))
+const recRight = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===1))
+const recSkLeft = computed(()=> Array.from({length:8}, (_,k)=> k+1).filter(i=> i%2===1))
+const recSkRight = computed(()=> Array.from({length:8}, (_,k)=> k+1).filter(i=> i%2===0))
 </script>
 
 <style scoped>
@@ -3057,5 +3115,7 @@ async function updateImagesForColor(){
 .expiry-details li { margin-bottom:4px }
 .timer { margin-top:8px; font-size:14px; font-weight:700; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#ffffff; color:#111; padding:4px 8px; border-radius:6px; border:1px solid #f3d2c8 }
 .timer.warning { background:#fff4f0; color:#fa6338; border-color:#fa6338 }
+
+.product-grid{column-gap:5px!important;row-gap:0!important}
 </style>
 

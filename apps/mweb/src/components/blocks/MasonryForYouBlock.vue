@@ -3,28 +3,58 @@
     <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
       <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
     </div>
-    <div class="px-2 py-2">
+    <div class="px-1 pt-2 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
-      <div v-if="isLoading" class="columns-2 gap-1 [column-fill:_balance]">
-        <div v-for="i in 8" :key="'fy-sk-'+i" class="mb-1 break-inside-avoid">
-          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden">
-            <div class="relative w-full">
-              <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
-            </div>
-            <div class="p-2">
-              <div class="inline-flex items-center gap-1 mb-1">
-                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
-                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+      <div v-if="isLoading" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0">
+        <!-- يسار -->
+        <div>
+          <div v-for="i in skLeft" :key="'fy-sk-l-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
               </div>
-              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
-              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              <div class="p-2">
+                <div class="inline-flex items-center gap-1 mb-1">
+                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                </div>
+                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- يمين -->
+        <div>
+          <div v-for="i in skRight" :key="'fy-sk-r-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
+              </div>
+              <div class="p-2">
+                <div class="inline-flex items-center gap-1 mb-1">
+                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                </div>
+                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div v-else class="columns-2 gap-1 [column-fill:_balance]">
-        <div v-for="(p,i) in products" :key="'fy-'+(p.id||i)" class="mb-1 break-inside-avoid">
-          <ProductGridCard :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="i<8" @add="openSuggestOptions" />
+      <div v-else class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0">
+        <!-- يسار -->
+        <div>
+          <div v-for="(p,ci) in leftProducts" :key="'fy-l-'+(p.id||ci)" class="mb-[6px]">
+            <ProductGridCard :class="'border-t-0 border-b-0 border-l-0'" :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="ci<6" @add="openSuggestOptions" />
+          </div>
+        </div>
+        <!-- يمين -->
+        <div>
+          <div v-for="(p,ci) in rightProducts" :key="'fy-r-'+(p.id||ci)" class="mb-[6px]">
+            <ProductGridCard :class="'border-t-0 border-b-0 border-l-0'" :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="ci<6" @add="openSuggestOptions" />
+          </div>
         </div>
       </div>
     </div>
@@ -71,6 +101,10 @@ type Cfg = { columns?: number; products?: any[]; items?: any[] }
 const props = defineProps<{ cfg?: Cfg; device?: 'MOBILE'|'DESKTOP' }>()
 const fallbackCount = computed(()=> (props.device ?? 'MOBILE') === 'MOBILE' ? 8 : 9)
 const products = ref<GridP[]>([])
+const leftProducts = computed(()=> products.value.filter((_p,i)=> i%2===0))
+const rightProducts = computed(()=> products.value.filter((_p,i)=> i%2===1))
+const skLeft = computed(()=> Array.from({ length: 8 }, (_,k)=> k+1).filter(i=> i%2===1))
+const skRight = computed(()=> Array.from({ length: 8 }, (_,k)=> k+1).filter(i=> i%2===0))
 const isLoading = ref(true)
 const cart = useCart()
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
@@ -422,7 +456,7 @@ async function computeCouponPrices(list:any[]){
 </script>
 
 <style scoped>
-.break-inside-avoid{ break-inside: avoid }
+.product-grid{column-gap:5px!important;row-gap:0!important}
 </style>
 
 
