@@ -153,7 +153,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { API_BASE } from '@/lib/api'
+import { API_BASE, getAuthHeader } from '@/lib/api'
 
 // Reactive state
 const isScrolled = ref(false)
@@ -328,7 +328,7 @@ onMounted(() => {
     if (sp.get('claim')==='1'){
       const token = sessionStorage.getItem('claim_token')||''
       if (token){
-        fetch(`${API_BASE}/api/promotions/claim/complete`, { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ token }) })
+        fetch(`${API_BASE}/api/promotions/claim/complete`, { method:'POST', headers:{ 'content-type':'application/json', ...getAuthHeader() }, credentials:'include', body: JSON.stringify({ token }) })
           .then(()=>{
             showToast('تم جمع الكوبون', 'success')
             sessionStorage.removeItem('claim_token')
@@ -361,17 +361,19 @@ watch(activeTab, () => {
 async function fetchCoupons(){
   try{
     // Try authenticated coupons first
-    let res = await fetch(`${API_BASE}/api/me/coupons`, { credentials:'include' })
+    let res = await fetch(`${API_BASE}/api/me/coupons`, { credentials:'include', headers: { 'Accept':'application/json', ...getAuthHeader() } })
     let j = await res.json().catch(()=>null)
     // Fallback when unauthorized OR empty lists
     const empty = !(j && ((Array.isArray(j.coupons)&&j.coupons.length) || (Array.isArray(j.items)&&j.items.length)))
     if (res.status === 401 || empty) {
-      res = await fetch(`${API_BASE}/api/coupons/public`, { credentials:'omit' })
+      res = await fetch(`${API_BASE}/api/coupons/public`, { credentials:'omit', headers: { 'Accept':'application/json' } })
       j = await res.json().catch(()=>null)
     }
     if (j){
-      if (Array.isArray(j.coupons)) coupons.value = j.coupons
-      else if (Array.isArray(j.items)) coupons.value = j.items
+      const itemsArr = Array.isArray(j.items) ? j.items : []
+      const couponsArr = Array.isArray(j.coupons) ? j.coupons : []
+      const merged = [...itemsArr, ...couponsArr]
+      coupons.value = merged
     }
   } catch (e) {
     // silently ignore; UI سيعرض النص الافتراضي
