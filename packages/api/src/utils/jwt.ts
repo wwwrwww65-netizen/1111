@@ -65,6 +65,11 @@ export const readTokenFromRequest = (req: any): string | null => {
   if (access) return access;
   const generic = (req?.cookies?.token as string | undefined) || (req?.cookies?.jwt as string | undefined);
   if (generic) return generic;
+  // Final fallback: query token ?t=... (used by OAuth callback flows and diagnostics)
+  try {
+    const q = String(req?.query?.t || '').trim();
+    if (q) return q;
+  } catch {}
   return null;
 };
 

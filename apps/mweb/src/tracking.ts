@@ -102,29 +102,25 @@ export async function injectTracking(): Promise<void> {
       const s2 = document.createElement('script'); s2.id='ga-gtag'; s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','${ga}', { 'transport_type': 'beacon' });`;
       document.head.appendChild(s2);
     }
-    // Web Vitals to GA4 only when GA is present
+    // Web Vitals (local ESM) to GA4 and CAPI (no external CDN)
     try{
-      await import('https://unpkg.com/web-vitals@3/dist/web-vitals.attribution.iife.js');
-      // @ts-ignore
-      if (typeof webVitals!=='undefined'){
-        function toValue(n:string, v:number){ return Math.round(v * (n==='CLS'?1000:1)) }
-        async function sendAll(metric:any){
-          try{
-            // Send to GA if present
+      const { onCLS, onFID, onLCP, onINP, onTTFB } = await import('web-vitals/attribution');
+      function toValue(n:string, v:number){ return Math.round(v * (n==='CLS'?1000:1)) }
+      async function sendAll(metric:any){
+        try{
+          // Send to GA if present
+          // @ts-ignore
+          if ((window as any).gtag){
             // @ts-ignore
-            if ((window as any).gtag){
-              // @ts-ignore
-              gtag('event', metric.name, { value: toValue(metric.name, metric.value), event_label: metric.id, non_interaction: true });
-            }
-          }catch{}
-          try{
-            const { trackEvent } = await import('./lib/track');
-            await trackEvent('WebVital', { value: toValue(metric.name, metric.value), content_type: metric.name as any, contents: [{ id: metric.id }] });
-          }catch{}
-        }
-        // @ts-ignore
-        webVitals.onCLS(sendAll); webVitals.onFID(sendAll); webVitals.onLCP(sendAll); webVitals.onINP(sendAll); webVitals.onTTFB(sendAll);
+            gtag('event', metric.name, { value: toValue(metric.name, metric.value), event_label: metric.id, non_interaction: true });
+          }
+        }catch{}
+        try{
+          const { trackEvent } = await import('./lib/track');
+          await trackEvent('WebVital', { value: toValue(metric.name, metric.value), content_type: metric.name as any, contents: [{ id: metric.id }] });
+        }catch{}
       }
+      onCLS(sendAll); onFID(sendAll); onLCP(sendAll); onINP(sendAll); onTTFB(sendAll);
     }catch{}
     if (gtm && !document.getElementById('gtm')){
       const s = document.createElement('script'); s.id='gtm'; s.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtm}');`;
