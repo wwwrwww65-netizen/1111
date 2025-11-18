@@ -612,6 +612,11 @@ function loadMoreProducts() {
         if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
         if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
         if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+        // Exclude already loaded product ids to avoid repeats when backend ignores offset
+        try{
+          const ids = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0, 200)
+          if (ids.length) url.searchParams.set('excludeIds', ids.join(','))
+        }catch{}
         const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
         items = Array.isArray(data?.items)? data.items : []
       } else {
@@ -650,7 +655,8 @@ function loadMoreProducts() {
         // جس النسب قبل الإضافة لمنع أي قفزات لاحقة
         await Promise.all(slice.map((p:any)=> probeRatioPromise(p)))
         products.value = products.value.concat(slice)
-        hasMore.value = items.length >= pageSize
+        // اعتبر أن هناك المزيد فقط إذا حصلنا على عناصر جديدة بعد الاستبعاد
+        hasMore.value = slice.length >= 1
         const nextPage = Math.floor(prev / pageSize) + 1
         pageNumber.value = nextPage
         try{ await fireListView(slice, nextPage) }catch{}
