@@ -176,14 +176,11 @@
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-0 pt-2 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
-      <div v-if="productsLoading" class="grid grid-cols-2 gap-x-[1px] gap-y-0 grid-flow-row-dense">
+      <div v-if="productsLoading" class="grid grid-cols-2 gap-x-[6px] gap-y-[6px] grid-flow-row-dense">
         <div v-for="i in 8" :key="'sk-prod-'+i">
           <div :class="[
             'w-full border border-gray-200 rounded bg-white overflow-hidden',
-            (i % 2 === 1)
-              ? 'border-r-0 rounded-r-none'
-              : 'border-l-0 rounded-l-none',
-            (i >= 3) ? 'border-t-0 rounded-t-none' : '' // من الصف الثاني فأعلى: أزل الحد العلوي لمنع ازدواج الحد
+            // مع وجود فجوة لا نحتاج إزالة حدود داخلية
           ]">
             <div class="relative w-full">
               <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
@@ -200,12 +197,12 @@
         </div>
       </div>
       <!-- الشبكة الفعلية: عمودان حقيقيان بدون فراغات عمودية -->
-      <div v-else class="grid grid-cols-2 gap-x-[1px] gap-y-0 grid-flow-row-dense">
+      <div v-else class="grid grid-cols-2 gap-x-[6px] gap-y-[6px] grid-flow-row-dense">
         <!-- عمود يسار -->
         <div>
           <div v-for="(p,ci) in leftProducts" :key="'lp-'+p.id+'-'+ci">
             <ProductGridCard
-              :class="[ 'border-r-0 rounded-r-none', ci>0 ? 'border-t-0 rounded-t-none' : '' ]"
+              :class="[]"
               :product="{
                 id: p.id,
                 title: p.title,
@@ -231,7 +228,7 @@
         <div>
           <div v-for="(p,ci) in rightProducts" :key="'rp-'+p.id+'-'+ci">
             <ProductGridCard
-              :class="[ 'border-l-0 rounded-l-none', ci>0 ? 'border-t-0 rounded-t-none' : '' ]"
+              :class="[]"
               :product="{
                 id: p.id,
                 title: p.title,
