@@ -174,17 +174,11 @@
     </section>
     
     <!-- ✅ مكان بطاقات المنتجات -->
-    <section class="px-0 pt-2 pb-1">
+    <section class="px-1 pt-2 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
-      <div v-if="productsLoading" class="relative grid grid-cols-2 gap-x-0 gap-y-[6px] grid-flow-row-dense">
-        <!-- فاصل وسطي واحد (1px) فوق البطاقات -->
-        <div class="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-gray-200 z-10"></div>
-        <div v-for="i in 8" :key="'sk-prod-'+i">
-          <div :class="[
-            'w-full border border-gray-200 rounded bg-white overflow-hidden',
-            // أزل حد الجانب المتلامس لترك الفاصل الوسطي هو الظاهر فقط
-            (i % 2 === 1) ? 'border-r-0 rounded-r-none' : 'border-l-0 rounded-l-none'
-          ]">
+      <div v-if="productsLoading" class="grid grid-cols-2 gap-[5px] grid-flow-row-dense">
+        <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-[6px]">
+          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
             <div class="relative w-full">
               <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
             </div>
@@ -199,15 +193,13 @@
           </div>
         </div>
       </div>
-      <!-- الشبكة الفعلية: عمودان حقيقيان بدون فجوة أفقية؛ فاصل بصري 1px -->
-      <div v-else class="relative grid grid-cols-2 gap-x-0 gap-y-[6px] grid-flow-row-dense">
-        <!-- فاصل وسطي واحد (1px) فوق البطاقات -->
-        <div class="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-gray-200 z-10"></div>
+      <!-- شبكة عمودين حقيقيين بدون فجوة أفقية (منع الفراغات العمودية عبر عمودين مستقلين) -->
+      <div v-else class="grid grid-cols-2 gap-[5px] grid-flow-row-dense">
         <!-- عمود يسار -->
         <div>
-          <div v-for="(p,ci) in leftProducts" :key="'lp-'+p.id+'-'+ci">
+          <div v-for="(p,ci) in leftProducts" :key="'lp-'+p.id+'-'+ci" class="mb-[6px]">
             <ProductGridCard
-              :class="'border-r-0 rounded-r-none'"
+              :class="'border-t-0 border-b-0 border-l-0'"
               :product="{
                 id: p.id,
                 title: p.title,
@@ -231,9 +223,9 @@
         </div>
         <!-- عمود يمين -->
         <div>
-          <div v-for="(p,ci) in rightProducts" :key="'rp-'+p.id+'-'+ci">
+          <div v-for="(p,ci) in rightProducts" :key="'rp-'+p.id+'-'+ci" class="mb-[6px]">
             <ProductGridCard
-              :class="'border-l-0 rounded-l-none'"
+              :class="'border-t-0 border-b-0 border-l-0'"
               :product="{
                 id: p.id,
                 title: p.title,
