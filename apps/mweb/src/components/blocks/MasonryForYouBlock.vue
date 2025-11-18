@@ -57,6 +57,7 @@
           </div>
         </div>
       </div>
+      <div ref="fyLoadMoreSentinel" class="h-1"></div>
     </div>
     <!-- Toast -->
     <div 
@@ -232,9 +233,24 @@ async function loadRecommendations(){
 
 const hasMore = ref(true)
 const isLoadingMore = ref(false)
+const fyLoadMoreSentinel = ref<HTMLDivElement|null>(null)
 
 onMounted(()=>{ loadRecommendations(); try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{} })
 onBeforeUnmount(()=>{ try{ window.removeEventListener('scroll', onWinScroll) }catch{} })
+
+onMounted(()=>{
+  try{
+    if ('IntersectionObserver' in window){
+      const io = new IntersectionObserver((entries)=>{
+        const e = entries[0]
+        if (e && e.isIntersecting && hasMore.value && !isLoadingMore.value){
+          void loadMore()
+        }
+      }, { root:null, rootMargin:'0px 0px 300px 0px', threshold:0 })
+      if (fyLoadMoreSentinel.value) io.observe(fyLoadMoreSentinel.value)
+    }
+  }catch{}
+})
 
 function onWinScroll(){
   try{

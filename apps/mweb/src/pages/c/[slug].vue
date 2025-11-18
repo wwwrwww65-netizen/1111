@@ -268,8 +268,7 @@
           </div>
         </div>
       </div>
-      <div style="height:80px" />
-
+      
       <!-- إشعار: يرجى تحديد الخيارات -->
       <Transition name="fade">
         <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">

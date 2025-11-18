@@ -1517,18 +1517,29 @@ async function loadMoreRecommended() {
   isLoadingRecommended.value = true
   try{
     const offset = recommendedProducts.value.length
-    // Prefer similar; if backend supports offset/limit they'll be used, else we slice locally
-    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}?limit=10&offset=${offset}`).catch(()=>null)
-    let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
-    if (!list.length){
-      const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
-      const u = new URL(`${API_BASE}/api/products`)
+    let list: any[] = []
+    // If active tab is a category, paginate that category; else use similar/new fallback
+    const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
+    if (tab && tab.catId){
+      const u = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(tab.catId)}`)
       u.searchParams.set('limit','10')
-      u.searchParams.set('sort','new')
       u.searchParams.set('offset', String(offset))
-      if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
-      const rec = await apiGet<any>(`/api/products?${u.searchParams.toString()}`).catch(()=>null)
-      list = Array.isArray(rec?.items) ? rec!.items : []
+      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?${u.searchParams.toString()}`).catch(()=>null)
+      list = Array.isArray(j?.items)? j.items : []
+    } else {
+      // Prefer similar; if backend supports offset/limit they'll be used, else we slice locally
+      const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}?limit=10&offset=${offset}`).catch(()=>null)
+      list = Array.isArray(sim?.items) ? sim!.items : []
+      if (!list.length){
+        const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
+        const u = new URL(`${API_BASE}/api/products`)
+        u.searchParams.set('limit','10')
+        u.searchParams.set('sort','new')
+        u.searchParams.set('offset', String(offset))
+        if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+        const rec = await apiGet<any>(`/api/products?${u.searchParams.toString()}`).catch(()=>null)
+        list = Array.isArray(rec?.items) ? rec!.items : []
+      }
     }
     // Map and de-dup by id
     const existing = new Set(recommendedProducts.value.map(p=> String(p.id)))
