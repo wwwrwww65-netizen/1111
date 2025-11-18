@@ -380,8 +380,8 @@ const defaultRatio = 1.3
 const suggested = ref<Array<{ id:string; title:string; image:string; images?: string[]; imagesNormalized?: string[]; price:number; brand?:string; colors?: string[]; colorCount?: number; discountPercent?: number; soldPlus?: string; bestRank?: number; bestRankCategory?: string; couponPrice?: string; _ratio?: number }>>([])
 const suggestedLeft = computed(()=> suggested.value.filter((_p,i)=> i%2===0))
 const suggestedRight = computed(()=> suggested.value.filter((_p,i)=> i%2===1))
-const sugSkLeft = computed(()=> Array.from({ length:8 }, (_,k)=> k+1).filter(i=> i%2===1))
-const sugSkRight = computed(()=> Array.from({ length:8 }, (_,k)=> k+1).filter(i=> i%2===0))
+const sugSkLeft = computed(()=> Array.from({ length:10 }, (_,k)=> k+1).filter(i=> i%2===1))
+const sugSkRight = computed(()=> Array.from({ length:10 }, (_,k)=> k+1).filter(i=> i%2===0))
 function thumbSrcSug(p:any, w:number): string {
   const u = (Array.isArray(p.imagesNormalized)&&p.imagesNormalized[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
@@ -888,7 +888,7 @@ onMounted(async () => {
   // جلب منتجات مقترحة
   try{
     if (suggested.value.length){ suggestedLoading.value = false; return }
-    const r = await (await import('@/lib/api')).apiGet<any>('/api/products?limit=6')
+    const r = await (await import('@/lib/api')).apiGet<any>('/api/products?limit=10')
     const items = r?.items || []
     const normalizeList = (arr: string[]|undefined): string[] => {
       const list = Array.isArray(arr) ? arr : []

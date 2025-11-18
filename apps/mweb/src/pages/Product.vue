@@ -1517,10 +1517,10 @@ async function loadMoreRecommended() {
   try{
     const offset = recommendedProducts.value.length
     // Prefer similar; if backend supports offset/limit they'll be used, else we slice locally
-    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}?limit=24&offset=${offset}`).catch(()=>null)
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}?limit=10&offset=${offset}`).catch(()=>null)
     let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
     if (!list.length){
-      const rec = await apiGet<any>(`/api/products?limit=24&sort=new&offset=${offset}`).catch(()=>null)
+      const rec = await apiGet<any>(`/api/products?limit=10&sort=new&offset=${offset}`).catch(()=>null)
       list = Array.isArray(rec?.items) ? rec!.items : []
     }
     // Map and de-dup by id
@@ -1531,9 +1531,11 @@ async function loadMoreRecommended() {
       .filter((p:any)=> String(p.id) !== String(id))
       .filter((p:any)=> !existing.has(String(p.id)))
     if (mapped.length){
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
       recommendedProducts.value.push(...mapped)
       try{ const set = await getTrendingIdSet(); mapped.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
+      hasMoreRecommended.value = list.length >= 10
     } else { hasMoreRecommended.value = false }
   }catch{} finally {
     isLoadingRecommended.value = false
@@ -2401,7 +2403,7 @@ async function fetchRecommendations(pid?: string){
     // If a subcategory tab is active, fetch catalog for that category
     const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
     if (tab && tab.catId){
-      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=24`, undefined, signal).catch(()=>null)
+      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=10`, undefined, signal).catch(()=>null)
       const items = Array.isArray(j?.items)? j.items : []
       const mapped = items.map((it:any)=> toRecItem(it))
       // de-duplicate by id
@@ -2424,7 +2426,7 @@ async function fetchRecommendations(pid?: string){
       recommendedProducts.value = dedup
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
-      hasMoreRecommended.value = list.length >= 24
+      hasMoreRecommended.value = list.length >= 10
       return
     }
     const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
@@ -2436,7 +2438,7 @@ async function fetchRecommendations(pid?: string){
     recommendedProducts.value = dedup
     try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
     try{ await hydrateCouponsForRecommended() }catch{}
-    hasMoreRecommended.value = items.length >= 24
+    hasMoreRecommended.value = items.length >= 10
   }catch{} finally { isLoadingRecommended.value = false }
 }
 
@@ -2926,8 +2928,8 @@ async function updateImagesForColor(){
 // شبكتا التوصيات (يسار/يمين) + سكيليتون مطابق
 const recLeft = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===0))
 const recRight = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===1))
-const recSkLeft = computed(()=> Array.from({length:8}, (_,k)=> k+1).filter(i=> i%2===1))
-const recSkRight = computed(()=> Array.from({length:8}, (_,k)=> k+1).filter(i=> i%2===0))
+const recSkLeft = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===1))
+const recSkRight = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===0))
 </script>
 
 <style scoped>

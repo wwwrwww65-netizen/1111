@@ -99,12 +99,12 @@ import { markTrending } from '@/lib/trending'
 type GridP = { id: string; title: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean; _ratio?: number }
 type Cfg = { columns?: number; products?: any[]; items?: any[] }
 const props = defineProps<{ cfg?: Cfg; device?: 'MOBILE'|'DESKTOP' }>()
-const fallbackCount = computed(()=> (props.device ?? 'MOBILE') === 'MOBILE' ? 8 : 9)
+const fallbackCount = computed(()=> 10)
 const products = ref<GridP[]>([])
 const leftProducts = computed(()=> products.value.filter((_p,i)=> i%2===0))
 const rightProducts = computed(()=> products.value.filter((_p,i)=> i%2===1))
-const skLeft = computed(()=> Array.from({ length: 8 }, (_,k)=> k+1).filter(i=> i%2===1))
-const skRight = computed(()=> Array.from({ length: 8 }, (_,k)=> k+1).filter(i=> i%2===0))
+const skLeft = computed(()=> Array.from({ length: 10 }, (_,k)=> k+1).filter(i=> i%2===1))
+const skRight = computed(()=> Array.from({ length: 10 }, (_,k)=> k+1).filter(i=> i%2===0))
 const isLoading = ref(true)
 const cart = useCart()
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]

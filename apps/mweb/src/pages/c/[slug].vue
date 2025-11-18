@@ -597,7 +597,7 @@ function loadMoreProducts() {
     try{
       const slug = currentSlug()
       const sort = mapSort()
-      const pageSize = 24
+      const pageSize = 10
       const offset = prev
       const kids = childCategoryIds.value
       let items: any[] = []
@@ -608,6 +608,10 @@ function loadMoreProducts() {
         if (sort) url.searchParams.set('sort', sort)
         url.searchParams.set('categoryIds', kids.join(','))
         const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+        if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+        if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+        if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+        if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
         const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
         items = Array.isArray(data?.items)? data.items : []
       } else {
@@ -706,7 +710,7 @@ function mapSort(): string {
   return 'reco'
 }
 
-async function loadProducts(limit: number = 24){
+async function loadProducts(limit: number = 10){
   try{
     productsLoading.value = true
     const slug = currentSlug()
@@ -721,6 +725,10 @@ async function loadProducts(limit: number = 24){
       if (sort) url.searchParams.set('sort', sort)
       url.searchParams.set('categoryIds', kids.join(','))
       const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
       const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
       items = Array.isArray(data?.items)? data.items : []
     } else {
@@ -1001,4 +1009,6 @@ function onOptionsSave(payload: { color: string; size: string }){
 </script>
 <style scoped>
 .product-grid{column-gap:5px!important;row-gap:0!important}
+.no-scrollbar{ -ms-overflow-style: none; scrollbar-width: none }
+.no-scrollbar::-webkit-scrollbar{ display: none }
 </style>
