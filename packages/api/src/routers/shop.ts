@@ -2648,15 +2648,12 @@ shop.post('/promotions/claim/start', async (req: any, res) => {
 });
 shop.post('/promotions/claim/complete', async (req: any, res) => {
   try{
-    // Identify user from shop cookie/headers similar to /me
-    const header = (req?.headers?.authorization as string|undefined) || '';
-    let tokenAuth = '';
-    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
-    const jwt = require('jsonwebtoken');
-    let payload:any = null;
-    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ payload = jwt.verify(t, process.env.JWT_SECRET||''); break; }catch{} }
-    if (!payload?.userId) return res.status(401).json({ error:'unauthorized' });
+    // Identify user using shared token reader (supports WebView)
+    const { readTokenFromRequest, verifyJwt } = await import('../utils/jwt');
+    const tok = readTokenFromRequest(req);
+    if (!tok) return res.status(401).json({ error:'unauthorized' });
+    let payload:any;
+    try { payload = verifyJwt(tok); } catch { return res.status(401).json({ error:'unauthorized' }); }
     const userId = String(payload.userId);
     const token = String(req.body?.token||''); if (!token) return res.status(400).json({ error:'missing_token' });
     const cl = await db.claim.findUnique({ where: { token } } as any);
@@ -2678,12 +2675,38 @@ shop.post('/promotions/claim/complete', async (req: any, res) => {
 // Public: list public/active coupons (no auth required)
 shop.get('/coupons/public', async (_req: any, res) => {
   try{
-    const rows:any[] = await db.coupon.findMany({ where: { isActive: true as any }, orderBy: { updatedAt: 'desc' }, take: 100 } as any);
-    const items = rows.map((c:any)=> ({
-      id: c.id, code: c.code, title: c.title||c.code,
-      discountType: c.discountType, discountValue: c.discountValue,
-      minOrderAmount: c.minOrderAmount||0, validUntil: c.validUntil||null
+    const now = new Date();
+    const rows:any[] = await db.coupon.findMany({
+      where: {
+        isActive: true as any,
+        validFrom: { lte: now } as any,
+        validUntil: { gte: now } as any,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200
+    } as any);
+
+    // Only expose global/sitewide coupons
+    const codes = rows.map((c:any)=> String(c.code||'')).filter(Boolean);
+    const settings = await Promise.all(codes.map(async (code:string) => {
+      const row = await db.setting.findUnique({ where: { key: `coupon_rules:${code.toUpperCase()}` } } as any);
+      return [code.toUpperCase(), (row?.value as any)||null] as const;
     }));
+    const rulesByCode = new Map<string, any>(settings);
+
+    const items = rows
+      .filter((c:any)=> {
+        const rule = rulesByCode.get(String(c.code||'').toUpperCase());
+        const kind = rule?.kind ? String(rule.kind).toLowerCase() : 'sitewide';
+        const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
+        const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
+        return isGlobal;
+      })
+      .map((c:any)=> ({
+        id: c.id, code: c.code, title: c.title||c.code,
+        discountType: c.discountType, discountValue: c.discountValue,
+        minOrderAmount: c.minOrderAmount||0, validUntil: c.validUntil||null
+      }));
     res.json({ ok:true, items });
   }catch{ res.json({ ok:true, items: [] }) }
 });
@@ -2691,18 +2714,14 @@ shop.get('/coupons/public', async (_req: any, res) => {
 // Auth: coupons owned by current user (granted)
 shop.get('/me/coupons', async (req: any, res) => {
   try{
-    // Identify shop user via cookie/header JWT (same pattern as other endpoints)
-    const header = (req?.headers?.authorization as string|undefined) || '';
-    let tokenAuth = '';
-    if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
-    const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
-    // Also accept admin auth cookie for console/testing scenarios
-    const adminTok = (req?.cookies?.auth_token as string|undefined) || '';
-    const jwt = require('jsonwebtoken');
-    let payload:any = null;
-    for (const t of [tokenAuth, cookieTok, adminTok]){ if(!t) continue; try{ payload = jwt.verify(t, process.env.JWT_SECRET||''); break; }catch{} }
-    if (!payload?.userId) return res.status(401).json({ error:'unauthorized' });
+    // Identify shop user using shared token reader (supports WebView headers/cookies)
+    const { readTokenFromRequest, verifyJwt } = await import('../utils/jwt');
+    const tok = readTokenFromRequest(req);
+    if (!tok) return res.status(401).json({ error:'unauthorized' });
+    let payload:any;
+    try { payload = verifyJwt(tok); } catch { return res.status(401).json({ error:'unauthorized' }); }
     const userId = String(payload.userId);
+
     const rows:any[] = await db.userReward.findMany({
       where: { userId, status: 'granted' as any },
       include: { reward: true }
@@ -2714,7 +2733,52 @@ shop.get('/me/coupons', async (req: any, res) => {
       minOrderAmount: r.reward?.config?.min||r.reward?.config?.minOrderAmount||0,
       validUntil: r.reward?.validUntil||null, grantedAt: r.createdAt
     }));
-    res.json({ ok:true, items });
+
+    // Also include active/global coupons from Prisma applying isActive/date/global filters
+    const now = new Date();
+    const activeCoupons:any[] = await db.coupon.findMany({
+      where: {
+        isActive: true as any,
+        validFrom: { lte: now } as any,
+        validUntil: { gte: now } as any,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+    } as any);
+
+    // Filter out coupons already used by this user
+    const used = await db.couponUsage.findMany({ where: { userId }, select: { couponId: true } } as any);
+    const usedIds = new Set<string>((used||[]).map((u:any)=> String(u.couponId)));
+
+    // Load advanced rules to keep only global/sitewide coupons
+    const codes = activeCoupons.map((c:any)=> String(c.code||'')).filter(Boolean);
+    const settings = await Promise.all(codes.map(async (code:string) => {
+      const row = await db.setting.findUnique({ where: { key: `coupon_rules:${code.toUpperCase()}` } } as any);
+      return [code.toUpperCase(), (row?.value as any)||null] as const;
+    }));
+    const rulesByCode = new Map<string, any>(settings);
+
+    const coupons = activeCoupons
+      .filter((c:any)=> !usedIds.has(String(c.id)))
+      .filter((c:any)=> {
+        const rule = rulesByCode.get(String(c.code||'').toUpperCase());
+        const kind = rule?.kind ? String(rule.kind).toLowerCase() : 'sitewide';
+        const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
+        // Consider global/sitewide if kind explicitly sitewide OR no includes targeting present
+        const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
+        return isGlobal;
+      })
+      .map((c:any)=> ({
+        id: c.id,
+        code: c.code,
+        title: c.title||c.code,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        minOrderAmount: c.minOrderAmount||0,
+        validUntil: c.validUntil||null
+      }));
+
+    res.json({ ok:true, items, coupons });
   }catch{ res.status(401).json({ error:'unauthorized' }) }
 });
 

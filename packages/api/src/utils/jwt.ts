@@ -53,10 +53,18 @@ export const readTokenFromRequest = (req: any): string | null => {
   // Prefer Authorization header (fresh token from OTP verify) over cookies to avoid stale cookie shadowing
   const header = req?.headers?.authorization as string | undefined;
   if (header?.startsWith('Bearer ')) return header.replace('Bearer ', '');
+  // Accept explicit auth token headers used by mobile/WebView bridges
+  const xAuth = (req?.headers?.['x-auth-token'] as string | undefined) || (req?.headers?.['x-access-token'] as string | undefined);
+  if (typeof xAuth === 'string' && xAuth.trim()) return xAuth.trim();
   const shopCookie = req?.cookies?.shop_auth_token as string | undefined;
   if (shopCookie) return shopCookie;
   const cookieToken = req?.cookies?.auth_token as string | undefined;
   if (cookieToken) return cookieToken;
+  // Fallbacks commonly set by native bridges
+  const access = req?.cookies?.access_token as string | undefined;
+  if (access) return access;
+  const generic = (req?.cookies?.token as string | undefined) || (req?.cookies?.jwt as string | undefined);
+  if (generic) return generic;
   return null;
 };
 
