@@ -505,9 +505,16 @@ function onOptionsSave(payload: { color: string; size: string }){
 // ===== كوبونات وتطبيق السعر بعد الخصم على البطاقات =====
 type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
 const couponsCache = ref<SimpleCoupon[]>([])
+const couponsCacheTs = ref(0)
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
-  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public') ? 'omit' : 'include'
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
   if (isAuthenticated()){
     const data1: any = await tryFetch('/api/me/coupons')
     if (data1 && Array.isArray(data1.coupons)) return normalizeCoupons(data1.coupons)
@@ -560,7 +567,12 @@ async function ensureProductMeta(p:any): Promise<any> {
 }
 
 async function hydrateCouponsAndPrices(){
-  if (!couponsCache.value.length){ couponsCache.value = await fetchCouponsList() }
+  try{
+    const now = Date.now()
+    if (!couponsCache.value.length || (now - couponsCacheTs.value) > 60000){
+      couponsCache.value = await fetchCouponsList(); couponsCacheTs.value = now
+    }
+  }catch{}
   await computeCouponPrices(products.value)
 }
 

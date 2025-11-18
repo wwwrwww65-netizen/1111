@@ -1046,11 +1046,12 @@ function goShippingAddresses(){
 // ===== كوبونات لعناصر السلة =====
 type CartCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
 const couponsCacheCart = ref<CartCoupon[]>([])
+const couponsCacheCartTs = ref(0)
 const afterById = ref<Record<string, number>>({})
 
 async function fetchCouponsListCart(): Promise<CartCoupon[]> {
   const { API_BASE, isAuthenticated } = await import('@/lib/api')
-  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  const tryFetch = async (path: string) => { try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
   if (data && Array.isArray(data.coupons)) return normalizeCouponsCart(data.coupons)
@@ -1069,7 +1070,10 @@ async function ensureProductMetaCart(id:string, item:any){ try{ const d = await 
 }
 async function hydrateCartAfterCoupons(){
   try{
-    if (!couponsCacheCart.value.length) couponsCacheCart.value = await fetchCouponsListCart()
+    const now = Date.now()
+    if (!couponsCacheCart.value.length || (now - couponsCacheCartTs.value) > 60000){
+      couponsCacheCart.value = await fetchCouponsListCart(); couponsCacheCartTs.value = now
+    }
     const cups = couponsCacheCart.value||[]
     if (!cups.length) return
     const ids = Array.from(new Set(items.value.map(i=> String(i.id))))
@@ -1091,10 +1095,11 @@ const totalAfterCoupons = computed(()=> items.value.reduce((s,it)=> s + Number((
 // ===== كوبونات للمنتجات المقترحة في السلة =====
 type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
 const couponsCache = ref<SimpleCoupon[]>([])
+const couponsCacheTs = ref(0)
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const { API_BASE, isAuthenticated } = await import('@/lib/api')
-  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  const tryFetch = async (path: string) => { try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
   if (data && Array.isArray(data.coupons)) return normalizeCoupons(data.coupons)
@@ -1147,7 +1152,12 @@ async function ensureProductMeta(p:any): Promise<any> {
 }
 
 async function hydrateCouponsAndPricesForSuggested(){
-  if (!couponsCache.value.length){ couponsCache.value = await fetchCouponsList() }
+  try{
+    const now = Date.now()
+    if (!couponsCache.value.length || (now - couponsCacheTs.value) > 60000){
+      couponsCache.value = await fetchCouponsList(); couponsCacheTs.value = now
+    }
+  }catch{}
   await computeCouponPricesForSuggested(suggested.value)
 }
 

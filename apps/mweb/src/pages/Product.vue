@@ -2494,10 +2494,13 @@ function toRecItem(it:any): RecItem{
 // ===== كوبونات للتوصيات في صفحة المنتج =====
 type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
 const couponsCacheRec = ref<SimpleCoupon[]>([])
+const couponsCacheRecTs = ref(0)
 
 async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
   const { API_BASE, isAuthenticated } = await import('@/lib/api')
-  const tryFetch = async (path: string) => { try{ const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  const tryFetch = async (path: string) => {
+    try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null }
+  }
   if (isAuthenticated()){
     const data1: any = await tryFetch('/api/me/coupons')
     if (data1 && Array.isArray(data1.coupons)) return normalizeCouponsRec(data1.coupons)
@@ -2511,7 +2514,10 @@ async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
 // ===== كوبونات للمنتج الحالي (سعر بعد الكوبون + عرض كوبونين) =====
 async function hydrateCouponsForPdp(){
   try{
-    if (!couponsCacheRec.value.length){ couponsCacheRec.value = await fetchCouponsListRec() }
+    const now = Date.now()
+    if (!couponsCacheRec.value.length || (now - couponsCacheRecTs.value) > 60000){
+      couponsCacheRec.value = await fetchCouponsListRec(); couponsCacheRecTs.value = now
+    }
     const cups = couponsCacheRec.value||[]
     const base = Number(price.value||0)
     if (!base || !cups.length){ afterCouponPriceText.value = ''; pdpCoupons.value = []; return }
@@ -2594,7 +2600,12 @@ async function ensureProductMetaRec(p:any): Promise<any> {
 }
 
 async function hydrateCouponsForRecommended(){
-  if (!couponsCacheRec.value.length){ couponsCacheRec.value = await fetchCouponsListRec() }
+  try{
+    const now = Date.now()
+    if (!couponsCacheRec.value.length || (now - couponsCacheRecTs.value) > 60000){
+      couponsCacheRec.value = await fetchCouponsListRec(); couponsCacheRecTs.value = now
+    }
+  }catch{}
   await computeCouponPricesForRecommended(recommendedProducts.value)
 }
 
