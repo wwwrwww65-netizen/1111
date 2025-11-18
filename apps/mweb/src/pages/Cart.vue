@@ -382,6 +382,8 @@ const suggestedLeft = computed(()=> suggested.value.filter((_p,i)=> i%2===0))
 const suggestedRight = computed(()=> suggested.value.filter((_p,i)=> i%2===1))
 const sugSkLeft = computed(()=> Array.from({ length:10 }, (_,k)=> k+1).filter(i=> i%2===1))
 const sugSkRight = computed(()=> Array.from({ length:10 }, (_,k)=> k+1).filter(i=> i%2===0))
+const suggestedHasMore = ref(true)
+const suggestedLoadingMore = ref(false)
 function thumbSrcSug(p:any, w:number): string {
   const u = (Array.isArray(p.imagesNormalized)&&p.imagesNormalized[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
@@ -915,10 +917,69 @@ onMounted(async () => {
     const dedup = mapped.filter(p=>{ const k=String(p.id); if (seen[k]) return false; seen[k]=true; return true })
     await Promise.all(dedup.map(p=> probeRatioPromise(p)))
     suggested.value = dedup
+    suggestedHasMore.value = items.length >= 10
     try{ markTrending(suggested.value as any[]) }catch{}
     try{ await hydrateCouponsAndPricesForSuggested() }catch{}
   }catch{} finally { suggestedLoading.value = false }
+  try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{}
 })
+onBeforeUnmount(()=>{ try{ window.removeEventListener('scroll', onWinScroll) }catch{} })
+
+function onWinScroll(){
+  try{
+    const scrollHeight = document.documentElement.scrollHeight
+    const scrollTop = window.scrollY
+    const clientHeight = window.innerHeight
+    if (scrollTop + clientHeight >= scrollHeight - 300 && !suggestedLoadingMore.value && suggestedHasMore.value){
+      void loadMoreSuggested()
+    }
+  }catch{}
+}
+
+async function loadMoreSuggested(){
+  if (suggestedLoadingMore.value || !suggestedHasMore.value) return
+  suggestedLoadingMore.value = true
+  try{
+    const ex = Array.from(new Set(suggested.value.map(p=> String(p.id)))).slice(0,200)
+    const { API_BASE } = await import('@/lib/api')
+    const u = new URL(`${API_BASE}/api/products`)
+    u.searchParams.set('limit','10')
+    u.searchParams.set('sort','new')
+    u.searchParams.set('offset', String(suggested.value.length))
+    if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+    const r = await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })
+    if (!r.ok){ suggestedHasMore.value = false; return }
+    const j:any = await r.json()
+    const items = Array.isArray(j?.items)? j.items : []
+    const normalizeList = (arr: string[]|undefined): string[] => {
+      const list = Array.isArray(arr) ? arr : []
+      const filtered = list.filter(u => /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+      return filtered.length ? filtered : ['/images/placeholder-product.jpg']
+    }
+    const mapped = items.map((x:any)=> ({
+      id: x.id,
+      title: x.name,
+      image: (normalizeList(x.images)[0]||'/images/placeholder-product.jpg'),
+      images: normalizeList(x.images),
+      imagesNormalized: normalizeList(x.images),
+      price: Number(x.price||0),
+      brand: x.brand||'',
+      discountPercent: typeof x.discountPercent==='number'? x.discountPercent : undefined,
+      soldPlus: x.soldPlus||undefined,
+      bestRank: typeof x.bestRank==='number'? x.bestRank : undefined,
+      bestRankCategory: x.bestRankCategory||undefined,
+      couponPrice: x.couponPrice||undefined
+    }))
+    const seen = new Set(suggested.value.map(p=> String(p.id)))
+    const dedup = mapped.filter(p=> !seen.has(String(p.id)))
+    if (!dedup.length){ suggestedHasMore.value = false; return }
+    await Promise.all(dedup.map(p=> probeRatioPromise(p)))
+    suggested.value = suggested.value.concat(dedup)
+    suggestedHasMore.value = items.length >= 1
+    try{ markTrending(suggested.value as any[]) }catch{}
+    try{ await hydrateCouponsAndPricesForSuggested() }catch{}
+  }catch{ suggestedHasMore.value = false } finally { suggestedLoadingMore.value = false }
+}
 
 function goLogin(){ router.push({ path:'/login', query: { return: '/cart' } }) }
 function openProduct(p:any){ const id = typeof p==='string'? p : (p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(String(id))}`) }

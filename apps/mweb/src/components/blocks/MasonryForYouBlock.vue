@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, reactive } from 'vue'
+import { computed, onMounted, ref, reactive, onBeforeUnmount } from 'vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import { apiGet, API_BASE, isAuthenticated } from '@/lib/api'
 import { buildThumbUrl } from '@/lib/media'
@@ -181,7 +181,7 @@ async function loadRecommendations(){
     const exclude: string[] = Array.isArray(cfgRec.excludeIds) ? cfgRec.excludeIds : (Array.isArray(w.__USED_PRODUCT_IDS) ? Array.from(w.__USED_PRODUCT_IDS) : [])
     if (catIds.length){
       const u = new URL(`${API_BASE}/api/products`)
-      u.searchParams.set('limit', String(fallbackCount.value*2))
+      u.searchParams.set('limit', String(fallbackCount.value))
       u.searchParams.set('sort', 'new')
       u.searchParams.set('categoryIds', catIds.join(','))
       if (exclude.length) u.searchParams.set('excludeIds', exclude.join(','))
@@ -226,7 +226,71 @@ async function loadRecommendations(){
   }
 }
 
-onMounted(()=>{ loadRecommendations() })
+const hasMore = ref(true)
+const isLoadingMore = ref(false)
+
+onMounted(()=>{ loadRecommendations(); try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{} })
+onBeforeUnmount(()=>{ try{ window.removeEventListener('scroll', onWinScroll) }catch{} })
+
+function onWinScroll(){
+  try{
+    const scrollHeight = document.documentElement.scrollHeight
+    const scrollTop = window.scrollY
+    const clientHeight = window.innerHeight
+    if (scrollTop + clientHeight >= scrollHeight - 300 && !isLoadingMore.value && hasMore.value){
+      void loadMore()
+    }
+  }catch{}
+}
+
+async function loadMore(){
+  if (isLoadingMore.value || !hasMore.value) return
+  isLoadingMore.value = true
+  try{
+    const cfg = props.cfg || {}
+    const provided = Array.isArray(cfg.products) && cfg.products.length ? cfg.products : (Array.isArray(cfg.items) ? cfg.items : [])
+    if (provided.length){ hasMore.value = false; return }
+
+    const w: any = window as any
+    const cfgRec: any = (cfg as any).recommend || {}
+    const catIds: string[] = Array.isArray(cfgRec.categoryIds) ? cfgRec.categoryIds : (Array.isArray(w.__LAST_CAROUSEL_CATEGORY_IDS) ? w.__LAST_CAROUSEL_CATEGORY_IDS : [])
+    if (catIds.length){
+      const ex = Array.from(new Set(products.value.map(p=> String(p.id)))).slice(0,200)
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit', String(fallbackCount.value))
+      u.searchParams.set('sort', 'new')
+      u.searchParams.set('offset', String(products.value.length))
+      u.searchParams.set('categoryIds', catIds.join(','))
+      if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+      const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
+      const arr = Array.isArray(j?.items)? j.items: []
+      const lst = uniqById(arr)
+      const mapped = lst.map(toGridP)
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      const pre = products.value.length
+      products.value = products.value.concat(mapped)
+      hasMore.value = mapped.length >= 1
+      try{ markTrending(products.value as any[]) }catch{}
+      try{ await hydrateCouponsAndPrices() }catch{}
+      return
+    }
+    // Fallback: use new products with excludeIds
+    const ex = Array.from(new Set(products.value.map(p=> String(p.id)))).slice(0,200)
+    const u = new URL(`${API_BASE}/api/products`)
+    u.searchParams.set('limit', String(fallbackCount.value))
+    u.searchParams.set('sort', 'new')
+    u.searchParams.set('offset', String(products.value.length))
+    if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+    const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
+    const arr = Array.isArray(j?.items)? j.items: []
+    const mapped = arr.map(toGridP)
+    await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+    products.value = products.value.concat(mapped)
+    hasMore.value = mapped.length >= 1
+    try{ markTrending(products.value as any[]) }catch{}
+    try{ await hydrateCouponsAndPrices() }catch{}
+  }catch{ hasMore.value = false } finally { isLoadingMore.value = false }
+}
 
 // Options modal logic (same UX as homepage)
 const optionsModal = reactive({ open:false, productId:'', color:'', size:'', groupValues:{} as Record<string,string> })

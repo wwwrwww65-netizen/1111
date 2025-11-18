@@ -1520,7 +1520,13 @@ async function loadMoreRecommended() {
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}?limit=10&offset=${offset}`).catch(()=>null)
     let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
     if (!list.length){
-      const rec = await apiGet<any>(`/api/products?limit=10&sort=new&offset=${offset}`).catch(()=>null)
+      const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit','10')
+      u.searchParams.set('sort','new')
+      u.searchParams.set('offset', String(offset))
+      if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+      const rec = await apiGet<any>(`/api/products?${u.searchParams.toString()}`).catch(()=>null)
       list = Array.isArray(rec?.items) ? rec!.items : []
     }
     // Map and de-dup by id
@@ -2342,9 +2348,10 @@ watch(colorIdx, ()=>{
 
 // ==================== RECOMMENDATIONS FETCH ====================
 const defaultRatio = 1.3
-function thumbSrcRec(p:any, w:number): string {
-  const u = (Array.isArray(p.images)&&p.images[0]) || p.img
-  return buildThumbUrl(String(u||''), w, 60)
+function thumbSrcRec(p:any, _w:number): string {
+  // Use original image to preserve true aspect ratio during probe
+  const u = (Array.isArray((p as any).thumbs) && (p as any).thumbs[0]) || p.img
+  return String(u||'')
 }
 // تقسيم تناوبي بين عمودين
 // (grid-cols-2 يضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
@@ -2417,28 +2424,31 @@ async function fetchRecommendations(pid?: string){
     // Default: similar by current product's category, then recent
     const p = String(pid || id)
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, undefined, signal).catch(()=>null)
-    const list = Array.isArray(sim?.items) ? sim!.items : []
-    if (list.length) {
-      const mapped = list.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
-      const seen: Record<string, boolean> = {}
-      const dedup = mapped.filter(pp=>{ const k=String((pp as any).id); if (seen[k]) return false; seen[k]=true; return true })
-      await Promise.all(dedup.map(pr=> probeRatioPromise(pr)))
-      recommendedProducts.value = dedup
+    let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
+    if (!list.length){
+      const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit','10')
+      u.searchParams.set('sort','new')
+      u.searchParams.set('offset', String(recommendedProducts.value.length))
+      if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+      const rec = await apiGet<any>(`/api/products?${u.searchParams.toString()}`).catch(()=>null)
+      list = Array.isArray(rec?.items) ? rec!.items : []
+    }
+    // Map and de-dup by id
+    const existing = new Set(recommendedProducts.value.map(p=> String(p.id)))
+    const mapped = list
+      .map((it:any)=> toRecItem(it))
+      // exclude current product id to avoid "reload same page" effect
+      .filter((p:any)=> String(p.id) !== String(id))
+      .filter((p:any)=> !existing.has(String(p.id)))
+    if (mapped.length){
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      recommendedProducts.value.push(...mapped)
       try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       try{ await hydrateCouponsForRecommended() }catch{}
       hasMoreRecommended.value = list.length >= 10
-      return
-    }
-    const rec = await apiGet<any>('/api/recommendations/recent', undefined, signal).catch(()=>null)
-    const items = Array.isArray(rec?.items) ? rec!.items : []
-    const mapped = items.map((it:any)=> toRecItem(it)).filter(pp=> String(pp.id)!==String(p))
-    const seen: Record<string, boolean> = {}
-    const dedup = mapped.filter(pp=>{ const k=String((pp as any).id); if (seen[k]) return false; seen[k]=true; return true })
-    await Promise.all(dedup.map(pr=> probeRatioPromise(pr)))
-    recommendedProducts.value = dedup
-    try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
-    try{ await hydrateCouponsForRecommended() }catch{}
-    hasMoreRecommended.value = items.length >= 10
+    } else { hasMoreRecommended.value = false }
   }catch{} finally { isLoadingRecommended.value = false }
 }
 
