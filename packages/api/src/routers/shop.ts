@@ -2707,7 +2707,8 @@ shop.get('/coupons/public', async (_req: any, res) => {
         discountType: c.discountType, discountValue: c.discountValue,
         minOrderAmount: c.minOrderAmount||0, validUntil: c.validUntil||null
       }));
-    res.json({ ok:true, items });
+    // Return both legacy "items" and "coupons" for compatibility with various mweb pages
+    res.json({ ok: true, items, coupons: items });
   }catch{ res.json({ ok:true, items: [] }) }
 });
 
