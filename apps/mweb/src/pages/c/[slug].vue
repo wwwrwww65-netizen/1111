@@ -124,7 +124,6 @@
     <div :style="{ height: headerHeight + 'px' }"></div>
     
     <!-- الفلاتر السفلية (تظهر فقط عند وجود فئات فرعية وإخفاء نسخة الهيدر) -->
-    <div v-if="!showHeaderFilters && categories.length>0" class="h-3"></div>
     <section v-if="!showHeaderFilters && categories.length>0" class="bg-white border-b border-gray-200 px-2 py-2">
       <div class="flex items-center justify-between mb-2">
         <button 
@@ -177,18 +176,39 @@
     <section class="px-1 pt-2 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
       <div v-if="productsLoading" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
-        <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-[6px]">
-          <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
-            <div class="relative w-full">
-              <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
-            </div>
-            <div class="p-2">
-              <div class="inline-flex items-center gap-1 mb-1">
-                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
-                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+        <!-- عمود يسار (عناصر فردية) -->
+        <div>
+          <div v-for="i in skeletonLeft" :key="'skl-l-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
               </div>
-              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
-              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              <div class="p-2">
+                <div class="inline-flex items-center gap-1 mb-1">
+                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                </div>
+                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- عمود يمين (عناصر زوجية) -->
+        <div>
+          <div v-for="i in skeletonRight" :key="'skl-r-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
+              </div>
+              <div class="p-2">
+                <div class="inline-flex items-center gap-1 mb-1">
+                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                </div>
+                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                <div class="w-24 h-3 bg-gray-200 rounded"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -357,6 +377,9 @@ const hasMore = ref(false)
 const productsLoading = ref(true)
 const defaultRatio = 1.3
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
+// فهارس السكيليتون (يسار/يمين) لمضاهاة العمودين الفعليين
+const skeletonLeft = computed(()=> Array.from({ length: 8 }, (_, k)=> k + 1).filter(i=> i % 2 === 1))
+const skeletonRight = computed(()=> Array.from({ length: 8 }, (_, k)=> k + 1).filter(i=> i % 2 === 0))
 function thumbSrc(p:any, w:number): string {
   const u = (Array.isArray(p.images)&&p.images[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
