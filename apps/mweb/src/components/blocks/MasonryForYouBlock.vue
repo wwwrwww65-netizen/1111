@@ -511,7 +511,8 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const tryFetch = async (path: string) => {
     try{
       const creds = path.startsWith('/api/coupons/public') ? 'omit' : 'include'
-      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } })
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
       if(!r.ok) return null; return await r.json()
     }catch{ return null }
   }

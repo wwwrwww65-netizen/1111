@@ -2499,7 +2499,12 @@ const couponsCacheRecTs = ref(0)
 async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
   const { API_BASE, isAuthenticated } = await import('@/lib/api')
   const tryFetch = async (path: string) => {
-    try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null }
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
   }
   if (isAuthenticated()){
     const data1: any = await tryFetch('/api/me/coupons')

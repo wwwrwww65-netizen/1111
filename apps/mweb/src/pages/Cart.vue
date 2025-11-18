@@ -1051,7 +1051,14 @@ const afterById = ref<Record<string, number>>({})
 
 async function fetchCouponsListCart(): Promise<CartCoupon[]> {
   const { API_BASE, isAuthenticated } = await import('@/lib/api')
-  const tryFetch = async (path: string) => { try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
   if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCouponsCart(data.coupons)
@@ -1097,7 +1104,14 @@ const couponsCacheTs = ref(0)
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const { API_BASE, isAuthenticated } = await import('@/lib/api')
-  const tryFetch = async (path: string) => { try{ const creds = path.startsWith('/api/coupons/public')? 'omit':'include'; const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json' } }); if(!r.ok) return null; return await r.json() }catch{ return null } }
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
   if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCoupons(data.coupons)
