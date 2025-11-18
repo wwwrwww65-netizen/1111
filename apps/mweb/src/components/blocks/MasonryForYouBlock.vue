@@ -3,7 +3,7 @@
     <div class="bg-white border border-gray-200 rounded-[4px] px-3 py-3">
       <h2 class="text-sm font-semibold text-gray-900 text-center">من أجلك</h2>
     </div>
-    <div class="px-1 pt-2 pb-1">
+    <div class="px-1 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
       <div v-if="isLoading" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0">
         <!-- يسار -->

@@ -209,7 +209,7 @@
       <!-- المنتجات المقترحة خارج الحاوية وبملء العرض، دون هوامش جانبية إضافية -->
       <div>
         <!-- Skeleton grid أثناء التحميل -->
-        <div v-if="suggestedLoading" class="px-1 pt-2 pb-1">
+        <div v-if="suggestedLoading" class="px-1 pb-1">
           <div class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0">
             <!-- يسار -->
             <div>

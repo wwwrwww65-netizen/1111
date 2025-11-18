@@ -173,7 +173,7 @@
     </section>
     
     <!-- ✅ مكان بطاقات المنتجات -->
-    <section class="px-1 pt-2 pb-1">
+    <section class="px-1 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
       <div v-if="productsLoading" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
         <!-- عمود يسار (عناصر فردية) -->

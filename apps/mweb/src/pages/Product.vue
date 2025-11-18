@@ -636,7 +636,7 @@
     </div>
 
     <!-- Product Cards using ProductCard.vue -->
-    <div class="px-2 pb-2">
+    <div class="px-1 pb-1">
       <div class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 pb-2">
         <!-- عمود يسار -->
         <div>
@@ -2441,21 +2441,27 @@ async function fetchRecommendations(pid?: string){
 }
 
 function toRecItem(it:any): RecItem{
-  const img = Array.isArray(it?.images)&&it.images[0]? it.images[0] : (it.image||'')
+  const imgs = Array.isArray(it?.images)? it.images : []
+  const normalize = (arr:any[]): string[] => {
+    return (arr||[])
+      .map((u:any)=> String(u||'').trim())
+      .filter((u:string)=> /^https?:\/\//i.test(u) && !u.startsWith('blob:'))
+  }
+  const thumbsArr = normalize(imgs)
+  const img = thumbsArr[0] || (it?.image||'')
   const price = Number(it?.price||0)
   return {
     id: String(it?.id||it?.sku||''),
     title: String(it?.name||''),
     brand: it?.brand||'',
-    img: img || '/images/placeholder-product.jpg',
-    priceText: fmtPrice(price||0),
+    priceText: price? String(price) : '',
     originalText: undefined,
     afterCoupon: undefined,
-    discountPercent: undefined,
+    discountPercent: typeof it?.discountPercent==='number'? it.discountPercent : undefined,
     soldCount: undefined,
     fast: false,
     bestRank: undefined,
-    thumbs: undefined,
+    thumbs: thumbsArr.length? thumbsArr : undefined,
     href: `/p?id=${encodeURIComponent(String(it?.id||''))}`,
     _ratio: undefined
   }
