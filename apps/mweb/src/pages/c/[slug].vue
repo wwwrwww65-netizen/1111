@@ -176,7 +176,7 @@
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-1 pt-2 pb-1">
       <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
-      <div v-if="productsLoading" class="grid grid-cols-2 gap-[5px] grid-flow-row-dense">
+      <div v-if="productsLoading" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
         <div v-for="i in 8" :key="'sk-prod-'+i" class="mb-[6px]">
           <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
             <div class="relative w-full">
@@ -194,7 +194,7 @@
         </div>
       </div>
       <!-- شبكة عمودين حقيقيين بدون فجوة أفقية (منع الفراغات العمودية عبر عمودين مستقلين) -->
-      <div v-else class="grid grid-cols-2 gap-[5px] grid-flow-row-dense">
+      <div v-else class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
         <!-- عمود يسار -->
         <div>
           <div v-for="(p,ci) in leftProducts" :key="'lp-'+p.id+'-'+ci" class="mb-[6px]">
@@ -939,30 +939,6 @@ function onOptionsSave(payload: { color: string; size: string }){
   optionsModal.open = false
 }
 </script>
-<style>
- 
- .truncate-2-lines {
-   display: -webkit-box;
-   -webkit-box-orient: vertical;
-   -webkit-line-clamp: 2;
-   line-clamp: 2;
-   overflow: hidden;
-   text-overflow: ellipsis;
- }
- 
- /* انتقال سلس للفئات */
- .category-switch-enter-active,
- .category-switch-leave-active {
-   transition: all 0.25s ease-in-out;
- }
- 
- .category-switch-enter-from {
-   opacity: 0;
-   transform: translateY(-8px) scale(0.98);
- }
- 
- .category-switch-leave-to {
-   opacity: 0;
-   transform: translateY(8px) scale(0.98);
- }
- </style>
+<style scoped>
+.product-grid{column-gap:5px!important;row-gap:0!important}
+</style>
