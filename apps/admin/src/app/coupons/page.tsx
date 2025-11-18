@@ -372,10 +372,12 @@ function TitleFromRules({ apiBase, code }: { apiBase: string; code: string }): J
   const [title, setTitle] = React.useState<string>('…');
   React.useEffect(()=>{ (async()=>{
     try{
-      const r = await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(code)}/rules`, { credentials:'include' });
+      const codeSafe = String(code||'').trim();
+      if (!codeSafe) { setTitle('كوبون'); return; }
+      const r = await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(codeSafe)}/rules`, { credentials:'include' });
       const j = await r.json();
       const t = j?.rules?.title;
-      setTitle(t? String(t) : `كوبون ${code}`);
+      setTitle(t? String(t) : `كوبون ${codeSafe}`);
     } catch { setTitle(`كوبون ${code}`); }
   })(); }, [apiBase, code]);
   return <span>{title}</span>;

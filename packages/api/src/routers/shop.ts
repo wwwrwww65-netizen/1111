@@ -2696,9 +2696,11 @@ shop.get('/me/coupons', async (req: any, res) => {
     let tokenAuth = '';
     if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
     const cookieTok = (req?.cookies?.shop_auth_token as string|undefined) || '';
+    // Also accept admin auth cookie for console/testing scenarios
+    const adminTok = (req?.cookies?.auth_token as string|undefined) || '';
     const jwt = require('jsonwebtoken');
     let payload:any = null;
-    for (const t of [tokenAuth, cookieTok]){ if(!t) continue; try{ payload = jwt.verify(t, process.env.JWT_SECRET||''); break; }catch{} }
+    for (const t of [tokenAuth, cookieTok, adminTok]){ if(!t) continue; try{ payload = jwt.verify(t, process.env.JWT_SECRET||''); break; }catch{} }
     if (!payload?.userId) return res.status(401).json({ error:'unauthorized' });
     const userId = String(payload.userId);
     const rows:any[] = await db.userReward.findMany({
