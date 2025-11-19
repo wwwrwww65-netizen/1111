@@ -326,7 +326,23 @@ onMounted(() => {
   try{
     const sp = new URLSearchParams(location.search||'')
     if (sp.get('claim')==='1'){
-      const token = sessionStorage.getItem('claim_token')||''
+      let token = sessionStorage.getItem('claim_token')||''
+      // Fallback: if claim_token missing, try to restart claim using pending_campaignId
+      if (!token){
+        try{
+          const cid = sessionStorage.getItem('pending_campaignId')||''
+          if (cid){
+            const r = await fetch(`${API_BASE}/api/promotions/claim/start`, {
+              method:'POST',
+              headers:{ 'content-type':'application/json' },
+              credentials:'include',
+              body: JSON.stringify({ campaignId: cid })
+            })
+            const j = await r.json().catch(()=>null)
+            if (j && j.token){ token = String(j.token); sessionStorage.setItem('claim_token', token) }
+          }
+        }catch{}
+      }
       if (token){
         fetch(`${API_BASE}/api/promotions/claim/complete`, { method:'POST', headers:{ 'content-type':'application/json', ...getAuthHeader() }, credentials:'include', body: JSON.stringify({ token }) })
           .then(()=>{
