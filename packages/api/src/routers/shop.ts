@@ -2707,9 +2707,16 @@ shop.get('/coupons/public', async (_req: any, res) => {
         const kind = rule?.kind ? String(rule.kind).toLowerCase() : 'sitewide';
         const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
         const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
-        // Respect audience rules: do NOT expose coupons targeted to users-only on public endpoint
-        const audience = String((rule?.audience?.target ?? rule?.audience ?? '') || '').toLowerCase();
-        const allowedAudience = audience !== 'users';
+        // Normalize audience synonyms (supports Arabic labels)
+        const audRaw = (rule?.audience?.target ?? rule?.audience ?? '');
+        const aud = String(audRaw||'').toLowerCase().trim();
+        const audNorm =
+          (!aud || aud === '') ? '' :
+          (aud === 'all' || aud === 'everyone' || aud === '*' || aud.includes('الجميع') ? 'all' :
+           (aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل') ? 'users' :
+            (aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة') ? 'new' : aud)));
+        // On public endpoint expose only 'all' (everyone) or unspecified; hide users/new targeted coupons
+        const allowedAudience = (audNorm === '' || audNorm === 'all');
         // Respect optional rules enable/schedule if set
         const now = new Date();
         const fromOk = !rule?.schedule?.from || new Date(rule.schedule.from) <= now;
@@ -2793,15 +2800,22 @@ shop.get('/me/coupons', async (req: any, res) => {
         const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
         // Consider global/sitewide if kind explicitly sitewide OR no includes targeting present
         const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
+        // Normalize audience synonyms (supports Arabic labels)
+        const audRaw = (rule?.audience?.target ?? rule?.audience ?? '');
+        const aud = String(audRaw||'').toLowerCase().trim();
+        const audNorm =
+          (!aud || aud === '') ? '' :
+          (aud === 'all' || aud === 'everyone' || aud === '*' || aud.includes('الجميع') ? 'all' :
+           (aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل') ? 'users' :
+            (aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة') ? 'new' : aud)));
         // Respect audience rules for authenticated users based on segment
-        const audience = String((rule?.audience?.target ?? rule?.audience ?? '') || '').toLowerCase();
-        const isNewAudience = audience === 'new' || audience === 'new_users' || audience === 'first' || audience === 'first_order';
-        const isExistingAudience = audience === 'registered' || audience === 'existing' || audience === 'users_existing';
+        const isNewAudience = (audNorm === 'new');
+        const isExistingAudience = (audNorm === 'users') || (audNorm === 'existing');
         const allowedAudience =
-          audience === '' || audience === 'all' ||
+          audNorm === '' || audNorm === 'all' ||
           (isNewAudience ? isNewUser : false) ||
           (isExistingAudience ? !isNewUser : false) ||
-          (audience === 'users');
+          (audNorm === 'users'); // generic 'users' allowed for all signed-in
         // Respect optional rules enable/schedule if set
         const now = new Date();
         const fromOk = !rule?.schedule?.from || new Date(rule.schedule.from) <= now;
