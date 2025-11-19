@@ -1125,6 +1125,11 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
     const merged = [...itemsArr, ...couponsArr]
     if (merged.length>0) return normalizeCoupons(merged)
   }
+  // Fallback للزوّار: أظهر الكوبونات العامة (audience: guest/everyone)
+  const pub = await tryFetch('/api/coupons/public')
+  if (pub && Array.isArray((pub as any).coupons) && (pub as any).coupons.length){
+    return normalizeCoupons((pub as any).coupons)
+  }
   // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
 }
