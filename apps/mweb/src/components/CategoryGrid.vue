@@ -2,7 +2,7 @@
 <section class="cat-grid" aria-label="الفئات" dir="rtl">
     <div class="grid">
       <RouterLink v-for="c in cats" :key="c.title" class="cat" :to="c.href" tabindex="0" role="button" :aria-label="`تصنيف: ${c.title}`">
-        <img class="img" :src="thumb(c.img, 300)" :alt="c.title" loading="lazy" decoding="async" fetchpriority="low" />
+        <img class="img" :src="c.img" :alt="c.title" />
         <div class="label">{{ c.title }}</div>
       </RouterLink>
     </div>
@@ -13,7 +13,6 @@
 import { ref, onMounted } from 'vue'
 import { apiGet } from '@/lib/api'
 import { RouterLink } from 'vue-router'
-import { buildThumbUrl as thumb } from '@/lib/media'
 type Cat = { id?: string; title: string; href: string; img: string; srcset?: string }
 const cats = ref<Cat[]>([])
 onMounted(async ()=>{

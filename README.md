@@ -958,25 +958,6 @@ Frontend/mweb:
 
 ملاحظة: كل نقطة من النقاط أعلاه مضمّنة بـ ensure‑schema داخلي idempotent لتهيئة الجداول تلقائياً على قواعد قديمة/فارغة.
 
-## ⚡ mweb Performance on slow networks (1–2 Mbps)
-
-- HTML head:
-  - Preconnect + dns-prefetch to API/CDN (done in `apps/mweb/index.html`).
-  - Preload entry script to speed first paint.
-- Build:
-  - Gzip & Brotli assets via `vite-plugin-compression` (done in `apps/mweb/vite.config.ts`).
-  - Vendor chunking (`vendor`, `vendor-vue`, `vendor-charts`) to improve HTTP cache reuse.
-- Images:
-  - Lazy + async decode for non-LCP visuals (e.g., `PromoBanners.vue`), keep hero/LCP without lazy where appropriate.
-- Service Worker:
-  - Stale-while-revalidate for static assets and uploads (cache version `mweb-v2`) with `ignoreSearch` on static to improve hit rate.
-- API client:
-  - Short-lived in-memory cache for public GETs already enabled (`lib/api.ts`). Consider extending if needed.
-- Suggested next steps (optional):
-  - Image CDN params for width/format (f_auto, q_auto).
-  - Priority Hints on LCP media (`fetchpriority="high"`).
-  - Skeletons/placeholders on top routes.
-
 ## 🛠️ Troubleshooting (CI/CD & Runtime)
 
 - Build error: TS property not found (e.g., `deliveredAt` on `Order`)

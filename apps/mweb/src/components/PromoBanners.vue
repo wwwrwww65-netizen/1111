@@ -13,7 +13,7 @@
           <div class="promo-title">{{ b.title }}</div>
           <div class="promo-sub">{{ b.sub }}</div>
         </div>
-        <img class="promo-img" :src="b.img" :alt="b.title" loading="lazy" decoding="async" fetchpriority="low" />
+        <img class="promo-img" :src="b.img" :alt="b.title" />
       </div>
     </a>
   </section>

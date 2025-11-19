@@ -51,7 +51,7 @@
               @click="onCategoryClick(c)"
             >
               <div class="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
-                <img :src="thumb(c.img, 96)" :alt="c.label" class="w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low" />
+                <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
               </div>
               <span class="mt-1 text-[12px] text-gray-700 text-center leading-tight category-title">
                 {{ c.label }}
@@ -70,7 +70,7 @@
               @click="onCategoryClick(c)"
             >
               <div class="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
-                <img :src="thumb(c.img, 96)" :alt="c.label" class="w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low" />
+                <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
               </div>
               <div class="text-right">
                 <div class="text-[13px] text-gray-800 leading-tight truncate-2-lines max-w-[8rem]">

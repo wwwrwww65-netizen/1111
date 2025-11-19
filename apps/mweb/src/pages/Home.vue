@@ -128,9 +128,8 @@
 
     <template v-else>
       <div class="w-screen px-0">
-        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-0 py-0" :ref="(el:any)=> setSectionRef(el,i)">
-          <component v-if="visibleSections[i]" :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
-          <div v-else class="w-full h-[120px]" aria-hidden="true"></div>
+        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-0 py-0">
+          <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
         </section>
         <div style="height:80px" />
       </div>
@@ -196,7 +195,6 @@ import CategoriesBlock from '@/components/blocks/CategoriesBlock.vue'
 import MasonryForYouBlock from '@/components/blocks/MasonryForYouBlock.vue'
 import ProductOptionsModal from '../components/ProductOptionsModal.vue'
 import { fmtPrice } from '@/lib/currency'
-import { buildCdnThumb } from '@/lib/cdn'
 
 const router = useRouter()
 const route = useRoute()
@@ -224,22 +222,7 @@ const currentSlug = ref<string>('')
 const isTabLoading = ref(false)
 const tabCache = ref<Record<string, any[]>>({})
 let currentTabController: AbortController | null = null
-const visibleSections = ref<Record<number, boolean>>({})
-function setSectionRef(el: Element | null, idx: number){
-  try{
-    if (!el) return
-    if (visibleSections.value[idx]) return
-    const io = new IntersectionObserver((entries, obs)=>{
-      for (const e of entries){
-        if (e.isIntersecting){
-          visibleSections.value[idx] = true
-          obs.disconnect()
-        }
-      }
-    }, { rootMargin: '200px' })
-    io.observe(el)
-  }catch{}
-}
+
 function renderBlock(s:any){ 
   const t=String(s?.type||'').toLowerCase();
   if (t==='hero') return HeroBlock; 
@@ -379,11 +362,7 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
     apiGet<any>('/api/products?limit=12&sort=price_desc'),
     apiGet<any>('/api/products?limit=12&sort=new')
   ])
-  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>{
-    const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
-    const image = buildCdnThumb(raw, 512, 60, 'webp') || raw
-    return ({ id: p.id, image, price: fmtPrice(Number(p.price||0)), name: p.name })
-  })
+  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: fmtPrice(Number(p.price||0)), name: p.name }))
   bigDeals.value = mapItems(deals)
   if (!hotTrends.value.length) hotTrends.value = mapItems(trends)
   const fy = (trends?.items||[]).slice(0, 8)
@@ -397,9 +376,8 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
     return uniq
   }
   forYouShein.value = fy.map((p:any, i:number)=>{
-    const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
-    const image = buildCdnThumb(raw, 384, 60, 'webp') || raw
-    const imgs = Array.isArray(p.images) && p.images.length ? p.images.slice(0,5).map((x:string)=> buildCdnThumb(x, 384, 60, 'webp') || x) : undefined
+    const image = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
+    const imgs = Array.isArray(p.images) && p.images.length ? p.images.slice(0,5) : undefined
     return ({
     id: p.id,
       image,
@@ -417,8 +395,7 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
     const base = hotTrends.value.length ? hotTrends.value : bigDeals.value
     if (base.length){
       forYouShein.value = base.slice(0,8).map((p:any, i:number)=>{
-        const raw = p.image
-        const img = buildCdnThumb(raw, 384, 60, 'webp') || raw
+        const img = p.image
         return ({
         id: p.id,
           image: img,
@@ -438,11 +415,7 @@ async function loadDeals(){ if (!dealsLoading.value) return; try{
 }
 async function loadTrends(){ if (!trendsLoading.value) return; try{
   const t = await apiGet<any>('/api/products?limit=12&sort=new')
-  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>{
-    const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
-    const image = buildCdnThumb(raw, 512, 60, 'webp') || raw
-    return ({ id: p.id, image, price: fmtPrice(Number(p.price||0)), name: p.name })
-  })
+  const mapItems = (data:any)=> (data?.items||[]).map((p:any)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', price: fmtPrice(Number(p.price||0)), name: p.name }))
   hotTrends.value = mapItems(t)
   trendsLoading.value = false
 }catch{ trendsLoading.value = false }
@@ -451,12 +424,7 @@ async function loadFY(){ if (!fyLoading.value) return; try{
   if (!forYouShein.value.length){
     const t = await apiGet<any>('/api/products?limit=12&sort=new')
     const arr = (t?.items||[]).slice(0,8)
-    forYouShein.value = arr.map((p:any, i:number)=>{
-      const raw = p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop'
-      const image = buildCdnThumb(raw, 384, 60, 'webp') || raw
-      const images = Array.isArray(p.images)&&p.images.length? p.images.map((x:string)=> buildCdnThumb(x, 384, 60, 'webp') || x) : undefined
-      return ({ id: p.id, image, images, title: p.name||'', brand: 'JEEEY', basePrice: String(p.price||0), colors: [], colorCount: undefined, imageAspect: aspectClassByIndex(i) })
-    })
+    forYouShein.value = arr.map((p:any, i:number)=>({ id: p.id, image: p.images?.[0] || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop', images: Array.isArray(p.images)&&p.images.length? p.images: undefined, title: p.name||'', brand: 'JEEEY', basePrice: String(p.price||0), colors: [], colorCount: undefined, imageAspect: aspectClassByIndex(i) }))
   }
   fyLoading.value = false
 }catch{ fyLoading.value = false }
