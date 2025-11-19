@@ -848,13 +848,25 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
 
 ## 🏷️ Discounts & Campaigns
 
-- Campaigns (تقسيم/جدولة/كوبونات):
-  - `POST /api/admin/marketing/campaigns`
-  - `GET /api/admin/marketing/campaigns`
-- Coupons (إنشاء/قائمة/تقرير الأداء):
-  - `POST /api/admin/marketing/coupons`
-  - `GET /api/admin/marketing/coupons`
-  - `GET /api/admin/marketing/coupons/:code/performance`
+- Campaigns (تقسيم/جدولة/Popups):
+  - `GET /api/admin/promotions/campaigns`
+  - `POST /api/admin/promotions/campaigns`
+  - `PUT /api/admin/promotions/campaigns/:id`
+  - `DELETE /api/admin/promotions/campaigns/:id`
+- Coupons (إنشاء/قائمة/قواعد/تحليلات) — موحّدة مع Prisma:
+  - `GET /api/admin/coupons/list`
+  - `POST /api/admin/coupons`
+  - `GET /api/admin/coupons/:code`
+  - `PATCH /api/admin/coupons/:code`
+  - `PATCH /api/admin/coupons/:id/activate`
+  - `GET /api/admin/coupons/:code/rules`
+  - `PUT /api/admin/coupons/:code/rules`
+  - `POST /api/admin/coupons/:code/test`
+  - `GET /api/admin/coupons/analytics?code=CODE&days=30`
+
+Frontend/mweb:
+- `GET /api/me/coupons` — قائمة الكوبونات المؤهلة للمستخدم (audience + صلاحية).
+- `POST /api/coupons/apply` — فحص وتطبيق الكوبون في الدفع (يفرض القيود والجداول).
 
 ## 🏆 Jeeey Points, Badges, Jeeey Club (Subscriptions), Wallet, FX, Affiliate
 

@@ -1354,43 +1354,7 @@ adminRest.get('/marketing/campaigns', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'campaign_list_failed' }); }
 });
 
-// =====================
-// Coupons & Performance Reports
-// =====================
-async function ensureCouponSchema() {
-  try {
-    await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Coupon" ("id" TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, type TEXT NOT NULL, value DOUBLE PRECISION NOT NULL, "usageLimit" INTEGER NULL, "usedCount" INTEGER DEFAULT 0, "isActive" BOOLEAN DEFAULT TRUE, "startsAt" TIMESTAMP NULL, "endsAt" TIMESTAMP NULL, "createdAt" TIMESTAMP DEFAULT NOW())');
-  } catch {}
-}
-adminRest.post('/marketing/coupons', async (req, res) => {
-  try {
-    const u = (req as any).user; if (!(await can(u.userId, 'analytics.read'))) return res.status(403).json({ error:'forbidden' });
-    await ensureCouponSchema();
-    const { code, type, value, usageLimit, startsAt, endsAt } = req.body || {};
-    if (!code || !type || typeof value !== 'number') return res.status(400).json({ error:'code_type_value_required' });
-    const id = (require('crypto').randomUUID as ()=>string)();
-    await db.$executeRawUnsafe('INSERT INTO "Coupon" (id, code, type, value, "usageLimit", "startsAt", "endsAt") VALUES ($1,$2,$3,$4,$5,$6,$7)', id, String(code).toUpperCase(), String(type).toUpperCase(), Number(value), usageLimit??null, startsAt? new Date(String(startsAt)) : null, endsAt? new Date(String(endsAt)) : null);
-    await audit(req,'marketing','coupon_create',{ code, type, value });
-    res.json({ coupon: { id, code: String(code).toUpperCase(), type: String(type).toUpperCase(), value, usageLimit: usageLimit??null, isActive: true, startsAt, endsAt } });
-  } catch (e:any) { res.status(500).json({ error: e.message||'coupon_create_failed' }); }
-});
-adminRest.get('/marketing/coupons', async (_req, res) => {
-  try {
-    await ensureCouponSchema();
-    const rows: any[] = await db.$queryRawUnsafe('SELECT id, code, type, value, "usageLimit", "usedCount", "isActive", "startsAt", "endsAt" FROM "Coupon" ORDER BY "createdAt" DESC');
-    res.json({ coupons: rows });
-  } catch (e:any) { res.status(500).json({ error: e.message||'coupon_list_failed' }); }
-});
-adminRest.get('/marketing/coupons/:code/report', async (req, res) => {
-  try {
-    const { code } = req.params;
-    const safe = String(code).replace(/'/g, "''").toUpperCase();
-    // Orders using this coupon and totals
-    const orders: any[] = await db.$queryRawUnsafe('SELECT id, total, status, "createdAt" FROM "Order" WHERE "couponId" IN (SELECT id FROM "Coupon" WHERE code=$1) ORDER BY "createdAt" DESC', safe);
-    const revenue = orders.reduce((s,o)=> s + Number(o.total||0), 0);
-    res.json({ code: safe, count: orders.length, revenue, orders });
-  } catch (e:any) { res.status(500).json({ error: e.message||'coupon_report_failed' }); }
-});
+// Legacy marketing coupon endpoints removed in favor of Prisma Coupon + admin /coupons APIs
 // =====================
 // Image CDN & CWV: optimized media URLs
 // =====================
@@ -4205,7 +4169,7 @@ adminRest.post('/users/assign-role', async (req, res) => {
 });
 adminRest.get('/coupons', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
-  res.json({ coupons: [] });
+  res.status(410).json({ error:'deprecated', message:'Use /api/admin/coupons/list instead' });
 });
 adminRest.get('/coupons/list', async (req, res) => {
   try {
@@ -4392,7 +4356,6 @@ adminRest.post('/coupons/:code/test', async (req, res) => {
 adminRest.get('/coupons/analytics', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'coupons.read'))) return res.status(403).json({ error:'forbidden' });
-    await ensureCouponSchema();
     const code = String((req.query.code||'') as string).trim().toUpperCase();
     const days = Math.max(1, Math.min(180, Number(req.query.days||30)));
     const since = new Date(Date.now() - days*86400000);
