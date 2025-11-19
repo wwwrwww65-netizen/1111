@@ -159,11 +159,11 @@ export const couponsRouter = router({
         if (isAudienceEnforced()) {
           const audRaw: any = (rules as any).audience?.target ?? (rules as any).audience ?? '';
           const aud = String(audRaw||'').toLowerCase().trim();
-          const audNorm =
+        const audNorm =
             (!aud || aud === '') ? '' :
             (aud === 'all' || aud === 'everyone' || aud === '*' || aud.includes('الجميع') ? 'all' :
-             (aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل') ? 'users' :
-              (aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة') ? 'new' : aud)));
+           (aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل') ? 'users' :
+            (aud === 'new' || aud === 'new_user' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة') ? 'new' : aud)));
           if (audNorm) {
             let isNewUser = false;
             try{

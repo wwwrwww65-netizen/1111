@@ -2714,7 +2714,7 @@ shop.get('/coupons/public', async (_req: any, res) => {
           (!aud || aud === '') ? '' :
           (aud === 'all' || aud === 'everyone' || aud === '*' || aud.includes('الجميع') ? 'all' :
            (aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل') ? 'users' :
-            (aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة') ? 'new' : aud)));
+            (aud === 'new' || aud === 'new_user' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة') ? 'new' : aud)));
         // On public endpoint expose only 'all' (everyone) or unspecified; hide users/new targeted coupons
         const allowedAudience = (audNorm === '' || audNorm === 'all');
         // Respect optional rules enable/schedule if set
@@ -4719,7 +4719,7 @@ shop.post('/coupons/apply', requireAuth, async (req:any, res) => {
       const aud = String(audRaw||'').toLowerCase().trim();
       const isAll = aud === '' || aud === 'all' || aud === 'everyone' || aud === '*' || aud.includes('الجميع');
       const isUsers = aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل');
-      const isNew = aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة');
+      const isNew = aud === 'new' || aud === 'new_user' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة');
       if (!isAll) {
         const u = (req as any).user;
         if (!u?.userId) return res.status(401).json({ error:'unauthorized' });

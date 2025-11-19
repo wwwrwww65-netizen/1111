@@ -95,7 +95,7 @@ export default function NewCouponPage(): JSX.Element {
         const s = String(v||'').trim().toLowerCase();
         // Arabic → canonical
         if (s.includes('الجميع') || s==='everyone' || s==='all') return 'all';
-        if (s.includes('الجدد') || s.includes('الجديدة') || s==='new' || s==='new_users' || s==='first' || s==='first_order') return 'new';
+        if (s.includes('الجدد') || s.includes('الجديدة') || s==='new' || s==='new_user' || s==='new_users' || s==='first' || s==='first_order') return 'new';
         if (s.includes('المسجلين') || s.includes('المُسجلين') || s.includes('المستخدمين المسجلين') || s==='users' || s==='registered' || s==='existing' || s==='users_existing') return 'users';
         return s || 'users';
       }
