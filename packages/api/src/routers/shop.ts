@@ -2556,29 +2556,36 @@ shop.post('/analytics/link', async (req: any, res) => {
     const { sessionId, anonymousId } = req.body||{};
     if (!sessionId && !anonymousId) return res.status(400).json({ ok:false, error:'missing_session_or_anonymous' });
 
-    // Update VisitorSession
+    // Update VisitorSession (ensure row exists and assign user)
     let sessionsUpdated = 0;
     if (sessionId){
-      const r = await db.$executeRawUnsafe(`UPDATE "VisitorSession" SET "userId" = $1 WHERE "userId" IS NULL AND id = $2`, String(userId), String(sessionId));
-      sessionsUpdated += Number(r)||0;
+      // Upsert to guarantee presence even if no events ingested yet
+      try{
+        await db.$executeRawUnsafe(
+          `INSERT INTO "VisitorSession"(id,"userId","firstSeenAt","lastSeenAt") VALUES($1,$2,NOW(),NOW())
+           ON CONFLICT(id) DO UPDATE SET "userId"=EXCLUDED."userId","lastSeenAt"=NOW()`,
+          String(sessionId), String(userId)
+        );
+        sessionsUpdated += 1;
+      }catch{}
     }
     if (anonymousId){
-      const r = await db.$executeRawUnsafe(`UPDATE "VisitorSession" SET "userId" = $1 WHERE "userId" IS NULL AND "anonymousId" = $2`, String(userId), String(anonymousId));
+      const r = await db.$executeRawUnsafe(`UPDATE "VisitorSession" SET "userId" = $1 WHERE "anonymousId" = $2`, String(userId), String(anonymousId));
       sessionsUpdated += Number(r)||0;
     }
     // Update Event.userId for related events
     if (sessionId){
-      await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE "userId" IS NULL AND COALESCE("sessionId", properties->>'sessionId') = $2`, String(userId), String(sessionId));
+      await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE COALESCE("sessionId", properties->>'sessionId') = $2 AND ("userId" IS NULL OR "userId" <> $1)`, String(userId), String(sessionId));
     }
     if (anonymousId){
       // session-bound
       const sids:any[] = await db.$queryRawUnsafe(`SELECT id FROM "VisitorSession" WHERE "anonymousId" = $1`, String(anonymousId));
       const sidArr = (sids||[]).map((r:any)=> String(r.id));
       if (sidArr.length){
-        await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE "userId" IS NULL AND COALESCE("sessionId", properties->>'sessionId') = ANY($2)`, String(userId), sidArr);
+        await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE COALESCE("sessionId", properties->>'sessionId') = ANY($2) AND ("userId" IS NULL OR "userId" <> $1)`, String(userId), sidArr);
       }
       // direct anonymous
-      await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE "userId" IS NULL AND COALESCE("anonymousId", properties->>'anonymousId') = $2`, String(userId), String(anonymousId));
+      await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE COALESCE("anonymousId", properties->>'anonymousId') = $2 AND ("userId" IS NULL OR "userId" <> $1)`, String(userId), String(anonymousId));
     }
     // Merge guest cart (by session header/cookies) into user cart to keep continuity
     try{
