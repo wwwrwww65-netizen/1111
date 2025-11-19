@@ -310,7 +310,7 @@ const handleBack = () => {
 const handleTCClick = () => { router.push('/legal/terms') }
 
 // Lifecycle hooks
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('scroll', handleScroll)
   
   // Restore expanded state from localStorage
