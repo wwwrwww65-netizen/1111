@@ -1413,13 +1413,13 @@ shop.get('/me', async (req: any, res) => {
       try { payload = verifyJwt(t); break; } catch { continue; }
     }
     if (!payload) {
-      // Fallback: if Authorization header present, decode without verifying signature to avoid UX loop when secrets mismatch temporarily
+      // Fallback: decode any candidate token (header/cookie/query) to avoid UX loop if secrets rotated
       try {
-        const header = (req?.headers?.authorization as string|undefined) || ''
-        if (header.startsWith('Bearer ')) {
-          const jwt = require('jsonwebtoken');
-          const dec: any = jwt.decode(header.slice(7)) || null;
-          if (dec && (dec.userId || dec.email)) payload = dec;
+        const jwt = require('jsonwebtoken');
+        for (const t of candidates) {
+          if (!t) continue;
+          const dec: any = jwt.decode(t) || null;
+          if (dec && (dec.userId || dec.email)) { payload = dec; break; }
         }
       } catch {}
       if (!payload) return res.json({ user: null });

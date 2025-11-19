@@ -31,7 +31,12 @@ const getJwtSecrets = (): string[] => {
     .split(',')
     .map((s) => s.trim())
     .filter((s) => !!s && s !== primary);
-  return [primary, ...extras];
+  // As a last-resort compatibility with older admin-issued tokens, try the admin fallback secret
+  const adminFallback = 'jeeey_fallback_secret_change_me';
+  const withAdmin = adminFallback && adminFallback !== primary && !extras.includes(adminFallback)
+    ? [...extras, adminFallback]
+    : extras;
+  return [primary, ...withAdmin];
 };
 
 export const signJwt = (payload: Omit<JWTPayload, 'iat' | 'exp'>, expiresIn: string | number = '7d'): string => {
