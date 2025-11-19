@@ -2752,6 +2752,17 @@ shop.get('/me/coupons', async (req: any, res) => {
 
     // Also include active/global coupons from Prisma applying isActive/date/global filters
     const now = new Date();
+    // Determine audience segment: new user vs existing
+    let isNewUser = false;
+    try{
+      const u = await db.user.findUnique({ where: { id: userId }, select: { createdAt: true } } as any);
+      const createdAt = u?.createdAt ? new Date(u.createdAt) : null;
+      const ageMs = createdAt ? (now.getTime() - createdAt.getTime()) : Number.MAX_SAFE_INTEGER;
+      const NEW_WINDOW_DAYS = Number(process.env.COUPON_NEW_USER_WINDOW_DAYS || 30);
+      const withinWindow = ageMs <= NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+      const orderCount = await db.order.count({ where: { userId } } as any);
+      isNewUser = withinWindow || (Number(orderCount||0) === 0);
+    }catch{}
     const activeCoupons:any[] = await db.coupon.findMany({
       where: {
         isActive: true as any,
@@ -2774,7 +2785,7 @@ shop.get('/me/coupons', async (req: any, res) => {
     }));
     const rulesByCode = new Map<string, any>(settings);
 
-    const coupons = activeCoupons
+    let coupons = activeCoupons
       .filter((c:any)=> !usedIds.has(String(c.id)))
       .filter((c:any)=> {
         const rule = rulesByCode.get(String(c.code||'').toUpperCase());
@@ -2782,9 +2793,15 @@ shop.get('/me/coupons', async (req: any, res) => {
         const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
         // Consider global/sitewide if kind explicitly sitewide OR no includes targeting present
         const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
-        // Respect audience rules for authenticated users: include users/all (not guests-only)
+        // Respect audience rules for authenticated users based on segment
         const audience = String((rule?.audience?.target ?? rule?.audience ?? '') || '').toLowerCase();
-        const allowedAudience = audience === '' || audience === 'users' || audience === 'all';
+        const isNewAudience = audience === 'new' || audience === 'new_users' || audience === 'first' || audience === 'first_order';
+        const isExistingAudience = audience === 'registered' || audience === 'existing' || audience === 'users_existing';
+        const allowedAudience =
+          audience === '' || audience === 'all' ||
+          (isNewAudience ? isNewUser : false) ||
+          (isExistingAudience ? !isNewUser : false) ||
+          (audience === 'users');
         // Respect optional rules enable/schedule if set
         const now = new Date();
         const fromOk = !rule?.schedule?.from || new Date(rule.schedule.from) <= now;
@@ -2801,6 +2818,18 @@ shop.get('/me/coupons', async (req: any, res) => {
         minOrderAmount: c.minOrderAmount||0,
         validUntil: c.validUntil||null
       }));
+    // Prioritize new-user coupons for new users
+    try{
+      if (isNewUser){
+        const score = (cc:any)=>{
+          const rule = rulesByCode.get(String(cc.code||'').toUpperCase());
+          const aud = String((rule?.audience?.target ?? rule?.audience ?? '')||'').toLowerCase();
+          const isNew = aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order';
+          return isNew ? 0 : 1;
+        };
+        coupons = coupons.sort((a:any,b:any)=> score(a)-score(b));
+      }
+    }catch{}
 
     res.json({ ok:true, items, coupons });
   }catch{ res.status(401).json({ error:'unauthorized' }) }

@@ -16,6 +16,7 @@ Environment=PORT=4000
 Environment=API_FORCE_LISTEN=1
 Environment=DOTENV_CONFIG_PATH=/var/www/ecom/.env.api
 Environment=COOKIE_DOMAIN=.jeeey.com
+Environment=COUPON_NEW_USER_WINDOW_DAYS=30
 Environment=NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.com
 Environment=NEXT_PUBLIC_APP_URL=https://jeeey.com
 Environment=CORS_ALLOW_ORIGINS=https://jeeey.com,https://www.jeeey.com,https://admin.jeeey.com,https://api.jeeey.com

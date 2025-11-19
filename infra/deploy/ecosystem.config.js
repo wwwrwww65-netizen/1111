@@ -11,6 +11,8 @@ module.exports = {
         HOST: '127.0.0.1',
         API_FORCE_LISTEN: '1',
         COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.jeeey.com',
+        // Coupons audience: new user window in days (affects /api/me/coupons audience filtering)
+        COUPON_NEW_USER_WINDOW_DAYS: process.env.COUPON_NEW_USER_WINDOW_DAYS || '30',
         // Ensure API builds absolute URLs for local uploads even if .env is missing
         PUBLIC_API_BASE: process.env.PUBLIC_API_BASE || 'https://api.jeeey.com',
         // Default uploads directory (overridable via environment)
