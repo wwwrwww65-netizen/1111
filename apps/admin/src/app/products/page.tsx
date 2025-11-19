@@ -15,6 +15,7 @@ export default function AdminProducts(): JSX.Element {
   const [total, setTotal] = React.useState<number|null>(0);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
   const [nextCursor, setNextCursor] = React.useState<{id:string; createdAt:string}|null>(null);
+  const hydratedFromUrl = React.useRef<boolean>(false);
   const q = trpc;
   const [allChecked, setAllChecked] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
@@ -42,47 +43,22 @@ export default function AdminProducts(): JSX.Element {
     return e?.name === 'AbortError' || e?.code === 20;
   }
 
-  function CategoryTreeDropdown({ value, onChange }:{ value: string; onChange:(id:string)=>void }): JSX.Element {
+  // Category filter dropdown — unified UI like create page (single-select for listing)
+  function CategoryFilterDropdown({ value, onChange }:{ value: string; onChange:(id:string)=>void }): JSX.Element {
     const [open, setOpen] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
     const [tree, setTree] = React.useState<any[]>([]);
     const [filter, setFilter] = React.useState('');
-    const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
-    const containerRef = React.useRef<HTMLDivElement|null>(null);
     const panelRef = React.useRef<HTMLDivElement|null>(null);
-    const [alignRight, setAlignRight] = React.useState(false);
-    const [openUp, setOpenUp] = React.useState(false);
 
     React.useEffect(()=>{
-      function onDocMouseDown(e: MouseEvent){
-        const el = containerRef.current;
-        const t = e.target as any;
-        const path = (e as any).composedPath ? (e as any).composedPath() : [];
-        const inside = el && (el.contains(t) || (Array.isArray(path) && path.includes(el)));
-        if (open && el && !inside) setOpen(false);
+      function onEsc(e: KeyboardEvent){
+        if (!open) return;
+        if (e.key === 'Escape') setOpen(false);
       }
-      document.addEventListener('mousedown', onDocMouseDown);
-      return ()=> document.removeEventListener('mousedown', onDocMouseDown);
+      document.addEventListener('keydown', onEsc as any, true);
+      return ()=> document.removeEventListener('keydown', onEsc as any, true);
     }, [open]);
-
-    function updatePlacement(){
-      try{
-        const host = containerRef.current;
-        const panel = panelRef.current;
-        if (!host || !panel) return;
-        const hostRect = host.getBoundingClientRect();
-        const panelRect = panel.getBoundingClientRect();
-        const vw = window.innerWidth || document.documentElement.clientWidth;
-        const vh = window.innerHeight || document.documentElement.clientHeight;
-        // Horizontal
-        const overflowRight = (hostRect.left + panelRect.width) > (vw - 8);
-        setAlignRight(overflowRight);
-        // Vertical
-        const spaceBelow = vh - (hostRect.top + hostRect.height);
-        const needOpenUp = spaceBelow < panelRect.height + 12 && hostRect.top > panelRect.height + 12;
-        setOpenUp(needOpenUp);
-      } catch {}
-    }
 
     async function loadTree(){
       if (tree.length || loading) return;
@@ -90,31 +66,9 @@ export default function AdminProducts(): JSX.Element {
         setLoading(true);
         const r = await fetch(`/api/admin/categories/tree`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
         const j = await r.json().catch(()=>({}));
-        setTree(Array.isArray(j?.tree)? j.tree : []);
+        setTree(Array.isArray(j?.tree) ? j.tree : []);
       } finally { setLoading(false); }
     }
-
-    React.useEffect(()=>{
-      if (!open) return;
-      const raf = requestAnimationFrame(updatePlacement);
-      const onResize = () => updatePlacement();
-      window.addEventListener('resize', onResize);
-      // Native stopPropagation on panel to avoid outside-closer seeing inside clicks
-      const panel = panelRef.current;
-      const stop = (e: Event)=> { e.stopPropagation(); };
-      try {
-        panel?.addEventListener('pointerdown', stop, true);
-        panel?.addEventListener('mousedown', stop, true);
-        panel?.addEventListener('click', stop, true);
-      } catch {}
-      return ()=> {
-        try { cancelAnimationFrame(raf); } catch {}
-        window.removeEventListener('resize', onResize);
-        try { panel?.removeEventListener('pointerdown', stop, true); } catch {}
-        try { panel?.removeEventListener('mousedown', stop, true); } catch {}
-        try { panel?.removeEventListener('click', stop, true); } catch {}
-      };
-    }, [open]);
 
     function filtered(nodes: any[], q: string): any[] {
       const t = String(q||'').trim().toLowerCase();
@@ -133,47 +87,25 @@ export default function AdminProducts(): JSX.Element {
       };
       return dfs(nodes);
     }
-    function restoreScroll(next: () => void){
-      try {
-        const p = panelRef.current;
-        const top = p?.scrollTop || 0;
-        next();
-        requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
-      } catch { next(); }
-    }
-    function toggleExpand(id: string){
-      restoreScroll(()=> setExpanded(prev => ({ ...prev, [id]: !prev[id] })));
-    }
+
     function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
       const kids = Array.isArray(node.children)? node.children : [];
       const hasKids = kids.length>0;
-      const isOpen = !!filter || !!expanded[node.id];
+      const isOpen = !!filter;
       return (
         <div onMouseDown={(e)=> e.stopPropagation()}>
           <div
             onClick={(e)=> {
               const tag = (e.target as HTMLElement).tagName.toLowerCase();
               if (tag === 'input' || tag === 'button' || tag === 'svg' || tag === 'path') return;
-              if (hasKids) { toggleExpand(node.id); return; }
+              if (hasKids) return;
               onChange(value===node.id? '' : node.id);
+              setOpen(false);
             }}
-            style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320' }}>
-            <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(value===node.id? '' : node.id); }} />
+            style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', cursor: hasKids? 'default':'pointer' }}>
+            <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(value===node.id? '' : node.id); setOpen(false); }} />
             <div style={{ flex:1 }}>{node.name}</div>
-            {hasKids ? (
-              <button
-                type="button"
-                className="icon-btn"
-                aria-expanded={isOpen}
-                onClick={(e)=> { e.stopPropagation(); toggleExpand(node.id); }}
-                onMouseDown={(e)=> e.stopPropagation()}
-                style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)', width:24, height:24, display:'grid', placeItems:'center', color:'#fff', background:'transparent', border:'none' }}
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                  <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-            ) : <span style={{ width:18 }} />}
+            {hasKids ? (<span style={{ width:18 }} />) : (<span style={{ width:18 }} />)}
           </div>
           {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
         </div>
@@ -195,40 +127,39 @@ export default function AdminProducts(): JSX.Element {
     }, [value, tree]);
 
     return (
-      <div ref={containerRef} style={{ position:'relative' }}>
-        <button type="button" className="select" onClick={()=>{ const next=!open; setOpen(next); if (next) { loadTree(); } }} style={{ width:'100%', textAlign:'start' }}>{label}</button>
+      <div style={{ position:'relative' }}>
+        <button type="button" className="select" onClick={()=>{ if (!open) { setOpen(true); loadTree(); } }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
+          {label}
+        </button>
         {open && (
-          <div
-            ref={panelRef}
-            className="panel"
-            onMouseDown={(e)=> e.stopPropagation()}
-            style={{
-              position:'absolute',
-              insetInlineStart: alignRight? 'auto' : 0,
-              insetInlineEnd: alignRight? 0 : 'auto',
-              [openUp? 'insetBlockEnd':'insetBlockStart']: 'calc(100% + 6px)',
-              zIndex:50,
-              width:'min(420px, 96vw)',
-              maxHeight: Math.max(280, Math.floor((window?.innerHeight||600)*0.6)),
-              overflow:'auto',
-              border:'1px solid #1c2333',
-              borderRadius:10,
-              padding:8,
-              background:'#0b0e14',
-              boxShadow:'0 8px 24px rgba(0,0,0,.35)'
-            } as any}
-          >
-            <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
-              <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث" className="input" />
-              <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
-              <button type="button" className="btn btn-outline" onClick={()=>{ onChange(''); setOpen(false); }}>الكل</button>
-            </div>
-            {loading ? (<div className="skeleton" style={{ height:120 }} />) : (
-              <div>
-                {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
+          <>
+            <div style={{ position:'fixed', inset:0, zIndex:59, background:'transparent' }} onMouseDown={()=> setOpen(false)} />
+            <div
+              ref={panelRef}
+              className="panel"
+              role="listbox"
+              style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:60, width:'min(560px, 96vw)', maxHeight:420, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}
+              onPointerDown={(e)=> e.stopPropagation()}
+              onMouseDown={(e)=> e.stopPropagation()}
+              onClick={(e)=> e.stopPropagation()}
+            >
+              <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
+                <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
+                <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
+                <div style={{ marginInlineStart:'auto', display:'flex', gap:8 }}>
+                  <button type="button" className="btn btn-outline" onClick={()=> setOpen(false)}>إغلاق</button>
+                  <button type="button" className="btn btn-outline" onClick={()=>{ onChange(''); setOpen(false); }}>الكل</button>
+                </div>
               </div>
-            )}
-          </div>
+              {loading ? (
+                <div className="skeleton" style={{ height:140 }} />
+              ) : (
+                <div>
+                  {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     );
@@ -261,8 +192,30 @@ export default function AdminProducts(): JSX.Element {
     }
   }
   React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
+  // Hydrate listing state from URL on first mount (so returning from edit preserves page/filters)
   React.useEffect(()=>{
-    const t = setTimeout(()=>{ setPage(1); load(); }, 300);
+    try{
+      const sp = new URLSearchParams(window.location.search||'');
+      const p = Number(sp.get('page')||'0'); if (p>0) setPage(p);
+      const st = String(sp.get('status')||''); if (st) setStatus(st);
+      const qv = String(sp.get('search')||''); if (qv) setSearch(qv);
+      const cat = String(sp.get('categoryId')||''); if (cat) setCategoryId(cat);
+      hydratedFromUrl.current = true;
+      // Trigger initial load after applying URL state
+      setTimeout(()=> load(), 0);
+    }catch{}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  React.useEffect(()=>{
+    const t = setTimeout(()=>{
+      if (hydratedFromUrl.current) {
+        // Skip page reset once after URL hydration
+        hydratedFromUrl.current = false;
+        load();
+        return;
+      }
+      setPage(1); load();
+    }, 300);
     return ()=> clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
@@ -341,7 +294,7 @@ export default function AdminProducts(): JSX.Element {
       <div className="toolbar" style={{ marginBottom:12 }}>
         <div className="search"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="بحث بالاسم/sku" className="input" /></div>
         <div style={{ minWidth: 260 }}>
-          <CategoryTreeDropdown value={categoryId} onChange={(id)=>{ setCategoryId(id); setPage(1); }} />
+          <CategoryFilterDropdown value={categoryId} onChange={(id)=>{ setCategoryId(id); setPage(1); }} />
         </div>
         <select value={status} onChange={(e)=>{ setStatus(e.target.value); setPage(1); }} className="select">
           <option value="">الكل</option>
