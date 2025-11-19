@@ -13,6 +13,28 @@ import { apiPost } from './lib/api'
 // Track affiliate ref
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try{ sessionStorage.setItem('affiliate_ref', ref) }catch{} }
 
+// Capture token from URL (?t=...) after OAuth/SSO and persist locally for SPA Authorization header
+try{
+  const url = new URL(location.href)
+  const tok = url.searchParams.get('t')
+  if (tok && tok.trim()){
+    try{ localStorage.setItem('shop_token', tok) }catch{}
+    try{
+      // Write non-HttpOnly cookie for environments blocking third-party cookies; keep SameSite compatible
+      const host = location.hostname
+      const parts = host.split('.')
+      const apex = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ''
+      const isHttps = location.protocol === 'https:'
+      const sameSite = isHttps ? 'None' : 'Lax'
+      const secure = isHttps ? ';Secure' : ''
+      const domainPart = apex ? `;domain=${apex}` : ''
+      document.cookie = `shop_auth_token=${encodeURIComponent(tok)};path=/;max-age=${60*60*24*30}${domainPart};SameSite=${sameSite}${secure}`
+    }catch{}
+    // Clean token from URL
+    try{ url.searchParams.delete('t'); history.replaceState({}, '', url.toString()) }catch{}
+  }
+}catch{}
+
 // Fallback: if misconfigured Facebook redirect hits m.jeeey.com /api/admin/auth/sso/callback,
 // push it to the correct API callback to complete login seamlessly
 try{
