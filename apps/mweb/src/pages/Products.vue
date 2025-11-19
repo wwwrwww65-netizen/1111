@@ -620,11 +620,10 @@ type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountV
 const couponsCache = ref<SimpleCoupon[]>([])
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
-  const base = (await import('@/lib/api')).API_BASE
+  const { API_BASE, isAuthenticated, getAuthHeader } = await import('@/lib/api')
   const tryFetch = async (path: string) => {
     try{
-      const { getAuthHeader } = await import('@/lib/api')
-      const r = await fetch(`${base}${path}`, { credentials:'include', headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      const r = await fetch(`${API_BASE}${path}`, { credentials:'include', headers:{ 'Accept':'application/json', ...getAuthHeader() } })
       if(!r.ok) return null; return await r.json()
     }catch{ return null }
   }

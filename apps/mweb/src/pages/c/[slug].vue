@@ -845,12 +845,12 @@ const couponsCache = ref<SimpleCoupon[]>([])
 const couponsCacheTs = ref(0)
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
-  const base = (await import('../../lib/api')).API_BASE
+  const { API_BASE, isAuthenticated } = await import('../../lib/api')
   const tryFetch = async (path: string) => {
     try{
       const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
       const { getAuthHeader } = await import('../../lib/api')
-      const r = await fetch(`${base}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
       if(!r.ok) return null; return await r.json()
     }catch{ return null }
   }

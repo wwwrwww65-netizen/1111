@@ -508,6 +508,7 @@ const couponsCache = ref<SimpleCoupon[]>([])
 const couponsCacheTs = ref(0)
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
+  const { isAuthenticated } = await import('@/lib/api')
   const tryFetch = async (path: string) => {
     try{
       const creds = path.startsWith('/api/coupons/public') ? 'omit' : 'include'

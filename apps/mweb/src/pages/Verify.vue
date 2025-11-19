@@ -242,14 +242,15 @@ async function onSubmit(){
             await apiPost('/api/analytics/link', { sessionId: sid })
           }
         }catch{}
-      // Complete pending claim if any (prefer query, fallback to sessionStorage)
+      // Complete pending claim if any (prefer query, fallback to sessionStorage) against API_BASE with auth header
       try{
         let claimTok = String(route.query.claimToken||'')
         if (!claimTok){
           try{ claimTok = sessionStorage.getItem('claim_token') || '' }catch{}
         }
         if (claimTok){
-          await fetch('/api/promotions/claim/complete', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ token: claimTok }) })
+          const { API_BASE, getAuthHeader } = await import('@/lib/api')
+          await fetch(`${API_BASE}/api/promotions/claim/complete`, { method:'POST', headers:{ 'content-type':'application/json', ...getAuthHeader() }, credentials:'include', body: JSON.stringify({ token: claimTok }) })
           try{ sessionStorage.removeItem('claim_token') }catch{}
         }
       }catch{}
