@@ -114,7 +114,7 @@
            @scroll.passive="onGalleryScroll">
           <div class="flex h-full">
             <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
-              <img :src="img" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" :style="idx===activeIdx ? { viewTransitionName: ('p-img-'+String(product?.id||id)) } : {}" />
+              <img :src="cdn(img, idx===0? 1200 : 900)" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" :style="idx===activeIdx ? { viewTransitionName: ('p-img-'+String(product?.id||id)) } : {}" />
             </div>
         </div>
       </div>
@@ -220,7 +220,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
           <div class="flex -space-x-2">
             <div v-for="i in 3" :key="'thumb-'+i" class="w-8 h-8 rounded-full border-2 border-white overflow-hidden">
-              <img :src="imageAt(i)" class="w-full h-full object-cover" loading="lazy" decoding="async" sizes="64px" />
+              <img :src="cdn(imageAt(i), 64)" class="w-full h-full object-cover" loading="lazy" decoding="async" sizes="64px" />
             </div>
           </div>
         </div>
@@ -244,7 +244,7 @@
           <template v-if="!isLoadingPdp">
             <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
               <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
-                <img :src="c.image" class="w-full h-full object-cover" :alt="c.name" />
+                <img :src="cdn(c.image, 100)" class="w-full h-full object-cover" :alt="c.name" />
               </div>
               <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">HOT</div>
               <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
@@ -1072,6 +1072,10 @@ const afterCouponPriceText = ref('')
 const themeCouponColor = '#fa6338'
 const pdpCoupons = ref<Array<{ code?:string; title?:string; priceAfter?:number; priceAfterText?:string; discountText?:string; discountLabel?:string; minLabel?:string }>>([])
 const pdpCouponsLimited = computed(()=> pdpCoupons.value.slice(0,2))
+// ==================== IMAGE CDN Helper ====================
+function cdn(u: string, w = 800): string {
+  try { return buildThumbUrl(String(u||''), Number(w||800)) } catch { return String(u||'') }
+}
 
 // Bottom sheet for coupons details
 const couponsSheetOpen = ref(false)
@@ -2156,13 +2160,16 @@ const attrsLoaded = ref(false)
 async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
   const p = String(pid || route.query.id || id)
-  const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null)
+  // Fetch variants and product (attributes) in parallel; prefer existing product.value when present
+  const [j, pd] = await Promise.all([
+    apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null),
+    product.value ? Promise.resolve(product.value) : apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
+  ])
   let list: any[] = Array.isArray(j?.items) ? j!.items : []
   if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
 
   // 2) Prefer grouped attributes from product endpoint to render buttons per group
   try {
-    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
     const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
     // Ingest server color galleries
     if (Array.isArray(pd?.colorGalleries)) colorGalleries.value = pd!.colorGalleries

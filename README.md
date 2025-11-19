@@ -868,6 +868,58 @@ Frontend/mweb:
 - `GET /api/me/coupons` — قائمة الكوبونات المؤهلة للمستخدم (audience + صلاحية).
 - `POST /api/coupons/apply` — فحص وتطبيق الكوبون في الدفع (يفرض القيود والجداول).
 
+### Audience semantics (الجمهور المستهدف) — Coupons
+
+- Values stored canonically in rules at `Setting key=coupon_rules:CODE`: `audience.target` ∈ `all | users | new | guest | club`.
+- UI mapping (admin radios → stored target):
+  - الجميع → `all`
+  - الزوار (غير المسجلين) → `guest`
+  - المستخدمون الجدد → `new`
+  - المستخدمون (مسجلون) → `users`
+  - أعضاء JEEEY CLUB → `club` (مستقبلاً عند الحاجة)
+- Accepted synonyms on server (backward-compatible): `new_user`, `new_users`, `first`, `first_order` → normalize to `new`. Also `everyone`, `*` → `all`, and `registered`, `existing` → `users`.
+- New user definition (configurable):
+  - User qualifies as "new" if within window OR has 0 orders.
+  - Window days controlled by env `COUPON_NEW_USER_WINDOW_DAYS` (default: 30).
+- Registered audience edge-case (users):
+  - For audience `users`, eligibility additionally requires that the user's `createdAt` ≤ coupon `createdAt` (المستخدم مسجّل قبل إصدار الكوبون)، لضمان عدم ظهور كوبونات المسجلين لحديثي التسجيل.
+- Feature flag (safe rollout):
+  - `COUPONS_AUDIENCE_ENFORCE=1` (default): يفعّل فرض الأودينس الصارم في مسارات التطبيق.
+
+### Admin UI behavior — Coupons/new
+
+- التحرير عبر الرابط `.../coupons/new?code=CODE` يقوم بقراءة القواعد (Setting) وتطبيع `audience` تلقائياً إلى مفتاح الراديو الصحيح (everyone/new_user/users/guest/club) حتى لو خُزنت القيم بالمرادفات.
+- عند الحفظ:
+  - يتم تطبيع اختيار "المستخدمون الجدد" إلى القيمة المعيارية `new` قبل إرسالها لـ API.
+  - يتم التحقق بصارمة (Zod) لهيكل القواعد مع رفض أي JSON غير صالح برسالة واضحة.
+
+### API behavior — eligibility and apply
+
+- `GET /api/me/coupons`:
+  - يعيد الكوبونات الفعالة (isActive=true) ضمن الفترة الزمنية، مع تصفية audience وفق تعريف المستخدم (new/users/all/guest).
+  - يستثني الكوبونات التي استخدمها المستخدم سابقاً (حسب `CouponUsage`).
+  - يلتقط المرادفات المذكورة أعلاه للأودينس.
+- `POST /api/coupons/apply` و`tRPC applyCoupon`:
+  - يطبّقان نفس تحقق `audience` والجدولة، ويستخدمان معاملة ذرّية لمنع سباقات استخدام الكوبون (`currentUses` ≤ `maxUses`).
+  - رسائل الرفض تشمل: `not_started`, `expired`, `disabled`, `out_of_schedule`, `audience_new_only`, `audience_registered_before_only`, `usage_limit`, إلخ.
+
+### Operational checks (تشغيل آمن)
+
+- إنشاء كوبون جديد للمستخدمين الجدد:
+  1) من لوحة التحكم: حدّد "المستخدمون الجدد" واحفظ.
+  2) تأكّد أن `GET /api/admin/coupons/CODE/rules` يحتوي: `"audience": { "target": "new" }`.
+  3) بحساب mweb جديد (أو بدون طلبات/ضمن النافذة): `GET /api/me/coupons` يجب أن يُظهر الكوبون.
+- إيقاف أي تضارب:
+  - المسارات القديمة (marketing/coupons) تمت إزالتها. إن ظهر توثيق قديم، يُعتبر غير فعّال.
+  - `GET /api/admin/coupons` يعيد 410 ويوجّه إلى `/api/admin/coupons/list`.
+
+### Common pitfalls (أسباب عدم الظهور)
+
+- الحساب ليس "جديداً": لدى المستخدم طلبات سابقة، أو تجاوز نافذة الأيام المحددة.
+- `validFrom/validUntil` خارج النطاق الحالي، أو `isActive=false`.
+- تم ضبط audience إلى `users` والمستخدم مسجّل بعد تاريخ إصدار الكوبون.
+- JSON القواعد غير صالح ولم يُحفظ (تتحقق Zod الآن وتُرجِع سبب الرفض).
+
 ## 🏆 Jeeey Points, Badges, Jeeey Club (Subscriptions), Wallet, FX, Affiliate
 
 - نقاط (Ledger):
@@ -905,6 +957,25 @@ Frontend/mweb:
 - Search suggestions: `GET /api/search/suggest?q=...` used by mweb search.
 
 ملاحظة: كل نقطة من النقاط أعلاه مضمّنة بـ ensure‑schema داخلي idempotent لتهيئة الجداول تلقائياً على قواعد قديمة/فارغة.
+
+## ⚡ mweb Performance on slow networks (1–2 Mbps)
+
+- HTML head:
+  - Preconnect + dns-prefetch to API/CDN (done in `apps/mweb/index.html`).
+  - Preload entry script to speed first paint.
+- Build:
+  - Gzip & Brotli assets via `vite-plugin-compression` (done in `apps/mweb/vite.config.ts`).
+  - Vendor chunking (`vendor`, `vendor-vue`, `vendor-charts`) to improve HTTP cache reuse.
+- Images:
+  - Lazy + async decode for non-LCP visuals (e.g., `PromoBanners.vue`), keep hero/LCP without lazy where appropriate.
+- Service Worker:
+  - Stale-while-revalidate for static assets and uploads (cache version `mweb-v2`) with `ignoreSearch` on static to improve hit rate.
+- API client:
+  - Short-lived in-memory cache for public GETs already enabled (`lib/api.ts`). Consider extending if needed.
+- Suggested next steps (optional):
+  - Image CDN params for width/format (f_auto, q_auto).
+  - Priority Hints on LCP media (`fetchpriority="high"`).
+  - Skeletons/placeholders on top routes.
 
 ## 🛠️ Troubleshooting (CI/CD & Runtime)
 

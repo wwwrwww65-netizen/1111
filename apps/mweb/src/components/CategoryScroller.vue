@@ -3,7 +3,7 @@
     <h2 style="margin:0">التصنيفات</h2>
     <div class="cat-scroll">
       <a v-for="c in cats" :key="c.label" class="cat-item" href="#">
-        <img :src="c.img" :alt="c.label" />
+        <img :src="thumb(c.img, 240)" :alt="c.label" loading="lazy" decoding="async" fetchpriority="low" />
         <span>{{ c.label }}</span>
       </a>
     </div>
@@ -12,6 +12,7 @@
 
 <script setup lang="ts">
 const props = defineProps<{ cats?: Array<{ label: string; img: string }> }>();
+import { buildThumbUrl as thumb } from '@/lib/media'
 const cats = props.cats || [
   { label: 'فساتين', img: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=240&auto=format&fit=crop' },
   { label: 'بلايز', img: 'https://images.unsplash.com/photo-1520975922284-9d43a1661efe?q=80&w=240&auto=format&fit=crop' },

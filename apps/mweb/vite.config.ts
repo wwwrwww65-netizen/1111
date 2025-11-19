@@ -4,6 +4,7 @@ import legacy from '@vitejs/plugin-legacy';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import compression from 'vite-plugin-compression';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,12 +34,26 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     fallbackVuePage(),
-    ...(process.env.VITE_ENABLE_LEGACY === '1' ? [legacy({ targets: ['defaults', 'not IE 11', 'ios >= 12', 'android >= 5'] })] : [])
+    ...(process.env.VITE_ENABLE_LEGACY === '1' ? [legacy({ targets: ['defaults', 'not IE 11', 'ios >= 12', 'android >= 5'] })] : []),
+    // Emit gzip and brotli assets for NGINX to serve on slow networks
+    compression({ algorithm: 'gzip', ext: '.gz', threshold: 1024 }),
+    compression({ algorithm: 'brotliCompress', ext: '.br', threshold: 1024 })
   ],
   server: { host: true, hmr: { overlay: false } },
   build: {
     sourcemap: false,
-    target: 'es2018'
+    target: 'es2018',
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('vue')) return 'vendor-vue';
+            if (id.includes('chart') || id.includes('d3')) return 'vendor-charts';
+            return 'vendor';
+          }
+        }
+      }
+    }
   },
   preview: { host: true },
   resolve: {

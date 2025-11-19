@@ -128,8 +128,9 @@
 
     <template v-else>
       <div class="w-screen px-0">
-        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-0 py-0">
-          <component :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
+        <section v-for="(s,i) in tabSections" :key="'sec-'+i" class="px-0 py-0" :ref="(el:any)=> setSectionRef(el,i)">
+          <component v-if="visibleSections[i]" :is="renderBlock(s)" :cfg="s.config||{}" @click="clickTrack()" />
+          <div v-else class="w-full h-[120px]" aria-hidden="true"></div>
         </section>
         <div style="height:80px" />
       </div>
@@ -223,6 +224,22 @@ const currentSlug = ref<string>('')
 const isTabLoading = ref(false)
 const tabCache = ref<Record<string, any[]>>({})
 let currentTabController: AbortController | null = null
+const visibleSections = ref<Record<number, boolean>>({})
+function setSectionRef(el: Element | null, idx: number){
+  try{
+    if (!el) return
+    if (visibleSections.value[idx]) return
+    const io = new IntersectionObserver((entries, obs)=>{
+      for (const e of entries){
+        if (e.isIntersecting){
+          visibleSections.value[idx] = true
+          obs.disconnect()
+        }
+      }
+    }, { rootMargin: '200px' })
+    io.observe(el)
+  }catch{}
+}
 function renderBlock(s:any){ 
   const t=String(s?.type||'').toLowerCase();
   if (t==='hero') return HeroBlock; 

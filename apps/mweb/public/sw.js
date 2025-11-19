@@ -4,9 +4,9 @@ self.addEventListener('activate', (event) => {
 });
 
 // Very small offline cache: stale-while-revalidate for uploads and static assets
-const CACHE_NAME = 'mweb-v1';
+const CACHE_NAME = 'mweb-v2';
 const STATIC_REGEX = /\.(?:js|css|svg|woff2?|png|jpg|jpeg|webp|avif)$/i;
-const JSON_CACHE = 'mweb-v1-json';
+const JSON_CACHE = 'mweb-v2-json';
 const JSON_ALLOW = [/^\/api\/tabs\//, /^\/api\/categories/, /^\/api\/products(\/|$)/, /^\/api\/product\//];
 
 self.addEventListener('fetch', (event) => {
@@ -22,7 +22,7 @@ self.addEventListener('fetch', (event) => {
     if (isUploads || isThumbs || isStatic) {
       event.respondWith((async ()=>{
         const cache = await caches.open(CACHE_NAME);
-        const cached = await cache.match(req);
+        const cached = await cache.match(req, { ignoreSearch: true });
         const fetchPromise = fetch(req).then((res) => {
           try{ if (res && res.ok) cache.put(req, res.clone()); }catch(_){}
           return res;
