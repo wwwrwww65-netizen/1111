@@ -364,14 +364,40 @@ async function fetchCoupons(){
     let res = await fetch(`${API_BASE}/api/me/coupons`, { credentials:'include', headers: { 'Accept':'application/json', ...getAuthHeader() } })
     let j = await res.json().catch(()=>null)
     // لا يوجد سقوط للزوار: الصفحة خاصة بالمستخدمين فقط
-    if (j){
-      const itemsArr = Array.isArray(j.items) ? j.items : []
-      const couponsArr = Array.isArray(j.coupons) ? j.coupons : []
-      const merged = [...itemsArr, ...couponsArr]
-      coupons.value = merged
-    }
+  if (j){
+    const itemsArr = Array.isArray(j.items) ? j.items : []
+    const couponsArr = Array.isArray(j.coupons) ? j.coupons : []
+    const merged = [...itemsArr, ...couponsArr]
+    coupons.value = merged.map(mapToUiCoupon)
+  }
   } catch (e) {
     // silently ignore; UI سيعرض النص الافتراضي
+  }
+}
+
+// Normalize raw coupon record from API to UI shape expected by the page
+function mapToUiCoupon(c){
+  const now = Date.now()
+  const validUntil = c?.validUntil ? new Date(c.validUntil) : null
+  const expired = validUntil ? (validUntil.getTime() < now) : false
+  const status = expired ? 'expired' : 'unused'
+  const discountNum = Number(c?.discountValue||c?.discount||0)
+  const minOrder = Number(c?.minOrderAmount||c?.min||0)
+  const categories = ['discount']
+  return {
+    id: String(c.id||c.code||Math.random().toString(36).slice(2)),
+    code: String(c.code||''),
+    title: String(c.title||c.code||'كوبون'),
+    discount: discountNum,
+    discountType: String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED' ? 'FIXED' : 'PERCENTAGE',
+    minOrderAmount: minOrder,
+    minOrderText: minOrder>0 ? `حد أدنى ${minOrder}` : '',
+    validUntil: c.validUntil || null,
+    // UI helpers
+    status,
+    category: 'عام',
+    categories,
+    conditions: Array.isArray(c?.conditions)? c.conditions : []
   }
 }
 

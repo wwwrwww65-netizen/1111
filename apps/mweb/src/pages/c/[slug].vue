@@ -856,7 +856,12 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   }
   if (isAuthenticated()){
     const data1: any = await tryFetch('/api/me/coupons')
-    if (data1 && Array.isArray(data1.coupons) && data1.coupons.length>0) return normalizeCoupons(data1.coupons)
+    if (data1){
+      const itemsArr = Array.isArray(data1.items) ? data1.items : []
+      const couponsArr = Array.isArray(data1.coupons) ? data1.coupons : []
+      const merged = [...itemsArr, ...couponsArr]
+      if (merged.length>0) return normalizeCoupons(merged)
+    }
   }
   return []
 }

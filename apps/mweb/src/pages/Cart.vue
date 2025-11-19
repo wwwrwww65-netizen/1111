@@ -1061,7 +1061,12 @@ async function fetchCouponsListCart(): Promise<CartCoupon[]> {
   }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
-  if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCouponsCart(data.coupons)
+  if (data){
+    const itemsArr = Array.isArray(data.items) ? data.items : []
+    const couponsArr = Array.isArray(data.coupons) ? data.coupons : []
+    const merged = [...itemsArr, ...couponsArr]
+    if (merged.length>0) return normalizeCouponsCart(merged)
+  }
   // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
 }
@@ -1114,7 +1119,12 @@ async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   }
   let data: any = null
   if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
-  if (data && Array.isArray(data.coupons) && data.coupons.length>0) return normalizeCoupons(data.coupons)
+  if (data){
+    const itemsArr = Array.isArray(data.items) ? data.items : []
+    const couponsArr = Array.isArray(data.coupons) ? data.coupons : []
+    const merged = [...itemsArr, ...couponsArr]
+    if (merged.length>0) return normalizeCoupons(merged)
+  }
   // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
 }

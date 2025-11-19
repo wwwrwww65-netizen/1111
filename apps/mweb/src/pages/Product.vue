@@ -2508,7 +2508,12 @@ async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
   }
   if (isAuthenticated()){
     const data1: any = await tryFetch('/api/me/coupons')
-    if (data1 && Array.isArray(data1.coupons) && data1.coupons.length>0) return normalizeCouponsRec(data1.coupons)
+    if (data1){
+      const itemsArr = Array.isArray((data1 as any).items) ? (data1 as any).items : []
+      const couponsArr = Array.isArray((data1 as any).coupons) ? (data1 as any).coupons : []
+      const merged = [...itemsArr, ...couponsArr]
+      if (merged.length>0) return normalizeCouponsRec(merged as any[])
+    }
   }
   // لا تستخدم مسارات المشرف من الواجهة العامة
   return []
