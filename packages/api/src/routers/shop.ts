@@ -2796,10 +2796,6 @@ shop.get('/me/coupons', async (req: any, res) => {
       .filter((c:any)=> !usedIds.has(String(c.id)))
       .filter((c:any)=> {
         const rule = rulesByCode.get(String(c.code||'').toUpperCase());
-        const kind = rule?.kind ? String(rule.kind).toLowerCase() : 'sitewide';
-        const includes = Array.isArray(rule?.includes) ? rule.includes : Array.isArray(rule?.rules?.includes) ? rule.rules.includes : [];
-        // Consider global/sitewide if kind explicitly sitewide OR no includes targeting present
-        const isGlobal = kind === 'sitewide' || !(Array.isArray(includes) && includes.length>0);
         // Normalize audience synonyms (supports Arabic labels)
         const audRaw = (rule?.audience?.target ?? rule?.audience ?? '');
         const aud = String(audRaw||'').toLowerCase().trim();
@@ -2821,7 +2817,8 @@ shop.get('/me/coupons', async (req: any, res) => {
         const fromOk = !rule?.schedule?.from || new Date(rule.schedule.from) <= now;
         const toOk = !rule?.schedule?.to || new Date(rule.schedule.to) >= now;
         const enabledOk = rule?.enabled !== false;
-        return isGlobal && allowedAudience && enabledOk && fromOk && toOk;
+        // Do NOT filter out token-targeted coupons here; show them to user and let PDP/cart apply eligibility rules
+        return allowedAudience && enabledOk && fromOk && toOk;
       })
       .map((c:any)=> ({
         id: c.id,
