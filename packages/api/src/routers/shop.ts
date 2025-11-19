@@ -2761,9 +2761,11 @@ shop.get('/me/coupons', async (req: any, res) => {
     const now = new Date();
     // Determine audience segment: new user vs existing
     let isNewUser = false;
+    let userCreatedAt: Date | null = null;
     try{
       const u = await db.user.findUnique({ where: { id: userId }, select: { createdAt: true } } as any);
       const createdAt = u?.createdAt ? new Date(u.createdAt) : null;
+      userCreatedAt = createdAt;
       const ageMs = createdAt ? (now.getTime() - createdAt.getTime()) : Number.MAX_SAFE_INTEGER;
       const NEW_WINDOW_DAYS = Number(process.env.COUPON_NEW_USER_WINDOW_DAYS || 30);
       const withinWindow = ageMs <= NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
@@ -2807,11 +2809,18 @@ shop.get('/me/coupons', async (req: any, res) => {
         // Respect audience rules for authenticated users based on segment
         const isNewAudience = (audNorm === 'new');
         const isExistingAudience = (audNorm === 'users') || (audNorm === 'existing');
-        const allowedAudience =
+        let allowedAudience =
           audNorm === '' || audNorm === 'all' ||
           (isNewAudience ? isNewUser : false) ||
           (isExistingAudience ? !isNewUser : false) ||
           (audNorm === 'users'); // generic 'users' allowed for all signed-in
+        // Enforce "registered" audience: only users registered on/before coupon creation
+        if (allowedAudience && audNorm === 'users' && userCreatedAt && c?.createdAt) {
+          try{
+            const cuCreatedAt = new Date(c.createdAt);
+            if (userCreatedAt.getTime() > cuCreatedAt.getTime()) allowedAudience = false;
+          }catch{}
+        }
         // Respect optional rules enable/schedule if set
         const now = new Date();
         const fromOk = !rule?.schedule?.from || new Date(rule.schedule.from) <= now;
@@ -4704,6 +4713,29 @@ shop.post('/coupons/apply', requireAuth, async (req:any, res) => {
       const toOk = !rules.schedule.to || new Date(rules.schedule.to).getTime() >= now
       if (!(fromOk && toOk)) return res.status(400).json({ error:'out_of_schedule' })
     }
+    // Audience enforcement: deny early if not eligible (low-risk alignment with tRPC)
+    try{
+      const audRaw = (rules?.audience?.target ?? rules?.audience ?? '') as string;
+      const aud = String(audRaw||'').toLowerCase().trim();
+      const isAll = aud === '' || aud === 'all' || aud === 'everyone' || aud === '*' || aud.includes('الجميع');
+      const isUsers = aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل');
+      const isNew = aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة');
+      if (!isAll) {
+        const u = (req as any).user;
+        if (!u?.userId) return res.status(401).json({ error:'unauthorized' });
+        const user = await db.user.findUnique({ where: { id: String(u.userId) }, select: { createdAt: true } } as any);
+        const createdAt = user?.createdAt ? new Date(user.createdAt) : null;
+        const ageMs = createdAt ? (Date.now() - createdAt.getTime()) : Number.MAX_SAFE_INTEGER;
+        const NEW_WINDOW_DAYS = Number(process.env.COUPON_NEW_USER_WINDOW_DAYS || 30);
+        const withinWindow = ageMs <= NEW_WINDOW_DAYS * 864e5;
+        const orderCount = await db.order.count({ where: { userId: String(u.userId) } } as any);
+        const isNewUser = withinWindow || (Number(orderCount||0) === 0);
+        if (isNew && !isNewUser) return res.status(400).json({ error:'audience_new_only' });
+        if (isUsers && createdAt && createdAt.getTime() > new Date(c.createdAt).getTime()) {
+          return res.status(400).json({ error:'audience_registered_before_only' });
+        }
+      }
+    }catch{}
     // includes/excludes require cart context; defer to checkout validation
     res.json({ ok: true, coupon: { code: c.code, type: c.discountType, value: c.discountValue } })
   }catch(e:any){ res.status(500).json({ error:e.message||'failed' }) }

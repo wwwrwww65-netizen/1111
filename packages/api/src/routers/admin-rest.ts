@@ -4308,8 +4308,15 @@ adminRest.put('/coupons/:code/rules', async (req, res) => {
     const code = String(req.params.code || '').toUpperCase();
     if (!code) return res.status(400).json({ error: 'code_required' });
     const rules = req.body?.rules ?? null;
-    // Basic validation: ensure JSON-serializable object or null
-    if (rules !== null && typeof rules !== 'object') return res.status(400).json({ error: 'rules_must_be_object_or_null' });
+    // Strict validation with Zod schema
+    if (rules !== null) {
+      try {
+        const { CouponRulesSchema } = require('../validators/coupon-rules') as typeof import('../validators/coupon-rules');
+        CouponRulesSchema.parse(rules);
+      } catch (e:any) {
+        return res.status(400).json({ error:'invalid_rules', message: e?.message||'invalid' });
+      }
+    }
     const key = `coupon_rules:${code}`;
     const setting = await db.setting.upsert({
       where: { key },

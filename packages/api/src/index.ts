@@ -192,6 +192,11 @@ async function ensureSchema(): Promise<void> {
     // Speed up trending aggregation reads
     try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "ProductAnalytics_date_productId_idx" ON "ProductAnalytics"("date","productId")'); } catch {}
 
+    // Performance indexes for Coupons
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Coupon_active_valid_idx" ON "Coupon"("isActive","validFrom","validUntil")'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CouponUsage_usedAt_idx" ON "CouponUsage"("usedAt")'); } catch {}
+    try { await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CouponUsage_coupon_user_idx" ON "CouponUsage"("couponId","userId")'); } catch {}
+
     // Ensure ProductCategory (link table for additional categories) exists without breaking existing schema
     await db.$executeRawUnsafe(
       'CREATE TABLE IF NOT EXISTS "ProductCategory" ('+

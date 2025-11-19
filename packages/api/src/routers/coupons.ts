@@ -2,6 +2,11 @@ import { z } from 'zod';
 import { router, publicProcedure } from '../trpc-setup';
 import { protectedProcedure } from '../middleware/auth';
 import { db } from '@repo/db';
+ 
+// Feature flag utility: gate strict audience enforcement
+function isAudienceEnforced(): boolean {
+  try { return String(process.env.COUPONS_AUDIENCE_ENFORCE||'1') === '1'; } catch { return true; }
+}
 
 type AdvancedCouponRules = {
   enabled?: boolean;
@@ -150,6 +155,31 @@ export const couponsRouter = router({
 
       const rules = await loadAdvancedRules(coupon.code);
       if (rules) {
+        // Enforce audience: 'new' vs 'users' with createdAt threshold for 'users'
+        if (isAudienceEnforced()) {
+          const audRaw: any = (rules as any).audience?.target ?? (rules as any).audience ?? '';
+          const aud = String(audRaw||'').toLowerCase().trim();
+          const audNorm =
+            (!aud || aud === '') ? '' :
+            (aud === 'all' || aud === 'everyone' || aud === '*' || aud.includes('الجميع') ? 'all' :
+             (aud === 'users' || aud === 'registered' || aud === 'existing' || aud.includes('مسجل') ? 'users' :
+              (aud === 'new' || aud === 'new_users' || aud === 'first' || aud === 'first_order' || aud.includes('الجدد') || aud.includes('الجديدة') ? 'new' : aud)));
+          if (audNorm) {
+            let isNewUser = false;
+            try{
+              const createdAt = order.user?.createdAt ? new Date(order.user.createdAt as any) : null;
+              const ageMs = createdAt ? (now.getTime() - createdAt.getTime()) : Number.MAX_SAFE_INTEGER;
+              const NEW_WINDOW_DAYS = Number(process.env.COUPON_NEW_USER_WINDOW_DAYS || 30);
+              const withinWindow = ageMs <= NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+              const orderCount = await db.order.count({ where: { userId } } as any);
+              isNewUser = withinWindow || (Number(orderCount||0) === 0);
+              if (audNorm === 'users' && createdAt && createdAt.getTime() > new Date(coupon.createdAt).getTime()) {
+                throw new Error('Coupon not eligible for recently registered users');
+              }
+            }catch{}
+            if (audNorm === 'new' && !isNewUser) throw new Error('Coupon is for new users only');
+          }
+        }
         // Enforce per-user limit if configured
         if (rules.limitPerUser != null) {
           const uses = await db.couponUsage.count({ where: { couponId: coupon.id, userId } });
@@ -180,16 +210,19 @@ export const couponsRouter = router({
         discountAmount = Math.min(discountAmount, Number(rules.max));
       }
 
-      await db.order.update({
-        where: { id: orderId },
-        data: { couponId: coupon.id, discountAmount },
-      });
-
-      await db.couponUsage.create({ data: { couponId: coupon.id, userId, orderId } });
-
-      await db.coupon.update({
-        where: { id: coupon.id },
-        data: { currentUses: coupon.currentUses + 1 },
+      // Atomic apply using a transaction with conditional increment
+      await db.$transaction(async(tx)=> {
+        // prevent double apply for same order
+        const prior = await tx.couponUsage.findUnique({ where: { couponId_userId_orderId: { couponId: coupon.id, userId, orderId } } });
+        if (prior) throw new Error('Coupon already applied to this order');
+        // global usage limit guard (conditional update)
+        const updated = await tx.$executeRawUnsafe(
+          'UPDATE "Coupon" SET "currentUses" = "currentUses" + 1 WHERE id=$1 AND ("maxUses" IS NULL OR "currentUses" < "maxUses")',
+          coupon.id
+        );
+        if (!updated) throw new Error('Coupon usage limit exceeded');
+        await tx.order.update({ where: { id: orderId }, data: { couponId: coupon.id, discountAmount } });
+        await tx.couponUsage.create({ data: { couponId: coupon.id, userId, orderId } });
       });
 
       return {
