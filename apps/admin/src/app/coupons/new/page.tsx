@@ -61,7 +61,15 @@ export default function NewCouponPage(): JSX.Element {
           if (rulesObj){
             setTitle(String(rulesObj.title||''));
             setKind(String(rulesObj.kind||'sitewide'));
-            setAudience((rulesObj.audience?.target||'everyone'));
+                // Map stored canonical audience to UI radio keys
+                const rawAud = String((rulesObj.audience?.target||rulesObj.audience||'')||'').toLowerCase();
+                let uiAud: 'everyone'|'guest'|'new_user'|'users'|'club' = 'everyone';
+                if (rawAud==='all' || rawAud==='everyone' || rawAud==='*' || rawAud.includes('الجميع')) uiAud = 'everyone';
+                else if (rawAud==='guest') uiAud = 'guest';
+                else if (rawAud==='users' || rawAud==='registered' || rawAud==='existing' || rawAud.includes('مسجل')) uiAud = 'users';
+                else if (rawAud==='club' || rawAud==='jeey_club') uiAud = 'club';
+                else if (rawAud==='new' || rawAud==='new_user' || rawAud==='new_users' || rawAud==='first' || rawAud==='first_order' || rawAud.includes('الجدد') || rawAud.includes('الجديدة')) uiAud = 'new_user';
+                setAudience(uiAud);
             setRules({ ...rules, ...rulesObj });
           }
         } catch {}
