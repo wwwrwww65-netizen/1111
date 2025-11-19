@@ -15,6 +15,9 @@ module.exports = {
         COUPON_NEW_USER_WINDOW_DAYS: process.env.COUPON_NEW_USER_WINDOW_DAYS || '30',
         // Ensure API builds absolute URLs for local uploads even if .env is missing
         PUBLIC_API_BASE: process.env.PUBLIC_API_BASE || 'https://api.jeeey.com',
+        // OAuth redirect URIs (callbacks must hit API domain, not web/mweb)
+        GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'https://api.jeeey.com/api/auth/google/callback',
+        FACEBOOK_REDIRECT_URI: process.env.FACEBOOK_REDIRECT_URI || 'https://api.jeeey.com/api/auth/facebook/callback',
         // Default uploads directory (overridable via environment)
         UPLOADS_DIR: process.env.UPLOADS_DIR || '/var/www/ecom/uploads',
         DOTENV_CONFIG_PATH: 'packages/api/.env'

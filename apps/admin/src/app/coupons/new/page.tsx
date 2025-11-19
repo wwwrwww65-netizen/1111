@@ -91,7 +91,16 @@ export default function NewCouponPage(): JSX.Element {
         if (!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j?.error||'failed'); }
       }
       // حفظ القواعد
-      const normalized: CouponRules = normalizeRulesObject({ ...rules, title: title.trim()||undefined, kind, audience: { target: audience }, schedule: { from: from? new Date(from).toISOString() : null, to: to? new Date(to).toISOString() : null } } as any);
+      function normalizeAudienceValue(v:string): string {
+        const s = String(v||'').trim().toLowerCase();
+        // Arabic → canonical
+        if (s.includes('الجميع') || s==='everyone' || s==='all') return 'all';
+        if (s.includes('الجدد') || s.includes('الجديدة') || s==='new' || s==='new_users' || s==='first' || s==='first_order') return 'new';
+        if (s.includes('المسجلين') || s.includes('المُسجلين') || s.includes('المستخدمين المسجلين') || s==='users' || s==='registered' || s==='existing' || s==='users_existing') return 'users';
+        return s || 'users';
+      }
+      const normalizedAudience = normalizeAudienceValue(audience);
+      const normalized: CouponRules = normalizeRulesObject({ ...rules, title: title.trim()||undefined, kind, audience: { target: normalizedAudience }, schedule: { from: from? new Date(from).toISOString() : null, to: to? new Date(to).toISOString() : null } } as any);
       await fetch(`${apiBase}/api/admin/coupons/${encodeURIComponent(finalCode)}/rules`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ rules: normalized }) }).catch(()=>{});
       // تفعيل/تعطيل إذا لزم
       if (isActive===false){
