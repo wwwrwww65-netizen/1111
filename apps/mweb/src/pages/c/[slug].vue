@@ -364,7 +364,7 @@ const { items } = storeToRefs(cart);
 
 import { useRoute } from 'vue-router'
 import { apiGet, API_BASE, isAuthenticated } from '../../lib/api'
-import { buildThumbUrl as thumb } from '../../lib/media'
+import { buildThumbUrl } from '../../lib/media'
 const route = useRoute()
 const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
 const currentCategory = ref<{ id:string; slug?:string|null; name:string }|null>(null)

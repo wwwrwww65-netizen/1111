@@ -1047,6 +1047,7 @@ import {
 } from 'lucide-vue-next'
 import { consumePrefetchPayload } from '@/lib/nav'
 import ProductGridCard from '@/components/ProductGridCard.vue'
+import { buildThumbUrl } from '@/lib/media'
 import { fmtPrice, getCurrency, getSymbol } from '@/lib/currency'
 import { getTrendingIdSet } from '@/lib/trending'
 
@@ -1071,7 +1072,6 @@ const afterCouponPriceText = ref('')
 const themeCouponColor = '#fa6338'
 const pdpCoupons = ref<Array<{ code?:string; title?:string; priceAfter?:number; priceAfterText?:string; discountText?:string; discountLabel?:string; minLabel?:string }>>([])
 const pdpCouponsLimited = computed(()=> pdpCoupons.value.slice(0,2))
-
 
 // Bottom sheet for coupons details
 const couponsSheetOpen = ref(false)
@@ -2156,16 +2156,13 @@ const attrsLoaded = ref(false)
 async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
   const p = String(pid || route.query.id || id)
-  // Fetch variants and product (attributes) in parallel; prefer existing product.value when present
-  const [j, pd] = await Promise.all([
-    apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null),
-    product.value ? Promise.resolve(product.value) : apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
-  ])
+  const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null)
   let list: any[] = Array.isArray(j?.items) ? j!.items : []
   if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
 
   // 2) Prefer grouped attributes from product endpoint to render buttons per group
   try {
+    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
     const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
     // Ingest server color galleries
     if (Array.isArray(pd?.colorGalleries)) colorGalleries.value = pd!.colorGalleries

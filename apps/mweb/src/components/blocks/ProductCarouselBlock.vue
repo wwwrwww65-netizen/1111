@@ -18,7 +18,16 @@
         <div class="simple-row-inner">
           <button v-for="(p,i) in items" :key="'prod-'+i" class="text-start snap-item simple-item" :aria-label="'منتج '+(p.name||'')" @click="open(p)">
             <div class="border border-gray-200 rounded-[4px] overflow-hidden bg-white">
-              <img :src="p.image" :alt="String(p.name||p.price||'منتج')" class="w-full aspect-[192/255] object-cover" />
+              <img
+                :src="thumb(p.image, 512)"
+                :srcset="`${thumb(p.image,256)} 256w, ${thumb(p.image,384)} 384w, ${thumb(p.image,512)} 512w, ${thumb(p.image,768)} 768w`"
+                sizes="(max-width: 480px) 50vw, 33vw"
+                :alt="String(p.name||p.price||'منتج')"
+                class="w-full aspect-[192/255] object-cover"
+                :loading="i < 6 ? 'eager' : 'lazy'"
+                :fetchpriority="i < 6 ? 'high' : 'auto'"
+                decoding="async"
+              />
             </div>
             <div v-if="showPrice" class="mt-1"><span class="text-red-600 font-bold text-sm">{{ p.priceText }}</span></div>
           </button>
@@ -33,6 +42,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_BASE } from '@/lib/api'
 import { fmtPrice, initCurrency } from '@/lib/currency'
+import { buildThumbUrl as thumb } from '@/lib/media'
 
 type Filter = { sortBy?: string; limit?: number; categoryIds?: string[]; onlyDiscounted?: boolean }
 type Cfg = { title?: string; showPrice?: boolean; products?: any[]; filter?: Filter }
