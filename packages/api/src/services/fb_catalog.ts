@@ -40,6 +40,7 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
     const requests = group.map((it) => ({
       method: 'CREATE',
       retailer_id: it.retailer_id,
+      item_type: 'PRODUCT_ITEM',
       data: {
         name: it.name,
         description: it.description || '',
