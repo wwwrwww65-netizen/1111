@@ -3,7 +3,8 @@ import { prisma } from '@repo/db';
 
 export interface JWTPayload {
 	userId: string;
-	email: string;
+	email?: string;
+	phone?: string;
 	role: 'USER' | 'ADMIN';
 	iat: number;
 	exp: number;
