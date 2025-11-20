@@ -108,7 +108,7 @@ export async function buildCatalogItemsFromProducts(prodIds?: string[]): Promise
     where,
     orderBy: { updatedAt: 'desc' },
     take: prodIds && prodIds.length ? undefined : 1000,
-    include: { category: { select: { name: true } } },
+    include: { category: { select: { name: true } }, variants: true },
   } as any)
   const out: CatalogItemInput[] = []
   const seen = new Set<string>()
@@ -122,18 +122,50 @@ export async function buildCatalogItemsFromProducts(prodIds?: string[]): Promise
     const url = `${appUrl}/p?id=${encodeURIComponent(id)}`
     const img = toAbsUrl(((p as any).images || [])[0] || '')
     if (!img) continue
-    const item: CatalogItemInput = {
-      retailer_id: id,
-      name,
-      description: String((p as any).description || '').slice(0, 5000),
-      price,
-      url,
-      image_url: img,
-      availability: 'in stock',
-      brand: (p as any).brand || undefined,
-      condition: 'new',
+
+    // Collect variant-level items when SKU exists; fallback to generated unique id if needed
+    const variants: Array<any> = Array.isArray((p as any).variants) ? (p as any).variants : []
+    const variantRetailerIds = new Set<string>()
+    for (const v of variants) {
+      const vSkuRaw = String((v as any)?.sku || '').trim()
+      // Prefer variant.sku; otherwise generate stable unique id from product + variant id
+      const vRid = (vSkuRaw ? vSkuRaw : `${id}-${String((v as any)?.id || '').slice(-8)}`)
+      const vRidNorm = vRid.toLowerCase()
+      if (!vRidNorm || variantRetailerIds.has(vRidNorm)) continue
+      variantRetailerIds.add(vRidNorm)
+      const vPriceNum = Number((v as any)?.price ?? priceNum)
+      const vItem: CatalogItemInput = {
+        retailer_id: vRid,
+        name: [name, String((v as any)?.name || '').slice(0, 60)].filter(Boolean).join(' • ').slice(0, 150),
+        description: String((p as any).description || '').slice(0, 5000),
+        price: `${vPriceNum.toFixed(2)} ${currency}`,
+        url,
+        image_url: img,
+        availability: 'in stock',
+        brand: (p as any).brand || undefined,
+        condition: 'new',
+      }
+      out.push(vItem)
     }
-    out.push(item)
+
+    // Add a base product item using product.sku (or product id) only if it does not collide with any variant retailer_id
+    const prodRidBase = String((p as any).sku || id).trim()
+    const prodRid = prodRidBase ? prodRidBase : id
+    const prodRidNorm = prodRid.toLowerCase()
+    if (!variantRetailerIds.has(prodRidNorm)) {
+      const item: CatalogItemInput = {
+        retailer_id: prodRid,
+        name,
+        description: String((p as any).description || '').slice(0, 5000),
+        price,
+        url,
+        image_url: img,
+        availability: 'in stock',
+        brand: (p as any).brand || undefined,
+        condition: 'new',
+      }
+      out.push(item)
+    }
   }
   return out
 }
