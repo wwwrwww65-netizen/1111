@@ -142,12 +142,42 @@ export default function ShippingRatesPage(): JSX.Element {
         {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 200 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
           <div style={{ overflowX:'auto' }}>
             <table className="table" role="table" aria-label="قائمة أسعار التوصيل">
-              <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(r=> [r.id, v]))); }} /></th><th>المنطقة</th><th>المشغل</th><th>الرسوم الأساسية</th><th>لكل كجم</th><th>مجاني فوق</th><th>ETA</th><th>نشط</th><th></th></tr></thead>
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(r=> [r.id, v]))); }}
+                    />
+                  </th>
+                  <th>المنطقة</th>
+                  <th>المدينة/المحافظة</th>
+                  <th>المنطقة/الحي</th>
+                  <th>المشغل</th>
+                  <th>الرسوم الأساسية</th>
+                  <th>لكل كجم</th>
+                  <th>مجاني فوق</th>
+                  <th>ETA</th>
+                  <th>نشط</th>
+                  <th></th>
+                </tr>
+              </thead>
               <tbody>
-                {rows.map(r=> (
+                {rows.map(r=> {
+                  const z = zones.find(z=>z.id===r.zoneId)
+                  const join = (arr?: string[]|null) => {
+                    const a = Array.isArray(arr)? arr.filter(Boolean) : []
+                    if (!a.length) return '—'
+                    if (a.length<=2) return a.join('، ')
+                    return `${a.slice(0,2).join('، ')} … (+${a.length-2})`
+                  }
+                  return (
                   <tr key={r.id}>
                     <td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td>
-                    <td>{zones.find(z=>z.id===r.zoneId)?.name || r.zoneId}</td>
+                    <td>{z?.name || r.zoneId}</td>
+                    <td>{join((z as any)?.cities)}</td>
+                    <td>{join((z as any)?.areas)}</td>
                     <td>{r.carrier||'—'}</td>
                     <td>{r.baseFee}</td>
                     <td>{r.perKgFee??'—'}</td>
@@ -159,7 +189,7 @@ export default function ShippingRatesPage(): JSX.Element {
                       <button aria-label={`حذف سعر ${zones.find(z=>z.id===r.zoneId)?.name||''}`} onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
