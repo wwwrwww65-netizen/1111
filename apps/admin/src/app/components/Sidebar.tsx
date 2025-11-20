@@ -15,6 +15,12 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     ],
   },
   {
+    title: 'الأداء / البنية',
+    items: [
+      { href: '/cache', label: 'التخزين المؤقت (Cache)' },
+    ],
+  },
+  {
     items: [
       { href: '/', label: 'الرئيسية' },
     ],

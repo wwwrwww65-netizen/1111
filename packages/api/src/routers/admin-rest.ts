@@ -11485,6 +11485,167 @@ adminRest.get('/users/:id/audit-logs', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'user_audit_list_failed' }); }
 });
 
+// -------------------------------
+// Cache Management (Admin)
+// -------------------------------
+adminRest.get('/cache/stats', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.read'))) return res.status(403).json({ error:'forbidden' });
+    const [sizesWeb, sizesMweb, totals, jobsFail] = await Promise.all([
+      db.$queryRawUnsafe(`SELECT COALESCE(SUM("sizeBytes"),0)::bigint AS total FROM "CacheEntry" WHERE domain='WEB'`),
+      db.$queryRawUnsafe(`SELECT COALESCE(SUM("sizeBytes"),0)::bigint AS total FROM "CacheEntry" WHERE domain='MWEB'`),
+      db.$queryRawUnsafe(`SELECT COUNT(*)::int AS total, SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END)::int AS failed FROM "CacheJob"`),
+      db.$queryRawUnsafe(`SELECT COUNT(*)::int AS failed FROM "CacheJob" WHERE status='failed' AND "createdAt" > NOW() - INTERVAL '1 day'`)
+    ]);
+    const totalBytesWeb = Number((sizesWeb as any)[0]?.total || 0);
+    const totalBytesMweb = Number((sizesMweb as any)[0]?.total || 0);
+    const totalJobs = Number((totals as any)[0]?.total || 0);
+    const failedJobs = Number((totals as any)[0]?.failed || 0);
+    const failedLastDay = Number((jobsFail as any)[0]?.failed || 0);
+    // Approx hit-rate from entries (placeholder until request-level metrics exist)
+    const hits: any[] = await db.$queryRawUnsafe(`SELECT domain, COALESCE(SUM("hitCount"),0)::bigint AS h FROM "CacheEntry" GROUP BY domain`);
+    const hitWeb = Number((hits.find(x=> x.domain==='WEB')||{}).h || 0);
+    const hitMweb = Number((hits.find(x=> x.domain==='MWEB')||{}).h || 0);
+    res.json({
+      web: { totalBytes: totalBytesWeb, hitRate: hitWeb }, // UI will render percent from deltas
+      mweb: { totalBytes: totalBytesMweb, hitRate: hitMweb },
+      jobs: { total: totalJobs, failed: failedJobs, failedLastDay },
+      ok: true,
+    });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_stats_failed' }); }
+});
+
+// Rules CRUD
+adminRest.get('/cache/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.read'))) return res.status(403).json({ error:'forbidden' });
+    const page = Math.max(1, parseInt(String((req.query as any).page||'1'),10)||1);
+    const limit = Math.min(200, Math.max(1, parseInt(String((req.query as any).limit||'50'),10)||50));
+    const offset = (page - 1) * limit;
+    const items = await (db as any).cacheRule.findMany({ orderBy: { createdAt: 'desc' }, skip: offset, take: limit } as any);
+    res.json({ items, page, limit });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_list_failed' }); }
+});
+adminRest.post('/cache/rules', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.write'))) return res.status(403).json({ error:'forbidden' });
+    const { name, domain, pattern, targetType, policy, ttlSeconds, autoPurge, perEntryLimitBytes, totalCapBytes } = req.body || {};
+    if (!name || String(name).length > 100) return res.status(400).json({ error:'invalid_name' });
+    if (!domain || !pattern || !targetType || !policy) return res.status(400).json({ error:'missing_fields' });
+    const rule = await (db as any).cacheRule.create({ data: {
+      name: String(name), domain, pattern: String(pattern), targetType: String(targetType), policy: String(policy),
+      ttlSeconds: ttlSeconds!=null ? Number(ttlSeconds) : null, autoPurge: !!autoPurge,
+      perEntryLimitBytes: perEntryLimitBytes!=null ? Number(perEntryLimitBytes) : null,
+      totalCapBytes: totalCapBytes!=null ? BigInt(totalCapBytes) : null,
+      createdBy: u.userId || null
+    } as any });
+    await audit(req, 'cache', 'rule_create', { id: rule.id, name: rule.name, domain: rule.domain });
+    res.json({ rule });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_create_failed' }); }
+});
+adminRest.put('/cache/rules/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.write'))) return res.status(403).json({ error:'forbidden' });
+    const id = String(req.params.id);
+    const { name, domain, pattern, targetType, policy, ttlSeconds, autoPurge, perEntryLimitBytes, totalCapBytes } = req.body || {};
+    if (name && String(name).length > 100) return res.status(400).json({ error:'invalid_name' });
+    const rule = await (db as any).cacheRule.update({ where: { id }, data: {
+      ...(name!=null? { name: String(name) } : {}),
+      ...(domain!=null? { domain } : {}),
+      ...(pattern!=null? { pattern: String(pattern) } : {}),
+      ...(targetType!=null? { targetType: String(targetType) } : {}),
+      ...(policy!=null? { policy: String(policy) } : {}),
+      ...(ttlSeconds!=null? { ttlSeconds: Number(ttlSeconds) } : {}),
+      ...(autoPurge!=null? { autoPurge: !!autoPurge } : {}),
+      ...(perEntryLimitBytes!=null? { perEntryLimitBytes: Number(perEntryLimitBytes) } : {}),
+      ...(totalCapBytes!=null? { totalCapBytes: BigInt(totalCapBytes) } : {}),
+    } as any});
+    await audit(req, 'cache', 'rule_update', { id: rule.id });
+    res.json({ rule });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_update_failed' }); }
+});
+adminRest.delete('/cache/rules/:id', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.write'))) return res.status(403).json({ error:'forbidden' });
+    const id = String(req.params.id);
+    await (db as any).cacheRule.delete({ where: { id } } as any);
+    await audit(req, 'cache', 'rule_delete', { id });
+    res.json({ ok:true });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_delete_failed' }); }
+});
+
+// Entries listing + bulk actions
+adminRest.get('/cache/entries', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.read'))) return res.status(403).json({ error:'forbidden' });
+    const q: any = req.query || {};
+    const page = Math.max(1, parseInt(String(q.page||'1'),10)||1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(q.limit||'25'),10)||25));
+    const offset = (page - 1) * limit;
+    const where: any = {};
+    if (q.domain) where.domain = String(q.domain).toUpperCase();
+    if (q.type) where.type = String(q.type);
+    if (q.owner) where.ownerId = String(q.owner);
+    // date filters
+    if (q.createdFrom || q.createdTo) {
+      where.createdAt = {};
+      if (q.createdFrom) where.createdAt.gte = new Date(String(q.createdFrom));
+      if (q.createdTo) where.createdAt.lte = new Date(String(q.createdTo));
+    }
+    const [items, total] = await Promise.all([
+      (db as any).cacheEntry.findMany({ where, orderBy: { createdAt: 'desc' }, skip: offset, take: limit } as any),
+      (db as any).cacheEntry.count({ where } as any),
+    ]);
+    res.json({ items, page, limit, total });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_entries_list_failed' }); }
+});
+adminRest.post('/cache/entries/bulk', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.execute'))) return res.status(403).json({ error:'forbidden' });
+    const { action, keys, domain } = req.body || {};
+    if (!Array.isArray(keys) || !keys.length) return res.status(400).json({ error:'no_keys' });
+    const idem = String(req.headers['idempotency-key'] || '') || null;
+    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
+    if (exists) return res.json({ job_id: exists.id, status: exists.status });
+    const job = await (db as any).cacheJob.create({ data: {
+      type: String(action||'purge'), payload: { keys, domain }, status: 'pending', idempotencyKey: idem, createdBy: u.userId || null, domain: domain || null
+    } as any});
+    await audit(req, 'cache', 'entries_bulk', { action, count: keys.length, domain, jobId: job.id });
+    res.json({ job_id: job.id, status: job.status });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_entries_bulk_failed' }); }
+});
+
+// Purge & Warm jobs
+adminRest.post('/cache/purge', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.execute'))) return res.status(403).json({ error:'forbidden' });
+    const { keys, tags, domain } = req.body || {};
+    const idem = String(req.headers['idempotency-key'] || '') || null;
+    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
+    if (exists) return res.json({ job_id: exists.id, status: exists.status });
+    const job = await (db as any).cacheJob.create({ data: {
+      type: 'purge', payload: { keys: Array.isArray(keys)? keys: [], tags: Array.isArray(tags)? tags: [], domain: domain||null }, status: 'pending', idempotencyKey: idem, createdBy: u.userId || null, domain: domain || null
+    } as any});
+    await audit(req, 'cache', 'purge_request', { domain, keysCount: (keys||[]).length, tagsCount: (tags||[]).length, jobId: job.id });
+    res.json({ job_id: job.id, status: job.status });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_purge_failed' }); }
+});
+adminRest.post('/cache/warm', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.execute'))) return res.status(403).json({ error:'forbidden' });
+    const { urls, domain } = req.body || {};
+    if (!Array.isArray(urls) || !urls.length) return res.status(400).json({ error:'no_urls' });
+    const idem = String(req.headers['idempotency-key'] || '') || null;
+    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
+    if (exists) return res.json({ job_id: exists.id, status: exists.status });
+    const job = await (db as any).cacheJob.create({ data: {
+      type: 'warm', payload: { urls, domain: domain||null }, status: 'pending', idempotencyKey: idem, createdBy: u.userId || null, domain: domain || null
+    } as any});
+    await audit(req, 'cache', 'warm_request', { domain, urlsCount: urls.length, jobId: job.id });
+    res.json({ job_id: job.id, status: job.status });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_warm_failed' }); }
+});
+
 export default adminRest;
 adminRest.get('/pos/:id', async (req, res) => {
   try {

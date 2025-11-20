@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '@repo/db';
 import type { Prisma } from '@prisma/client';
-import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
+import { readTokenFromRequest, readAdminTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express';
 import type { Response } from 'express';
 import { normalizeCategoriesPageConfig } from '../validators/categories-page';
@@ -4659,6 +4659,42 @@ shop.get('/geo/areas', async (req: any, res) => {
     return res.status(500).json({ error: e?.message || 'geo_areas_failed' });
   }
 });
+
+// -------------------- Product publish event → Cache pipeline --------------------
+shop.post('/events/product_published', async (req: any, res: any) => {
+  try {
+    // Require admin/staff token (ADMIN role); optionally allow STAFF via RBAC later
+    let token = readAdminTokenFromRequest(req as any) || readTokenFromRequest(req as any);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    let payload: any;
+    try { payload = verifyJwt(token); } catch { return res.status(401).json({ error: 'unauthorized' }); }
+    if (!payload || (payload.role !== 'ADMIN' && payload.role !== 'USER')) return res.status(403).json({ error: 'forbidden' });
+    // Basic shape validation for incoming event
+    const body = req.body || {};
+    const productId = Number(body.product_id || body.productId || 0);
+    const domain = String(body.domain || '').toLowerCase();
+    const tags = Array.isArray(body.tags) ? body.tags : [];
+    const userId = String(body.user_id || body.userId || payload.userId || '');
+    if (!productId) return res.status(400).json({ error: 'missing_product_id' });
+    // Idempotency
+    const idem = String(req.headers['idempotency-key'] || '') || null;
+    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
+    if (exists) return res.json({ job_id: exists.id, status: exists.status });
+    const cacheDomain = domain.includes('m.') ? 'MWEB' : (domain.includes('jeeey.com') ? 'WEB' : null);
+    const job = await (db as any).cacheJob.create({ data: {
+      type: 'product_published',
+      payload: { product_id: productId, domain: cacheDomain, tags },
+      status: 'pending',
+      idempotencyKey: idem,
+      createdBy: userId || null,
+      domain: cacheDomain as any
+    } as any});
+    return res.json({ job_id: job.id, status: job.status });
+  } catch (e:any) {
+    return res.status(500).json({ error: e.message || 'event_failed' });
+  }
+});
+
 export default shop;
 
 // Payments session (Stripe/HyperPay via integrations)

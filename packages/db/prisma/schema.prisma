@@ -1277,3 +1277,61 @@ model AuditLog {
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
+
+// -------------------------------
+// Caching (Rules, Entries, Jobs)
+// -------------------------------
+
+enum CacheDomain {
+  WEB   // jeeey.com
+  MWEB  // m.jeeey.com
+  BOTH
+}
+
+model CacheRule {
+  id                    String      @id @default(cuid())
+  name                  String
+  domain                CacheDomain
+  pattern               String      // wildcard/regex/tag
+  targetType            String      // Page | Tab | Category | Banner | All
+  policy                String      // Immediate | Wait | Delay | Pending
+  ttlSeconds            Int?
+  autoPurge             Boolean     @default(true)
+  perEntryLimitBytes    Int?
+  totalCapBytes         BigInt?
+  createdBy             String?
+  createdAt             DateTime    @default(now())
+
+  @@index([domain, targetType])
+  @@index([createdAt])
+}
+
+model CacheEntry {
+  key         String      @id
+  domain      CacheDomain
+  type        String
+  sizeBytes   Int
+  createdAt   DateTime    @default(now())
+  expiresAt   DateTime?
+  hitCount    Int         @default(0)
+  ownerId     String?
+
+  @@index([domain, type, createdAt])
+  @@index([expiresAt])
+}
+
+model CacheJob {
+  id              String      @id @default(cuid())
+  type            String
+  payload         Json
+  status          String      @default("pending") // pending|running|success|failed
+  result          Json?
+  idempotencyKey  String?     @unique
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  createdBy       String?
+  domain          CacheDomain?
+
+  @@index([status, createdAt])
+}

@@ -40,6 +40,7 @@ import YAML from 'yamljs';
 import http from 'http';
 import { Server as IOServer } from 'socket.io';
 import { setIo } from './io';
+import { startCacheWorker } from './workers/cache';
 
 // Optional Sentry init (guarded by env)
 let sentryEnabled = false;
@@ -775,6 +776,9 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
       console.log(`📊 Health check: http://${host}:${port}/health`);
       console.log(`🔗 tRPC endpoint: http://${host}:${port}/trpc`);
     });
+
+    // Start background cache worker
+    try { startCacheWorker(); } catch (e) { console.warn('cache_worker_start_failed', (e as any)?.message || e); }
   }
 })();
 
