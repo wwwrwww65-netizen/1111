@@ -54,11 +54,12 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
         google_product_category: it.gpc || undefined,
       },
     }))
-    const body = { requests }
+    const form = new URLSearchParams()
+    form.set('requests', JSON.stringify(requests))
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
     })
     const json = await resp.json().catch(() => ({}))
     results.push({ status: resp.status, body: json })

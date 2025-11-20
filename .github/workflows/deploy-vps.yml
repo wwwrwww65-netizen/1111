@@ -206,6 +206,7 @@ jobs:
               echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
               echo "PUBLIC_API_BASE=$API_BASE_VAL"
               echo "MWEB_BASE_URL=$MWEB_BASE_VAL"
+              echo "META_ALLOW_EXTERNAL=1"
               echo "DEFAULT_COUNTRY_CODE=${{ secrets.DEFAULT_COUNTRY_CODE || vars.DEFAULT_COUNTRY_CODE || '+967' }}"
               echo "CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || vars.CORS_ALLOW_ORIGINS }}"
               echo "NEXT_PUBLIC_ADMIN_URL=${{ secrets.NEXT_PUBLIC_ADMIN_URL || vars.NEXT_PUBLIC_ADMIN_URL }}"
@@ -1001,7 +1002,7 @@ jobs:
             echo '== api process env (selected) =='
             pid=$(systemctl show -p MainPID ecom-api | cut -d= -f2)
             if [ -n "$pid" ] && [ -r "/proc/$pid/environ" ]; then
-              tr '\0' '\n' </proc/$pid/environ | egrep '^(DEFAULT_COUNTRY_CODE|WHATSAPP_|WA_OTP_STRICT|OTP_SMS_WITH_WA|COOKIE_DOMAIN)=' || true
+              tr '\0' '\n' </proc/$pid/environ | egrep '^(DEFAULT_COUNTRY_CODE|WHATSAPP_|WA_OTP_STRICT|OTP_SMS_WITH_WA|COOKIE_DOMAIN|META_ALLOW_EXTERNAL|CI)=' || true
             else
               echo '(no pid or inaccessible /proc)'
             fi
