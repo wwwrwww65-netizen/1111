@@ -8,7 +8,8 @@ const getJwtSecretLocal = getJwtSecret;
 // Schema for JWT payload
 const JWTPayloadSchema = z.object({
   userId: z.string(),
-  email: z.string().email(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
   role: z.enum(['USER', 'ADMIN']),
   iat: z.number(),
   exp: z.number(),
