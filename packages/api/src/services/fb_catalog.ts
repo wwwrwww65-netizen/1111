@@ -18,8 +18,18 @@ type CatalogItemInput = {
 }
 
 export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: boolean; results: any[] }> {
-  const catalogId = process.env.FB_CATALOG_ID
-  const token = process.env.FB_CATALOG_TOKEN
+  let catalogId = process.env.FB_CATALOG_ID
+  let token = process.env.FB_CATALOG_TOKEN
+  if (!catalogId || !token) {
+    try {
+      // Try to load from DB settings (prefer mweb, then web)
+      const sM = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:mweb' } })
+      const sW = await db.setting.findUnique({ where: { key: 'integrations:meta:settings:web' } })
+      const v: any = (sM?.value as any) || (sW?.value as any) || {}
+      catalogId = catalogId || v.catalogId
+      token = token || v.systemUserToken || v.catalogToken
+    } catch {}
+  }
   if (!catalogId || !token) return { ok: false, results: [] }
   const url = `https://graph.facebook.com/v18.0/${encodeURIComponent(catalogId)}/items_batch?access_token=${encodeURIComponent(token)}`
   const chunks: CatalogItemInput[][] = []

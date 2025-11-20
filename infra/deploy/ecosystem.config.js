@@ -10,6 +10,8 @@ module.exports = {
         PORT: '4000',
         HOST: '127.0.0.1',
         API_FORCE_LISTEN: '1',
+        // Allow external Graph API calls for Meta integrations (disable in CI)
+        META_ALLOW_EXTERNAL: process.env.META_ALLOW_EXTERNAL || '1',
         COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.jeeey.com',
         // Coupons audience: new user window in days (affects /api/me/coupons audience filtering)
         COUPON_NEW_USER_WINDOW_DAYS: process.env.COUPON_NEW_USER_WINDOW_DAYS || '30',
