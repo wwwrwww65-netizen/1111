@@ -60,6 +60,22 @@ try {
 const app = express();
 // Serve uploaded media as static files with long-term cache
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '365d', immutable: true }));
+// Android App Links: serve assetlinks.json
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  res.type('application/json').send([{
+    relation: [
+      'delegate_permission/common.handle_all_urls',
+      'delegate_permission/common.get_login_creds'
+    ],
+    target: {
+      namespace: 'android_app',
+      package_name: 'com.jeeey.shopin',
+      sha256_cert_fingerprints: [
+        '40:44:5A:90:E0:A3:53:B0:B5:D5:F0:A7:E9:04:4B:EE:09:3A:23:32:8A:C6:65:42:2A:A1:BE:8E:A7:59:2B:21'
+      ]
+    }
+  }]);
+});
 if (sentryEnabled && SentryRef) {
   try {
     app.use(SentryRef.Handlers.requestHandler());
