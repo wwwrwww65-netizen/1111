@@ -39,10 +39,17 @@ async function runPurge(payload: any): Promise<any> {
   // Delete by tags embedded in key (convention: key contains tag like product-123)
   if (tags.length) {
     const like = tags.map((t) => `%${t}%`);
-    await db.$executeRawUnsafe(
-      `DELETE FROM "CacheEntry" WHERE ${domain && domain !== 'BOTH' ? `domain='${domain}' AND ` : ''} (${like.map((_, i) => `key ILIKE $${i + 1}`).join(' OR ')})`,
-      ...like
-    );
+    if (domain && domain !== 'BOTH') {
+      await db.$executeRawUnsafe(
+        `DELETE FROM "CacheEntry" WHERE domain=$1::"CacheDomain" AND (${like.map((_, i) => `key ILIKE $${i + 2}`).join(' OR ')})`,
+        domain, ...like
+      );
+    } else {
+      await db.$executeRawUnsafe(
+        `DELETE FROM "CacheEntry" WHERE ${like.map((_, i) => `key ILIKE $${i + 1}`).join(' OR ')}`,
+        ...like
+      );
+    }
   }
   return { deleted: true };
 }
@@ -90,7 +97,7 @@ async function runProductPublished(payload: any): Promise<any> {
   // Purge tags and related URLs; then warm minimal set
   const purgeId = Math.random().toString(36).slice(2);
   await db.$queryRawUnsafe(
-    `INSERT INTO "CacheJob"(id,type,payload,status,domain) VALUES ($1,'purge',$2,'pending',$3)`,
+    `INSERT INTO "CacheJob"(id,type,payload,status,domain) VALUES ($1,'purge',$2,'pending',$3::"CacheDomain")`,
     purgeId, { tags, domain }, domain || null
   );
   const base = domain === 'MWEB' ? 'https://m.jeeey.com' : 'https://jeeey.com';
@@ -101,7 +108,7 @@ async function runProductPublished(payload: any): Promise<any> {
   ].filter(Boolean);
   const warmId = Math.random().toString(36).slice(2);
   await db.$queryRawUnsafe(
-    `INSERT INTO "CacheJob"(id,type,payload,status,domain) VALUES ($1,'warm',$2,'pending',$3)`,
+    `INSERT INTO "CacheJob"(id,type,payload,status,domain) VALUES ($1,'warm',$2,'pending',$3::"CacheDomain")`,
     warmId, { urls: warmUrls, domain }, domain || null
   );
   return { queued: true, purgeJobId: purgeId, warmJobId: warmId, immediate: effectiveImmediate };

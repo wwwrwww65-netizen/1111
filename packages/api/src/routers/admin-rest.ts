@@ -11558,8 +11558,8 @@ adminRest.get('/cache/stats', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'cache.read'))) return res.status(403).json({ error:'forbidden' });
     const [sizesWeb, sizesMweb, totals, jobsFail] = await Promise.all([
-      db.$queryRawUnsafe(`SELECT COALESCE(SUM("sizeBytes"),0)::bigint AS total FROM "CacheEntry" WHERE domain='WEB'`),
-      db.$queryRawUnsafe(`SELECT COALESCE(SUM("sizeBytes"),0)::bigint AS total FROM "CacheEntry" WHERE domain='MWEB'`),
+      db.$queryRawUnsafe(`SELECT COALESCE(SUM("sizeBytes"),0)::bigint AS total FROM "CacheEntry" WHERE domain='WEB'::"CacheDomain"`),
+      db.$queryRawUnsafe(`SELECT COALESCE(SUM("sizeBytes"),0)::bigint AS total FROM "CacheEntry" WHERE domain='MWEB'::"CacheDomain"`),
       db.$queryRawUnsafe(`SELECT COUNT(*)::int AS total, SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END)::int AS failed FROM "CacheJob"`),
       db.$queryRawUnsafe(`SELECT COUNT(*)::int AS failed FROM "CacheJob" WHERE status='failed' AND "createdAt" > NOW() - INTERVAL '1 day'`)
     ]);
@@ -11601,7 +11601,7 @@ adminRest.post('/cache/rules', async (req, res) => {
     const id = Math.random().toString(36).slice(2);
     const ruleRows: any[] = await db.$queryRawUnsafe(
       `INSERT INTO "CacheRule"(id,name,domain,pattern,"targetType",policy,"ttlSeconds","autoPurge","perEntryLimitBytes","totalCapBytes","createdBy")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       VALUES ($1,$2,$3::"CacheDomain",$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING id, name, domain, pattern, "targetType", policy, "ttlSeconds", "autoPurge", "perEntryLimitBytes", "totalCapBytes", "createdBy", "createdAt"`,
       id, String(name), String(domain).toUpperCase(), String(pattern), String(targetType), String(policy),
       ttlSeconds!=null ? Number(ttlSeconds) : null, !!autoPurge,
@@ -11625,7 +11625,7 @@ adminRest.put('/cache/rules/:id', async (req, res) => {
     const values: any[] = [];
     const push = (col: string, val: any) => { fields.push(`"${col}" = $${fields.length+2}`); values.push(val); };
     if (name!=null) push('name', String(name));
-    if (domain!=null) push('domain', String(domain).toUpperCase());
+    if (domain!=null) { fields.push(`"domain" = $${fields.length+2}::"CacheDomain"`); values.push(String(domain).toUpperCase()); }
     if (pattern!=null) push('pattern', String(pattern));
     if (targetType!=null) push('targetType', String(targetType));
     if (policy!=null) push('policy', String(policy));
@@ -11662,7 +11662,7 @@ adminRest.get('/cache/entries', async (req, res) => {
     const offset = (page - 1) * limit;
     const parts: string[] = [];
     const vals: any[] = [];
-    if (q.domain) { parts.push(`domain = $${vals.length+1}`); vals.push(String(q.domain).toUpperCase()); }
+    if (q.domain) { parts.push(`domain = $${vals.length+1}::"CacheDomain"`); vals.push(String(q.domain).toUpperCase()); }
     if (q.type) { parts.push(`type = $${vals.length+1}`); vals.push(String(q.type)); }
     if (q.owner) { parts.push(`"ownerId" = $${vals.length+1}`); vals.push(String(q.owner)); }
     if (q.createdFrom) { parts.push(`"createdAt" >= $${vals.length+1}`); vals.push(new Date(String(q.createdFrom))); }
@@ -11687,7 +11687,7 @@ adminRest.post('/cache/entries/bulk', async (req, res) => {
     if (existRows && existRows[0]) return res.json({ job_id: existRows[0].id, status: existRows[0].status });
     const jobId = Math.random().toString(36).slice(2);
     await db.$queryRawUnsafe(
-      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,$2,$3,'pending',$4,$5,$6)`,
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,$2,$3,'pending',$4,$5,$6::"CacheDomain")`,
       jobId, String(action||'purge'), { keys, domain }, idem, u.userId || null, domain || null
     );
     await audit(req, 'cache', 'entries_bulk', { action, count: keys.length, domain, jobId });
@@ -11705,7 +11705,7 @@ adminRest.post('/cache/purge', async (req, res) => {
     if (existRows && existRows[0]) return res.json({ job_id: existRows[0].id, status: existRows[0].status });
     const jobId = Math.random().toString(36).slice(2);
     await db.$queryRawUnsafe(
-      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'purge',$2,'pending',$3,$4,$5)`,
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'purge',$2,'pending',$3,$4,$5::"CacheDomain")`,
       jobId, { keys: Array.isArray(keys)? keys: [], tags: Array.isArray(tags)? tags: [], domain: domain||null }, idem, u.userId || null, domain || null
     );
     await audit(req, 'cache', 'purge_request', { domain, keysCount: (keys||[]).length, tagsCount: (tags||[]).length, jobId });
@@ -11722,7 +11722,7 @@ adminRest.post('/cache/warm', async (req, res) => {
     if (existRows && existRows[0]) return res.json({ job_id: existRows[0].id, status: existRows[0].status });
     const jobId = Math.random().toString(36).slice(2);
     await db.$queryRawUnsafe(
-      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'warm',$2,'pending',$3,$4,$5)`,
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'warm',$2,'pending',$3,$4,$5::"CacheDomain")`,
       jobId, { urls, domain: domain||null }, idem, u.userId || null, domain || null
     );
     await audit(req, 'cache', 'warm_request', { domain, urlsCount: urls.length, jobId });
@@ -11767,7 +11767,15 @@ adminRest.get('/cache/entries.csv', async (req, res) => {
     const where: any = {};
     if (q.domain) where.domain = String(q.domain).toUpperCase();
     if (q.type) where.type = String(q.type);
-    const items: any[] = await (db as any).cacheEntry.findMany({ where, orderBy: { createdAt: 'desc' }, take: 5000 } as any);
+    const filters: string[] = [];
+    const vals: any[] = [];
+    if ((req.query as any).domain) { filters.push(`domain = $${vals.length+1}::"CacheDomain"`); vals.push(String((req.query as any).domain).toUpperCase()); }
+    if ((req.query as any).type) { filters.push(`type = $${vals.length+1}`); vals.push(String((req.query as any).type)); }
+    const whereSql = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const items: any[] = await db.$queryRawUnsafe(
+      `SELECT key, domain, type, "sizeBytes","createdAt","expiresAt","hitCount","ownerId" FROM "CacheEntry" ${whereSql} ORDER BY "createdAt" DESC LIMIT 5000`,
+      ...vals
+    );
     const cols = ['key','domain','type','sizeBytes','createdAt','expiresAt','hitCount','ownerId'];
     const lines = [cols.join(',')].concat(items.map((r:any)=> cols.map(c=>{
       const v = r[c as keyof typeof r];

@@ -4683,7 +4683,7 @@ shop.post('/events/product_published', async (req: any, res: any) => {
     const cacheDomain = domain.includes('m.') ? 'MWEB' : (domain.includes('jeeey.com') ? 'WEB' : null);
     const jobId = Math.random().toString(36).slice(2);
     await db.$queryRawUnsafe(
-      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'product_published',$2,'pending',$3,$4,$5)`,
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'product_published',$2,'pending',$3,$4,$5::"CacheDomain")`,
       jobId, { product_id: productId, domain: cacheDomain, tags, actorRole: String(payload.role||'') }, idem, userId || null, cacheDomain || null
     );
     return res.json({ job_id: jobId, status: 'pending' });
