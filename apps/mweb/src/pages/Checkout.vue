@@ -377,8 +377,13 @@ async function loadAddress(){
   addr.value = chosen || (Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null)
 }
 async function loadShipping(){
-  const cityOrGov = String(addr.value?.city || addr.value?.state || addr.value?.province || '').trim()
-  const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?city=${encodeURIComponent(cityOrGov)}`)
+  const city = String(addr.value?.city||'').trim()
+  const state = String(addr.value?.state||addr.value?.province||'').trim()
+  const area = String(addr.value?.area||'').trim()
+  const country = String(addr.value?.country||'').trim()
+  const sub = Number(subtotalAfterCoupons.value||subtotalOriginal.value||0)
+  const qs = new URLSearchParams({ city, state, area, country, subtotal: String(sub) }).toString()
+  const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?${qs}`)
   shippingOptions.value = r?.items||[]
   if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id
 }
@@ -387,6 +392,9 @@ async function loadPayments(){
   paymentOptions.value = r?.items?.filter((x:any)=> x && x.isActive !== false).sort((a:any,b:any)=> Number(a.sortOrder||0)-Number(b.sortOrder||0)).map((x:any)=>({ id:String(x.id), name:String(x.name) }))||[]
   if (!selectedPayment.value && paymentOptions.value[0]) selectedPayment.value = paymentOptions.value[0].id
 }
+
+// Re-evaluate shipping when subtotal changes (affects free-over thresholds)
+watch(subtotalAfterCoupons, ()=>{ void loadShipping() })
 
 function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
 async function placeOrder(){

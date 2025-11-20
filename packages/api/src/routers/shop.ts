@@ -5026,13 +5026,24 @@ shop.get('/shipping/quote', async (req, res) => {
     const method = String(req.query.method||'std')
     // fallback defaults
     let price = method==='fast' ? 30 : 18
+    const subtotal = Number(req.query.subtotal||0)
     // If DeliveryRate exists for city via zones, try to compute minimal price
     try{
       const city = String(req.query.city||'').trim()
       if (city){
         // naive: pick lowest active rate
-        const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { baseFee: true, perKgFee: true } } as any)
-        if (rates && rates.length){ price = Number(rates.map(r => Number(r.baseFee||0)).sort((a,b)=>a-b)[0] || price) }
+        const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { baseFee: true, perKgFee: true, freeOverSubtotal: true } } as any)
+        if (rates && rates.length){
+          // apply free-over rule when applicable
+          const best = rates
+            .map((r:any)=> {
+              const base = Number(r.baseFee||0)
+              const freeOver = Number(r.freeOverSubtotal||0)
+              return (freeOver>0 && subtotal>=freeOver) ? 0 : base
+            })
+            .sort((a:number,b:number)=>a-b)[0]
+          price = Number(best ?? price)
+        }
       }
     }catch{}
     res.json({ price })
@@ -5043,14 +5054,43 @@ shop.get('/shipping/quote', async (req, res) => {
 shop.get('/shipping/methods', async (req, res) => {
   try{
     const city = String(req.query.city||'').trim()
+    const state = String(req.query.state||'').trim()
+    const area = String(req.query.area||'').trim()
+    const country = String(req.query.country||'').trim().toUpperCase()
+    const subtotal = Number(req.query.subtotal||0)
     let items: Array<{ id: string; name: string; desc: string; price: number; offerTitle?: string; etaMinHours?: number; etaMaxHours?: number }> = []
     try{
-      const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true } } as any)
+      // Resolve applicable zoneIds from ShippingZone by matching area/city/country (case-insensitive)
+      let zoneIds: string[] = []
+      try{
+        const zones:any[] = await db.shippingZone.findMany({ where: { isActive: true }, select: { id:true, countryCodes:true, cities:true, areas:true } } as any)
+        const norm = (s:string)=> String(s||'').trim().toLowerCase()
+        const cCity = norm(city); const cState = norm(state); const cArea = norm(area); const cCountry = (country||'').toUpperCase()
+        zoneIds = zones.filter((z:any)=>{
+          const countries:string[] = Array.isArray(z.countryCodes)? z.countryCodes : []
+          const cities:string[] = Array.isArray(z.cities)? z.cities : []
+          const areas:string[] = Array.isArray(z.areas)? z.areas : []
+          const hitCountry = cCountry ? countries.map((x)=> String(x).toUpperCase()).includes(cCountry) : false
+          const hitCity = cCity ? cities.map(norm).includes(cCity) || areas.map(norm).includes(cCity) : false
+          const hitState = cState ? cities.map(norm).includes(cState) || areas.map(norm).includes(cState) : false
+          const hitArea = cArea ? areas.map(norm).includes(cArea) : false
+          return hitCountry || hitCity || hitState || hitArea
+        }).map((z:any)=> String(z.id))
+      }catch{}
+      const where:any = zoneIds.length? { isActive:true, zoneId: { in: zoneIds } } : { isActive:true }
+      const rates = await db.deliveryRate.findMany({ where, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true, freeOverSubtotal: true, minSubtotal: true } } as any)
       items = (rates||[]).map((r:any)=>({
         id: r.id,
         name: r.carrier || 'شحن',
         desc: r.offerTitle || (r.etaMinHours||r.etaMaxHours ? `توصيل خلال ${r.etaMinHours||r.etaMaxHours} - ${r.etaMaxHours||r.etaMinHours} ساعة` : ''),
-        price: Number(r.baseFee||0),
+        price: (()=> {
+          const base = Number(r.baseFee||0)
+          const freeOver = Number(r.freeOverSubtotal||0)
+          const minSub = Number(r.minSubtotal||0)
+          if (minSub>0 && subtotal<minSub) return base // لا إخفاء، لكن لا ينطبق المجاني بعد
+          if (freeOver>0 && subtotal>=freeOver) return 0
+          return base
+        })(),
         offerTitle: r.offerTitle || null,
         etaMinHours: r.etaMinHours ?? null,
         etaMaxHours: r.etaMaxHours ?? null,

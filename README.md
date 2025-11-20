@@ -1128,3 +1128,57 @@ Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `mai
 - استكشاف 401/405 بعد التحقق:
   - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
   - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
+
+## 📌 Nov 2025 — Auth (WhatsApp/Google), Android App Links, Meta Catalog
+
+### Auth: WhatsApp OTP without email requirement
+- JWT payload جعل `email` اختيارياً وأضاف `phone` (اختياري). المصادر:
+  - `packages/api/src/utils/jwt.ts`
+  - `packages/api/src/middleware/auth.ts`, `packages/api/src/trpc-setup.ts`, `packages/api/src/context.ts`
+- مسار OTP verify يبقي بريد قاعدة البيانات بالنمط legacy:
+  - `email = phone+<digits>@local` للحسابات الجديدة/القديمة عبر واتساب.
+  - التوكن يُوقَّع بلا اشتراط `email` ويحتوي `{ userId, role, phone }`.
+  - المصدر: `packages/api/src/routers/shop.ts` (POST `/api/auth/otp/verify`).
+- السلوك:
+  - المستخدمون بـ `...@local` يعملون فوراً؛ يتم تحديث `phone` عند الحاجة.
+  - `newUser` يُحسب عبر متغير الوجود بدل الاعتماد على البريد.
+
+### Auth: Google OAuth callback shim
+- يدعم السيرفر كلا الشكلين ويحوّل تلقائياً:
+  - `/auth/google/callback` → `/api/auth/google/callback`
+  - التعديل في `packages/api/src/index.ts`.
+  - ينصح بضبط Redirect URI في Google إلى: `https://api.jeeey.com/api/auth/google/callback`.
+
+### Android App Links (assetlinks.json)
+- mweb (ملف ثابت): `apps/mweb/public/.well-known/assetlinks.json`
+- API (مسار ديناميكي): `GET /.well-known/assetlinks.json` من `packages/api/src/index.ts`
+- المحتوى:
+  - `package_name: com.jeeey.shopin`
+  - `sha256_cert_fingerprints: ["40:44:5A:90:E0:A3:53:B0:B5:D5:F0:A7:E9:04:4B:EE:09:3A:23:32:8A:C6:65:42:2A:A1:BE:8E:A7:59:2B:21"]`
+  - relations: `delegate_permission/common.handle_all_urls`, `delegate_permission/common.get_login_creds`
+
+### Meta (Facebook) Catalog Sync — إصلاحات
+- زر “مزامنة الكاتالوج الآن” يستدعي: `POST /api/admin/marketing/facebook/catalog/sync`.
+- تنسيق الطلب إلى Graph API (items_batch):
+  - `content-type: application/x-www-form-urlencoded`
+  - الحقول العلوية في الجسم: `item_type=PRODUCT_ITEM`, `allow_upsert=true`, `requests=<JSON>`
+  - كل عنصر في `requests`:
+    - `method: "CREATE"`, `retailer_id`, `item_type: "PRODUCT_ITEM"`
+    - `data`: `{ name, description, image_url, url, price, availability?, brand?, condition?, additional_image_urls?, google_product_category? }`
+- الاعتماديات/المفاتيح:
+  - يقرأ `FB_CATALOG_ID`, `FB_CATALOG_TOKEN` من env؛ وإلا من إعدادات DB: `integrations:meta:settings:mweb` ثم `web`.
+- بناء العناصر:
+  - يصدّر Variants عندما يوجد SKU: `retailer_id = variant.sku` (مع trim/lowercase).
+  - عنصر المنتج الأساسي يُضاف فقط إذا لم يتصادم مع أي SKU تباين.
+  - إزالة تكرارات `retailer_id` عالميًا وداخل كل دفعة (trim+lowercase).
+- الملفات: `packages/api/src/services/fb_catalog.ts` (التشفير، dedup، mapping التباينات، مفاتيح الكاتالوج).
+- التشغيل:
+  - تأكد من `META_ALLOW_EXTERNAL=1` على خدمة الـ API وإعادة التشغيل لتجنّب `simulated: true`.
+  - خطأ `item_type is required` مُعالج بإرسال الحقول كـ form-encoded مع `item_type` العلوي.
+  - خطأ `Duplicate retailer_id` غالباً من بيانات مصدر مكررة (SKU مكرر)؛ الخدمة تزيل المكرر لكن يلزم تنظيف المصدر إن استمر.
+
+### mweb recap بعد OTP
+- بعد `verify`:
+  - يكتب العميل التوكن إلى كوكي `shop_auth_token` (الجذر و`api.`) وإلى `localStorage.shop_token`.
+  - `/api/me` يفضّل الهيدر ثم الكوكيز ثم `?t` لسيناريو عودة OAuth.
+  - حفظ العنوان/الطلب/الكوبونات تعمل مباشرة كمستخدم مسجّل.
