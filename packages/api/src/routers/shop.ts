@@ -4678,18 +4678,15 @@ shop.post('/events/product_published', async (req: any, res: any) => {
     if (!productId) return res.status(400).json({ error: 'missing_product_id' });
     // Idempotency
     const idem = String(req.headers['idempotency-key'] || '') || null;
-    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
-    if (exists) return res.json({ job_id: exists.id, status: exists.status });
+    const existsRows: any[] = idem ? await db.$queryRawUnsafe(`SELECT id,status FROM "CacheJob" WHERE "idempotencyKey"=$1`, idem) : [];
+    if (existsRows && existsRows[0]) return res.json({ job_id: existsRows[0].id, status: existsRows[0].status });
     const cacheDomain = domain.includes('m.') ? 'MWEB' : (domain.includes('jeeey.com') ? 'WEB' : null);
-    const job = await (db as any).cacheJob.create({ data: {
-      type: 'product_published',
-      payload: { product_id: productId, domain: cacheDomain, tags, actorRole: String(payload.role||'') },
-      status: 'pending',
-      idempotencyKey: idem,
-      createdBy: userId || null,
-      domain: cacheDomain as any
-    } as any});
-    return res.json({ job_id: job.id, status: job.status });
+    const jobId = Math.random().toString(36).slice(2);
+    await db.$queryRawUnsafe(
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'product_published',$2,'pending',$3,$4,$5)`,
+      jobId, { product_id: productId, domain: cacheDomain, tags, actorRole: String(payload.role||'') }, idem, userId || null, cacheDomain || null
+    );
+    return res.json({ job_id: jobId, status: 'pending' });
   } catch (e:any) {
     return res.status(500).json({ error: e.message || 'event_failed' });
   }

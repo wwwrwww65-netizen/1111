@@ -22,10 +22,10 @@ async function takeNextPendingJob(): Promise<CacheJobRow | null> {
 }
 
 async function finishJob(id: string, ok: boolean, result: any): Promise<void> {
-  await (db as any).cacheJob.update({
-    where: { id },
-    data: { status: ok ? 'success' : 'failed', result, finishedAt: new Date() } as any,
-  } as any);
+  await db.$queryRawUnsafe(
+    `UPDATE "CacheJob" SET status=$2, result=$3, "finishedAt"=NOW() WHERE id=$1`,
+    id, ok ? 'success' : 'failed', result
+  );
 }
 
 async function runPurge(payload: any): Promise<any> {
@@ -59,25 +59,12 @@ async function runWarm(payload: any): Promise<any> {
       const key = new URL(u).pathname || u;
       const expiresAt: Date | null = null;
       const d = domain || (u.includes('//m.') ? 'MWEB' : 'WEB');
-      await (db as any).cacheEntry.upsert({
-        where: { key },
-        update: {
-          sizeBytes: size,
-          createdAt: new Date(),
-          expiresAt,
-          type: 'page',
-          domain: d as any,
-        },
-        create: {
-          key,
-          sizeBytes: size,
-          createdAt: new Date(),
-          expiresAt,
-          type: 'page',
-          domain: d as any,
-          hitCount: 0,
-        },
-      } as any);
+      await db.$executeRawUnsafe(
+        `INSERT INTO "CacheEntry"(key,domain,type,"sizeBytes","createdAt","expiresAt","hitCount")
+         VALUES ($1,$2,$3,$4,NOW(),$5,0)
+         ON CONFLICT (key) DO UPDATE SET "sizeBytes"=EXCLUDED."sizeBytes","createdAt"=NOW(),"expiresAt"=EXCLUDED."expiresAt",domain=EXCLUDED.domain,type=EXCLUDED.type`,
+        key, d, 'page', size, expiresAt
+      );
       results.push({ url: u, status: r.status, size });
     } catch (e: any) {
       results.push({ url: u, error: e?.message || 'fetch_failed' });
@@ -101,15 +88,23 @@ async function runProductPublished(payload: any): Promise<any> {
   const allowStaffDirect = !!settings.staffDirectPublish;
   const effectiveImmediate = isAdmin || allowStaffDirect;
   // Purge tags and related URLs; then warm minimal set
-  const purgeJob = await (db as any).cacheJob.create({ data: { type: 'purge', payload: { tags, domain }, status: 'pending', domain } as any });
+  const purgeId = Math.random().toString(36).slice(2);
+  await db.$queryRawUnsafe(
+    `INSERT INTO "CacheJob"(id,type,payload,status,domain) VALUES ($1,'purge',$2,'pending',$3)`,
+    purgeId, { tags, domain }, domain || null
+  );
   const base = domain === 'MWEB' ? 'https://m.jeeey.com' : 'https://jeeey.com';
   const warmUrls: string[] = [
     `${base}/product/${productId}`,
     `${base}/category/${(tags.find(t=>/^category-/.test(t))||'').split('-')[1]||''}`,
     base + '/',
   ].filter(Boolean);
-  const warmJob = await (db as any).cacheJob.create({ data: { type: 'warm', payload: { urls: warmUrls, domain }, status: 'pending', domain } as any });
-  return { queued: true, purgeJobId: purgeJob.id, warmJobId: warmJob.id, immediate: effectiveImmediate };
+  const warmId = Math.random().toString(36).slice(2);
+  await db.$queryRawUnsafe(
+    `INSERT INTO "CacheJob"(id,type,payload,status,domain) VALUES ($1,'warm',$2,'pending',$3)`,
+    warmId, { urls: warmUrls, domain }, domain || null
+  );
+  return { queued: true, purgeJobId: purgeId, warmJobId: warmId, immediate: effectiveImmediate };
 }
 
 async function process(job: CacheJobRow): Promise<void> {

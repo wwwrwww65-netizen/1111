@@ -11485,6 +11485,72 @@ adminRest.get('/users/:id/audit-logs', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message||'user_audit_list_failed' }); }
 });
 
+// Ensure Cache tables exist when migrations are not applied (idempotent)
+let __cacheEnsured = false;
+adminRest.use(async (_req, _res, next) => {
+  if (__cacheEnsured) return next();
+  try {
+    // Enum CacheDomain
+    try { await db.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "CacheDomain" AS ENUM ('WEB','MWEB','BOTH'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`); } catch {}
+    // CacheRule
+    try {
+      await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CacheRule" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        domain "CacheDomain" NOT NULL,
+        pattern TEXT NOT NULL,
+        "targetType" TEXT NOT NULL,
+        policy TEXT NOT NULL,
+        "ttlSeconds" INTEGER NULL,
+        "autoPurge" BOOLEAN NOT NULL DEFAULT TRUE,
+        "perEntryLimitBytes" INTEGER NULL,
+        "totalCapBytes" BIGINT NULL,
+        "createdBy" TEXT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW()
+      )`);
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CacheRule_domain_target_idx" ON "CacheRule"(domain, "targetType")`);
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CacheRule_createdAt_idx" ON "CacheRule"("createdAt")`);
+    } catch {}
+    // CacheEntry
+    try {
+      await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CacheEntry" (
+        key TEXT PRIMARY KEY,
+        domain "CacheDomain" NOT NULL,
+        type TEXT NOT NULL,
+        "sizeBytes" INTEGER NOT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW(),
+        "expiresAt" TIMESTAMP NULL,
+        "hitCount" INTEGER NOT NULL DEFAULT 0,
+        "ownerId" TEXT NULL
+      )`);
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CacheEntry_domain_type_created_idx" ON "CacheEntry"(domain, type, "createdAt")`);
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CacheEntry_expiresAt_idx" ON "CacheEntry"("expiresAt")`);
+    } catch {}
+    // CacheJob
+    try {
+      await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CacheJob" (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        payload JSONB NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        result JSONB NULL,
+        "idempotencyKey" TEXT NULL UNIQUE,
+        "startedAt" TIMESTAMP NULL,
+        "finishedAt" TIMESTAMP NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW(),
+        "createdBy" TEXT NULL,
+        domain "CacheDomain" NULL
+      )`);
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CacheJob_status_created_idx" ON "CacheJob"(status, "createdAt")`);
+    } catch {}
+  } catch {
+    // swallow; routes may still 500 if DB is unavailable
+  } finally {
+    __cacheEnsured = true;
+    next();
+  }
+});
+
 // -------------------------------
 // Cache Management (Admin)
 // -------------------------------
@@ -11522,7 +11588,7 @@ adminRest.get('/cache/rules', async (req, res) => {
     const page = Math.max(1, parseInt(String((req.query as any).page||'1'),10)||1);
     const limit = Math.min(200, Math.max(1, parseInt(String((req.query as any).limit||'50'),10)||50));
     const offset = (page - 1) * limit;
-    const items = await (db as any).cacheRule.findMany({ orderBy: { createdAt: 'desc' }, skip: offset, take: limit } as any);
+    const items: any[] = await db.$queryRawUnsafe(`SELECT id, name, domain, pattern, "targetType", policy, "ttlSeconds", "autoPurge", "perEntryLimitBytes", "totalCapBytes", "createdBy", "createdAt" FROM "CacheRule" ORDER BY "createdAt" DESC LIMIT $1 OFFSET $2`, limit, offset);
     res.json({ items, page, limit });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_list_failed' }); }
 });
@@ -11532,13 +11598,18 @@ adminRest.post('/cache/rules', async (req, res) => {
     const { name, domain, pattern, targetType, policy, ttlSeconds, autoPurge, perEntryLimitBytes, totalCapBytes } = req.body || {};
     if (!name || String(name).length > 100) return res.status(400).json({ error:'invalid_name' });
     if (!domain || !pattern || !targetType || !policy) return res.status(400).json({ error:'missing_fields' });
-    const rule = await (db as any).cacheRule.create({ data: {
-      name: String(name), domain, pattern: String(pattern), targetType: String(targetType), policy: String(policy),
-      ttlSeconds: ttlSeconds!=null ? Number(ttlSeconds) : null, autoPurge: !!autoPurge,
-      perEntryLimitBytes: perEntryLimitBytes!=null ? Number(perEntryLimitBytes) : null,
-      totalCapBytes: totalCapBytes!=null ? BigInt(totalCapBytes) : null,
-      createdBy: u.userId || null
-    } as any });
+    const id = Math.random().toString(36).slice(2);
+    const ruleRows: any[] = await db.$queryRawUnsafe(
+      `INSERT INTO "CacheRule"(id,name,domain,pattern,"targetType",policy,"ttlSeconds","autoPurge","perEntryLimitBytes","totalCapBytes","createdBy")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING id, name, domain, pattern, "targetType", policy, "ttlSeconds", "autoPurge", "perEntryLimitBytes", "totalCapBytes", "createdBy", "createdAt"`,
+      id, String(name), String(domain).toUpperCase(), String(pattern), String(targetType), String(policy),
+      ttlSeconds!=null ? Number(ttlSeconds) : null, !!autoPurge,
+      perEntryLimitBytes!=null ? Number(perEntryLimitBytes) : null,
+      totalCapBytes!=null ? Number(totalCapBytes) : null,
+      u.userId || null
+    );
+    const rule = ruleRows[0];
     await audit(req, 'cache', 'rule_create', { id: rule.id, name: rule.name, domain: rule.domain });
     res.json({ rule });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_create_failed' }); }
@@ -11549,17 +11620,24 @@ adminRest.put('/cache/rules/:id', async (req, res) => {
     const id = String(req.params.id);
     const { name, domain, pattern, targetType, policy, ttlSeconds, autoPurge, perEntryLimitBytes, totalCapBytes } = req.body || {};
     if (name && String(name).length > 100) return res.status(400).json({ error:'invalid_name' });
-    const rule = await (db as any).cacheRule.update({ where: { id }, data: {
-      ...(name!=null? { name: String(name) } : {}),
-      ...(domain!=null? { domain } : {}),
-      ...(pattern!=null? { pattern: String(pattern) } : {}),
-      ...(targetType!=null? { targetType: String(targetType) } : {}),
-      ...(policy!=null? { policy: String(policy) } : {}),
-      ...(ttlSeconds!=null? { ttlSeconds: Number(ttlSeconds) } : {}),
-      ...(autoPurge!=null? { autoPurge: !!autoPurge } : {}),
-      ...(perEntryLimitBytes!=null? { perEntryLimitBytes: Number(perEntryLimitBytes) } : {}),
-      ...(totalCapBytes!=null? { totalCapBytes: BigInt(totalCapBytes) } : {}),
-    } as any});
+    // Build dynamic update
+    const fields: string[] = [];
+    const values: any[] = [];
+    const push = (col: string, val: any) => { fields.push(`"${col}" = $${fields.length+2}`); values.push(val); };
+    if (name!=null) push('name', String(name));
+    if (domain!=null) push('domain', String(domain).toUpperCase());
+    if (pattern!=null) push('pattern', String(pattern));
+    if (targetType!=null) push('targetType', String(targetType));
+    if (policy!=null) push('policy', String(policy));
+    if (ttlSeconds!=null) push('ttlSeconds', Number(ttlSeconds));
+    if (autoPurge!=null) push('autoPurge', !!autoPurge);
+    if (perEntryLimitBytes!=null) push('perEntryLimitBytes', Number(perEntryLimitBytes));
+    if (totalCapBytes!=null) push('totalCapBytes', Number(totalCapBytes));
+    const ruleRows: any[] = await db.$queryRawUnsafe(
+      `UPDATE "CacheRule" SET ${fields.join(', ')} WHERE id = $1 RETURNING id, name, domain, pattern, "targetType", policy, "ttlSeconds", "autoPurge", "perEntryLimitBytes", "totalCapBytes", "createdBy", "createdAt"`,
+      id, ...values
+    );
+    const rule = ruleRows[0];
     await audit(req, 'cache', 'rule_update', { id: rule.id });
     res.json({ rule });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_update_failed' }); }
@@ -11568,7 +11646,7 @@ adminRest.delete('/cache/rules/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'cache.write'))) return res.status(403).json({ error:'forbidden' });
     const id = String(req.params.id);
-    await (db as any).cacheRule.delete({ where: { id } } as any);
+    await db.$executeRawUnsafe(`DELETE FROM "CacheRule" WHERE id=$1`, id);
     await audit(req, 'cache', 'rule_delete', { id });
     res.json({ ok:true });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_rules_delete_failed' }); }
@@ -11582,20 +11660,20 @@ adminRest.get('/cache/entries', async (req, res) => {
     const page = Math.max(1, parseInt(String(q.page||'1'),10)||1);
     const limit = Math.min(100, Math.max(1, parseInt(String(q.limit||'25'),10)||25));
     const offset = (page - 1) * limit;
-    const where: any = {};
-    if (q.domain) where.domain = String(q.domain).toUpperCase();
-    if (q.type) where.type = String(q.type);
-    if (q.owner) where.ownerId = String(q.owner);
-    // date filters
-    if (q.createdFrom || q.createdTo) {
-      where.createdAt = {};
-      if (q.createdFrom) where.createdAt.gte = new Date(String(q.createdFrom));
-      if (q.createdTo) where.createdAt.lte = new Date(String(q.createdTo));
-    }
-    const [items, total] = await Promise.all([
-      (db as any).cacheEntry.findMany({ where, orderBy: { createdAt: 'desc' }, skip: offset, take: limit } as any),
-      (db as any).cacheEntry.count({ where } as any),
-    ]);
+    const parts: string[] = [];
+    const vals: any[] = [];
+    if (q.domain) { parts.push(`domain = $${vals.length+1}`); vals.push(String(q.domain).toUpperCase()); }
+    if (q.type) { parts.push(`type = $${vals.length+1}`); vals.push(String(q.type)); }
+    if (q.owner) { parts.push(`"ownerId" = $${vals.length+1}`); vals.push(String(q.owner)); }
+    if (q.createdFrom) { parts.push(`"createdAt" >= $${vals.length+1}`); vals.push(new Date(String(q.createdFrom))); }
+    if (q.createdTo) { parts.push(`"createdAt" <= $${vals.length+1}`); vals.push(new Date(String(q.createdTo))); }
+    const whereSql = parts.length ? `WHERE ${parts.join(' AND ')}` : '';
+    const items: any[] = await db.$queryRawUnsafe(
+      `SELECT key, domain, type, "sizeBytes","createdAt","expiresAt","hitCount","ownerId" FROM "CacheEntry" ${whereSql} ORDER BY "createdAt" DESC LIMIT $${vals.length+1} OFFSET $${vals.length+2}`,
+      ...vals, limit, offset
+    );
+    const totalRows: any[] = await db.$queryRawUnsafe(`SELECT COUNT(*)::int AS c FROM "CacheEntry" ${whereSql}`, ...vals);
+    const total = Number(totalRows[0]?.c || 0);
     res.json({ items, page, limit, total });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_entries_list_failed' }); }
 });
@@ -11605,13 +11683,15 @@ adminRest.post('/cache/entries/bulk', async (req, res) => {
     const { action, keys, domain } = req.body || {};
     if (!Array.isArray(keys) || !keys.length) return res.status(400).json({ error:'no_keys' });
     const idem = String(req.headers['idempotency-key'] || '') || null;
-    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
-    if (exists) return res.json({ job_id: exists.id, status: exists.status });
-    const job = await (db as any).cacheJob.create({ data: {
-      type: String(action||'purge'), payload: { keys, domain }, status: 'pending', idempotencyKey: idem, createdBy: u.userId || null, domain: domain || null
-    } as any});
+    const existRows: any[] = idem ? await db.$queryRawUnsafe(`SELECT id,status FROM "CacheJob" WHERE "idempotencyKey"=$1`, idem) : [];
+    if (existRows && existRows[0]) return res.json({ job_id: existRows[0].id, status: existRows[0].status });
+    const jobId = Math.random().toString(36).slice(2);
+    await db.$queryRawUnsafe(
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,$2,$3,'pending',$4,$5,$6)`,
+      jobId, String(action||'purge'), { keys, domain }, idem, u.userId || null, domain || null
+    );
     await audit(req, 'cache', 'entries_bulk', { action, count: keys.length, domain, jobId: job.id });
-    res.json({ job_id: job.id, status: job.status });
+    res.json({ job_id: jobId, status: 'pending' });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_entries_bulk_failed' }); }
 });
 
@@ -11621,13 +11701,15 @@ adminRest.post('/cache/purge', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'cache.execute'))) return res.status(403).json({ error:'forbidden' });
     const { keys, tags, domain } = req.body || {};
     const idem = String(req.headers['idempotency-key'] || '') || null;
-    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
-    if (exists) return res.json({ job_id: exists.id, status: exists.status });
-    const job = await (db as any).cacheJob.create({ data: {
-      type: 'purge', payload: { keys: Array.isArray(keys)? keys: [], tags: Array.isArray(tags)? tags: [], domain: domain||null }, status: 'pending', idempotencyKey: idem, createdBy: u.userId || null, domain: domain || null
-    } as any});
+    const existRows: any[] = idem ? await db.$queryRawUnsafe(`SELECT id,status FROM "CacheJob" WHERE "idempotencyKey"=$1`, idem) : [];
+    if (existRows && existRows[0]) return res.json({ job_id: existRows[0].id, status: existRows[0].status });
+    const jobId = Math.random().toString(36).slice(2);
+    await db.$queryRawUnsafe(
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'purge',$2,'pending',$3,$4,$5)`,
+      jobId, { keys: Array.isArray(keys)? keys: [], tags: Array.isArray(tags)? tags: [], domain: domain||null }, idem, u.userId || null, domain || null
+    );
     await audit(req, 'cache', 'purge_request', { domain, keysCount: (keys||[]).length, tagsCount: (tags||[]).length, jobId: job.id });
-    res.json({ job_id: job.id, status: job.status });
+    res.json({ job_id: jobId, status: 'pending' });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_purge_failed' }); }
 });
 adminRest.post('/cache/warm', async (req, res) => {
@@ -11636,13 +11718,15 @@ adminRest.post('/cache/warm', async (req, res) => {
     const { urls, domain } = req.body || {};
     if (!Array.isArray(urls) || !urls.length) return res.status(400).json({ error:'no_urls' });
     const idem = String(req.headers['idempotency-key'] || '') || null;
-    const exists = idem ? await (db as any).cacheJob.findUnique({ where: { idempotencyKey: idem } } as any) : null;
-    if (exists) return res.json({ job_id: exists.id, status: exists.status });
-    const job = await (db as any).cacheJob.create({ data: {
-      type: 'warm', payload: { urls, domain: domain||null }, status: 'pending', idempotencyKey: idem, createdBy: u.userId || null, domain: domain || null
-    } as any});
+    const existRows: any[] = idem ? await db.$queryRawUnsafe(`SELECT id,status FROM "CacheJob" WHERE "idempotencyKey"=$1`, idem) : [];
+    if (existRows && existRows[0]) return res.json({ job_id: existRows[0].id, status: existRows[0].status });
+    const jobId = Math.random().toString(36).slice(2);
+    await db.$queryRawUnsafe(
+      `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'warm',$2,'pending',$3,$4,$5)`,
+      jobId, { urls, domain: domain||null }, idem, u.userId || null, domain || null
+    );
     await audit(req, 'cache', 'warm_request', { domain, urlsCount: urls.length, jobId: job.id });
-    res.json({ job_id: job.id, status: job.status });
+    res.json({ job_id: jobId, status: 'pending' });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_warm_failed' }); }
 });
 
