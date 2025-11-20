@@ -90,6 +90,16 @@ async function runProductPublished(payload: any): Promise<any> {
   const productId: number = Number(payload?.product_id || payload?.productId || 0);
   const domain = payload?.domain as 'WEB' | 'MWEB' | 'BOTH' | null;
   const tags: string[] = Array.isArray(payload?.tags) ? payload.tags : [];
+  // Read cache settings to determine staff publish behavior (Pending vs Immediate)
+  let settings: any = { staffDirectPublish: false };
+  try {
+    const row = await db.setting.findUnique({ where: { key: 'cache:settings' } });
+    if (row?.value && typeof row.value === 'object') settings = { ...settings, ...(row.value as any) };
+  } catch {}
+  const actorRole = String(payload?.actorRole || '').toUpperCase();
+  const isAdmin = actorRole === 'ADMIN';
+  const allowStaffDirect = !!settings.staffDirectPublish;
+  const effectiveImmediate = isAdmin || allowStaffDirect;
   // Purge tags and related URLs; then warm minimal set
   const purgeJob = await (db as any).cacheJob.create({ data: { type: 'purge', payload: { tags, domain }, status: 'pending', domain } as any });
   const base = domain === 'MWEB' ? 'https://m.jeeey.com' : 'https://jeeey.com';
@@ -99,7 +109,7 @@ async function runProductPublished(payload: any): Promise<any> {
     base + '/',
   ].filter(Boolean);
   const warmJob = await (db as any).cacheJob.create({ data: { type: 'warm', payload: { urls: warmUrls, domain }, status: 'pending', domain } as any });
-  return { queued: true, purgeJobId: purgeJob.id, warmJobId: warmJob.id };
+  return { queued: true, purgeJobId: purgeJob.id, warmJobId: warmJob.id, immediate: effectiveImmediate };
 }
 
 async function process(job: CacheJobRow): Promise<void> {

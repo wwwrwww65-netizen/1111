@@ -11646,6 +11646,56 @@ adminRest.post('/cache/warm', async (req, res) => {
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_warm_failed' }); }
 });
 
+// Settings for cache policies and alerts (stored in Setting key 'cache:settings')
+adminRest.get('/cache/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.read'))) return res.status(403).json({ error:'forbidden' });
+    const row = await db.setting.findUnique({ where: { key: 'cache:settings' } });
+    const def = { staffDirectPublish: false, hitRateAlertPct: 50, storageAlertPct: 80, maxJobFailures: 5 };
+    const value = row?.value && typeof row.value === 'object' ? { ...def, ...(row.value as any) } : def;
+    res.json({ settings: value });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_settings_failed' }); }
+});
+adminRest.put('/cache/settings', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error:'forbidden' });
+    const body = req.body || {};
+    const next = {
+      staffDirectPublish: !!body.staffDirectPublish,
+      hitRateAlertPct: Math.min(100, Math.max(0, parseInt(String(body.hitRateAlertPct ?? 50), 10) || 50)),
+      storageAlertPct: Math.min(100, Math.max(0, parseInt(String(body.storageAlertPct ?? 80), 10) || 80)),
+      maxJobFailures: Math.max(0, parseInt(String(body.maxJobFailures ?? 5), 10) || 5),
+    };
+    const exists = await db.setting.findUnique({ where: { key: 'cache:settings' } });
+    let out;
+    if (exists) out = await db.setting.update({ where: { key: 'cache:settings' }, data: { value: next, updatedAt: new Date() } });
+    else out = await db.setting.create({ data: { key: 'cache:settings', value: next } });
+    await audit(req, 'cache', 'settings_update', next);
+    res.json({ settings: out.value });
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_settings_update_failed' }); }
+});
+
+// CSV export for entries
+adminRest.get('/cache/entries.csv', async (req, res) => {
+  try {
+    const u = (req as any).user; if (!(await can(u.userId, 'cache.read'))) return res.status(403).json({ error:'forbidden' });
+    const q: any = req.query || {};
+    const where: any = {};
+    if (q.domain) where.domain = String(q.domain).toUpperCase();
+    if (q.type) where.type = String(q.type);
+    const items: any[] = await (db as any).cacheEntry.findMany({ where, orderBy: { createdAt: 'desc' }, take: 5000 } as any);
+    const cols = ['key','domain','type','sizeBytes','createdAt','expiresAt','hitCount','ownerId'];
+    const lines = [cols.join(',')].concat(items.map((r:any)=> cols.map(c=>{
+      const v = r[c as keyof typeof r];
+      const s = v==null ? '' : String(v instanceof Date ? v.toISOString() : v);
+      return `"${s.replace(/"/g,'""')}"`;
+    }).join(',')));
+    res.setHeader('Content-Type','text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition','attachment; filename="cache_entries.csv"');
+    res.send(lines.join('\n'));
+  } catch (e:any) { res.status(500).json({ error: e.message || 'cache_csv_failed' }); }
+});
+
 export default adminRest;
 adminRest.get('/pos/:id', async (req, res) => {
   try {

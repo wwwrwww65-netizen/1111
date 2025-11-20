@@ -4683,7 +4683,7 @@ shop.post('/events/product_published', async (req: any, res: any) => {
     const cacheDomain = domain.includes('m.') ? 'MWEB' : (domain.includes('jeeey.com') ? 'WEB' : null);
     const job = await (db as any).cacheJob.create({ data: {
       type: 'product_published',
-      payload: { product_id: productId, domain: cacheDomain, tags },
+      payload: { product_id: productId, domain: cacheDomain, tags, actorRole: String(payload.role||'') },
       status: 'pending',
       idempotencyKey: idem,
       createdBy: userId || null,

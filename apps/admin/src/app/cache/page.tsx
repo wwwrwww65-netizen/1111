@@ -38,6 +38,9 @@ export default function CachePage(): JSX.Element {
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string>("");
   const [logs, setLogs] = React.useState<any[]>([]);
+  const [settings, setSettings] = React.useState<{ staffDirectPublish:boolean; hitRateAlertPct:number; storageAlertPct:number; maxJobFailures:number }|null>(null);
+  const [showEditId, setShowEditId] = React.useState<string|undefined>(undefined);
+  const [editDraft, setEditDraft] = React.useState<Partial<Rule>>({});
 
   // Form state
   const [name, setName] = React.useState("");
@@ -66,6 +69,13 @@ export default function CachePage(): JSX.Element {
     const j = await res.json();
     setRules(j.items || []);
   }
+  async function loadSettings() {
+    try {
+      const res = await fetch("/api/admin/cache/settings", { credentials: "include" });
+      const j = await res.json();
+      setSettings(j.settings || { staffDirectPublish:false, hitRateAlertPct:50, storageAlertPct:80, maxJobFailures:5 });
+    } catch { setSettings({ staffDirectPublish:false, hitRateAlertPct:50, storageAlertPct:80, maxJobFailures:5 }); }
+  }
   async function loadEntries() {
     const url = new URL(window.location.origin + "/api/admin/cache/entries");
     url.searchParams.set("page", String(entriesPage));
@@ -75,7 +85,7 @@ export default function CachePage(): JSX.Element {
     const j = await res.json();
     setEntries(j.items || []);
   }
-  React.useEffect(()=>{ loadStats().catch(()=>null); loadRules().catch(()=>null); },[]);
+  React.useEffect(()=>{ loadStats().catch(()=>null); loadRules().catch(()=>null); loadSettings().catch(()=>null); },[]);
   React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch('/api/admin/audit-logs?page=1&limit=50',{credentials:'include'})).json(); setLogs((j.items||[]).filter((x:any)=> x.module==='cache')); }catch{} })(); },[]);
   React.useEffect(()=>{ loadEntries().catch(()=>null); },[domainSel, entriesPage, entriesLimit]);
 
@@ -124,6 +134,36 @@ export default function CachePage(): JSX.Element {
       await loadEntries();
     } finally { setBusy(false); }
   }
+  async function saveSettings() {
+    if (!settings) return;
+    setBusy(true);
+    try{
+      const res = await fetch("/api/admin/cache/settings", { method:"PUT", headers:{ "content-type":"application/json" }, credentials:"include", body: JSON.stringify(settings) });
+      if (!res.ok) throw new Error("فشل حفظ الإعدادات");
+    } catch (e:any) { setErr(e?.message || "خطأ غير متوقع"); }
+    setBusy(false);
+  }
+  function openEdit(rule: Rule) {
+    setShowEditId(rule.id);
+    setEditDraft({ ...rule });
+  }
+  async function submitEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!showEditId) return;
+    const d = editDraft;
+    if (d?.name && d.name.length > 100) { setErr("الاسم ≤ 100 حرف"); return; }
+    if (d?.policy === 'Delay' && d?.ttlSeconds && (d.ttlSeconds < 3600 || d.ttlSeconds > 168*3600)) { setErr("التأخير يجب أن يكون بين 1 و 168 ساعة"); return; }
+    setBusy(true);
+    try{
+      const res = await fetch(`/api/admin/cache/rules/${showEditId}`, { method:"PUT", headers:{ "content-type":"application/json" }, credentials:"include", body: JSON.stringify({
+        name: d?.name, domain: d?.domain, pattern: d?.pattern, targetType: d?.targetType, policy: d?.policy, ttlSeconds: d?.ttlSeconds, autoPurge: d?.autoPurge, perEntryLimitBytes: d?.perEntryLimitBytes, totalCapBytes: d?.totalCapBytes
+      })});
+      if (!res.ok) throw new Error("فشل التعديل");
+      await loadRules();
+      setShowEditId(undefined);
+    } catch (e:any) { setErr(e?.message || "تعذر تعديل القاعدة"); }
+    setBusy(false);
+  }
 
   return (
     <main className="space-y-6" style={{ direction:'rtl' }}>
@@ -152,11 +192,45 @@ export default function CachePage(): JSX.Element {
           <div className="font-bold">
             {stats ? (domainSel === 'MWEB' ? (stats?.mweb?.hitRate||0) : (stats?.web?.hitRate||0)) + '%' : '...'}
           </div>
+          {settings && stats && (
+            <div className="text-xs mt-1">
+              {((domainSel==='MWEB'? (stats?.mweb?.hitRate||0) : (stats?.web?.hitRate||0)) < settings.hitRateAlertPct) && <span className="text-yellow-400">تنبيه: نسبة hit-rate أقل من الحد</span>}
+            </div>
+          )}
         </div>
         <div className="h-28 text-xl p-6 rounded-2xl shadow bg-white/5 border border-white/10 flex flex-col justify-center">
           <div className="text-sm opacity-80 mb-1">متوسط زمن الاستجابة</div>
           <div className="font-bold">—</div>
         </div>
+      </div>
+
+      {/* Settings */}
+      <div className="rounded-2xl border border-white/10 p-4">
+        <h2 className="text-lg mb-3">إعدادات السياسات والتنبيهات</h2>
+        {settings && (
+          <div className="grid md:grid-cols-4 gap-4 items-end">
+            <label className="flex items-center gap-2 md:col-span-1">
+              <input type="checkbox" className="checkbox" checked={settings.staffDirectPublish} onChange={(e)=> setSettings({ ...(settings||{}), staffDirectPublish: e.target.checked })} />
+              <span className="text-sm">السماح للموظفين بالنشر المباشر</span>
+            </label>
+            <div className="grid gap-1">
+              <label className="text-sm">حد تنبيه hit-rate (%)</label>
+              <input className="input" type="number" min={0} max={100} value={settings.hitRateAlertPct} onChange={(e)=> setSettings({ ...(settings||{}), hitRateAlertPct: Math.max(0, Math.min(100, Number(e.target.value)||0)) })} />
+            </div>
+            <div className="grid gap-1">
+              <label className="text-sm">حد تنبيه التخزين (%)</label>
+              <input className="input" type="number" min={0} max={100} value={settings.storageAlertPct} onChange={(e)=> setSettings({ ...(settings||{}), storageAlertPct: Math.max(0, Math.min(100, Number(e.target.value)||0)) })} />
+            </div>
+            <div className="grid gap-1">
+              <label className="text-sm">حد فشل الوظائف</label>
+              <input className="input" type="number" min={0} value={settings.maxJobFailures} onChange={(e)=> setSettings({ ...(settings||{}), maxJobFailures: Math.max(0, Number(e.target.value)||0) })} />
+            </div>
+            <div className="md:col-span-4 flex gap-3">
+              <button className="btn" onClick={saveSettings} disabled={busy}>حفظ الإعدادات</button>
+              <button className="btn btn-outline" onClick={()=> window.open(`/api/admin/cache/entries.csv?domain=${domainSel}`,'_blank')}>تصدير CSV</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Split: Rules table (65%) + Create form (35%) */}
@@ -189,6 +263,7 @@ export default function CachePage(): JSX.Element {
                       <div className="flex gap-2">
                         <button className="btn btn-sm" onClick={()=> purgeRule(r)}>Purge</button>
                         <button className="btn btn-sm btn-outline" onClick={()=> warmUrls([r.pattern], r.domain)}>Warm</button>
+                        <button className="btn btn-sm btn-outline" onClick={()=> openEdit(r)}>تعديل</button>
                         {/* Placeholder actions */}
                       </div>
                     </td>
@@ -345,6 +420,84 @@ export default function CachePage(): JSX.Element {
           </table>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {showEditId && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0f172a] rounded-2xl p-6 w-[680px] max-w-[96vw] border border-white/10">
+            <h3 className="text-lg mb-3">تعديل القاعدة</h3>
+            {err && <div className="text-red-400 text-sm mb-2">{err}</div>}
+            <form onSubmit={submitEdit} className="grid grid-cols-2 gap-3">
+              <div className="col-span-1">
+                <label className="text-sm">الاسم</label>
+                <input className="input" value={editDraft.name||''} onChange={(e)=> setEditDraft(s=>({ ...s, name: e.target.value }))} />
+              </div>
+              <div className="col-span-1">
+                <label className="text-sm">النطاق</label>
+                <select className="select" value={editDraft.domain||'WEB'} onChange={(e)=> setEditDraft(s=>({ ...s, domain: e.target.value as any }))}>
+                  <option value="WEB">jeeey.com</option>
+                  <option value="MWEB">m.jeeey.com</option>
+                  <option value="BOTH">كلاهما</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm">الوسم/النمط</label>
+                <input className="input" value={editDraft.pattern||''} onChange={(e)=> setEditDraft(s=>({ ...s, pattern: e.target.value }))} />
+              </div>
+              <div className="col-span-1">
+                <label className="text-sm">نوع الاستهداف</label>
+                <select className="select" value={editDraft.targetType||'Page'} onChange={(e)=> setEditDraft(s=>({ ...s, targetType: e.target.value }))}>
+                  <option>Page</option>
+                  <option>Tab</option>
+                  <option>Category</option>
+                  <option>Banner</option>
+                  <option>All</option>
+                </select>
+              </div>
+              <div className="col-span-1">
+                <label className="text-sm">السياسة</label>
+                <select className="select" value={editDraft.policy||'Immediate'} onChange={(e)=> setEditDraft(s=>({ ...s, policy: e.target.value }))}>
+                  <option value="Immediate">ظهور فوري</option>
+                  <option value="Wait">انتظار التطهير</option>
+                  <option value="Delay">تأخير</option>
+                  <option value="Pending">قيد المراجعة</option>
+                </select>
+              </div>
+              {editDraft.policy === 'Delay' && (
+                <div className="col-span-2">
+                  <label className="text-sm">ساعات التأخير</label>
+                  <input className="input" type="number" min={1} max={168}
+                    value={editDraft.ttlSeconds ? Math.round((editDraft.ttlSeconds||0)/3600) : '' as any}
+                    onChange={(e)=> {
+                      const v = e.target.value===''? undefined : Number(e.target.value)*3600;
+                      setEditDraft(s=>({ ...s, ttlSeconds: v as any }));
+                    }} />
+                </div>
+              )}
+              <div className="col-span-2 flex items-center gap-2">
+                <input type="checkbox" className="checkbox" checked={!!editDraft.autoPurge} onChange={(e)=> setEditDraft(s=>({ ...s, autoPurge: e.target.checked }))} />
+                <span className="text-sm">تنظيف تلقائي</span>
+              </div>
+              <div className="col-span-1">
+                <label className="text-sm">حد العنصر (MB)</label>
+                <input className="input" type="number" min={1}
+                  value={editDraft.perEntryLimitBytes ? Math.round((editDraft.perEntryLimitBytes||0)/1024/1024) : '' as any}
+                  onChange={(e)=> setEditDraft(s=>({ ...s, perEntryLimitBytes: e.target.value===''? undefined : Number(e.target.value)*1024*1024 }))} />
+              </div>
+              <div className="col-span-1">
+                <label className="text-sm">إجمالي السعة (GB)</label>
+                <input className="input" type="number" min={1}
+                  value={editDraft.totalCapBytes ? Math.round(Number(editDraft.totalCapBytes||0)/1024/1024/1024) : '' as any}
+                  onChange={(e)=> setEditDraft(s=>({ ...s, totalCapBytes: e.target.value===''? undefined : Number(e.target.value)*1024*1024*1024 }))} />
+              </div>
+              <div className="col-span-2 flex justify-end gap-3 mt-2">
+                <button type="button" className="btn btn-outline" onClick={()=> setShowEditId(undefined)}>إلغاء</button>
+                <button className="btn" disabled={busy}>حفظ التعديل</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
