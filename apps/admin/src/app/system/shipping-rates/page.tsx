@@ -40,6 +40,7 @@ export default function ShippingRatesPage(): JSX.Element {
   const [cityId, setCityId] = React.useState<string>('');
   const [areaId, setAreaId] = React.useState<string>('');
   const [currencies, setCurrencies] = React.useState<Array<{id:string;code:string;name:string;symbol:string;isBase:boolean}>>([]);
+  const [createDedicatedZone, setCreateDedicatedZone] = React.useState<boolean>(false);
 
   async function load(){
     setLoading(true); setError('');
@@ -71,8 +72,8 @@ export default function ShippingRatesPage(): JSX.Element {
   React.useEffect(()=>{ setAreaId(''); setAreasOptions([]); if(cityId) loadAreas(cityId); }, [cityId]);
 
   function reset(){ setEditing(null); setZoneId(''); setCarrier(''); setBaseFee(0); setPerKgFee(''); setMinWeightKg(''); setMaxWeightKg(''); setMinSubtotal(''); setFreeOverSubtotal(''); setEtaMinHours(''); setEtaMaxHours(''); setOfferTitle(''); setActiveFrom(''); setActiveUntil(''); setIsActive(true); }
-  function openCreate(){ reset(); setShowForm(true); }
-  function openEdit(r:any){ setEditing(r); setZoneId(r.zoneId||''); setCarrier(r.carrier||''); setCurrency(r.currency||''); setBaseFee(Number(r.baseFee||0)); setPerKgFee(r.perKgFee??''); setMinWeightKg(r.minWeightKg??''); setMaxWeightKg(r.maxWeightKg??''); setMinSubtotal(r.minSubtotal??''); setFreeOverSubtotal(r.freeOverSubtotal??''); setEtaMinHours(r.etaMinHours??''); setEtaMaxHours(r.etaMaxHours??''); setOfferTitle(r.offerTitle||''); setActiveFrom(r.activeFrom? String(r.activeFrom).slice(0,16):''); setActiveUntil(r.activeUntil? String(r.activeUntil).slice(0,16):''); setIsActive(Boolean(r.isActive)); setShowForm(true); }
+  function openCreate(){ reset(); setCreateDedicatedZone(true); setShowForm(true); }
+  function openEdit(r:any){ setEditing(r); setZoneId(r.zoneId||''); setCarrier(r.carrier||''); setCurrency(r.currency||''); setBaseFee(Number(r.baseFee||0)); setPerKgFee(r.perKgFee??''); setMinWeightKg(r.minWeightKg??''); setMaxWeightKg(r.maxWeightKg??''); setMinSubtotal(r.minSubtotal??''); setFreeOverSubtotal(r.freeOverSubtotal??''); setEtaMinHours(r.etaMinHours??''); setEtaMaxHours(r.etaMaxHours??''); setOfferTitle(r.offerTitle||''); setActiveFrom(r.activeFrom? String(r.activeFrom).slice(0,16):''); setActiveUntil(r.activeUntil? String(r.activeUntil).slice(0,16):''); setIsActive(Boolean(r.isActive)); setCreateDedicatedZone(false); setShowForm(true); }
   // Auto-filter zones by selected geo
   const filteredZones = React.useMemo(()=>{
     if (!countryId && !cityId && !areaId) return zones;
@@ -111,10 +112,55 @@ export default function ShippingRatesPage(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredZones, editing, zoneId]);
 
+  // Ensure/create a dedicated ShippingZone that exactly matches the selected geo (country + city? + area?)
+  async function ensureDedicatedZoneId(): Promise<string|undefined> {
+    // Resolve selected names/codes
+    const country = countriesOptions.find((c:any)=> c.id===countryId);
+    const city = citiesOptions.find((c:any)=> c.id===cityId);
+    const area = areasOptions.find((a:any)=> a.id===areaId);
+    const countryCode = (country?.code || String(country?.name||'').slice(0,2)).toUpperCase();
+    if (!countryCode) return undefined;
+    // Try to find exact match
+    const eq = (a?:string[]|null, b?:string[])=> {
+      const A = Array.isArray(a)? a.filter(Boolean) : [];
+      const B = Array.isArray(b)? b.filter(Boolean) : [];
+      if (A.length!==B.length) return false;
+      const set = new Set(A.map(x=> String(x)));
+      return B.every(x=> set.has(String(x)));
+    };
+    const wantCities = city ? [String(city.name)] : [];
+    const wantAreas = area ? [String(area.name)] : [];
+    const zExact = zones.find((z:any)=> {
+      const hasCountry = Array.isArray(z.countryCodes) && z.countryCodes.includes(countryCode);
+      return hasCountry && eq(z.cities, wantCities) && eq(z.areas, wantAreas);
+    });
+    if (zExact) return String(zExact.id);
+    // Create a new dedicated zone
+    const nameParts = ['Zone', countryCode];
+    if (city) nameParts.push(String(city.name));
+    if (area) nameParts.push(String(area.name));
+    const payload:any = { name: nameParts.join(' - '), countryCodes: [countryCode] };
+    if (wantCities.length) payload.cities = wantCities;
+    if (wantAreas.length) payload.areas = wantAreas;
+    const r = await fetch('/api/admin/shipping/zones', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+    const j = await r.json();
+    if (r.ok && j?.zone?.id) {
+      // Refresh zones cache
+      try{ const z = await fetch('/api/admin/shipping/zones', { credentials:'include' }); const zj = await z.json(); if (z.ok) setZones(zj.zones||[]); }catch{}
+      return String(j.zone.id);
+    }
+    throw new Error(j?.error || 'zone_create_failed');
+  }
+
   async function submit(e:React.FormEvent){
     e.preventDefault(); setError('');
     try{
-      const payload:any = { zoneId, carrier: carrier||undefined, currency: currency||undefined, baseFee: Number(baseFee), perKgFee: perKgFee===''? undefined : Number(perKgFee), minWeightKg: minWeightKg===''? undefined : Number(minWeightKg), maxWeightKg: maxWeightKg===''? undefined : Number(maxWeightKg), minSubtotal: minSubtotal===''? undefined : Number(minSubtotal), freeOverSubtotal: freeOverSubtotal===''? undefined : Number(freeOverSubtotal), etaMinHours: etaMinHours===''? undefined : Number(etaMinHours), etaMaxHours: etaMaxHours===''? undefined : Number(etaMaxHours), offerTitle: offerTitle||undefined, activeFrom: activeFrom||undefined, activeUntil: activeUntil||undefined, isActive };
+      let zoneForSave = zoneId;
+      if (createDedicatedZone) {
+        const ensured = await ensureDedicatedZoneId();
+        if (ensured) zoneForSave = ensured;
+      }
+      const payload:any = { zoneId: zoneForSave, carrier: carrier||undefined, currency: currency||undefined, baseFee: Number(baseFee), perKgFee: perKgFee===''? undefined : Number(perKgFee), minWeightKg: minWeightKg===''? undefined : Number(minWeightKg), maxWeightKg: maxWeightKg===''? undefined : Number(maxWeightKg), minSubtotal: minSubtotal===''? undefined : Number(minSubtotal), freeOverSubtotal: freeOverSubtotal===''? undefined : Number(freeOverSubtotal), etaMinHours: etaMinHours===''? undefined : Number(etaMinHours), etaMaxHours: etaMaxHours===''? undefined : Number(etaMaxHours), offerTitle: offerTitle||undefined, activeFrom: activeFrom||undefined, activeUntil: activeUntil||undefined, isActive };
       let r:Response; if (editing) r = await fetch(`/api/admin/shipping/rates/${editing.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       else r = await fetch('/api/admin/shipping/rates', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error||'failed'); setShowForm(false); reset(); await load();
@@ -227,6 +273,10 @@ export default function ShippingRatesPage(): JSX.Element {
                   <div className="error" aria-live="polite">لا توجد منطقة شحن مطابقة — استخدم مزامنة المناطق أو أضف دولة/مدينة/منطقة</div>
                 )}
               </div>
+              <label style={{ gridColumn:'1 / -1', display:'flex', alignItems:'center', gap:8 }}>
+                <input type="checkbox" checked={createDedicatedZone} onChange={(e)=> setCreateDedicatedZone(e.target.checked)} />
+                إنشاء وربط منطقة شحن مخصّصة من هذا الاختيار (لئلا تنطبق على كل المدن/المناطق)
+              </label>
               <label>العملة
                 <select className="select" value={currency} onChange={(e)=> setCurrency(e.target.value)}>
                   <option value="">اختر عملة</option>
