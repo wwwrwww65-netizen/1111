@@ -35,7 +35,8 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
   // Global de-duplication by normalized retailer_id before chunking
   const uniqueMap = new Map<string, CatalogItemInput>()
   for (const it of items) {
-    const rid = String(it?.retailer_id || '').trim()
+    const ridRaw = String(it?.retailer_id || '')
+    const rid = ridRaw.trim().toLowerCase()
     if (!rid) continue
     if (!uniqueMap.has(rid)) uniqueMap.set(rid, { ...it, retailer_id: rid })
   }
@@ -49,7 +50,7 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
     const seen = new Set<string>()
     const uniqueGroup: CatalogItemInput[] = []
     for (const it of group) {
-      const rid = String(it?.retailer_id || '').trim()
+      const rid = String(it?.retailer_id || '').trim().toLowerCase()
       if (!rid) continue
       if (seen.has(rid)) continue
       seen.add(rid)
