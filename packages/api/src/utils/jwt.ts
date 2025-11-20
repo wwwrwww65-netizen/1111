@@ -4,7 +4,10 @@ import { z } from 'zod';
 
 const JWTPayloadSchema = z.object({
   userId: z.string(),
-  email: z.string().email(),
+  // Email is optional now to support phone-only (WhatsApp) accounts
+  email: z.string().email().optional(),
+  // Optional phone E.164-ish (we don't strictly validate format here)
+  phone: z.string().optional(),
   role: z.enum(['USER', 'ADMIN']),
   iat: z.number(),
   exp: z.number(),

@@ -1252,11 +1252,22 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     if (!exp || new Date(exp) < new Date()) return res.status(400).json({ ok:false, error:'expired_code' });
     try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET consumed=true WHERE id=$1', row.id); } catch {}
     const normalized = phone.replace(/\s+/g,'');
-    // Use a syntactically valid email domain to satisfy JWT payload validation
-    const email = `phone+${normalized}@jeeey.localhost`;
-    const existing = await db.user.findUnique({ where: { email } as any });
-    const user = await db.user.upsert({ where: { email }, update: { phone: normalized }, create: { email, name: normalized, phone: normalized, password: '' } } as any);
-    const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });
+    // Legacy internal email (preserve historical pattern)
+    const emailLegacy = `phone+${normalized}@local`;
+    // Resolve existing user by legacy, then by phone
+    let user = await db.user.findUnique({ where: { email: emailLegacy } } as any);
+    if (!user && normalized) user = await db.user.findFirst({ where: { phone: normalized } } as any);
+    let existed = !!user;
+    if (!user) {
+      // Create new user with legacy email to keep internal format unchanged
+      user = await db.user.create({ data: { email: emailLegacy, name: normalized, phone: normalized, password: '' } } as any);
+      existed = false;
+    } else {
+      // Ensure phone is stored; do NOT migrate email away from legacy
+      try { await db.user.update({ where: { id: user.id }, data: { phone: normalized } } as any); } catch {}
+    }
+    // Sign token without requiring email; include phone for client awareness
+    const token = signJwt({ userId: user.id, phone: normalized, role: (user as any).role || 'USER' });
     const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
     const isProd = (process.env.NODE_ENV || 'production') === 'production';
     const host = String(req.headers?.host || '').toLowerCase();
@@ -1294,7 +1305,7 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     } catch {}
     // Loyalty: award registration + referral (sign-up) points when new account
     try{
-      const isNew = !existing;
+      const isNew = !existed;
       if (isNew){
         const trig = await loadTriggers();
         const regPts = Math.trunc(Number(trig?.registration?.points||0));
@@ -1318,7 +1329,7 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
       }
     }catch{}
     try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch {}
-    return res.json({ ok:true, token, newUser: !existing });
+    return res.json({ ok:true, token, newUser: !existed });
   } catch (e:any) { return res.status(500).json({ ok:false, error: e.message||'otp_verify_failed' }); }
 });
 
