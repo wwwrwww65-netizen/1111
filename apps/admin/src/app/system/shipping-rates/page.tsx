@@ -97,14 +97,19 @@ export default function ShippingRatesPage(): JSX.Element {
     });
   }, [zones, countryId, cityId, areaId, countriesOptions, citiesOptions, areasOptions]);
 
-  // Auto-select zone when there is a match; prefer the first if multiple; clear if current not in filtered
+  // لا تغيّر الـ zone المختارة أثناء التحرير؛ استخدم التصفية فقط عند الإنشاء أو عندما لا توجد قيمة حالية
   React.useEffect(()=>{
-    if (filteredZones.length >= 1) {
-      const preferId = zoneId && filteredZones.some((z:any)=> z.id===zoneId) ? zoneId : filteredZones[0]?.id;
-      if (preferId && zoneId !== preferId) setZoneId(preferId);
-    } else if (zoneId) { setZoneId(''); }
+    if (editing) return;
+    if (!zoneId) {
+      if (filteredZones.length >= 1) {
+        const firstId = filteredZones[0]?.id || '';
+        if (firstId && firstId !== zoneId) setZoneId(firstId);
+      }
+    } else {
+      // إذا كانت الـ zone الحالية غير موجودة في التصفية، لا نعبث بها (لأن المستخدم ربما يحرر سعراً مرتبطاً بمنطقة مختلفة)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredZones, countryId, cityId, areaId]);
+  }, [filteredZones, editing, zoneId]);
 
   async function submit(e:React.FormEvent){
     e.preventDefault(); setError('');
