@@ -11690,7 +11690,7 @@ adminRest.post('/cache/entries/bulk', async (req, res) => {
       `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,$2,$3,'pending',$4,$5,$6)`,
       jobId, String(action||'purge'), { keys, domain }, idem, u.userId || null, domain || null
     );
-    await audit(req, 'cache', 'entries_bulk', { action, count: keys.length, domain, jobId: job.id });
+    await audit(req, 'cache', 'entries_bulk', { action, count: keys.length, domain, jobId });
     res.json({ job_id: jobId, status: 'pending' });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_entries_bulk_failed' }); }
 });
@@ -11708,7 +11708,7 @@ adminRest.post('/cache/purge', async (req, res) => {
       `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'purge',$2,'pending',$3,$4,$5)`,
       jobId, { keys: Array.isArray(keys)? keys: [], tags: Array.isArray(tags)? tags: [], domain: domain||null }, idem, u.userId || null, domain || null
     );
-    await audit(req, 'cache', 'purge_request', { domain, keysCount: (keys||[]).length, tagsCount: (tags||[]).length, jobId: job.id });
+    await audit(req, 'cache', 'purge_request', { domain, keysCount: (keys||[]).length, tagsCount: (tags||[]).length, jobId });
     res.json({ job_id: jobId, status: 'pending' });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_purge_failed' }); }
 });
@@ -11725,7 +11725,7 @@ adminRest.post('/cache/warm', async (req, res) => {
       `INSERT INTO "CacheJob"(id,type,payload,status,"idempotencyKey","createdBy",domain) VALUES ($1,'warm',$2,'pending',$3,$4,$5)`,
       jobId, { urls, domain: domain||null }, idem, u.userId || null, domain || null
     );
-    await audit(req, 'cache', 'warm_request', { domain, urlsCount: urls.length, jobId: job.id });
+    await audit(req, 'cache', 'warm_request', { domain, urlsCount: urls.length, jobId });
     res.json({ job_id: jobId, status: 'pending' });
   } catch (e:any) { res.status(500).json({ error: e.message || 'cache_warm_failed' }); }
 });
