@@ -5066,15 +5066,27 @@ shop.get('/shipping/methods', async (req, res) => {
         const zones:any[] = await db.shippingZone.findMany({ where: { isActive: true }, select: { id:true, countryCodes:true, cities:true, areas:true } } as any)
         const norm = (s:string)=> String(s||'').trim().toLowerCase()
         const cCity = norm(city); const cState = norm(state); const cArea = norm(area); const cCountry = (country||'').toUpperCase()
+        const arr = (v:any)=> Array.isArray(v)? v : []
         zoneIds = zones.filter((z:any)=>{
-          const countries:string[] = Array.isArray(z.countryCodes)? z.countryCodes : []
-          const cities:string[] = Array.isArray(z.cities)? z.cities : []
-          const areas:string[] = Array.isArray(z.areas)? z.areas : []
-          const hitCountry = cCountry ? countries.map((x)=> String(x).toUpperCase()).includes(cCountry) : false
-          const hitCity = cCity ? cities.map(norm).includes(cCity) || areas.map(norm).includes(cCity) : false
-          const hitState = cState ? cities.map(norm).includes(cState) || areas.map(norm).includes(cState) : false
-          const hitArea = cArea ? areas.map(norm).includes(cArea) : false
-          return hitCountry || hitCity || hitState || hitArea
+          const countries:string[] = arr(z.countryCodes)
+          const cities:string[] = arr(z.cities)
+          const areas:string[] = arr(z.areas)
+          // Priority: areas > cities > countries
+          if (areas.length){
+            const A = areas.map(norm)
+            // area can be matched to area explicitly, or sometimes UI sends area in city/state
+            return (!!cArea && A.includes(cArea)) || (!!cCity && A.includes(cCity)) || (!!cState && A.includes(cState))
+          }
+          if (cities.length){
+            const C = cities.map(norm)
+            return (!!cCity && C.includes(cCity)) || (!!cState && C.includes(cState))
+          }
+          if (countries.length){
+            const K = countries.map((x)=> String(x).toUpperCase())
+            return !!cCountry && K.includes(cCountry)
+          }
+          // No constraints → applies everywhere
+          return true
         }).map((z:any)=> String(z.id))
       }catch{}
       const where:any = zoneIds.length? { isActive:true, zoneId: { in: zoneIds } } : { isActive:true }
