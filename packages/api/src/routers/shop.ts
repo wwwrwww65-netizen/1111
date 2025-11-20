@@ -1252,7 +1252,8 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     if (!exp || new Date(exp) < new Date()) return res.status(400).json({ ok:false, error:'expired_code' });
     try { await db.$executeRawUnsafe('UPDATE "OtpCode" SET consumed=true WHERE id=$1', row.id); } catch {}
     const normalized = phone.replace(/\s+/g,'');
-    const email = `phone+${normalized}@local`;
+    // Use a syntactically valid email domain to satisfy JWT payload validation
+    const email = `phone+${normalized}@jeeey.localhost`;
     const existing = await db.user.findUnique({ where: { email } as any });
     const user = await db.user.upsert({ where: { email }, update: { phone: normalized }, create: { email, name: normalized, phone: normalized, password: '' } } as any);
     const token = signJwt({ userId: user.id, email: user.email, role: (user as any).role || 'USER' });

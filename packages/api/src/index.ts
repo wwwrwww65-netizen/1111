@@ -76,6 +76,15 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
     }
   }]);
 });
+// OAuth callback shims (accept both /auth/* and /api/auth/*)
+app.get('/auth/google/callback', (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(302, `/api/auth/google/callback${qs}`);
+});
+app.get('/auth/facebook/callback', (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(302, `/api/auth/facebook/callback${qs}`);
+});
 if (sentryEnabled && SentryRef) {
   try {
     app.use(SentryRef.Handlers.requestHandler());
