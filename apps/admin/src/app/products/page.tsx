@@ -223,8 +223,8 @@ export default function AdminProducts(): JSX.Element {
       const qv = String(sp.get('search')||''); if (qv) setSearch(qv);
       const cat = String(sp.get('categoryId')||''); if (cat) setCategoryId(cat);
       hydratedFromUrl.current = true;
-      // Mark ready after applying URL state; the [page,status,categoryId] effect will run.
-      setTimeout(()=> { ready.current = true; load(); }, 0);
+      // Mark ready after applying URL state; let the [page,status,categoryId] effect trigger the first load with hydrated state.
+      setTimeout(()=> { ready.current = true; }, 0);
     }catch{}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
