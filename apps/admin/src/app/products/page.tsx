@@ -16,6 +16,7 @@ export default function AdminProducts(): JSX.Element {
   const [hasMore, setHasMore] = React.useState<boolean>(false);
   const [nextCursor, setNextCursor] = React.useState<{id:string; createdAt:string}|null>(null);
   const hydratedFromUrl = React.useRef<boolean>(false);
+  const ready = React.useRef<boolean>(false);
   const q = trpc;
   const [allChecked, setAllChecked] = React.useState(false);
   const [toast, setToast] = React.useState<string>("");
@@ -208,7 +209,11 @@ export default function AdminProducts(): JSX.Element {
       // console.error('products load error', err);
     }
   }
-  React.useEffect(()=>{ load(); return ()=> { try { ctlRef.current?.abort(); } catch {} } }, [page, status, categoryId]);
+  React.useEffect(()=>{
+    if (!ready.current) return;
+    load();
+    return ()=> { try { ctlRef.current?.abort(); } catch {} };
+  }, [page, status, categoryId]);
   // Hydrate listing state from URL on first mount (so returning from edit preserves page/filters)
   React.useEffect(()=>{
     try{
@@ -218,8 +223,8 @@ export default function AdminProducts(): JSX.Element {
       const qv = String(sp.get('search')||''); if (qv) setSearch(qv);
       const cat = String(sp.get('categoryId')||''); if (cat) setCategoryId(cat);
       hydratedFromUrl.current = true;
-      // Trigger initial load after applying URL state
-      setTimeout(()=> load(), 0);
+      // Mark ready after applying URL state; the [page,status,categoryId] effect will run.
+      setTimeout(()=> { ready.current = true; load(); }, 0);
     }catch{}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -228,14 +233,29 @@ export default function AdminProducts(): JSX.Element {
       if (hydratedFromUrl.current) {
         // Skip page reset once after URL hydration
         hydratedFromUrl.current = false;
-        load();
+        if (ready.current) load();
         return;
       }
-      setPage(1); load();
+      setPage(1); if (ready.current) load();
     }, 300);
     return ()=> clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  // Keep URL in sync with current table state (deep-linkable and to preserve filters on return)
+  React.useEffect(()=>{
+    try{
+      if (typeof window === 'undefined') return;
+      const sp = new URLSearchParams(window.location.search||'');
+      if (page>0) sp.set('page', String(page)); else sp.delete('page');
+      if (status) sp.set('status', status); else sp.delete('status');
+      if (search) sp.set('search', search); else sp.delete('search');
+      if (categoryId) sp.set('categoryId', categoryId); else sp.delete('categoryId');
+      const qs = sp.toString();
+      const href = qs ? `/products?${qs}` : '/products';
+      window.history.replaceState(null, '', href);
+    }catch{}
+  }, [page, status, search, categoryId]);
   const createProduct = q.admin.createProduct.useMutation();
   const createVariants = typeof q.admin.createProductVariants?.useMutation === 'function'
     ? q.admin.createProductVariants.useMutation()
@@ -287,7 +307,24 @@ export default function AdminProducts(): JSX.Element {
   }, []);
 
   function storeProductUrl(id: string): string {
-    try { return `/p?id=${encodeURIComponent(id)}`; } catch { return `/p?id=${id}`; }
+    try {
+      // Build public mweb URL, replacing admin subdomain with m.
+      const origin = typeof window!=='undefined' ? window.location.origin : '';
+      let base = '';
+      if (origin && /\/\/admin\./i.test(origin)) {
+        base = origin.replace('//admin.', '//m.');
+      } else if (origin && /\/\/www\./i.test(origin)) {
+        // fallback to same root if running on www admin proxy
+        base = origin.replace('//www.', '//m.');
+      } else if (origin) {
+        base = origin;
+      } else {
+        base = 'https://m.jeeey.com';
+      }
+      return `${base}/p?id=${encodeURIComponent(id)}`;
+    } catch {
+      return `https://m.jeeey.com/p?id=${id}`;
+    }
   }
   function editUrlWithBack(id?: string): string {
     const params = new URLSearchParams();
