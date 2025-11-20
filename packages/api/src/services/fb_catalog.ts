@@ -31,7 +31,7 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
     } catch {}
   }
   if (!catalogId || !token) return { ok: false, results: [] }
-  const url = `https://graph.facebook.com/v18.0/${encodeURIComponent(catalogId)}/items_batch?access_token=${encodeURIComponent(token)}`
+  const url = `https://graph.facebook.com/v18.0/${encodeURIComponent(catalogId)}/items_batch?access_token=${encodeURIComponent(token)}&item_type=PRODUCT_ITEM&allow_upsert=true`
   const chunks: CatalogItemInput[][] = []
   const size = 50
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size))
@@ -55,6 +55,8 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
       },
     }))
     const form = new URLSearchParams()
+    form.set('item_type', 'PRODUCT_ITEM')
+    form.set('allow_upsert', 'true')
     form.set('requests', JSON.stringify(requests))
     const resp = await fetch(url, {
       method: 'POST',
