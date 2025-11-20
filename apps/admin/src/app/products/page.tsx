@@ -49,6 +49,7 @@ export default function AdminProducts(): JSX.Element {
     const [loading, setLoading] = React.useState(false);
     const [tree, setTree] = React.useState<any[]>([]);
     const [filter, setFilter] = React.useState('');
+    const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
     const panelRef = React.useRef<HTMLDivElement|null>(null);
 
     React.useEffect(()=>{
@@ -88,24 +89,40 @@ export default function AdminProducts(): JSX.Element {
       return dfs(nodes);
     }
 
+    function toggleExpand(id: string){
+      setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+      try {
+        const p = panelRef.current;
+        const top = p?.scrollTop || 0;
+        requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
+      } catch {}
+    }
+
     function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
       const kids = Array.isArray(node.children)? node.children : [];
       const hasKids = kids.length>0;
-      const isOpen = !!filter;
+      const isOpen = !!filter || !!expanded[node.id];
       return (
         <div onMouseDown={(e)=> e.stopPropagation()}>
           <div
             onClick={(e)=> {
               const tag = (e.target as HTMLElement).tagName.toLowerCase();
               if (tag === 'input' || tag === 'button' || tag === 'svg' || tag === 'path') return;
-              if (hasKids) return;
-              onChange(value===node.id? '' : node.id);
-              setOpen(false);
+              if (hasKids) { toggleExpand(node.id); return; }
+              onChange(value===node.id? '' : node.id); setOpen(false);
             }}
-            style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', cursor: hasKids? 'default':'pointer' }}>
+            style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', cursor: hasKids? 'pointer':'pointer' }}>
+            {/* Leading chevron like create-page */}
+            {hasKids ? (
+              <span role="button" aria-label={isOpen? 'طيّ':'توسيع'} onClick={(e)=>{ e.stopPropagation(); toggleExpand(node.id); }} style={{ width:20, height:20, display:'grid', placeItems:'center' }}>
+                <svg viewBox="0 0 24 24" width="14" height="14" style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)' }} aria-hidden="true">
+                  <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            ) : (<span style={{ width:20 }} />)}
             <input type="radio" name="cat-filter" checked={value===node.id} onChange={()=>{ onChange(value===node.id? '' : node.id); setOpen(false); }} />
             <div style={{ flex:1 }}>{node.name}</div>
-            {hasKids ? (<span style={{ width:18 }} />) : (<span style={{ width:18 }} />)}
+            <span style={{ width:18 }} />
           </div>
           {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
         </div>

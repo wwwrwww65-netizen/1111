@@ -2627,7 +2627,20 @@ export default function AdminProductCreate(): JSX.Element {
     <main className="panel" style={{ padding:16 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
         <h1 style={{ margin:0 }}>إنشاء منتج</h1>
-        <a href="/products" className="btn btn-outline">رجوع</a>
+        {(() => {
+          try{
+            const params = new URLSearchParams();
+            const bp = search?.get('backPage'); if (bp) params.set('page', bp);
+            const bs = search?.get('backStatus'); if (bs) params.set('status', bs);
+            const bq = search?.get('backSearch'); if (bq) params.set('search', bq);
+            const bc = search?.get('backCategoryId'); if (bc) params.set('categoryId', bc);
+            const qs = params.toString();
+            const href = qs ? `/products?${qs}` : '/products';
+            return <a href={href} className="btn btn-outline">رجوع</a>;
+          }catch{
+            return <a href="/products" className="btn btn-outline">رجوع</a>;
+          }
+        })()}
       </div>
 
       <Section
