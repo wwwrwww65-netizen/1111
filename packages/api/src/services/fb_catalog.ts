@@ -37,7 +37,18 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size))
   const results: any[] = []
   for (const group of chunks) {
-    const requests = group.map((it) => ({
+    // Ensure no duplicate retailer_id within the same batch call
+    const seen = new Set<string>()
+    const uniqueGroup: CatalogItemInput[] = []
+    for (const it of group) {
+      const rid = String(it?.retailer_id || '')
+      if (!rid) continue
+      if (seen.has(rid)) continue
+      seen.add(rid)
+      uniqueGroup.push(it)
+    }
+
+    const requests = uniqueGroup.map((it) => ({
       method: 'CREATE',
       retailer_id: it.retailer_id,
       item_type: 'PRODUCT_ITEM',
@@ -91,8 +102,11 @@ export async function buildCatalogItemsFromProducts(prodIds?: string[]): Promise
     include: { category: { select: { name: true } } },
   } as any)
   const out: CatalogItemInput[] = []
+  const seen = new Set<string>()
   for (const p of prods) {
     const id = String((p as any).id)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
     const name = String((p as any).name || '').slice(0, 150)
     const priceNum = Number((p as any).price || 0)
     const price = `${priceNum.toFixed(2)} ${currency}`
