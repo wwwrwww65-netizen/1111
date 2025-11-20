@@ -32,16 +32,24 @@ export async function fbCatalogUpsert(items: CatalogItemInput[]): Promise<{ ok: 
   }
   if (!catalogId || !token) return { ok: false, results: [] }
   const url = `https://graph.facebook.com/v18.0/${encodeURIComponent(catalogId)}/items_batch?access_token=${encodeURIComponent(token)}&item_type=PRODUCT_ITEM&allow_upsert=true`
+  // Global de-duplication by normalized retailer_id before chunking
+  const uniqueMap = new Map<string, CatalogItemInput>()
+  for (const it of items) {
+    const rid = String(it?.retailer_id || '').trim()
+    if (!rid) continue
+    if (!uniqueMap.has(rid)) uniqueMap.set(rid, { ...it, retailer_id: rid })
+  }
+  const uniqueItems = Array.from(uniqueMap.values())
   const chunks: CatalogItemInput[][] = []
   const size = 50
-  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size))
+  for (let i = 0; i < uniqueItems.length; i += size) chunks.push(uniqueItems.slice(i, i + size))
   const results: any[] = []
   for (const group of chunks) {
     // Ensure no duplicate retailer_id within the same batch call
     const seen = new Set<string>()
     const uniqueGroup: CatalogItemInput[] = []
     for (const it of group) {
-      const rid = String(it?.retailer_id || '')
+      const rid = String(it?.retailer_id || '').trim()
       if (!rid) continue
       if (seen.has(rid)) continue
       seen.add(rid)
