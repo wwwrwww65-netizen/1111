@@ -41,6 +41,7 @@ import http from 'http';
 import { Server as IOServer } from 'socket.io';
 import { setIo } from './io';
 import { startCacheWorker } from './workers/cache';
+import { apiCache } from './lib/cache-storage';
 
 // Optional Sentry init (guarded by env)
 let sentryEnabled = false;
@@ -103,6 +104,32 @@ app.use((_req, res, next) => {
       return originalJson(payload);
     }
   };
+  next();
+});
+// In-Memory Cache Middleware
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    const cached = apiCache.get(req.originalUrl || req.url);
+    if (cached && (!cached.expiresAt || cached.expiresAt > Date.now())) {
+      res.setHeader('Content-Type', cached.contentType);
+      res.setHeader('X-Cache', 'HIT');
+      return res.send(cached.body);
+    }
+    // Only cache if explicitly requested via Warm header (safe mode)
+    if (req.headers['cache-warm']) {
+      const originalSend = res.send;
+      res.send = function (body) {
+        if (res.statusCode === 200) {
+           apiCache.set(req.originalUrl || req.url, {
+             body,
+             contentType: res.getHeader('Content-Type') as string || 'application/json',
+             expiresAt: Date.now() + 3600 * 1000 // 1 hour
+           });
+        }
+        return originalSend.call(this, body);
+      };
+    }
+  }
   next();
 });
 // Behind NGINX, trust only loopback to satisfy express-rate-limit without being overly permissive

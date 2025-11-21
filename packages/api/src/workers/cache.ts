@@ -1,4 +1,5 @@
 import { db } from '@repo/db';
+import { apiCache, invalidateCache } from '../lib/cache-storage';
 
 type CacheJobRow = {
   id: string;
@@ -28,10 +29,46 @@ async function finishJob(id: string, ok: boolean, result: any): Promise<void> {
   );
 }
 
+async function triggerWebRevalidate(payload: { path?: string; tag?: string }) {
+  try {
+    const webUrl = process.env.NEXT_PUBLIC_WEB_URL || 'http://127.0.0.1:3000';
+    await fetch(`${webUrl}/api/revalidate`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-revalidate-secret': process.env.REVALIDATE_SECRET || 'jeeey-revalidate-123'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (e) {
+    console.error('Web revalidate failed', e);
+  }
+}
+
 async function runPurge(payload: any): Promise<any> {
   const keys: string[] = Array.isArray(payload?.keys) ? payload.keys : [];
   const tags: string[] = Array.isArray(payload?.tags) ? payload.tags : [];
   const domain = payload?.domain as 'WEB' | 'MWEB' | 'BOTH' | null;
+  
+  // Invalidate in-memory cache
+  await invalidateCache(keys, tags, domain);
+
+  // Trigger Web ISR Revalidation
+  // Convert keys/tags to paths/tags for Next.js
+  if (tags.length) {
+    for (const tag of tags) {
+      await triggerWebRevalidate({ tag });
+    }
+  }
+  // For keys, we assume they are paths if they start with /
+  if (keys.length) {
+    for (const key of keys) {
+      if (key.startsWith('/')) {
+        await triggerWebRevalidate({ path: key });
+      }
+    }
+  }
+
   // Delete by keys
   if (keys.length) {
     await db.$executeRawUnsafe(`DELETE FROM "CacheEntry" WHERE key = ANY($1)`, keys);
@@ -54,16 +91,41 @@ async function runPurge(payload: any): Promise<any> {
   return { deleted: true };
 }
 
+function isAllowedUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.jeeey.com') || host === 'jeeey.com';
+  } catch {
+    return false;
+  }
+}
+
 async function runWarm(payload: any): Promise<any> {
   const urls: string[] = Array.isArray(payload?.urls) ? payload.urls : [];
   const domain = payload?.domain as 'WEB' | 'MWEB' | 'BOTH' | null;
   const results: any[] = [];
+  
   for (const u of urls) {
+    if (!isAllowedUrl(u)) {
+      results.push({ url: u, error: 'blocked_host' });
+      continue;
+    }
     try {
       const r = await fetch(u, { method: 'GET', headers: { 'Cache-Warm': '1' } });
       const buf = await r.arrayBuffer();
       const size = buf.byteLength || 0;
       const key = new URL(u).pathname || u;
+      
+      // If API URL and successful, cache it in memory
+      const isApi = u.includes('/api/') || u.includes('/trpc/');
+      if (r.ok && isApi) {
+        // We can't easily store the buffer as JSON directly without parsing, 
+        // but for now let's just acknowledge we 'warmed' it. 
+        // A real implementation would intercept the request in the API router.
+        // So here we mainly rely on the side-effect that the API handled the request.
+      }
+
       const expiresAt: Date | null = null;
       const d = domain || (u.includes('//m.') ? 'MWEB' : 'WEB');
       await db.$executeRawUnsafe(

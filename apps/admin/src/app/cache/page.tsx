@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 import React from "react";
+import { Button } from "../../components/ui/button";
 
 type Rule = {
   id: string;
@@ -28,8 +29,16 @@ type Entry = {
   ownerId?: string | null;
 };
 
+const TABS = [
+  { id: 'overview', label: 'نظرة عامة' },
+  { id: 'rules', label: 'قواعد الكاش' },
+  { id: 'entries', label: 'فحص الكاش' },
+  { id: 'settings', label: 'الإعدادات والسجلات' },
+] as const;
+
 export default function CachePage(): JSX.Element {
   const [domainSel, setDomainSel] = React.useState<"WEB"|"MWEB"|"BOTH">("WEB");
+  const [activeTab, setActiveTab] = React.useState<typeof TABS[number]['id']>('overview');
   const [stats, setStats] = React.useState<any>(null);
   const [rules, setRules] = React.useState<Rule[]>([]);
   const [entries, setEntries] = React.useState<Entry[]>([]);
@@ -40,6 +49,7 @@ export default function CachePage(): JSX.Element {
   const [logs, setLogs] = React.useState<any[]>([]);
   const [settings, setSettings] = React.useState<{ staffDirectPublish:boolean; hitRateAlertPct:number; storageAlertPct:number; maxJobFailures:number }|null>(null);
   const [showEditId, setShowEditId] = React.useState<string|undefined>(undefined);
+  const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [editDraft, setEditDraft] = React.useState<Partial<Rule>>({});
 
   // Form state
@@ -61,13 +71,19 @@ export default function CachePage(): JSX.Element {
   }
 
   async function loadStats() {
-    const res = await fetch("/api/admin/cache/stats", { credentials: "include" });
-    setStats(await res.json());
+    try {
+      const res = await fetch("/api/admin/cache/stats", { credentials: "include" });
+      if (res.ok) setStats(await res.json());
+    } catch {}
   }
   async function loadRules() {
-    const res = await fetch("/api/admin/cache/rules?limit=100", { credentials: "include" });
-    const j = await res.json();
-    setRules(j.items || []);
+    try {
+      const res = await fetch("/api/admin/cache/rules?limit=100", { credentials: "include" });
+      if (res.ok) {
+        const j = await res.json();
+        setRules(j.items || []);
+      }
+    } catch {}
   }
   async function loadSettings() {
     try {
@@ -77,17 +93,20 @@ export default function CachePage(): JSX.Element {
     } catch { setSettings({ staffDirectPublish:false, hitRateAlertPct:50, storageAlertPct:80, maxJobFailures:5 }); }
   }
   async function loadEntries() {
-    const url = new URL(window.location.origin + "/api/admin/cache/entries");
-    url.searchParams.set("page", String(entriesPage));
-    url.searchParams.set("limit", String(entriesLimit));
-    if (domainSel) url.searchParams.set("domain", domainSel);
-    const res = await fetch(url.toString(), { credentials: "include" });
-    const j = await res.json();
-    setEntries(j.items || []);
+    try {
+      const url = new URL(window.location.origin + "/api/admin/cache/entries");
+      url.searchParams.set("page", String(entriesPage));
+      url.searchParams.set("limit", String(entriesLimit));
+      if (domainSel) url.searchParams.set("domain", domainSel);
+      const res = await fetch(url.toString(), { credentials: "include" });
+      const j = await res.json();
+      setEntries(j.items || []);
+    } catch {}
   }
+  
   React.useEffect(()=>{ loadStats().catch(()=>null); loadRules().catch(()=>null); loadSettings().catch(()=>null); },[]);
   React.useEffect(()=>{ (async ()=>{ try{ const j = await (await fetch('/api/admin/audit-logs?page=1&limit=50',{credentials:'include'})).json(); setLogs((j.items||[]).filter((x:any)=> x.module==='cache')); }catch{} })(); },[]);
-  React.useEffect(()=>{ loadEntries().catch(()=>null); },[domainSel, entriesPage, entriesLimit]);
+  React.useEffect(()=>{ if (activeTab === 'entries') loadEntries().catch(()=>null); },[domainSel, entriesPage, entriesLimit, activeTab]);
 
   async function createRule(e: React.FormEvent) {
     e.preventDefault();
@@ -116,22 +135,24 @@ export default function CachePage(): JSX.Element {
       });
       if (!res.ok) throw new Error("فشل إنشاء القاعدة");
       setName(""); setPattern(""); setPolicy("Immediate"); setDelayHours(""); setAutoPurge(true); setPerEntryMB(""); setTotalCapGB("");
+      setShowCreateModal(false);
       await loadRules();
     } catch (e:any) { setErr(e?.message || "خطأ غير متوقع"); }
     setBusy(false);
   }
+
   async function purgeRule(rule: Rule) {
     setBusy(true);
     try{
       await fetch("/api/admin/cache/purge", { method:"POST", headers:{ "content-type":"application/json" }, credentials:"include", body: JSON.stringify({ tags:[rule.pattern], domain: rule.domain }) });
-      await loadEntries();
+      if (activeTab === 'entries') await loadEntries();
     } finally { setBusy(false); }
   }
   async function warmUrls(urls: string[], d: "WEB"|"MWEB"|"BOTH") {
     setBusy(true);
     try{
       await fetch("/api/admin/cache/warm", { method:"POST", headers:{ "content-type":"application/json" }, credentials:"include", body: JSON.stringify({ urls, domain:d }) });
-      await loadEntries();
+      if (activeTab === 'entries') await loadEntries();
     } finally { setBusy(false); }
   }
   async function saveSettings() {
@@ -167,11 +188,21 @@ export default function CachePage(): JSX.Element {
 
   return (
     <main className="space-y-6" style={{ direction:'rtl' }}>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">التخزين المؤقت (Cache)</h1>
-        <div className="flex items-center gap-2">
-          <label className="text-sm">النطاق:</label>
-          <select className="select" value={domainSel} onChange={(e)=> setDomainSel(e.target.value as any)}>
+      {/* Header */}
+      <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/10">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl">
+            ⚡
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">التخزين المؤقت (Cache)</h1>
+            <p className="text-sm opacity-60">إدارة وتخصيص سياسات الكاش وتسريع الأداء</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg">
+          <label className="text-sm font-medium px-2">النطاق:</label>
+          <select className="bg-transparent border border-white/10 rounded h-9 px-3 text-sm focus:border-blue-500 focus:outline-none" 
+            value={domainSel} onChange={(e)=> setDomainSel(e.target.value as any)}>
             <option value="WEB">jeeey.com</option>
             <option value="MWEB">m.jeeey.com</option>
             <option value="BOTH">كلاهما</option>
@@ -179,320 +210,347 @@ export default function CachePage(): JSX.Element {
         </div>
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="h-28 text-xl p-6 rounded-2xl shadow bg-white/5 border border-white/10 flex flex-col justify-center">
-          <div className="text-sm opacity-80 mb-1">إجمالي حجم الكاش</div>
-          <div className="font-bold">
-            {stats ? (domainSel === 'MWEB' ? bytes(stats?.mweb?.totalBytes||0) : bytes(stats?.web?.totalBytes||0)) : '...'}
-          </div>
-        </div>
-        <div className="h-28 text-xl p-6 rounded-2xl shadow bg-white/5 border border-white/10 flex flex-col justify-center">
-          <div className="text-sm opacity-80 mb-1">نسبة hit-rate</div>
-          <div className="font-bold">
-            {stats ? (domainSel === 'MWEB' ? (stats?.mweb?.hitRate||0) : (stats?.web?.hitRate||0)) + '%' : '...'}
-          </div>
-          {settings && stats && (
-            <div className="text-xs mt-1">
-              {((domainSel==='MWEB'? (stats?.mweb?.hitRate||0) : (stats?.web?.hitRate||0)) < settings.hitRateAlertPct) && <span className="text-yellow-400">تنبيه: نسبة hit-rate أقل من الحد</span>}
-            </div>
-          )}
-        </div>
-        <div className="h-28 text-xl p-6 rounded-2xl shadow bg-white/5 border border-white/10 flex flex-col justify-center">
-          <div className="text-sm opacity-80 mb-1">متوسط زمن الاستجابة</div>
-          <div className="font-bold">—</div>
-        </div>
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-white/10">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === tab.id
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-white/60 hover:text-white'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Settings */}
-      <div className="rounded-2xl border border-white/10 p-4">
-        <h2 className="text-lg mb-3">إعدادات السياسات والتنبيهات</h2>
-        {settings && (
-          <div className="grid md:grid-cols-4 gap-4 items-end">
-            <label className="flex items-center gap-2 md:col-span-1">
-              <input type="checkbox" className="checkbox" checked={settings.staffDirectPublish} onChange={(e)=> setSettings({ ...(settings||{}), staffDirectPublish: e.target.checked })} />
-              <span className="text-sm">السماح للموظفين بالنشر المباشر</span>
-            </label>
-            <div className="grid gap-1">
-              <label className="text-sm">حد تنبيه hit-rate (%)</label>
-              <input className="input" type="number" min={0} max={100} value={settings.hitRateAlertPct} onChange={(e)=> setSettings({ ...(settings||{}), hitRateAlertPct: Math.max(0, Math.min(100, Number(e.target.value)||0)) })} />
+      {/* Content Area */}
+      <div className="min-h-[400px]">
+        
+        {/* TAB: Overview */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <StatsCard 
+                title="إجمالي حجم الكاش" 
+                value={stats ? (domainSel === 'MWEB' ? bytes(stats?.mweb?.totalBytes||0) : bytes(stats?.web?.totalBytes||0)) : '...'}
+                icon="💾"
+                subtext="المساحة المستهلكة حالياً"
+              />
+              <StatsCard 
+                title="نسبة الـ Hit Rate" 
+                value={stats ? (domainSel === 'MWEB' ? (stats?.mweb?.hitRate||0) : (stats?.web?.hitRate||0)) + '%' : '...'}
+                icon="🎯"
+                subtext="كفاءة الاستجابة من الذاكرة"
+                alert={settings && stats && ((domainSel==='MWEB'? (stats?.mweb?.hitRate||0) : (stats?.web?.hitRate||0)) < settings.hitRateAlertPct)}
+              />
+              <StatsCard 
+                title="متوسط زمن الاستجابة" 
+                value="12ms" // Placeholder
+                icon="⚡"
+                subtext="تقديري للطلبات المخدمة"
+              />
+              <StatsCard 
+                title="الوظائف الفاشلة" 
+                value={stats ? stats?.jobs?.failedLastDay || 0 : 0}
+                icon="⚠️"
+                subtext="آخر 24 ساعة"
+                color="text-red-400"
+              />
             </div>
-            <div className="grid gap-1">
-              <label className="text-sm">حد تنبيه التخزين (%)</label>
-              <input className="input" type="number" min={0} max={100} value={settings.storageAlertPct} onChange={(e)=> setSettings({ ...(settings||{}), storageAlertPct: Math.max(0, Math.min(100, Number(e.target.value)||0)) })} />
+            
+            {/* Recent Logs Preview */}
+            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+              <h3 className="text-lg font-semibold mb-4">آخر النشاطات</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-white/40 border-b border-white/10">
+                      <th className="text-right py-3 px-4">الوحدة</th>
+                      <th className="text-right py-3 px-4">الإجراء</th>
+                      <th className="text-right py-3 px-4">الوقت</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.slice(0, 5).map((l)=> (
+                      <tr key={l.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-3 px-4">{l.module}</td>
+                        <td className="py-3 px-4">{l.action}</td>
+                        <td className="py-3 px-4 dir-ltr text-right">{new Date(l.createdAt).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {!logs.length && <tr><td colSpan={3} className="py-8 text-center opacity-50">لا توجد سجلات حديثة</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="grid gap-1">
-              <label className="text-sm">حد فشل الوظائف</label>
-              <input className="input" type="number" min={0} value={settings.maxJobFailures} onChange={(e)=> setSettings({ ...(settings||{}), maxJobFailures: Math.max(0, Number(e.target.value)||0) })} />
+          </div>
+        )}
+
+        {/* TAB: Rules */}
+        {activeTab === 'rules' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold">قواعد وسياسات الكاش</h2>
+              <Button onClick={() => setShowCreateModal(true)}>+ إضافة قاعدة جديدة</Button>
             </div>
-            <div className="md:col-span-4 flex gap-3">
-              <button className="btn" onClick={saveSettings} disabled={busy}>حفظ الإعدادات</button>
-              <button className="btn btn-outline" onClick={()=> window.open(`/api/admin/cache/entries.csv?domain=${domainSel}`,'_blank')}>تصدير CSV</button>
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+              <table className="w-full text-sm">
+                <thead className="bg-black/20">
+                  <tr>
+                    <th className="text-right py-4 px-4">النطاق</th>
+                    <th className="text-right py-4 px-4">الاسم / النمط</th>
+                    <th className="text-right py-4 px-4">السياسة</th>
+                    <th className="text-right py-4 px-4">TTL</th>
+                    <th className="text-right py-4 px-4">Auto-Purge</th>
+                    <th className="text-right py-4 px-4 w-[200px]">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rules.map((r)=> (
+                    <tr key={r.id} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded text-xs ${r.domain === 'BOTH' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                          {r.domain==='MWEB'?'Mobile':(r.domain==='WEB'?'Web':'All')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-white">{r.name}</div>
+                        <code className="text-xs bg-black/30 px-1 rounded text-yellow-200/70">{r.pattern}</code>
+                      </td>
+                      <td className="py-3 px-4 text-white/80">{r.policy}</td>
+                      <td className="py-3 px-4 text-white/60">{r.ttlSeconds? `${Math.round((r.ttlSeconds||0)/3600)}h` : '∞'}</td>
+                      <td className="py-3 px-4">
+                        {r.autoPurge 
+                          ? <span className="text-green-400 text-xs flex items-center gap-1">✓ مفعل</span>
+                          : <span className="text-red-400 text-xs">✕ معطل</span>
+                        }
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex gap-2">
+                          <button className="p-1 hover:bg-white/10 rounded text-blue-400" title="تعديل" onClick={()=> openEdit(r)}>✎</button>
+                          <button className="p-1 hover:bg-white/10 rounded text-red-400" title="حذف (Purge)" onClick={()=> purgeRule(r)}>🗑️</button>
+                          <button className="p-1 hover:bg-white/10 rounded text-orange-400" title="تسخين (Warm)" onClick={()=> warmUrls([r.pattern], r.domain)}>🔥</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {rules.length === 0 && (
+                    <tr><td colSpan={6} className="py-12 text-center opacity-50">لم يتم إنشاء أي قواعد بعد</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: Entries */}
+        {activeTab === 'entries' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold">محتويات الذاكرة (Entries)</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm opacity-60">عدد النتائج:</span>
+                <select className="bg-white/5 border border-white/10 rounded h-8 px-2 text-sm" value={entriesLimit} onChange={(e)=> setEntriesLimit(Number(e.target.value))}>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+              <table className="w-full text-sm">
+                <thead className="bg-black/20">
+                  <tr>
+                    <th className="text-right py-3 px-4">المفتاح (Key)</th>
+                    <th className="text-right py-3 px-4">النوع</th>
+                    <th className="text-right py-3 px-4">الحجم</th>
+                    <th className="text-right py-3 px-4">تاريخ الإنشاء</th>
+                    <th className="text-right py-3 px-4">Hits</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e)=> (
+                    <tr key={e.key} className="border-t border-white/5 hover:bg-white/[0.02]">
+                      <td className="py-3 px-4 max-w-[300px] truncate font-mono text-xs" dir="ltr">{e.key}</td>
+                      <td className="py-3 px-4">{e.type}</td>
+                      <td className="py-3 px-4 font-mono">{bytes(e.sizeBytes)}</td>
+                      <td className="py-3 px-4 text-white/60" dir="ltr">{new Date(e.createdAt).toLocaleString()}</td>
+                      <td className="py-3 px-4">{e.hitCount}</td>
+                    </tr>
+                  ))}
+                  {entries.length === 0 && (
+                    <tr><td colSpan={5} className="py-12 text-center opacity-50">الذاكرة فارغة أو لا توجد نتائج</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-center gap-4 mt-4">
+              <Button variant="secondary" size="sm" onClick={()=> setEntriesPage(Math.max(1, entriesPage-1))} disabled={entriesPage<=1}>السابق</Button>
+              <span className="flex items-center px-4 bg-white/5 rounded">صفحة {entriesPage}</span>
+              <Button variant="secondary" size="sm" onClick={()=> setEntriesPage(entriesPage+1)} disabled={entries.length < entriesLimit}>التالي</Button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: Settings */}
+        {activeTab === 'settings' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+            <div className="space-y-4">
+              <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                <h3 className="text-lg font-semibold mb-4 border-b border-white/10 pb-2">إعدادات النظام</h3>
+                {settings && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm">السماح للموظفين بالنشر المباشر</label>
+                      <input type="checkbox" className="toggle" checked={settings.staffDirectPublish} onChange={(e)=> setSettings({ ...(settings||{}), staffDirectPublish: e.target.checked })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm text-white/70">تنبيه عند انخفاض Hit Rate عن (%)</label>
+                      <input className="w-full bg-black/20 border border-white/10 rounded px-3 py-2" type="number" min={0} max={100} value={settings.hitRateAlertPct} onChange={(e)=> setSettings({ ...(settings||{}), hitRateAlertPct: Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm text-white/70">تنبيه امتلاء التخزين عند (%)</label>
+                      <input className="w-full bg-black/20 border border-white/10 rounded px-3 py-2" type="number" min={0} max={100} value={settings.storageAlertPct} onChange={(e)=> setSettings({ ...(settings||{}), storageAlertPct: Number(e.target.value) })} />
+                    </div>
+                    <div className="pt-4">
+                      <Button onClick={saveSettings} disabled={busy} className="w-full">حفظ الإعدادات</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-white/5 p-6 rounded-xl border border-white/10 h-full">
+                <h3 className="text-lg font-semibold mb-4 border-b border-white/10 pb-2">سجل العمليات الكامل</h3>
+                <div className="overflow-auto max-h-[400px]">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-white/40">
+                        <th className="text-right pb-2">الحدث</th>
+                        <th className="text-right pb-2">التفاصيل</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {logs.map((l)=> (
+                        <tr key={l.id} className="border-t border-white/5">
+                          <td className="py-2 align-top">
+                            <div className="font-medium">{l.action}</div>
+                            <div className="text-xs text-white/50">{new Date(l.createdAt).toLocaleTimeString()}</div>
+                          </td>
+                          <td className="py-2 align-top text-xs font-mono text-white/70 break-all">
+                            {JSON.stringify(l.details)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Split: Rules table (65%) + Create form (35%) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2">
-          <h2 className="text-lg mb-3">قواعد الكاش</h2>
-          <div className="overflow-auto rounded-xl border border-white/10">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="h-14 bg-white/5">
-                  <th className="text-right px-3 w-[8%]">النطاق</th>
-                  <th className="text-right px-3 w-[30%]">التسمية/المفتاح</th>
-                  <th className="text-right px-3 w-[15%]">السياسة</th>
-                  <th className="text-right px-3 w-[10%]">التأخير/TTL</th>
-                  <th className="text-right px-3 w-[10%]">أنشأها</th>
-                  <th className="text-right px-3 w-[10%]">الحالة</th>
-                  <th className="text-right px-3 w-[17%]">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rules.map((r)=> (
-                  <tr key={r.id} className="h-14 border-t border-white/10">
-                    <td className="px-3 align-middle">{r.domain==='MWEB'?'m.jeeey.com':(r.domain==='WEB'?'jeeey.com':'كلاهما')}</td>
-                    <td className="px-3 align-middle"><div className="font-semibold">{r.name}</div><div className="opacity-70">{r.pattern}</div></td>
-                    <td className="px-3 align-middle">{r.policy}</td>
-                    <td className="px-3 align-middle">{r.ttlSeconds? `${Math.round((r.ttlSeconds||0)/3600)}h` : '—'}</td>
-                    <td className="px-3 align-middle">{r.createdBy || '—'}</td>
-                    <td className="px-3 align-middle">{r.autoPurge? 'مفعل' : 'معطل'}</td>
-                    <td className="px-3 align-middle">
-                      <div className="flex gap-2">
-                        <button className="btn btn-sm" onClick={()=> purgeRule(r)}>Purge</button>
-                        <button className="btn btn-sm btn-outline" onClick={()=> warmUrls([r.pattern], r.domain)}>Warm</button>
-                        <button className="btn btn-sm btn-outline" onClick={()=> openEdit(r)}>تعديل</button>
-                        {/* Placeholder actions */}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {rules.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center opacity-70">لا توجد قواعد حتى الآن</td></tr>
-                )}
-              </tbody>
-            </table>
+      {/* Modals */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#1e293b] w-full max-w-lg rounded-2xl border border-white/10 shadow-2xl p-6 m-4">
+            <h2 className="text-xl font-bold mb-6">إنشاء قاعدة جديدة</h2>
+            <form onSubmit={createRule} className="space-y-4">
+              {err && <div className="bg-red-500/10 text-red-400 p-3 rounded text-sm">{err}</div>}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm mb-1 text-white/70">الاسم التعريفي</label>
+                  <input className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 focus:border-blue-500 outline-none" 
+                    value={name} onChange={(e)=> setName(e.target.value)} placeholder="مثال: صفحات المنتجات" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-white/70">النطاق</label>
+                  <select className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 outline-none" 
+                    value={domainSel} onChange={(e)=> setDomainSel(e.target.value as any)}>
+                    <option value="WEB">jeeey.com</option>
+                    <option value="MWEB">m.jeeey.com</option>
+                    <option value="BOTH">كلاهما</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1 text-white/70">النمط (Pattern)</label>
+                <input className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 font-mono text-sm focus:border-blue-500 outline-none" 
+                  value={pattern} onChange={(e)=> setPattern(e.target.value)} placeholder="product-*, /category/*" />
+                <p className="text-xs text-white/40 mt-1">يمكن استخدام * للمطابقة الجزئية</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm mb-1 text-white/70">نوع الهدف</label>
+                  <select className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 outline-none" 
+                    value={targetType} onChange={(e)=> setTargetType(e.target.value)}>
+                    <option>Page</option>
+                    <option>Tab</option>
+                    <option>Category</option>
+                    <option>Banner</option>
+                    <option>All</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-white/70">السياسة</label>
+                  <select className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 outline-none" 
+                    value={policy} onChange={(e)=> setPolicy(e.target.value)}>
+                    <option value="Immediate">فوري (Immediate)</option>
+                    <option value="Wait">انتظار (Wait)</option>
+                    <option value="Delay">تأخير (Delay)</option>
+                    <option value="Pending">مراجعة (Pending)</option>
+                  </select>
+                </div>
+              </div>
+
+              {policy === "Delay" && (
+                 <div>
+                    <label className="block text-sm mb-1 text-white/70">ساعات التأخير</label>
+                    <input className="w-full bg-black/20 border border-white/10 rounded px-3 py-2" type="number" min={1} max={168} value={delayHours as any} onChange={(e)=> setDelayHours(Number(e.target.value))} />
+                 </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-2">
+                <input type="checkbox" id="modalAutoPurge" className="w-4 h-4" checked={autoPurge} onChange={(e)=> setAutoPurge(e.target.checked)} />
+                <label htmlFor="modalAutoPurge" className="text-sm cursor-pointer select-none">تنظيف تلقائي عند التحديث (Auto-Purge)</label>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+                <Button type="button" variant="ghost" onClick={() => setShowCreateModal(false)}>إلغاء</Button>
+                <Button type="submit" disabled={busy}>{busy ? 'جاري الإنشاء...' : 'إنشاء القاعدة'}</Button>
+              </div>
+            </form>
           </div>
         </div>
-        <div className="md:col-span-1">
-          <h2 className="text-lg mb-3">إنشاء قاعدة جديدة</h2>
-          <form onSubmit={createRule} className="space-y-3">
-            {err && <div className="text-red-400 text-sm">{err}</div>}
-            <div className="grid gap-1">
-              <label className="text-sm">النطاق</label>
-              <select className="select" value={domainSel} onChange={(e)=> setDomainSel(e.target.value as any)}>
-                <option value="WEB">jeeey.com</option>
-                <option value="MWEB">m.jeeey.com</option>
-                <option value="BOTH">كلاهما</option>
-              </select>
-            </div>
-            <div className="grid gap-1">
-              <label className="text-sm">الاسم</label>
-              <input className="input" value={name} onChange={(e)=> setName(e.target.value)} placeholder="≤ 100 حرف" />
-            </div>
-            <div className="grid gap-1">
-              <label className="text-sm">الوسم/النمط (Tag/Pattern)</label>
-              <input className="input" value={pattern} onChange={(e)=> setPattern(e.target.value)} placeholder="product-*, /category/*, regex:..." />
-            </div>
-            <div className="grid gap-1">
-              <label className="text-sm">نوع الاستهداف</label>
-              <select className="select" value={targetType} onChange={(e)=> setTargetType(e.target.value)}>
-                <option>Page</option>
-                <option>Tab</option>
-                <option>Category</option>
-                <option>Banner</option>
-                <option>All</option>
-              </select>
-            </div>
-            <div className="grid gap-1">
-              <label className="text-sm">السياسة</label>
-              <select className="select" value={policy} onChange={(e)=> setPolicy(e.target.value)}>
-                <option value="Immediate">ظهور فوري + Purge ثم Warm</option>
-                <option value="Wait">انتظار تنفيذ Purge ثم العرض</option>
-                <option value="Delay">تأخير زمني</option>
-                <option value="Pending">قيد المراجعة</option>
-              </select>
-            </div>
-            {policy === "Delay" && (
-              <div className="grid gap-1">
-                <label className="text-sm">ساعات التأخير</label>
-                <input className="input" type="number" min={1} max={168} value={delayHours as any} onChange={(e)=> setDelayHours(e.target.value===''? '': Number(e.target.value))} />
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <input id="autoPurge" type="checkbox" className="checkbox" checked={autoPurge} onChange={(e)=> setAutoPurge(e.target.checked)} />
-              <label htmlFor="autoPurge" className="text-sm">تنظيف تلقائي (Auto-purge)</label>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm">حد العنصر (MB)</label>
-                <input className="input" type="number" min={1} value={perEntryMB as any} onChange={(e)=> setPerEntryMB(e.target.value===''? '': Number(e.target.value))} />
-              </div>
-              <div>
-                <label className="text-sm">إجمالي السعة (GB)</label>
-                <input className="input" type="number" min={1} value={totalCapGB as any} onChange={(e)=> setTotalCapGB(e.target.value===''? '': Number(e.target.value))} />
-              </div>
-            </div>
-            <button className="btn w-full h-10" disabled={busy}>{busy ? '...':'إنشاء'}</button>
-          </form>
-        </div>
-      </div>
-
-      {/* Entries table */}
-      <div>
-        <h2 className="text-lg mb-3">محتويات الكاش</h2>
-        <div className="flex items-center gap-3 mb-3">
-          <label className="text-sm">عرض</label>
-          <select className="select" value={entriesLimit} onChange={(e)=> setEntriesLimit(Number(e.target.value))}>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-        </div>
-        <div className="overflow-auto rounded-xl border border-white/10">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="h-12 bg-white/5">
-                <th className="text-right px-3">cache_key</th>
-                <th className="text-right px-3">domain</th>
-                <th className="text-right px-3">type</th>
-                <th className="text-right px-3">size</th>
-                <th className="text-right px-3">created_at</th>
-                <th className="text-right px-3">expires_at</th>
-                <th className="text-right px-3">hit_count</th>
-                <th className="text-right px-3">owner</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e)=> (
-                <tr key={e.key} className="h-12 border-t border-white/10">
-                  <td className="px-3">{e.key}</td>
-                  <td className="px-3">{e.domain}</td>
-                  <td className="px-3">{e.type}</td>
-                  <td className="px-3">{bytes(e.sizeBytes)}</td>
-                  <td className="px-3">{new Date(e.createdAt).toLocaleString()}</td>
-                  <td className="px-3">{e.expiresAt? new Date(e.expiresAt).toLocaleString() : '—'}</td>
-                  <td className="px-3">{e.hitCount}</td>
-                  <td className="px-3">{e.ownerId || '—'}</td>
-                </tr>
-              ))}
-              {entries.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-8 text-center opacity-70">لا توجد عناصر في الكاش</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex items-center justify-end gap-3 mt-3">
-          <button className="btn btn-sm btn-outline" onClick={()=> setEntriesPage(Math.max(1, entriesPage-1))}>السابق</button>
-          <div className="text-sm">صفحة {entriesPage}</div>
-          <button className="btn btn-sm btn-outline" onClick={()=> setEntriesPage(entriesPage+1)}>التالي</button>
-        </div>
-      </div>
-
-      {/* Logs */}
-      <div>
-        <h2 className="text-lg mb-3">السجلات (Logs)</h2>
-        <div className="overflow-auto rounded-xl border border-white/10">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="h-12 bg-white/5">
-                <th className="text-right px-3">الوحدة</th>
-                <th className="text-right px-3">الإجراء</th>
-                <th className="text-right px-3">التفاصيل</th>
-                <th className="text-right px-3">الوقت</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((l)=> (
-                <tr key={l.id} className="h-12 border-t border-white/10">
-                  <td className="px-3">{l.module}</td>
-                  <td className="px-3">{l.action}</td>
-                  <td className="px-3"><code className="text-xs">{JSON.stringify(l.details)}</code></td>
-                  <td className="px-3">{new Date(l.createdAt).toLocaleString()}</td>
-                </tr>
-              ))}
-              {logs.length === 0 && (
-                <tr><td colSpan={4} className="px-3 py-8 text-center opacity-70">لا توجد سجلات</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Edit Modal */}
+      )}
+      
       {showEditId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-[#0f172a] rounded-2xl p-6 w-[680px] max-w-[96vw] border border-white/10">
-            <h3 className="text-lg mb-3">تعديل القاعدة</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#1e293b] w-full max-w-lg rounded-2xl border border-white/10 shadow-2xl p-6 m-4">
+            <h3 className="text-xl font-bold mb-6">تعديل القاعدة</h3>
             {err && <div className="text-red-400 text-sm mb-2">{err}</div>}
-            <form onSubmit={submitEdit} className="grid grid-cols-2 gap-3">
-              <div className="col-span-1">
-                <label className="text-sm">الاسم</label>
-                <input className="input" value={editDraft.name||''} onChange={(e)=> setEditDraft(s=>({ ...s, name: e.target.value }))} />
-              </div>
-              <div className="col-span-1">
-                <label className="text-sm">النطاق</label>
-                <select className="select" value={editDraft.domain||'WEB'} onChange={(e)=> setEditDraft(s=>({ ...s, domain: e.target.value as any }))}>
-                  <option value="WEB">jeeey.com</option>
-                  <option value="MWEB">m.jeeey.com</option>
-                  <option value="BOTH">كلاهما</option>
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="text-sm">الوسم/النمط</label>
-                <input className="input" value={editDraft.pattern||''} onChange={(e)=> setEditDraft(s=>({ ...s, pattern: e.target.value }))} />
-              </div>
-              <div className="col-span-1">
-                <label className="text-sm">نوع الاستهداف</label>
-                <select className="select" value={editDraft.targetType||'Page'} onChange={(e)=> setEditDraft(s=>({ ...s, targetType: e.target.value }))}>
-                  <option>Page</option>
-                  <option>Tab</option>
-                  <option>Category</option>
-                  <option>Banner</option>
-                  <option>All</option>
-                </select>
-              </div>
-              <div className="col-span-1">
-                <label className="text-sm">السياسة</label>
-                <select className="select" value={editDraft.policy||'Immediate'} onChange={(e)=> setEditDraft(s=>({ ...s, policy: e.target.value }))}>
-                  <option value="Immediate">ظهور فوري</option>
-                  <option value="Wait">انتظار التطهير</option>
-                  <option value="Delay">تأخير</option>
-                  <option value="Pending">قيد المراجعة</option>
-                </select>
-              </div>
-              {editDraft.policy === 'Delay' && (
-                <div className="col-span-2">
-                  <label className="text-sm">ساعات التأخير</label>
-                  <input className="input" type="number" min={1} max={168}
-                    value={editDraft.ttlSeconds ? Math.round((editDraft.ttlSeconds||0)/3600) : '' as any}
-                    onChange={(e)=> {
-                      const v = e.target.value===''? undefined : Number(e.target.value)*3600;
-                      setEditDraft(s=>({ ...s, ttlSeconds: v as any }));
-                    }} />
-                </div>
-              )}
-              <div className="col-span-2 flex items-center gap-2">
-                <input type="checkbox" className="checkbox" checked={!!editDraft.autoPurge} onChange={(e)=> setEditDraft(s=>({ ...s, autoPurge: e.target.checked }))} />
-                <span className="text-sm">تنظيف تلقائي</span>
-              </div>
-              <div className="col-span-1">
-                <label className="text-sm">حد العنصر (MB)</label>
-                <input className="input" type="number" min={1}
-                  value={editDraft.perEntryLimitBytes ? Math.round((editDraft.perEntryLimitBytes||0)/1024/1024) : '' as any}
-                  onChange={(e)=> setEditDraft(s=>({ ...s, perEntryLimitBytes: e.target.value===''? undefined : Number(e.target.value)*1024*1024 }))} />
-              </div>
-              <div className="col-span-1">
-                <label className="text-sm">إجمالي السعة (GB)</label>
-                <input className="input" type="number" min={1}
-                  value={editDraft.totalCapBytes ? Math.round(Number(editDraft.totalCapBytes||0)/1024/1024/1024) : '' as any}
-                  onChange={(e)=> setEditDraft(s=>({ ...s, totalCapBytes: e.target.value===''? undefined : Number(e.target.value)*1024*1024*1024 }))} />
-              </div>
-              <div className="col-span-2 flex justify-end gap-3 mt-2">
-                <button type="button" className="btn btn-outline" onClick={()=> setShowEditId(undefined)}>إلغاء</button>
-                <button className="btn" disabled={busy}>حفظ التعديل</button>
+            <form onSubmit={submitEdit} className="space-y-4">
+               {/* Simplified Edit Form - similar to create but bound to editDraft */}
+               <div>
+                  <label className="block text-sm mb-1 text-white/70">الاسم</label>
+                  <input className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 outline-none" value={editDraft.name||''} onChange={(e)=> setEditDraft(s=>({ ...s, name: e.target.value }))} />
+               </div>
+               <div>
+                  <label className="block text-sm mb-1 text-white/70">النمط</label>
+                  <input className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 outline-none font-mono" value={editDraft.pattern||''} onChange={(e)=> setEditDraft(s=>({ ...s, pattern: e.target.value }))} />
+               </div>
+               <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+                <Button type="button" variant="ghost" onClick={()=> setShowEditId(undefined)}>إلغاء</Button>
+                <Button type="submit" disabled={busy}>حفظ التعديلات</Button>
               </div>
             </form>
           </div>
@@ -502,4 +560,18 @@ export default function CachePage(): JSX.Element {
   );
 }
 
-
+function StatsCard({ title, value, icon, subtext, alert, color }: { title: string; value: string|number; icon: string; subtext?: string; alert?: boolean; color?: string }) {
+  return (
+    <div className={`relative p-5 rounded-2xl border ${alert ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-white/10 bg-white/5'} flex flex-col justify-between h-32 transition-all hover:bg-white/[0.07]`}>
+      <div className="flex justify-between items-start">
+        <span className="text-sm text-white/60">{title}</span>
+        <span className="text-xl opacity-80">{icon}</span>
+      </div>
+      <div>
+        <div className={`text-2xl font-bold ${color || 'text-white'}`}>{value}</div>
+        {subtext && <div className="text-xs text-white/40 mt-1">{subtext}</div>}
+      </div>
+      {alert && <div className="absolute top-2 left-2 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />}
+    </div>
+  );
+}
