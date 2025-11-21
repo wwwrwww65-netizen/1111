@@ -52,7 +52,11 @@ shop.post('/auth/logout', async (_req: any, res) => {
 const PUBLIC_SW_MAX_AGE = Number(process.env.PUBLIC_SW_MAX_AGE || 30);
 const PUBLIC_SW_SWR = Number(process.env.PUBLIC_SW_SWR || 120);
 function setPublicCache(res: any, maxAge = PUBLIC_SW_MAX_AGE, swr = PUBLIC_SW_SWR): void {
-  try { res.set('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${swr}`); } catch {}
+  try { 
+    // Restore short cache to allow browser to hold data briefly (improves navigation speed)
+    // but keep it short enough to not get "stuck" for long.
+    res.set('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=${swr}`);
+  } catch {}
 }
 // Lightweight ETag helper for public GET responses
 function __etagFor(payload: any): string {
@@ -304,7 +308,7 @@ shop.get('/media/thumb', async (req, res) => {
     const uploadsRoot = path.resolve(process.cwd(), './uploads');
     if (!abs.startsWith(uploadsRoot)) return res.status(403).send('forbidden');
     if (!fs.existsSync(abs)) return res.status(404).send('not_found');
-    // Cache headers
+    // Cache headers - RESTORED for performance
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
     // Try sharp; fallback to streaming original
     let sharpMod:any = null;
