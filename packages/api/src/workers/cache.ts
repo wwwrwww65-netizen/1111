@@ -176,7 +176,7 @@ async function runProductPublished(payload: any): Promise<any> {
   return { queued: true, purgeJobId: purgeId, warmJobId: warmId, immediate: effectiveImmediate };
 }
 
-async function process(job: CacheJobRow): Promise<void> {
+async function processJob(job: CacheJobRow): Promise<void> {
   try {
     let result: any = null;
     if (job.type === 'purge') result = await runPurge(job.payload);
@@ -200,7 +200,7 @@ export function startCacheWorker(): void {
       while (guard++ < 10) {
         const job = await takeNextPendingJob();
         if (!job) break;
-        await process(job);
+        await processJob(job);
       }
       // Update global summary for health endpoint
       try {
