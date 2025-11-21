@@ -15,7 +15,4 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  // Passthrough - no caching
-  return;
-});
+// No fetch listener
