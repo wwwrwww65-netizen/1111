@@ -298,5 +298,151 @@ r.get('/analytics', async (_req, res) => {
   } catch { res.status(500).json({ error: 'Failed to compute analytics' }); }
 });
 
+// -------- Carts Admin (Overview + Notify) --------
+// Type definitions for better type safety
+interface AdminCartProduct { id: string; name: string; price: number; images: string[]; }
+interface AdminCartItem { id?: string; productId: string; quantity: number; product?: AdminCartProduct; }
+interface AdminUserCart { id: string; user: { id: string; name?: string|null; email?: string|null } | null; items: AdminCartItem[]; updatedAt?: Date|null; createdAt?: Date|null; }
+interface AdminGuestCart { id: string; sessionId: string; items: AdminCartItem[]; updatedAt?: Date|null; createdAt?: Date|null; }
+
+// Helper function to build "since" filter for carts
+function buildSinceWhere(raw?: string): any {
+  if (!raw) return {};
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return {};
+  // Filter: updatedAt >= since OR (updatedAt is null AND createdAt >= since)
+  return {
+    OR: [
+      { updatedAt: { gte: d } },
+      { AND: [{ updatedAt: null }, { createdAt: { gte: d } }] }
+    ]
+  };
+}
+
+// GET /api/admin/carts - List all user and guest carts with optional 'since' filter
+r.get('/carts', async (req, res) => {
+  try {
+    const sinceRaw = String(req.query.since || '').trim();
+    const whereUser = buildSinceWhere(sinceRaw);
+    const whereGuest = buildSinceWhere(sinceRaw);
+
+    // Fetch user carts with items and products
+    // TODO: Add pagination support (e.g., ?page=1&limit=50) for better performance with large datasets
+    const userRows = await db.cart.findMany({
+      where: whereUser,
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true, price: true, images: true }
+            }
+          }
+        },
+        user: {
+          select: { id: true, name: true, email: true }
+        }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200, // Fixed limit for now; TODO: make this configurable via query params
+    });
+
+    // Fetch guest carts with items and products
+    const guestRows = await db.guestCart.findMany({
+      where: whereGuest,
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true, price: true, images: true }
+            }
+          }
+        }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200, // Fixed limit for now; TODO: make this configurable via query params
+    });
+
+    // Transform data to match expected interface
+    const userCarts: AdminUserCart[] = userRows.map((c: any) => ({
+      id: c.id,
+      user: c.user ? { id: c.user.id, name: c.user.name, email: c.user.email } : null,
+      items: (c.items || []).map((it: any) => ({
+        id: it.id,
+        productId: String(it.productId),
+        quantity: Number(it.quantity || 0),
+        product: it.product
+      })),
+      updatedAt: c.updatedAt,
+      createdAt: c.createdAt,
+    }));
+
+    const guestCarts: AdminGuestCart[] = guestRows.map((g: any) => ({
+      id: g.id,
+      sessionId: g.sessionId,
+      items: (g.items || []).map((it: any) => ({
+        id: it.id,
+        productId: String(it.productId),
+        quantity: Number(it.quantity || 0),
+        product: it.product
+      })),
+      updatedAt: g.updatedAt,
+      createdAt: g.createdAt,
+    }));
+
+    // TODO: Add caching layer for frequently accessed cart data to reduce database load
+    return res.json({ userCarts, guestCarts });
+  } catch (e: any) {
+    return res.status(500).json({
+      error: e?.message || 'failed',
+      userCarts: [],
+      guestCarts: []
+    });
+  }
+});
+
+// POST /api/admin/carts/notify - Send notification to cart owners (stub implementation)
+r.post('/carts/notify', async (req, res) => {
+  try {
+    const { targets, title, body } = req.body || {};
+
+    // Basic input validation
+    if (!Array.isArray(targets) || !targets.length) {
+      return res.status(400).json({ error: 'invalid_request: targets must be a non-empty array' });
+    }
+    if (typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'invalid_request: title is required and must be a non-empty string' });
+    }
+    if (typeof body !== 'string' || !body.trim()) {
+      return res.status(400).json({ error: 'invalid_request: body is required and must be a non-empty string' });
+    }
+
+    // Validate that each target has at least one identifier (userId or guestSessionId)
+    const sanitizedTargets = targets.filter((t: any) => (t && (t.userId || t.guestSessionId)));
+    if (!sanitizedTargets.length) {
+      return res.status(400).json({ error: 'no_valid_targets: all targets must have either userId or guestSessionId' });
+    }
+
+    // TODO: Integrate with notification dispatch system
+    // - Socket.IO: real-time push notifications to connected clients
+    // - WebPush: browser push notifications for offline users
+    // - Email: fallback notification channel
+    // - SMS/WhatsApp: optional high-priority notifications
+    //
+    // Example integration points:
+    // for (const target of sanitizedTargets) {
+    //   if (target.userId) {
+    //     await sendUserNotification(target.userId, { title, body });
+    //   } else if (target.guestSessionId) {
+    //     await sendGuestNotification(target.guestSessionId, { title, body });
+    //   }
+    // }
+
+    // For now, return success stub response
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'failed' });
+  }
+});
+
 export const adminExtra = r;
 
