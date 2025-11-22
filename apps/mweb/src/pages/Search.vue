@@ -1,49 +1,137 @@
 <template>
-  <div dir="rtl" lang="ar">
-    <HeaderBar />
-    <div class="page">
-      <div class="search-area">
-        <button class="clear" aria-label="مسح" @click="clearAll">🗑</button>
-        <div class="search-pill" role="search">
-          <button class="back" aria-label="رجوع">←</button>
-          <input class="s-input" v-model="q" :placeholder="placeholder" @keyup.enter="runSearch" aria-label="بحث" />
-          <button class="cam" aria-label="بحث بالصور" @click="openImagePicker">📷</button>
-          <button class="search-icon" aria-label="بحث" @click="runSearch">🔍</button>
+  <div dir="rtl" lang="ar" class="shein-search-page">
+    <!-- Fixed Search Header -->
+    <header class="search-header">
+      <!-- Back Button: 24x24 Icon, No Container -->
+      <div class="back-btn-wrapper" @click="goBack">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 18L15 12L9 6" stroke="#222" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      
+      <div class="search-bar">
+        <input 
+          ref="searchInput"
+          class="search-input" 
+          v-model="q" 
+          :placeholder="placeholder" 
+          @keyup.enter="runSearch" 
+          @focus="isFocused = true"
+          aria-label="بحث" 
+        />
+        <button class="camera-btn" aria-label="بحث بالصور" @click="openImagePicker">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 3H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="13" r="4" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <!-- Search Icon Button (Oval, Bigger, on the Left/End) -->
+        <button class="search-icon-btn" @click="runSearch">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Scrollable Content -->
+    <div class="search-content">
+      
+      <!-- Auto-complete Suggestions (Vertical List) -->
+      <div v-if="q && suggestions.length" class="suggestions-layer">
+        <div 
+          v-for="(s, i) in suggestions" 
+          :key="i" 
+          class="suggestion-item" 
+          @click="applyQuick(s)"
+        >
+          <span class="suggestion-text" v-html="highlightMatch(s)"></span>
+          <svg class="arrow-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 18L9 12L15 6" stroke="#ccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
       </div>
 
-      <section class="chips" aria-label="البحث الأخير" v-if="historyList.length">
-        <button v-for="(t,i) in visibleHistory" :key="t" class="chip" role="button" @click="applyQuick(t)">{{ t }}</button>
-        <button v-if="historyList.length>maxHistory" class="chip more" @click="toggleHistory">{{ showAllHistory? 'أقل' : 'المزيد' }} ▾</button>
-      </section>
+      <!-- Default View: History & Trending -->
+      <div v-else-if="!searched" class="default-view">
+        
+        <!-- Wrapped Lists & Footer in Container -->
+        <div class="search-body-container">
+          <!-- Recent Search History -->
+          <section class="history-section" v-if="historyList.length">
+            <div class="section-header">
+              <h3 class="section-title">البحث الأخير</h3>
+              <button class="clear-history-btn" @click="clearHistory">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 6H5H21" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="chips-container">
+              <button v-for="(t,i) in visibleHistory" :key="t" class="chip" @click="applyQuick(t)">
+                {{ t }}
+              </button>
+            </div>
+          </section>
 
-      <section class="chips" aria-label="اقتراحات" v-if="suggestions.length && q">
-        <button v-for="s in suggestions" :key="s" class="chip" role="button" @click="applyQuick(s)">{{ s }}</button>
-      </section>
+          <!-- Discover / Search & Find -->
+          <section class="discover-section" v-if="discoverTags.length">
+            <h3 class="section-title">البحث والعثور</h3>
+            <div class="chips-container">
+              <button v-for="tag in discoverTags" :key="tag" class="chip" @click="applyQuick(tag)">
+                {{ tag }}
+              </button>
+            </div>
+          </section>
 
-      <section class="chips tags" aria-label="البحث والعثور" v-if="tags.length">
-        <button v-for="t in tags" :key="t" class="chip" role="button" @click="applyQuick(t)">{{ t }}</button>
-      </section>
-
-      <section class="cards-grid" v-if="!q">
-        <div class="ranking-card" v-for="(card,ci) in ranking" :key="ci">
-          <div class="card-header"><span class="top-badge">TOP</span><span class="hdr-title">{{ card.title }}</span></div>
-          <div class="card-body">
-            <div v-for="(it,ri) in card.items" :key="ri" class="rank-row" role="button" @click="applyQuick(it.title)">
-              <div class="rank-badge" :style="{ background: rankColor(ri+1) }">{{ ri+1 }}</div>
-              <img class="item-thumb" :src="it.img" :alt="it.title" loading="lazy" />
-              <div class="txt">
-                <div class="item-title">{{ it.title }}<span v-if="it.isNew" class="new-tag">جديد</span></div>
-                <div class="sub">{{ it.sub }}</div>
+          <!-- Trending Cards (Horizontal Scroll) -->
+          <div class="trending-scroll-container">
+            <div class="trending-card" v-for="(group, gIndex) in trendingGroups" :key="gIndex">
+              <div class="card-header">
+                <!-- Modern Crown Icon -->
+                <svg class="crown-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2 20H22" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M5 17L2 7L9 10L12 2L15 10L22 7L19 17H5Z" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="card-title">{{ group.title }}</span>
+              </div>
+              <div class="card-body">
+                <div 
+                  v-for="(item, i) in group.items" 
+                  :key="i" 
+                  class="rank-row" 
+                  @click="applyQuick(item.title)"
+                >
+                  <!-- Bookmark Badge with Number -->
+                  <div class="rank-badge-wrapper">
+                    <svg class="bookmark-icon" viewBox="0 0 24 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M0 4C0 1.79086 1.79086 0 4 0H20C22.2091 0 24 1.79086 24 4V28L12 22L0 28V4Z" :fill="getRankColor(i)"/>
+                    </svg>
+                    <span class="rank-num">{{ i + 1 }}</span>
+                  </div>
+                  <span class="rank-text">{{ item.title }}</span>
+                  <span v-if="item.tag" class="rank-tag" :class="getRankTagClass(item.tagType)">{{ item.tag }}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section v-if="items.length" class="results">
-        <div class="grid">
-          <ProductCard
+          <!-- Requested Footer Text -->
+          <div class="footer-note">
+            يتم تحديث البحث عن الموديلات العصرية يومياً ليعكس ما يبحث عنه عشاق الموضة.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Search Results (If searched) -->
+      <section v-else class="results-view">
+        <div class="results-header">
+          <span>النتائج لـ "{{ q }}"</span>
+        </div>
+        <div class="products-grid" v-if="items.length">
+           <ProductCard
             v-for="p in items"
             :key="p.id"
             :id="p.id"
@@ -56,122 +144,521 @@
             :isFastShipping="p.fast"
           />
         </div>
-      </section>
-      <div v-else class="muted" v-if="searched">لا توجد نتائج</div>
-
-      <div class="footer-note">يتم تحديث عمليات البحث الشائعة يوميًا بناءً على نشاط المستخدم.</div>
-    </div>
-
-    <BottomSheet v-model="openFilters">
-      <div class="sheet-title">الفلاتر</div>
-      <div class="filter-block">
-        <div class="block-title">السعر</div>
-        <div class="row">
-          <input class="input" type="number" v-model.number="priceMin" placeholder="من" />
-          <input class="input" type="number" v-model.number="priceMax" placeholder="إلى" />
+        <div v-else class="no-results">
+          <p>لا توجد نتائج مطابقة</p>
         </div>
-      </div>
-      <button class="btn" @click="runSearch">تطبيق</button>
-    </BottomSheet>
+      </section>
 
-    <BottomNav />
+    </div>
+    
+    <!-- BottomNav Removed -->
   </div>
-  </template>
+</template>
 
 <script setup lang="ts">
-import HeaderBar from '@/components/HeaderBar.vue'
-import BottomNav from '@/components/BottomNav.vue'
-import BottomSheet from '@/components/BottomSheet.vue'
+// Removed BottomNav import
 import ProductCard from '@/components/ProductCard.vue'
-import { ref, computed } from 'vue'
-import { API_BASE } from '@/lib/api'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { API_BASE, apiGet } from '@/lib/api'
 import { fmtPrice } from '@/lib/currency'
 
-type P = { id:string; title:string; price:number; img:string }
+const router = useRouter()
+const route = useRoute()
 const q = ref('')
-let t: any
-const placeholder = 'أنماط مريحة لخريف وشتاء'
-const items = ref<P[]>([])
-const openFilters = ref(false)
-const priceMin = ref<number|undefined>()
-const priceMax = ref<number|undefined>()
+// ... (rest of the file)
+
+onMounted(() => {
+  if (route.query.q) {
+    q.value = String(route.query.q)
+  }
+  fetchCategories()
+})
+const searchInput = ref<HTMLInputElement|null>(null)
+const isFocused = ref(false)
 const searched = ref(false)
-const trending = ['فساتين','أحذية','ساعات','سماعات','ملابس رياضية']
-const historyList = JSON.parse(localStorage.getItem('search_history')||'[]') as string[]
+const items = ref<any[]>([])
+const placeholder = 'فساتين نسائية سهره فخمه'
+
+// History
+const historyList = ref<string[]>(['دفاتر مدرسيه عربي', 'عطر نسائي', 'معاطف'])
 const showAllHistory = ref(false)
-const maxHistory = 8
-const visibleHistory = computed(()=> showAllHistory.value ? historyList : historyList.slice(0, maxHistory))
-function toggleHistory(){ showAllHistory.value = !showAllHistory.value }
-const tags = ['شتاء','مريح','قطن','صحي','الجمال','رياضة','ذكي','هواتف']
-function saveHistory(term:string){
-  const list = Array.from(new Set([term, ...historyList])).slice(0,10)
+const maxHistory = 10
+const visibleHistory = computed(() => showAllHistory.value ? historyList.value : historyList.value.slice(0, maxHistory))
+
+function toggleHistory() { showAllHistory.value = !showAllHistory.value }
+function saveHistory(term: string) {
+  const list = Array.from(new Set([term, ...historyList.value])).slice(0, 20)
+  historyList.value = list
   localStorage.setItem('search_history', JSON.stringify(list))
 }
-function applyQuick(term:string){ q.value = term; runSearch() }
-function clearAll(){ q.value=''; items.value=[]; searched.value=false }
-function openImagePicker(){ /* hook to open image search */ }
-type RankItem = { title:string; sub:string; img:string; isNew?: boolean }
-const ranking = ref<Array<{ title:string; items: RankItem[] }>>([
-  { title: 'عمليات البحث الشائعة', items: Array.from({length:6}).map((_,i)=>({ title:`كلمة ${i+1}`, sub:'#ترند', img:`https://picsum.photos/seed/sr${i}/96/96`, isNew: i%3===0 })) },
-  { title: 'الصحة & الجمال', items: Array.from({length:6}).map((_,i)=>({ title:`جمال ${i+1}`, sub:'مستحضرات', img:`https://picsum.photos/seed/hb${i}/96/96` })) }
-])
-function rankColor(n:number){ if(n===1) return '#FFD166'; if(n===2) return '#A8DADC'; if(n===3) return '#F6C8A8'; return '#E9E9E9' }
-async function runSearch(){
-  searched.value = true
-  if(q.value.trim()) saveHistory(q.value.trim())
-  const sp = new URLSearchParams({ q: q.value })
-  if(priceMin.value!=null) sp.set('min', String(priceMin.value))
-  if(priceMax.value!=null) sp.set('max', String(priceMax.value))
-  try{
-    const res = await fetch(`${API_BASE}/api/search?${sp.toString()}`, { credentials:'omit', headers:{ 'Accept':'application/json' } })
-    if(res.ok){
-      const data = await res.json()
-      items.value = (data?.items||[]).map((d:any)=>({ id:d.id||d.sku||String(d.name), title:d.name, price:d.price||0, img:(d.images?.[0]||'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1080&auto=format&fit=crop') }))
-      if(items.value.length) return
-    }
-  }catch{}
-  items.value = Array.from({length:6}).map((_,i)=>({ id:String(i+1), title:`${q.value||'منتج'} ${i+1}`, price: 49 + i*7, img:'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=1080&auto=format&fit=crop', off: i%2?10:0, sold: 120+i, fast: i%3===0, after: i%2? fmtPrice(49+i*7-3): '' }))
+function clearHistory() {
+  historyList.value = []
+  localStorage.removeItem('search_history')
 }
 
-// suggestions (debounced)
+// Suggestions
 const suggestions = ref<string[]>([])
-watch(q, (nv)=>{
-  clearTimeout(t); t = setTimeout(async ()=>{
-    if (!nv.trim()) { suggestions.value = []; return }
-    try{ const r = await fetch(`${API_BASE}/api/search/suggest?q=${encodeURIComponent(nv)}`, { credentials:'omit' }); if(r.ok){ const j = await r.json(); suggestions.value = Array.isArray(j?.items)? j.items : [] } }catch{ suggestions.value = [] }
-  }, 220)
+let debounceTimer: any
+watch(q, (newVal) => {
+  clearTimeout(debounceTimer)
+  if (!newVal.trim()) {
+    suggestions.value = []
+    searched.value = false
+    return
+  }
+  debounceTimer = setTimeout(async () => {
+    const mock = ['فستان', 'فستان سهرة', 'فستان طويل', 'فستان احمر', 'فستان زفاف', 'فستان صيفي']
+    suggestions.value = mock.filter(s => s.includes(newVal.trim())).slice(0, 10)
+  }, 150)
+})
+
+function highlightMatch(text: string) {
+  const regex = new RegExp(`(${q.value.trim()})`, 'gi')
+  return text.replace(regex, '<span class="highlight">$1</span>')
+}
+
+// Trending Data
+// Trending Data
+const trendingGroups = ref<Array<{ title: string; items: any[] }>>([])
+
+// Mock dictionary for "Top Search Terms" per category
+// In a real app, this would come from an endpoint like /api/analytics/trending?category=...
+const mockTerms: Record<string, string[]> = {
+  'نساء': ['فستان', 'فستان سهرة', 'بلايز', 'تنورة', 'عباية', 'حقائب', 'أحذية كعب', 'مجوهرات', 'ملابس نوم', 'لانجري'],
+  'رجال': ['تي شيرت', 'قميص', 'بنطلون جينز', 'حذاء رياضي', 'جاكيت', 'ساعة يد', 'شورت', 'ملابس داخلية', 'بدلة رسمية', 'نظارات شمسية'],
+  'أطفال': ['ملابس بنات', 'ملابس أولاد', 'ألعاب', 'أحذية أطفال', 'فساتين بنات', 'طقم ولادي', 'حقيبة مدرسية', 'بيجامات', 'ملابس رضيع', 'اكسسوارات شعر'],
+  'منزل': ['ديكور', 'أدوات مطبخ', 'إضاءة', 'مفارش سرير', 'تنظيم', 'أدوات حمام', 'سجاد', 'لوحات', 'شموع', 'أواني'],
+  'تجميل': ['مكياج', 'أحمر شفاه', 'عطور', 'عناية بالبشرة', 'فرش مكياج', 'عدسات', 'طلاء أظافر', 'ماسك', 'سيروم', 'رموش'],
+  'default': ['منتج مميز', 'عرض خاص', 'الأكثر مبيعاً', 'جديدنا', 'تخفيضات', 'موضة الموسم', 'هدايا', 'اكسسوارات', 'شنط', 'أحذية']
+}
+
+function getTermsForCategory(catName: string): any[] {
+  // Try to find matching terms by checking if category name contains key words
+  let terms = mockTerms['default']
+  for (const key in mockTerms) {
+    if (catName.includes(key) || (key === 'نساء' && (catName.includes('women') || catName.includes('حريمي')))) {
+      terms = mockTerms[key]
+      break
+    }
+  }
+  
+  // Map to item structure
+  return terms.map(t => ({ title: t, tag: Math.random() > 0.7 ? 'HOT' : '', tagType: 'hot' }))
+}
+
+async function fetchCategories() {
+  try {
+    // Fetch main categories (top level)
+    const data = await apiGet<any>('/api/categories?limit=10&parentId=null') // Assuming parentId=null gets top level
+    let cats = []
+    
+    if (data && Array.isArray(data.categories)) {
+       cats = data.categories
+    } else if (Array.isArray(data)) {
+       cats = data
+    }
+
+    // If no categories found (or API fails), fallback to static list to ensure UI isn't empty
+    if (cats.length === 0) {
+      cats = [
+        { name: 'نساء' }, { name: 'رجال' }, { name: 'أطفال' }, { name: 'منزل' }
+      ]
+    }
+
+    // Sort categories by popularity (Manual priority for now)
+    const priority = ['نساء', 'women', 'رجال', 'men', 'أطفال', 'kids', 'تجميل', 'beauty', 'منزل', 'home']
+    cats.sort((a: any, b: any) => {
+      const aName = (a.name || '').toLowerCase()
+      const bName = (b.name || '').toLowerCase()
+      const aIdx = priority.findIndex(p => aName.includes(p))
+      const bIdx = priority.findIndex(p => bName.includes(p))
+      
+      // If both found, lower index (higher priority) comes first
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx
+      // If only a found, a comes first
+      if (aIdx !== -1) return -1
+      // If only b found, b comes first
+      if (bIdx !== -1) return 1
+      return 0
+    })
+
+    // Build trending groups from categories
+    trendingGroups.value = cats.slice(0, 5).map((c: any) => ({
+      title: c.name || 'عام',
+      items: getTermsForCategory(c.name || '')
+    }))
+
+  } catch (e) {
+    console.error('Failed to fetch categories for trending:', e)
+    // Fallback
+    trendingGroups.value = [
+      { title: 'نساء', items: getTermsForCategory('نساء') },
+      { title: 'رجال', items: getTermsForCategory('رجال') }
+    ]
+  }
+}
+
+const discoverTags = ['البلاك فرايدي', 'عرض ضخم من Dazy Kids', 'هودي', 'كفر ايفون', 'العاب', 'فستان', 'اظافر', 'جاكيت', 'كفرات', 'فساتين نسائيه انيقه']
+
+function getRankColor(index: number) {
+  if (index === 0) return '#FFD700' // Gold
+  if (index === 1) return '#C0C0C0' // Silver
+  if (index === 2) return '#CD7F32' // Bronze
+  return '#E0E0E0' // Grey
+}
+
+function getRankTagClass(type: string) {
+  if (type === 'hot') return 'tag-hot'
+  if (type === 'new') return 'tag-new'
+  return ''
+}
+
+// Actions
+function goBack() {
+  router.back()
+}
+
+function clearText() {
+  q.value = ''
+  suggestions.value = []
+  searched.value = false
+  searchInput.value?.focus()
+}
+
+function applyQuick(term: string) {
+  q.value = term
+  runSearch()
+}
+
+function openImagePicker() {
+  console.log('Open image picker')
+}
+
+async function runSearch() {
+  if (!q.value.trim()) return
+  searched.value = true
+  suggestions.value = []
+  saveHistory(q.value.trim())
+  
+  router.push({ path: '/search/result', query: { q: q.value.trim() } })
+}
+
+onMounted(() => {
+  if (route.query.q) {
+    q.value = String(route.query.q)
+  }
+  fetchCategories()
 })
 </script>
 
 <style scoped>
-.page{padding:12px 16px;padding-top:68px;background:#fff}
-.search-area{position:relative;margin-bottom:12px}
-.clear{position:absolute;top:-10px;inset-inline-end:0;width:24px;height:24px;border:0;background:transparent}
-.search-pill{height:56px;display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:28px;border:1px solid #EAEAEA}
-.back{width:36px;height:36px;border-radius:18px;border:0;background:transparent}
-.s-input{flex:1;border:0;outline:0;font-size:16px;color:#222}
-.cam{width:36px;height:36px;border-radius:8px;border:0;background:#F3F3F3}
-.search-icon{width:48px;height:48px;border-radius:24px;background:#111;color:#fff;border:0;display:flex;align-items:center;justify-content:center}
-.chips{display:flex;flex-wrap:wrap;gap:8px 8px;margin:12px 0}
-.chip{height:36px;padding:0 12px;border-radius:18px;background:#F3F3F3;display:inline-flex;align-items:center;font-size:14px;color:#222;border:1px solid #F3F3F3}
-.chip.more{background:#fff;border-color:#EAEAEA}
-.tags{row-gap:16px}
-.cards-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}
-.ranking-card{background:#fff;border-radius:10px;border:1px solid #F0EDEA;overflow:hidden}
-.card-header{height:56px;display:flex;align-items:center;gap:8px;padding:0 12px;background:linear-gradient(90deg,#FFECEE,#FFF6F6);font-weight:700}
-.top-badge{background:#fff;border:1px solid #F0EDEA;border-radius:6px;padding:2px 6px;font-size:12px}
-.hdr-title{margin-inline-start:6px}
-.card-body{padding:6px 0}
-.rank-row{display:flex;align-items:center;gap:10px;padding:8px 12px;min-height:52px;border-bottom:1px solid #F3F3F3}
-.rank-badge{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:12px}
-.item-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#f3f3f3}
-.txt{display:flex;flex-direction:column}
-.item-title{font-size:14px;font-weight:600;color:#222}
-.sub{font-size:12px;color:#777}
-.new-tag{background:#DFF3E4;padding:2px 6px;border-radius:6px;font-size:11px;margin-inline-start:8px}
-.results{margin-top:12px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-.muted{color:#64748b;margin-top:12px}
-.sheet-title{font-weight:700;margin-bottom:8px}
-.footer-note{font-size:12px;color:#9A9A9A;text-align:center;margin:18px 0}
+.shein-search-page {
+  background-color: #fff;
+  min-height: 100vh;
+  /* No bottom padding needed as nav is removed */
+  font-family: 'DIN Next LT Arabic', sans-serif;
+}
+
+/* Header */
+.search-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54px; /* Adjusted height */
+  background: #fff;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  gap: 10px; /* Added gap directly to header */
+}
+
+/* Back Button Wrapper - Minimal, just for click target */
+.back-btn-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+}
+
+.search-bar {
+  flex: 1;
+  height: 36px; /* Slightly smaller height */
+  border: 1px solid #222;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  /* Swapped padding: Right (Start) 14px, Left (End) 2px */
+  padding: 0 14px 0 2px; 
+  gap: 6px;
+  background: #fff;
+}
+
+/* Oval Search Button */
+.search-icon-btn {
+  background: #222;
+  border-radius: 16px; /* Oval shape */
+  width: 44px; /* Adjusted width */
+  height: 30px; /* Adjusted height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  /* Removed order: -1 to let it sit at the end naturally */
+}
+.search-icon-btn svg path {
+  stroke: #fff;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px; /* Slightly smaller font */
+  color: #222;
+  text-align: right;
+  background: transparent;
+}
+
+.camera-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+}
+
+/* Content */
+.search-content {
+  padding-top: 54px; /* Match header height */
+  padding-bottom: 30px;
+}
+
+/* Suggestions */
+.suggestions-layer {
+  background: #fff;
+  min-height: calc(100vh - 54px);
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f9f9f9;
+  cursor: pointer;
+}
+
+.suggestion-text {
+  font-size: 13px;
+  color: #333;
+}
+
+.suggestion-text :deep(.highlight) {
+  font-weight: bold;
+  color: #000;
+}
+
+/* Default View */
+.default-view {
+  /* 
+    User wants "no distance on the left side" generally, 
+    BUT "Recent Search and Search & Find and their slides and the text below... a distance on the left side".
+    So we keep the container flush (0 left padding), and add padding to specific children.
+  */
+  padding: 14px 14px 14px 0;
+}
+
+/* New Container for Lists & Footer */
+.search-body-container {
+  width: 100%;
+}
+
+/* Specific Left Spacing for Sections */
+.history-section,
+.discover-section,
+.footer-note {
+  padding-left: 14px; /* Add left padding to these specific sections */
+}
+
+/* Trending Scroll Container - Keep Flush Left */
+.trending-scroll-container {
+  display: flex;
+  overflow-x: auto;
+  gap: 10px;
+  padding-bottom: 10px;
+  scrollbar-width: none; 
+  -ms-overflow-style: none;
+  margin-left: 0; /* Ensure flush left */
+}
+.trending-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 15px; /* Adjusted font size */
+  font-weight: bold;
+  color: #000;
+  margin: 0;
+}
+
+/* Fix: Add bottom margin to Discover title */
+.discover-section .section-title {
+  margin-bottom: 10px;
+}
+
+.clear-history-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.chip {
+  background: #F7F8FA;
+  border: none;
+  padding: 6px 14px; /* Adjusted padding */
+  border-radius: 4px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+
+.trending-card {
+  min-width: 260px; /* Slightly narrower */
+  max-width: 300px;
+  background: #fff;
+  border: 1px solid #F0F0F0;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.card-header {
+  background: linear-gradient(to left, #FFF0F0, #fff);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crown-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.card-title {
+  font-weight: bold;
+  font-size: 13px;
+  color: #E54D42;
+}
+
+.card-body {
+  padding: 0 10px 10px 10px;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f9f9f9;
+  cursor: pointer;
+}
+.rank-row:last-child {
+  border-bottom: none;
+}
+
+/* Bookmark Badge */
+.rank-badge-wrapper {
+  position: relative;
+  width: 20px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookmark-icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.rank-num {
+  position: relative;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  margin-top: -3px;
+}
+
+.rank-text {
+  font-size: 13px;
+  color: #333;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+/* Footer Note */
+.footer-note {
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+  margin-top: 20px;
+  padding-right: 20px; /* Keep right padding */
+  /* padding-left added above */
+  line-height: 1.4;
+}
+
+/* Results */
+.results-view {
+  padding: 14px;
+}
+
+.results-header {
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #666;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.no-results {
+  text-align: center;
+  padding: 30px;
+  color: #999;
+}
 </style>
