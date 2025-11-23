@@ -152,48 +152,48 @@
           </div>
         </div>
       </section>
+
+      <!-- Bottom Tabs (Recently Viewed / Wishlist) -->
+      <section class="bottom-tabs-section">
+        <div class="tabs-header">
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'wishlist' }" 
+            @click="activeTab = 'wishlist'"
+          >
+            قائمة الأماني
+            <div class="active-line" v-if="activeTab === 'wishlist'"></div>
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'recent' }" 
+            @click="activeTab = 'recent'"
+          >
+            شوهد مؤخراً
+            <div class="active-line" v-if="activeTab === 'recent'"></div>
+          </button>
+        </div>
+
+        <div class="tab-content">
+          <!-- Wishlist Empty State -->
+          <div v-if="activeTab === 'wishlist'" class="empty-state">
+            <div class="empty-icon">
+              <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+            </div>
+            <p>لم تقم بحفظ أي شيء مؤخراً.</p>
+            <button class="shop-btn" @click="go('/')">تسوق</button>
+          </div>
+
+          <!-- Recently Viewed Empty State -->
+          <div v-else-if="activeTab === 'recent'" class="empty-state">
+            <div class="empty-icon">
+              <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+            </div>
+            <p>ليس لديك سجل تصفح بعد</p>
+          </div>
+        </div>
+      </section>
     </main>
-
-    <!-- Bottom Tabs (Recently Viewed / Wishlist) - Separate Container -->
-    <section class="bottom-tabs-section">
-      <div class="tabs-header">
-        <button 
-          class="tab-btn" 
-          :class="{ active: activeTab === 'wishlist' }" 
-          @click="activeTab = 'wishlist'"
-        >
-          قائمة الأماني
-          <div class="active-line" v-if="activeTab === 'wishlist'"></div>
-        </button>
-        <button 
-          class="tab-btn" 
-          :class="{ active: activeTab === 'recent' }" 
-          @click="activeTab = 'recent'"
-        >
-          شوهد مؤخراً
-          <div class="active-line" v-if="activeTab === 'recent'"></div>
-        </button>
-      </div>
-
-      <div class="tab-content">
-        <!-- Wishlist Empty State -->
-        <div v-if="activeTab === 'wishlist'" class="empty-state">
-          <div class="empty-icon">
-            <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
-          </div>
-          <p>لم تقم بحفظ أي شيء مؤخراً.</p>
-          <button class="shop-btn" @click="go('/')">تسوق</button>
-        </div>
-
-        <!-- Recently Viewed Empty State -->
-        <div v-else-if="activeTab === 'recent'" class="empty-state">
-          <div class="empty-icon">
-            <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
-          </div>
-          <p>ليس لديك سجل تصفح بعد</p>
-        </div>
-      </div>
-    </section>
 
     <div class="h-20"></div>
 
@@ -561,7 +561,6 @@ onMounted(() => {
 .tabs-header {
   display: flex;
   background: #fff !important;
-  border-bottom: 1px solid #f0f0f0;
 }
 
 .tab-btn {
