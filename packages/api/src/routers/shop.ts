@@ -41,6 +41,34 @@ function clearShopCookies(res: Response): void {
     } catch { }
   }
 }
+// -------- Auth: me (shop scope) --------
+shop.get('/auth/me', async (req: any, res) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload) return res.status(401).json({ error: 'invalid_token' });
+
+    const user = await db.user.findUnique({
+      where: { id: payload.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        isVerified: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    return res.json(user);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'auth_me_failed' });
+  }
+});
+
 shop.post('/auth/logout', async (_req: any, res) => {
   try {
     clearShopCookies(res as unknown as Response);
