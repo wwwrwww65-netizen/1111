@@ -61,7 +61,6 @@
       </section>
 
       <!-- Stats Row (Coupons, Wallet, Points, Gift Card) -->
-      <!-- Stats Row (Coupons, Wallet, Points, Gift Card) -->
       <section class="stats-container">
         <div class="stats-row">
           <div class="stat-item" @click="go('/coupons')">
@@ -83,7 +82,7 @@
         </div>
 
         <!-- Coupon Notification Strip -->
-        <div class="coupon-strip" v-if="user.isLoggedIn && couponsCount > 0">
+        <div class="coupon-strip" v-if="user.isLoggedIn && couponsCount > 0 && showCouponStrip">
           <span>لديك <span class="red-text">{{ couponsCount }} كوبونات</span> على وشك الانتهاء!</span>
           <button class="close-strip" @click="closeCouponStrip">
             <X class="w-4 h-4 text-gray-500" />
@@ -177,10 +176,10 @@
           </button>
         </div>
 
-        <div class="tab-content">
+        <div class="tab-content px-1 pb-1">
           <!-- Wishlist Tab -->
           <div v-if="activeTab === 'wishlist'">
-            <div v-if="wishlist.count > 0" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense px-1 pb-1">
+            <div v-if="wishlist.count > 0" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
               <!-- Left Column -->
               <div>
                 <div v-for="(p, i) in wishlistLeft" :key="p.id" class="mb-[6px]">
@@ -194,7 +193,7 @@
                       discountPercent: 0
                     }"
                     :ratio="1.3"
-                    @add="addToCart"
+                    @add="openSuggestOptions"
                   />
                 </div>
               </div>
@@ -211,7 +210,7 @@
                       discountPercent: 0
                     }"
                     :ratio="1.3"
-                    @add="addToCart"
+                    @add="openSuggestOptions"
                   />
                 </div>
               </div>
@@ -228,7 +227,7 @@
 
           <!-- Recently Viewed Tab -->
           <div v-else-if="activeTab === 'recent'">
-            <div v-if="recent.count > 0" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense px-1 pb-1">
+            <div v-if="recent.count > 0" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
               <!-- Left Column -->
               <div>
                 <div v-for="(p, i) in recentLeft" :key="p.id" class="mb-[6px]">
@@ -242,7 +241,7 @@
                       discountPercent: p.discountPercent || 0
                     }"
                     :ratio="1.3"
-                    @add="addToCart"
+                    @add="openSuggestOptions"
                   />
                 </div>
               </div>
@@ -259,7 +258,7 @@
                       discountPercent: p.discountPercent || 0
                     }"
                     :ratio="1.3"
-                    @add="addToCart"
+                    @add="openSuggestOptions"
                   />
                 </div>
               </div>
@@ -276,6 +275,36 @@
       </section>
     </main>
 
+    <!-- إشعار: يرجى تحديد الخيارات -->
+    <Transition name="fade">
+      <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+        <div class="bg-black/80 text-white text-[13px] px-4 py-2.5 rounded-md shadow-lg">يرجى تحديد الخيارات</div>
+      </div>
+    </Transition>
+
+    <!-- نافذة خيارات المنتج للإضافة للسلة -->
+    <ProductOptionsModal
+      v-if="optionsModal.open"
+      :onClose="closeOptions"
+      :onSave="onOptionsSave"
+      :product="optionsProduct"
+      :selectedColor="optionsModal.color"
+      :selectedSize="optionsModal.size"
+      :groupValues="optionsModal.groupValues"
+      :hideTitle="true"
+      :primaryLabel="'أضف إلى عربة التسوق'"
+      :showWishlist="false"
+    />
+
+    <!-- Toast -->
+    <div 
+      v-if="toast" 
+      class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2"
+    >
+      <span>✓</span>
+      <span>{{ toastText }}</span>
+    </div>
+
     <div class="h-20"></div>
 
     <BottomNav active="account" />
@@ -283,15 +312,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
 import { useWishlist } from '@/store/wishlist'
 import { useRecent } from '@/store/recent'
 import { useCart } from '@/store/cart'
-import { apiGet } from '@/lib/api'
+import { apiGet, API_BASE } from '@/lib/api'
 import BottomNav from '@/components/BottomNav.vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
+import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { 
   Settings, MessageSquare, ChevronLeft, Gift, CreditCard, X, 
   Package, Truck, RotateCcw, Headphones, FileText, Megaphone, 
@@ -314,22 +344,6 @@ const wishlistRight = computed(() => wishlist.items.filter((_, i) => i % 2 === 1
 
 const recentLeft = computed(() => recent.list.filter((_, i) => i % 2 === 0))
 const recentRight = computed(() => recent.list.filter((_, i) => i % 2 === 1))
-
-function addToCart(id: string) {
-  // Try to find in wishlist or recent
-  const wItem = wishlist.items.find(i => i.id === id)
-  const rItem = recent.items.find(i => i.id === id)
-  const item = wItem || rItem
-  
-  if (item) {
-    cart.add({
-      id: item.id,
-      title: item.title,
-      price: item.price,
-      img: item.img
-    }, 1)
-  }
-}
 
 function go(path: string) {
   // Protected routes that require login
@@ -358,8 +372,171 @@ function joinClub() {
   console.log('Join club')
 }
 
+const showCouponStrip = ref(true)
+
 function closeCouponStrip() {
-  couponsCount.value = 0
+  showCouponStrip.value = false
+}
+
+// Options modal logic (same UX as homepage/category)
+const optionsModal = reactive({ open:false, productId:'', color:'', size:'', groupValues:{} as Record<string,string> })
+const optionsCache = reactive<Record<string, any>>({})
+const optionsProduct = computed(()=> optionsCache[optionsModal.productId] || null)
+const requireOptionsNotice = ref(false)
+const toast = ref(false)
+const toastText = ref('تمت الإضافة إلى السلة')
+
+function showToast(msg?: string){ try{ if(msg) toastText.value = msg }catch{}; toast.value = true; setTimeout(()=>{ toast.value=false; try{ toastText.value='تمت الإضافة إلى السلة' }catch{} }, 1200) }
+
+async function fetchProductDetails(id: string){
+  try{
+    if (optionsCache[id]) return optionsCache[id]
+    const base = API_BASE
+    const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { headers:{ 'Accept':'application/json' } })
+    if (!res.ok) return
+    const d = await res.json()
+
+    const imgs = Array.isArray(d.images)? d.images : []
+    const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
+
+    const normalizeImage = (u: any): string => {
+      const s = String(u || '').trim()
+      if (!s) return filteredImgs[0] || '/images/placeholder-product.jpg'
+      if (/^https?:\/\//i.test(s)) return s
+      if (s.startsWith('/uploads')) return `${base}${s}`
+      if (s.startsWith('uploads/')) return `${base}/${s}`
+      return s
+    }
+    const normToken = (s:string)=> String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9\u0600-\u06FF]/g,'')
+    const isColorWord = (t:string): boolean => {
+      const v = normToken(t)
+      return /^(black|white|red|blue|green|yellow|pink|beige|gray|grey|brown|navy|purple|orange|ذهبي|فضي|أسود|ابيض|أبيض|أحمر|ازرق|أزرق|أخضر|أصفر|وردي|بيج|رمادي|بني|紺|بنفسجي)$/i.test(v)
+    }
+    const looksSizeToken = (s:string): boolean => {
+      const v = String(s||'').trim()
+      if (!v) return false
+      if (/^\d{1,3}$/.test(v)) return true
+      const t = v.toUpperCase()
+      return ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL'].includes(t)
+    }
+
+    // Colors: prefer attributes.color values mapped to colorGalleries thumbnails; fallback to galleries names
+    let colors: Array<{ label: string; img: string }> = []
+    try{
+      const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray((d as any).attributes)? (d as any).attributes : []
+      const col = attrs.find(a=> a.key==='color')
+      const colVals: string[] = Array.isArray(col?.values)? col!.values : []
+      if (colVals.length){
+        colors = colVals.map((label:string)=>{
+          const g = galleries.find((x:any)=> String(x?.name||'').trim().toLowerCase() === String(label||'').trim().toLowerCase())
+          const chosen = g?.primaryImageUrl || (Array.isArray(g?.images)&&g!.images![0]) || filteredImgs[0] || '/images/placeholder-product.jpg'
+          return { label, img: normalizeImage(chosen) }
+        })
+      }
+    }catch{}
+    if (!colors.length && galleries.length){
+      colors = galleries.map((g:any)=> {
+        const label = String(g.name||'').trim()
+        const chosen = g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || filteredImgs[0] || '/images/placeholder-product.jpg'
+        return { label, img: normalizeImage(chosen) }
+      }).filter(c=> !!c.label)
+    }
+    if (colors.length <= 1) colors = []
+
+    // Sizes: accept only real size tokens; derive groups (letters/numbers) with ordering
+    const variants = Array.isArray(d.variants)? d.variants : []
+    let sizes = Array.isArray(d.sizes)? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && looksSizeToken(String(s).trim()) && !isColorWord(String(s).trim())) : []
+    if (!sizes.length && variants.length){
+      const set = new Set<string>()
+      for (const v of variants){
+        const sv = String((v as any).size||'').trim()
+        if (sv && looksSizeToken(sv) && !isColorWord(sv)) set.add(sv)
+      }
+      sizes = Array.from(set)
+    }
+    const isNumber = (x:string)=> /^\d{1,3}$/.test(String(x).trim())
+    const letters = new Set<string>()
+    const numbers = new Set<string>()
+    for (const s of sizes){ if (isNumber(s)) numbers.add(s); else if (looksSizeToken(s)) letters.add(s) }
+    const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+    const orderLetters = (vals:string[])=> Array.from(vals).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
+    const orderNumbers = (vals:string[])=> Array.from(vals).sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0))
+    const sizeGroups: Array<{ label:string; values:string[] }> = []
+    if (letters.size) sizeGroups.push({ label: 'مقاسات بالأحرف', values: orderLetters(Array.from(letters)) })
+    if (numbers.size) sizeGroups.push({ label: 'مقاسات بالأرقام', values: orderNumbers(Array.from(numbers)) })
+
+    optionsCache[id] = {
+      id: d.id||id,
+      title: d.name||'',
+      price: Number(d.price||0),
+      images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'],
+      colors,
+      sizes,
+      sizeGroups,
+      colorGalleries: galleries
+    }
+    return optionsCache[id]
+  }catch{}
+}
+
+async function openSuggestOptions(id: string){
+  // Probe first: if no options, add directly and toast
+  try{
+    const base = API_BASE
+    const res = await fetch(`${base}/api/product/${encodeURIComponent(id)}`, { headers:{ 'Accept':'application/json' } })
+    if (res.ok){
+      const d = await res.json()
+      const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+      const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+      const hasColors = colorsCount > 1
+      const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+      const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+      const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+      if (!hasColors && !hasSizes){
+        // Add directly
+        const wItem = wishlist.items.find(i => i.id === id)
+        const rItem = recent.items.find(i => i.id === id)
+        const p = wItem || rItem
+        if (p){ 
+          cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.price||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.img || '/images/placeholder-product.jpg' }, 1); 
+          showToast() 
+        }
+        return
+      }
+    }
+  }catch{}
+  // Has options → open modal
+  try{
+    optionsModal.productId = id
+    optionsModal.color = ''
+    optionsModal.size = ''
+    optionsModal.groupValues = {}
+    optionsModal.open = true
+    await fetchProductDetails(id)
+  }catch{}
+}
+
+function closeOptions(){ optionsModal.open = false }
+
+function onOptionsSave(payload: { color: string; size: string }){
+  try{
+    const prod = optionsProduct.value
+    // Require sizes/groups when present
+    const groups = Array.isArray(prod?.sizeGroups) ? prod!.sizeGroups : []
+    if (groups.length){
+      const composite = String(payload.size||'')
+      const missing = groups.some((g:any)=> !new RegExp(`(?:^|\|)${g.label}:[^|]+`).test(composite))
+      if (missing){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    } else {
+      const hasSizes = Array.isArray(prod?.sizes) && prod!.sizes.length>0
+      if (hasSizes && !String(payload.size||'').trim()){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    }
+    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
+    cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
+    showToast()
+  }catch{}
+  optionsModal.open = false
 }
 
 onMounted(async () => {
@@ -368,11 +545,12 @@ onMounted(async () => {
   // Sync wishlist if logged in
   if (user.isLoggedIn) {
     wishlist.sync()
-    // Fetch coupons
+    // Fetch coupons (owned/eligible)
     try {
-      const coupons = await apiGet<any[]>('/api/auth/coupons')
-      if (Array.isArray(coupons)) {
-        couponsCount.value = coupons.length
+      const res = await apiGet<any>('/api/me/coupons')
+      const list = res?.items || res?.coupons || []
+      if (Array.isArray(list)) {
+        couponsCount.value = list.length
       }
     } catch (e) {
       console.error('Failed to fetch coupons', e)
@@ -742,7 +920,7 @@ onMounted(async () => {
 }
 
 .tab-content {
-  padding: 12px;
+  padding: 0;
 }
 
 .empty-state {

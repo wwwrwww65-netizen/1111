@@ -29,8 +29,13 @@ export const useUser = defineStore('user', {
           this.username = 'jeeey'
           console.log('User not logged in (no user data)')
         }
-      } catch (e) {
-        console.error('Auth check failed:', e)
+      } catch (e: any) {
+        // Suppress 401/403 errors as they are expected for guests
+        if (e?.status !== 401 && e?.status !== 403) {
+          console.error('Auth check failed:', e)
+        } else {
+          console.log('User is guest')
+        }
         this.isLoggedIn = false
         this.username = 'jeeey'
       }
