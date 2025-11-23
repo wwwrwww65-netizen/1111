@@ -100,6 +100,43 @@ shop.get('/auth/wishlist', async (req: any, res) => {
   }
 });
 
+// -------- Auth: Coupons (shop scope) --------
+shop.get('/auth/coupons', async (req: any, res) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload) return res.status(401).json({ error: 'invalid_token' });
+
+    const now = new Date();
+    // Fetch active and valid coupons
+    const coupons = await db.coupon.findMany({
+      where: {
+        isActive: true,
+        validFrom: { lte: now },
+        validUntil: { gte: now },
+      },
+    });
+
+    // Check usage
+    const userUsage = await db.couponUsage.findMany({
+      where: { userId: payload.userId },
+      select: { couponId: true },
+    });
+    const usedIds = new Set(userUsage.map(u => u.couponId));
+
+    const available = coupons.filter(c => {
+      if (usedIds.has(c.id)) return false;
+      if (c.maxUses != null && c.currentUses >= c.maxUses) return false;
+      return true;
+    });
+
+    return res.json(available);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'coupons_list_failed' });
+  }
+});
+
 shop.post('/auth/wishlist/toggle', async (req: any, res) => {
   try {
     const token = readTokenFromRequest(req);
@@ -5174,6 +5211,85 @@ shop.get('/marketing/facebook/catalog.xml', async (req, res) => {
     xml.push('</channel></rss>');
     res.send(xml.join(''));
   } catch (e: any) { res.status(500).json({ error: e?.message || 'coupons_public_failed' }) }
+});
+
+// Public: Recently viewed products (based on user history)
+shop.get('/products/recent', async (req: any, res) => {
+  try {
+    // Identify user or session
+    let userId: string | undefined;
+    try {
+      const { readTokenFromRequest, verifyJwt } = await import('../utils/jwt');
+      const t = readTokenFromRequest(req);
+      if (t) {
+        const p = verifyJwt(String(t));
+        if (p && p.userId) userId = String(p.userId);
+      }
+    } catch { }
+
+    const sessionId = String(req.query.sessionId || req.headers['x-session-id'] || '').trim();
+    if (!userId && !sessionId) return res.json({ items: [] });
+
+    // Build query conditions
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    // Filter by event name 'viewcontent' (lowercase as per track.ts)
+    conditions.push(`name IN ('viewcontent', 'view_item', 'ViewContent')`);
+
+    // Filter by user or session
+    if (userId) {
+      conditions.push(`("userId" = $${idx} OR (properties->>'userId') = $${idx})`);
+      params.push(userId);
+      idx++;
+    } else {
+      // Guest: rely on sessionId
+      conditions.push(`(COALESCE("sessionId", properties->>'sessionId') = $${idx})`);
+      params.push(sessionId);
+      idx++;
+    }
+
+    const whereSql = conditions.join(' AND ');
+
+    // Query distinct productIds from events, ordered by most recent
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT "productId", MAX("createdAt") as "lastViewed"
+      FROM "Event"
+      WHERE ${whereSql} AND "productId" IS NOT NULL
+      GROUP BY "productId"
+      ORDER BY "lastViewed" DESC
+      LIMIT 20
+    `, ...params);
+
+    if (!rows.length) return res.json({ items: [] });
+
+    const pids = rows.map(r => String(r.productId));
+
+    // Fetch product details
+    const products = await db.product.findMany({
+      where: { id: { in: pids }, isActive: true },
+      select: { id: true, name: true, price: true, images: true, brand: true }
+    });
+
+    // Map back to preserve order
+    const map = new Map(products.map(p => [p.id, p]));
+    const items = pids.map(id => {
+      const p = map.get(id);
+      if (!p) return null;
+      return {
+        id: p.id,
+        title: p.name,
+        price: Number(p.price),
+        img: Array.isArray(p.images) ? p.images[0] : '',
+        brand: p.brand
+      };
+    }).filter(Boolean);
+
+    res.json({ items });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || 'recent_failed' });
+  }
 });
 
 // Public: trending products (top IDs) for mweb badges

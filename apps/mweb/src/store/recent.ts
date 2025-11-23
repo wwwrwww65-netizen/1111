@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { apiGet } from '@/lib/api'
 
 export type RecentItem = { id: string; title: string; price: number; img: string; brand?: string; discountPercent?: number; basePrice?: number; soldPlus?: boolean; couponPrice?: number }
 
@@ -22,6 +23,18 @@ export const useRecent = defineStore('recent', {
             this.items.unshift(item)
             if (this.items.length > 20) this.items = this.items.slice(0, 20) // Keep 20 in storage, show 10
             save(this.items)
+        },
+        async sync() {
+            try {
+                const sid = localStorage.getItem('sid_v1') || ''
+                const res = await apiGet<{ items: RecentItem[] }>(`/api/products/recent?sessionId=${sid}`)
+                if (res && Array.isArray(res.items)) {
+                    this.items = res.items
+                    save(this.items)
+                }
+            } catch (e) {
+                console.error('Failed to sync recent', e)
+            }
         },
         clear() {
             this.items = []

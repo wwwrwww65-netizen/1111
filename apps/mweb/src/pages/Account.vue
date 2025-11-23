@@ -61,32 +61,35 @@
       </section>
 
       <!-- Stats Row (Coupons, Wallet, Points, Gift Card) -->
-      <section class="stats-row">
-        <div class="stat-item" @click="go('/coupons')">
-          <span class="stat-val">{{ user.isLoggedIn ? '3' : '0' }}</span>
-          <span class="stat-label">كوبونات</span>
+      <!-- Stats Row (Coupons, Wallet, Points, Gift Card) -->
+      <section class="stats-container">
+        <div class="stats-row">
+          <div class="stat-item" @click="go('/coupons')">
+            <span class="stat-val">{{ user.isLoggedIn ? couponsCount : '0' }}</span>
+            <span class="stat-label">كوبونات</span>
+          </div>
+          <div class="stat-item" @click="go('/wallet')">
+            <span class="stat-val">{{ user.isLoggedIn ? '0' : '0' }}</span>
+            <span class="stat-label">محفظة</span>
+          </div>
+          <div class="stat-item" @click="go('/points')">
+            <span class="stat-val">{{ user.isLoggedIn ? '0' : '0' }}</span>
+            <span class="stat-label">نقاط</span>
+          </div>
+          <div class="stat-item" @click="go('/giftcards')">
+            <CreditCard class="w-6 h-6 text-gray-700 mb-1" />
+            <span class="stat-label">بطاقة هدية</span>
+          </div>
         </div>
-        <div class="stat-item" @click="go('/wallet')">
-          <span class="stat-val">{{ user.isLoggedIn ? '0' : '0' }}</span>
-          <span class="stat-label">محفظة</span>
-        </div>
-        <div class="stat-item" @click="go('/points')">
-          <span class="stat-val">{{ user.isLoggedIn ? '0' : '0' }}</span>
-          <span class="stat-label">نقاط</span>
-        </div>
-        <div class="stat-item" @click="go('/giftcards')">
-          <CreditCard class="w-6 h-6 text-gray-700 mb-1" />
-          <span class="stat-label">بطاقة هدية</span>
+
+        <!-- Coupon Notification Strip -->
+        <div class="coupon-strip" v-if="user.isLoggedIn && couponsCount > 0">
+          <span>لديك <span class="red-text">{{ couponsCount }} كوبونات</span> على وشك الانتهاء!</span>
+          <button class="close-strip" @click="closeCouponStrip">
+            <X class="w-4 h-4 text-gray-500" />
+          </button>
         </div>
       </section>
-
-      <!-- Coupon Notification Strip -->
-      <div class="coupon-strip" v-if="user.isLoggedIn">
-        <span>لديك <span class="red-text">3 قسيمة</span> على وشك الانتهاء!</span>
-        <button class="close-strip">
-          <X class="w-4 h-4 text-gray-500" />
-        </button>
-      </div>
 
       <!-- Orders Section -->
       <section class="section-block">
@@ -286,6 +289,7 @@ import { useUser } from '@/store/user'
 import { useWishlist } from '@/store/wishlist'
 import { useRecent } from '@/store/recent'
 import { useCart } from '@/store/cart'
+import { apiGet } from '@/lib/api'
 import BottomNav from '@/components/BottomNav.vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import { 
@@ -300,6 +304,7 @@ const wishlist = useWishlist()
 const recent = useRecent()
 const cart = useCart()
 const activeTab = ref('wishlist')
+const couponsCount = ref(0)
 
 const username = computed(() => user.username || 'jeeey')
 
@@ -353,13 +358,28 @@ function joinClub() {
   console.log('Join club')
 }
 
-onMounted(() => {
+function closeCouponStrip() {
+  couponsCount.value = 0
+}
+
+onMounted(async () => {
   // Check auth state on mount to ensure UI reflects login status
   user.checkAuth()
   // Sync wishlist if logged in
   if (user.isLoggedIn) {
     wishlist.sync()
+    // Fetch coupons
+    try {
+      const coupons = await apiGet<any[]>('/api/auth/coupons')
+      if (Array.isArray(coupons)) {
+        couponsCount.value = coupons.length
+      }
+    } catch (e) {
+      console.error('Failed to fetch coupons', e)
+    }
   }
+  // Sync recent items (for both guest and logged-in)
+  recent.sync()
 })
 </script>
 
@@ -549,14 +569,17 @@ onMounted(() => {
   margin-right: 4px;
 }
 
-/* Stats Row */
-.stats-row {
+/* Stats Container */
+.stats-container {
   background: #fff;
   border-radius: 8px;
   padding: 16px 12px;
+  margin-bottom: 12px;
+}
+
+.stats-row {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
 }
 
 .stat-item {
@@ -584,12 +607,25 @@ onMounted(() => {
   background: #FFF8E1;
   padding: 8px 12px;
   border-radius: 4px;
-  margin-bottom: 12px;
+  margin-top: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
   color: #333;
+  position: relative;
+}
+
+.coupon-strip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 12%; /* Align with Coupons item roughly */
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #FFF8E1;
 }
 
 .red-text {

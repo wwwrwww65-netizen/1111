@@ -1037,6 +1037,8 @@
 import { useRoute, useRouter } from 'vue-router'
 import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useCart } from '@/store/cart'
+import { useRecent } from '@/store/recent'
+import { useWishlist } from '@/store/wishlist'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { 
@@ -2022,6 +2024,15 @@ async function loadProductData(pid?: string) {
       title.value = d.name || title.value
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
+      try{
+        recent.add({
+          id: d.id,
+          title: d.name,
+          price: Number(d.price),
+          img: imgs[0] || '',
+          brand: d.brand
+        })
+      }catch{}
       try{
         // If we have a prefetched hero, place it first and animate from its rect
         const pref = consumePrefetchPayload(String(d.id||id))
