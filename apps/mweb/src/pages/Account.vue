@@ -1,348 +1,631 @@
 <template>
-  <div v-if="!hydrated" class="account-loading" dir="rtl" lang="ar">
-    <div class="w-full">
-      <!-- Header skeleton -->
-      <div class="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
-        <div class="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
-        <div class="w-24 h-4 bg-gray-200 rounded animate-pulse"></div>
-        <div class="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
-      </div>
-      <!-- Club card skeleton -->
-      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
-        <div class="w-20 h-5 bg-orange-100 rounded mb-3"></div>
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <div class="h-12 bg-gray-100 rounded"></div>
-          <div class="h-12 bg-gray-100 rounded"></div>
-          <div class="h-12 bg-gray-100 rounded"></div>
-        </div>
-        <div class="h-9 bg-orange-50 rounded"></div>
-      </div>
-      <!-- Shortcuts skeleton -->
-      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
-        <div class="grid grid-cols-2 gap-3">
-          <div class="h-9 bg-gray-100 rounded"></div>
-          <div class="h-9 bg-gray-100 rounded"></div>
-        </div>
-      </div>
-      <!-- Stats skeleton -->
-      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
-        <div class="grid grid-cols-3 gap-3">
-          <div class="h-8 bg-gray-100 rounded"></div>
-          <div class="h-8 bg-gray-100 rounded"></div>
-          <div class="h-8 bg-gray-100 rounded"></div>
-        </div>
-      </div>
-      <!-- Quick actions skeleton -->
-      <div class="mx-4 mt-4 bg-white rounded-lg p-4 shadow-sm">
-        <div class="grid grid-cols-5 gap-4">
-          <div v-for="i in 5" :key="i" class="h-16 bg-gray-100 rounded"></div>
-        </div>
-      </div>
-      <div class="h-20"></div>
-    </div>
-  </div>
-  <main class="bg-gray-50 min-h-screen" dir="rtl" lang="ar" v-else-if="user.isLoggedIn">
+  <div class="account-page" dir="rtl" lang="ar">
     <!-- Header -->
-    <div class="bg-white px-4 py-3 flex items-center justify-between">
-      <button @click="goToSettings" aria-label="الإعدادات">
-        <Settings class="w-6 h-6 text-gray-600" />
+    <header class="account-header">
+      <!-- Logged In State -->
+      <div v-if="user.isLoggedIn" class="user-info">
+        <div class="crown-badge">
+          <span>S0</span>
+          <svg width="12" height="10" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1.5 8.5H10.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+            <path d="M2.5 6.5L1.5 2.5L4.5 4.5L6 1.5L7.5 4.5L10.5 2.5L9.5 6.5H2.5Z" fill="white"/>
+          </svg>
+        </div>
+        <span class="username">{{ username }}</span>
+      </div>
+
+      <!-- Guest State -->
+      <div v-else class="guest-info" @click="loginNow">
+        <span class="login-text">تسجيل الدخول/ تسجيل</span>
+        <ChevronLeft class="w-5 h-5 text-gray-800" />
+      </div>
+
+      <button class="icon-btn" @click="goToSettings" aria-label="الإعدادات">
+        <Settings class="w-6 h-6 text-gray-800" />
       </button>
-      <div class="flex items-center gap-2">
-        <span class="bg-gray-400 text-white px-2 py-1 rounded text-xs">SO %</span>
-        <span class="text-lg font-medium">{{ username }}</span>
-      </div>
-      <div class="w-6 h-6"></div>
-    </div>
+    </header>
 
-    <!-- JEEEY Club Card -->
-    <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
-      <div class="flex items-center justify-between mb-3">
-        <div class="bg-orange-500 text-white px-2 py-1 rounded text-xs font-bold">JEEEY CLUB</div>
-      </div>
-      <div class="text-sm text-gray-600 mb-4">انضم للحصول على المزايا 3+</div>
-
-      <div class="flex justify-between items-center mb-4">
-        <div class="text-center">
-          <div class="bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center mb-2">
-            <span class="text-orange-500 font-bold text-xs">5%</span>
+    <!-- Main Content -->
+    <main class="account-content">
+      
+      <!-- JEEEY CLUB Card -->
+      <section class="club-card">
+        <div class="club-header">
+          <span class="club-logo">
+            <span class="club-icon">S</span> JEEEY CLUB
+          </span>
+        </div>
+        <div class="club-subtitle">انضم للحصول على المزايا +4</div>
+        
+        <div class="club-benefits">
+          <div class="benefit-item">
+            <div class="benefit-val">15x</div>
+            <div class="benefit-desc">كوبونات شحن 15X</div>
           </div>
-          <div class="text-xs text-gray-600">نقاط يومية 5%</div>
+          <div class="benefit-divider"></div>
+          <div class="benefit-item">
+            <div class="benefit-val">10%</div>
+            <div class="benefit-desc">%2~10% مكافأة الائتمان</div>
+          </div>
+          <div class="benefit-divider"></div>
+          <div class="benefit-item">
+            <div class="benefit-tag">x3</div>
+            <Gift class="w-6 h-6 text-[#8B5D33] mb-1" />
+            <div class="benefit-desc">3 هدايا مجانية</div>
+          </div>
         </div>
-        <div class="text-center">
-          <div class="text-2xl font-bold">15%</div>
-          <div class="text-xs text-gray-600">خصومات حتى 15%</div>
+
+        <button class="join-btn" @click="joinClub">
+          انضم لمدة <span class="price">3,000 ر.ي</span> (93 يوم) <span class="old-price">5,000 ر.ي</span>
+        </button>
+      </section>
+
+      <!-- Stats Row (Coupons, Wallet, Points, Gift Card) -->
+      <section class="stats-row">
+        <div class="stat-item" @click="go('/coupons')">
+          <span class="stat-val">{{ user.isLoggedIn ? '3' : '0' }}</span>
+          <span class="stat-label">كوبونات</span>
         </div>
-        <div class="text-center">
-          <div class="text-2xl font-bold">10%</div>
-          <div class="text-xs text-gray-600">10%-2% منتجة الشحن</div>
+        <div class="stat-item" @click="go('/wallet')">
+          <span class="stat-val">{{ user.isLoggedIn ? '0' : '0' }}</span>
+          <span class="stat-label">محفظة</span>
         </div>
+        <div class="stat-item" @click="go('/points')">
+          <span class="stat-val">{{ user.isLoggedIn ? '0' : '0' }}</span>
+          <span class="stat-label">نقاط</span>
+        </div>
+        <div class="stat-item" @click="go('/giftcards')">
+          <CreditCard class="w-6 h-6 text-gray-700 mb-1" />
+          <span class="stat-label">بطاقة هدية</span>
+        </div>
+      </section>
+
+      <!-- Coupon Notification Strip -->
+      <div class="coupon-strip" v-if="user.isLoggedIn">
+        <span>لديك <span class="red-text">3 قسيمة</span> على وشك الانتهاء!</span>
+        <button class="close-strip">
+          <X class="w-4 h-4 text-gray-500" />
+        </button>
       </div>
 
-      <div class="bg-orange-50 p-3 rounded-lg">
-        <div class="text-center">
-          <span class="text-orange-500 line-through text-sm">₪33.99 (بدلاً من 93)</span>
-          <span class="text-orange-500 font-bold text-lg mr-2">₪22.99</span>
-          <button class="text-orange-500 text-sm underline" @click="joinClub">انضم الآن</button>
+      <!-- Orders Section -->
+      <section class="section-block">
+        <div class="section-header-row" @click="go('/orders')">
+          <span class="section-title">طلبي</span>
+          <div class="section-more">
+            <span>الاراء الكاملة</span>
+            <ChevronLeft class="w-4 h-4" />
+          </div>
         </div>
-      </div>
-    </div>
+        <div class="orders-grid">
+          <div class="order-item" @click="go('/orders?status=unpaid')">
+            <CreditCard class="w-6 h-6 text-gray-700 mb-2" />
+            <span>غير مدفوع</span>
+          </div>
+          <div class="order-item" @click="go('/orders?status=processing')">
+            <Package class="w-6 h-6 text-gray-700 mb-2" />
+            <span>قيد التجهيز</span>
+          </div>
+          <div class="order-item" @click="go('/orders?status=shipped')">
+            <Truck class="w-6 h-6 text-gray-700 mb-2" />
+            <span>تم الشحن</span>
+          </div>
+          <div class="order-item" @click="go('/orders?status=review')">
+            <MessageSquare class="w-6 h-6 text-gray-700 mb-2" />
+            <span>تعليق</span>
+          </div>
+          <div class="order-item" @click="go('/orders/returns')">
+            <RotateCcw class="w-6 h-6 text-gray-700 mb-2" />
+            <span>المنتجات<br>المسترجعة</span>
+          </div>
+        </div>
+      </section>
 
-    <!-- Coupons shortcut next to points -->
-    <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
-      <div class="grid grid-cols-2 gap-3">
-        <a href="/points" class="block text-center py-2 rounded bg-gray-100 hover:bg-gray-200">نقاطي</a>
-        <a href="/coupons" class="block text-center py-2 rounded bg-gray-100 hover:bg-gray-200">كوبوناتي</a>
-      </div>
-    </div>
-
-    <!-- Stats Section -->
-    <div class="bg-white mx-4 mt-4 rounded-lg p-4 shadow-sm">
-      <div class="flex justify-between">
-        <div class="text-center">
-          <div class="text-2xl font-bold">{{ awaitingShip }}</div>
-          <div class="text-xs text-gray-600">بانتظار الشحن</div>
+      <!-- More Services -->
+      <section class="section-block">
+        <div class="section-header-row">
+          <span class="section-title">المزيد من الخدمات</span>
         </div>
-        <div class="text-center">
-          <div class="text-2xl font-bold">{{ points }}</div>
-          <div class="text-xs text-gray-600">نقاط</div>
-        </div>
-        <div class="text-center">
-          <div class="text-2xl font-bold">{{ cartCount }}</div>
-          <div class="text-xs text-gray-600">عربات</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="mx-4 mt-4">
-      <div class="text-sm text-gray-500 mb-3">الأوامر المحفوظة</div>
-      <div class="bg-white rounded-lg p-4 shadow-sm">
-        <div class="flex justify-between">
-          <button class="text-center" @click="go('/wishlist')">
-            <Heart class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">المنتجات المحفوظة</div>
-          </button>
-          <button class="text-center" @click="go('/orders')">
-            <Package class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">تتبع</div>
-          </button>
-          <button class="text-center" @click="go('/orders')">
-            <Truck class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">مركز الشحن</div>
-          </button>
-          <button class="text-center" @click="go('/orders')">
-            <CreditCard class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">في التحضير</div>
-          </button>
-          <button class="text-center" @click="go('/offers')">
-            <Gift class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">عرض مجاني</div>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- More Services -->
-    <div class="mx-4 mt-4">
-      <div class="text-sm font-medium mb-3">المزيد من الخدمات</div>
-      <div class="bg-white rounded-lg p-4 shadow-sm">
-        <div class="grid grid-cols-4 gap-4">
-          <button class="text-center" @click="go('/free')">
-            <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-              <span class="text-sm">مجاني</span>
+        <div class="services-grid">
+          <div class="service-item">
+            <Headphones class="w-6 h-6 text-gray-700 mb-2" />
+            <span>خدمة العملاء</span>
+          </div>
+          <div class="service-item">
+            <div class="relative">
+              <FileText class="w-6 h-6 text-gray-700 mb-2" />
+              <div class="badge-dot"></div>
             </div>
-            <div class="text-xs text-gray-600">مجاني</div>
-          </button>
-          <button class="text-center" @click="go('/camera')">
-            <Camera class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">كتب</div>
-          </button>
-          <button class="text-center" @click="go('/company')">
-            <Megaphone class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">شركة</div>
-          </button>
-          <button class="text-center" @click="go('/reviews')">
-            <FileText class="w-8 h-8 mx-auto mb-2 text-red-500" />
-            <div class="text-xs text-gray-600">مركز يستضيف الآراء</div>
-          </button>
-          <button class="text-center" @click="go('/support')">
-            <Headphones class="w-8 h-8 mx-auto mb-2 text-gray-600" />
-            <div class="text-xs text-gray-600">خدمة العملاء</div>
-          </button>
+            <span>مركز إستطلاعات<br>الرأي</span>
+          </div>
+          <div class="service-item">
+            <Megaphone class="w-6 h-6 text-gray-700 mb-2" />
+            <span>شركاء</span>
+          </div>
+          <div class="service-item">
+            <Store class="w-6 h-6 text-gray-700 mb-2" />
+            <span>متابع</span>
+          </div>
+          <div class="service-item" @click="go('/settings#info-section')">
+            <ShieldCheck class="w-6 h-6 text-gray-700 mb-2" />
+            <span>سياسة</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Tabs (Recently Viewed / Wishlist) - Separate Container -->
+    <section class="bottom-tabs-section">
+      <div class="tabs-header">
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'wishlist' }" 
+          @click="activeTab = 'wishlist'"
+        >
+          قائمة الأماني
+          <div class="active-line" v-if="activeTab === 'wishlist'"></div>
+        </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'recent' }" 
+          @click="activeTab = 'recent'"
+        >
+          شوهد مؤخراً
+          <div class="active-line" v-if="activeTab === 'recent'"></div>
+        </button>
+      </div>
+
+      <div class="tab-content">
+        <!-- Wishlist Empty State -->
+        <div v-if="activeTab === 'wishlist'" class="empty-state">
+          <div class="empty-icon">
+            <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+          </div>
+          <p>لم تقم بحفظ أي شيء مؤخراً.</p>
+          <button class="shop-btn" @click="go('/')">تسوق</button>
+        </div>
+
+        <!-- Recently Viewed Empty State -->
+        <div v-else-if="activeTab === 'recent'" class="empty-state">
+          <div class="empty-icon">
+            <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+          </div>
+          <p>ليس لديك سجل تصفح بعد</p>
         </div>
       </div>
-    </div>
-
-    <!-- Product Recommendation -->
-    <div class="mx-4 mt-4">
-      <div class="text-sm font-medium mb-3">تقييم الأسبوع</div>
-      <div class="bg-white rounded-lg overflow-hidden shadow-sm">
-        <img
-          src="https://csspicker.dev/api/image/?q=black+tank+top+jeans&image_type=photo"
-          alt="Product"
-          class="w-full h-48 object-cover"
-        />
-        <div class="p-3">
-          <div class="text-sm font-medium">SHEIN Privé قميص علوي ملائم جداً</div>
-          <div class="flex items-center justify-between mt-2">
-            <div class="text-orange-500 font-bold">₪18.40</div>
-            <div class="text-xs text-gray-500">₪23.00</div>
-          </div>
-          <div class="text-xs text-gray-500 mt-1">تم شراؤه من قبل 1000+ مشتري</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bottom Navigation -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
-      <div class="flex justify-around py-2">
-        <button class="text-center py-2" @click="go('/account')">
-          <User class="w-6 h-6 mx-auto mb-1 text-gray-600" />
-          <div class="text-xs text-gray-600">أنا</div>
-        </button>
-        <button class="text-center py-2 relative" @click="go('/cart')">
-          <ShoppingCart class="w-6 h-6 mx-auto mb-1 text-gray-600" />
-          <div class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">{{ cartCount }}</div>
-          <div class="text-xs text-gray-600">عربة</div>
-          <div class="bg-red-500 text-white text-xs px-2 py-1 rounded-full absolute -top-2 left-1/2 transform -translate-x-1/2">SAVE 10</div>
-        </button>
-        <button class="text-center py-2" @click="go('/ai')">
-          <div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-1">
-            <span class="text-white text-xs font-bold">AI</span>
-          </div>
-        </button>
-        <button class="text-center py-2" @click="go('/search')">
-          <Search class="w-6 h-6 mx-auto mb-1 text-gray-600" />
-          <div class="text-xs text-gray-600">البحث</div>
-        </button>
-        <button class="text-center py-2" @click="go('/')">
-          <Home class="w-6 h-6 mx-auto mb-1 text-gray-600" />
-          <div class="text-xs text-gray-600">الرئيسية</div>
-        </button>
-      </div>
-    </div>
+    </section>
 
     <div class="h-20"></div>
-  </main>
-  <GuestAccount v-else />
-  
+
+    <BottomNav active="account" />
+  </div>
 </template>
 
 <script setup lang="ts">
-import BottomNav from '@/components/BottomNav.vue'
-import GuestAccount from '@/components/account/GuestAccount.vue'
-import { computed, onMounted, ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
-import { apiGet, apiPost, isAuthenticated } from '@/lib/api'
-import { Settings, User, Heart, Package, Truck, CreditCard, Gift, Camera, Megaphone, FileText, Headphones, Search, Home, ShoppingCart } from 'lucide-vue-next'
-const props = defineProps<{ userName?: string }>()
-const user = useUser()
-const username = computed(()=> props.userName || user.username || 'jeeey')
+import BottomNav from '@/components/BottomNav.vue'
+import { 
+  Settings, MessageSquare, ChevronLeft, Gift, CreditCard, X, 
+  Package, Truck, RotateCcw, Headphones, FileText, Megaphone, 
+  Store, ShieldCheck
+} from 'lucide-vue-next'
+
 const router = useRouter()
-function go(path:string){ router.push(path) }
-function goToSettings(){ router.push('/settings') }
+const user = useUser()
+const activeTab = ref('wishlist')
 
-onMounted(async ()=>{
-  // Render immediately (no blocking skeleton)
-  try{
-    hydrated.value = true
-    // Optimistic UI: show account if token or cached profile exists
-    const cached = JSON.parse(localStorage.getItem('account_profile_cache') || 'null')
-    if (cached && cached.username){
-      user.isLoggedIn = true
-      user.username = String(cached.username)
-    } else if (isAuthenticated()){
-      user.isLoggedIn = true
-    } else {
-      user.isLoggedIn = false
-    }
-  }catch{ hydrated.value = true }
-  // Safety: legacy fallback (kept, but now redundant)
-  try{ setTimeout(()=>{ try{ if (!hydrated.value){ user.isLoggedIn = false; hydrated.value = true } }catch{} }, 2500) }catch{}
-  // Helpers
-  const getApexDomain = (): string | null => {
-    try{
-      const host = location.hostname // e.g., m.jeeey.com
-      if (host === 'localhost' || /^(\d+\.){3}\d+$/.test(host)) return null
-      const parts = host.split('.')
-      if (parts.length < 2) return null
-      const apex = parts.slice(-2).join('.')
-      return apex
-    }catch{ return null }
+const username = computed(() => user.username || 'jeeey')
+
+function go(path: string) {
+  // Protected routes that require login
+  const protectedRoutes = ['/coupons', '/wallet', '/points', '/giftcards', '/orders']
+  const isProtected = protectedRoutes.some(p => path.startsWith(p))
+
+  if (isProtected && !user.isLoggedIn) {
+    const ret = (typeof window !== 'undefined') ? (location.pathname + location.search) : '/account'
+    router.push({ path: '/login', query: { return: ret } })
+    return
   }
-  const writeCookie = (name: string, value: string): void => {
-    try{
-      const apex = getApexDomain()
-      const isHttps = typeof location !== 'undefined' && location.protocol === 'https:'
-      const sameSite = isHttps ? 'None' : 'Lax'
-      const secure = isHttps ? ';Secure' : ''
-      const domainPart = apex ? `;domain=.${apex}` : ''
-      document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60*60*24*30}${domainPart};SameSite=${sameSite}${secure}`
-    }catch{}
-  }
-  const meWithRetry = async (retries = 2): Promise<any|null> => {
-    for (let i=0;i<=retries;i++){
-      try{
-        const me = await apiGet<any>('/api/me?ts=' + Date.now())
-        if (me && me.user) return me
-      }catch{}
-      await new Promise(res=> setTimeout(res, 250))
-    }
-    return null
-  }
+  
+  router.push(path)
+}
 
-  try{
-    // Capture token from URL (OAuth callback) and persist cookies before requesting /api/me
-    const sp = new URLSearchParams(typeof window!=='undefined' ? location.search : '')
-    const t = sp.get('t') || ''
-    if (t) {
-      writeCookie('auth_token', t)
-      writeCookie('shop_auth_token', t)
-      try{ localStorage.setItem('shop_token', t) }catch{}
-      // Link analytics session to user immediately after setting token (fire-and-forget)
-      try{
-        let sid = localStorage.getItem('sid_v1') || ''
-        if (!sid){
-          try{
-            sid = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
-            localStorage.setItem('sid_v1', sid)
-          }catch{}
-        }
-        if (sid){ apiPost('/api/analytics/link', { sessionId: sid }) }
-      }catch{}
-      try{ const u = new URL(location.href); u.searchParams.delete('t'); history.replaceState(null,'',u.toString()) }catch{}
-    }
+function goToSettings() {
+  router.push('/settings')
+}
 
-    const me = await meWithRetry(2)
-    if (me && me.user) {
-      user.isLoggedIn = true
-      if (me.user.name || me.user.email || me.user.phone) {
-        user.username = String(me.user.name || me.user.email || me.user.phone)
-      }
-    // Profile incomplete? Keep user on Account; let Verify flow handle first-time redirection
-      try{ localStorage.setItem('account_profile_cache', JSON.stringify({ username: user.username })) }catch{}
-      hydrated.value = true
-      return
-    }
-  }catch{}
+function loginNow() {
+  router.push('/login')
+}
 
-  // If no user after retries: clear cookies and show guest account (no redirect)
-  try{
-    const clear = (name:string)=>{ document.cookie = `${name}=; Max-Age=0; path=/; domain=.jeeey.com; SameSite=None; Secure`; document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`; }
-    clear('shop_auth_token'); clear('auth_token')
-  }catch{}
-  user.isLoggedIn = false
-  hydrated.value = true
-  // Stay on guest account page; user can choose to login from the page CTA
+function joinClub() {
+  // Handle club join
+  console.log('Join club')
+}
+
+onMounted(() => {
+  // Ensure user state is checked (simplified for this view)
+  // In a real app, we might fetch updated stats here
 })
-
-const hydrated = ref(true)
 </script>
 
 <style scoped>
-.account{background:#f5f6f8;min-height:100dvh}
-.box{margin:0 12px}
-.account-loading{background:#f5f6f8;min-height:100dvh;display:flex;align-items:flex-start;justify-content:stretch}
+.account-page {
+  background-color: #F7F8FA;
+  min-height: 100vh;
+  font-family: 'DIN Next LT Arabic', sans-serif;
+}
+
+/* Header */
+.account-header {
+  background: #fff;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crown-badge {
+  background: #CCCCCC; /* Silver/Grey for S0 */
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.username {
+  font-weight: bold;
+  font-size: 16px;
+  color: #000;
+}
+
+.guest-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.login-text {
+  font-weight: bold;
+  font-size: 16px;
+  color: #000;
+}
+
+/* Content */
+.account-content {
+  padding-inline: 12px;
+  padding-block: 12px;
+}
+
+/* Club Card */
+.club-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid #f0f0f0;
+}
+
+.club-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.club-logo {
+  font-weight: bold;
+  color: #8B5D33; /* Bronze/Gold tone */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.club-icon {
+  border: 1px solid #8B5D33;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.club-status {
+  font-size: 12px;
+  color: #333;
+}
+
+.club-subtitle {
+  text-align: right;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.club-benefits {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.benefit-item {
+  flex: 1;
+  display: flex;
+  flex-col: column;
+  align-items: center;
+  text-align: center;
+  background: #FFFBF8;
+  padding: 8px 4px;
+  border-radius: 4px;
+}
+
+.benefit-divider {
+  width: 1px;
+  background: #eee;
+  margin: 0 4px;
+}
+
+.benefit-val {
+  font-size: 18px;
+  font-weight: bold;
+  color: #000;
+}
+
+.benefit-tag {
+  font-size: 10px;
+  color: #FF5722;
+  background: #FFEBE6;
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-bottom: 2px;
+  align-self: flex-end; /* Position like the image */
+  margin-right: 8px;
+}
+
+.benefit-desc {
+  font-size: 10px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.join-btn {
+  width: 100%;
+  background: #FFF0E5;
+  color: #D86E34;
+  border: none;
+  padding: 10px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.price {
+  font-weight: 800;
+}
+
+.old-price {
+  font-weight: normal;
+  text-decoration: line-through;
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+/* Stats Row */
+.stats-row {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 12px;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  flex: 1;
+}
+
+.stat-val {
+  font-size: 18px;
+  font-weight: bold;
+  color: #000;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #333;
+}
+
+/* Coupon Strip */
+.coupon-strip {
+  background: #FFF8E1;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #333;
+}
+
+.red-text {
+  color: #FF5722;
+  font-weight: bold;
+}
+
+.close-strip {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Section Block */
+.section-block {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+
+.section-title {
+  font-weight: bold;
+  font-size: 14px;
+  color: #000;
+}
+
+.section-more {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #999;
+}
+
+.orders-grid, .services-grid {
+  display: flex;
+  justify-content: space-between;
+  text-align: center;
+}
+
+.order-item, .service-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  flex: 1;
+}
+
+.order-item span, .service-item span {
+  font-size: 11px;
+  color: #333;
+  line-height: 1.3;
+}
+
+.badge-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  background: #FF5722;
+  border-radius: 50%;
+  border: 1px solid #fff;
+}
+
+/* Bottom Tabs */
+.bottom-tabs-section {
+  margin-top: 20px;
+  background: #fff !important;
+}
+
+.tabs-header {
+  display: flex;
+  background: #fff !important;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #999;
+  font-weight: bold;
+  padding: 12px 0;
+  position: relative;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tab-btn.active {
+  color: #000;
+}
+
+.active-line {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 3px;
+  background: #000;
+  border-radius: 2px;
+}
+
+.tab-content {
+  padding: 12px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #999;
+  font-size: 14px;
+}
+
+.empty-icon {
+  margin-bottom: 16px;
+}
+
+.shop-btn {
+  margin-top: 16px;
+  padding: 10px 32px;
+  background: transparent;
+  border: 1px solid #8a1538;
+  border-radius: 20px;
+  color: #8a1538;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.shop-btn:hover {
+  background: #8a1538;
+  color: #fff;
+}
 </style>
 

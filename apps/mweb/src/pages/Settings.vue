@@ -43,7 +43,7 @@
       </section>
 
       <!-- المعلومات -->
-      <section class="bg-white w-full">
+      <section id="info-section" class="bg-white w-full">
         <div class="px-4 py-2 border-b border-gray-200">
           <h2 class="text-[13px] font-semibold text-gray-900">المعلومات</h2>
         </div>
