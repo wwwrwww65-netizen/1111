@@ -69,6 +69,70 @@ shop.get('/auth/me', async (req: any, res) => {
   }
 });
 
+// -------- Auth: Wishlist (shop scope) --------
+shop.get('/auth/wishlist', async (req: any, res) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload) return res.status(401).json({ error: 'invalid_token' });
+
+    const items = await db.$queryRawUnsafe(
+      `SELECT p.id, p.name as title, p.price, p.images, p.image 
+       FROM "Wishlist" w
+       JOIN "Product" p ON w."productId" = p.id
+       WHERE w."userId" = $1
+       ORDER BY w."createdAt" DESC`,
+      payload.userId
+    );
+
+    // Normalize images for frontend
+    const formatted = (items as any[]).map(p => ({
+      id: p.id,
+      title: p.title,
+      price: p.price,
+      img: (Array.isArray(p.images) && p.images[0]) ? p.images[0] : (p.image || '')
+    }));
+
+    return res.json(formatted);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'wishlist_list_failed' });
+  }
+});
+
+shop.post('/auth/wishlist/toggle', async (req: any, res) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload) return res.status(401).json({ error: 'invalid_token' });
+
+    const { productId } = req.body || {};
+    if (!productId) return res.status(400).json({ error: 'missing_product_id' });
+
+    const exists: any[] = await db.$queryRawUnsafe(
+      `SELECT 1 FROM "Wishlist" WHERE "userId" = $1 AND "productId" = $2`,
+      payload.userId, productId
+    );
+
+    if (exists.length > 0) {
+      await db.$executeRawUnsafe(
+        `DELETE FROM "Wishlist" WHERE "userId" = $1 AND "productId" = $2`,
+        payload.userId, productId
+      );
+      return res.json({ added: false });
+    } else {
+      await db.$executeRawUnsafe(
+        `INSERT INTO "Wishlist" ("userId", "productId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        payload.userId, productId
+      );
+      return res.json({ added: true });
+    }
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'wishlist_toggle_failed' });
+  }
+});
+
 shop.post('/auth/logout', async (_req: any, res) => {
   try {
     clearShopCookies(res as unknown as Response);

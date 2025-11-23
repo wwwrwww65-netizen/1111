@@ -175,21 +175,99 @@
         </div>
 
         <div class="tab-content">
-          <!-- Wishlist Empty State -->
-          <div v-if="activeTab === 'wishlist'" class="empty-state">
-            <div class="empty-icon">
-              <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+          <!-- Wishlist Tab -->
+          <div v-if="activeTab === 'wishlist'">
+            <div v-if="wishlist.count > 0" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense px-1 pb-1">
+              <!-- Left Column -->
+              <div>
+                <div v-for="(p, i) in wishlistLeft" :key="p.id" class="mb-[6px]">
+                  <ProductGridCard
+                    class="border-t-0 border-b-0 border-l-0"
+                    :product="{
+                      id: p.id,
+                      title: p.title,
+                      images: [p.img],
+                      basePrice: p.price,
+                      discountPercent: 0
+                    }"
+                    :ratio="1.3"
+                    @add="addToCart"
+                  />
+                </div>
+              </div>
+              <!-- Right Column -->
+              <div>
+                <div v-for="(p, i) in wishlistRight" :key="p.id" class="mb-[6px]">
+                  <ProductGridCard
+                    class="border-t-0 border-b-0 border-l-0"
+                    :product="{
+                      id: p.id,
+                      title: p.title,
+                      images: [p.img],
+                      basePrice: p.price,
+                      discountPercent: 0
+                    }"
+                    :ratio="1.3"
+                    @add="addToCart"
+                  />
+                </div>
+              </div>
             </div>
-            <p>لم تقم بحفظ أي شيء مؤخراً.</p>
-            <button class="shop-btn" @click="go('/')">تسوق</button>
+            <!-- Empty State -->
+            <div v-else class="empty-state">
+              <div class="empty-icon">
+                <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+              </div>
+              <p>لم تقم بحفظ أي شيء مؤخراً.</p>
+              <button class="shop-btn" @click="go('/')">تسوق</button>
+            </div>
           </div>
 
-          <!-- Recently Viewed Empty State -->
-          <div v-else-if="activeTab === 'recent'" class="empty-state">
-            <div class="empty-icon">
-              <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+          <!-- Recently Viewed Tab -->
+          <div v-else-if="activeTab === 'recent'">
+            <div v-if="recent.count > 0" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense px-1 pb-1">
+              <!-- Left Column -->
+              <div>
+                <div v-for="(p, i) in recentLeft" :key="p.id" class="mb-[6px]">
+                  <ProductGridCard
+                    class="border-t-0 border-b-0 border-l-0"
+                    :product="{
+                      id: p.id,
+                      title: p.title,
+                      images: [p.img],
+                      basePrice: p.price,
+                      discountPercent: p.discountPercent || 0
+                    }"
+                    :ratio="1.3"
+                    @add="addToCart"
+                  />
+                </div>
+              </div>
+              <!-- Right Column -->
+              <div>
+                <div v-for="(p, i) in recentRight" :key="p.id" class="mb-[6px]">
+                  <ProductGridCard
+                    class="border-t-0 border-b-0 border-l-0"
+                    :product="{
+                      id: p.id,
+                      title: p.title,
+                      images: [p.img],
+                      basePrice: p.price,
+                      discountPercent: p.discountPercent || 0
+                    }"
+                    :ratio="1.3"
+                    @add="addToCart"
+                  />
+                </div>
+              </div>
             </div>
-            <p>ليس لديك سجل تصفح بعد</p>
+            <!-- Empty State -->
+            <div v-else class="empty-state">
+              <div class="empty-icon">
+                <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+              </div>
+              <p>ليس لديك سجل تصفح بعد</p>
+            </div>
           </div>
         </div>
       </section>
@@ -205,7 +283,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
+import { useWishlist } from '@/store/wishlist'
+import { useRecent } from '@/store/recent'
+import { useCart } from '@/store/cart'
 import BottomNav from '@/components/BottomNav.vue'
+import ProductGridCard from '@/components/ProductGridCard.vue'
 import { 
   Settings, MessageSquare, ChevronLeft, Gift, CreditCard, X, 
   Package, Truck, RotateCcw, Headphones, FileText, Megaphone, 
@@ -214,9 +296,35 @@ import {
 
 const router = useRouter()
 const user = useUser()
+const wishlist = useWishlist()
+const recent = useRecent()
+const cart = useCart()
 const activeTab = ref('wishlist')
 
 const username = computed(() => user.username || 'jeeey')
+
+// Split logic for 2-column grid
+const wishlistLeft = computed(() => wishlist.items.filter((_, i) => i % 2 === 0))
+const wishlistRight = computed(() => wishlist.items.filter((_, i) => i % 2 === 1))
+
+const recentLeft = computed(() => recent.list.filter((_, i) => i % 2 === 0))
+const recentRight = computed(() => recent.list.filter((_, i) => i % 2 === 1))
+
+function addToCart(id: string) {
+  // Try to find in wishlist or recent
+  const wItem = wishlist.items.find(i => i.id === id)
+  const rItem = recent.items.find(i => i.id === id)
+  const item = wItem || rItem
+  
+  if (item) {
+    cart.add({
+      id: item.id,
+      title: item.title,
+      price: item.price,
+      img: item.img
+    }, 1)
+  }
+}
 
 function go(path: string) {
   // Protected routes that require login
@@ -248,6 +356,10 @@ function joinClub() {
 onMounted(() => {
   // Check auth state on mount to ensure UI reflects login status
   user.checkAuth()
+  // Sync wishlist if logged in
+  if (user.isLoggedIn) {
+    wishlist.sync()
+  }
 })
 </script>
 
@@ -521,6 +633,7 @@ onMounted(() => {
   color: #999;
 }
 
+/* Orders & Services Grid */
 .orders-grid, .services-grid {
   display: flex;
   justify-content: space-between;
