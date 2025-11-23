@@ -2135,8 +2135,26 @@ shop.get('/categories', async (req, res) => {
 
     // Use robust raw SQL that tolerates missing columns in legacy DBs
     const params: any[] = [];
-    let where = '';
-    if (search) { params.push(`%${search}%`); where = `WHERE name ILIKE $${params.length}`; }
+    let whereParts: string[] = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      whereParts.push(`name ILIKE $${params.length}`);
+    }
+
+    // Handle parentId filter
+    if (req.query.parentId !== undefined) {
+      const pid = String(req.query.parentId).trim();
+      if (pid === 'null' || pid === '') {
+        whereParts.push(`"parentId" IS NULL`);
+      } else {
+        params.push(pid);
+        whereParts.push(`"parentId" = $${params.length}`);
+      }
+    }
+
+    const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+
     params.push(limit);
     const rows: any[] = await db.$queryRawUnsafe(
       `SELECT id,
@@ -2346,6 +2364,50 @@ shop.get('/coupons/by-codes', async (req: any, res) => {
     return res.json({ coupons: mapped });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || 'coupons_lookup_failed' });
+  }
+});
+
+// Public: Trending search terms (Global or by Category)
+shop.get('/search/trending', async (req, res) => {
+  try {
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit || 10)));
+    const categoryId = String(req.query.categoryId || '').trim();
+
+    // Build SQL conditions
+    let categoryCondition = '';
+    const params: any[] = [];
+
+    if (categoryId) {
+      params.push(categoryId);
+      categoryCondition = `AND properties->>'categoryId' = $${params.length}`;
+    }
+
+    params.push(limit);
+    const limitParamIndex = params.length;
+
+    // Aggregate search events
+    // We look for events named 'search' and extract the 'query' property
+    const rows: any[] = await db.$queryRawUnsafe(`
+      SELECT properties->>'query' as term, COUNT(*) as count
+      FROM "Event"
+      WHERE name = 'search'
+        AND properties->>'query' IS NOT NULL
+        AND length(properties->>'query') > 1
+        ${categoryCondition}
+      GROUP BY 1
+      ORDER BY count DESC
+      LIMIT $${limitParamIndex}
+    `, ...params);
+
+    const terms = rows.map(r => r.term).filter(Boolean);
+
+    // Cache for a short period as this is analytics heavy
+    setPublicCache(res, 60, 300);
+
+    return res.json({ terms });
+  } catch (e) {
+    console.error('Trending search failed:', e);
+    return res.status(500).json({ error: 'trending_failed', terms: [] });
   }
 });
 

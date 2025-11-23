@@ -160,20 +160,12 @@
 import ProductCard from '@/components/ProductCard.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { API_BASE, apiGet } from '@/lib/api'
+import { API_BASE, apiGet, apiPost } from '@/lib/api'
 import { fmtPrice } from '@/lib/currency'
 
 const router = useRouter()
 const route = useRoute()
 const q = ref('')
-// ... (rest of the file)
-
-onMounted(() => {
-  if (route.query.q) {
-    q.value = String(route.query.q)
-  }
-  fetchCategories()
-})
 const searchInput = ref<HTMLInputElement|null>(null)
 const isFocused = ref(false)
 const searched = ref(false)
@@ -181,7 +173,7 @@ const items = ref<any[]>([])
 const placeholder = 'فساتين نسائية سهره فخمه'
 
 // History
-const historyList = ref<string[]>(['دفاتر مدرسيه عربي', 'عطر نسائي', 'معاطف'])
+const historyList = ref<string[]>([])
 const showAllHistory = ref(false)
 const maxHistory = 10
 const visibleHistory = computed(() => showAllHistory.value ? historyList.value : historyList.value.slice(0, maxHistory))
@@ -208,6 +200,8 @@ watch(q, (newVal) => {
     return
   }
   debounceTimer = setTimeout(async () => {
+    // Use the new trending endpoint for suggestions if needed, or keep mock for now
+    // For better UX, we could implement a specific suggestion endpoint later
     const mock = ['فستان', 'فستان سهرة', 'فستان طويل', 'فستان احمر', 'فستان زفاف', 'فستان صيفي']
     suggestions.value = mock.filter(s => s.includes(newVal.trim())).slice(0, 10)
   }, 150)
@@ -219,93 +213,98 @@ function highlightMatch(text: string) {
 }
 
 // Trending Data
-// Trending Data
 const trendingGroups = ref<Array<{ title: string; items: any[] }>>([])
+const discoverTags = ref<string[]>([])
 
-// Mock dictionary for "Top Search Terms" per category
-// In a real app, this would come from an endpoint like /api/analytics/trending?category=...
-const mockTerms: Record<string, string[]> = {
-  'نساء': ['فستان', 'فستان سهرة', 'بلايز', 'تنورة', 'عباية', 'حقائب', 'أحذية كعب', 'مجوهرات', 'ملابس نوم', 'لانجري'],
-  'رجال': ['تي شيرت', 'قميص', 'بنطلون جينز', 'حذاء رياضي', 'جاكيت', 'ساعة يد', 'شورت', 'ملابس داخلية', 'بدلة رسمية', 'نظارات شمسية'],
-  'أطفال': ['ملابس بنات', 'ملابس أولاد', 'ألعاب', 'أحذية أطفال', 'فساتين بنات', 'طقم ولادي', 'حقيبة مدرسية', 'بيجامات', 'ملابس رضيع', 'اكسسوارات شعر'],
-  'منزل': ['ديكور', 'أدوات مطبخ', 'إضاءة', 'مفارش سرير', 'تنظيم', 'أدوات حمام', 'سجاد', 'لوحات', 'شموع', 'أواني'],
-  'تجميل': ['مكياج', 'أحمر شفاه', 'عطور', 'عناية بالبشرة', 'فرش مكياج', 'عدسات', 'طلاء أظافر', 'ماسك', 'سيروم', 'رموش'],
-  'default': ['منتج مميز', 'عرض خاص', 'الأكثر مبيعاً', 'جديدنا', 'تخفيضات', 'موضة الموسم', 'هدايا', 'اكسسوارات', 'شنط', 'أحذية']
-}
-
-function getTermsForCategory(catName: string): any[] {
-  // Try to find matching terms by checking if category name contains key words
-  let terms = mockTerms['default']
-  for (const key in mockTerms) {
-    if (catName.includes(key) || (key === 'نساء' && (catName.includes('women') || catName.includes('حريمي')))) {
-      terms = mockTerms[key]
-      break
-    }
+async function fetchTrendingTerms(categoryId?: string, limit = 10): Promise<string[]> {
+  try {
+    const url = categoryId 
+      ? `/api/search/trending?limit=${limit}&categoryId=${categoryId}`
+      : `/api/search/trending?limit=${limit}`
+    const data = await apiGet<{ terms: string[] }>(url)
+    return data?.terms || []
+  } catch (e) {
+    console.error('Failed to fetch trending:', e)
+    return []
   }
-  
-  // Map to item structure
-  return terms.map(t => ({ title: t, tag: Math.random() > 0.7 ? 'HOT' : '', tagType: 'hot' }))
 }
 
 async function fetchCategories() {
   try {
-    // Fetch main categories (top level)
-    const data = await apiGet<any>('/api/categories?limit=10&parentId=null') // Assuming parentId=null gets top level
+    // 1. Fetch Global Trending for "Discover" section
+    const globalTerms = await fetchTrendingTerms(undefined, 10)
+    if (globalTerms.length) {
+      discoverTags.value = globalTerms
+    } else {
+      // Fallback if no analytics yet
+      discoverTags.value = ['فستان', 'هودي', 'ساعة', 'حقيبة', 'حذاء']
+    }
+
+    // 2. Fetch Top Categories and their trending terms
+    const data = await apiGet<any>('/api/categories?limit=10&parentId=null')
     let cats = []
-    
     if (data && Array.isArray(data.categories)) {
        cats = data.categories
     } else if (Array.isArray(data)) {
        cats = data
     }
 
-    // If no categories found (or API fails), fallback to static list to ensure UI isn't empty
     if (cats.length === 0) {
       cats = [
-        { name: 'نساء' }, { name: 'رجال' }, { name: 'أطفال' }, { name: 'منزل' }
+        { name: 'نساء', id: '' }, { name: 'رجال', id: '' }, { name: 'أطفال', id: '' }, { name: 'منزل', id: '' }
       ]
     }
 
-    // Sort categories by popularity (Manual priority for now)
+    // Sort categories by popularity
     const priority = ['نساء', 'women', 'رجال', 'men', 'أطفال', 'kids', 'تجميل', 'beauty', 'منزل', 'home']
     cats.sort((a: any, b: any) => {
       const aName = (a.name || '').toLowerCase()
       const bName = (b.name || '').toLowerCase()
       const aIdx = priority.findIndex(p => aName.includes(p))
       const bIdx = priority.findIndex(p => bName.includes(p))
-      
-      // If both found, lower index (higher priority) comes first
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx
-      // If only a found, a comes first
       if (aIdx !== -1) return -1
-      // If only b found, b comes first
       if (bIdx !== -1) return 1
       return 0
     })
 
-    // Build trending groups from categories
-    trendingGroups.value = cats.slice(0, 5).map((c: any) => ({
-      title: c.name || 'عام',
-      items: getTermsForCategory(c.name || '')
+    // Take top 5 categories
+    const topCats = cats.slice(0, 5)
+    
+    // Fetch trending terms for each category in parallel
+    const groups = await Promise.all(topCats.map(async (c: any) => {
+      const terms = await fetchTrendingTerms(c.id, 10)
+      // If no terms found for this category (cold start), use a generic fallback or skip
+      // For now, we'll show empty if no data to encourage searching
+      return {
+        title: c.name || 'عام',
+        items: terms.map(t => ({ title: t, tag: '', tagType: '' }))
+      }
     }))
+
+    // Filter out groups with no items to avoid empty sections? 
+    // User wants 5 lists, so we keep them even if empty? 
+    // Better to show them. If empty, maybe show "No trends yet" or fallback?
+    // Let's use a fallback if empty to ensure UI looks good initially
+    trendingGroups.value = groups.map((g, i) => {
+      if (g.items.length === 0) {
+        // Temporary fallback until data accumulates
+        const fallback = ['جديد', 'عرض', 'تخفيضات', 'مميز']
+        return { ...g, items: fallback.map(t => ({ title: t, tag: '', tagType: '' })) }
+      }
+      return g
+    })
 
   } catch (e) {
     console.error('Failed to fetch categories for trending:', e)
-    // Fallback
-    trendingGroups.value = [
-      { title: 'نساء', items: getTermsForCategory('نساء') },
-      { title: 'رجال', items: getTermsForCategory('رجال') }
-    ]
   }
 }
 
-const discoverTags = ['البلاك فرايدي', 'عرض ضخم من Dazy Kids', 'هودي', 'كفر ايفون', 'العاب', 'فستان', 'اظافر', 'جاكيت', 'كفرات', 'فساتين نسائيه انيقه']
-
 function getRankColor(index: number) {
   if (index === 0) return '#FFD700' // Gold
-  if (index === 1) return '#C0C0C0' // Silver
-  if (index === 2) return '#CD7F32' // Bronze
-  return '#E0E0E0' // Grey
+  if (index === 1) return '#B39DDB' // Light Purple
+  if (index === 2) return '#CD7F32' // Bronze (Reverted)
+  return '#C0C0C0' // Silver (Previous Rank 2)
 }
 
 function getRankTagClass(type: string) {
@@ -336,18 +335,37 @@ function openImagePicker() {
 }
 
 async function runSearch() {
-  if (!q.value.trim()) return
+  const term = q.value.trim()
+  if (!term) return
+  
   searched.value = true
   suggestions.value = []
-  saveHistory(q.value.trim())
+  saveHistory(term)
   
-  router.push({ path: '/search/result', query: { q: q.value.trim() } })
+  // Log search event for analytics (fire and forget)
+  // We try to infer category context if possible, but usually search is global
+  // If we were in a category page, we'd pass that ID. Here we are global.
+  apiPost('/events', {
+    name: 'search',
+    properties: { query: term }
+  }).catch(() => {})
+
+  router.push({ path: '/search/result', query: { q: term } })
 }
 
 onMounted(() => {
   if (route.query.q) {
     q.value = String(route.query.q)
   }
+  
+  // Load history from local storage
+  try {
+    const saved = localStorage.getItem('search_history')
+    if (saved) {
+      historyList.value = JSON.parse(saved)
+    }
+  } catch {}
+
   fetchCategories()
 })
 </script>
@@ -401,7 +419,7 @@ onMounted(() => {
 
 /* Oval Search Button */
 .search-icon-btn {
-  background: #222;
+  background: #8a1538;
   border-radius: 16px; /* Oval shape */
   width: 44px; /* Adjusted width */
   height: 30px; /* Adjusted height */
