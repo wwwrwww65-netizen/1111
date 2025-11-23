@@ -246,8 +246,8 @@ function joinClub() {
 }
 
 onMounted(() => {
-  // Ensure user state is checked (simplified for this view)
-  // In a real app, we might fetch updated stats here
+  // Check auth state on mount to ensure UI reflects login status
+  user.checkAuth()
 })
 </script>
 
@@ -556,6 +556,7 @@ onMounted(() => {
 .bottom-tabs-section {
   margin-top: 20px;
   background: #fff !important;
+  margin-inline: -12px; /* Compensate for parent padding */
 }
 
 .tabs-header {
