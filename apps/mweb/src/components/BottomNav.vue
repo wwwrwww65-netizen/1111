@@ -1,17 +1,24 @@
 <template>
   <div class="bottom-nav-container">
     <nav class="nav-content">
-      <!-- Home (Right in RTL) - Custom icon matching reference -->
+      <!-- Home (Right in RTL) -->
       <RouterLink to="/" class="nav-item home-item" :class="{ active: active === 'home' }">
-        <svg class="icon home-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1h3a1 1 0 001-1V10" />
+        <svg class="icon home-icon" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 10 L12 3 L21 10 V21 H15 V14 H9 V21 H3 Z" />
         </svg>
         <span class="label">الرئيسية</span>
       </RouterLink>
 
       <!-- Categories -->
-      <RouterLink to="/categories" class="nav-item" :class="{ active: active === 'categories' }">
-        <LayoutList class="icon" stroke-width="1.5" />
+      <RouterLink to="/categories" class="nav-item categories-item" :class="{ active: active === 'categories' }">
+        <svg class="icon categories-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6H21" />
+          <path d="M3 11H10" />
+          <path d="M3 16H10" />
+          <path d="M3 21H10" />
+          <circle cx="16.5" cy="16.5" r="4.5" />
+          <path d="M19.5 19.5L22 22" />
+        </svg>
         <span class="label">الفئات</span>
       </RouterLink>
 
@@ -48,7 +55,7 @@
 import { useCart } from '@/store/cart'
 import { storeToRefs } from 'pinia'
 import { RouterLink } from 'vue-router'
-import { LayoutList, ShoppingCart, User } from 'lucide-vue-next'
+import { ShoppingCart, User } from 'lucide-vue-next'
 
 defineProps<{ active?: 'home'|'categories'|'new'|'cart'|'account' }>()
 const cart = useCart()
@@ -98,6 +105,15 @@ const { count } = storeToRefs(cart)
   fill: none;
 }
 
+.home-icon {
+  fill: none;
+}
+
+.home-item.active .home-icon {
+  fill: #8a1538 !important;
+  stroke: #8a1538 !important;
+}
+
 .label {
   font-size: 9px;
   font-weight: 400;
@@ -112,6 +128,14 @@ const { count } = storeToRefs(cart)
 
 .nav-item.active .label {
   font-weight: 700;
+}
+
+/* Categories Icon Specific Styles */
+.categories-item.active .categories-icon {
+  fill: none !important;
+  stroke-width: 2.5 !important; /* Thicker stroke */
+  transform: scale(1.1); /* Slightly bigger */
+  transition: transform 0.2s ease;
 }
 
 /* Center Button */
