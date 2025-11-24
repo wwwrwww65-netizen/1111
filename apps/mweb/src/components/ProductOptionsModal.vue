@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-[70] overscroll-contain" dir="rtl">
+  <div class="fixed inset-0 z-[110] overscroll-contain" dir="rtl">
     <!-- خلفية -->
     <button
       class="absolute inset-0 bg-black/40"
