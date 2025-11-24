@@ -581,7 +581,9 @@ onMounted(async () => {
     // Fetch coupons (owned/eligible)
     try {
       const res = await apiGet<any>('/api/me/coupons')
-      const list = res?.items || res?.coupons || []
+      const items = Array.isArray(res?.items) ? res.items : []
+      const coupons = Array.isArray(res?.coupons) ? res.coupons : []
+      const list = [...items, ...coupons]
       if (Array.isArray(list)) {
         // Filter for valid (unused/not expired) coupons to match Coupons page logic
         const now = Date.now()

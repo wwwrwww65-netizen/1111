@@ -135,33 +135,7 @@
       </div>
     </template>
 
-    <nav v-if="layoutShowBottomNav" class="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-50" aria-label="التنقل السفلي">
-      <div class="w-screen px-3 flex justify-around py-2" dir="rtl">
-        <button class="w-16 text-center" aria-label="الرئيسية" @click="go('/')">
-          <Home :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">الرئيسية</div>
-        </button>
-        <button class="w-16 text-center" aria-label="الفئات" @click="go('/categories')">
-          <LayoutGrid :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">الفئات</div>
-        </button>
-        <button class="w-16 text-center" aria-label="جديد/بحث" @click="go('/search')">
-          <Search :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">جديد</div>
-        </button>
-        <button class="w-16 text-center" aria-label="الحقيبة" @click="go('/cart')">
-          <div class="relative inline-block">
-            <ShoppingBag :size="24" class="mx-auto mb-1 text-gray-600" />
-            <span v-if="cart.count>0" class="absolute -top-1 right-1/2 translate-x-1/2 bg-red-500 text-white rounded-full min-w-[16px] h-4 leading-4 text-[10px] px-1 border border-white">{{ cart.count }}</span>
-          </div>
-          <div class="text-[11px] text-gray-700">الحقيبة</div>
-        </button>
-        <button class="w-16 text-center" aria-label="حسابي" @click="go('/account')">
-          <User :size="24" class="mx-auto mb-1 text-gray-600" />
-          <div class="text-[11px] text-gray-700">حسابي</div>
-        </button>
-      </div>
-    </nav>
+    <BottomNav v-if="layoutShowBottomNav" active="home" />
 
     <!-- Options Modal for For You cards -->
     <ProductOptionsModal
@@ -194,6 +168,7 @@ import ProductCarouselBlock from '@/components/blocks/ProductCarouselBlock.vue'
 import CategoriesBlock from '@/components/blocks/CategoriesBlock.vue'
 import MasonryForYouBlock from '@/components/blocks/MasonryForYouBlock.vue'
 import ProductOptionsModal from '../components/ProductOptionsModal.vue'
+import BottomNav from '@/components/BottomNav.vue'
 import { fmtPrice } from '@/lib/currency'
 import { buildCdnThumb } from '@/lib/cdn'
 
